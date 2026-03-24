@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Bulletin de Paie</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 20px;
+            font-size: 9pt;
+            color: #333;
+            line-height: 1.4;
+        }
+
+        h1 {
+            color: #003366;
+            background-color: #f0f4f8;
+            padding: 15px;
+            margin: -20px -20px 20px -20px;
+            text-align: center;
+            font-size: 14pt;
+            border-bottom: 3px solid #003366;
+        }
+
+        h2 {
+            color: #003366;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 8px;
+            margin-top: 20px;
+            margin-bottom: 15px;
+            font-size: 11pt;
+        }
+
+        h3.sub-header {
+            color: #666;
+            font-size: 10pt;
+            margin-top: 15px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+        }
+
+        hr {
+            border: none;
+            border-top: 2px solid #003366;
+            margin: 25px 0;
+        }
+
+        /* --- En-tête avec informations entreprise/salarié --- */
+
+        #info-generales {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            border: 2px solid #003366;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        #info-entreprise, #info-salarie {
+            width: 48%;
+            padding: 15px;
+        }
+
+        #info-entreprise {
+            background-color: #f8f9fa;
+            border-right: 2px solid #003366;
+        }
+
+        #info-salarie {
+            background-color: #ffffff;
+        }
+
+        #info-entreprise h2, #info-salarie h2 {
+            color: #003366;
+            font-size: 10pt;
+            margin: 0 0 10px 0;
+            border: none;
+            padding: 0;
+        }
+
+        .company-name, .employee-name {
+            font-weight: bold;
+            font-size: 10pt;
+            margin: 5px 0;
+        }
+
+        .company-info, .employee-info {
+            font-size: 8pt;
+            color: #666;
+            margin: 3px 0;
+        }
+
+        /* --- Tables --- */
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            margin-bottom: 15px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 6px 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        thead {
+            background-color: #003366;
+            color: white;
+            font-weight: bold;
+            font-size: 8.5pt;
+        }
+
+        thead th {
+            border: 1px solid #002244;
+        }
+
+        tbody tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+
+        /* --- Classes de style pour les cellules et lignes --- */
+
+        .numerique {
+            text-align: right;
+            font-family: 'Courier New', monospace;
+        }
+
+        .libelle {
+            width: 40%;
+        }
+
+        .gain {
+            color: #047857;
+            font-weight: 500;
+        }
+
+        .perte {
+            color: #dc2626;
+            font-weight: 500;
+        }
+
+        .subtotal-row {
+            background-color: #e0e7ef !important;
+            border-top: 2px solid #003366;
+            border-bottom: 1px solid #003366;
+            font-weight: bold;
+        }
+
+        .total-row {
+            background-color: #d1dce5 !important;
+            border-top: 2px solid #003366;
+            border-bottom: 2px solid #003366;
+            font-weight: bold;
+            font-size: 9.5pt;
+        }
+
+        .info-row {
+            background-color: #fef3c7;
+            font-style: italic;
+        }
+
+        /* --- Tables spéciales --- */
+
+        .primes-table thead {
+            background-color: #047857;
+        }
+
+        /* --- Section des résultats finaux --- */
+
+        #resultat-final {
+            margin-top: 15px;
+            float: right;
+            width: 48%;
+            border: 2px solid #003366;
+            border-radius: 6px;
+            padding: 10px 12px;
+            background-color: #f8f9fa;
+        }
+
+        #resultat-final p {
+            display: flex;
+            justify-content: space-between;
+            margin: 4px 0;
+            padding: 3px 0;
+            border-bottom: 1px dotted #ccc;
+            font-size: 8.5pt;
+        }
+
+        #resultat-final h2.net-a-payer {
+            font-size: 12pt;
+            background-color: #047857;
+            color: white;
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            border: none;
+            border-radius: 4px;
+            margin: 8px -4px;
+        }
+
+        .total-employeur {
+            font-style: italic;
+            font-size: 7.5pt;
+            color: #666;
+            border: none !important;
+            padding-top: 6px;
+            margin-top: 4px;
+        }
+
+        /* --- Section cumuls annuels --- */
+
+        #cumuls-annuels {
+            clear: both;
+            margin-top: 20px;
+            padding: 10px 12px;
+            background: linear-gradient(135deg, #fef9e7 0%, #fff8dc 100%);
+            border: 2px solid #f59e0b;
+            border-radius: 6px;
+            page-break-before: avoid;
+        }
+
+        #cumuls-annuels h2 {
+            color: #d97706;
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 10pt;
+            border-bottom: 2px solid #f59e0b;
+            padding-bottom: 6px;
+        }
+
+        .cumuls-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 0;
+        }
+
+        .cumul-card {
+            background-color: white;
+            border: 1px solid #fbbf24;
+            border-radius: 4px;
+            padding: 8px 10px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(245, 158, 11, 0.08);
+        }
+
+        .cumul-label {
+            font-size: 7pt;
+            color: #92400e;
+            font-weight: bold;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.2px;
+            line-height: 1.2;
+        }
+
+        .cumul-value {
+            font-size: 9.5pt;
+            font-weight: bold;
+            color: #1e3a8a;
+            font-family: 'Courier New', monospace;
+        }
+
+        .cumul-value.cumul-hours {
+            color: #047857;
+        }
+
+        /* --- Section Primes et Notes de Frais --- */
+
+        #primes-non-soumises, #notes-de-frais {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Bulletin de Paie - {{ en_tete.periode }}</h1>
+        {% if manually_edited %}
+        <div class="edit-indicator">
+            <p style="color: #d97706; font-weight: bold; text-align: center; padding: 8px; background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 4px; margin: 10px 0;">
+                ⚠️ Ce bulletin a été modifié manuellement{% if edited_at %} le {{ edited_at }}{% endif %}
+            </p>
+        </div>
+        {% endif %}
+    </header>
+
+    <section id="info-generales">
+        <div id="info-entreprise">
+            <h2>Entreprise</h2>
+            <p class="company-name">{{ en_tete.entreprise.raison_sociale }}</p>
+            <p class="company-info">SIRET : {{ en_tete.entreprise.siret }}</p>
+            {% if en_tete.entreprise.adresse %}
+            <p class="company-info">{{ en_tete.entreprise.adresse.rue }}</p>
+            <p class="company-info">{{ en_tete.entreprise.adresse.code_postal }} {{ en_tete.entreprise.adresse.ville }}</p>
+            {% endif %}
+        </div>
+        <div id="info-salarie">
+            <h2>Salarié</h2>
+            <p class="employee-name">{{ en_tete.salarie.nom_complet }}</p>
+            <p class="employee-info">Emploi : {{ en_tete.salarie.emploi }}</p>
+            {% if en_tete.salarie.statut %}
+            <p class="employee-info">Statut : {{ en_tete.salarie.statut }}</p>
+            {% endif %}
+            {% if en_tete.salarie.nir %}
+            <p class="employee-info">NIR : {{ en_tete.salarie.nir }}</p>
+            {% endif %}
+        </div>
+    </section>
+    
+    <hr>
+    
+    {% if details_conges %}
+    <section id="detail-conges">
+        <h2>Indemnité de Congés Payés</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th class="libelle">Libellé</th>
+                    <th class="numerique">Base / Qté</th>
+                    <th class="numerique">Taux</th>
+                    <th class="numerique">Gains</th>
+                    <th class="numerique">Retenues</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ligne in details_conges %}
+                <tr>
+                    <td class="libelle">{{ ligne.libelle }}</td>
+                    <td class="numerique">{{ "%.2f"|format(ligne.quantite) if ligne.quantite is not none else '' }}</td>
+                    <td class="numerique">{{ "%.4f"|format(ligne.taux) if ligne.taux is not none else '' }}</td>
+                    <td class="numerique">{{ "%.2f"|format(ligne.gain) if ligne.gain is not none else '' }} €</td>
+                    <td class="numerique">{{ "%.2f"|format(ligne.perte) if ligne.perte is not none else '' }} €</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    {% endif %}
+    <section id="detail-brut">
+        <h2>Rémunération Brute</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th class="libelle">Libellé</th>
+                    <th class="numerique">Base / Qté</th>
+                    <th class="numerique">Taux</th>
+                    <th class="numerique">Gains</th>
+                    <th class="numerique">Retenues</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ligne in calcul_du_brut %}
+                
+                {% if ligne.is_sous_total %}
+                <tr class="subtotal-row">
+                    <td class="libelle"><strong>{{ ligne.libelle }}</strong></td>
+                    <td class="numerique"><strong>{{ "%.2f"|format(ligne.quantite) if ligne.quantite is not none else '' }}</strong></td>
+                    <td></td>
+                    <td class="numerique"><strong>{{ "%.2f"|format(ligne.gain) if ligne.gain is not none else '' }} €</strong></td>
+                    <td></td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td class="libelle">{{ ligne.libelle }}</td>
+                    <td class="numerique">{{ "%.2f"|format(ligne.quantite) if ligne.quantite is not none else '' }}</td>
+                    <td class="numerique">{{ "%.4f"|format(ligne.taux) if ligne.taux is not none else '' }}</td>
+                    <td class="numerique">{{ "%.2f"|format(ligne.gain) if ligne.gain is not none else '' }} €</td>
+                    <td class="numerique">{{ "%.2f"|format(ligne.perte) if ligne.perte is not none else '' }} €</td>
+                </tr>
+                {% endif %}
+
+                {% endfor %}
+
+                {% if arbitrage_conges %}
+                <tr class="info-row">
+                    <td colspan="5">
+                        <em>{{ arbitrage_conges }}</em>
+                    </td>
+                </tr>
+                {% endif %}
+                {% if details_absences %}
+                    {% for ligne in details_absences %}
+                    <tr>
+                        <td class="libelle">{{ ligne.libelle }}</td>
+                        <td class="numerique">{{ "%.2f"|format(ligne.quantite) if ligne.quantite is not none else '' }}</td>
+                        <td class="numerique">{{ "%.4f"|format(ligne.taux) if ligne.taux is not none else '' }}</td>
+                        <td class="numerique">{{ "%.2f"|format(ligne.gain) if ligne.gain is not none else '' }} €</td>
+                        <td class="numerique">{{ "%.2f"|format(ligne.perte) if ligne.perte is not none else '' }} €</td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
+                <tr class="total-row">
+                    <td class="libelle" colspan="3"><strong>Total Salaire Brut</strong></td>
+                    <td class="numerique"><strong>{{ "%.2f"|format(salaire_brut) }} €</strong></td>
+                    <td></td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+    
+    <section id="cotisations">
+        <h2>Détail des Cotisations et Contributions</h2>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th class="libelle">Santé, Retraite, Chômage...</th>
+                    <th class="numerique">Base</th>
+                    <th class="numerique">Taux Sal.</th>
+                    <th class="numerique">Montant Sal.</th>
+                    <th class="numerique">Taux Pat.</th>
+                    <th class="numerique">Montant Pat.</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ligne in structure_cotisations.bloc_principales %}
+                <tr>
+                    <td class="libelle">{{ ligne.libelle }}</td>
+                    <td class="numerique">{% if ligne.base is not none %}{{ "%.2f"|format(ligne.base) }} €{% endif %}</td>
+                    <td class="numerique">{% if ligne.taux_salarial is not none %}{{ "%.4f"|format(ligne.taux_salarial * 100) }} %{% endif %}</td>
+                    <td class="numerique">{{ "%.2f"|format(ligne.montant_salarial) }} €</td>
+                    <td class="numerique">{% if ligne.taux_patronal is not none %}{{ "%.4f"|format(ligne.taux_patronal * 100) }} %{% endif %}</td>
+                    <td class="numerique">{{ "%.2f"|format(ligne.montant_patronal) }} €</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if structure_cotisations.bloc_allegements %}
+        <h3 class="sub-header">Allègements de cotisations</h3>
+        <table>
+             <tbody>
+                {% for ligne in structure_cotisations.bloc_allegements %}
+                <tr>
+                    <td class="libelle">{{ ligne.libelle }}</td>
+                    <td class="numerique">{% if ligne.base is not none %}{{ "%.2f"|format(ligne.base) }} €{% endif %}</td>
+                    <td class="numerique">{% if ligne.taux_salarial is not none %}{{ "%.4f"|format(ligne.taux_salarial * 100) }} %{% endif %}</td>
+                    <td class="numerique">{{ "%.2f"|format(ligne.montant_salarial) }} €</td>
+                    <td class="numerique">{% if ligne.taux_patronal is not none %}{{ "%.6f"|format(ligne.taux_patronal) }}{% endif %}</td>
+                    <td class="numerique">{{ "%.2f"|format(ligne.montant_patronal) }} €</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+        
+        <h3 class="sub-header">Autres Contributions Dues par l'Employeur</h3>
+        <table>
+            <tbody>
+                {% for ligne in structure_cotisations.bloc_autres_contributions.lignes %}
+                <tr>
+                    <td class="libelle">{{ ligne.libelle }}</td>
+                    <td class="numerique">{% if ligne.base is not none %}{{ "%.2f"|format(ligne.base) }} €{% endif %}</td>
+                    <td></td> <td></td> <td class="numerique">{% if ligne.taux_patronal is not none %}{{ "%.4f"|format(ligne.taux_patronal * 100) }} %{% endif %}</td>
+                    <td class="numerique">{{ "%.2f"|format(ligne.montant_patronal) }} €</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr class="subtotal-row">
+                    <td class="libelle" colspan="5"><strong>Total autres contributions employeur</strong></td>
+                    <td class="numerique"><strong>{{ "%.2f"|format(structure_cotisations.bloc_autres_contributions.total) }} €</strong></td>
+                </tr>
+            </tfoot>
+        </table>
+        
+        <table class="table-summary">
+            <tbody>
+                <tr class="total-row">
+                    <td class="libelle"><strong>{{ structure_cotisations.total_avant_csg_crds.libelle }}</strong></td>
+                    <td></td> <td></td> <td class="numerique"><strong>{{ "%.2f"|format(structure_cotisations.total_avant_csg_crds.montant_salarial) }} €</strong></td>
+                    <td></td> <td class="numerique"><strong>{{ "%.2f"|format(structure_cotisations.total_avant_csg_crds.montant_patronal) }} €</strong></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <table>
+            <tbody>
+                {% for ligne in structure_cotisations.bloc_csg_non_deductible %}
+                <tr>
+                    <td class="libelle">{{ ligne.libelle }}</td>
+                    <td class="numerique">{{ "%.2f"|format(ligne.base) }} €</td>
+                    <td class="numerique">{{ "%.4f"|format(ligne.taux_salarial * 100) }} %</td>
+                    <td class="numerique">{{ "%.2f"|format(ligne.montant_salarial) }} €</td>
+                    <td></td>
+                    <td></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <hr>
+
+    {% if primes_non_soumises and primes_non_soumises|length > 0 %}
+    <section id="primes-non-soumises">
+        <h2>Primes Non Soumises</h2>
+        <table class="primes-table">
+            <thead>
+                <tr>
+                    <th class="libelle">Libellé</th>
+                    <th class="numerique">Montant</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for prime in primes_non_soumises %}
+                <tr>
+                    <td class="libelle">{{ prime.libelle }}</td>
+                    <td class="numerique gain">+ {{ "%.2f"|format(prime.montant) }} €</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    {% endif %}
+
+    {% if notes_de_frais and notes_de_frais|length > 0 %}
+    <section id="notes-de-frais">
+        <h2>Notes de Frais</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th class="libelle">Libellé</th>
+                    <th>Type</th>
+                    <th class="numerique">Date</th>
+                    <th class="numerique">Montant</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for note in notes_de_frais %}
+                <tr>
+                    <td class="libelle">{{ note.libelle }}</td>
+                    <td>{{ note.type }}</td>
+                    <td class="numerique">{{ note.date }}</td>
+                    <td class="numerique gain">+ {{ "%.2f"|format(note.montant) }} €</td>
+                </tr>
+                {% endfor %}
+                <tr class="subtotal-row">
+                    <td colspan="3" class="libelle"><strong>Total Notes de Frais</strong></td>
+                    <td class="numerique"><strong>+ {{ "%.2f"|format(notes_de_frais|sum(attribute='montant')) }} €</strong></td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+    {% endif %}
+
+    {% if pdf_notes %}
+    <section id="notes-bulletin">
+        <h2>Notes</h2>
+        <div style="padding: 10px; background-color: #f0f9ff; border-left: 4px solid #3b82f6; margin: 10px 0;">
+            <p style="margin: 0; white-space: pre-wrap;">{{ pdf_notes }}</p>
+        </div>
+    </section>
+    <hr>
+    {% endif %}
+
+    <section id="resultat-final">
+        <p><strong>Total Cotisations Salariales :</strong><span>- {{ "%.2f"|format(structure_cotisations.total_salarial) }} €</span></p>
+        <p><strong>Net à payer avant impôt :</strong><span>{{ "%.2f"|format(synthese_net.net_social_avant_impot) }} €</span></p>
+        <p><strong>Net Imposable :</strong><span>{{ "%.2f"|format(synthese_net.net_imposable) }} €</span></p>
+
+        {% if synthese_net.impot_prelevement_a_la_source and synthese_net.impot_prelevement_a_la_source.montant %}
+        <p><strong>Impôt sur le revenu (Prélèvement à la source) :</strong><span class="perte">- {{ "%.2f"|format(synthese_net.impot_prelevement_a_la_source.montant) }} €</span></p>
+        {% endif %}
+        {% if synthese_net.remboursement_transport and synthese_net.remboursement_transport > 0 %}
+        <p><strong>Indemnité de transport (50%) :</strong><span class="gain">+ {{ "%.2f"|format(synthese_net.remboursement_transport) }} €</span></p>
+        {% endif %}
+        
+        {% if remboursements_avances and remboursements_avances.total_rembourse and remboursements_avances.total_rembourse > 0 %}
+        <p><strong>Remboursement d'avances sur salaire :</strong><span class="perte">- {{ "%.2f"|format(remboursements_avances.total_rembourse) }} €</span></p>
+        {% elif synthese_net.acompte_verse and synthese_net.acompte_verse > 0 %}
+        <p><strong>Remboursement d'avances sur salaire :</strong><span class="perte">- {{ "%.2f"|format(synthese_net.acompte_verse) }} €</span></p>
+        {% endif %}
+        
+        {% if retenues_saisies and retenues_saisies.total_preleve and retenues_saisies.total_preleve > 0 %}
+        <p><strong>Retenues sur salaire (saisies) :</strong><span class="perte">- {{ "%.2f"|format(retenues_saisies.total_preleve) }} €</span></p>
+        {% endif %}
+
+        <h2 class="net-a-payer">NET À PAYER :<span>{{ "%.2f"|format(net_a_payer) }} €</span></h2>
+
+        <p class="total-employeur"><strong>Total versé par l'employeur :</strong><span>{{ "%.2f"|format(pied_de_page.cout_total_employeur) }} €</span></p>
+    </section>
+
+    {% if cumuls %}
+    <section id="cumuls-annuels">
+        <h2>Cumuls de l'Année {{ cumuls.periode.annee_en_cours }}</h2>
+        <div class="cumuls-grid">
+            <div class="cumul-card">
+                <div class="cumul-label">Salaire Brut Total</div>
+                <div class="cumul-value">{{ "%.2f"|format(cumuls.cumuls.brut_total) }} €</div>
+            </div>
+            <div class="cumul-card">
+                <div class="cumul-label">Net Imposable</div>
+                <div class="cumul-value">{{ "%.2f"|format(cumuls.cumuls.net_imposable) }} €</div>
+            </div>
+            <div class="cumul-card">
+                <div class="cumul-label">Impôt à la Source</div>
+                <div class="cumul-value">{{ "%.2f"|format(cumuls.cumuls.impot_preleve_a_la_source) }} €</div>
+            </div>
+            <div class="cumul-card">
+                <div class="cumul-label">Heures Rémunérées</div>
+                <div class="cumul-value cumul-hours">{{ "%.2f"|format(cumuls.cumuls.heures_remunerees) }} h</div>
+            </div>
+            <div class="cumul-card">
+                <div class="cumul-label">Heures Supplémentaires</div>
+                <div class="cumul-value cumul-hours">{{ "%.2f"|format(cumuls.cumuls.heures_supplementaires_remunerees) }} h</div>
+            </div>
+            {% if cumuls.cumuls.reduction_generale_patronale %}
+            <div class="cumul-card">
+                <div class="cumul-label">Réduction Générale</div>
+                <div class="cumul-value">{{ "%.2f"|format(cumuls.cumuls.reduction_generale_patronale|abs) }} €</div>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+    {% endif %}
+</body>
+</html>

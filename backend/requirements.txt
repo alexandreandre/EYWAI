@@ -1,0 +1,53 @@
+# saas-rh-backend/requirements.txt
+
+# --- Core API Framework ---
+fastapi
+uvicorn[standard]
+
+# --- Database & Storage ---
+supabase
+gotrue
+python-dotenv
+
+# --- Asynchronous Task Queue (NEW) ---
+dramatiq[redis]
+redis
+
+# --- Templating / PDF (moteur paie, bulletins, solde de tout compte : app.modules.payroll) ---
+Jinja2==3.1.4
+weasyprint==68.1
+reportlab
+
+# --- Utilities ---
+requests
+python-multipart
+pydantic[email]
+
+# --- Scraping web ---
+beautifulsoup4
+bs4
+lxml
+selenium
+webdriver-manager
+webdriver_manager
+ddgs
+googlesearch-python
+
+# --- Intelligence artificielle ---
+openai
+
+# --- PDF / OCR / Images ---
+PyPDF2
+pdfplumber
+pytesseract
+pdf2image
+pillow
+
+# --- Dates ---
+python-dateutil
+
+# --- Exports CSV/XLSX ---
+openpyxl
+
+# --- Architecture checks ---
+import-linter

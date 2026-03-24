@@ -1,0 +1,29 @@
+[importlinter]
+root_package = app
+include_external_packages = False
+
+[contract:module_layers]
+name = Respect module layer boundaries
+type = layers
+containers =
+    app.modules.*
+layers =
+    api
+    application
+    infrastructure
+    domain
+
+[contract:domain_isolation]
+name = Domain should stay isolated
+type = forbidden
+source_modules =
+    app.modules.*.domain
+forbidden_modules =
+    app.core
+    app.modules.*.api
+    app.modules.*.application
+    app.modules.*.infrastructure
+    app.shared
+ignore_imports =
+    app.modules.*.domain -> app.shared.kernel
+    app.modules.*.domain -> app.shared.kernel.*

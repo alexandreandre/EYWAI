@@ -1,0 +1,1 @@
+# Domain / application events (placeholder).

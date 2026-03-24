@@ -1,0 +1,25 @@
+steps:
+  # Build de l'image Docker avec VITE_API_URL en HTTPS
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--platform'
+      - 'linux/amd64'
+      - '--build-arg'
+      - 'VITE_API_URL=https://sirh-backend-505040845625.europe-west1.run.app'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/sirh-frontend'
+      - '.'
+    id: 'build-image'
+
+  # Push de l'image vers Google Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/sirh-frontend']
+    id: 'push-image'
+
+images:
+  - 'gcr.io/$PROJECT_ID/sirh-frontend'
+
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
