@@ -12,3 +12,4 @@ alwaysApply: false
 - **Portée** : ne pas faire de refactors « drive-by » hors demande ; chaque ligne du diff doit servir la tâche.
 - **Messages utilisateur** : si des chaînes sont exposées au front ou à l’utilisateur final, privilégier le **français** (cohérent avec le produit).
 - **Base de données** : pas de migration SQL improvisée sans process (revue + alignement Supabase / RLS). Voir `AGENTS.md` à la racine.
+- **Tests / CI** : le job backend lit les secrets **`SUPABASE_URL`** et **`SUPABASE_KEY`** (obligatoires) + optionnellement **`SUPABASE_SERVICE_KEY`**, vers un **projet Supabase réel** joignable depuis GitHub Actions. Pas d’URL inventée (DNS invalide → `ConnectError`). Les **tests unitaires** restent hermétiques via mocks ciblés là où il n’y a pas de BDD réelle.

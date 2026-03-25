@@ -28,13 +28,13 @@ jobs:
   backend:
     name: Backend (tests + OpenAPI)
     runs-on: ubuntu-latest
-    # L’app crée le client Supabase à l’import ; des valeurs factices suffisent pour pytest / OpenAPI en CI.
+    # Même projet Supabase que le déploiement : les tests d’intégration et la paie appellent l’API réelle.
+    # Ne pas utiliser d’URL inventée (ex. ci-placeholder.supabase.co) : DNS « Name or service not known ».
     env:
-      SUPABASE_URL: https://ci-placeholder.supabase.co
-      SUPABASE_KEY: ci-placeholder-anon-key
-      SUPABASE_SERVICE_KEY: ci-placeholder-service-role-key
-      # Client OpenAI instancié à l’import (collective_agreements) ; clé factice si les tests mockent les appels.
-      OPENAI_API_KEY: sk-ci-placeholder-not-used-when-mocked
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     defaults:
       run:
         working-directory: backend
@@ -62,6 +62,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt
           pip install ruff pip-audit
+
+      - name: OpenAI optionnel (évite erreur d’import si secret absent)
+        run: |
+          if [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "OPENAI_API_KEY=sk-ci-minimal-placeholder" >> "$GITHUB_ENV"
+          fi
+
+      - name: Secrets Supabase requis pour pytest (projet réel)
+        run: |
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_KEY:-}" ]; then
+            echo "::error::Définis au minimum SUPABASE_URL et SUPABASE_KEY (Settings → Secrets and variables → Actions), comme pour le deploy. Ajoute SUPABASE_SERVICE_KEY (clé service_role) pour les chemins admin / paie ; sinon l’app retombe sur SUPABASE_KEY."
+            exit 1
+          fi
 
       - name: Ruff (info seulement)
         continue-on-error: true

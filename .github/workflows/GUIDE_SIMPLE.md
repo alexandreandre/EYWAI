@@ -58,7 +58,7 @@ Là il n’y a plus que **3 fichiers** :
 **But :** s’assurer que le dépôt reste sain.
 
 - **Secrets** : scan anti-fuite de mots de passe (gitleaks).
-- **Backend** : install Python, tests pytest (sans e2e), puis génération d’un fichier **OpenAPI** (tu peux le télécharger en artifact).
+- **Backend** : install Python, tests pytest (sans e2e), puis génération d’un fichier **OpenAPI** (tu peux le télécharger en artifact). Les tests qui touchent Supabase utilisent un **vrai projet** : au minimum **`SUPABASE_URL`** et **`SUPABASE_KEY`** (comme le deploy). **`SUPABASE_SERVICE_KEY`** (service_role) est recommandé pour les tests paie / admin. Sans URL joignable, tu obtiens des `ConnectError` en CI. Optionnel : **`OPENAI_API_KEY`** ; sinon une valeur minimale de secours est posée.
 - **Frontend** : `npm ci`, lint, build.
 
 Certaines étapes (Ruff, audits npm/pip) sont en **mode info** : elles peuvent être rouges dans les logs sans faire échouer le workflow, tant qu’on ne les a pas rendues bloquantes.
