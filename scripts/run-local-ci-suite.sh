@@ -19,6 +19,14 @@ else
 fi
 
 echo "=== Backend : ruff check + format (--check) ==="
+if ! (cd "$REPO_ROOT/backend" && "$py" -m ruff --version >/dev/null 2>&1) &&
+   ! command -v ruff >/dev/null 2>&1; then
+  echo "ruff absent — installation minimale (pip + \$py)..." >&2
+  "$py" -m pip install -q "ruff>=0.9.0" || {
+    echo "Échec pip install ruff. Réessaie : cd backend && pip install -r requirements-dev.txt" >&2
+    exit 1
+  }
+fi
 if (cd "$REPO_ROOT/backend" && "$py" -m ruff --version >/dev/null 2>&1); then
   (cd "$REPO_ROOT/backend" && "$py" -m ruff check .)
   (cd "$REPO_ROOT/backend" && "$py" -m ruff format --check .)
@@ -26,8 +34,7 @@ elif command -v ruff >/dev/null 2>&1; then
   (cd "$REPO_ROOT/backend" && ruff check .)
   (cd "$REPO_ROOT/backend" && ruff format --check .)
 else
-  echo "ruff introuvable (venv sans ruff, pas de binaire sur le PATH)." >&2
-  echo "Installe les deps dev : cd backend && pip install -r requirements-dev.txt" >&2
+  echo "ruff toujours introuvable après pip install." >&2
   exit 1
 fi
 
