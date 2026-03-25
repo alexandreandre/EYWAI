@@ -4,6 +4,7 @@ Requêtes (cas d'usage lecture) du module users.
 Délègue à l'infrastructure (queries, repository, mappers) et au domain (règles viewable/editable).
 Comportement identique aux anciens routers.
 """
+
 from typing import List, Optional
 
 from app.modules.users.application.service import (
@@ -76,9 +77,7 @@ def get_company_users(
         except Exception:
             email = "email@unknown.com"
         can_edit = user_role in editable_roles
-        users.append(
-            row_to_user_detail(row, profile, email, company_id, can_edit)
-        )
+        users.append(row_to_user_detail(row, profile, email, company_id, can_edit))
     return users
 
 
@@ -90,7 +89,13 @@ def get_accessible_companies_for_user_creation(current_user: User) -> List[dict]
                 "company_id": row["id"],
                 "company_name": row["company_name"],
                 "creator_role": "super_admin",
-                "can_create_roles": ["admin", "rh", "collaborateur_rh", "collaborateur", "custom"],
+                "can_create_roles": [
+                    "admin",
+                    "rh",
+                    "collaborateur_rh",
+                    "collaborateur",
+                    "custom",
+                ],
             }
             for row in rows
         ]
@@ -102,12 +107,14 @@ def get_accessible_companies_for_user_creation(current_user: User) -> List[dict]
         can_create_roles = domain_rules.get_can_create_roles(creator_role)
         if can_create_roles:
             company_name = company_repo.get_name(str(access.company_id)) or "Entreprise"
-            companies_list.append({
-                "company_id": str(access.company_id),
-                "company_name": company_name,
-                "creator_role": creator_role,
-                "can_create_roles": can_create_roles,
-            })
+            companies_list.append(
+                {
+                    "company_id": str(access.company_id),
+                    "company_name": company_name,
+                    "creator_role": creator_role,
+                    "can_create_roles": can_create_roles,
+                }
+            )
     return companies_list
 
 

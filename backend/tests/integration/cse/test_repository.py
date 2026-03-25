@@ -7,6 +7,7 @@ Les appels DB sont mockés (pas de DB réelle).
 Pour des tests contre une DB de test, prévoir db_session et données dans
 cse_elected_members, cse_meetings, cse_meeting_recordings, cse_delegation_quotas, etc.
 """
+
 from datetime import date
 from unittest.mock import patch
 
@@ -221,7 +222,9 @@ class TestDelegationRepository:
             "app.modules.cse.infrastructure.cse_service_impl.get_delegation_hours",
             return_value=hours,
         ) as mock:
-            result = repo.list_hours("co-1", "emp-1", period_start=start, period_end=end)
+            result = repo.list_hours(
+                "co-1", "emp-1", period_start=start, period_end=end
+            )
             mock.assert_called_once_with("co-1", "emp-1", start, end)
         assert result == hours
 
@@ -308,7 +311,9 @@ class TestElectionCycleRepository:
 
     def test_get_election_alerts_calls_impl(self):
         repo = ElectionCycleRepository()
-        alerts = [{"cycle_id": "cycle-1", "days_remaining": 90, "alert_level": "warning"}]
+        alerts = [
+            {"cycle_id": "cycle-1", "days_remaining": 90, "alert_level": "warning"}
+        ]
         with patch(
             "app.modules.cse.infrastructure.cse_service_impl.get_election_alerts",
             return_value=alerts,

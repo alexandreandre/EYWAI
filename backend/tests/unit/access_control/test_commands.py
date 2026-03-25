@@ -4,6 +4,7 @@ Tests unitaires des commandes access_control (application/commands.py).
 Repositories mockés : require_rh_access, require_rh_access_for_company,
 quick_create_role_template.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -49,30 +50,52 @@ class TestRequireRhAccess:
 
     def test_user_with_rh_in_one_company_does_not_raise(self):
         """Utilisateur avec rôle RH dans au moins une entreprise ne lève pas."""
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="c1", company_name="C1", role="rh", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="c1", company_name="C1", role="rh", is_primary=True
+                ),
+            ]
+        )
         commands.require_rh_access(user)  # no raise
 
     def test_user_with_admin_does_not_raise(self):
         """Utilisateur admin a accès RH."""
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="c1", company_name="C1", role="admin", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="c1", company_name="C1", role="admin", is_primary=True
+                ),
+            ]
+        )
         commands.require_rh_access(user)  # no raise
 
     def test_user_with_collaborateur_rh_does_not_raise(self):
         """Collaborateur RH a accès RH."""
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="c1", company_name="C1", role="collaborateur_rh", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="c1",
+                    company_name="C1",
+                    role="collaborateur_rh",
+                    is_primary=True,
+                ),
+            ]
+        )
         commands.require_rh_access(user)  # no raise
 
     def test_user_with_only_collaborateur_raises_403(self):
         """Utilisateur uniquement collaborateur (sans RH) → 403."""
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="c1", company_name="C1", role="collaborateur", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="c1",
+                    company_name="C1",
+                    role="collaborateur",
+                    is_primary=True,
+                ),
+            ]
+        )
         with pytest.raises(HTTPException) as exc_info:
             commands.require_rh_access(user)
         assert exc_info.value.status_code == 403
@@ -96,16 +119,30 @@ class TestRequireRhAccessForCompany:
 
     def test_user_with_rh_in_that_company_does_not_raise(self):
         """Utilisateur RH pour cette entreprise ne lève pas."""
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="company-1", company_name="C1", role="rh", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="company-1",
+                    company_name="C1",
+                    role="rh",
+                    is_primary=True,
+                ),
+            ]
+        )
         commands.require_rh_access_for_company(user, "company-1")  # no raise
 
     def test_user_without_access_to_company_raises_403(self):
         """Utilisateur sans accès à cette entreprise → 403."""
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="other-company", company_name="Other", role="rh", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="other-company",
+                    company_name="Other",
+                    role="rh",
+                    is_primary=True,
+                ),
+            ]
+        )
         with pytest.raises(HTTPException) as exc_info:
             commands.require_rh_access_for_company(user, "company-1")
         assert exc_info.value.status_code == 403
@@ -113,9 +150,16 @@ class TestRequireRhAccessForCompany:
 
     def test_user_collaborateur_in_company_raises_403(self):
         """Utilisateur collaborateur dans cette entreprise (pas RH) → 403."""
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="company-1", company_name="C1", role="collaborateur", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="company-1",
+                    company_name="C1",
+                    role="collaborateur",
+                    is_primary=True,
+                ),
+            ]
+        )
         with pytest.raises(HTTPException) as exc_info:
             commands.require_rh_access_for_company(user, "company-1")
         assert exc_info.value.status_code == 403
@@ -130,9 +174,16 @@ class TestQuickCreateRoleTemplate:
         mock_repo.role_template_name_exists.return_value = False
         mock_repo.create_role_template.return_value = "template-id-123"
 
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="company-1", company_name="C1", role="rh", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="company-1",
+                    company_name="C1",
+                    role="rh",
+                    is_primary=True,
+                ),
+            ]
+        )
 
         result = commands.quick_create_role_template(
             current_user=user,
@@ -144,7 +195,9 @@ class TestQuickCreateRoleTemplate:
             permission_ids=["perm-1", "perm-2"],
         )
 
-        mock_repo.role_template_name_exists.assert_called_once_with("company-1", "Responsable Paie")
+        mock_repo.role_template_name_exists.assert_called_once_with(
+            "company-1", "Responsable Paie"
+        )
         mock_repo.create_role_template.assert_called_once()
         call_kw = mock_repo.create_role_template.call_args[1]
         assert call_kw["company_id"] == "company-1"
@@ -186,9 +239,13 @@ class TestQuickCreateRoleTemplate:
         """Sans accès RH pour l'entreprise (et pas super_admin) → 403."""
         mock_repo.role_template_name_exists.return_value = False
 
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="other", company_name="Other", role="rh", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="other", company_name="Other", role="rh", is_primary=True
+                ),
+            ]
+        )
 
         with pytest.raises(HTTPException) as exc_info:
             commands.quick_create_role_template(
@@ -207,9 +264,16 @@ class TestQuickCreateRoleTemplate:
         """Si un template avec ce nom existe déjà pour l'entreprise → 400."""
         mock_repo.role_template_name_exists.return_value = True
 
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="company-1", company_name="C1", role="rh", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="company-1",
+                    company_name="C1",
+                    role="rh",
+                    is_primary=True,
+                ),
+            ]
+        )
 
         with pytest.raises(HTTPException) as exc_info:
             commands.quick_create_role_template(
@@ -229,9 +293,16 @@ class TestQuickCreateRoleTemplate:
         mock_repo.role_template_name_exists.return_value = False
         mock_repo.create_role_template.return_value = "tpl-1"
 
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="company-1", company_name="C1", role="rh", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="company-1",
+                    company_name="C1",
+                    role="rh",
+                    is_primary=True,
+                ),
+            ]
+        )
 
         commands.quick_create_role_template(
             current_user=user,

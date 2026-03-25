@@ -4,6 +4,7 @@ Entités du domaine annual_reviews.
 Placeholder : entité minimale pour évolution future. La lecture/écriture
 repose aujourd'hui sur des dict (repository) et des schémas Pydantic.
 """
+
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any, Dict, Optional

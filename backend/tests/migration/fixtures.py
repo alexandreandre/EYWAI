@@ -4,6 +4,7 @@ Fixtures pour les tests de comparaison payroll (données fictives).
 Construit un répertoire employé minimal avec contrat, entreprise, saisies,
 cumuls, calendriers, horaires, événements de paie pour un mois donné.
 """
+
 from __future__ import annotations
 
 import calendar
@@ -15,7 +16,9 @@ from typing import Any
 
 def _write_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+    path.write_text(
+        json.dumps(data, indent=2, ensure_ascii=False, default=str), encoding="utf-8"
+    )
 
 
 def build_contrat_heures(employee_folder_name: str) -> dict:
@@ -93,18 +96,22 @@ def build_cumuls_prev_month() -> dict:
     return {"cumuls": {}, "periode": {}}
 
 
-def build_calendrier_prevu_heures(year: int, month: int, heures_par_jour: float = 7.0) -> dict:
+def build_calendrier_prevu_heures(
+    year: int, month: int, heures_par_jour: float = 7.0
+) -> dict:
     """Calendrier prévu pour un mois (jours ouvrés = travail avec heures_prevues)."""
     _, num_days = calendar.monthrange(year, month)
     calendrier = []
     for day in range(1, num_days + 1):
         d = date(year, month, day)
         if d.weekday() < 5:  # lun-ven
-            calendrier.append({
-                "jour": day,
-                "type": "travail",
-                "heures_prevues": heures_par_jour,
-            })
+            calendrier.append(
+                {
+                    "jour": day,
+                    "type": "travail",
+                    "heures_prevues": heures_par_jour,
+                }
+            )
         else:
             calendrier.append({"jour": day, "type": "weekend", "heures_prevues": 0})
     return {"calendrier_prevu": calendrier}
@@ -123,14 +130,18 @@ def build_calendrier_prevu_forfait(year: int, month: int) -> dict:
     return {"calendrier_prevu": calendrier}
 
 
-def build_horaires_reels_heures(year: int, month: int, heures_par_jour: float = 7.0) -> dict:
+def build_horaires_reels_heures(
+    year: int, month: int, heures_par_jour: float = 7.0
+) -> dict:
     """Horaires réels (calendrier) pour régime heures."""
     _, num_days = calendar.monthrange(year, month)
     calendrier = []
     for day in range(1, num_days + 1):
         d = date(year, month, day)
         if d.weekday() < 5:
-            calendrier.append({"jour": day, "type": "travail", "heures": heures_par_jour})
+            calendrier.append(
+                {"jour": day, "type": "travail", "heures": heures_par_jour}
+            )
         else:
             calendrier.append({"jour": day, "type": "weekend", "heures": 0})
     return {"calendrier": calendrier}
@@ -149,14 +160,18 @@ def build_horaires_reels_forfait(year: int, month: int) -> dict:
     return {"calendrier": calendrier}
 
 
-def build_evenements_paie_month(year: int, month: int, heures_par_jour: float = 7.0) -> dict:
+def build_evenements_paie_month(
+    year: int, month: int, heures_par_jour: float = 7.0
+) -> dict:
     """Événements de paie pour un mois (calendrier_analyse avec type/jour/heures)."""
     _, num_days = calendar.monthrange(year, month)
     evenements = []
     for day in range(1, num_days + 1):
         d = date(year, month, day)
         if d.weekday() < 5:
-            evenements.append({"jour": day, "type": "travail", "heures": heures_par_jour})
+            evenements.append(
+                {"jour": day, "type": "travail", "heures": heures_par_jour}
+            )
         else:
             evenements.append({"jour": day, "type": "weekend", "heures": 0})
     return {"calendrier_analyse": evenements}
@@ -189,15 +204,21 @@ def build_employee_fixture_dir(
 
     # Contrat
     if mode == "forfait":
-        _write_json(employee_path / "contrat.json", build_contrat_forfait(employee_name))
+        _write_json(
+            employee_path / "contrat.json", build_contrat_forfait(employee_name)
+        )
     else:
         _write_json(employee_path / "contrat.json", build_contrat_heures(employee_name))
 
     # Saisie du mois
-    _write_json(employee_path / "saisies" / f"{month:02d}.json", build_saisie_mois(year, month))
+    _write_json(
+        employee_path / "saisies" / f"{month:02d}.json", build_saisie_mois(year, month)
+    )
 
     # Cumuls mois précédent
-    _write_json(employee_path / "cumuls" / f"{prev_month:02d}.json", build_cumuls_prev_month())
+    _write_json(
+        employee_path / "cumuls" / f"{prev_month:02d}.json", build_cumuls_prev_month()
+    )
 
     # Calendrier prévu
     if mode == "forfait":

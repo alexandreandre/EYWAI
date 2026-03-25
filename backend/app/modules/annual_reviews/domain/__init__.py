@@ -1,4 +1,5 @@
 """Domaine annual_reviews : entités, règles, interfaces."""
+
 from .entities import AnnualReview
 from .enums import AnnualReviewStatusEnum
 from .interfaces import IAnnualReviewPdfGenerator, IAnnualReviewRepository

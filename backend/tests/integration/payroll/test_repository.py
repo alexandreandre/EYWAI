@@ -9,6 +9,7 @@ Fixtures : db_session (connexion DB de test). Si db_session n'est pas encore
 défini dans conftest.py, les tests qui en dépendent sont skippés ou documentent
 la fixture à ajouter.
 """
+
 import pytest
 
 from app.modules.payroll.infrastructure import repository as payroll_repo_module

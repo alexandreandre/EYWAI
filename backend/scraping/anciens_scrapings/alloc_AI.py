@@ -7,14 +7,15 @@ from bs4 import BeautifulSoup
 from openai import OpenAI
 from googlesearch import search
 from dotenv import load_dotenv
+
 load_dotenv()
 
 
-
 # --- Fichiers de configuration ---
-FICHIER_ENTREPRISE = 'config/parametres_entreprise.json'
-FICHIER_TAUX = 'config/taux_cotisations.json'
+FICHIER_ENTREPRISE = "config/parametres_entreprise.json"
+FICHIER_TAUX = "config/taux_cotisations.json"
 SEARCH_QUERY = "taux cotisation allocations familiales actuel"
+
 
 def extract_value_with_gpt(page_text: str, prompt: str) -> str | None:
     """
@@ -29,11 +30,14 @@ def extract_value_with_gpt(page_text: str, prompt: str) -> str | None:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "Tu es un expert en extraction de données."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "Tu es un expert en extraction de données.",
+                },
+                {"role": "user", "content": prompt},
             ],
             temperature=0,
-            max_tokens=10
+            max_tokens=10,
         )
         extracted_text = response.choices[0].message.content.strip()
         print(f"   - Réponse brute de l'API : '{extracted_text}'")
@@ -42,13 +46,16 @@ def extract_value_with_gpt(page_text: str, prompt: str) -> str | None:
         print(f"   - ERREUR : L'appel à l'API OpenAI a échoué. Raison : {e}")
         return None
 
+
 def get_taux_alloc_via_ai(is_taux_reduit: bool) -> float | None:
     """
     Orchestre la recherche Google sur plusieurs pages et l'extraction par IA.
     """
     # --- 1. Construction du prompt en fonction du cas ---
     if is_taux_reduit:
-        cas_specifique = "le taux réduit (pour les rémunérations inférieures à 3,5 Smic)."
+        cas_specifique = (
+            "le taux réduit (pour les rémunérations inférieures à 3,5 Smic)."
+        )
         print("Recherche du taux d'allocations familiales : 'réduit'")
     else:
         cas_specifique = "le taux plein (ou taux de droit commun)."
@@ -72,9 +79,11 @@ def get_taux_alloc_via_ai(is_taux_reduit: bool) -> float | None:
         return None
 
     for i, page_url in enumerate(search_results):
-        print(f"\n--- Tentative {i+1}/50 sur la page : {page_url} ---")
+        print(f"\n--- Tentative {i + 1}/50 sur la page : {page_url} ---")
         try:
-            response = requests.get(page_url, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
+            response = requests.get(
+                page_url, timeout=20, headers={"User-Agent": "Mozilla/5.0"}
+            )
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
             page_text = soup.get_text(" ", strip=True)
@@ -82,13 +91,15 @@ def get_taux_alloc_via_ai(is_taux_reduit: bool) -> float | None:
             final_prompt = prompt_template + page_text[:12000]
             extracted_text = extract_value_with_gpt(page_text, final_prompt)
 
-            if extracted_text and extracted_text.lower() != 'none':
-                taux_percent = float(extracted_text.replace(',', '.'))
+            if extracted_text and extracted_text.lower() != "none":
+                taux_percent = float(extracted_text.replace(",", "."))
                 taux_final = round(taux_percent / 100.0, 5)
-                print(f"✅ Valeur trouvée et validée ! Taux : {taux_final*100:.2f}%")
-                return taux_final # On a trouvé, on arrête et on renvoie la valeur
+                print(f"✅ Valeur trouvée et validée ! Taux : {taux_final * 100:.2f}%")
+                return taux_final  # On a trouvé, on arrête et on renvoie la valeur
             else:
-                print("   - Aucune valeur extraite de cette page, passage à la suivante.")
+                print(
+                    "   - Aucune valeur extraite de cette page, passage à la suivante."
+                )
 
         except requests.RequestException as e:
             print(f"   - ERREUR de connexion à la page : {e}. Passage à la suivante.")
@@ -96,21 +107,27 @@ def get_taux_alloc_via_ai(is_taux_reduit: bool) -> float | None:
             print(f"   - ERREUR inattendue : {e}. Passage à la suivante.")
 
     # Si on sort de la boucle sans avoir trouvé de valeur
-    print("\n❌ ERREUR FATALE : Aucune valeur n'a pu être extraite après avoir essayé toutes les pages.")
+    print(
+        "\n❌ ERREUR FATALE : Aucune valeur n'a pu être extraite après avoir essayé toutes les pages."
+    )
     return None
 
 
 if __name__ == "__main__":
     # La logique de départ est identique
     try:
-        with open(FICHIER_ENTREPRISE, 'r', encoding='utf-8') as f:
+        with open(FICHIER_ENTREPRISE, "r", encoding="utf-8") as f:
             config_entreprise = json.load(f)
-        
-        conditions = config_entreprise['PARAMETRES_ENTREPRISE']['conditions_cotisations']
-        appliquer_taux_reduit = conditions.get('remuneration_annuelle_brute_inferieure_3.5_smic', False)
+
+        conditions = config_entreprise["PARAMETRES_ENTREPRISE"][
+            "conditions_cotisations"
+        ]
+        appliquer_taux_reduit = conditions.get(
+            "remuneration_annuelle_brute_inferieure_3.5_smic", False
+        )
 
         taux = get_taux_alloc_via_ai(is_taux_reduit=appliquer_taux_reduit)
-    
+
         if taux is not None:
             print(json.dumps(taux))
 

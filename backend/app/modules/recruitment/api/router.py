@@ -4,6 +4,7 @@ Router API recruitment — délégation exclusive à la couche application.
 Pas de logique métier lourde : auth, validation schémas, appel commands/queries, mapping erreurs → HTTP.
 Comportement HTTP identique au legacy api/routers/recruitment.py.
 """
+
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -38,6 +39,7 @@ router = APIRouter(prefix="/api/recruitment", tags=["Recruitment"])
 
 # ─── Helpers (auth / contexte, pas de logique métier) ──────────────────
 
+
 def _company_id(current_user: User) -> Optional[str]:
     return getattr(current_user, "active_company_id", None) or (
         current_user.accessible_companies[0].company_id
@@ -66,10 +68,14 @@ def _ensure_rh_access(current_user: User, company_id: str) -> None:
         )
 
 
-def _ensure_collab_or_rh(current_user: User, company_id: str, candidate_id: str) -> None:
+def _ensure_collab_or_rh(
+    current_user: User, company_id: str, candidate_id: str
+) -> None:
     if current_user.has_rh_access_in_company(company_id):
         return
-    if not queries.is_user_participant_for_candidate(str(current_user.id), candidate_id):
+    if not queries.is_user_participant_for_candidate(
+        str(current_user.id), candidate_id
+    ):
         raise HTTPException(
             status_code=403,
             detail="Vous n'avez pas l'autorisation d'accéder à ces candidatures.",
@@ -87,6 +93,7 @@ def _value_error_to_http(e: ValueError) -> HTTPException:
 
 # ─── Settings ──────────────────────────────────────────────────────────
 
+
 @router.get("/settings")
 def get_recruitment_settings(current_user: User = Depends(get_current_user)):
     company_id = _company_id(current_user)
@@ -96,6 +103,7 @@ def get_recruitment_settings(current_user: User = Depends(get_current_user)):
 
 
 # ─── JOBS ─────────────────────────────────────────────────────────────
+
 
 @router.get("/jobs", response_model=List[JobOut])
 def list_jobs(
@@ -116,9 +124,7 @@ def create_job(
     company_id = _ensure_module_enabled(current_user)
     _ensure_rh_access(current_user, company_id)
     try:
-        out = commands.create_job(
-            company_id, str(current_user.id), body.model_dump()
-        )
+        out = commands.create_job(company_id, str(current_user.id), body.model_dump())
         return JobOut(**out)
     except ValueError as e:
         raise _value_error_to_http(e)
@@ -134,7 +140,8 @@ def update_job(
     _ensure_rh_access(current_user, company_id)
     try:
         out = commands.update_job(
-            job_id, company_id,
+            job_id,
+            company_id,
             {k: v for k, v in body.model_dump().items() if v is not None},
         )
         return JobOut(**out)
@@ -143,6 +150,7 @@ def update_job(
 
 
 # ─── PIPELINE STAGES ───────────────────────────────────────────────────
+
 
 @router.get("/jobs/{job_id}/stages", response_model=List[PipelineStageOut])
 def get_pipeline_stages(
@@ -155,6 +163,7 @@ def get_pipeline_stages(
 
 
 # ─── CANDIDATES ───────────────────────────────────────────────────────
+
 
 @router.get("/candidates", response_model=List[CandidateOut])
 def list_candidates(
@@ -215,7 +224,8 @@ def update_candidate(
     _ensure_rh_access(current_user, company_id)
     try:
         out = commands.update_candidate(
-            candidate_id, company_id,
+            candidate_id,
+            company_id,
             {k: v for k, v in body.model_dump().items() if v is not None},
         )
         return CandidateOut(**out)
@@ -270,8 +280,7 @@ def check_candidate_duplicate(
         result = queries.check_duplicate(company_id, candidate_id)
         return {
             "warnings": [
-                DuplicateWarning(**w).model_dump()
-                for w in result["warnings"]
+                DuplicateWarning(**w).model_dump() for w in result["warnings"]
             ],
         }
     except ValueError as e:
@@ -312,6 +321,7 @@ def hire_candidate(
 
 
 # ─── INTERVIEWS ────────────────────────────────────────────────────────
+
 
 @router.get("/interviews", response_model=List[InterviewOut])
 def list_interviews(
@@ -367,6 +377,7 @@ def update_interview(
 
 # ─── NOTES ─────────────────────────────────────────────────────────────
 
+
 @router.get("/notes", response_model=List[NoteOut])
 def list_notes(
     candidate_id: str = Query(...),
@@ -386,15 +397,14 @@ def create_note(
     company_id = _ensure_module_enabled(current_user)
     _ensure_collab_or_rh(current_user, company_id, body.candidate_id)
     try:
-        out = commands.create_note(
-            company_id, str(current_user.id), body.model_dump()
-        )
+        out = commands.create_note(company_id, str(current_user.id), body.model_dump())
         return NoteOut(**out)
     except ValueError as e:
         raise _value_error_to_http(e)
 
 
 # ─── OPINIONS ─────────────────────────────────────────────────────────
+
 
 @router.get("/opinions", response_model=List[OpinionOut])
 def list_opinions(
@@ -425,6 +435,7 @@ def create_opinion(
 
 # ─── TIMELINE ──────────────────────────────────────────────────────────
 
+
 @router.get("/timeline", response_model=List[TimelineEventOut])
 def get_timeline(
     candidate_id: str = Query(...),
@@ -437,6 +448,7 @@ def get_timeline(
 
 
 # ─── REJECTION REASONS ────────────────────────────────────────────────
+
 
 @router.get("/rejection-reasons")
 def get_rejection_reasons(current_user: User = Depends(get_current_user)):

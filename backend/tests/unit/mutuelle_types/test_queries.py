@@ -3,6 +3,7 @@ Tests unitaires des requêtes mutuelle_types (application/queries.py).
 
 list_mutuelle_types est testée en mockant SupabaseMutuelleTypeRepository (patch).
 """
+
 from datetime import datetime
 from uuid import uuid4
 from unittest.mock import MagicMock, patch
@@ -104,4 +105,6 @@ class TestListMutuelleTypes:
                 list_mutuelle_types(COMPANY_ID)
 
         assert exc_info.value.status_code == 500
-        assert "mutuelles" in str(exc_info.value.detail).lower() or "Erreur" in str(exc_info.value.detail)
+        assert "mutuelles" in str(exc_info.value.detail).lower() or "Erreur" in str(
+            exc_info.value.detail
+        )

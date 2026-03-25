@@ -3,6 +3,7 @@ Tests unitaires des commandes mutuelle_types (application/commands.py).
 
 Chaque commande est testée en mockant SupabaseMutuelleTypeRepository (injection via patch).
 """
+
 from datetime import datetime
 from uuid import uuid4
 from unittest.mock import MagicMock, patch
@@ -81,7 +82,9 @@ class TestCreateMutuelleType:
         assert result["montant_patronal"] == 40.0
         assert "employee_ids" in result
 
-    def test_create_mutuelle_type_with_employee_ids_validates_and_sets_associations(self):
+    def test_create_mutuelle_type_with_employee_ids_validates_and_sets_associations(
+        self,
+    ):
         payload = MutuelleTypeCreate(
             libelle="Formule avec employés",
             montant_salarial=50.0,
@@ -94,7 +97,10 @@ class TestCreateMutuelleType:
         mock_repo = MagicMock()
         mock_repo.find_by_company_and_libelle.return_value = None
         mock_repo.create.return_value = created_entity
-        mock_repo.validate_employee_ids_belong_to_company.return_value = ["emp-1", "emp-2"]
+        mock_repo.validate_employee_ids_belong_to_company.return_value = [
+            "emp-1",
+            "emp-2",
+        ]
         mock_repo.set_employee_associations.return_value = None
 
         with patch(
@@ -219,7 +225,9 @@ class TestUpdateMutuelleType:
 
     def test_update_mutuelle_type_wrong_company_raises_403(self):
         payload = MutuelleTypeUpdate(libelle="X")
-        existing = _make_mutuelle_entity(company_id=uuid4())  # autre company que COMPANY_ID
+        existing = _make_mutuelle_entity(
+            company_id=uuid4()
+        )  # autre company que COMPANY_ID
         mock_repo = MagicMock()
         mock_repo.get_by_id.return_value = existing
 
@@ -235,7 +243,9 @@ class TestUpdateMutuelleType:
 
     def test_update_mutuelle_type_duplicate_libelle_raises_400(self):
         payload = MutuelleTypeUpdate(libelle="Autre formule existante")
-        existing = _make_mutuelle_entity(company_id=UUID(COMPANY_ID), libelle="Formule Test")
+        existing = _make_mutuelle_entity(
+            company_id=UUID(COMPANY_ID), libelle="Formule Test"
+        )
         other = _make_mutuelle_entity(libelle="Autre formule existante")
         mock_repo = MagicMock()
         mock_repo.get_by_id.return_value = existing
@@ -257,7 +267,9 @@ class TestDeleteMutuelleType:
     """Commande delete_mutuelle_type."""
 
     def test_delete_mutuelle_type_success_returns_status(self):
-        existing = _make_mutuelle_entity(company_id=UUID(COMPANY_ID), libelle="À supprimer")
+        existing = _make_mutuelle_entity(
+            company_id=UUID(COMPANY_ID), libelle="À supprimer"
+        )
         mock_repo = MagicMock()
         mock_repo.get_by_id.return_value = existing
         mock_repo.list_employee_ids.return_value = ["emp-1"]

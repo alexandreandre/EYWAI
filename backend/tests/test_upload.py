@@ -20,7 +20,7 @@ try:
         last_name="Upload",
         username="test.upload",
         password="TestPass123!",
-        logo_path=str(logo_path)
+        logo_path=str(logo_path),
     )
     print(f"✅ PDF généré: {len(pdf_content)} bytes\n")
 except Exception as e:
@@ -38,13 +38,14 @@ try:
     result = supabase.storage.from_("creation_compte").upload(
         path=storage_path,
         file=pdf_content,
-        file_options={"x-upsert": "true", "content-type": "application/pdf"}
+        file_options={"x-upsert": "true", "content-type": "application/pdf"},
     )
     print("✅ Upload réussi!")
     print(f"   Résultat: {result}")
 except Exception as e:
     print(f"❌ Erreur upload: {e}")
     import traceback
+
     traceback.print_exc()
 
     # Essayer de lister les buckets disponibles

@@ -3,6 +3,7 @@ Implémentations des repositories (accès DB Supabase).
 
 Comportement identique aux appels inline des anciens routers.
 """
+
 from typing import List, Optional
 
 from app.core.database import supabase
@@ -40,7 +41,9 @@ class SupabaseUserCompanyAccessRepository(IUserCompanyAccessRepository):
     def get_accesses_for_user(self, user_id: str) -> List[dict]:
         r = (
             supabase.table("user_company_accesses")
-            .select("company_id, role, is_primary, companies(id, company_name, siret, group_id)")
+            .select(
+                "company_id, role, is_primary, companies(id, company_name, siret, group_id)"
+            )
             .eq("user_id", user_id)
             .execute()
         )

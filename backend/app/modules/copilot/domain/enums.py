@@ -1,6 +1,7 @@
 """
 Enums du domaine copilot.
 """
+
 from enum import Enum
 
 

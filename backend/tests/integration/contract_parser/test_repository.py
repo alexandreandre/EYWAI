@@ -8,6 +8,7 @@ Ces tests vérifient l'import et la cohérence du module ; dès qu'un repository
 sera implémenté (ex. sauvegarde des résultats d'extraction en DB), ajouter ici
 les tests contre une DB de test (fixture db_session).
 """
+
 import pytest
 
 from app.modules.contract_parser.infrastructure import repository as repo_module

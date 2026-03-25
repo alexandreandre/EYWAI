@@ -3,6 +3,7 @@ Schémas Pydantic sortie API du module absences.
 
 Migrés depuis schemas/absence.py — comportement identique.
 """
+
 from datetime import date, datetime
 from typing import List, Literal
 
@@ -86,7 +87,9 @@ class EvenementFamilialEvent(BaseModel):
     quota: int
     solde_restant: int
     taken: int
-    cycles_completed: int = 0  # Nombre de fois que l'événement a été entièrement consommé
+    cycles_completed: int = (
+        0  # Nombre de fois que l'événement a été entièrement consommé
+    )
 
 
 class EvenementFamilialQuotaResponse(BaseModel):
@@ -105,7 +108,9 @@ class AbsenceRequestWithEmployee(AbsenceRequest):
     """Schéma d'une demande d'absence avec les détails ET soldes de l'employé."""
 
     employee: SimpleEmployeeWithBalances
-    event_familial_cycles_consumed: int | None = None  # Visible RH : nb fois cet événement consommé entièrement
+    event_familial_cycles_consumed: int | None = (
+        None  # Visible RH : nb fois cet événement consommé entièrement
+    )
 
 
 class SignedUploadURL(BaseModel):

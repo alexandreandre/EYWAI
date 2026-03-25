@@ -3,6 +3,7 @@ Repository employés et profils : persistance Supabase (tables employees, profil
 
 Implémente les ports du domain. Comportement identique au router legacy.
 """
+
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
@@ -26,9 +27,7 @@ class EmployeeRepository(IEmployeeRepository):
         )
         return [dict(row) for row in (response.data or [])]
 
-    def get_by_id(
-        self, employee_id: str, company_id: str
-    ) -> Optional[Dict[str, Any]]:
+    def get_by_id(self, employee_id: str, company_id: str) -> Optional[Dict[str, Any]]:
         response = (
             supabase.table("employees")
             .select("*")
@@ -63,10 +62,7 @@ class EmployeeRepository(IEmployeeRepository):
         self, employee_id: str, data: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
         response = (
-            supabase.table("employees")
-            .update(data)
-            .eq("id", employee_id)
-            .execute()
+            supabase.table("employees").update(data).eq("id", employee_id).execute()
         )
         if not response.data:
             return None

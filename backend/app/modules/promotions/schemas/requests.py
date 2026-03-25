@@ -3,6 +3,7 @@ Schémas de requête API pour le module promotions.
 
 Définitions canoniques (migrées depuis schemas.promotion). Comportement identique.
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -31,11 +32,19 @@ class PromotionCreate(BaseModel):
     ```
     """
 
-    employee_id: str = Field(..., description="ID de l'employé concerné par la promotion")
+    employee_id: str = Field(
+        ..., description="ID de l'employé concerné par la promotion"
+    )
     promotion_type: PromotionType = Field(..., description="Type de promotion")
-    new_job_title: Optional[str] = Field(None, description="Nouveau poste (si changement de poste)")
-    new_salary: Optional[Dict[str, Any]] = Field(None, description="Nouveau salaire au format JSONB")
-    new_statut: Optional[str] = Field(None, description="Nouveau statut (Cadre/Non-Cadre)")
+    new_job_title: Optional[str] = Field(
+        None, description="Nouveau poste (si changement de poste)"
+    )
+    new_salary: Optional[Dict[str, Any]] = Field(
+        None, description="Nouveau salaire au format JSONB"
+    )
+    new_statut: Optional[str] = Field(
+        None, description="Nouveau statut (Cadre/Non-Cadre)"
+    )
     new_classification: Optional[Dict[str, Any]] = Field(
         None, description="Nouvelle classification conventionnelle"
     )
@@ -65,12 +74,14 @@ class PromotionCreate(BaseModel):
     @model_validator(mode="after")
     def validate_promotion_data(self):
         """Valide que au moins un champ 'nouveau' est renseigné."""
-        has_new_data = any([
-            self.new_job_title is not None,
-            self.new_salary is not None,
-            self.new_statut is not None,
-            self.new_classification is not None,
-        ])
+        has_new_data = any(
+            [
+                self.new_job_title is not None,
+                self.new_salary is not None,
+                self.new_statut is not None,
+                self.new_classification is not None,
+            ]
+        )
         if not has_new_data:
             raise ValueError(
                 "Au moins un champ 'nouveau' doit être renseigné "

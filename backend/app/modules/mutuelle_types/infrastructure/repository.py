@@ -4,6 +4,7 @@ Implémentation du port IMutuelleTypeRepository via Supabase.
 Tables : company_mutuelle_types, employee_mutuelle_types, employees.specificites_paie.
 Pas de FastAPI ; uniquement accès DB et mappers.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -30,10 +31,7 @@ class SupabaseMutuelleTypeRepository:
             .order("libelle")
             .execute()
         )
-        return [
-            row_to_mutuelle_type(row)
-            for row in (response.data or [])
-        ]
+        return [row_to_mutuelle_type(row) for row in (response.data or [])]
 
     def get_by_id(
         self,
@@ -83,9 +81,7 @@ class SupabaseMutuelleTypeRepository:
             del row["created_at"]
         if "updated_at" in row:
             del row["updated_at"]
-        response = (
-            self._supabase.table("company_mutuelle_types").insert(row).execute()
-        )
+        response = self._supabase.table("company_mutuelle_types").insert(row).execute()
         if not response.data:
             raise RuntimeError("Insert mutuelle_type returned no data")
         return row_to_mutuelle_type(response.data[0])

@@ -3,6 +3,7 @@ Mappers payslips : conversion dict/BDD <-> détail bulletin, listes.
 
 Pas de FastAPI ; logique de construction des réponses côté infrastructure.
 """
+
 from __future__ import annotations
 
 from typing import Any

@@ -4,6 +4,7 @@ Repository repos_compensateur_credits.
 Implémente l'accès persistance à la table repos_compensateur_credits.
 Comportement identique à l'ancien code (upsert, lecture jours par employé/année).
 """
+
 from __future__ import annotations
 
 from app.core.database import supabase
@@ -29,9 +30,7 @@ def upsert_credit(credit: ReposCredit) -> bool:
         return False
 
 
-def get_jours_by_employee_year(
-    employee_ids: list[str], year: int
-) -> dict[str, float]:
+def get_jours_by_employee_year(employee_ids: list[str], year: int) -> dict[str, float]:
     """
     Somme des jours repos_compensateur_credits par employee_id pour l'année.
     Comportement identique à l'ancienne query (soldes absences).

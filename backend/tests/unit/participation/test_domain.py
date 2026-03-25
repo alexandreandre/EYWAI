@@ -3,12 +3,15 @@ Tests unitaires du domaine participation : entités, value objects, enums, règl
 
 Aucune dépendance DB ni HTTP. Logique pure du domain/.
 """
+
 from datetime import date, datetime
 from uuid import uuid4
 
 
 from app.modules.participation.domain.entities import ParticipationSimulation
-from app.modules.participation.domain.value_objects import ParticipationDistributionParams
+from app.modules.participation.domain.value_objects import (
+    ParticipationDistributionParams,
+)
 from app.modules.participation.domain.enums import DistributionMode
 from app.modules.participation.domain import rules as domain_rules
 
@@ -337,9 +340,15 @@ class TestExtractAnnualSalaryFromCumuls:
 
     def test_brut_total_zero_or_none_returns_zero(self):
         """brut_total à 0 ou None → 0.0."""
-        assert domain_rules.extract_annual_salary_from_cumuls(
-            {"cumuls": {"brut_total": 0}}
-        ) == 0.0
-        assert domain_rules.extract_annual_salary_from_cumuls(
-            {"cumuls": {"brut_total": None}}
-        ) == 0.0
+        assert (
+            domain_rules.extract_annual_salary_from_cumuls(
+                {"cumuls": {"brut_total": 0}}
+            )
+            == 0.0
+        )
+        assert (
+            domain_rules.extract_annual_salary_from_cumuls(
+                {"cumuls": {"brut_total": None}}
+            )
+            == 0.0
+        )

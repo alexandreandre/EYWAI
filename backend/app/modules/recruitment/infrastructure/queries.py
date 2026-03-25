@@ -3,6 +3,7 @@
 Requêtes Supabase recruitment (lectures). Comportement identique au legacy.
 Utilise app.core.database.supabase et les mappers pour retourner des dicts compatibles *Out.
 """
+
 from typing import Any, Optional
 
 from app.core.database import supabase

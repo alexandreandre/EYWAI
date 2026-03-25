@@ -6,6 +6,7 @@ GET /api/bonus-types/calculate/{id}.
 Utilise : client (TestClient), dependency_overrides pour get_current_user,
 et mock du service (get_bonus_types_service) pour éviter la DB réelle.
 """
+
 from datetime import datetime
 from uuid import uuid4
 from unittest.mock import MagicMock, patch
@@ -130,9 +131,7 @@ class TestBonusTypesUnauthenticated:
 class TestBonusTypesGetList:
     """GET /api/bonus-types."""
 
-    def test_get_list_with_rh_user_returns_200_and_list(
-        self, client: TestClient
-    ):
+    def test_get_list_with_rh_user_returns_200_and_list(self, client: TestClient):
         from app.core.security import get_current_user
 
         mock_svc = MagicMock()
@@ -157,9 +156,7 @@ class TestBonusTypesGetList:
         assert data[0]["type"] == "montant_fixe"
         mock_svc.list_by_company.assert_called_once_with(TEST_COMPANY_ID)
 
-    def test_get_list_without_active_company_returns_400(
-        self, client: TestClient
-    ):
+    def test_get_list_without_active_company_returns_400(self, client: TestClient):
         from app.core.security import get_current_user
 
         user = _make_rh_user()
@@ -218,6 +215,7 @@ class TestBonusTypesPostCreate:
 
         mock_svc = MagicMock()
         from fastapi import HTTPException
+
         mock_svc.create.side_effect = HTTPException(
             status_code=403,
             detail="Seuls les Admin/RH peuvent créer des primes dans le catalogue",

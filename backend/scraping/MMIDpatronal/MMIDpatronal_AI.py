@@ -38,7 +38,7 @@ def parse_taux(text: str) -> float | None:
         if not m:
             return None
         # Arrondi à 5 décimales (comme votre script LegiSocial.py)
-        return round(float(m.group(1)) / 100.0, 5) 
+        return round(float(m.group(1)) / 100.0, 5)
     except Exception:
         return None
 
@@ -54,7 +54,7 @@ def get_taux_maladie_ai() -> dict | None:
         return None
 
     rates = {"plein": None, "reduit": None}
-    
+
     try:
         current_year = datetime.now().year
 
@@ -66,7 +66,7 @@ def get_taux_maladie_ai() -> dict | None:
             "Tu DOIS répondre exclusivement avec un objet JSON valide. "
             "N'ajoute aucun texte explicatif avant ou après l'objet JSON."
         )
-        
+
         user_prompt = (
             f"En te basant sur tes données d'entraînement les plus à jour, quels sont les taux de cotisation "
             f"patronale pour l'Assurance Maladie, Maternité, Invalidité, Décès (MMID) "
@@ -84,27 +84,27 @@ def get_taux_maladie_ai() -> dict | None:
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": user_prompt},
             ],
-            temperature=0.0
+            temperature=0.0,
         )
-        
+
         response_content = completion.choices[0].message.content
         if not response_content:
             raise ValueError("Réponse vide de l'API OpenAI")
 
         # 2. Parser la réponse JSON de l'IA
         data = json.loads(response_content)
-        
+
         taux_plein_text = data.get("taux_plein_text")
         taux_reduit_text = data.get("taux_reduit_text")
 
         # 3. Utiliser le parseur du script
         rates["plein"] = parse_taux(taux_plein_text)
         rates["reduit"] = parse_taux(taux_reduit_text)
-        
+
         # print(f"Info récupérée par IA : Taux plein: {taux_plein_text}, Taux réduit: {taux_reduit_text}")
-        
+
         # 4. Retourner le dictionnaire (ou None si rien n'est trouvé)
         if rates["plein"] is not None or rates["reduit"] is not None:
             return rates
@@ -128,11 +128,17 @@ def build_payload(rate_plein: float | None, rate_reduit: float | None) -> dict:
             "patronal_reduit": rate_reduit,
         },
         "meta": {
-            "source": [{"url": URL_LEGISOCIAL, "label": "LégiSocial — Taux cotisations URSSAF 2025", "date_doc": ""}],
+            "source": [
+                {
+                    "url": URL_LEGISOCIAL,
+                    "label": "LégiSocial — Taux cotisations URSSAF 2025",
+                    "date_doc": "",
+                }
+            ],
             "scraped_at": iso_now(),
             # Le générateur est mis à jour pour refléter le nom de ce script
             "generator": "scripts/MMIDpatronal/MMIDpatronal_AI.py",
-            "method": "secondary", # Utilisation de la méthode de votre script valide
+            "method": "secondary",  # Utilisation de la méthode de votre script valide
         },
     }
 
@@ -140,8 +146,8 @@ def build_payload(rate_plein: float | None, rate_reduit: float | None) -> dict:
 def main() -> None:
     """Fonction main (identique à LegiSocial.py, appelant la version AI)"""
     # Appelle la fonction AI au lieu de la fonction de scraping
-    rates = get_taux_maladie_ai() or {} 
-    
+    rates = get_taux_maladie_ai() or {}
+
     payload = build_payload(rates.get("plein"), rates.get("reduit"))
     print(json.dumps(payload, ensure_ascii=False))
 

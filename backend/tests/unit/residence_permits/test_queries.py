@@ -3,6 +3,7 @@ Tests unitaires des queries du module residence_permits.
 
 get_residence_permits_list avec repository mocké (pas de DB).
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -19,7 +20,9 @@ COMPANY_ID = "550e8400-e29b-41d4-a716-446655440000"
 class TestGetResidencePermitsList:
     """get_residence_permits_list(company_id)."""
 
-    @patch("app.modules.residence_permits.application.queries.get_residence_permit_status_calculator")
+    @patch(
+        "app.modules.residence_permits.application.queries.get_residence_permit_status_calculator"
+    )
     @patch("app.modules.residence_permits.application.queries._repo")
     def test_returns_list_of_items(
         self, mock_repo: MagicMock, mock_get_calculator: MagicMock
@@ -58,7 +61,9 @@ class TestGetResidencePermitsList:
         assert result[0].residence_permit_status == "valid"
         assert result[0].residence_permit_days_remaining == 90
 
-    @patch("app.modules.residence_permits.application.queries.get_residence_permit_status_calculator")
+    @patch(
+        "app.modules.residence_permits.application.queries.get_residence_permit_status_calculator"
+    )
     @patch("app.modules.residence_permits.application.queries._repo")
     def test_empty_list_when_no_employees(
         self, mock_repo: MagicMock, mock_get_calculator: MagicMock
@@ -74,17 +79,30 @@ class TestGetResidencePermitsList:
         mock_calc.calculate_residence_permit_status.assert_not_called()
         assert result == []
 
-    @patch("app.modules.residence_permits.application.queries.get_residence_permit_status_calculator")
+    @patch(
+        "app.modules.residence_permits.application.queries.get_residence_permit_status_calculator"
+    )
     @patch("app.modules.residence_permits.application.queries._repo")
     def test_multiple_rows_enriched_and_mapped(
         self, mock_repo: MagicMock, mock_get_calculator: MagicMock
     ):
         """Plusieurs lignes : chaque ligne est enrichie et mappée en ResidencePermitListItem."""
         mock_repo.get_employees_subject_for_company.return_value = [
-            {"id": "e1", "first_name": "A", "last_name": "Alpha", "employment_status": "actif"},
-            {"id": "e2", "first_name": "B", "last_name": "Beta", "employment_status": "en_sortie"},
+            {
+                "id": "e1",
+                "first_name": "A",
+                "last_name": "Alpha",
+                "employment_status": "actif",
+            },
+            {
+                "id": "e2",
+                "first_name": "B",
+                "last_name": "Beta",
+                "employment_status": "en_sortie",
+            },
         ]
         mock_calc = MagicMock()
+
         def side_effect(**kwargs):
             return {
                 "is_subject_to_residence_permit": True,
@@ -93,6 +111,7 @@ class TestGetResidencePermitsList:
                 "residence_permit_days_remaining": 30,
                 "residence_permit_data_complete": True,
             }
+
         mock_calc.calculate_residence_permit_status.side_effect = side_effect
         mock_get_calculator.return_value = mock_calc
 

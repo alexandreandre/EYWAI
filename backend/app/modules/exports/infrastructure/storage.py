@@ -30,14 +30,24 @@ def upload_export_file(
             parts = storage_path.rsplit("/", 1)
             if len(parts) == 2:
                 directory, filename = parts
-                name, ext = filename.rsplit(".", 1) if "." in filename else (filename, "")
+                name, ext = (
+                    filename.rsplit(".", 1) if "." in filename else (filename, "")
+                )
                 timestamp = int(time.time() * 1000)
-                new_filename = f"{name}_{timestamp}.{ext}" if ext else f"{name}_{timestamp}"
+                new_filename = (
+                    f"{name}_{timestamp}.{ext}" if ext else f"{name}_{timestamp}"
+                )
                 new_storage_path = f"{directory}/{new_filename}"
             else:
-                name, ext = storage_path.rsplit(".", 1) if "." in storage_path else (storage_path, "")
+                name, ext = (
+                    storage_path.rsplit(".", 1)
+                    if "." in storage_path
+                    else (storage_path, "")
+                )
                 timestamp = int(time.time() * 1000)
-                new_storage_path = f"{name}_{timestamp}.{ext}" if ext else f"{name}_{timestamp}"
+                new_storage_path = (
+                    f"{name}_{timestamp}.{ext}" if ext else f"{name}_{timestamp}"
+                )
             supabase.storage.from_(bucket).upload(
                 new_storage_path,
                 file_content,
@@ -49,5 +59,7 @@ def upload_export_file(
 
 def create_signed_url(path: str, expires_sec: int = SIGNED_URL_EXPIRES_SEC) -> str:
     """Génère une URL signée pour un fichier dans le bucket exports."""
-    response = supabase.storage.from_(BUCKET_EXPORTS).create_signed_url(path, expires_sec)
+    response = supabase.storage.from_(BUCKET_EXPORTS).create_signed_url(
+        path, expires_sec
+    )
     return response.get("signedURL") or response.get("signedUrl", "")

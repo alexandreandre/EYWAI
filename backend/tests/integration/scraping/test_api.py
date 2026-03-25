@@ -15,6 +15,7 @@ Fixture à ajouter dans tests/conftest.py si besoin de tests E2E avec token rée
       présent dans super_admins avec is_active=True.\"\"\"
       return auth_headers
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -71,6 +72,7 @@ class TestScrapingUnauthenticated:
                 status_code=403,
                 detail="Accès refusé : vous devez être super administrateur",
             )
+
         app.dependency_overrides[verify_super_admin] = fail_super_admin
         try:
             response = client.get("/api/scraping/dashboard")
@@ -129,7 +131,10 @@ class TestScrapingSources:
         try:
             with patch(
                 "app.modules.scraping.api.router.queries.list_sources",
-                return_value={"sources": [{"id": "src-1", "source_key": "SMIC"}], "total": 1},
+                return_value={
+                    "sources": [{"id": "src-1", "source_key": "SMIC"}],
+                    "total": 1,
+                },
             ):
                 response = client.get("/api/scraping/sources")
         finally:
@@ -252,7 +257,10 @@ class TestScrapingJobs:
         try:
             with patch(
                 "app.modules.scraping.api.router.queries.list_jobs",
-                return_value={"jobs": [{"id": "job-1", "status": "completed"}], "total": 1},
+                return_value={
+                    "jobs": [{"id": "job-1", "status": "completed"}],
+                    "total": 1,
+                },
             ):
                 response = client.get("/api/scraping/jobs")
         finally:
@@ -391,7 +399,10 @@ class TestScrapingSchedules:
         try:
             with patch(
                 "app.modules.scraping.api.router.commands.update_schedule",
-                return_value={"success": True, "schedule": {"id": "sched-1", "is_enabled": False}},
+                return_value={
+                    "success": True,
+                    "schedule": {"id": "sched-1", "is_enabled": False},
+                },
             ):
                 response = client.patch(
                     "/api/scraping/schedules/sched-1",

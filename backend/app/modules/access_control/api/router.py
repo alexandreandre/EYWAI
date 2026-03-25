@@ -4,6 +4,7 @@ Router du module access_control.
 Délègue toute la logique à la couche application (queries, commands).
 Aucune logique métier lourde ni accès DB direct. Comportement HTTP identique au legacy.
 """
+
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, status
@@ -34,6 +35,7 @@ def _require_rh_access(current_user: User = Depends(get_current_user)) -> User:
 
 
 # --- Catégories / actions / permissions ---
+
 
 @router.get("/permission-categories", response_model=List[PermissionCategory])
 async def get_permission_categories(
@@ -72,9 +74,7 @@ async def get_permissions_matrix(
     current_user: User = Depends(get_current_user),
 ):
     """Matrice des permissions par catégorie pour une entreprise. Vérification RH côté application."""
-    return queries.get_permissions_matrix(
-        current_user, company_id, user_id=user_id
-    )
+    return queries.get_permissions_matrix(current_user, company_id, user_id=user_id)
 
 
 @router.get("/users/{user_id}/permissions", response_model=UserPermissionsSummary)
@@ -84,12 +84,11 @@ async def get_user_permissions(
     current_user: User = Depends(get_current_user),
 ):
     """Résumé des permissions d'un utilisateur dans une entreprise. Hiérarchie et RH gérés par l'application."""
-    return queries.get_user_permissions_summary(
-        current_user, user_id, company_id
-    )
+    return queries.get_user_permissions_summary(current_user, user_id, company_id)
 
 
 # --- Templates de rôles ---
+
 
 @router.get("/role-templates", response_model=List[RoleTemplateDetail])
 async def get_role_templates(
@@ -135,6 +134,7 @@ async def get_role_template(
 
 # --- Vérifications hiérarchie / permission (comportement legacy strict) ---
 
+
 @router.get("/check-hierarchy", response_model=RoleHierarchyCheckResponse)
 async def get_check_hierarchy(
     target_role: str,
@@ -144,7 +144,9 @@ async def get_check_hierarchy(
     """Vérifie si l'utilisateur peut créer/modifier un utilisateur avec le rôle cible. Legacy : auth seule, pas de guard RH."""
     result = queries.check_hierarchy(current_user, target_role, company_id)
     if result.is_allowed:
-        message = f"Vous pouvez créer/modifier des utilisateurs avec le rôle '{target_role}'"
+        message = (
+            f"Vous pouvez créer/modifier des utilisateurs avec le rôle '{target_role}'"
+        )
     else:
         message = f"Vous ne pouvez pas créer/modifier des utilisateurs avec le rôle '{target_role}'"
     return RoleHierarchyCheckResponse(

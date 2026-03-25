@@ -5,6 +5,7 @@ Route : GET /api/rates/all (récupération des configs actives de taux, groupée
 Utilise : client (TestClient), dependency_overrides pour get_all_rates_reader pour éviter la DB réelle.
 Pas d'auth sur cette route (pas de get_current_user).
 """
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -82,7 +83,9 @@ class TestGetAllRatesEndpoint:
         assert response.status_code == 500
         assert "DB unreachable" in response.json().get("detail", "")
 
-    def test_response_structure_matches_rate_category_output_keys(self, client: TestClient):
+    def test_response_structure_matches_rate_category_output_keys(
+        self, client: TestClient
+    ):
         """Chaque entrée du dict contient uniquement les clés de sortie (config_data, version, etc.)."""
         rows = [
             {
@@ -105,7 +108,13 @@ class TestGetAllRatesEndpoint:
 
         assert response.status_code == 200
         out = response.json()["minimal_legal"]
-        assert set(out.keys()) == {"config_data", "version", "last_checked_at", "comment", "source_links"}
+        assert set(out.keys()) == {
+            "config_data",
+            "version",
+            "last_checked_at",
+            "comment",
+            "source_links",
+        }
         assert "config_key" not in out
         assert "created_at" not in out
         assert "is_active" not in out

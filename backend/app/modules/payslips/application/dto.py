@@ -3,6 +3,7 @@ DTOs du module payslips.
 
 Structures d'entrée/sortie des use cases et contexte utilisateur pour l'autorisation.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -12,16 +13,19 @@ from typing import Any, Callable
 # --- Exceptions applicatives (le router mappe vers 403/404) ---
 class PayslipNotFoundError(Exception):
     """Bulletin non trouvé."""
+
     pass
 
 
 class PayslipForbiddenError(Exception):
     """Accès refusé au bulletin (permissions insuffisantes)."""
+
     pass
 
 
 class PayslipBadRequestError(Exception):
     """Requête invalide (ex. bulletin sans entreprise associée)."""
+
     pass
 
 
@@ -31,6 +35,7 @@ class UserContext:
     Contexte utilisateur pour les contrôles d'accès dans l'application.
     Permet de ne pas dépendre du modèle User du module users.
     """
+
     user_id: str
     is_super_admin: bool
     has_rh_access_in_company: Callable[[str], bool]
@@ -48,6 +53,7 @@ class UserContext:
 @dataclass
 class GeneratePayslipInput:
     """Entrée pour la génération d'un bulletin."""
+
     employee_id: str
     year: int
     month: int
@@ -56,6 +62,7 @@ class GeneratePayslipInput:
 @dataclass
 class GeneratePayslipResult:
     """Résultat de la génération (status, message, download_url)."""
+
     status: str
     message: str
     download_url: str
@@ -64,6 +71,7 @@ class GeneratePayslipResult:
 @dataclass
 class EditPayslipInput:
     """Entrée pour l'édition d'un bulletin."""
+
     payslip_id: str
     payslip_data: dict[str, Any]
     changes_summary: str
@@ -76,6 +84,7 @@ class EditPayslipInput:
 @dataclass
 class RestorePayslipInput:
     """Entrée pour la restauration d'une version."""
+
     payslip_id: str
     version: int
     current_user_id: str

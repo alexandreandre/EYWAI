@@ -13,6 +13,7 @@ Utilise : client (TestClient), dependency_overrides pour get_current_user,
 patch des commands/queries pour éviter DB réelle. Pour tests E2E avec token réel,
 ajouter la fixture schedules_headers dans conftest.py (voir doc en fin de conftest).
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -139,11 +140,16 @@ class TestPostPlannedCalendar:
         )
         assert response.status_code == 422
 
-    def test_post_planned_calendar_valid_returns_200_with_mock(self, client: TestClient):
+    def test_post_planned_calendar_valid_returns_200_with_mock(
+        self, client: TestClient
+    ):
         """Body valide → 200 et status success (commande mockée)."""
         with patch(
             "app.modules.schedules.api.router.commands.update_planned_calendar",
-            return_value={"status": "success", "message": "Planning prévisionnel enregistré."},
+            return_value={
+                "status": "success",
+                "message": "Planning prévisionnel enregistré.",
+            },
         ):
             response = client.post(
                 f"/api/employees/{TEST_EMPLOYEE_ID}/planned-calendar",
@@ -199,7 +205,10 @@ class TestPostActualHours:
         """Body valide → 200 (commande mockée)."""
         with patch(
             "app.modules.schedules.api.router.commands.update_actual_hours",
-            return_value={"status": "success", "message": "Heures réelles enregistrées."},
+            return_value={
+                "status": "success",
+                "message": "Heures réelles enregistrées.",
+            },
         ):
             response = client.post(
                 f"/api/employees/{TEST_EMPLOYEE_ID}/actual-hours",
@@ -256,7 +265,9 @@ class TestGetMyCurrentCumuls:
         response = client.get("/api/me/current-cumuls")
         assert response.status_code == 401
 
-    def test_get_current_cumuls_with_auth_returns_200_with_mock(self, client: TestClient):
+    def test_get_current_cumuls_with_auth_returns_200_with_mock(
+        self, client: TestClient
+    ):
         """Avec get_current_user override et query mockée → 200."""
         from app.core.security import get_current_user
 

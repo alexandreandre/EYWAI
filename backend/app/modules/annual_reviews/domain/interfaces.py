@@ -3,6 +3,7 @@ Ports du domaine annual_reviews.
 
 Implémentations dans infrastructure/. Pas de dépendance FastAPI ni DB ici.
 """
+
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
@@ -60,16 +61,12 @@ class IAnnualReviewRepository(ABC):
         ...
 
     @abstractmethod
-    def get_employee_by_id(
-        self, employee_id: str
-    ) -> Optional[Dict[str, Any]]:
+    def get_employee_by_id(self, employee_id: str) -> Optional[Dict[str, Any]]:
         """Retourne les champs employé nécessaires au PDF (id, first_name, last_name, job_title)."""
         ...
 
     @abstractmethod
-    def get_company_by_id(
-        self, company_id: str
-    ) -> Optional[Dict[str, Any]]:
+    def get_company_by_id(self, company_id: str) -> Optional[Dict[str, Any]]:
         """Retourne les données entreprise pour le PDF."""
         ...
 

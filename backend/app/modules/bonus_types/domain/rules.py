@@ -4,6 +4,7 @@ Règles métier du module bonus_types.
 - seuil_heures requis si type = selon_heures, interdit sinon (aligné legacy).
 - calcul du montant selon le type (montant_fixe / selon_heures) : logique pure, pas de FastAPI.
 """
+
 from __future__ import annotations
 
 from app.modules.bonus_types.domain.entities import BonusType
@@ -29,7 +30,9 @@ def validate_seuil_heures_for_kind(
         )
 
 
-def compute_bonus_amount(bonus: BonusType, total_hours: float) -> BonusAmountComputation:
+def compute_bonus_amount(
+    bonus: BonusType, total_hours: float
+) -> BonusAmountComputation:
     """
     Calcule le montant d'une prime à partir du total d'heures réalisées (règle métier pure).
 

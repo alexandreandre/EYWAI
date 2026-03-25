@@ -7,11 +7,13 @@ from bs4 import BeautifulSoup
 from openai import OpenAI
 from googlesearch import search
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # --- Fichiers de configuration ---
-FICHIER_ENTREPRISE = 'config/parametres_entreprise.json'
+FICHIER_ENTREPRISE = "config/parametres_entreprise.json"
 SEARCH_QUERY = "barème saisie sur salaire 2025 service-public.fr"
+
 
 def extract_json_with_gpt(page_text: str, prompt: str) -> dict | None:
     """
@@ -27,17 +29,23 @@ def extract_json_with_gpt(page_text: str, prompt: str) -> dict | None:
             model="gpt-4o-mini",
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "Tu es un expert en extraction de données qui répond au format JSON."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "Tu es un expert en extraction de données qui répond au format JSON.",
+                },
+                {"role": "user", "content": prompt},
             ],
-            temperature=0
+            temperature=0,
         )
         extracted_text = response.choices[0].message.content.strip()
         print(f"   - Réponse brute de l'API : {extracted_text}")
         return json.loads(extracted_text)
     except Exception as e:
-        print(f"   - ERREUR : L'appel à l'API ou le parsing JSON a échoué. Raison : {e}")
+        print(
+            f"   - ERREUR : L'appel à l'API ou le parsing JSON a échoué. Raison : {e}"
+        )
         return None
+
 
 def get_bareme_saisie_via_ai() -> dict | None:
     """
@@ -68,9 +76,11 @@ def get_bareme_saisie_via_ai() -> dict | None:
         return None
 
     for i, page_url in enumerate(search_results):
-        print(f"\n--- Tentative {i+1}/3 sur la page : {page_url} ---")
+        print(f"\n--- Tentative {i + 1}/3 sur la page : {page_url} ---")
         try:
-            response = requests.get(page_url, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
+            response = requests.get(
+                page_url, timeout=20, headers={"User-Agent": "Mozilla/5.0"}
+            )
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
             page_text = soup.get_text(" ", strip=True)
@@ -78,19 +88,27 @@ def get_bareme_saisie_via_ai() -> dict | None:
             final_prompt = prompt_template + page_text[:12000]
             data = extract_json_with_gpt(page_text, final_prompt)
 
-            if data and all(key in data for key in ["sbi", "bareme"]) and isinstance(data["bareme"], list) and len(data["bareme"]) > 1:
+            if (
+                data
+                and all(key in data for key in ["sbi", "bareme"])
+                and isinstance(data["bareme"], list)
+                and len(data["bareme"]) > 1
+            ):
                 print("✅ JSON valide et complet extrait de la page !")
                 return data
             else:
-                print("   - Le JSON extrait est incomplet ou invalide, passage à la page suivante.")
+                print(
+                    "   - Le JSON extrait est incomplet ou invalide, passage à la page suivante."
+                )
         except Exception as e:
             print(f"   - ERREUR inattendue : {e}. Passage à la page suivante.")
 
     print("\n❌ ERREUR FATALE : Aucune donnée valide n'a pu être extraite.")
     return None
 
+
 if __name__ == "__main__":
     valeurs = get_bareme_saisie_via_ai()
-    
+
     if valeurs is not None:
         print(json.dumps(valeurs))

@@ -5,6 +5,7 @@ Entités du domaine employee_exits.
 Pour l'instant : placeholders ; les entités métier (EmployeeExit, ExitDocument, ChecklistItem)
 seront extraites lors de la migration.
 """
+
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any, Dict
@@ -17,6 +18,7 @@ class EmployeeExitEntity:
     Sortie de salarié (processus démission, rupture conventionnelle, licenciement, etc.).
     Source : table employee_exits, schéma EmployeeExit.
     """
+
     id: UUID
     company_id: UUID
     employee_id: UUID
@@ -42,6 +44,7 @@ class ExitDocumentEntity:
     Document lié à une sortie (uploadé ou généré).
     Source : table exit_documents.
     """
+
     id: UUID
     exit_id: UUID
     company_id: UUID
@@ -62,6 +65,7 @@ class ChecklistItemEntity:
     Item de checklist de sortie (restitution badge, matériel, etc.).
     Source : table exit_checklist_items.
     """
+
     id: UUID
     exit_id: UUID
     company_id: UUID

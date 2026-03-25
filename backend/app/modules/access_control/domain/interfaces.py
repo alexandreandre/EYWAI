@@ -5,6 +5,7 @@ Aucune dépendance à FastAPI ni à la base : types built-in / typing uniquement
 L'infrastructure implémente ces interfaces ; l'application et le service ne dépendent
 que des abstractions.
 """
+
 from __future__ import annotations
 
 from typing import Any, Protocol

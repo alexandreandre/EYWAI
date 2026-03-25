@@ -4,6 +4,7 @@ Requêtes métier complexes (enrichissement, jointures, lectures multi-tables).
 Comportement identique à api/routers/employee_exits.py et application/service.py.
 Aucune dépendance FastAPI.
 """
+
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
@@ -20,7 +21,9 @@ def enrich_exit_with_documents_and_checklist(
     """
     sb = supabase_client or supabase
     exit_id = exit_record["id"]
-    docs_response = sb.table("exit_documents").select("*").eq("exit_id", exit_id).execute()
+    docs_response = (
+        sb.table("exit_documents").select("*").eq("exit_id", exit_id).execute()
+    )
     documents = docs_response.data or []
     for doc in documents:
         try:
@@ -46,7 +49,9 @@ def enrich_exit_with_documents_and_checklist(
     exit_record["checklist_items"] = checklist_response.data or []
 
     if exit_record["checklist_items"]:
-        completed = sum(1 for item in exit_record["checklist_items"] if item.get("is_completed"))
+        completed = sum(
+            1 for item in exit_record["checklist_items"] if item.get("is_completed")
+        )
         total = len(exit_record["checklist_items"])
         exit_record["checklist_completion_rate"] = (completed / total) * 100
     else:
@@ -56,7 +61,9 @@ def enrich_exit_with_documents_and_checklist(
         exit_record["employee"] = exit_record.pop("employees")
 
 
-def get_employee_by_id(employee_id: str, supabase_client: Any = None) -> Optional[Dict[str, Any]]:
+def get_employee_by_id(
+    employee_id: str, supabase_client: Any = None
+) -> Optional[Dict[str, Any]]:
     """Récupère un employé par id (colonnes de base). Retourne None si non trouvé."""
     sb = supabase_client or supabase
     r = (
@@ -69,14 +76,18 @@ def get_employee_by_id(employee_id: str, supabase_client: Any = None) -> Optiona
     return r.data if r.data else None
 
 
-def get_employee_full(employee_id: str, supabase_client: Any = None) -> Optional[Dict[str, Any]]:
+def get_employee_full(
+    employee_id: str, supabase_client: Any = None
+) -> Optional[Dict[str, Any]]:
     """Récupère un employé avec toutes les colonnes."""
     sb = supabase_client or supabase
     r = sb.table("employees").select("*").eq("id", employee_id).maybe_single().execute()
     return r.data if r.data else None
 
 
-def get_company_by_id(company_id: str, supabase_client: Any = None) -> Optional[Dict[str, Any]]:
+def get_company_by_id(
+    company_id: str, supabase_client: Any = None
+) -> Optional[Dict[str, Any]]:
     """Récupère une entreprise par id."""
     sb = supabase_client or supabase
     r = sb.table("companies").select("*").eq("id", company_id).maybe_single().execute()
@@ -125,16 +136,19 @@ def insert_exit_document_publication(
     """Insère une ligne dans exit_document_publications (audit)."""
     sb = supabase_client or supabase
     from datetime import datetime, timezone
-    sb.table("exit_document_publications").insert({
-        "exit_id": str(exit_id),
-        "exit_document_id": exit_document_id,
-        "employee_document_id": employee_document_id,
-        "company_id": company_id,
-        "employee_id": str(employee_id),
-        "published_by": published_by,
-        "published_at": datetime.now(timezone.utc).isoformat(),
-        "status": status,
-    }).execute()
+
+    sb.table("exit_document_publications").insert(
+        {
+            "exit_id": str(exit_id),
+            "exit_document_id": exit_document_id,
+            "employee_document_id": employee_document_id,
+            "company_id": company_id,
+            "employee_id": str(employee_id),
+            "published_by": published_by,
+            "published_at": datetime.now(timezone.utc).isoformat(),
+            "status": status,
+        }
+    ).execute()
 
 
 def get_employee_document_by_source_exit_document(

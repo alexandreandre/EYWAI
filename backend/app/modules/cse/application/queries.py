@@ -3,6 +3,7 @@
 Queries CSE (lecture) — logique applicative via domain/infrastructure.
 Utilise les repositories ; check_module_active reste délégué au service legacy.
 """
+
 from datetime import date
 from typing import Any, List, Optional
 
@@ -23,7 +24,9 @@ def check_module_active(company_id: str) -> None:
 
 
 def get_elected_members(company_id: str, active_only: bool = True) -> List[Any]:
-    return elected_member_repository.list_by_company(company_id, active_only=active_only)
+    return elected_member_repository.list_by_company(
+        company_id, active_only=active_only
+    )
 
 
 def get_elected_member_by_id(member_id: str) -> Any:
@@ -35,7 +38,9 @@ def get_elected_member_by_employee(company_id: str, employee_id: str) -> Optiona
 
 
 def get_mandate_alerts(company_id: str, months_before: int = 3) -> List[Any]:
-    return elected_member_repository.get_mandate_alerts(company_id, months_before=months_before)
+    return elected_member_repository.get_mandate_alerts(
+        company_id, months_before=months_before
+    )
 
 
 def get_meetings(

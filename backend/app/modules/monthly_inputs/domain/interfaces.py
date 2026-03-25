@@ -3,6 +3,7 @@ Ports (interfaces) du domaine monthly_inputs.
 
 Implémentations dans infrastructure/. Aucune dépendance FastAPI ni DB ici.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

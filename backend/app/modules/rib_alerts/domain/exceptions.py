@@ -3,6 +3,7 @@ Exceptions du domaine rib_alerts (sans dépendance FastAPI).
 
 Utilisées par les règles métier ; l’API/application les convertit en HTTP (ex. 403, 404).
 """
+
 from __future__ import annotations
 
 

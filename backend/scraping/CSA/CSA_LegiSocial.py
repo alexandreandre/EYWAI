@@ -40,7 +40,9 @@ def fetch_page() -> BeautifulSoup:
     r = requests.get(
         URL_LEGISOCIAL,
         timeout=25,
-        headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"},
+        headers={
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+        },
     )
     r.raise_for_status()
     return BeautifulSoup(r.text, "html.parser")
@@ -72,7 +74,7 @@ def find_csa_rate(soup: BeautifulSoup) -> float | None:
                 if rates:
                     # CSA est patronale. S'il y a plusieurs % on prend le plus grand non-nul.
                     non_zero = [x for x in rates if x > 0]
-                    return (max(non_zero) if non_zero else max(rates))
+                    return max(non_zero) if non_zero else max(rates)
 
     # 2) Fallback : chercher un bloc texte proche du mot-clé et un %
     for tag in soup.find_all(text=True):
@@ -95,7 +97,13 @@ def build_payload(rate_patronal: float) -> dict:
         "base": "brut",
         "valeurs": {"salarial": None, "patronal": rate_patronal},
         "meta": {
-            "source": [{"url": URL_LEGISOCIAL, "label": "LégiSocial — Taux cotisations sociales URSSAF 2025", "date_doc": ""}],
+            "source": [
+                {
+                    "url": URL_LEGISOCIAL,
+                    "label": "LégiSocial — Taux cotisations sociales URSSAF 2025",
+                    "date_doc": "",
+                }
+            ],
             "scraped_at": iso_now(),
             "generator": "CSA_LegiSocial.py",
             "method": "secondary",

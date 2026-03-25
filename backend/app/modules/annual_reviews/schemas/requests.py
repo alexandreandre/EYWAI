@@ -4,18 +4,19 @@ Schémas de requête pour le module annual_reviews.
 Source de vérité pour les schémas annual_reviews. L'ancien fichier
 schemas/annual_review.py réexporte depuis ici pour compatibilité.
 """
+
 from datetime import date, datetime
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
 AnnualReviewStatus = Literal[
-    "planifie",              # RH a planifié avec notes
-    "en_attente_acceptation", # En attente de l'acceptation de l'employé
-    "accepte",               # Employé a accepté
-    "refuse",                # Employé a refusé
-    "realise",               # Entretien réalisé
-    "cloture",               # Entretien clôturé avec compte-rendu
+    "planifie",  # RH a planifié avec notes
+    "en_attente_acceptation",  # En attente de l'acceptation de l'employé
+    "accepte",  # Employé a accepté
+    "refuse",  # Employé a refusé
+    "realise",  # Entretien réalisé
+    "cloture",  # Entretien clôturé avec compte-rendu
 ]
 
 

@@ -3,6 +3,7 @@ Provider des appels RPC PostgreSQL pour les stats de groupe.
 
 Implémente IGroupStatsProvider. Comportement identique à api/routers/company_groups.py.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -118,9 +119,7 @@ class GroupStatsProvider(IGroupStatsProvider):
         year: Optional[int] = None,
         month: Optional[int] = None,
     ) -> Any:
-        return _call_get_group_company_comparison(
-            company_ids, metric, year, month
-        )
+        return _call_get_group_company_comparison(company_ids, metric, year, month)
 
 
 # Instance pour injection ou import direct. Compatibilité avec l'usage par fonctions.

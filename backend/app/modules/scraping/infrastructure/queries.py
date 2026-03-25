@@ -4,6 +4,7 @@ Requêtes métier complexes scraping (enrichissement sources, dashboard, etc.).
 Agrégation et enrichissement via le repository ; pas de logique métier pure
 (règles métier dans domain/). Comportement identique au legacy.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, Optional

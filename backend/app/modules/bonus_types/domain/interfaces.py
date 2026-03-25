@@ -3,6 +3,7 @@ Ports (interfaces) pour le module bonus_types.
 
 L’infrastructure implémente ces interfaces ; l’application ne dépend que des abstractions.
 """
+
 from __future__ import annotations
 
 from typing import Any, Protocol
@@ -17,7 +18,9 @@ class IBonusTypeRepository(Protocol):
         """Liste les primes du catalogue pour une entreprise (ordre libelle)."""
         ...
 
-    def get_by_id(self, bonus_type_id: str, company_id: str | None = None) -> BonusType | None:
+    def get_by_id(
+        self, bonus_type_id: str, company_id: str | None = None
+    ) -> BonusType | None:
         """Retourne une prime par id ; si company_id fourni, vérifie l’appartenance."""
         ...
 

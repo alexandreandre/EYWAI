@@ -4,6 +4,7 @@ Entités du domaine schedules.
 Cible de migration : agrégat « planning employé / mois » (employee_id, year, month,
 planned_calendar, actual_hours, cumuls, payroll_events). Pour l’instant placeholder.
 """
+
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
@@ -14,6 +15,7 @@ class EmployeeScheduleMonth:
     Planning d’un employé pour un mois donné (cible).
     Correspond à une ligne de la table employee_schedules.
     """
+
     employee_id: str
     company_id: str
     year: int

@@ -6,6 +6,7 @@ Pour des tests contre une DB de test réelle, fournir la fixture db_session dans
 (connexion à une base de test avec tables employee_exits, exit_documents, exit_checklist_items,
 employees, companies) et utiliser un client Supabase initialisé avec cette session.
 """
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -35,7 +36,9 @@ class TestEmployeeExitRepository:
         mock_table = MagicMock()
         mock_sb.table.return_value = mock_table
         mock_response = MagicMock()
-        mock_response.data = [{"id": EXIT_ID, "company_id": COMPANY_ID, "employee_id": EMPLOYEE_ID}]
+        mock_response.data = [
+            {"id": EXIT_ID, "company_id": COMPANY_ID, "employee_id": EMPLOYEE_ID}
+        ]
         mock_table.insert.return_value.execute.return_value = mock_response
 
         repo = EmployeeExitRepository(mock_sb)
@@ -59,7 +62,10 @@ class TestEmployeeExitRepository:
     def test_get_by_id_returns_exit_when_found(self):
         """get_by_id() appelle select et retourne la sortie si trouvée."""
         mock_sb = MagicMock()
-        mock_sb.table.return_value.select.return_value.eq.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = {"id": EXIT_ID, "company_id": COMPANY_ID}
+        mock_sb.table.return_value.select.return_value.eq.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = {
+            "id": EXIT_ID,
+            "company_id": COMPANY_ID,
+        }
 
         repo = EmployeeExitRepository(mock_sb)
         result = repo.get_by_id(EXIT_ID, COMPANY_ID)
@@ -77,7 +83,12 @@ class TestEmployeeExitRepository:
         mock_sb.table.return_value.select.return_value = mock_select
 
         repo = EmployeeExitRepository(mock_sb)
-        result = repo.list(COMPANY_ID, status="demission_effective", exit_type="demission", employee_id=EMPLOYEE_ID)
+        result = repo.list(
+            COMPANY_ID,
+            status="demission_effective",
+            exit_type="demission",
+            employee_id=EMPLOYEE_ID,
+        )
 
         mock_sb.table.assert_called_with("employee_exits")
         assert result == []
@@ -94,7 +105,9 @@ class TestEmployeeExitRepository:
         repo = EmployeeExitRepository(mock_sb)
         result = repo.update(EXIT_ID, COMPANY_ID, {"status": "demission_effective"})
 
-        mock_sb.table.return_value.update.assert_called_once_with({"status": "demission_effective"})
+        mock_sb.table.return_value.update.assert_called_once_with(
+            {"status": "demission_effective"}
+        )
         assert result["status"] == "demission_effective"
 
     def test_delete_calls_table_delete(self):
@@ -121,7 +134,13 @@ class TestExitDocumentRepository:
         ]
 
         repo = ExitDocumentRepository(mock_sb)
-        data = {"exit_id": EXIT_ID, "company_id": COMPANY_ID, "document_type": "certificat_travail", "storage_path": "exits/1/doc.pdf", "filename": "doc.pdf"}
+        data = {
+            "exit_id": EXIT_ID,
+            "company_id": COMPANY_ID,
+            "document_type": "certificat_travail",
+            "storage_path": "exits/1/doc.pdf",
+            "filename": "doc.pdf",
+        }
         result = repo.create(data)
 
         mock_sb.table.assert_called_with("exit_documents")
@@ -179,8 +198,24 @@ class TestExitChecklistRepository:
 
         repo = ExitChecklistRepository(mock_sb)
         items = [
-            {"exit_id": EXIT_ID, "company_id": COMPANY_ID, "item_code": "badge_return", "item_label": "Badge", "item_category": "materiel", "is_required": True, "display_order": 0},
-            {"exit_id": EXIT_ID, "company_id": COMPANY_ID, "item_code": "equipment_return", "item_label": "Matériel", "item_category": "materiel", "is_required": True, "display_order": 1},
+            {
+                "exit_id": EXIT_ID,
+                "company_id": COMPANY_ID,
+                "item_code": "badge_return",
+                "item_label": "Badge",
+                "item_category": "materiel",
+                "is_required": True,
+                "display_order": 0,
+            },
+            {
+                "exit_id": EXIT_ID,
+                "company_id": COMPANY_ID,
+                "item_code": "equipment_return",
+                "item_label": "Matériel",
+                "item_category": "materiel",
+                "is_required": True,
+                "display_order": 1,
+            },
         ]
         result = repo.create_many(items)
 
@@ -223,7 +258,9 @@ class TestExitChecklistRepository:
         mock_resp = MagicMock()
         mock_resp.data = [{"id": ITEM_ID, "is_completed": True}]
         chain = MagicMock()
-        chain.eq.return_value.eq.return_value.eq.return_value.execute.return_value = mock_resp
+        chain.eq.return_value.eq.return_value.eq.return_value.execute.return_value = (
+            mock_resp
+        )
         mock_sb.table.return_value.update.return_value = chain
 
         repo = ExitChecklistRepository(mock_sb)

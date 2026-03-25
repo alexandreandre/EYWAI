@@ -5,6 +5,7 @@ Logique déplacée depuis services/annual_review_pdf_generator pour autonomie du
 Utilise app.shared.infrastructure.pdf.helpers (setup_custom_styles, format_date).
 Comportement identique au legacy.
 """
+
 import io
 from datetime import datetime
 from typing import Any, Dict
@@ -47,21 +48,29 @@ def generate_annual_review_pdf(
         company_postal_code = ""
         if address_data:
             if isinstance(address_data, dict):
-                company_street = address_data.get("street", "") or address_data.get("rue", "")
-                company_city = address_data.get("city", "") or address_data.get("ville", "")
-                company_postal_code = (
-                    address_data.get("postal_code", "") or address_data.get("code_postal", "")
+                company_street = address_data.get("street", "") or address_data.get(
+                    "rue", ""
                 )
+                company_city = address_data.get("city", "") or address_data.get(
+                    "ville", ""
+                )
+                company_postal_code = address_data.get(
+                    "postal_code", ""
+                ) or address_data.get("code_postal", "")
             elif isinstance(address_data, str):
                 company_street = address_data
         if not company_street:
-            company_street = company_data.get("adresse_rue", "") or company_data.get("street", "")
-        if not company_city:
-            company_city = company_data.get("adresse_ville", "") or company_data.get("city", "")
-        if not company_postal_code:
-            company_postal_code = (
-                company_data.get("adresse_code_postal", "") or company_data.get("postal_code", "")
+            company_street = company_data.get("adresse_rue", "") or company_data.get(
+                "street", ""
             )
+        if not company_city:
+            company_city = company_data.get("adresse_ville", "") or company_data.get(
+                "city", ""
+            )
+        if not company_postal_code:
+            company_postal_code = company_data.get(
+                "adresse_code_postal", ""
+            ) or company_data.get("postal_code", "")
         company_info = company_name
         if company_street:
             company_info += f"\n{company_street}"
@@ -73,9 +82,7 @@ def generate_annual_review_pdf(
     story.append(Paragraph("FICHE D'ENTRETIEN", styles["TitrePrincipal"]))
     story.append(Spacer(1, 0.3 * cm))
 
-    employee_name = (
-        f"{employee_data.get('first_name', '')} {employee_data.get('last_name', '')}".strip()
-    )
+    employee_name = f"{employee_data.get('first_name', '')} {employee_data.get('last_name', '')}".strip()
     job_title = employee_data.get("job_title", "")
     info_lines = []
     if employee_name:
@@ -83,20 +90,28 @@ def generate_annual_review_pdf(
     if job_title:
         info_lines.append(f"<b>Poste :</b> {job_title}")
     if review_data.get("planned_date"):
-        info_lines.append(f"<b>Date prévue :</b> {format_date(review_data['planned_date'])}")
+        info_lines.append(
+            f"<b>Date prévue :</b> {format_date(review_data['planned_date'])}"
+        )
     if review_data.get("completed_date"):
-        info_lines.append(f"<b>Date réalisée :</b> {format_date(review_data['completed_date'])}")
+        info_lines.append(
+            f"<b>Date réalisée :</b> {format_date(review_data['completed_date'])}"
+        )
     if info_lines:
         story.append(Paragraph("<br/>".join(info_lines), styles["CorpsTexte"]))
         story.append(Spacer(1, 0.5 * cm))
 
     if review_data.get("rh_preparation_template"):
         story.append(Paragraph("<b>Notes de préparation RH</b>", styles["Important"]))
-        story.append(Paragraph(review_data["rh_preparation_template"], styles["CorpsTexte"]))
+        story.append(
+            Paragraph(review_data["rh_preparation_template"], styles["CorpsTexte"])
+        )
         story.append(Spacer(1, 0.3 * cm))
     if review_data.get("employee_preparation_notes"):
         story.append(Paragraph("<b>Préparation de l'employé</b>", styles["Important"]))
-        story.append(Paragraph(review_data["employee_preparation_notes"], styles["CorpsTexte"]))
+        story.append(
+            Paragraph(review_data["employee_preparation_notes"], styles["CorpsTexte"])
+        )
         story.append(Spacer(1, 0.3 * cm))
     if review_data.get("meeting_report"):
         story.append(Paragraph("<b>Compte-rendu d'entretien</b>", styles["Important"]))
@@ -142,7 +157,9 @@ def generate_annual_review_pdf(
 
     story.append(Spacer(1, 1 * cm))
     today = datetime.now().date()
-    story.append(Paragraph(f"Document généré le {format_date(today)}", styles["Signature"]))
+    story.append(
+        Paragraph(f"Document généré le {format_date(today)}", styles["Signature"])
+    )
     doc.build(story)
     pdf_bytes = buffer.getvalue()
     buffer.close()

@@ -3,6 +3,7 @@ Mappers entre modèles persistance (Supabase) et entités du domaine.
 
 participation_simulations (row) <-> ParticipationSimulation (entity).
 """
+
 from __future__ import annotations
 
 from datetime import datetime

@@ -3,6 +3,7 @@ Tests unitaires des commandes bonus_types (application/commands.py).
 
 Chaque commande est testée avec un service mocké injecté.
 """
+
 from datetime import datetime
 from uuid import uuid4
 
@@ -25,6 +26,7 @@ from app.modules.bonus_types.domain.enums import BonusTypeKind
 def _make_mock_service():
     """Crée un mock du BonusTypesService avec comportement configurable."""
     from unittest.mock import MagicMock
+
     return MagicMock()
 
 
@@ -84,7 +86,9 @@ class TestCreateBonusType:
             created_by=user_id,
         )
         mock_svc = _make_mock_service()
-        mock_svc.create.side_effect = HTTPException(status_code=403, detail="Seuls les Admin/RH...")
+        mock_svc.create.side_effect = HTTPException(
+            status_code=403, detail="Seuls les Admin/RH..."
+        )
 
         with pytest.raises(HTTPException) as exc_info:
             create_bonus_type(input_data, has_rh_access=False, service=mock_svc)
@@ -120,12 +124,14 @@ class TestUpdateBonusType:
         mock_svc.update.return_value = updated_entity
 
         result = update_bonus_type(
-            bonus_id, company_id, has_rh_access=True, input_data=input_data, service=mock_svc
+            bonus_id,
+            company_id,
+            has_rh_access=True,
+            input_data=input_data,
+            service=mock_svc,
         )
 
-        mock_svc.update.assert_called_once_with(
-            bonus_id, company_id, True, input_data
-        )
+        mock_svc.update.assert_called_once_with(bonus_id, company_id, True, input_data)
         assert result is not None
         assert result.libelle == "Prime mise à jour"
         assert result.montant == 150.0
@@ -162,9 +168,7 @@ class TestDeleteBonusType:
             service=mock_svc,
         )
 
-        mock_svc.delete.assert_called_once_with(
-            bonus_id, company_id, False, True
-        )
+        mock_svc.delete.assert_called_once_with(bonus_id, company_id, False, True)
         assert result is True
 
     def test_delete_bonus_type_super_admin_allowed(self):

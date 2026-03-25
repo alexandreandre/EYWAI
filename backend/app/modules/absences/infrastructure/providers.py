@@ -4,6 +4,7 @@ Providers — storage, attestations de salaire, calendrier, événements familia
 Implémentations des interfaces du domain. Utilise uniquement app.core et
 app.modules.absences.infrastructure (evenements_familiaux, salary_certificate_generator).
 """
+
 from __future__ import annotations
 
 import calendar as cal_module
@@ -24,6 +25,7 @@ from app.modules.absences.infrastructure.evenements_familiaux import (
     get_events_disponibles,
     get_solde_evenement,
 )
+
 # Source de vérité attestation de salaire : app.modules.payroll.documents
 from app.modules.payroll.documents.salary_certificate_generator import (
     SalaryCertificateGenerator,
@@ -162,9 +164,7 @@ class SalaryCertificateProvider(ISalaryCertificateProvider):
             )
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = (
-                f"attestation_salaire_{absence_request_id}_{timestamp}.pdf"
-            )
+            filename = f"attestation_salaire_{absence_request_id}_{timestamp}.pdf"
             storage_path = f"{employee_id}/{filename}"
             supabase.storage.from_(BUCKET_SALARY_CERTIFICATES).upload(
                 storage_path, pdf_bytes, {"content-type": "application/pdf"}
@@ -178,9 +178,9 @@ class SalaryCertificateProvider(ISalaryCertificateProvider):
                 "filename": filename,
                 "generated_by": generated_by,
             }
-            cert_resp = supabase.table("salary_certificates").insert(
-                certificate_data
-            ).execute()
+            cert_resp = (
+                supabase.table("salary_certificates").insert(certificate_data).execute()
+            )
             if cert_resp.data:
                 return cert_resp.data[0]["id"]
             return None
@@ -232,8 +232,10 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                 .execute()
             )
 
-            if not schedule or not schedule.data or not schedule.data.get(
-                "planned_calendar"
+            if (
+                not schedule
+                or not schedule.data
+                or not schedule.data.get("planned_calendar")
             ):
                 emp = (
                     supabase.table("employees")

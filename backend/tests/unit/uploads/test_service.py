@@ -4,6 +4,7 @@ Tests unitaires du service applicatif uploads (application/service.py).
 Dépendance infra (can_edit_entity_logo) mockée pour isoler ensure_can_edit_entity_logo
 et validate_logo_file.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -113,9 +114,10 @@ class TestValidateLogoFile:
         with pytest.raises(HTTPException) as exc_info:
             validate_logo_file("image/png", MAX_LOGO_SIZE_BYTES + 1)
         assert exc_info.value.status_code == 400
-        assert "volumineux" in str(exc_info.value.detail).lower() or "maximale" in str(
-            exc_info.value.detail
-        ).lower()
+        assert (
+            "volumineux" in str(exc_info.value.detail).lower()
+            or "maximale" in str(exc_info.value.detail).lower()
+        )
 
     def test_all_allowed_mimetypes_accepted(self):
         for ct in ALLOWED_LOGO_MIMETYPES:

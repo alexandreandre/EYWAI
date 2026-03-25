@@ -3,6 +3,7 @@ Tests unitaires du service medical_follow_up (application/service.py).
 
 Dépendances (repository, provider) mockées ; pas de DB ni HTTP.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -68,8 +69,12 @@ class TestGetCompanyMedicalSetting:
 class TestEnsureModuleEnabled:
     """ensure_module_enabled."""
 
-    @patch("app.modules.medical_follow_up.application.service.get_company_medical_setting")
-    @patch("app.modules.medical_follow_up.application.service.resolve_company_id_for_medical")
+    @patch(
+        "app.modules.medical_follow_up.application.service.get_company_medical_setting"
+    )
+    @patch(
+        "app.modules.medical_follow_up.application.service.resolve_company_id_for_medical"
+    )
     def test_raises_400_when_no_company(self, mock_resolve, mock_setting):
         """Pas d'entreprise active → HTTPException 400."""
         mock_resolve.return_value = None
@@ -79,8 +84,12 @@ class TestEnsureModuleEnabled:
         assert "entreprise" in exc_info.value.detail.lower()
         mock_setting.assert_not_called()
 
-    @patch("app.modules.medical_follow_up.application.service.get_company_medical_setting")
-    @patch("app.modules.medical_follow_up.application.service.resolve_company_id_for_medical")
+    @patch(
+        "app.modules.medical_follow_up.application.service.get_company_medical_setting"
+    )
+    @patch(
+        "app.modules.medical_follow_up.application.service.resolve_company_id_for_medical"
+    )
     def test_raises_403_when_module_disabled(self, mock_resolve, mock_setting):
         """Module désactivé pour l'entreprise → HTTPException 403."""
         mock_resolve.return_value = "co-1"
@@ -90,8 +99,12 @@ class TestEnsureModuleEnabled:
         assert exc_info.value.status_code == 403
         mock_setting.assert_called_once_with("co-1")
 
-    @patch("app.modules.medical_follow_up.application.service.get_company_medical_setting")
-    @patch("app.modules.medical_follow_up.application.service.resolve_company_id_for_medical")
+    @patch(
+        "app.modules.medical_follow_up.application.service.get_company_medical_setting"
+    )
+    @patch(
+        "app.modules.medical_follow_up.application.service.resolve_company_id_for_medical"
+    )
     def test_returns_company_id_when_ok(self, mock_resolve, mock_setting):
         """Entreprise active et module activé → retourne company_id."""
         mock_resolve.return_value = "co-1"
@@ -122,8 +135,10 @@ class TestEnsureRhAccess:
 
     def test_uses_getattr_when_no_has_rh_access(self):
         """User sans attribut has_rh_access_in_company → getattr défaut False → 403."""
+
         class UserNoRh:
             pass
+
         user = UserNoRh()
         with pytest.raises(HTTPException) as exc_info:
             service.ensure_rh_access(user, "co-1")

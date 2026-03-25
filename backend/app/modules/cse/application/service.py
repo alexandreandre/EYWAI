@@ -3,6 +3,7 @@
 Service applicatif CSE — orchestration des cas d'usage.
 Regroupe commands, queries et logique d'export (ex-router).
 """
+
 import calendar
 from datetime import date, datetime
 from typing import List, Optional, Union
@@ -27,6 +28,7 @@ def _to_dict(obj) -> dict:
 # Exports fichiers — logique ex-router déplacée ici
 # ---------------------------------------------------------------------------
 
+
 def export_elected_members_file(company_id: str) -> ExportFile:
     """Export Excel base des élus CSE. Comportement identique à l'endpoint /exports/elected-members."""
     queries.check_module_active(company_id)
@@ -40,9 +42,7 @@ def export_elected_members_file(company_id: str) -> ExportFile:
     )
 
 
-def _parse_date(
-    value: Optional[Union[date, datetime, str]], default: date
-) -> date:
+def _parse_date(value: Optional[Union[date, datetime, str]], default: date) -> date:
     """Normalise une date (str ISO ou date/datetime) vers date ; utilise default si value est None."""
     if value is None:
         return default

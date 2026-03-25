@@ -4,6 +4,7 @@ Liste et exécution des tests : ``backend_api/tests`` (pytest) et ``e2e/`` (Play
 La page Super Admin « Tests » affiche l'arbre des cibles et lance pytest ou
 ``npm run test`` (Playwright) selon le préfixe de la cible.
 """
+
 from __future__ import annotations
 
 import os
@@ -47,43 +48,72 @@ def get_tests_tree() -> Dict[str, Any]:
         if not level_path.is_dir():
             continue
         children: List[Dict[str, Any]] = [
-            {"id": f"tests/{level_id}", "label": "Tout", "path": f"tests/{level_id}", "is_full_level": True}
+            {
+                "id": f"tests/{level_id}",
+                "label": "Tout",
+                "path": f"tests/{level_id}",
+                "is_full_level": True,
+            }
         ]
         for sub in sorted(level_path.iterdir()):
             if sub.is_dir() and not sub.name.startswith("_"):
                 rel = f"tests/{level_id}/{sub.name}"
-                children.append({
-                    "id": rel,
-                    "label": sub.name,
-                    "path": rel,
-                    "is_full_level": False,
-                })
-        levels.append({
-            "id": level_id,
-            "label": LEVEL_LABELS.get(level_id, level_id),
-            "path": f"tests/{level_id}",
-            "children": children,
-        })
+                children.append(
+                    {
+                        "id": rel,
+                        "label": sub.name,
+                        "path": rel,
+                        "is_full_level": False,
+                    }
+                )
+        levels.append(
+            {
+                "id": level_id,
+                "label": LEVEL_LABELS.get(level_id, level_id),
+                "path": f"tests/{level_id}",
+                "children": children,
+            }
+        )
 
     # e2e/ : fichiers test_*.py à la racine + sous-dossier cross_module
     e2e_path = TESTS_DIR / "e2e"
     if e2e_path.is_dir():
         e2e_children: List[Dict[str, Any]] = [
-            {"id": "tests/e2e", "label": "Tout", "path": "tests/e2e", "is_full_level": True}
+            {
+                "id": "tests/e2e",
+                "label": "Tout",
+                "path": "tests/e2e",
+                "is_full_level": True,
+            }
         ]
         for item in sorted(e2e_path.iterdir()):
-            if item.is_file() and item.name.startswith("test_") and item.suffix == ".py":
+            if (
+                item.is_file()
+                and item.name.startswith("test_")
+                and item.suffix == ".py"
+            ):
                 rel = f"tests/e2e/{item.name}"
-                e2e_children.append({"id": rel, "label": item.name, "path": rel, "is_full_level": False})
+                e2e_children.append(
+                    {"id": rel, "label": item.name, "path": rel, "is_full_level": False}
+                )
             elif item.is_dir() and item.name == "cross_module":
                 rel = "tests/e2e/cross_module"
-                e2e_children.append({"id": rel, "label": "cross_module", "path": rel, "is_full_level": False})
-        levels.append({
-            "id": "e2e",
-            "label": LEVEL_LABELS.get("e2e", "e2e"),
-            "path": "tests/e2e",
-            "children": e2e_children,
-        })
+                e2e_children.append(
+                    {
+                        "id": rel,
+                        "label": "cross_module",
+                        "path": rel,
+                        "is_full_level": False,
+                    }
+                )
+        levels.append(
+            {
+                "id": "e2e",
+                "label": LEVEL_LABELS.get("e2e", "e2e"),
+                "path": "tests/e2e",
+                "children": e2e_children,
+            }
+        )
 
     pw_level = _build_playwright_level()
     if pw_level:
@@ -93,18 +123,31 @@ def get_tests_tree() -> Dict[str, Any]:
     migration_path = TESTS_DIR / "migration"
     if migration_path.is_dir():
         mig_children: List[Dict[str, Any]] = [
-            {"id": "tests/migration", "label": "Tout", "path": "tests/migration", "is_full_level": True}
+            {
+                "id": "tests/migration",
+                "label": "Tout",
+                "path": "tests/migration",
+                "is_full_level": True,
+            }
         ]
         for item in sorted(migration_path.iterdir()):
-            if item.is_file() and item.name.startswith("test_") and item.suffix == ".py":
+            if (
+                item.is_file()
+                and item.name.startswith("test_")
+                and item.suffix == ".py"
+            ):
                 rel = f"tests/migration/{item.name}"
-                mig_children.append({"id": rel, "label": item.name, "path": rel, "is_full_level": False})
-        levels.append({
-            "id": "migration",
-            "label": LEVEL_LABELS.get("migration", "migration"),
-            "path": "tests/migration",
-            "children": mig_children,
-        })
+                mig_children.append(
+                    {"id": rel, "label": item.name, "path": rel, "is_full_level": False}
+                )
+        levels.append(
+            {
+                "id": "migration",
+                "label": LEVEL_LABELS.get("migration", "migration"),
+                "path": "tests/migration",
+                "children": mig_children,
+            }
+        )
 
     # architecture/ : garde-fous d'architecture (fichiers test_*.py)
     architecture_path = TESTS_DIR / "unit" / "architecture"
@@ -118,20 +161,28 @@ def get_tests_tree() -> Dict[str, Any]:
             }
         ]
         for item in sorted(architecture_path.iterdir()):
-            if item.is_file() and item.name.startswith("test_") and item.suffix == ".py":
+            if (
+                item.is_file()
+                and item.name.startswith("test_")
+                and item.suffix == ".py"
+            ):
                 rel = f"tests/unit/architecture/{item.name}"
-                architecture_children.append({
-                    "id": rel,
-                    "label": item.name,
-                    "path": rel,
-                    "is_full_level": False,
-                })
-        levels.append({
-            "id": "architecture",
-            "label": LEVEL_LABELS.get("architecture", "architecture"),
-            "path": "tests/unit/architecture",
-            "children": architecture_children,
-        })
+                architecture_children.append(
+                    {
+                        "id": rel,
+                        "label": item.name,
+                        "path": rel,
+                        "is_full_level": False,
+                    }
+                )
+        levels.append(
+            {
+                "id": "architecture",
+                "label": LEVEL_LABELS.get("architecture", "architecture"),
+                "path": "tests/unit/architecture",
+                "children": architecture_children,
+            }
+        )
 
     return {"levels": levels}
 
@@ -175,12 +226,14 @@ def _build_playwright_level() -> Optional[Dict[str, Any]]:
         for f in sorted(specs_dir.glob("*.spec.ts")):
             rel = f"specs/{f.name}"
             path = f"{PLAYWRIGHT_TARGET_PREFIX}{rel}"
-            children.append({
-                "id": path,
-                "label": f.name,
-                "path": path,
-                "is_full_level": False,
-            })
+            children.append(
+                {
+                    "id": path,
+                    "label": f.name,
+                    "path": path,
+                    "is_full_level": False,
+                }
+            )
     return {
         "id": "playwright",
         "label": "E2E navigateur (Playwright · dossier e2e/)",

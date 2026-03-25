@@ -4,6 +4,7 @@ Schémas de réponse du module payslips.
 Structure alignée sur schemas.payslip (legacy). Migration : remplacer les usages
 par ces schémas puis retirer l'ancien fichier.
 """
+
 from datetime import datetime
 from typing import Any
 
@@ -12,6 +13,7 @@ from pydantic import BaseModel
 
 class PayslipInfo(BaseModel):
     """Ligne de liste de bulletins (moi, employé, etc.)."""
+
     id: str
     name: str
     month: int
@@ -26,6 +28,7 @@ class PayslipInfo(BaseModel):
 
 class InternalNote(BaseModel):
     """Note interne sur un bulletin."""
+
     id: str
     author_id: str
     author_name: str
@@ -35,6 +38,7 @@ class InternalNote(BaseModel):
 
 class HistoryEntry(BaseModel):
     """Entrée d'historique d'édition d'un bulletin."""
+
     version: int
     edited_at: datetime
     edited_by: str
@@ -46,6 +50,7 @@ class HistoryEntry(BaseModel):
 
 class PayslipDetail(BaseModel):
     """Détail complet d'un bulletin (dont payslip_data, cumuls, historique)."""
+
     id: str
     employee_id: str
     company_id: str
@@ -67,6 +72,7 @@ class PayslipDetail(BaseModel):
 
 class PayslipEditResponse(BaseModel):
     """Réponse après édition d'un bulletin."""
+
     status: str
     message: str
     payslip: PayslipDetail
@@ -75,6 +81,7 @@ class PayslipEditResponse(BaseModel):
 
 class PayslipRestoreResponse(BaseModel):
     """Réponse après restauration d'une version."""
+
     status: str
     message: str
     payslip: PayslipDetail

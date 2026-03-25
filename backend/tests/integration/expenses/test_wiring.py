@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module expenses.
 Vérifient que l'injection des dépendances et le flux de bout en bout
 (router -> service -> commands/queries -> repository / storage) fonctionnent.
 """
+
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
@@ -11,7 +12,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.modules.expenses.application.dto import CreateExpenseInput, UpdateExpenseStatusInput
+from app.modules.expenses.application.dto import (
+    CreateExpenseInput,
+    UpdateExpenseStatusInput,
+)
 from app.modules.users.schemas.responses import User, CompanyAccess
 
 
@@ -135,9 +139,7 @@ class TestExpensesWiringCreateExpense:
 class TestExpensesWiringGetMyExpenses:
     """Flux GET /api/expenses/me : router -> service -> query -> repository (+ storage pour URLs)."""
 
-    def test_get_my_expenses_flow_calls_service_with_user_id(
-        self, client: TestClient
-    ):
+    def test_get_my_expenses_flow_calls_service_with_user_id(self, client: TestClient):
         from app.core.security import get_current_user
 
         mock_svc = MagicMock()
@@ -283,12 +285,15 @@ class TestExpensesWiringEndToEndWithApplicationLayer:
                 mock_repo.list_by_employee_id.return_value = [created_row]
                 mock_repo_class.return_value = mock_repo
 
-                with patch(
-                    "app.modules.expenses.application.queries.ExpenseRepository",
-                    mock_repo_class,
-                ), patch(
-                    "app.modules.expenses.application.queries.ExpenseStorageProvider"
-                ) as mock_storage_class:
+                with (
+                    patch(
+                        "app.modules.expenses.application.queries.ExpenseRepository",
+                        mock_repo_class,
+                    ),
+                    patch(
+                        "app.modules.expenses.application.queries.ExpenseStorageProvider"
+                    ) as mock_storage_class,
+                ):
                     mock_storage = MagicMock()
                     mock_storage.create_signed_urls.return_value = []
                     mock_storage_class.return_value = mock_storage

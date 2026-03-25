@@ -4,6 +4,7 @@ Ports (interfaces) du domaine company_groups.
 Implémentations dans infrastructure/. Aucune dépendance FastAPI ni DB ici.
 Contrat aligné sur l'usage par la couche application (comportement identique aux routeurs).
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -43,9 +44,7 @@ class ICompanyGroupRepository(ABC):
         ...
 
     @abstractmethod
-    def update(
-        self, group_id: str, data: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+    def update(self, group_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Met à jour un groupe. Retourne la ligne mise à jour ou None."""
         ...
 
@@ -55,9 +54,7 @@ class ICompanyGroupRepository(ABC):
         ...
 
     @abstractmethod
-    def set_company_group(
-        self, company_id: str, group_id: Optional[str]
-    ) -> bool:
+    def set_company_group(self, company_id: str, group_id: Optional[str]) -> bool:
         """Associe ou dissocie une entreprise à un groupe."""
         ...
 
@@ -78,7 +75,9 @@ class ICompanyGroupRepository(ABC):
 
     @abstractmethod
     def get_companies_by_group_id(
-        self, group_id: str, columns: str = "id, company_name, siret, effectif, is_active"
+        self,
+        group_id: str,
+        columns: str = "id, company_name, siret, effectif, is_active",
     ) -> List[Dict[str, Any]]:
         """Liste les entreprises d'un groupe (colonnes configurables)."""
         ...
@@ -152,9 +151,7 @@ class ICompanyGroupRepository(ABC):
         ...
 
     @abstractmethod
-    def delete_user_company_accesses(
-        self, user_id: str, company_ids: List[str]
-    ) -> int:
+    def delete_user_company_accesses(self, user_id: str, company_ids: List[str]) -> int:
         """Supprime les accès d'un utilisateur pour les companies. Retourne le nombre supprimé."""
         ...
 

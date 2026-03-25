@@ -7,6 +7,7 @@ get_current_user (depuis app.modules.participation.api.dependencies) et patch du
 ou des commands/queries pour éviter la DB réelle.
 Fixture optionnelle : participation_headers (conftest) pour tests E2E avec token réel.
 """
+
 from datetime import datetime
 from uuid import uuid4
 from unittest.mock import MagicMock, patch
@@ -87,7 +88,9 @@ class TestParticipationWithUserNoCompany:
     def client_no_company(self, client: TestClient):
         from app.modules.participation.api.dependencies import get_current_user
 
-        app.dependency_overrides[get_current_user] = lambda: _make_user_without_company()
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_user_without_company()
+        )
         try:
             yield client
         finally:
@@ -99,7 +102,10 @@ class TestParticipationWithUserNoCompany:
         assert response.status_code == 403
         data = response.json()
         assert "detail" in data
-        assert "entreprise" in data["detail"].lower() or "company" in data["detail"].lower()
+        assert (
+            "entreprise" in data["detail"].lower()
+            or "company" in data["detail"].lower()
+        )
 
     def test_post_simulations_returns_403(self, client_no_company: TestClient):
         """POST /api/participation/simulations sans company → 403."""
@@ -463,4 +469,6 @@ class TestParticipationSimulationDelete:
         assert response.status_code == 200
         data = response.json()
         assert "message" in data
-        assert "supprim" in data["message"].lower() or "success" in data["message"].lower()
+        assert (
+            "supprim" in data["message"].lower() or "success" in data["message"].lower()
+        )

@@ -4,6 +4,7 @@ Requêtes Supabase complexes pour saisies et avances.
 Listes enrichies (jointures, agrégations), saisies/avances par période,
 salaire journalier, avances restant à rembourser. Comportement identique au legacy.
 """
+
 import traceback
 from datetime import date
 from decimal import Decimal
@@ -69,7 +70,9 @@ def list_advances_with_employee_and_remaining_to_pay(
     r = q.order("created_at", desc=True).execute()
     advances = r.data or []
 
-    employee_ids = list(set(a.get("employee_id") for a in advances if a.get("employee_id")))
+    employee_ids = list(
+        set(a.get("employee_id") for a in advances if a.get("employee_id"))
+    )
     employees_map: Dict[str, str] = {}
     if employee_ids:
         try:
@@ -137,7 +140,9 @@ def list_advances_with_employee_and_remaining_to_pay(
                             approved = Decimal(sv)
                 except (ValueError, TypeError, Exception):
                     approved = Decimal("0")
-            total_paid = payments_map.get(aid_key, Decimal("0")) if aid_key else Decimal("0")
+            total_paid = (
+                payments_map.get(aid_key, Decimal("0")) if aid_key else Decimal("0")
+            )
             advance["remaining_to_pay"] = remaining_to_pay_value(approved, total_paid)
         except Exception as e:
             traceback.print_exc()
@@ -240,9 +245,7 @@ def get_outstanding_advances_sum(employee_id: str) -> Decimal:
         .gt("remaining_amount", 0)
         .execute()
     )
-    return sum(
-        Decimal(str(a.get("remaining_amount", 0))) for a in (r.data or [])
-    )
+    return sum(Decimal(str(a.get("remaining_amount", 0))) for a in (r.data or []))
 
 
 def get_days_worked_for_month(year: int, month: int) -> Decimal:
@@ -253,9 +256,7 @@ def get_days_worked_for_month(year: int, month: int) -> Decimal:
     return Decimal("15")
 
 
-def build_advance_available(
-    employee_id: str, year: int, month: int
-) -> Dict[str, Any]:
+def build_advance_available(employee_id: str, year: int, month: int) -> Dict[str, Any]:
     """
     Construit le montant disponible pour une avance (données + règle pure).
     Retourne un dict avec daily_salary, days_worked, outstanding_advances, available_amount, max_advance_days.

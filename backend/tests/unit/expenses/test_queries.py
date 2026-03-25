@@ -4,6 +4,7 @@ Tests unitaires des queries expenses (application/queries.py).
 Chaque query est testée avec repository et storage mockés (patch ExpenseRepository,
 ExpenseStorageProvider).
 """
+
 import re
 from unittest.mock import MagicMock, patch
 
@@ -56,7 +57,11 @@ class TestGetMyExpenses:
     def test_get_my_expenses_signs_receipt_urls_via_storage(self):
         mock_repo = MagicMock()
         mock_repo.list_by_employee_id.return_value = [
-            {"id": "exp-1", "employee_id": "emp-001", "receipt_url": "emp-001/file1.pdf"},
+            {
+                "id": "exp-1",
+                "employee_id": "emp-001",
+                "receipt_url": "emp-001/file1.pdf",
+            },
             {"id": "exp-2", "employee_id": "emp-001", "receipt_url": None},
         ]
         mock_storage = MagicMock()
@@ -64,12 +69,15 @@ class TestGetMyExpenses:
             {"signedURL": "https://signed-url-1"},
         ]
 
-        with patch(
-            "app.modules.expenses.application.queries.ExpenseRepository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.expenses.application.queries.ExpenseStorageProvider",
-            return_value=mock_storage,
+        with (
+            patch(
+                "app.modules.expenses.application.queries.ExpenseRepository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.expenses.application.queries.ExpenseStorageProvider",
+                return_value=mock_storage,
+            ),
         ):
             result = get_my_expenses("emp-001")
 
@@ -90,12 +98,15 @@ class TestGetMyExpenses:
             {"signedUrl": "https://signed-url-alt"},
         ]
 
-        with patch(
-            "app.modules.expenses.application.queries.ExpenseRepository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.expenses.application.queries.ExpenseStorageProvider",
-            return_value=mock_storage,
+        with (
+            patch(
+                "app.modules.expenses.application.queries.ExpenseRepository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.expenses.application.queries.ExpenseStorageProvider",
+                return_value=mock_storage,
+            ),
         ):
             result = get_my_expenses("emp-001")
 
@@ -108,7 +119,12 @@ class TestGetAllExpenses:
     def test_get_all_expenses_calls_repo_list_all(self):
         mock_repo = MagicMock()
         mock_repo.list_all.return_value = [
-            {"id": "exp-1", "employee_id": "emp-1", "status": "pending", "employee": {}},
+            {
+                "id": "exp-1",
+                "employee_id": "emp-1",
+                "status": "pending",
+                "employee": {},
+            },
         ]
 
         with patch(

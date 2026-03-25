@@ -3,9 +3,13 @@ Mappers DB -> schémas annual_reviews.
 
 Aligné sur api/routers/annual_reviews._row_to_read et construction liste (legacy).
 """
+
 from typing import Any, Dict
 
-from app.modules.annual_reviews.schemas.responses import AnnualReviewListItem, AnnualReviewRead
+from app.modules.annual_reviews.schemas.responses import (
+    AnnualReviewListItem,
+    AnnualReviewRead,
+)
 
 
 def row_to_annual_review_read(row: Dict[str, Any]) -> AnnualReviewRead:

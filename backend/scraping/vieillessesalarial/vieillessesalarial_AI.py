@@ -33,6 +33,7 @@ USER_AGENT = (
 
 # --- Fonctions utilitaires ---
 
+
 def iso_now() -> str:
     """Retourne la date et l'heure actuelles au format ISO 8601 UTC."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -46,7 +47,10 @@ def _fetch_text_with_requests(url: str) -> str | None:
         soup = BeautifulSoup(r.text, "html.parser")
         return soup.get_text(" ", strip=True)
     except Exception as e:
-        print(f"ERREUR (VIEILLESSE_SAL_AI): Échec fetch Requests sur {url}: {e}", file=sys.stderr)
+        print(
+            f"ERREUR (VIEILLESSE_SAL_AI): Échec fetch Requests sur {url}: {e}",
+            file=sys.stderr,
+        )
         return None
 
 
@@ -54,7 +58,9 @@ def _extract_rates_with_gpt(page_text: str) -> dict[str, float | None] | None:
     """Extrait les taux salariaux plafonné/déplafonné de la cotisation vieillesse via GPT."""
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        print("ERREUR (VIEILLESSE_SAL_AI): Clé OPENAI_API_KEY manquante.", file=sys.stderr)
+        print(
+            "ERREUR (VIEILLESSE_SAL_AI): Clé OPENAI_API_KEY manquante.", file=sys.stderr
+        )
         return None
 
     client = OpenAI(api_key=api_key)
@@ -71,8 +77,7 @@ def _extract_rates_with_gpt(page_text: str) -> dict[str, float | None] | None:
         '{"plafond":6.90,"deplafond":0.40}\n\n'
         "- Aucune explication hors JSON.\n"
         "Ne te fie qu’à des informations provenant de sources URSSAF ou gouvernementales.\n"
-        "Texte à analyser (max 15000 caractères):\n---\n"
-        + page_text[:15000]
+        "Texte à analyser (max 15000 caractères):\n---\n" + page_text[:15000]
     )
 
     try:
@@ -81,7 +86,10 @@ def _extract_rates_with_gpt(page_text: str) -> dict[str, float | None] | None:
             response_format={"type": "json_object"},
             temperature=0,
             messages=[
-                {"role": "system", "content": "Assistant d'extraction JSON pur, spécialisé URSSAF."},
+                {
+                    "role": "system",
+                    "content": "Assistant d'extraction JSON pur, spécialisé URSSAF.",
+                },
                 {"role": "user", "content": prompt},
             ],
         )
@@ -101,17 +109,23 @@ def _extract_rates_with_gpt(page_text: str) -> dict[str, float | None] | None:
         return {"plafonne": to_rate(plafond), "deplafonne": to_rate(deplafond)}
 
     except Exception as e:
-        print(f"ERREUR (VIEILLESSE_SAL_AI): Extraction IA échouée: {e}", file=sys.stderr)
+        print(
+            f"ERREUR (VIEILLESSE_SAL_AI): Extraction IA échouée: {e}", file=sys.stderr
+        )
         return None
 
 
 # --- Fonction principale ---
 
+
 def main() -> None:
     """Orchestre la recherche IA et génère le JSON final."""
     current_year = datetime.now().year
     SEARCH_QUERY = SEARCH_QUERY_TEMPLATE.format(year=current_year)
-    print(f"INFO (VIEILLESSE_SAL_AI): Démarrage. Recherche DDGS: '{SEARCH_QUERY}'", file=sys.stderr)
+    print(
+        f"INFO (VIEILLESSE_SAL_AI): Démarrage. Recherche DDGS: '{SEARCH_QUERY}'",
+        file=sys.stderr,
+    )
 
     results = []
     try:
@@ -119,9 +133,15 @@ def main() -> None:
         if search_results:
             results = [r["href"] for r in search_results]
         if not results:
-            print("ERREUR (VIEILLESSE_SAL_AI): DDGS n'a retourné aucun résultat.", file=sys.stderr)
+            print(
+                "ERREUR (VIEILLESSE_SAL_AI): DDGS n'a retourné aucun résultat.",
+                file=sys.stderr,
+            )
     except Exception as e:
-        print(f"ERREUR (VIEILLESSE_SAL_AI): Échec recherche DuckDuckGo: {e}", file=sys.stderr)
+        print(
+            f"ERREUR (VIEILLESSE_SAL_AI): Échec recherche DuckDuckGo: {e}",
+            file=sys.stderr,
+        )
 
     rates = None
     successful_url = None
@@ -133,16 +153,29 @@ def main() -> None:
             continue
 
         rates = _extract_rates_with_gpt(txt)
-        if rates and rates.get("plafonne") is not None and rates.get("deplafonne") is not None:
-            print(f"✅ Taux trouvés: plafonné={rates.get('plafonne')} déplafonné={rates.get('deplafonne')}", file=sys.stderr)
+        if (
+            rates
+            and rates.get("plafonne") is not None
+            and rates.get("deplafonne") is not None
+        ):
+            print(
+                f"✅ Taux trouvés: plafonné={rates.get('plafonne')} déplafonné={rates.get('deplafonne')}",
+                file=sys.stderr,
+            )
             successful_url = url
             break
         else:
-            print("INFO (VIEILLESSE_SAL_AI): Données incomplètes, URL suivante.", file=sys.stderr)
+            print(
+                "INFO (VIEILLESSE_SAL_AI): Données incomplètes, URL suivante.",
+                file=sys.stderr,
+            )
         time.sleep(1)
 
     if rates is None:
-        print("ERREUR (VIEILLESSE_SAL_AI): Aucun taux trouvé après analyse.", file=sys.stderr)
+        print(
+            "ERREUR (VIEILLESSE_SAL_AI): Aucun taux trouvé après analyse.",
+            file=sys.stderr,
+        )
 
     payload = {
         "id": "assurance_vieillesse_salarial",
@@ -153,7 +186,9 @@ def main() -> None:
             "source": [
                 {
                     "url": successful_url or "N/A",
-                    "label": "Source IA (via DDGS)" if successful_url else "N/A (Taux non trouvé par l'IA)",
+                    "label": "Source IA (via DDGS)"
+                    if successful_url
+                    else "N/A (Taux non trouvé par l'IA)",
                     "date_doc": "",
                 }
             ],

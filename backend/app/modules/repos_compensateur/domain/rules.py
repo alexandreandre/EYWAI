@@ -4,6 +4,7 @@ Règles métier COR (Contrepartie Obligatoire en Repos) et extraction des heures
 Logique pure, sans FastAPI ni dépendance DB. Comportement identique à
 services/repos_compensateur/calcul_cor et extraction_hs.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -77,7 +78,7 @@ def extraire_heures_hs_du_bulletin(payslip_data: dict[str, Any] | None) -> float
 
 
 def cumuler_heures_hs_annee(
-    bulletins_par_mois: dict[int, dict[str, Any]]
+    bulletins_par_mois: dict[int, dict[str, Any]],
 ) -> dict[int, float]:
     """
     Retourne pour chaque mois (1-12) le cumul des heures HS de janvier jusqu'à ce mois inclus.

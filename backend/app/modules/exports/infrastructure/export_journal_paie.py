@@ -13,8 +13,10 @@ def get_journal_paie_data(
     """Récupère les données du journal de paie pour une période donnée. Retourne (données, totaux)."""
     year, month = map(int, period.split("-"))
 
-    query = supabase.table("payslips").select(
-        """
+    query = (
+        supabase.table("payslips")
+        .select(
+            """
         id,
         employee_id,
         month,
@@ -29,7 +31,11 @@ def get_journal_paie_data(
             company_id
         )
         """
-    ).eq("company_id", company_id).eq("year", year).eq("month", month)
+        )
+        .eq("company_id", company_id)
+        .eq("year", year)
+        .eq("month", month)
+    )
 
     if employee_ids:
         query = query.in_("employee_id", employee_ids)
@@ -59,7 +65,9 @@ def get_journal_paie_data(
 
         synthese_net = payslip_data.get("synthese_net", {})
         net_imposable = float(
-            synthese_net.get("net_imposable", 0) if isinstance(synthese_net, dict) else 0
+            synthese_net.get("net_imposable", 0)
+            if isinstance(synthese_net, dict)
+            else 0
         )
 
         cotisations = payslip_data.get("structure_cotisations", {})

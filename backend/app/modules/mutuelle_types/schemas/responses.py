@@ -4,6 +4,7 @@ Schémas de réponse API pour mutuelle_types.
 Alignés sur le legacy schemas.mutuelle_type.MutuelleType.
 Comportement identique. La liste GET enrichit avec employee_ids (champ optionnel ici).
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -26,7 +27,9 @@ class MutuelleType(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     created_by: Optional[UUID] = None
-    employee_ids: list[str] = Field(default_factory=list)  # enrichi côté application pour GET list
+    employee_ids: list[str] = Field(
+        default_factory=list
+    )  # enrichi côté application pour GET list
 
     model_config = ConfigDict(
         json_encoders={UUID: str},

@@ -7,11 +7,13 @@ from bs4 import BeautifulSoup
 from openai import OpenAI
 from googlesearch import search
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # --- Fichiers et URL cibles ---
-FICHIER_BAREMES = 'config/baremes.json'
+FICHIER_BAREMES = "config/baremes.json"
 SEARCH_QUERY = "montants maximum indemnités journalières ameli 2025"
+
 
 def extract_json_with_gpt(page_text: str) -> dict | None:
     """
@@ -19,7 +21,9 @@ def extract_json_with_gpt(page_text: str) -> dict | None:
     contenant les quatre plafonds d'indemnités.
     """
     if not os.getenv("OPENAI_API_KEY"):
-        print("   - ERREUR : La variable d'environnement OPENAI_API_KEY n'est pas définie.")
+        print(
+            "   - ERREUR : La variable d'environnement OPENAI_API_KEY n'est pas définie."
+        )
         return None
 
     try:
@@ -45,21 +49,25 @@ def extract_json_with_gpt(page_text: str) -> dict | None:
             model="gpt-4o-mini",
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "Tu es un expert en extraction de données qui répond au format JSON."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "Tu es un expert en extraction de données qui répond au format JSON.",
+                },
+                {"role": "user", "content": prompt},
             ],
-            temperature=0
+            temperature=0,
         )
-        
+
         extracted_text = response.choices[0].message.content.strip()
         print(f"   - Réponse brute de l'API : '{extracted_text}'")
-        
+
         # On parse la chaîne de caractères en objet Python
         return json.loads(extracted_text)
 
     except Exception as e:
         print(f"   - ERREUR pendant l'extraction IA : {e}")
         return None
+
 
 def get_all_plafonds_ij_via_ai() -> dict | None:
     """
@@ -77,9 +85,13 @@ def get_all_plafonds_ij_via_ai() -> dict | None:
         return None
 
     for i, page_url in enumerate(search_results):
-        print(f"\n--- Tentative {i+1}/{len(search_results)} sur la page : {page_url} ---")
+        print(
+            f"\n--- Tentative {i + 1}/{len(search_results)} sur la page : {page_url} ---"
+        )
         try:
-            response = requests.get(page_url, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
+            response = requests.get(
+                page_url, timeout=15, headers={"User-Agent": "Mozilla/5.0"}
+            )
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
             page_text = soup.get_text(" ", strip=True)
@@ -89,20 +101,27 @@ def get_all_plafonds_ij_via_ai() -> dict | None:
                 continue
 
             data = extract_json_with_gpt(page_text)
-            
+
             # Validation pour s'assurer que le JSON est complet
             expected_keys = ["maladie", "maternite_paternite", "at_mp", "at_mp_majoree"]
             if data and all(key in data for key in expected_keys):
                 print("✅ JSON valide et complet extrait de la page !")
                 return data
             else:
-                print("   - Le JSON extrait est incomplet ou invalide, passage à la page suivante.")
+                print(
+                    "   - Le JSON extrait est incomplet ou invalide, passage à la page suivante."
+                )
 
         except Exception as e:
-            print(f"   - ERREUR lors du traitement de la page : {e}. Passage à la suivante.")
+            print(
+                f"   - ERREUR lors du traitement de la page : {e}. Passage à la suivante."
+            )
 
-    print(f"\n❌ ERREUR FATALE : Aucune donnée valide n'a pu être extraite après avoir essayé {len(search_results)} pages.")
+    print(
+        f"\n❌ ERREUR FATALE : Aucune donnée valide n'a pu être extraite après avoir essayé {len(search_results)} pages."
+    )
     return None
+
 
 if __name__ == "__main__":
     valeurs = get_all_plafonds_ij_via_ai()

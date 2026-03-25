@@ -3,6 +3,7 @@ Mappers infrastructure rates : ligne DB → forme de sortie API.
 
 Délègue au domain pour la définition du contrat de sortie (clés exposées).
 """
+
 from __future__ import annotations
 
 from typing import Any

@@ -4,6 +4,7 @@ Constantes transverses de l'application.
 Noms d'environnement, libellés, valeurs par défaut partagés.
 Aucune logique métier.
 """
+
 from __future__ import annotations
 
 # Identité de l'app (aligné sur app/main.py si besoin)

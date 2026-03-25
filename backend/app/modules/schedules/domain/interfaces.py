@@ -4,6 +4,7 @@ Ports (interfaces) du domaine schedules pour l'infrastructure.
 Règles : pas de FastAPI, pas d'I/O concrète. Dépendances inversées :
 l'application et l'infrastructure dépendent du domain, pas l'inverse.
 """
+
 from abc import ABC, abstractmethod
 from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
@@ -64,9 +65,7 @@ class IScheduleRepository(ABC):
         ...
 
     @abstractmethod
-    def exists_schedule(
-        self, employee_id: str, year: int, month: int
-    ) -> bool:
+    def exists_schedule(self, employee_id: str, year: int, month: int) -> bool:
         """True si une ligne existe pour cet employé / mois."""
         ...
 
@@ -97,9 +96,7 @@ class IEmployeeCompanyReader(ABC):
     """Port pour la lecture employé / entreprise (tables employees, companies)."""
 
     @abstractmethod
-    def get_company_and_statut(
-        self, employee_id: str
-    ) -> Tuple[str, Optional[str]]:
+    def get_company_and_statut(self, employee_id: str) -> Tuple[str, Optional[str]]:
         """Retourne (company_id, statut). Lève si employé absent ou sans company_id."""
         ...
 
@@ -109,9 +106,7 @@ class IEmployeeCompanyReader(ABC):
         ...
 
     @abstractmethod
-    def get_employee_for_payroll_events(
-        self, employee_id: str
-    ) -> Dict[str, Any]:
+    def get_employee_for_payroll_events(self, employee_id: str) -> Dict[str, Any]:
         """
         Retourne dict avec employee_folder_name, duree_hebdomadaire, statut, company_id.
         Lève si employé absent.

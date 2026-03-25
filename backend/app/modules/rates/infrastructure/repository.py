@@ -3,6 +3,7 @@ Implémentation du port IAllRatesReader via Supabase (table payroll_config).
 
 Ne fait que la lecture brute ; le groupement et le formatage sont en domain/application.
 """
+
 from __future__ import annotations
 
 import logging

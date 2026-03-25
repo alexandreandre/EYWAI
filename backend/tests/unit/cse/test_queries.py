@@ -4,12 +4,17 @@ Tests unitaires des queries CSE (application/queries.py).
 Les queries utilisent les repositories (infrastructure). On mocke les repositories
 pour vérifier les appels et retours sans DB.
 """
+
 from datetime import date, datetime
 from unittest.mock import patch, MagicMock
 
 
 from app.modules.cse.application import queries
-from app.modules.cse.schemas import ElectedMemberRead, ElectedMemberStatus, DelegationQuotaRead
+from app.modules.cse.schemas import (
+    ElectedMemberRead,
+    ElectedMemberStatus,
+    DelegationQuotaRead,
+)
 
 
 # --- check_module_active ---

@@ -16,7 +16,9 @@ from ddgs.ddgs import DDGS  # plus stable que googlesearch
 load_dotenv()
 
 PREFERRED_URL = "https://bofip.impots.gouv.fr/bofip/11255-PGP.html/identifiant%3DBOI-BAREME-000037-20250410"
-SEARCH_QUERY = "barème taux neutre prélèvement à la source BOFiP site:bofip.impots.gouv.fr"
+SEARCH_QUERY = (
+    "barème taux neutre prélèvement à la source BOFiP site:bofip.impots.gouv.fr"
+)
 
 NBSP = "\xa0"
 NNBSP = "\u202f"
@@ -33,7 +35,15 @@ def _to_float(x: Any) -> Optional[float]:
         return None
     if isinstance(x, (int, float)):
         return float(x)
-    s = str(x).strip().replace(NBSP, "").replace(NNBSP, "").replace(THIN, "").replace(" ", "").replace(",", ".")
+    s = (
+        str(x)
+        .strip()
+        .replace(NBSP, "")
+        .replace(NNBSP, "")
+        .replace(THIN, "")
+        .replace(" ", "")
+        .replace(",", ".")
+    )
     m = re.search(r"-?\d+(?:\.\d+)?", s)
     return float(m.group(0)) if m else None
 
@@ -86,7 +96,10 @@ Texte à analyser :
             response_format={"type": "json_object"},
             temperature=0,
             messages=[
-                {"role": "system", "content": "Assistant d’extraction de données fiscales. Réponds uniquement en JSON valide."},
+                {
+                    "role": "system",
+                    "content": "Assistant d’extraction de données fiscales. Réponds uniquement en JSON valide.",
+                },
                 {"role": "user", "content": prompt},
             ],
         )

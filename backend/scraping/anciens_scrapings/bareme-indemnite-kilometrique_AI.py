@@ -17,8 +17,9 @@ SEARCH_QUERIES = [
     # Sources usuelles
     "site:service-public.fr barème kilométrique actuel voitures motocyclettes cyclomoteurs",
     "site:legisocial.fr barème kilométrique actuel voitures motocyclettes cyclomoteurs",
-    "barème kilométrique actuel indemnités kilométriques voitures motos cyclomoteurs"
+    "barème kilométrique actuel indemnités kilométriques voitures motos cyclomoteurs",
 ]
+
 
 def extract_json_with_gpt(page_text: str, prompt: str) -> dict | None:
     if not os.getenv("OPENAI_API_KEY"):
@@ -31,16 +32,20 @@ def extract_json_with_gpt(page_text: str, prompt: str) -> dict | None:
             model="gpt-4o-mini",
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "Tu es un extracteur de données. Réponds en JSON STRICT valide uniquement."},
-                {"role": "user", "content": prompt + "\n\n---\n" + page_text}
+                {
+                    "role": "system",
+                    "content": "Tu es un extracteur de données. Réponds en JSON STRICT valide uniquement.",
+                },
+                {"role": "user", "content": prompt + "\n\n---\n" + page_text},
             ],
-            temperature=0
+            temperature=0,
         )
         txt = resp.choices[0].message.content.strip()
         return json.loads(txt)
     except Exception as e:
         print(f"   - ERREUR API/JSON : {e}")
         return None
+
 
 def build_prompt() -> str:
     # Extrait EXACTEMENT la structure attendue par le code classique (mêmes clés/segments)
@@ -127,6 +132,7 @@ Réponds dans ce JSON EXACT (aucune autre clé, aucun texte hors JSON) :
 }
 """
 
+
 def validate_payload(data: dict) -> bool:
     try:
         # Voitures: 5 tranches, chacune 3 segments
@@ -141,19 +147,26 @@ def validate_payload(data: dict) -> bool:
                 if not isinstance(f["a"], (int, float)):
                     return False
         # Moto: 3 tranches
-        if not isinstance(data.get("motocyclettes"), list) or len(data["motocyclettes"]) != 3:
+        if (
+            not isinstance(data.get("motocyclettes"), list)
+            or len(data["motocyclettes"]) != 3
+        ):
             return False
         for tr in data["motocyclettes"]:
             if len(tr.get("formules", [])) != 3:
                 return False
         # Cyclo: 1 tranche
-        if not isinstance(data.get("cyclomoteurs"), list) or len(data["cyclomoteurs"]) != 1:
+        if (
+            not isinstance(data.get("cyclomoteurs"), list)
+            or len(data["cyclomoteurs"]) != 1
+        ):
             return False
         if len(data["cyclomoteurs"][0].get("formules", [])) != 3:
             return False
         return True
     except Exception:
         return False
+
 
 def get_baremes_via_ai() -> dict | None:
     prompt = build_prompt()
@@ -199,6 +212,7 @@ def get_baremes_via_ai() -> dict | None:
     print("\n❌ Aucune donnée exploitable.")
     return None
 
+
 def update_config_file(payload: dict) -> None:
     """
     Met à jour STRICTEMENT les mêmes variables que le code classique :
@@ -224,11 +238,14 @@ def update_config_file(payload: dict) -> None:
             raise KeyError(f"Clé manquante dans le JSON : {k}")
 
     tc["bareme_kilometrique_voitures_2025"]["tranches_cv"] = payload["voitures"]
-    tc["bareme_kilometrique_motocyclettes_2025"]["tranches_cv"] = payload["motocyclettes"]
+    tc["bareme_kilometrique_motocyclettes_2025"]["tranches_cv"] = payload[
+        "motocyclettes"
+    ]
     tc["bareme_kilometrique_cyclomoteurs_2025"]["tranches_cv"] = payload["cyclomoteurs"]
 
     path.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
     print("✅ JSON mis à jour (IA) : voitures, motocyclettes, cyclomoteurs")
+
 
 if __name__ == "__main__":
     data = get_baremes_via_ai()

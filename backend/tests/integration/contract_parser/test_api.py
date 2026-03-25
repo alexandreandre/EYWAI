@@ -7,6 +7,7 @@ Routes : POST /api/contract-parser/extract-from-pdf,
 Utilise : client (TestClient), dependency_overrides pour get_current_user.
 Pour des réponses déterministes sans appel LLM/PDF réel, les commandes sont mockées.
 """
+
 from io import BytesIO
 from unittest.mock import patch
 
@@ -24,7 +25,9 @@ TEST_COMPANY_ID = "550e8400-e29b-41d4-a716-446655440000"
 TEST_USER_ID = "660e8400-e29b-41d4-a716-446655440001"
 
 
-def _make_contract_parser_user(company_id: str = TEST_COMPANY_ID, user_id: str = TEST_USER_ID):
+def _make_contract_parser_user(
+    company_id: str = TEST_COMPANY_ID, user_id: str = TEST_USER_ID
+):
     """Utilisateur de test pour les routes contract_parser (auth requise)."""
     return User(
         id=user_id,
@@ -97,7 +100,9 @@ class TestContractParserValidation:
         """Avec auth : fichier .txt → 400."""
         from app.core.security import get_current_user
 
-        app.dependency_overrides[get_current_user] = lambda: _make_contract_parser_user()
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_contract_parser_user()
+        )
         try:
             response = client.post(
                 "/api/contract-parser/extract-from-pdf",
@@ -114,7 +119,9 @@ class TestContractParserValidation:
         """Avec auth : fichier PDF vide → 400."""
         from app.core.security import get_current_user
 
-        app.dependency_overrides[get_current_user] = lambda: _make_contract_parser_user()
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_contract_parser_user()
+        )
         try:
             response = client.post(
                 "/api/contract-parser/extract-from-pdf",
@@ -131,7 +138,9 @@ class TestContractParserValidation:
         """extract-rib : fichier non PDF → 400."""
         from app.core.security import get_current_user
 
-        app.dependency_overrides[get_current_user] = lambda: _make_contract_parser_user()
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_contract_parser_user()
+        )
         try:
             response = client.post(
                 "/api/contract-parser/extract-rib-from-pdf",
@@ -141,11 +150,15 @@ class TestContractParserValidation:
         finally:
             app.dependency_overrides.pop(get_current_user, None)
 
-    def test_extract_questionnaire_rejects_empty_pdf_with_auth(self, client: TestClient):
+    def test_extract_questionnaire_rejects_empty_pdf_with_auth(
+        self, client: TestClient
+    ):
         """extract-questionnaire : PDF vide → 400."""
         from app.core.security import get_current_user
 
-        app.dependency_overrides[get_current_user] = lambda: _make_contract_parser_user()
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_contract_parser_user()
+        )
         try:
             response = client.post(
                 "/api/contract-parser/extract-questionnaire-from-pdf",
@@ -169,12 +182,18 @@ class TestContractParserExtractFromPdfWithAuth:
         from app.core.security import get_current_user
 
         fake_result = ExtractionResultDto(
-            extracted_data={"first_name": "Jean", "last_name": "Dupont", "hire_date": "2024-01-15"},
+            extracted_data={
+                "first_name": "Jean",
+                "last_name": "Dupont",
+                "hire_date": "2024-01-15",
+            },
             confidence="high",
             warnings=[],
         )
 
-        app.dependency_overrides[get_current_user] = lambda: _make_contract_parser_user()
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_contract_parser_user()
+        )
         try:
             with patch(
                 "app.modules.contract_parser.api.router.commands.extract_contract_from_pdf",
@@ -211,7 +230,9 @@ class TestContractParserExtractRibWithAuth:
             warnings=[],
         )
 
-        app.dependency_overrides[get_current_user] = lambda: _make_contract_parser_user()
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_contract_parser_user()
+        )
         try:
             with patch(
                 "app.modules.contract_parser.api.router.commands.extract_rib_from_pdf",
@@ -246,7 +267,9 @@ class TestContractParserExtractQuestionnaireWithAuth:
             warnings=["Salaire non renseigné"],
         )
 
-        app.dependency_overrides[get_current_user] = lambda: _make_contract_parser_user()
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_contract_parser_user()
+        )
         try:
             with patch(
                 "app.modules.contract_parser.api.router.commands.extract_questionnaire_from_pdf",

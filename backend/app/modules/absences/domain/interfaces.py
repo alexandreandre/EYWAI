@@ -4,6 +4,7 @@ Ports (interfaces) du domaine absences.
 Implémentations dans infrastructure/. Aucune dépendance FastAPI ni DB ici.
 Source : comportement actuel de api/routers/absences.py et services/evenements_familiaux.py.
 """
+
 from abc import ABC, abstractmethod
 from datetime import date
 from typing import Any, Dict, List, Optional

@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module auth : injection des dépendances et flux b
 Vérifie que le router auth est monté, que les routes répondent (pas 404),
 et qu'un enchaînement typique (ex. request-password-reset → verify-reset-token) est cohérent.
 """
+
 import pytest
 from fastapi.testclient import TestClient
 

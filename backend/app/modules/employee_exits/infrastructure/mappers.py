@@ -4,6 +4,7 @@ Mappers : construction de payloads DB et structures métier (dict).
 build_exit_record, build_document_data_from_exit : comportement identique au router.
 Aucune dépendance FastAPI.
 """
+
 from typing import Any, Dict, Optional
 
 
@@ -51,8 +52,10 @@ def build_document_data_from_exit(
         "employee": {
             "first_name": employee_data.get("first_name", ""),
             "last_name": employee_data.get("last_name", ""),
-            "date_naissance": employee_data.get("date_naissance") or employee_data.get("birthdate", ""),
-            "birth_place": employee_data.get("birth_place") or employee_data.get("lieu_naissance", ""),
+            "date_naissance": employee_data.get("date_naissance")
+            or employee_data.get("birthdate", ""),
+            "birth_place": employee_data.get("birth_place")
+            or employee_data.get("lieu_naissance", ""),
             "social_security_number": employee_data.get("social_security_number")
             or employee_data.get("numero_securite_sociale", ""),
             "job_title": employee_data.get("job_title", ""),
@@ -62,12 +65,15 @@ def build_document_data_from_exit(
         },
         "company": {
             "name": company_data.get("name") or company_data.get("raison_sociale", ""),
-            "raison_sociale": company_data.get("raison_sociale") or company_data.get("name", ""),
+            "raison_sociale": company_data.get("raison_sociale")
+            or company_data.get("name", ""),
             "siret": company_data.get("siret", ""),
             "address": company_data.get("address", ""),
             "city": company_data.get("city", ""),
-            "naf_code": company_data.get("naf_code") or company_data.get("ape_code", ""),
-            "ape_code": company_data.get("ape_code") or company_data.get("naf_code", ""),
+            "naf_code": company_data.get("naf_code")
+            or company_data.get("ape_code", ""),
+            "ape_code": company_data.get("ape_code")
+            or company_data.get("naf_code", ""),
             "urssaf_number": company_data.get("urssaf_number", ""),
         },
         "exit": {
@@ -87,7 +93,11 @@ DOCUMENT_NAME_MAP = {
     "solde_tout_compte": "Solde de tout compte",
 }
 
-GENERATABLE_DOCUMENT_TYPES = ["certificat_travail", "attestation_pole_emploi", "solde_tout_compte"]
+GENERATABLE_DOCUMENT_TYPES = [
+    "certificat_travail",
+    "attestation_pole_emploi",
+    "solde_tout_compte",
+]
 
 
 # Placeholders pour mapping row -> entité domain (optionnel, non utilisés pour l'instant)

@@ -21,6 +21,7 @@ sys.path.insert(0, str(_here))
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv(_here / ".env")
 except ImportError:
     pass
@@ -62,11 +63,19 @@ class PromotionTester:
         self.results: List[TestResult] = []
 
     def log(self, message: str, level: str = "INFO"):
-        prefix = {"INFO": "ℹ️", "SUCCESS": "✅", "ERROR": "❌", "WARNING": "⚠️", "TEST": "🧪"}.get(level, "ℹ️")
+        prefix = {
+            "INFO": "ℹ️",
+            "SUCCESS": "✅",
+            "ERROR": "❌",
+            "WARNING": "⚠️",
+            "TEST": "🧪",
+        }.get(level, "ℹ️")
         print(f"{prefix} {message}")
 
     def add(self, name: str, success: bool, message: str, data: Any = None):
-        self.results.append(TestResult(name=name, success=success, message=message, data=data))
+        self.results.append(
+            TestResult(name=name, success=success, message=message, data=data)
+        )
         self.log(f"{name}: {message}", "SUCCESS" if success else "ERROR")
 
     def setup_context(self) -> bool:
@@ -81,7 +90,13 @@ class PromotionTester:
             self.company_id = r.data[0]["id"]
 
             # Un employé de cette company
-            r = supabase.table("employees").select("id").eq("company_id", self.company_id).limit(1).execute()
+            r = (
+                supabase.table("employees")
+                .select("id")
+                .eq("company_id", self.company_id)
+                .limit(1)
+                .execute()
+            )
             if not r.data or len(r.data) == 0:
                 self.add("Setup", False, "Aucun employé pour cette company")
                 return False
@@ -94,7 +109,11 @@ class PromotionTester:
                 return False
             self.profile_id = r.data[0]["id"]
 
-            self.add("Setup", True, f"company={self.company_id[:8]}..., employee={self.employee_id[:8]}..., profile={self.profile_id[:8]}...")
+            self.add(
+                "Setup",
+                True,
+                f"company={self.company_id[:8]}..., employee={self.employee_id[:8]}..., profile={self.profile_id[:8]}...",
+            )
             return True
         except Exception as e:
             self.add("Setup", False, str(e))
@@ -113,15 +132,22 @@ class PromotionTester:
         try:
             # Récupérer toutes les promotions draft pour cet employé
             # (la contrainte unique s'applique aux drafts)
-            response = supabase.table('promotions').select('id, status').eq('company_id', self.company_id).eq('employee_id', self.employee_id).eq('status', 'draft').execute()
+            response = (
+                supabase.table("promotions")
+                .select("id, status")
+                .eq("company_id", self.company_id)
+                .eq("employee_id", self.employee_id)
+                .eq("status", "draft")
+                .execute()
+            )
             promotions_to_clean = response.data or []
-            
+
             # Supprimer chaque draft
             for promo in promotions_to_clean:
                 try:
-                    delete_promotion(promo['id'], self.company_id)
-                    if promo['id'] in self.created_promotion_ids:
-                        self.created_promotion_ids.remove(promo['id'])
+                    delete_promotion(promo["id"], self.company_id)
+                    if promo["id"] in self.created_promotion_ids:
+                        self.created_promotion_ids.remove(promo["id"])
                 except Exception:
                     pass  # Ignorer les erreurs de nettoyage
         except Exception:
@@ -209,7 +235,6 @@ class PromotionTester:
             self.add("Update", False, str(e))
             return False
 
-
     def test_mark_effective(self, promotion_id: str) -> bool:
         if not self.company_id:
             self.add("Mark effective", False, "company_id manquant")
@@ -277,7 +302,7 @@ class PromotionTester:
         # On crée une promotion, on la teste, puis on la nettoie avant d'en créer une autre
         self.log("\n--- Création (draft avec date future) ---", "TEST")
         id_poste = self.test_create_promotion("poste")
-        
+
         # Liste et filtres (avec la promotion poste créée)
         self.log("\n--- Liste et filtres ---", "TEST")
         self.test_get_promotions()
@@ -292,7 +317,10 @@ class PromotionTester:
             self.log("\n--- Mise à jour ---", "TEST")
             self.test_update_promotion(
                 id_poste,
-                {"new_job_title": "Poste mis à jour", "justification": "Mise à jour test"},
+                {
+                    "new_job_title": "Poste mis à jour",
+                    "justification": "Mise à jour test",
+                },
             )
 
         # Test création directe en effective (date d'effet = aujourd'hui)
@@ -322,7 +350,7 @@ class PromotionTester:
                 self.log("  ✓ Promotion créée en draft (date future)", "SUCCESS")
             # Marquer comme effective (même si date future, pour tester)
             self.test_mark_effective(id_draft_future)
-        
+
         # Créer les autres types de promotions pour tester la création
         # Contrainte unique : une seule promotion draft par employé → on supprime après chaque création
         self.log("\n--- Création autres types (draft) ---", "TEST")

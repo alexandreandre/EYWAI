@@ -3,6 +3,7 @@ Tests unitaires du service applicatif employee_exits (application/service.py).
 
 Dépendances (ExitChecklistRepository, infrastructure.queries) mockées.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -99,6 +100,10 @@ class TestEnrichExitWithDocumentsAndChecklist:
     def test_default_expiry_3600(self, mock_infra_queries):
         """Par défaut signed_url_expiry_seconds vaut 3600."""
         exit_record = {"id": EXIT_ID}
-        enrich_exit_with_documents_and_checklist(exit_record, supabase_client=MagicMock())
-        call_args = mock_infra_queries.enrich_exit_with_documents_and_checklist.call_args[0]
+        enrich_exit_with_documents_and_checklist(
+            exit_record, supabase_client=MagicMock()
+        )
+        call_args = (
+            mock_infra_queries.enrich_exit_with_documents_and_checklist.call_args[0]
+        )
         assert call_args[1] == 3600

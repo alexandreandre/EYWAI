@@ -32,9 +32,11 @@ USER_AGENT = (
 
 # --- Fonctions utilitaires ---
 
+
 def iso_now() -> str:
     """Retourne l'heure actuelle en format ISO UTC."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
 
 def _fetch_text_with_requests(url: str) -> str | None:
     """Récupère le texte brut d'une page web via requests/BeautifulSoup."""
@@ -44,8 +46,11 @@ def _fetch_text_with_requests(url: str) -> str | None:
         soup = BeautifulSoup(r.text, "html.parser")
         return soup.get_text(" ", strip=True)
     except Exception as e:
-        print(f"ERREUR (CHOMAGE_AI): Échec fetch Requests sur {url}: {e}", file=sys.stderr)
+        print(
+            f"ERREUR (CHOMAGE_AI): Échec fetch Requests sur {url}: {e}", file=sys.stderr
+        )
         return None
+
 
 def _extract_rate_with_gpt(page_text: str) -> dict[str, float | None] | None:
     """Extrait le taux patronal de l’assurance chômage via GPT."""
@@ -70,8 +75,7 @@ def _extract_rate_with_gpt(page_text: str) -> dict[str, float | None] | None:
         "Ne te fie pas à n'importe quel site, ait du recul sur les résultats que tu donnes.\n"
         "- Le taux peut être exprimé sous diverses formes.\n\n"
         "Donne exactement la valeur à la date d'aujourd'hui"
-        "Texte à analyser (max 15000 caractères):\n---\n"
-        + page_text[:15000]
+        "Texte à analyser (max 15000 caractères):\n---\n" + page_text[:15000]
     )
 
     try:
@@ -80,7 +84,10 @@ def _extract_rate_with_gpt(page_text: str) -> dict[str, float | None] | None:
             response_format={"type": "json_object"},
             temperature=0,
             messages=[
-                {"role": "system", "content": "Assistant d'extraction JSON pur, focalisé sur le taux patronal de l’assurance chômage."},
+                {
+                    "role": "system",
+                    "content": "Assistant d'extraction JSON pur, focalisé sur le taux patronal de l’assurance chômage.",
+                },
                 {"role": "user", "content": prompt},
             ],
         )
@@ -101,10 +108,13 @@ def _extract_rate_with_gpt(page_text: str) -> dict[str, float | None] | None:
         print(f"ERREUR (CHOMAGE_AI): Extraction IA échouée: {e}", file=sys.stderr)
         return None
 
+
 def build_payload(rate: dict[str, float | None] | None, found_url: str | None) -> dict:
     """Construit le JSON final strict demandé."""
     source_url = found_url or "N/A"
-    source_label = "Source IA (via DDGS)" if found_url else "N/A (Taux non trouvé par l'IA)"
+    source_label = (
+        "Source IA (via DDGS)" if found_url else "N/A (Taux non trouvé par l'IA)"
+    )
 
     patronal = rate.get("patronal") if rate else None
 
@@ -123,12 +133,17 @@ def build_payload(rate: dict[str, float | None] | None, found_url: str | None) -
         },
     }
 
+
 # --- Fonction principale ---
+
 
 def main() -> None:
     current_year = datetime.now().year
     SEARCH_QUERY = SEARCH_QUERY_TEMPLATE.format(year=current_year)
-    print(f"INFO (CHOMAGE_AI): Démarrage. Recherche DDGS: '{SEARCH_QUERY}'", file=sys.stderr)
+    print(
+        f"INFO (CHOMAGE_AI): Démarrage. Recherche DDGS: '{SEARCH_QUERY}'",
+        file=sys.stderr,
+    )
 
     results = []
     try:
@@ -136,9 +151,15 @@ def main() -> None:
         if search_results:
             results = [r["href"] for r in search_results]
         if not results:
-            print("ERREUR (CHOMAGE_AI): DDGS n'a retourné aucun résultat.", file=sys.stderr)
+            print(
+                "ERREUR (CHOMAGE_AI): DDGS n'a retourné aucun résultat.",
+                file=sys.stderr,
+            )
     except Exception as e:
-        print(f"ERREUR (CHOMAGE_AI): Échec de la recherche DuckDuckGo: {e}", file=sys.stderr)
+        print(
+            f"ERREUR (CHOMAGE_AI): Échec de la recherche DuckDuckGo: {e}",
+            file=sys.stderr,
+        )
 
     rate = None
     successful_url = None
@@ -152,17 +173,23 @@ def main() -> None:
 
         rate = _extract_rate_with_gpt(txt)
         if rate and rate.get("patronal") is not None:
-            print(f"INFO (CHOMAGE_AI): Taux trouvé sur cette URL: {rate.get('patronal')}", file=sys.stderr)
+            print(
+                f"INFO (CHOMAGE_AI): Taux trouvé sur cette URL: {rate.get('patronal')}",
+                file=sys.stderr,
+            )
             successful_url = url
             break
         else:
-            print("INFO (CHOMAGE_AI): ...Taux non trouvé sur cette URL.", file=sys.stderr)
+            print(
+                "INFO (CHOMAGE_AI): ...Taux non trouvé sur cette URL.", file=sys.stderr
+            )
 
     if rate is None:
         print("ERREUR (CHOMAGE_AI): Aucun taux trouvé après analyse.", file=sys.stderr)
 
     payload = build_payload(rate, successful_url)
     print(json.dumps(payload, ensure_ascii=False))
+
 
 if __name__ == "__main__":
     main()

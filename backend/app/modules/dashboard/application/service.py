@@ -4,6 +4,7 @@ Service applicatif du module dashboard.
 Orchestration uniquement : utilise domain (règles pures), infrastructure
 (repository, providers, mappers). Aucun accès DB ni FastAPI direct.
 """
+
 from __future__ import annotations
 
 import logging
@@ -18,7 +19,9 @@ from app.modules.dashboard.infrastructure.mappers import (
     to_team_pulse_employees,
     to_team_pulse_events,
 )
-from app.modules.dashboard.infrastructure.providers import get_residence_permit_calculator
+from app.modules.dashboard.infrastructure.providers import (
+    get_residence_permit_calculator,
+)
 from app.modules.dashboard.infrastructure.repository import get_dashboard_repository
 from app.modules.dashboard.schemas.responses import (
     ActionItems,
@@ -128,9 +131,7 @@ def build_full_dashboard(company_id: str) -> DashboardData:
 
     current_month = today.month
     all_months = set(costs_by_month.keys()) | set(net_by_month.keys())
-    sorted_months = domain_rules.get_last_n_past_months(
-        all_months, current_month, n=12
-    )
+    sorted_months = domain_rules.get_last_n_past_months(all_months, current_month, n=12)
     chart_data = to_chart_data_points(
         costs_by_month,
         net_by_month,

@@ -5,6 +5,7 @@ Délègue toute la logique à la couche application (commands, queries).
 Validation des entrées (schémas), résolution utilisateur (Depends), appel application, retour HTTP.
 Comportement HTTP identique à api/routers/absences.py.
 """
+
 import io
 import traceback
 from typing import List, Literal
@@ -50,6 +51,7 @@ def _handle_application_errors(e: Exception) -> None:
 
 # ----- Upload URL -----
 
+
 @router.post("/get-upload-url", response_model=SignedUploadURL)
 async def get_upload_url(
     filename: str = Body(..., embed=True),
@@ -61,12 +63,11 @@ async def get_upload_url(
         return SignedUploadURL(**result)
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"Erreur de stockage Supabase: {e}"
-        )
+        raise HTTPException(status_code=500, detail=f"Erreur de stockage Supabase: {e}")
 
 
 # ----- Création / mise à jour demandes -----
+
 
 @router.post("/requests", response_model=AbsenceRequest, status_code=201)
 async def create_absence_request(request_data: AbsenceRequestCreate):
@@ -124,6 +125,7 @@ async def update_absence_request(
 
 # ----- Liste globale (RH) -----
 
+
 @router.get("/", response_model=List[AbsenceRequestWithEmployee])
 async def get_absence_requests(
     status: Literal["pending", "validated", "rejected", "cancelled"] | None = None,
@@ -138,6 +140,7 @@ async def get_absence_requests(
 
 # ----- Employé spécifique (RH) -----
 
+
 @router.get("/employees/{employee_id}", response_model=List[AbsenceRequest])
 async def get_absences_for_employee(employee_id: str):
     """Récupère toutes les demandes d'absence pour un employé avec URLs des justificatifs."""
@@ -151,6 +154,7 @@ async def get_absences_for_employee(employee_id: str):
 
 
 # ----- Routes "me" (utilisateur connecté) -----
+
 
 @router.get(
     "/employees/me/evenements-familiaux",
@@ -170,9 +174,7 @@ async def get_my_evenements_familiaux(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get(
-    "/employees/me/balances", response_model=AbsenceBalancesResponse
-)
+@router.get("/employees/me/balances", response_model=AbsenceBalancesResponse)
 async def get_my_absence_balances(
     current_user: User = Depends(get_current_user),
 ):
@@ -184,14 +186,10 @@ async def get_my_absence_balances(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception:
         traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail="Erreur lors du calcul des soldes."
-        )
+        raise HTTPException(status_code=500, detail="Erreur lors du calcul des soldes.")
 
 
-@router.get(
-    "/employees/me/calendar", response_model=MonthlyCalendarResponse
-)
+@router.get("/employees/me/calendar", response_model=MonthlyCalendarResponse)
 async def get_my_monthly_calendar(
     year: int,
     month: int,
@@ -199,9 +197,7 @@ async def get_my_monthly_calendar(
 ):
     """Récupère le calendrier planifié pour un mois donné pour l'utilisateur connecté."""
     try:
-        days = queries.get_my_monthly_calendar(
-            str(current_user.id), year, month
-        )
+        days = queries.get_my_monthly_calendar(str(current_user.id), year, month)
         return MonthlyCalendarResponse(days=days)
     except Exception:
         traceback.print_exc()
@@ -226,9 +222,7 @@ async def get_my_absences_history(
         )
 
 
-@router.get(
-    "/employees/me/page-data", response_model=AbsencePageData
-)
+@router.get("/employees/me/page-data", response_model=AbsencePageData)
 async def get_my_absences_page_data(
     year: int,
     month: int,
@@ -236,9 +230,7 @@ async def get_my_absences_page_data(
 ):
     """Récupère toutes les données pour la page absences (soldes, calendrier, historique)."""
     try:
-        data = queries.get_my_absences_page_data(
-            str(current_user.id), year, month
-        )
+        data = queries.get_my_absences_page_data(str(current_user.id), year, month)
         return AbsencePageData(**data)
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -250,6 +242,7 @@ async def get_my_absences_page_data(
 
 
 # ----- Attestations de salaire -----
+
 
 @router.post("/{absence_id}/generate-certificate")
 async def generate_salary_certificate(
@@ -289,9 +282,7 @@ async def download_salary_certificate(
         return StreamingResponse(
             io.BytesIO(pdf_bytes),
             media_type="application/pdf",
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"'
-            },
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
     except HTTPException:
         raise

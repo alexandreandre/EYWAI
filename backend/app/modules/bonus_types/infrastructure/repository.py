@@ -1,6 +1,7 @@
 """
 Implémentation du port IBonusTypeRepository via Supabase (table company_bonus_types).
 """
+
 from __future__ import annotations
 
 from typing import Any

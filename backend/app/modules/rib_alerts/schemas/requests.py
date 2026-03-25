@@ -3,6 +3,7 @@ Schémas de requête API pour rib_alerts.
 
 Définitions canoniques (ex-routers : api/routers/rib_alerts). Comportement identique.
 """
+
 from __future__ import annotations
 
 from typing import Optional

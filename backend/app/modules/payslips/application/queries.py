@@ -4,6 +4,7 @@ Queries (use cases en lecture) du module payslips.
 Logique applicative : orchestration des lectures ; l'infrastructure exécute
 les appels BDD et storage. Les routers n'ont plus la logique métier.
 """
+
 from __future__ import annotations
 
 from typing import Any

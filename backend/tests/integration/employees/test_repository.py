@@ -8,6 +8,7 @@ Sans DB de test : mocks Supabase pour valider la logique et les appels.
 Fixture à prévoir dans conftest.py si besoin :
   - db_session : session ou client DB de test pour tests contre une vraie base.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -52,7 +53,9 @@ class TestEmployeeRepository:
     def test_get_by_company_empty_returns_empty_list(self, mock_supabase):
         mock_table = MagicMock()
         chain = MagicMock()
-        chain.eq.return_value.order.return_value.execute.return_value = MagicMock(data=[])
+        chain.eq.return_value.order.return_value.execute.return_value = MagicMock(
+            data=[]
+        )
         mock_table.select.return_value = chain
         mock_supabase.table.return_value = mock_table
 
@@ -64,8 +67,8 @@ class TestEmployeeRepository:
         row = {"id": "e1", "first_name": "Jean", "company_id": "c1"}
         mock_table = MagicMock()
         chain = MagicMock()
-        chain.eq.return_value.eq.return_value.single.return_value.execute.return_value = (
-            MagicMock(data=row)
+        chain.eq.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(
+            data=row
         )
         mock_table.select.return_value = chain
         mock_supabase.table.return_value = mock_table
@@ -79,8 +82,8 @@ class TestEmployeeRepository:
     def test_get_by_id_returns_none_when_no_data(self, mock_supabase):
         mock_table = MagicMock()
         chain = MagicMock()
-        chain.eq.return_value.eq.return_value.single.return_value.execute.return_value = (
-            MagicMock(data=None)
+        chain.eq.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(
+            data=None
         )
         mock_table.select.return_value = chain
         mock_supabase.table.return_value = mock_table

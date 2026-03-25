@@ -3,6 +3,7 @@ Tests unitaires des queries applicatives exports.
 
 Chaque query est testée avec providers, infrastructure queries et storage mockés.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -39,8 +40,14 @@ class TestPreviewExport:
             "warnings": [],
             "can_generate": True,
         }
-        with patch.object(queries.domain_rules, "is_supported_export_type_for_preview", return_value=True):
-            with patch.object(queries.providers, "preview_journal_paie", return_value=mock_preview):
+        with patch.object(
+            queries.domain_rules,
+            "is_supported_export_type_for_preview",
+            return_value=True,
+        ):
+            with patch.object(
+                queries.providers, "preview_journal_paie", return_value=mock_preview
+            ):
                 result = queries.preview_export("company-1", req)
         assert result.export_type == "journal_paie"
         assert result.period == "2025-01"
@@ -64,8 +71,16 @@ class TestPreviewExport:
             "warnings": [],
             "can_generate": True,
         }
-        with patch.object(queries.domain_rules, "is_supported_export_type_for_preview", return_value=True):
-            with patch.object(queries.providers, "preview_paiement_salaires", return_value=mock_preview) as mock_prov:
+        with patch.object(
+            queries.domain_rules,
+            "is_supported_export_type_for_preview",
+            return_value=True,
+        ):
+            with patch.object(
+                queries.providers,
+                "preview_paiement_salaires",
+                return_value=mock_preview,
+            ) as mock_prov:
                 queries.preview_export("company-1", req)
                 mock_prov.assert_called_once_with(
                     "company-1",
@@ -85,8 +100,14 @@ class TestPreviewExport:
             "warnings": [],
             "can_generate": True,
         }
-        with patch.object(queries.domain_rules, "is_supported_export_type_for_preview", return_value=True):
-            with patch.object(queries.providers, "preview_od", return_value=mock_preview):
+        with patch.object(
+            queries.domain_rules,
+            "is_supported_export_type_for_preview",
+            return_value=True,
+        ):
+            with patch.object(
+                queries.providers, "preview_od", return_value=mock_preview
+            ):
                 result = queries.preview_export("company-1", req)
         assert result.totals.total_amount == 15000.0
         assert result.employees_count == 0
@@ -107,8 +128,14 @@ class TestPreviewExport:
             "warnings": [],
             "can_generate": True,
         }
-        with patch.object(queries.domain_rules, "is_supported_export_type_for_preview", return_value=True):
-            with patch.object(queries.providers, "preview_dsn", return_value=mock_preview) as mock_dsn:
+        with patch.object(
+            queries.domain_rules,
+            "is_supported_export_type_for_preview",
+            return_value=True,
+        ):
+            with patch.object(
+                queries.providers, "preview_dsn", return_value=mock_preview
+            ) as mock_dsn:
                 result = queries.preview_export("company-1", req)
                 mock_dsn.assert_called_once_with(
                     "company-1",
@@ -122,7 +149,9 @@ class TestPreviewExport:
 
     def test_cabinet_preview_calls_provider(self):
         """Preview export_cabinet_* appelle preview_cabinet_export."""
-        req = ExportPreviewRequest(export_type="export_cabinet_generique", period="2025-01")
+        req = ExportPreviewRequest(
+            export_type="export_cabinet_generique", period="2025-01"
+        )
         mock_preview = {
             "employees_count": 4,
             "totals": {"employees_count": 4},
@@ -130,10 +159,18 @@ class TestPreviewExport:
             "warnings": [],
             "can_generate": True,
         }
-        with patch.object(queries.domain_rules, "is_supported_export_type_for_preview", return_value=True):
-            with patch.object(queries.providers, "preview_cabinet_export", return_value=mock_preview) as mock_cab:
+        with patch.object(
+            queries.domain_rules,
+            "is_supported_export_type_for_preview",
+            return_value=True,
+        ):
+            with patch.object(
+                queries.providers, "preview_cabinet_export", return_value=mock_preview
+            ) as mock_cab:
                 result = queries.preview_export("company-1", req)
-                mock_cab.assert_called_once_with("company-1", "2025-01", "export_cabinet_generique", None)
+                mock_cab.assert_called_once_with(
+                    "company-1", "2025-01", "export_cabinet_generique", None
+                )
         assert result.export_type == "export_cabinet_generique"
 
 
@@ -142,7 +179,9 @@ class TestGetExportHistory:
 
     def test_returns_empty_list_when_no_exports(self):
         """Sans exports en base, retourne liste vide et total 0."""
-        with patch.object(queries.infra_queries, "list_exports_by_company", return_value=[]):
+        with patch.object(
+            queries.infra_queries, "list_exports_by_company", return_value=[]
+        ):
             result = queries.get_export_history("company-1")
         assert result.exports == []
         assert result.total == 0
@@ -162,8 +201,12 @@ class TestGetExportHistory:
             },
         ]
         profiles_map = {"user-1": {"first_name": "Jean", "last_name": "Dupont"}}
-        with patch.object(queries.infra_queries, "list_exports_by_company", return_value=exports_data):
-            with patch.object(queries.infra_queries, "get_profiles_map", return_value=profiles_map):
+        with patch.object(
+            queries.infra_queries, "list_exports_by_company", return_value=exports_data
+        ):
+            with patch.object(
+                queries.infra_queries, "get_profiles_map", return_value=profiles_map
+            ):
                 result = queries.get_export_history("company-1")
         assert result.total == 1
         assert len(result.exports) == 1
@@ -173,8 +216,12 @@ class TestGetExportHistory:
 
     def test_filters_by_export_type_and_period(self):
         """list_exports_by_company est appelé avec export_type et period si fournis."""
-        with patch.object(queries.infra_queries, "list_exports_by_company", return_value=[]) as mock_list:
-            queries.get_export_history("company-1", export_type="dsn_mensuelle", period="2025-02")
+        with patch.object(
+            queries.infra_queries, "list_exports_by_company", return_value=[]
+        ) as mock_list:
+            queries.get_export_history(
+                "company-1", export_type="dsn_mensuelle", period="2025-02"
+            )
             mock_list.assert_called_once_with("company-1", "dsn_mensuelle", "2025-02")
 
 
@@ -186,7 +233,9 @@ class TestGetExportForDownload:
         with patch.object(queries.infra_queries, "get_export_by_id", return_value=None):
             with pytest.raises(ValueError) as exc_info:
                 queries.get_export_for_download("company-1", "unknown-id")
-            assert "non trouvé" in str(exc_info.value).lower() or "Export" in str(exc_info.value)
+            assert "non trouvé" in str(exc_info.value).lower() or "Export" in str(
+                exc_info.value
+            )
 
     def test_export_without_files_raises_value_error(self):
         """Si l'export n'a pas de file_paths, lève ValueError."""
@@ -197,7 +246,9 @@ class TestGetExportForDownload:
         ):
             with pytest.raises(ValueError) as exc_info:
                 queries.get_export_for_download("company-1", "exp-1")
-            assert "fichier" in str(exc_info.value).lower() or "Aucun" in str(exc_info.value)
+            assert "fichier" in str(exc_info.value).lower() or "Aucun" in str(
+                exc_info.value
+            )
 
     def test_returns_signed_url_for_first_file(self):
         """Retourne l'URL signée du premier fichier."""

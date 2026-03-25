@@ -3,6 +3,7 @@ Mappers DB <-> domaine du module super_admin.
 
 Préparation migration : row super_admins -> SuperAdmin.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict
@@ -19,7 +20,9 @@ def row_to_super_admin(row: Dict[str, Any]) -> SuperAdmin:
     """
     return SuperAdmin(
         id=UUID(row["id"]) if isinstance(row["id"], str) else row["id"],
-        user_id=UUID(row["user_id"]) if isinstance(row["user_id"], str) else row["user_id"],
+        user_id=UUID(row["user_id"])
+        if isinstance(row["user_id"], str)
+        else row["user_id"],
         email=row["email"],
         first_name=row["first_name"],
         last_name=row["last_name"],

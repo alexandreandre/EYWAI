@@ -22,9 +22,7 @@ from openai import OpenAI
 
 load_dotenv()
 
-SEARCH_QUERY_TEMPLATE = (
-    "taux CSG CRDS salarié site:urssaf.fr {year}"
-)
+SEARCH_QUERY_TEMPLATE = "taux CSG CRDS salarié site:urssaf.fr {year}"
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
@@ -32,6 +30,7 @@ USER_AGENT = (
 
 
 # --- UTILITAIRES ---
+
 
 def iso_now() -> str:
     """Retourne la date et l'heure actuelles au format ISO 8601 UTC."""
@@ -74,15 +73,14 @@ def _extract_json_with_gpt(page_text: str) -> dict | None:
         "3. 'crds' → taux CRDS\n\n"
         "Renvoie un JSON strict au format :\n"
         "{\n"
-        '  \"csg_imposable\": <float|null>,\n'
-        '  \"csg_non_imposable\": <float|null>,\n'
-        '  \"crds\": <float|null>\n'
+        '  "csg_imposable": <float|null>,\n'
+        '  "csg_non_imposable": <float|null>,\n'
+        '  "crds": <float|null>\n'
         "}\n"
         "- Valeurs en pourcentage (ex: 2.40 pour 2,40%).\n"
         "- Si aucune donnée trouvée, mets null.\n"
         "- Ne renvoie que du JSON pur, sans explication ni commentaire.\n\n"
-        "Texte à analyser (max 15000 caractères) :\n---\n"
-        + page_text[:15000]
+        "Texte à analyser (max 15000 caractères) :\n---\n" + page_text[:15000]
     )
 
     try:
@@ -91,7 +89,10 @@ def _extract_json_with_gpt(page_text: str) -> dict | None:
             response_format={"type": "json_object"},
             temperature=0,
             messages=[
-                {"role": "system", "content": "Assistant d'extraction JSON expert en droit social français, spécialisé en paie et URSSAF."},
+                {
+                    "role": "system",
+                    "content": "Assistant d'extraction JSON expert en droit social français, spécialisé en paie et URSSAF.",
+                },
                 {"role": "user", "content": prompt},
             ],
         )
@@ -113,7 +114,9 @@ def build_payload(taux: dict | None, found_url: str | None) -> dict:
 
     if taux:
         try:
-            deductible = float(str(taux.get("csg_non_imposable")).replace(",", ".")) / 100.0
+            deductible = (
+                float(str(taux.get("csg_non_imposable")).replace(",", ".")) / 100.0
+            )
         except Exception:
             deductible = None
         try:
@@ -153,13 +156,18 @@ def build_payload(taux: dict | None, found_url: str | None) -> dict:
 def main() -> None:
     current_year = datetime.now().year
     SEARCH_QUERY = SEARCH_QUERY_TEMPLATE.format(year=current_year)
-    print(f"INFO (CSG_AI): Démarrage. Recherche DDGS sur URSSAF uniquement: '{SEARCH_QUERY}'", file=sys.stderr)
+    print(
+        f"INFO (CSG_AI): Démarrage. Recherche DDGS sur URSSAF uniquement: '{SEARCH_QUERY}'",
+        file=sys.stderr,
+    )
 
     results = []
     try:
         search_results = DDGS().text(SEARCH_QUERY, region="fr-fr", max_results=10)
         if search_results:
-            results = [r["href"] for r in search_results if "urssaf.fr" in r.get("href", "")]
+            results = [
+                r["href"] for r in search_results if "urssaf.fr" in r.get("href", "")
+            ]
         if not results:
             print("ERREUR (CSG_AI): Aucun résultat URSSAF trouvé.", file=sys.stderr)
     except Exception as e:
@@ -178,7 +186,10 @@ def main() -> None:
         if not data:
             continue
 
-        if all(data.get(k) is not None for k in ("csg_imposable", "csg_non_imposable", "crds")):
+        if all(
+            data.get(k) is not None
+            for k in ("csg_imposable", "csg_non_imposable", "crds")
+        ):
             taux = data
             successful_url = url
             break

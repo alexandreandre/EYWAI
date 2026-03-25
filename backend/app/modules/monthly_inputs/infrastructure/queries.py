@@ -4,6 +4,7 @@ Requêtes infrastructure monthly_inputs : DB + interprétation (payroll_config p
 Lecture et parsing de config_data (str -> json, dict -> primes, list) identique à l'ancien routeur.
 Aucune logique métier pure : uniquement accès DB et format de persistance.
 """
+
 from __future__ import annotations
 
 import json

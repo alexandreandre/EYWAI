@@ -30,7 +30,7 @@ logging.basicConfig(
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 # Charger les variables d'environnement
-dotenv_path = os.path.join(REPO_ROOT, '.env')
+dotenv_path = os.path.join(REPO_ROOT, ".env")
 if not os.path.exists(dotenv_path):
     logging.critical(f"Fichier .env non trouvé à: {dotenv_path}")
     sys.exit(1)
@@ -45,6 +45,7 @@ SCRIPTS_TO_RUN: List[Tuple[str, str]] = [
 
 
 # --- 1. Fonctions de Scraping & Validation (Standardisées) ---
+
 
 def iso_now() -> str:
     """Retourne la date/heure actuelle au format ISO UTC."""
@@ -82,15 +83,17 @@ def core_signature(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Normalise le payload en une signature comparable pour la CSA."""
     if payload.get("id") != ITEM_ID_TO_PATCH:
         raise ValueError(f"ID '{ITEM_ID_TO_PATCH}' attendu, reçu '{payload.get('id')}'")
-    
+
     patro_raw = payload.get("valeurs", {}).get("patronal", None)
     patro = None
     if patro_raw is not None:
         try:
             patro = round(float(patro_raw), 6)
         except (ValueError, TypeError):
-            logging.warning(f"Valeur patronale non numérique '{patro_raw}' reçue de {payload.get('__script')}. Traitée comme None.")
-            
+            logging.warning(
+                f"Valeur patronale non numérique '{patro_raw}' reçue de {payload.get('__script')}. Traitée comme None."
+            )
+
     return {
         "id": payload.get("id"),
         "type": payload.get("type"),
@@ -113,8 +116,9 @@ def compare_floats(a: float | None, b: float | None, tol: float = 1e-9) -> bool:
 def equal_core(a: Dict[str, Any], b: Dict[str, Any], tol: float = 1e-9) -> bool:
     """Compare deux signatures 'csa'."""
     for k in ("id", "type", "libelle", "base"):
-        if a.get(k) != b.get(k): return False
-    
+        if a.get(k) != b.get(k):
+            return False
+
     pa, pb = a["valeurs"]["patronal"], b["valeurs"]["patronal"]
     return compare_floats(pa, pb, tol)
 
@@ -125,7 +129,8 @@ def merge_sources(payloads: List[Dict[str, Any]]) -> List[str]:
     source_links = []
     for p in payloads:
         for s in p.get("meta", {}).get("source", []):
-            if not isinstance(s, dict): continue
+            if not isinstance(s, dict):
+                continue
             url = s.get("url")
             if url and isinstance(url, str) and url.strip() not in seen_urls:
                 url = url.strip()
@@ -137,7 +142,10 @@ def merge_sources(payloads: List[Dict[str, Any]]) -> List[str]:
 def debug_mismatch(payloads: List[Dict[str, Any]], sigs: List[Dict[str, Any]]) -> None:
     """Logge les détails d'une discordance de taux."""
     logging.warning("DISCORDANCE entre les sources pour CSA:")
-    line = " | ".join(f"{p.get('__script','?')}={s['valeurs']['patronal']}" for p, s in zip(payloads, sigs))
+    line = " | ".join(
+        f"{p.get('__script', '?')}={s['valeurs']['patronal']}"
+        for p, s in zip(payloads, sigs)
+    )
     logging.warning(f"  ► Comparatif: {line}")
     for p, s in zip(payloads, sigs):
         script = p.get("__script", "?")
@@ -149,11 +157,15 @@ def debug_mismatch(payloads: List[Dict[str, Any]], sigs: List[Dict[str, Any]]) -
 
 def debug_success(payloads: List[Dict[str, Any]], sigs: List[Dict[str, Any]]) -> None:
     """Logge les détails d'une concordance de taux."""
-    line = " | ".join(f"{p.get('__script','?')}={s['valeurs']['patronal']}" for p, s in zip(payloads, sigs))
+    line = " | ".join(
+        f"{p.get('__script', '?')}={s['valeurs']['patronal']}"
+        for p, s in zip(payloads, sigs)
+    )
     logging.info(f"Concordance des taux CSA trouvée => {line}")
 
 
 # --- 2. Fonctions Supabase (Standardisées) ---
+
 
 def init_supabase_client() -> Client:
     """Initialise et retourne le client Supabase."""
@@ -161,9 +173,13 @@ def init_supabase_client() -> Client:
     supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
     if not supabase_url or not supabase_key:
         logging.critical("Variables SUPABASE_URL ou SUPABASE_SERVICE_KEY manquantes.")
-        logging.critical("Assurez-vous que .env contient SUPABASE_SERVICE_KEY (la clé 'service_role').")
-        raise EnvironmentError("Variables Supabase non définies ou clé de service manquante.")
-    
+        logging.critical(
+            "Assurez-vous que .env contient SUPABASE_SERVICE_KEY (la clé 'service_role')."
+        )
+        raise EnvironmentError(
+            "Variables Supabase non définies ou clé de service manquante."
+        )
+
     try:
         client: Client = create_client(supabase_url, supabase_key)
         logging.info("Connexion Supabase établie.")
@@ -182,35 +198,41 @@ def fetch_active_config(supabase: Client, config_key: str) -> Optional[Dict[str,
             .select("*")
             .eq("config_key", config_key)
             .eq("is_active", True)
-            .maybe_single() 
+            .maybe_single()
             .execute()
         )
         if response is None:
-            logging.error("La requête execute() a retourné 'None'. Problème de connexion ou permission (406).")
+            logging.error(
+                "La requête execute() a retourné 'None'. Problème de connexion ou permission (406)."
+            )
             return None
         return response.data
     except Exception as e:
-        logging.error(f"Impossible de récupérer la config active '{config_key}'. Erreur: {e}")
+        logging.error(
+            f"Impossible de récupérer la config active '{config_key}'. Erreur: {e}"
+        )
         raise
 
 
 def apply_patch_in_memory(
-    current_config_data: Optional[Dict[str, Any]], 
-    patch_core: Dict[str, Any] # La sortie de core_signature
+    current_config_data: Optional[Dict[str, Any]],
+    patch_core: Dict[str, Any],  # La sortie de core_signature
 ) -> Dict[str, Any]:
     """
     Met à jour le bloc 'cotisations' complet avec le patch 'csa'.
     """
     logging.info(f"Application du patch '{ITEM_ID_TO_PATCH}' en mémoire...")
-    
+
     if current_config_data:
         new_config_data = json.loads(json.dumps(current_config_data))
     else:
-        logging.warning(f"Aucune config '{CONFIG_KEY_TO_UPDATE}' trouvée. Création d'un nouveau bloc.")
+        logging.warning(
+            f"Aucune config '{CONFIG_KEY_TO_UPDATE}' trouvée. Création d'un nouveau bloc."
+        )
         new_config_data = {"cotisations": []}
 
     cotisations_list = new_config_data.get("cotisations", [])
-    
+
     # Traduit le format `core_signature` au format plat `cotisations.json`
     patch_data = {
         "id": patch_core["id"],
@@ -229,11 +251,13 @@ def apply_patch_in_memory(
             found = True
             logging.info(f"Item '{ITEM_ID_TO_PATCH}' trouvé et mis à jour.")
             break
-    
+
     if not found:
-        logging.warning(f"Item '{ITEM_ID_TO_PATCH}' non trouvé. Ajout au bloc de cotisations.")
+        logging.warning(
+            f"Item '{ITEM_ID_TO_PATCH}' non trouvé. Ajout au bloc de cotisations."
+        )
         cotisations_list.append(patch_data)
-        
+
     new_config_data["cotisations"] = cotisations_list
     return new_config_data
 
@@ -254,7 +278,9 @@ def update_config_in_supabase(
 
     # Scénario 0 (Cold Start) : current_row est None
     if current_row is None:
-        logging.info(f"Aucune config existante. Insertion de la v1 pour '{CONFIG_KEY_TO_UPDATE}'.")
+        logging.info(
+            f"Aucune config existante. Insertion de la v1 pour '{CONFIG_KEY_TO_UPDATE}'."
+        )
         new_row = {
             "config_key": CONFIG_KEY_TO_UPDATE,
             "config_data": new_config_data,
@@ -276,10 +302,12 @@ def update_config_in_supabase(
     current_config_data = current_row["config_data"]
     current_id = current_row["id"]
     current_version = current_row["version"]
-    
+
     # --- SCÉNARIO 1 : IDENTIQUE ---
     if current_config_data == new_config_data:
-        logging.info(f"Les données '{ITEM_ID_TO_PATCH}' sont inchangées. Mise à jour de 'last_checked_at'.")
+        logging.info(
+            f"Les données '{ITEM_ID_TO_PATCH}' sont inchangées. Mise à jour de 'last_checked_at'."
+        )
         try:
             supabase.table("payroll_config").update(
                 {
@@ -289,13 +317,17 @@ def update_config_in_supabase(
             ).eq("id", current_id).execute()
             logging.info("✅ Succès: 'last_checked_at' mis à jour.")
         except Exception as e:
-            logging.error(f"Échec de la mise à jour 'last_checked_at' pour ID {current_id}. Erreur: {e}")
+            logging.error(
+                f"Échec de la mise à jour 'last_checked_at' pour ID {current_id}. Erreur: {e}"
+            )
             raise
-    
+
     # --- SCÉNARIO 2 : DIFFÉRENT ---
     else:
-        logging.warning(f"Différence détectée pour '{ITEM_ID_TO_PATCH}'. Création de la version {current_version + 1}...")
-        
+        logging.warning(
+            f"Différence détectée pour '{ITEM_ID_TO_PATCH}'. Création de la version {current_version + 1}..."
+        )
+
         new_row = {
             "config_key": CONFIG_KEY_TO_UPDATE,
             "config_data": new_config_data,
@@ -305,36 +337,45 @@ def update_config_in_supabase(
             "last_checked_at": iso_now(),
             "source_links": source_links,
         }
-        
+
         try:
-            logging.info(f"Désactivation de la version {current_version} (ID: {current_id})...")
-            supabase.table("payroll_config").update(
-                {"is_active": False}
-            ).eq("id", current_id).execute()
-            
+            logging.info(
+                f"Désactivation de la version {current_version} (ID: {current_id})..."
+            )
+            supabase.table("payroll_config").update({"is_active": False}).eq(
+                "id", current_id
+            ).execute()
+
             logging.info(f"Insertion de la version {current_version + 1}...")
             supabase.table("payroll_config").insert(new_row).execute()
-            
-            logging.info(f"✅ Succès: '{CONFIG_KEY_TO_UPDATE}' mis à jour vers v{current_version + 1}.")
-            
+
+            logging.info(
+                f"✅ Succès: '{CONFIG_KEY_TO_UPDATE}' mis à jour vers v{current_version + 1}."
+            )
+
         except Exception as e:
             logging.error(f"Échec de la transaction de versioning. Erreur: {e}")
             try:
-                logging.warning(f"Tentative de rollback: Réactivation de la v{current_version} (ID: {current_id})...")
-                supabase.table("payroll_config").update(
-                    {"is_active": True}
-                ).eq("id", current_id).execute()
+                logging.warning(
+                    f"Tentative de rollback: Réactivation de la v{current_version} (ID: {current_id})..."
+                )
+                supabase.table("payroll_config").update({"is_active": True}).eq(
+                    "id", current_id
+                ).execute()
             except Exception as rollback_e:
-                logging.critical(f"ÉCHEC CRITIQUE DU ROLLBACK. BDD en état instable. Erreur: {rollback_e}")
+                logging.critical(
+                    f"ÉCHEC CRITIQUE DU ROLLBACK. BDD en état instable. Erreur: {rollback_e}"
+                )
             raise
 
 
 # --- 3. Fonction Principale ---
 
+
 def main() -> None:
     """Orchestre l'ensemble du processus de mise à jour de la CSA."""
     logging.info("--- DÉBUT Orchestrateur CSA ---")
-    
+
     try:
         # 1. Lancer tous les scrapers
         payloads: List[Dict[str, Any]] = []
@@ -355,38 +396,37 @@ def main() -> None:
                 sys.exit(2)
 
         # 3. Valider la concordance
-        all_equal = all(equal_core(sigs[i], sigs[i+1]) for i in range(len(sigs)-1))
+        all_equal = all(equal_core(sigs[i], sigs[i + 1]) for i in range(len(sigs) - 1))
 
         if not all_equal:
-            debug_mismatch(payloads, sigs) # Utilise ta fonction de debug
+            debug_mismatch(payloads, sigs)  # Utilise ta fonction de debug
             logging.error("Divergence entre les sources de scraping. Arrêt.")
             sys.exit(2)
-        
-        debug_success(payloads, sigs) # Utilise ta fonction de debug
-        
+
+        debug_success(payloads, sigs)  # Utilise ta fonction de debug
+
         # Le patch validé et les sources
         final_patch_data = sigs[0]
         source_links = merge_sources(payloads)
 
         # 4. Initialiser la BDD
         supabase = init_supabase_client()
-        
+
         # 5. Lire l'état actuel (peut être None)
         current_row = fetch_active_config(supabase, CONFIG_KEY_TO_UPDATE)
-        
+
         # 6. Appliquer le patch en mémoire
         new_config_data_blob = apply_patch_in_memory(
-            current_row["config_data"] if current_row else None, 
-            final_patch_data
+            current_row["config_data"] if current_row else None, final_patch_data
         )
-        
+
         # 7. Comparer et écrire dans Supabase
         update_config_in_supabase(
             supabase, current_row, new_config_data_blob, source_links
         )
-        
+
         logging.info("--- FIN Orchestrateur CSA ---")
-        
+
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")
         sys.exit(int(str(e).split()[-1]) if str(e).split()[-1].isdigit() else 1)

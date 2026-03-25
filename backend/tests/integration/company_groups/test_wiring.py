@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module company_groups.
 Vérifient que l'injection des dépendances et le flux de bout en bout
 (router -> application -> repository / providers) fonctionnent pour ce module.
 """
+
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
@@ -72,7 +73,12 @@ class TestCompanyGroupsWiringMyGroups:
         dto.created_at = datetime.now()
         dto.updated_at = datetime.now()
         dto.companies = [
-            {"id": TEST_COMPANY_ID, "company_name": "C1", "siret": None, "is_active": True},
+            {
+                "id": TEST_COMPANY_ID,
+                "company_name": "C1",
+                "siret": None,
+                "is_active": True,
+            },
         ]
         app.dependency_overrides[get_current_user] = lambda: user
         try:
@@ -84,7 +90,9 @@ class TestCompanyGroupsWiringMyGroups:
         finally:
             app.dependency_overrides.pop(get_current_user, None)
 
-        assert response.status_code == 200, response.json() if response.status_code != 200 else ""
+        assert response.status_code == 200, (
+            response.json() if response.status_code != 200 else ""
+        )
         data = response.json()
         assert isinstance(data, list)
         assert len(data) == 1
@@ -143,7 +151,9 @@ class TestCompanyGroupsWiringCreateGroup:
 class TestCompanyGroupsWiringGetGroupDetails:
     """Flux GET /api/company-groups/{group_id} : router -> queries.get_group_details."""
 
-    def test_get_group_details_flow_calls_query_and_returns_dto(self, client: TestClient):
+    def test_get_group_details_flow_calls_query_and_returns_dto(
+        self, client: TestClient
+    ):
         from app.core.security import get_current_user
 
         user = _admin_user()
@@ -167,7 +177,9 @@ class TestCompanyGroupsWiringGetGroupDetails:
         finally:
             app.dependency_overrides.pop(get_current_user, None)
 
-        assert response.status_code == 200, response.json() if response.status_code != 200 else ""
+        assert response.status_code == 200, (
+            response.json() if response.status_code != 200 else ""
+        )
         assert response.json()["group_name"] == "Détail Groupe"
         get_group_details.assert_called_once()
         assert get_group_details.call_args[0][0] == TEST_GROUP_ID

@@ -4,6 +4,7 @@ Commandes applicatives annual_reviews.
 Orchestration : repository (infrastructure) + règles métier (domain).
 Comportement strictement identique au legacy.
 """
+
 from datetime import date, datetime
 from typing import Any, Dict, Optional
 
@@ -68,7 +69,9 @@ def update_annual_review(
             update_data["employee_acceptance_date"] = datetime.utcnow().isoformat()
     else:
         data_serialized = {
-            k: _serialize_date(v) if k in ("planned_date", "completed_date", "next_review_date") else v
+            k: _serialize_date(v)
+            if k in ("planned_date", "completed_date", "next_review_date")
+            else v
             for k, v in data.items()
         }
         update_data = domain_rules.build_rh_update_data(row["status"], data_serialized)

@@ -4,6 +4,7 @@ Requêtes Supabase pour rib_alerts (table rib_alerts + lecture employees pour do
 Logique DB extraite du repository ; comportement strictement identique au legacy.
 Aucune dépendance FastAPI. Uniquement app.core.database et app.shared.utils.iban.
 """
+
 from __future__ import annotations
 
 import json
@@ -43,9 +44,15 @@ def list_rib_alerts_rows(
         query = query.eq("alert_type", alert_type)
     if employee_id:
         query = query.eq("employee_id", employee_id)
-    result = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+    result = (
+        query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+    )
     data = result.data or []
-    total = result.count if hasattr(result, "count") and result.count is not None else len(data)
+    total = (
+        result.count
+        if hasattr(result, "count") and result.count is not None
+        else len(data)
+    )
     return (data, total)
 
 
@@ -142,9 +149,11 @@ def get_duplicate_iban_employees(
         if not emp_iban:
             continue
         if normalize_iban(emp_iban) == iban_normalise:
-            duplicates.append({
-                "id": row.get("id"),
-                "first_name": row.get("first_name") or "",
-                "last_name": row.get("last_name") or "",
-            })
+            duplicates.append(
+                {
+                    "id": row.get("id"),
+                    "first_name": row.get("first_name") or "",
+                    "last_name": row.get("last_name") or "",
+                }
+            )
     return duplicates

@@ -4,6 +4,7 @@ Schémas Pydantic sortie API du module companies.
 Définitions canoniques : détails + KPIs, settings.
 Contrat identique à l'existant (GET/PATCH /api/company/details, /settings).
 """
+
 from typing import Any, Dict
 
 from pydantic import BaseModel, Field
@@ -14,6 +15,7 @@ from pydantic import BaseModel, Field
 
 class CompanySettingsResponse(BaseModel):
     """Réponse GET /settings et PATCH /settings."""
+
     medical_follow_up_enabled: bool = Field(
         ..., description="Module suivi médical activé"
     )
@@ -31,6 +33,7 @@ class CompanyDetailsResponse(BaseModel):
     company_data = ligne table companies (tous champs).
     kpis = indicateurs (total_employees, last_month_*, evolution_12_months, etc.).
     """
+
     company_data: Dict[str, Any] = Field(
         ..., description="Données entreprise (table companies)"
     )

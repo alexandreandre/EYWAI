@@ -3,6 +3,7 @@ Entité domaine : alerte RIB.
 
 Alignée sur la table rib_alerts et le contrat API actuel (api/routers/rib_alerts, frontend ribAlerts.ts).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -21,7 +22,9 @@ class RibAlert:
     severity: str  # info | warning | error
     title: str
     message: str
-    details: dict[str, Any]  # old_iban_masked, new_iban_masked, iban_masked, duplicate_employees
+    details: dict[
+        str, Any
+    ]  # old_iban_masked, new_iban_masked, iban_masked, duplicate_employees
     is_read: bool
     is_resolved: bool
     resolved_at: Optional[datetime] = None

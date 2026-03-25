@@ -4,6 +4,7 @@ Service applicatif recruitment — orchestration uniquement.
 Délègue au domain (règles pures) et à l'infrastructure (repository, queries, providers).
 Aucun accès DB direct. Comportement identique au legacy.
 """
+
 from typing import Any, Optional
 
 from app.modules.recruitment.domain import rules as domain_rules
@@ -27,11 +28,13 @@ from app.modules.recruitment.infrastructure.repository import (
 
 # ─── Settings (délégation infrastructure) ──────────────────────────────
 
+
 def get_recruitment_setting(company_id: str) -> bool:
     return _settings_reader.is_enabled(company_id)
 
 
 # ─── Commands (écritures via repository + rules) ───────────────────────
+
 
 def service_create_job(
     company_id: str, user_id: str, data: dict[str, Any]
@@ -142,7 +145,7 @@ def service_move_candidate(
         company_id=company_id,
         candidate_id=candidate_id,
         event_type=event_type,
-        description=f"{cand['first_name']} {cand['last_name']} déplacé vers \"{new_stage['name']}\"",
+        description=f'{cand["first_name"]} {cand["last_name"]} déplacé vers "{new_stage["name"]}"',
         actor_id=actor_id,
         metadata={"stage_id": stage_id, "stage_name": new_stage["name"]},
     )
@@ -160,7 +163,7 @@ def service_create_interview(
         company_id=company_id,
         candidate_id=data["candidate_id"],
         event_type="interview_planned",
-        description=f"Entretien \"{data.get('interview_type') or 'Entretien RH'}\" planifié le {data['scheduled_at'][:10]}",
+        description=f'Entretien "{data.get("interview_type") or "Entretien RH"}" planifié le {data["scheduled_at"][:10]}',
         actor_id=user_id,
     )
     return interview
@@ -229,15 +232,14 @@ def service_hire_candidate(
 
 # ─── Queries (lectures via infrastructure) ─────────────────────────────
 
+
 def service_list_jobs(
     company_id: str, status: Optional[str] = None
 ) -> list[dict[str, Any]]:
     return infra_queries.list_jobs_with_candidate_count(company_id, status)
 
 
-def service_get_pipeline_stages(
-    company_id: str, job_id: str
-) -> list[dict[str, Any]]:
+def service_get_pipeline_stages(company_id: str, job_id: str) -> list[dict[str, Any]]:
     return infra_queries.get_pipeline_stages(company_id, job_id)
 
 
@@ -275,21 +277,15 @@ def service_list_interviews(
     )
 
 
-def service_list_notes(
-    company_id: str, candidate_id: str
-) -> list[dict[str, Any]]:
+def service_list_notes(company_id: str, candidate_id: str) -> list[dict[str, Any]]:
     return _note_repo.list_by_candidate(company_id, candidate_id)
 
 
-def service_list_opinions(
-    company_id: str, candidate_id: str
-) -> list[dict[str, Any]]:
+def service_list_opinions(company_id: str, candidate_id: str) -> list[dict[str, Any]]:
     return _opinion_repo.list_by_candidate(company_id, candidate_id)
 
 
-def service_get_timeline(
-    company_id: str, candidate_id: str
-) -> list[dict[str, Any]]:
+def service_get_timeline(company_id: str, candidate_id: str) -> list[dict[str, Any]]:
     return _timeline_reader.list_by_candidate(company_id, candidate_id)
 
 
@@ -307,24 +303,28 @@ def service_check_duplicate_warnings(
         exclude_candidate_id=candidate_id,
     )
     if dup_cand:
-        warnings.append({
-            "type": "candidate",
-            "existing_id": dup_cand["id"],
-            "first_name": dup_cand.get("first_name"),
-            "last_name": dup_cand.get("last_name"),
-            "email": dup_cand.get("email"),
-        })
+        warnings.append(
+            {
+                "type": "candidate",
+                "existing_id": dup_cand["id"],
+                "first_name": dup_cand.get("first_name"),
+                "last_name": dup_cand.get("last_name"),
+                "email": dup_cand.get("email"),
+            }
+        )
     dup_emp = _duplicate_checker.check_duplicate_employee(
         company_id, cand.get("email"), cand.get("phone")
     )
     if dup_emp:
-        warnings.append({
-            "type": "employee",
-            "existing_id": dup_emp["id"],
-            "first_name": dup_emp.get("first_name"),
-            "last_name": dup_emp.get("last_name"),
-            "email": dup_emp.get("email"),
-        })
+        warnings.append(
+            {
+                "type": "employee",
+                "existing_id": dup_emp["id"],
+                "first_name": dup_emp.get("first_name"),
+                "last_name": dup_emp.get("last_name"),
+                "email": dup_emp.get("email"),
+            }
+        )
     return warnings
 
 
@@ -346,9 +346,7 @@ def check_duplicate_candidate(
 def check_duplicate_employee(
     company_id: str, email: Optional[str], phone: Optional[str]
 ) -> Optional[dict[str, Any]]:
-    return _duplicate_checker.check_duplicate_employee(
-        company_id, email, phone
-    )
+    return _duplicate_checker.check_duplicate_employee(company_id, email, phone)
 
 
 def is_user_participant_for_candidate(user_id: str, candidate_id: str) -> bool:

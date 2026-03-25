@@ -4,6 +4,7 @@ Tests unitaires du service applicatif dashboard.
 build_full_dashboard et get_residence_permit_stats avec repository et
 calculator mockés. Aucune DB ni appel externe.
 """
+
 from unittest.mock import MagicMock, patch
 
 
@@ -25,9 +26,7 @@ class TestGetResidencePermitStats:
 
     @patch("app.modules.dashboard.application.service.get_dashboard_repository")
     @patch("app.modules.dashboard.application.service.get_residence_permit_calculator")
-    def test_aggregates_status_counts(
-        self, mock_get_calc, mock_get_repo
-    ):
+    def test_aggregates_status_counts(self, mock_get_calc, mock_get_repo):
         """Agrège correctement les statuts (expired, to_renew, to_complete, valid)."""
         mock_repo = MagicMock()
         mock_repo.get_employees_for_residence_permit_stats.return_value = [

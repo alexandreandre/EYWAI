@@ -5,6 +5,7 @@ Définitions canoniques : employé complet, réponse création, URL contrat/cred
 ContractResponse depuis app.shared ; PromotionListItem et EmployeeRhAccess définis
 localement pour les sous-routes employé (même structure que le module promotions).
 """
+
 from datetime import date, datetime
 from typing import Any, Dict, List, Literal, Optional
 
@@ -14,16 +15,26 @@ from app.shared.schemas import ContractResponse
 
 # Types littéraux pour les réponses promotion (alignés sur le module promotions)
 PromotionStatus = Literal[
-    "draft", "pending_approval", "approved", "rejected", "effective", "cancelled",
+    "draft",
+    "pending_approval",
+    "approved",
+    "rejected",
+    "effective",
+    "cancelled",
 ]
 PromotionType = Literal[
-    "poste", "salaire", "statut", "classification", "mixte",
+    "poste",
+    "salaire",
+    "statut",
+    "classification",
+    "mixte",
 ]
 RhAccessRole = Literal["collaborateur_rh", "rh", "admin"]
 
 
 class PromotionListItem(BaseModel):
     """Item de liste des promotions (sous-route GET .../promotions)."""
+
     id: str
     employee_id: str
     first_name: str = Field(..., description="Prénom de l'employé")
@@ -48,9 +59,12 @@ class PromotionListItem(BaseModel):
 
 class EmployeeRhAccess(BaseModel):
     """Accès RH actuel d'un employé (sous-route GET .../rh-access)."""
+
     has_access: bool = Field(..., description="Indique si l'employé a des accès RH")
     current_role: Optional[str] = Field(None, description="Rôle RH actuel ou null")
-    can_grant_access: bool = Field(..., description="L'utilisateur peut donner des accès RH")
+    can_grant_access: bool = Field(
+        ..., description="L'utilisateur peut donner des accès RH"
+    )
     available_roles: List[RhAccessRole] = Field(..., description="Rôles RH disponibles")
 
 
@@ -92,7 +106,9 @@ class FullEmployee(BaseModel):
     residence_permit_number: str | None = None
     employment_status: str | None = None
     # Section Titre de séjour (données calculées par le backend)
-    residence_permit_status: str | None = None  # "valid", "to_renew", "expired", "to_complete"
+    residence_permit_status: str | None = (
+        None  # "valid", "to_renew", "expired", "to_complete"
+    )
     residence_permit_days_remaining: int | None = None
     residence_permit_data_complete: bool | None = None
     # Section Entretien annuel (données calculées pour l'année courante)

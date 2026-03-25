@@ -3,6 +3,7 @@ Schémas de réponse API pour rib_alerts.
 
 Définitions canoniques (ex-routers + frontend ribAlerts.ts). Comportement identique.
 """
+
 from __future__ import annotations
 
 from typing import Any, List, Optional

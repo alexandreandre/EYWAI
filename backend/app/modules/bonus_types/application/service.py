@@ -4,6 +4,7 @@ Service applicatif bonus_types : orquestration des cas d'usage.
 Contient la logique métier extraite des anciens routeurs.
 Le router du module ne fait qu'appeler ce service et renvoyer les réponses.
 """
+
 from __future__ import annotations
 
 from fastapi import HTTPException
@@ -42,9 +43,7 @@ class BonusTypesService:
     def list_by_company(self, company_id: str) -> list[BonusType]:
         """Liste les primes du catalogue pour l'entreprise (ordre libelle)."""
         if not company_id:
-            raise HTTPException(
-                status_code=400, detail="Aucune entreprise active"
-            )
+            raise HTTPException(status_code=400, detail="Aucune entreprise active")
         return self._repo.list_by_company(company_id)
 
     def get_by_id(
@@ -62,9 +61,7 @@ class BonusTypesService:
     ) -> BonusType:
         """Crée une prime. Vérifications : company_id, has_rh_access."""
         if not input_data.company_id:
-            raise HTTPException(
-                status_code=400, detail="Aucune entreprise active"
-            )
+            raise HTTPException(status_code=400, detail="Aucune entreprise active")
         if not has_rh_access:
             raise HTTPException(
                 status_code=403,
@@ -101,9 +98,7 @@ class BonusTypesService:
     ) -> BonusType | None:
         """Met à jour une prime ; vérifie entreprise et accès RH."""
         if not company_id:
-            raise HTTPException(
-                status_code=400, detail="Aucune entreprise active"
-            )
+            raise HTTPException(status_code=400, detail="Aucune entreprise active")
         if not has_rh_access:
             raise HTTPException(
                 status_code=403,
@@ -138,9 +133,7 @@ class BonusTypesService:
             update_data["prompt_ia"] = input_data.prompt_ia
         updated = self._repo.update(bonus_type_id, update_data)
         if not updated:
-            raise HTTPException(
-                status_code=500, detail="Erreur lors de la mise à jour"
-            )
+            raise HTTPException(status_code=500, detail="Erreur lors de la mise à jour")
         return updated
 
     def delete(
@@ -152,9 +145,7 @@ class BonusTypesService:
     ) -> bool:
         """Supprime une prime ; vérifie entreprise et (super_admin ou accès RH)."""
         if not company_id:
-            raise HTTPException(
-                status_code=400, detail="Aucune entreprise active"
-            )
+            raise HTTPException(status_code=400, detail="Aucune entreprise active")
         if not is_super_admin and not has_rh_access:
             raise HTTPException(
                 status_code=403,
@@ -184,17 +175,13 @@ class BonusTypesService:
         Règle métier pure dans domain.rules.compute_bonus_amount ; IEmployeeHoursProvider en infrastructure.
         """
         if not company_id:
-            raise HTTPException(
-                status_code=400, detail="Aucune entreprise active"
-            )
+            raise HTTPException(status_code=400, detail="Aucune entreprise active")
         bonus = self._repo.get_by_id(bonus_type_id, company_id)
         if not bonus:
             raise HTTPException(status_code=404, detail="Prime non trouvée")
         total_hours = 0.0
         if self._hours:
-            total_hours = self._hours.get_total_actual_hours(
-                employee_id, year, month
-            )
+            total_hours = self._hours.get_total_actual_hours(employee_id, year, month)
         try:
             computation = compute_bonus_amount(bonus, total_hours)
         except ValueError as e:

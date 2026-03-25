@@ -3,6 +3,7 @@ Tests unitaires du service applicatif du module schedules (application/service.p
 
 Dépendances (employee_company_reader) mockées. Pas de DB ni HTTP.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -22,7 +23,10 @@ class TestGetEmployeeCompanyAndStatut:
         with patch(
             "app.modules.schedules.application.service.employee_company_reader",
         ) as reader:
-            reader.get_company_and_statut.return_value = ("comp-1", "cadre forfait jour")
+            reader.get_company_and_statut.return_value = (
+                "comp-1",
+                "cadre forfait jour",
+            )
 
             company_id, statut = service.get_employee_company_and_statut("emp-1")
 

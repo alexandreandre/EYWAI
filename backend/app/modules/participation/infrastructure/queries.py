@@ -4,6 +4,7 @@ Requêtes métier pour les données employés (participation).
 Agrégation depuis employees, employee_schedules, payslips.
 Délègue les règles métier pures au domain (présence, ancienneté, extraction cumuls).
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List
@@ -96,9 +97,7 @@ def fetch_employee_participation_data(
 
     for employee in employees:
         employee_id = employee["id"]
-        employee_schedules = [
-            s for s in schedules if s["employee_id"] == employee_id
-        ]
+        employee_schedules = [s for s in schedules if s["employee_id"] == employee_id]
         presence_days = compute_presence_days_for_schedules(employee_schedules)
         presence_by_employee[employee_id] = presence_days
 
@@ -110,14 +109,16 @@ def fetch_employee_participation_data(
         seniority_years = compute_seniority_years(employee.get("hire_date"))
         has_real_salary = annual_salary > 0
         has_real_presence = presence_days > 0
-        result.append({
-            "employee_id": employee_id,
-            "first_name": employee.get("first_name", ""),
-            "last_name": employee.get("last_name", ""),
-            "annual_salary": round(annual_salary, 2),
-            "presence_days": presence_days,
-            "seniority_years": seniority_years,
-            "has_real_salary": has_real_salary,
-            "has_real_presence": has_real_presence,
-        })
+        result.append(
+            {
+                "employee_id": employee_id,
+                "first_name": employee.get("first_name", ""),
+                "last_name": employee.get("last_name", ""),
+                "annual_salary": round(annual_salary, 2),
+                "presence_days": presence_days,
+                "seniority_years": seniority_years,
+                "has_real_salary": has_real_salary,
+                "has_real_presence": has_real_presence,
+            }
+        )
     return result

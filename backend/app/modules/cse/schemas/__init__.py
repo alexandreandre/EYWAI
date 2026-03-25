@@ -2,6 +2,7 @@
 """
 Schémas CSE — définitions dans requests.py et responses.py.
 """
+
 from app.modules.cse.schemas.requests import (
     BDESDocumentCreate,
     BDESDocumentType,

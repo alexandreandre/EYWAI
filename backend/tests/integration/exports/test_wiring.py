@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module exports : injection des dépendances et flu
 Vérifie que le router exports est bien monté, que get_current_user et get_active_company_id
 sont injectés correctement, et qu'un flux complet (preview → service → réponse) fonctionne.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -46,7 +47,9 @@ class TestExportsRouterMounted:
         """Les routes /api/exports/* existent (405 ou 401 selon méthode/auth, pas 404)."""
         # GET sans auth → 401 (pas 404)
         r_get = client.get("/api/exports/history")
-        assert r_get.status_code != 404, "GET /api/exports/history devrait exister (401 sans auth)"
+        assert r_get.status_code != 404, (
+            "GET /api/exports/history devrait exister (401 sans auth)"
+        )
         assert r_get.status_code == 401
 
         # POST preview sans auth → 401

@@ -3,6 +3,7 @@ Requêtes métier complexes : annual_reviews, employee_documents, URLs signées.
 
 Utilise Supabase et le storage provider. Comportement identique au router legacy.
 """
+
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
@@ -42,9 +43,7 @@ def fetch_annual_review_for_employee(
     employee_id: str, company_id: str, year: int
 ) -> Optional[Dict[str, Any]]:
     """Entretien annuel d'un employé pour une année donnée."""
-    return _annual_review_query.fetch_for_employee_year(
-        employee_id, company_id, year
-    )
+    return _annual_review_query.fetch_for_employee_year(employee_id, company_id, year)
 
 
 def fetch_published_exit_documents(
@@ -76,14 +75,18 @@ def fetch_published_exit_documents(
                 download=True,
             )
             if url:
-                documents.append({
-                    "id": doc["id"],
-                    "name": doc.get("document_name", doc.get("filename", "Document")),
-                    "url": url,
-                    "date": doc.get("published_at", doc.get("created_at")),
-                    "document_type": doc.get("document_type"),
-                    "document_category": doc.get("document_category", "autres"),
-                })
+                documents.append(
+                    {
+                        "id": doc["id"],
+                        "name": doc.get(
+                            "document_name", doc.get("filename", "Document")
+                        ),
+                        "url": url,
+                        "date": doc.get("published_at", doc.get("created_at")),
+                        "document_type": doc.get("document_type"),
+                        "document_category": doc.get("document_category", "autres"),
+                    }
+                )
         except Exception as e:
             print(f"⚠ Erreur génération URL pour document {doc.get('id')}: {e}")
             continue

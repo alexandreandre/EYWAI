@@ -3,6 +3,7 @@ Tests unitaires des requêtes (queries) du module users.
 
 Chaque query est testée avec repositories et infra mockés.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -140,13 +141,18 @@ class TestGetUserCompanyAccesses:
         assert len(result) == 1
 
     @patch("app.modules.users.application.queries.infra_queries")
-    def test_non_super_admin_other_user_not_admin_raises_permission_error(self, infra_queries):
+    def test_non_super_admin_other_user_not_admin_raises_permission_error(
+        self, infra_queries
+    ):
         infra_queries.fetch_target_user_company_ids.return_value = ["c99"]
         current = _user_with_companies()
 
         with pytest.raises(PermissionError) as exc_info:
             queries.get_user_company_accesses("other-user", current)
-        assert "permissions" in str(exc_info.value).lower() or "pas" in str(exc_info.value).lower()
+        assert (
+            "permissions" in str(exc_info.value).lower()
+            or "pas" in str(exc_info.value).lower()
+        )
 
 
 # ----- get_company_users -----
@@ -174,7 +180,9 @@ class TestGetCompanyUsers:
             },
         ]
         auth = MagicMock()
-        auth.get_user_by_id.return_value = MagicMock(user=MagicMock(email="jean@example.com"))
+        auth.get_user_by_id.return_value = MagicMock(
+            user=MagicMock(email="jean@example.com")
+        )
         get_auth_provider.return_value = auth
         current = _user_super_admin()
 
@@ -195,7 +203,13 @@ class TestGetCompanyUsers:
                 "user_id": "u1",
                 "role": "collaborateur",
                 "role_templates": None,
-                "profiles": {"id": "u1", "first_name": "A", "last_name": "B", "job_title": None, "created_at": None},
+                "profiles": {
+                    "id": "u1",
+                    "first_name": "A",
+                    "last_name": "B",
+                    "job_title": None,
+                    "created_at": None,
+                },
             },
         ]
         auth = MagicMock()
@@ -267,7 +281,9 @@ class TestGetUserDetail:
         }
         get_perm_repo.return_value.get_permission_ids.return_value = ["p1", "p2"]
         auth = MagicMock()
-        auth.get_user_by_id.return_value = MagicMock(user=MagicMock(email="jean@example.com"))
+        auth.get_user_by_id.return_value = MagicMock(
+            user=MagicMock(email="jean@example.com")
+        )
         get_auth_provider.return_value = auth
         current = _user_super_admin()
 

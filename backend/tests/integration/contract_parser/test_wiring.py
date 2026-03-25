@@ -5,6 +5,7 @@ Vérifie que :
 - get_current_user est bien injecté et que les routes protégées reçoivent l'utilisateur.
 - Le flux route → commande (mockée ou réelle) → réponse fonctionne.
 """
+
 from io import BytesIO
 from unittest.mock import patch
 

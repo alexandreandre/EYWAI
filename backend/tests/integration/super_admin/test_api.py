@@ -16,6 +16,7 @@ Fixture à ajouter dans tests/conftest.py si besoin de tests E2E avec token rée
       Format : {\"Authorization\": \"Bearer <jwt>\"}.\"\"\"
       return auth_headers
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -78,6 +79,7 @@ def _apply_super_admin_overrides():
     """Applique dependency_overrides pour super_admin (get_current_user + verify_super_admin)."""
     from app.core.security import get_current_user
     from app.modules.super_admin.api.router import verify_super_admin
+
     app.dependency_overrides[get_current_user] = lambda: _make_super_admin_user()
     app.dependency_overrides[verify_super_admin] = _verify_super_admin_dep
     return get_current_user, verify_super_admin
@@ -125,7 +127,10 @@ class TestSuperAdminCompaniesList:
         try:
             with patch(
                 "app.modules.super_admin.api.router.queries.list_companies",
-                return_value={"companies": [{"id": "c1", "company_name": "Test Co"}], "total": 1},
+                return_value={
+                    "companies": [{"id": "c1", "company_name": "Test Co"}],
+                    "total": 1,
+                },
             ):
                 response = client.get("/api/super-admin/companies?skip=0&limit=10")
         finally:
@@ -146,7 +151,11 @@ class TestSuperAdminCompanyDetails:
         try:
             with patch(
                 "app.modules.super_admin.api.router.queries.get_company_details",
-                return_value={"id": "c1", "company_name": "Test", "stats": {"employees_count": 5, "users_count": 2}},
+                return_value={
+                    "id": "c1",
+                    "company_name": "Test",
+                    "stats": {"employees_count": 5, "users_count": 2},
+                },
             ):
                 response = client.get("/api/super-admin/companies/c1")
         finally:
@@ -178,7 +187,10 @@ class TestSuperAdminCompanyCreate:
         try:
             with patch(
                 "app.modules.super_admin.api.router.commands.create_company_with_admin",
-                return_value={"success": True, "company": {"id": "c-new", "company_name": "Nouvelle"}},
+                return_value={
+                    "success": True,
+                    "company": {"id": "c-new", "company_name": "Nouvelle"},
+                },
             ):
                 response = client.post(
                     "/api/super-admin/companies",
@@ -201,7 +213,10 @@ class TestSuperAdminCompanyUpdate:
         try:
             with patch(
                 "app.modules.super_admin.api.router.commands.update_company",
-                return_value={"success": True, "company": {"id": "c1", "company_name": "Updated"}},
+                return_value={
+                    "success": True,
+                    "company": {"id": "c1", "company_name": "Updated"},
+                },
             ):
                 response = client.patch(
                     "/api/super-admin/companies/c1",
@@ -265,7 +280,10 @@ class TestSuperAdminListAllUsers:
         try:
             with patch(
                 "app.modules.super_admin.api.router.queries.list_all_users",
-                return_value={"users": [{"id": "u1", "email": "u@test.com"}], "total": 1},
+                return_value={
+                    "users": [{"id": "u1", "email": "u@test.com"}],
+                    "total": 1,
+                },
             ):
                 response = client.get("/api/super-admin/users?skip=0&limit=10")
         finally:
@@ -302,7 +320,10 @@ class TestSuperAdminCreateCompanyUser:
         try:
             with patch(
                 "app.modules.super_admin.api.router.commands.create_company_user",
-                return_value={"success": True, "user": {"id": "u-new", "email": "new@test.com"}},
+                return_value={
+                    "success": True,
+                    "user": {"id": "u-new", "email": "new@test.com"},
+                },
             ):
                 response = client.post(
                     "/api/super-admin/companies/c1/users",
@@ -329,7 +350,10 @@ class TestSuperAdminUpdateCompanyUser:
         try:
             with patch(
                 "app.modules.super_admin.api.router.commands.update_company_user",
-                return_value={"success": True, "message": "Utilisateur mis à jour avec succès"},
+                return_value={
+                    "success": True,
+                    "message": "Utilisateur mis à jour avec succès",
+                },
             ):
                 response = client.patch(
                     "/api/super-admin/companies/c1/users/u1",
@@ -384,7 +408,10 @@ class TestSuperAdminListSuperAdmins:
         try:
             with patch(
                 "app.modules.super_admin.api.router.queries.list_super_admins",
-                return_value={"super_admins": [{"id": "sa1", "email": "sa@test.com"}], "total": 1},
+                return_value={
+                    "super_admins": [{"id": "sa1", "email": "sa@test.com"}],
+                    "total": 1,
+                },
             ):
                 response = client.get("/api/super-admin/super-admins")
         finally:
@@ -403,7 +430,10 @@ class TestSuperAdminReductionFillonCalculate:
         try:
             with patch(
                 "app.modules.super_admin.api.router.queries.calculate_reduction_fillon",
-                return_value={"result": {"libelle": "Réduction Fillon", "montant_patronal": -50}, "input_data": {}},
+                return_value={
+                    "result": {"libelle": "Réduction Fillon", "montant_patronal": -50},
+                    "input_data": {},
+                },
             ):
                 response = client.post(
                     "/api/super-admin/reduction-fillon/calculate",
@@ -425,7 +455,10 @@ class TestSuperAdminReductionFillonEmployees:
         try:
             with patch(
                 "app.modules.super_admin.api.router.queries.get_employees_for_reduction_fillon",
-                return_value={"employees": [{"id": "e1", "name": "Jean Dupont"}], "total": 1},
+                return_value={
+                    "employees": [{"id": "e1", "name": "Jean Dupont"}],
+                    "total": 1,
+                },
             ):
                 response = client.get("/api/super-admin/reduction-fillon/employees")
         finally:
@@ -460,7 +493,9 @@ class TestSuperAdminTestsRunner:
             paths = {c["path"] for c in pw["children"]}
             assert any(str(p).startswith("pw:") for p in paths)
 
-    def test_post_tests_run_empty_targets_returns_error_result(self, client: TestClient):
+    def test_post_tests_run_empty_targets_returns_error_result(
+        self, client: TestClient
+    ):
         """POST avec targets vides : 200 et un résultat d'échec explicite."""
         gu, vsa = _apply_super_admin_overrides()
         try:
@@ -488,7 +523,11 @@ class TestSuperAdminForbiddenWhenNotSuperAdmin:
         app.dependency_overrides[get_current_user] = lambda: _make_super_admin_user()
 
         def fail():
-            raise HTTPException(status_code=403, detail="Accès refusé : vous devez être super administrateur")
+            raise HTTPException(
+                status_code=403,
+                detail="Accès refusé : vous devez être super administrateur",
+            )
+
         app.dependency_overrides[verify_super_admin] = fail
         try:
             response = client.get("/api/super-admin/dashboard/stats")

@@ -3,6 +3,7 @@ Tests unitaires des commandes promotions (application/commands.py).
 
 Repositories et dépendances infra mockés ; pas de DB ni HTTP.
 """
+
 from datetime import date, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -10,7 +11,11 @@ import pytest
 from fastapi import HTTPException
 
 from app.modules.promotions.application import commands
-from app.modules.promotions.schemas import PromotionCreate, PromotionRead, PromotionUpdate
+from app.modules.promotions.schemas import (
+    PromotionCreate,
+    PromotionRead,
+    PromotionUpdate,
+)
 
 
 # Constantes de test
@@ -57,10 +62,10 @@ class TestCreatePromotionCmd:
     """Commande create_promotion_cmd."""
 
     @patch("app.modules.promotions.application.commands.get_promotion_repository")
-    @patch("app.modules.promotions.application.commands.get_employee_snapshot_for_promotion")
-    def test_creates_promotion_with_draft_status(
-        self, mock_snapshot, mock_get_repo
-    ):
+    @patch(
+        "app.modules.promotions.application.commands.get_employee_snapshot_for_promotion"
+    )
+    def test_creates_promotion_with_draft_status(self, mock_snapshot, mock_get_repo):
         """Création avec effective_date future → statut draft."""
         mock_snapshot.return_value = {
             "employee": {
@@ -103,13 +108,18 @@ class TestCreatePromotionCmd:
         assert call_data["new_salary"] == {"valeur": 3800, "devise": "EUR"}
 
     @patch("app.modules.promotions.application.commands.get_promotion_repository")
-    @patch("app.modules.promotions.application.commands.get_employee_snapshot_for_promotion")
-    def test_raises_400_when_rh_transition_invalid(
-        self, mock_snapshot, mock_get_repo
-    ):
+    @patch(
+        "app.modules.promotions.application.commands.get_employee_snapshot_for_promotion"
+    )
+    def test_raises_400_when_rh_transition_invalid(self, mock_snapshot, mock_get_repo):
         """grant_rh_access avec transition non autorisée → 400."""
         mock_snapshot.return_value = {
-            "employee": {"job_title": "Dev", "salaire_de_base": None, "statut": None, "classification_conventionnelle": None},
+            "employee": {
+                "job_title": "Dev",
+                "salaire_de_base": None,
+                "statut": None,
+                "classification_conventionnelle": None,
+            },
             "previous_rh_access": None,
         }
         mock_repo = MagicMock()
@@ -159,7 +169,9 @@ class TestUpdatePromotionCmd:
     def test_raises_400_when_not_draft(self, mock_get_repo):
         """Modification d'une promotion non draft → 400."""
         mock_repo = MagicMock()
-        mock_repo.get_by_id.return_value = _promotion_read_draft(status="pending_approval")
+        mock_repo.get_by_id.return_value = _promotion_read_draft(
+            status="pending_approval"
+        )
         mock_get_repo.return_value = mock_repo
 
         body = PromotionUpdate(new_job_title="Lead Dev")
@@ -170,13 +182,14 @@ class TestUpdatePromotionCmd:
                 company_id=COMPANY_ID,
             )
         assert exc_info.value.status_code == 400
-        assert "draft" in exc_info.value.detail.lower() or "statut" in exc_info.value.detail.lower()
+        assert (
+            "draft" in exc_info.value.detail.lower()
+            or "statut" in exc_info.value.detail.lower()
+        )
 
     @patch("app.modules.promotions.application.commands.get_promotion_by_id_query")
     @patch("app.modules.promotions.application.commands.get_promotion_repository")
-    def test_updates_draft_and_returns_read(
-        self, mock_get_repo, mock_get_by_id
-    ):
+    def test_updates_draft_and_returns_read(self, mock_get_repo, mock_get_by_id):
         """Mise à jour d'un draft → repo.update puis retour get_by_id."""
         mock_repo = MagicMock()
         mock_repo.get_by_id.return_value = _promotion_read_draft(status="draft")
@@ -274,14 +287,18 @@ class TestApprovePromotionCmd:
             )
         assert exc_info.value.status_code == 400
 
-    @patch("app.modules.promotions.application.commands.get_promotion_document_provider")
+    @patch(
+        "app.modules.promotions.application.commands.get_promotion_document_provider"
+    )
     @patch("app.modules.promotions.application.commands.get_promotion_by_id_query")
     @patch("app.modules.promotions.application.commands.get_promotion_repository")
     def test_approves_and_updates_status(
         self, mock_get_repo, mock_get_by_id, mock_get_provider
     ):
         """pending_approval → approved, approved_by et approved_at renseignés."""
-        current = _promotion_read_draft(status="pending_approval", employee_id=EMPLOYEE_ID)
+        current = _promotion_read_draft(
+            status="pending_approval", employee_id=EMPLOYEE_ID
+        )
         mock_repo = MagicMock()
         mock_repo.get_by_id.return_value = current
         mock_get_repo.return_value = mock_repo
@@ -297,12 +314,19 @@ class TestApprovePromotionCmd:
         mock_provider.save_document.return_value = "https://storage/promo-1.pdf"
         mock_get_provider.return_value = mock_provider
 
-        with patch(
-            "app.modules.promotions.infrastructure.queries.get_company_data_for_document",
-            return_value={"company_name": "Test Co"},
-        ), patch(
-            "app.modules.promotions.infrastructure.queries.get_employee_data_for_document",
-            return_value={"first_name": "Jean", "last_name": "Dupont", "employee_folder_name": "dupont_jean"},
+        with (
+            patch(
+                "app.modules.promotions.infrastructure.queries.get_company_data_for_document",
+                return_value={"company_name": "Test Co"},
+            ),
+            patch(
+                "app.modules.promotions.infrastructure.queries.get_employee_data_for_document",
+                return_value={
+                    "first_name": "Jean",
+                    "last_name": "Dupont",
+                    "employee_folder_name": "dupont_jean",
+                },
+            ),
         ):
             result = commands.approve_promotion_cmd(
                 promotion_id="promo-1",
@@ -341,7 +365,9 @@ class TestRejectPromotionCmd:
     @patch("app.modules.promotions.application.commands.get_promotion_repository")
     def test_rejects_and_updates_status(self, mock_get_repo, mock_get_by_id):
         mock_repo = MagicMock()
-        mock_repo.get_by_id.return_value = _promotion_read_draft(status="pending_approval")
+        mock_repo.get_by_id.return_value = _promotion_read_draft(
+            status="pending_approval"
+        )
         mock_get_repo.return_value = mock_repo
         rejected = _promotion_read_draft(status="rejected", rejection_reason="Budget")
         mock_get_by_id.return_value = rejected
@@ -364,7 +390,9 @@ class TestMarkEffectivePromotionCmd:
 
     @patch("app.modules.promotions.application.commands.get_promotion_repository")
     @patch("app.modules.promotions.application.commands.get_promotion_by_id_query")
-    def test_raises_400_when_not_draft_or_effective(self, mock_get_by_id, mock_get_repo):
+    def test_raises_400_when_not_draft_or_effective(
+        self, mock_get_by_id, mock_get_repo
+    ):
         """Marquer effective une promotion approved → 400."""
         mock_get_by_id.return_value = _promotion_read_draft(status="approved")
         mock_repo = MagicMock()
@@ -413,7 +441,9 @@ class TestDeletePromotionCmd:
     @patch("app.modules.promotions.application.commands.get_promotion_repository")
     def test_raises_400_when_not_draft(self, mock_get_repo):
         mock_repo = MagicMock()
-        mock_repo.get_by_id.return_value = _promotion_read_draft(status="pending_approval")
+        mock_repo.get_by_id.return_value = _promotion_read_draft(
+            status="pending_approval"
+        )
         mock_get_repo.return_value = mock_repo
         with pytest.raises(HTTPException) as exc_info:
             commands.delete_promotion_cmd("promo-1", COMPANY_ID)

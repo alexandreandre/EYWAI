@@ -5,6 +5,7 @@ Dépendances mockées : repository, storage, text_cache, pdf_extractor, chat_pro
 Vérification des droits (super_admin, has_rh_access), délégation au repository
 et conversion des exceptions du domain en HTTPException.
 """
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -15,7 +16,9 @@ from app.modules.collective_agreements.application.dto import (
     UploadUrlOutput,
     QuestionOutput,
 )
-from app.modules.collective_agreements.application.service import CollectiveAgreementsService
+from app.modules.collective_agreements.application.service import (
+    CollectiveAgreementsService,
+)
 
 
 def _make_service(
@@ -330,7 +333,10 @@ class TestServiceGetAllAssignments:
         result = svc.get_all_assignments(is_super_admin=True)
 
         assert len(result) == 1
-        assert result[0]["assigned_agreements"][0]["agreement_details"]["rules_pdf_url"] == "https://signed.url"
+        assert (
+            result[0]["assigned_agreements"][0]["agreement_details"]["rules_pdf_url"]
+            == "https://signed.url"
+        )
 
 
 # --- ask_question ---

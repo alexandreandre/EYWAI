@@ -4,6 +4,7 @@ Tests d'intégration du repository repos_compensateur (infrastructure/repository
 Avec DB de test (fixture db_session) : opérations réelles contre repos_compensateur_credits.
 Sans DB : mock de supabase pour valider les appels (upsert_credit, get_jours_by_employee_year).
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest

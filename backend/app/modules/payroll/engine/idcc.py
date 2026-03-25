@@ -2,6 +2,7 @@
 Utilitaire API PISTE/KALI pour la recherche de textes par IDCC (conventions collectives).
 Helper technique proche du moteur de paie — migré depuis backend_calculs/idcc.py.
 """
+
 import requests
 import json
 import time  # <--- Assurez-vous que cette ligne est bien présente !
@@ -17,7 +18,7 @@ IDCC_A_TESTER = [
     "2098",  # Personnel des prestataires de services
     "1516",  # Organismes de formation
     "1090",  # Services de l'automobile
-    "0044"   # Industries chimiques
+    "0044",  # Industries chimiques
 ]
 
 # URLs des points de terminaison de l'API PISTE
@@ -29,14 +30,12 @@ def obtenir_token():
     """
     Récupère un jeton d'accès auprès de l'API PISTE.
     """
-    headers = {
-        "Content-Type": "application/x-www-form-urlencoded"
-    }
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
     data = {
         "grant_type": "client_credentials",
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
-        "scope": "openid"
+        "scope": "openid",
     }
     try:
         response = requests.post(URL_TOKEN, headers=headers, data=data)
@@ -51,32 +50,26 @@ def rechercher_textes_kali(token, idcc):
     """
     Recherche les textes pour une convention collective donnée (version simplifiée).
     """
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json"
-    }
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     payload = {
         "recherche": {
             "fond": "KALI",
             "champs": [
                 {
                     "typeChamp": "IDCC",
-                    "criteres": [
-                        {
-                            "typeRecherche": "EXACTE",
-                            "valeur": idcc
-                        }
-                    ]
+                    "criteres": [{"typeRecherche": "EXACTE", "valeur": idcc}],
                 }
             ],
             "pageNumber": 1,
             "pageSize": 10,
-            "sort": "CHRONO_DATE_PUBLI"
+            "sort": "CHRONO_DATE_PUBLI",
         }
     }
 
     try:
-        response = requests.post(f"{URL_API_LEGIFRANCE}/search", headers=headers, data=json.dumps(payload))
+        response = requests.post(
+            f"{URL_API_LEGIFRANCE}/search", headers=headers, data=json.dumps(payload)
+        )
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
@@ -103,10 +96,12 @@ def main():
 
         if resultats and "results" in resultats:
             nombre_resultats = len(resultats["results"])
-            print(f"✅ SUCCÈS : {nombre_resultats} texte(s) trouvé(s) pour l'IDCC {idcc_a_tester}.")
+            print(
+                f"✅ SUCCÈS : {nombre_resultats} texte(s) trouvé(s) pour l'IDCC {idcc_a_tester}."
+            )
         else:
             print(f"❌ ÉCHEC pour l'IDCC {idcc_a_tester}.")
-        
+
         # Petite pause pour ne pas surcharger l'API
         time.sleep(1)
         print("-" * 35 + "\n")

@@ -1,6 +1,7 @@
 """
 Schémas de réponse du module saisies_avances.
 """
+
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
@@ -19,6 +20,7 @@ from .requests import (
 
 class SalarySeizure(BaseModel):
     """Schéma représentant une saisie complète depuis la BDD."""
+
     id: str
     company_id: str
     employee_id: str
@@ -44,6 +46,7 @@ class SalarySeizure(BaseModel):
 
 class SeizableAmountCalculation(BaseModel):
     """Résultat du calcul de quotité saisissable."""
+
     net_salary: Decimal
     dependents_count: int
     adjusted_salary: Decimal
@@ -53,6 +56,7 @@ class SeizableAmountCalculation(BaseModel):
 
 class SalaryAdvance(BaseModel):
     """Schéma représentant une avance complète depuis la BDD."""
+
     id: str
     company_id: str
     employee_id: str
@@ -65,7 +69,9 @@ class SalaryAdvance(BaseModel):
     repayment_mode: RepaymentMode
     repayment_months: int
     remaining_amount: Decimal
-    remaining_to_pay: Optional[float] = None  # Montant restant à verser (calculé dynamiquement)
+    remaining_to_pay: Optional[float] = (
+        None  # Montant restant à verser (calculé dynamiquement)
+    )
     request_comment: Optional[str] = None
     rejection_reason: Optional[str] = None
     created_at: datetime
@@ -78,6 +84,7 @@ class SalaryAdvance(BaseModel):
 
 class AdvanceAvailableAmount(BaseModel):
     """Montant disponible pour une avance."""
+
     daily_salary: Decimal
     days_worked: Decimal
     outstanding_advances: Decimal
@@ -87,6 +94,7 @@ class AdvanceAvailableAmount(BaseModel):
 
 class SalarySeizureDeduction(BaseModel):
     """Historique d'un prélèvement de saisie."""
+
     id: str
     seizure_id: str
     payslip_id: str
@@ -103,6 +111,7 @@ class SalarySeizureDeduction(BaseModel):
 
 class SalaryAdvanceRepayment(BaseModel):
     """Historique d'un remboursement d'avance."""
+
     id: str
     advance_id: str
     payslip_id: str
@@ -117,6 +126,7 @@ class SalaryAdvanceRepayment(BaseModel):
 
 class SalarySeizureWithEmployee(BaseModel):
     """Saisie avec informations de l'employé."""
+
     seizure: SalarySeizure
     employee_first_name: str
     employee_last_name: str
@@ -124,6 +134,7 @@ class SalarySeizureWithEmployee(BaseModel):
 
 class SalaryAdvanceWithEmployee(BaseModel):
     """Avance avec informations de l'employé."""
+
     advance: SalaryAdvance
     employee_first_name: str
     employee_last_name: str
@@ -131,6 +142,7 @@ class SalaryAdvanceWithEmployee(BaseModel):
 
 class PayslipSeizureInfo(BaseModel):
     """Information de saisie pour un bulletin."""
+
     type: str
     montant: Decimal
     creditor_name: str
@@ -139,6 +151,7 @@ class PayslipSeizureInfo(BaseModel):
 
 class PayslipAdvanceRepaymentInfo(BaseModel):
     """Information de remboursement d'avance pour un bulletin."""
+
     montant: Decimal
     date_avance: date
     reste_apres: Decimal
@@ -146,12 +159,14 @@ class PayslipAdvanceRepaymentInfo(BaseModel):
 
 class PayslipDeductionsEnrichment(BaseModel):
     """Enrichissement du bulletin avec saisies et avances."""
+
     retenues_saisies: dict
     remboursements_avances: dict
 
 
 class SalaryAdvancePayment(BaseModel):
     """Schéma représentant un paiement d'avance."""
+
     id: str
     advance_id: str
     company_id: str
@@ -170,6 +185,7 @@ class SalaryAdvancePayment(BaseModel):
 
 class SignedUploadURL(BaseModel):
     """URL signée pour upload de preuve de paiement."""
+
     path: str
     signedURL: str
 

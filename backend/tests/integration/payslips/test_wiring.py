@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module payslips.
 Vérifient que l'injection des dépendances et le flux de bout en bout
 (router -> application -> commands/queries -> infrastructure) fonctionnent.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -66,11 +67,14 @@ class TestPayslipsWiringGenerate:
 
     def test_generate_flow_uses_command_and_provider(self, client: TestClient):
         """La route appelle generate_payslip qui utilise employee_statut_reader et provider."""
-        with patch(
-            "app.modules.payslips.application.commands.employee_statut_reader"
-        ) as mock_reader, patch(
-            "app.modules.payslips.application.commands.payslip_generator_provider"
-        ) as mock_provider:
+        with (
+            patch(
+                "app.modules.payslips.application.commands.employee_statut_reader"
+            ) as mock_reader,
+            patch(
+                "app.modules.payslips.application.commands.payslip_generator_provider"
+            ) as mock_provider,
+        ):
             mock_reader.get_employee_statut.return_value = "Cadre forfait jour"
             mock_provider.generate_forfait.return_value = {
                 "status": "ok",
@@ -98,11 +102,16 @@ class TestPayslipsWiringMyPayslips:
         """La route appelle get_my_payslips avec current_user.id."""
         from app.core.security import get_current_user
 
-        with patch(
-            "app.modules.payslips.api.router.get_my_payslips"
-        ) as mock_get:
+        with patch("app.modules.payslips.api.router.get_my_payslips") as mock_get:
             mock_get.return_value = [
-                {"id": "ps-1", "name": "B.pdf", "month": 3, "year": 2024, "url": "https://u.fr", "net_a_payer": 2500.0},
+                {
+                    "id": "ps-1",
+                    "name": "B.pdf",
+                    "month": 3,
+                    "year": 2024,
+                    "url": "https://u.fr",
+                    "net_a_payer": 2500.0,
+                },
             ]
             app.dependency_overrides[get_current_user] = lambda: _employee_user()
             try:

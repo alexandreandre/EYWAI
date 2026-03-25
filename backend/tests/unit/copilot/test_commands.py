@@ -3,6 +3,7 @@ Tests des commandes du module copilot (application/commands.py).
 
 Repositories et service mockés : pas d'appel réel à OpenAI ni à la DB.
 """
+
 import os
 from unittest.mock import patch
 
@@ -30,7 +31,9 @@ class TestExecuteTextToSql:
             if "OPENAI_API_KEY" in os.environ:
                 del os.environ["OPENAI_API_KEY"]
             with pytest.raises(ValueError, match="clé API manquante|pas configuré"):
-                execute_text_to_sql(TextToSqlInput(prompt="Combien d'employés ?", user_id="user-1"))
+                execute_text_to_sql(
+                    TextToSqlInput(prompt="Combien d'employés ?", user_id="user-1")
+                )
 
     @patch("app.modules.copilot.application.commands.generate_sql_from_prompt")
     @patch("app.modules.copilot.application.commands.only_select_allowed")
@@ -66,7 +69,9 @@ class TestExecuteTextToSql:
         mock_only_select.return_value = False
 
         with pytest.raises(PermissionError, match="non autorisée|SELECT"):
-            execute_text_to_sql(TextToSqlInput(prompt="Supprime tout", user_id="user-1"))
+            execute_text_to_sql(
+                TextToSqlInput(prompt="Supprime tout", user_id="user-1")
+            )
 
 
 class TestHandleAgentQuery:
@@ -122,7 +127,10 @@ class TestHandleAgentQuery:
         )
 
         assert result.needs_clarification is True
-        assert result.clarification_question == "Voulez-vous compter tous les employés ou seulement les CDI ?"
+        assert (
+            result.clarification_question
+            == "Voulez-vous compter tous les employés ou seulement les CDI ?"
+        )
         assert result.answer == ""
 
     @patch("app.modules.copilot.application.commands.synthesize_final_answer")
@@ -131,7 +139,12 @@ class TestHandleAgentQuery:
     @patch("app.modules.copilot.application.commands.get_company_id_for_user")
     @patch("app.modules.copilot.application.commands.analyze_intent_and_plan")
     def test_data_retrieval_flow_returns_synthesized_answer(
-        self, mock_analyze, mock_get_company, mock_get_agreements, mock_retrieval, mock_synthesize
+        self,
+        mock_analyze,
+        mock_get_company,
+        mock_get_agreements,
+        mock_retrieval,
+        mock_synthesize,
     ):
         os.environ["OPENAI_API_KEY"] = "sk-test"
         mock_get_company.return_value = "company-123"
@@ -143,7 +156,11 @@ class TestHandleAgentQuery:
             "requires_data_retrieval": True,
             "data_retrieval_steps": ["Compter les employés"],
         }
-        mock_retrieval.return_value = {"success": True, "sql": "SELECT COUNT(*) FROM employees", "data": [{"count": 10}]}
+        mock_retrieval.return_value = {
+            "success": True,
+            "sql": "SELECT COUNT(*) FROM employees",
+            "data": [{"count": 10}],
+        }
         mock_synthesize.return_value = "Votre entreprise compte 10 employés."
 
         result = handle_agent_query(
@@ -181,9 +198,14 @@ class TestHandleAgentQuery:
             )
         )
 
-        assert "aucune convention collective" in result.answer.lower() or "n'a aucune convention" in result.answer
+        assert (
+            "aucune convention collective" in result.answer.lower()
+            or "n'a aucune convention" in result.answer
+        )
 
-    @patch("app.modules.copilot.application.commands.answer_collective_agreement_question")
+    @patch(
+        "app.modules.copilot.application.commands.answer_collective_agreement_question"
+    )
     @patch("app.modules.copilot.application.commands.get_company_collective_agreements")
     @patch("app.modules.copilot.application.commands.get_company_id_for_user")
     @patch("app.modules.copilot.application.commands.analyze_intent_and_plan")
@@ -193,7 +215,12 @@ class TestHandleAgentQuery:
         os.environ["OPENAI_API_KEY"] = "sk-test"
         mock_get_company.return_value = "company-123"
         mock_get_agreements.return_value = [
-            {"id": "cc-1", "name": "SYNTEC", "idcc": "1486", "full_text": "Article 1..."}
+            {
+                "id": "cc-1",
+                "name": "SYNTEC",
+                "idcc": "1486",
+                "full_text": "Article 1...",
+            }
         ]
         mock_analyze.return_value = {
             "needs_clarification": False,
@@ -238,4 +265,7 @@ class TestHandleAgentQuery:
             )
         )
 
-        assert "aucun employé" in result.answer.lower() or "n'ai trouvé aucun" in result.answer
+        assert (
+            "aucun employé" in result.answer.lower()
+            or "n'ai trouvé aucun" in result.answer
+        )

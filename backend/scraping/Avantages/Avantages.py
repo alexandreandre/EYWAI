@@ -12,25 +12,30 @@ UA = (
     "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 )
 
+
 # -------- Helpers --------
 def _txt(el) -> str:
     return el.get_text(" ", strip=True) if el else ""
+
 
 def parse_number(text: str) -> Optional[float]:
     if not text:
         return None
     cleaned = (
         text.replace("\u202f", "")
-            .replace("\xa0", "")
-            .replace("€", "")
-            .replace(" ", "")
-            .replace(",", ".")
-            .strip()
+        .replace("\xa0", "")
+        .replace("€", "")
+        .replace(" ", "")
+        .replace(",", ".")
+        .strip()
     )
     m = re.search(r"(-?\d+(?:\.\d+)?)", cleaned)
     return float(m.group(1)) if m else None
 
-def make_payload(repas: Optional[float], titre_restaurant: Optional[float], logement: List[Dict]) -> dict:
+
+def make_payload(
+    repas: Optional[float], titre_restaurant: Optional[float], logement: List[Dict]
+) -> dict:
     return {
         "id": "avantages_en_nature",
         "type": "param_bundle",
@@ -45,6 +50,7 @@ def make_payload(repas: Optional[float], titre_restaurant: Optional[float], loge
         },
     }
 
+
 # -------- Scraper --------
 def run() -> dict:
     r = requests.get(URL_URSSAF, timeout=25, headers={"User-Agent": UA})
@@ -58,13 +64,19 @@ def run() -> dict:
     # --- Repas ---
     repas_h = soup.find(id=lambda x: x and "repas" in x.lower())
     if not repas_h:
-        repas_h = soup.find(lambda t: t.name in ("h2", "h3") and "repas" in _txt(t).lower())
+        repas_h = soup.find(
+            lambda t: t.name in ("h2", "h3") and "repas" in _txt(t).lower()
+        )
     if repas_h:
         tbl = repas_h.find_next("table")
         if tbl:
             for tr in tbl.find_all("tr"):
                 th = tr.find("th")
-                if th and re.search(r"(?:^|\b)(1\s*repas|par\s*repas|valeur\s*forfaitaire)", _txt(th), re.I):
+                if th and re.search(
+                    r"(?:^|\b)(1\s*repas|par\s*repas|valeur\s*forfaitaire)",
+                    _txt(th),
+                    re.I,
+                ):
                     td = tr.find("td")
                     if td:
                         repas_val = parse_number(_txt(td))
@@ -73,7 +85,9 @@ def run() -> dict:
     # --- Titres-restaurant (exonération maximale) ---
     tr_h = soup.find(id=lambda x: x and "titre" in x.lower())
     if not tr_h:
-        tr_h = soup.find(lambda t: t.name in ("h2", "h3") and "titre-restaurant" in _txt(t).lower())
+        tr_h = soup.find(
+            lambda t: t.name in ("h2", "h3") and "titre-restaurant" in _txt(t).lower()
+        )
     if tr_h:
         tbl = tr_h.find_next("table")
         if tbl:
@@ -88,7 +102,9 @@ def run() -> dict:
     # --- Logement (barème forfaitaire) ---
     log_h = soup.find(id=lambda x: x and "logement" in x.lower())
     if not log_h:
-        log_h = soup.find(lambda t: t.name in ("h2", "h3") and "logement" in _txt(t).lower())
+        log_h = soup.find(
+            lambda t: t.name in ("h2", "h3") and "logement" in _txt(t).lower()
+        )
     if log_h:
         tbl = log_h.find_next("table")
         if tbl:
@@ -107,13 +123,16 @@ def run() -> dict:
                 v1p = parse_number(_txt(tds[1]))
                 vpp = parse_number(_txt(tds[2]))
                 if v1p is not None and vpp is not None:
-                    logement_bareme.append({
-                        "remuneration_max_eur": rem_max,
-                        "valeur_1_piece_eur": v1p,
-                        "valeur_par_piece_suppl_eur": vpp,
-                    })
+                    logement_bareme.append(
+                        {
+                            "remuneration_max_eur": rem_max,
+                            "valeur_1_piece_eur": v1p,
+                            "valeur_par_piece_suppl_eur": vpp,
+                        }
+                    )
 
     return make_payload(repas_val, tr_exo, logement_bareme)
+
 
 if __name__ == "__main__":
     try:

@@ -4,6 +4,7 @@ Tests du domaine saisies_avances : règles métier, constantes et types.
 Sans DB, sans HTTP. Couvre domain/rules.py et domain/enums.py.
 Les entités et value_objects sont des placeholders (pas de logique à tester).
 """
+
 from datetime import date
 from decimal import Decimal
 
@@ -67,7 +68,9 @@ class TestCalculateSeizableAmount:
         result = rules.calculate_seizable_amount(Decimal("400"), dependents_count=1)
         assert result == Decimal("0.4")
         # 0 charge : 400 reste <= 500 → 0
-        assert rules.calculate_seizable_amount(Decimal("400"), dependents_count=0) == Decimal("0")
+        assert rules.calculate_seizable_amount(
+            Decimal("400"), dependents_count=0
+        ) == Decimal("0")
 
 
 # --- apply_priority_order ---
@@ -168,18 +171,26 @@ class TestInitialAdvanceStatus:
     """Statut initial d'une demande d'avance (employé vs RH)."""
 
     def test_employe_request_toujours_pending(self):
-        assert rules.initial_advance_status(True, Decimal("50"), Decimal("100")) == "pending"
-        assert rules.initial_advance_status(True, Decimal("200"), Decimal("100")) == "pending"
+        assert (
+            rules.initial_advance_status(True, Decimal("50"), Decimal("100"))
+            == "pending"
+        )
+        assert (
+            rules.initial_advance_status(True, Decimal("200"), Decimal("100"))
+            == "pending"
+        )
 
     def test_rh_sous_seuil_approved(self):
-        assert rules.initial_advance_status(
-            False, Decimal("80"), Decimal("100")
-        ) == "approved"
+        assert (
+            rules.initial_advance_status(False, Decimal("80"), Decimal("100"))
+            == "approved"
+        )
 
     def test_rh_au_dessus_seuil_pending(self):
-        assert rules.initial_advance_status(
-            False, Decimal("150"), Decimal("100")
-        ) == "pending"
+        assert (
+            rules.initial_advance_status(False, Decimal("150"), Decimal("100"))
+            == "pending"
+        )
 
 
 # --- remaining_to_pay_value ---

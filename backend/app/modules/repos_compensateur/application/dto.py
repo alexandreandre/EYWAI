@@ -3,6 +3,7 @@ DTOs (Data Transfer Objects) pour le module repos_compensateur.
 
 Placeholder : à utiliser lors de la migration entre couches.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

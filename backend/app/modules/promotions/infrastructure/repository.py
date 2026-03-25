@@ -4,6 +4,7 @@ Repository promotions : persistance Supabase.
 Implémentation de IPromotionRepository (lecture + écriture).
 Utilise les mappers pour row → PromotionRead / PromotionListItem.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
@@ -58,8 +59,10 @@ class PromotionRepository(IPromotionRepository):
         offset: Optional[int] = None,
     ) -> List[PromotionListItem]:
         try:
-            query = supabase.table("promotions").select(
-                """
+            query = (
+                supabase.table("promotions")
+                .select(
+                    """
                 id,
                 employee_id,
                 promotion_type,
@@ -89,7 +92,9 @@ class PromotionRepository(IPromotionRepository):
                     last_name
                 )
                 """
-            ).eq("company_id", company_id)
+                )
+                .eq("company_id", company_id)
+            )
             if year:
                 query = query.gte("effective_date", f"{year}-01-01")
                 query = query.lte("effective_date", f"{year}-12-31")

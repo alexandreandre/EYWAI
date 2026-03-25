@@ -4,6 +4,7 @@ Requêtes métier complexes (lecture) pour le module users.
 Exécution Supabase uniquement. Pas de règles métier ici.
 Comportement identique aux requêtes inline des anciens routers.
 """
+
 from typing import List, Optional
 
 from app.core.database import supabase
@@ -46,9 +47,7 @@ def fetch_target_user_company_ids(user_id: str) -> List[str]:
     return [row["company_id"] for row in (r.data or [])]
 
 
-def fetch_company_users_rows(
-    company_id: str, role: Optional[str] = None
-) -> List[dict]:
+def fetch_company_users_rows(company_id: str, role: Optional[str] = None) -> List[dict]:
     """Lignes user_company_accesses + profiles + role_templates pour une company."""
     query = (
         supabase.table("user_company_accesses")

@@ -3,6 +3,7 @@ Tests unitaires du BonusTypesService (application/service.py).
 
 Service testé avec repository et (optionnel) IEmployeeHoursProvider mockés.
 """
+
 from uuid import uuid4
 
 import pytest
@@ -169,7 +170,9 @@ class TestBonusTypesServiceUpdate:
         repo = MagicMock()
         company_uuid = uuid4()
         existing = _make_bonus_entity(libelle="Ancien", company_id=company_uuid)
-        updated = _make_bonus_entity(libelle="Mis à jour", montant=150.0, company_id=company_uuid)
+        updated = _make_bonus_entity(
+            libelle="Mis à jour", montant=150.0, company_id=company_uuid
+        )
         repo.get_by_id.return_value = existing
         repo.update.return_value = updated
         svc = BonusTypesService(repo)
@@ -276,9 +279,7 @@ class TestBonusTypesServiceCalculateAmount:
 
         result = svc.calculate_amount("bt-1", "co-1", "emp-1", 2025, 3)
 
-        hours_provider.get_total_actual_hours.assert_called_once_with(
-            "emp-1", 2025, 3
-        )
+        hours_provider.get_total_actual_hours.assert_called_once_with("emp-1", 2025, 3)
         assert result.amount == 80.0
         assert result.total_hours == 160.0
         assert result.seuil == 151.67

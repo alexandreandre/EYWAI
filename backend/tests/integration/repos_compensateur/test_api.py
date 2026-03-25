@@ -10,6 +10,7 @@ Fixture optionnelle (conftest.py) : repos_compensateur_headers
   Format : {"Authorization": "Bearer <jwt>", "X-Active-Company": "<company_id>"}.
   Si non définie, les tests utilisent dependency_overrides pour injecter un utilisateur de test.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -51,8 +52,8 @@ class TestCalculerCreditsReposValidation:
         user_no_company = type("User", (), {"active_company_id": None})()
         from app.modules.repos_compensateur.api import dependencies
 
-        app.dependency_overrides[dependencies.get_current_user] = (
-            lambda: user_no_company
+        app.dependency_overrides[dependencies.get_current_user] = lambda: (
+            user_no_company
         )
         try:
             response = client.post(
@@ -62,7 +63,10 @@ class TestCalculerCreditsReposValidation:
             assert response.status_code == 400
             data = response.json()
             assert "detail" in data
-            assert "company_id" in data["detail"].lower() or "requis" in data["detail"].lower()
+            assert (
+                "company_id" in data["detail"].lower()
+                or "requis" in data["detail"].lower()
+            )
         finally:
             app.dependency_overrides.pop(dependencies.get_current_user, None)
 

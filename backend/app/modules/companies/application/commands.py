@@ -4,6 +4,7 @@ Commandes (cas d'usage écriture) du module companies.
 Délégation au repository. Vérification RH à faire côté appelant (api).
 Comportement identique à l'ancien routeur api/routers/company.py.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict
@@ -33,6 +34,8 @@ def update_company_settings(
 
     company_repository.update_settings(company_id, current_settings)
     return CompanySettingsResultDto(
-        medical_follow_up_enabled=bool(current_settings.get("medical_follow_up_enabled")),
+        medical_follow_up_enabled=bool(
+            current_settings.get("medical_follow_up_enabled")
+        ),
         settings=current_settings,
     )

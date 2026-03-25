@@ -4,6 +4,7 @@ Tests unitaires du service applicatif residence_permits.
 enrich_row_with_residence_permit_status et _parse_expiry_date (via enrichissement)
 avec calculateur mocké. Pas de DB.
 """
+
 from datetime import date
 from unittest.mock import MagicMock
 
@@ -13,7 +14,9 @@ from app.modules.residence_permits.application.service import (
     enrich_row_with_residence_permit_status,
     _parse_expiry_date,
 )
-from app.modules.residence_permits.domain.interfaces import IResidencePermitStatusCalculator
+from app.modules.residence_permits.domain.interfaces import (
+    IResidencePermitStatusCalculator,
+)
 
 
 pytestmark = pytest.mark.unit

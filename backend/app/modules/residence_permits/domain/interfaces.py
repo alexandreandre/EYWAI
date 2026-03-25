@@ -4,6 +4,7 @@ Ports du domaine residence_permits.
 L'application dépend de ces abstractions ; l'infrastructure les implémente.
 Compatibles avec les usages employees/dashboard (calculator) et liste (list reader).
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -34,5 +35,7 @@ class IResidencePermitListReader(ABC):
     """
 
     @abstractmethod
-    def get_employees_subject_for_company(self, company_id: str) -> List[Dict[str, Any]]:
+    def get_employees_subject_for_company(
+        self, company_id: str
+    ) -> List[Dict[str, Any]]:
         pass

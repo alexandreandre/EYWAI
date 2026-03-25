@@ -3,6 +3,7 @@ Tests du domain collective_agreements : entités, value objects, règles, except
 
 Sans DB, sans HTTP. Comportement pur du domaine.
 """
+
 from datetime import date, datetime
 
 

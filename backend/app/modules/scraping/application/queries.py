@@ -5,6 +5,7 @@ Délégation à l'infrastructure (repository + queries enrichies).
 Règles de "non trouvé" levées ici (ValueError) pour que le routeur convertisse en 404.
 Comportement identique au routeur legacy.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, Optional

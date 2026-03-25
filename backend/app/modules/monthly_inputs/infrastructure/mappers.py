@@ -3,6 +3,7 @@ Mappers monthly_inputs : conversion ligne DB <-> entité / DTO.
 
 Placeholder minimal : l'API actuelle travaille en dict ; mappers à enrichir si besoin.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict
@@ -22,7 +23,9 @@ def row_to_entity(row: Dict[str, Any]) -> MonthlyInputEntity:
     eid = row.get("employee_id")
     return MonthlyInputEntity(
         id=_to_uuid(row.get("id")),
-        employee_id=(eid if isinstance(eid, UUID) else UUID(str(eid))) if eid is not None else UUID(int=0),
+        employee_id=(eid if isinstance(eid, UUID) else UUID(str(eid)))
+        if eid is not None
+        else UUID(int=0),
         year=row["year"],
         month=row["month"],
         name=row["name"],

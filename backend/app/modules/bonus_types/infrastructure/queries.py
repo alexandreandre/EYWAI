@@ -4,6 +4,7 @@ Constantes et helpers pour les requêtes Supabase (bonus_types).
 Centralise les noms de tables et colonnes ; le repository et les providers
 s'y réfèrent pour garder un seul point de définition.
 """
+
 from __future__ import annotations
 
 # Tables

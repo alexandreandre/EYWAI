@@ -5,6 +5,7 @@ Appelle uniquement l'application du module (commands / queries).
 Aucune logique métier : validation des entrées (schémas), injection du contexte user, appel application, retour du résultat.
 Comportement HTTP identique au legacy (api/routers/collective_agreements*.py).
 """
+
 from __future__ import annotations
 
 import traceback
@@ -50,7 +51,9 @@ def _ensure_company_id(user: CollectiveAgreementUserContext) -> str:
 async def list_catalog(
     sector: str | None = Query(None, description="Filtrer par secteur"),
     search: str | None = Query(None, description="Rechercher par nom ou IDCC"),
-    active_only: bool = Query(True, description="Afficher uniquement les conventions actives"),
+    active_only: bool = Query(
+        True, description="Afficher uniquement les conventions actives"
+    ),
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
     """Liste toutes les conventions du catalogue (dropdown)."""
@@ -74,7 +77,9 @@ async def get_catalog_item(
     try:
         item = queries.get_catalog_item_query(agreement_id)
         if not item:
-            raise HTTPException(status_code=404, detail="Convention collective non trouvée")
+            raise HTTPException(
+                status_code=404, detail="Convention collective non trouvée"
+            )
         return item
     except HTTPException:
         raise
@@ -109,7 +114,9 @@ async def get_catalog_upload_url(
     """Génère une URL signée pour uploader un PDF (super admin)."""
     try:
         if current_user.role != "super_admin":
-            raise HTTPException(status_code=403, detail="Accès réservé au super administrateur")
+            raise HTTPException(
+                status_code=403, detail="Accès réservé au super administrateur"
+            )
         out = queries.get_upload_url_query(body.filename)
         return {"path": out.path, "signedURL": out.signed_url}
     except HTTPException:
@@ -156,10 +163,14 @@ async def update_catalog_item(
     try:
         update_dict_raw = update_data.model_dump(exclude_unset=True)
         out = commands.update_catalog_item(
-            agreement_id, update_dict_raw, is_super_admin=(current_user.role == "super_admin")
+            agreement_id,
+            update_dict_raw,
+            is_super_admin=(current_user.role == "super_admin"),
         )
         if not out:
-            raise HTTPException(status_code=404, detail="Convention collective non trouvée")
+            raise HTTPException(
+                status_code=404, detail="Convention collective non trouvée"
+            )
         return out
     except HTTPException:
         raise
@@ -224,7 +235,10 @@ async def assign_agreement_to_company(
             str(current_user.id),
             current_user.has_rh_access_in_company(company_id),
         )
-        return {"message": "Convention collective assignée avec succès", "assignment": result}
+        return {
+            "message": "Convention collective assignée avec succès",
+            "assignment": result,
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -263,7 +277,9 @@ async def get_all_company_assignments(
     """Toutes les assignations par entreprise (super admin)."""
     try:
         if current_user.role != "super_admin":
-            raise HTTPException(status_code=403, detail="Accès réservé au super administrateur")
+            raise HTTPException(
+                status_code=403, detail="Accès réservé au super administrateur"
+            )
         return queries.get_all_assignments_query(is_super_admin=True)
     except HTTPException:
         raise
@@ -312,7 +328,9 @@ async def refresh_cache(
     """Force le rafraîchissement du cache texte (super admin)."""
     try:
         if current_user.role != "super_admin":
-            raise HTTPException(status_code=403, detail="Accès réservé au super administrateur")
+            raise HTTPException(
+                status_code=403, detail="Accès réservé au super administrateur"
+            )
         commands.refresh_text_cache(agreement_id, is_super_admin=True)
         return {"message": "Cache rafraîchi avec succès"}
     except HTTPException:

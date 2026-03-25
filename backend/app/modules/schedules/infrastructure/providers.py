@@ -4,6 +4,7 @@ Fournisseurs externes du module schedules : analyse de paie, forfait jour, fichi
 Implémentations des ports IPayrollAnalyzerProvider, IForfaitJourProvider, IFileCalendarProvider.
 Délèguent à app.shared.infrastructure.payroll_analyzer / forfait_jour et aux chemins runtime ``app.core.paths``.
 """
+
 import json
 from datetime import date
 from pathlib import Path
@@ -104,9 +105,7 @@ class FileCalendarProvider(IFileCalendarProvider):
         self, employee_folder_name: str, year: int, month: int
     ) -> List[Dict[str, Any]]:
         path = (
-            self._employee_path(employee_folder_name)
-            / "horaires"
-            / f"{month:02d}.json"
+            self._employee_path(employee_folder_name) / "horaires" / f"{month:02d}.json"
         )
         if not path.exists():
             return []

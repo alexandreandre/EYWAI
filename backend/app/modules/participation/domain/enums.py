@@ -3,6 +3,7 @@
 
 Alignées sur le legacy : modes de répartition uniforme / salaire / présence / combinaison.
 """
+
 from enum import Enum
 
 

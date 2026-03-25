@@ -6,11 +6,15 @@ Supabase mocké. Pour des tests contre une DB de test réelle, fournir une fixtu
 supabase_client ou db_session pointant vers la DB de test (voir conftest.py :
 fixture collective_agreements_db_client à ajouter si besoin).
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.modules.collective_agreements.domain.exceptions import NotFoundError, ValidationError
+from app.modules.collective_agreements.domain.exceptions import (
+    NotFoundError,
+    ValidationError,
+)
 from app.modules.collective_agreements.infrastructure.repository import (
     CollectiveAgreementRepository,
 )
@@ -37,9 +41,7 @@ class TestCollectiveAgreementRepositoryListCatalog:
 
     def test_returns_data_from_response(self):
         mock_supabase = MagicMock()
-        chain = (
-            mock_supabase.table.return_value.select.return_value.eq.return_value.order.return_value
-        )
+        chain = mock_supabase.table.return_value.select.return_value.eq.return_value.order.return_value
         chain.execute.return_value = MagicMock(
             data=[{"id": "agr-1", "name": "CC Syntec", "idcc": "1486"}]
         )
@@ -135,7 +137,10 @@ class TestCollectiveAgreementRepositoryGetClassificationsForAgreement:
         with pytest.raises(NotFoundError) as exc_info:
             repo.get_classifications_for_agreement("agr-unknown")
 
-        assert "Convention" in exc_info.value.message or "non trouvée" in exc_info.value.message
+        assert (
+            "Convention" in exc_info.value.message
+            or "non trouvée" in exc_info.value.message
+        )
 
     @patch(
         "app.modules.collective_agreements.infrastructure.repository.get_classifications_for_idcc"
@@ -162,23 +167,24 @@ class TestCollectiveAgreementRepositoryCreateCatalogItem:
 
     def test_raises_validation_error_when_insert_returns_empty(self):
         mock_supabase = MagicMock()
-        mock_supabase.table.return_value.insert.return_value.execute.return_value = MagicMock(
-            data=None
+        mock_supabase.table.return_value.insert.return_value.execute.return_value = (
+            MagicMock(data=None)
         )
         repo = CollectiveAgreementRepository(supabase_client=mock_supabase)
 
         with pytest.raises(ValidationError) as exc_info:
-            repo.create_catalog_item(
-                {"name": "CC", "idcc": "1486", "is_active": True}
-            )
+            repo.create_catalog_item({"name": "CC", "idcc": "1486", "is_active": True})
 
-        assert "création" in exc_info.value.message.lower() or "échec" in exc_info.value.message.lower()
+        assert (
+            "création" in exc_info.value.message.lower()
+            or "échec" in exc_info.value.message.lower()
+        )
 
     def test_returns_created_row(self):
         mock_supabase = MagicMock()
         created = {"id": "new-id", "name": "CC", "idcc": "1486"}
-        mock_supabase.table.return_value.insert.return_value.execute.return_value = MagicMock(
-            data=[created]
+        mock_supabase.table.return_value.insert.return_value.execute.return_value = (
+            MagicMock(data=[created])
         )
         repo = CollectiveAgreementRepository(supabase_client=mock_supabase)
 
@@ -214,7 +220,10 @@ class TestCollectiveAgreementRepositoryUpdateCatalogItem:
         with pytest.raises(ValidationError) as exc_info:
             repo.update_catalog_item("agr-1", {})
 
-        assert "donnée" in exc_info.value.message.lower() or "mettre à jour" in exc_info.value.message.lower()
+        assert (
+            "donnée" in exc_info.value.message.lower()
+            or "mettre à jour" in exc_info.value.message.lower()
+        )
 
 
 @pytest.mark.integration
@@ -249,8 +258,8 @@ class TestCollectiveAgreementRepositoryAssignUnassign:
 
     def test_assign_raises_validation_error_when_insert_fails(self):
         mock_supabase = MagicMock()
-        mock_supabase.table.return_value.insert.return_value.execute.return_value = MagicMock(
-            data=None
+        mock_supabase.table.return_value.insert.return_value.execute.return_value = (
+            MagicMock(data=None)
         )
         repo = CollectiveAgreementRepository(supabase_client=mock_supabase)
 
@@ -259,9 +268,13 @@ class TestCollectiveAgreementRepositoryAssignUnassign:
 
     def test_assign_returns_assignment(self):
         mock_supabase = MagicMock()
-        assignment = {"id": "a1", "company_id": "c1", "collective_agreement_id": "agr-1"}
-        mock_supabase.table.return_value.insert.return_value.execute.return_value = MagicMock(
-            data=[assignment]
+        assignment = {
+            "id": "a1",
+            "company_id": "c1",
+            "collective_agreement_id": "agr-1",
+        }
+        mock_supabase.table.return_value.insert.return_value.execute.return_value = (
+            MagicMock(data=[assignment])
         )
         repo = CollectiveAgreementRepository(supabase_client=mock_supabase)
 

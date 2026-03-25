@@ -3,6 +3,7 @@ Dépendances API pour le module rates.
 
 Fournit le reader (implémentation du port IAllRatesReader) pour injection dans les routes.
 """
+
 from __future__ import annotations
 
 from app.modules.rates.domain.interfaces import IAllRatesReader

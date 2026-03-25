@@ -3,6 +3,7 @@ Entité domaine : formule de mutuelle du catalogue entreprise (MutuelleType).
 
 Alignée sur la table company_mutuelle_types et le legacy schemas.mutuelle_type.MutuelleType.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

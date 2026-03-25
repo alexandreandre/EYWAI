@@ -12,6 +12,7 @@ Fixture documentée : promotions_headers.
   pour des tests E2E avec token réel. Sinon, les tests utilisent
   dependency_overrides[get_current_user] et des mocks.
 """
+
 from datetime import date, datetime
 from unittest.mock import MagicMock, patch
 
@@ -244,15 +245,19 @@ class TestPromotionsWithRhUser:
         from app.core.security import get_current_user
 
         app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
-        with patch(
-            "app.modules.promotions.application.queries.get_promotion_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.promotions.application.commands.get_promotion_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.promotions.application.queries.get_promotion_queries",
-            return_value=mock_queries,
+        with (
+            patch(
+                "app.modules.promotions.application.queries.get_promotion_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.promotions.application.commands.get_promotion_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.promotions.application.queries.get_promotion_queries",
+                return_value=mock_queries,
+            ),
         ):
             yield client
         app.dependency_overrides.pop(get_current_user, None)
@@ -264,9 +269,7 @@ class TestPromotionsWithRhUser:
         data = response.json()
         assert isinstance(data, list)
 
-    def test_get_list_accepts_query_params(
-        self, client_with_rh: TestClient, mock_repo
-    ):
+    def test_get_list_accepts_query_params(self, client_with_rh: TestClient, mock_repo):
         """GET /api/promotions?year=2025&status=draft transmet les filtres."""
         client_with_rh.get("/api/promotions?year=2025&status=draft")
         mock_repo.list.assert_called_once()
@@ -282,9 +285,7 @@ class TestPromotionsWithRhUser:
         assert "total_promotions" in data
         assert "approval_rate" in data
 
-    def test_get_by_id_returns_404_when_not_found(
-        self, client_with_rh: TestClient
-    ):
+    def test_get_by_id_returns_404_when_not_found(self, client_with_rh: TestClient):
         """GET /api/promotions/{id} quand promotion inexistante → 404."""
         response = client_with_rh.get("/api/promotions/promo-unknown")
         assert response.status_code == 404
@@ -301,26 +302,28 @@ class TestPromotionsWithRhUser:
         assert data["id"] == "promo-1"
         assert data["status"] == "draft"
 
-    def test_post_create_returns_201(
-        self, client_with_rh: TestClient, mock_repo
-    ):
+    def test_post_create_returns_201(self, client_with_rh: TestClient, mock_repo):
         """POST /api/promotions avec body valide → 201."""
-        with patch(
-            "app.modules.promotions.application.commands.get_employee_snapshot_for_promotion",
-            return_value={
-                "employee": {
-                    "job_title": "Dev",
-                    "salaire_de_base": {"valeur": 3500},
-                    "statut": "Cadre",
-                    "classification_conventionnelle": None,
+        with (
+            patch(
+                "app.modules.promotions.application.commands.get_employee_snapshot_for_promotion",
+                return_value={
+                    "employee": {
+                        "job_title": "Dev",
+                        "salaire_de_base": {"valeur": 3500},
+                        "statut": "Cadre",
+                        "classification_conventionnelle": None,
+                    },
+                    "previous_rh_access": None,
                 },
-                "previous_rh_access": None,
-            },
-        ), patch(
-            "app.modules.promotions.application.commands.get_promotion_by_id_query",
-            return_value=_promotion_read(id="promo-new-id"),
+            ),
+            patch(
+                "app.modules.promotions.application.commands.get_promotion_by_id_query",
+                return_value=_promotion_read(id="promo-new-id"),
+            ),
         ):
             from datetime import timedelta
+
             future_date = (date.today() + timedelta(days=1)).isoformat()
             response = client_with_rh.post(
                 "/api/promotions",
@@ -351,9 +354,7 @@ class TestPromotionsWithRhUser:
         )
         assert response.status_code == 422
 
-    def test_put_update_returns_404_when_not_found(
-        self, client_with_rh: TestClient
-    ):
+    def test_put_update_returns_404_when_not_found(self, client_with_rh: TestClient):
         """PUT /api/promotions/{id} quand promotion inexistante → 404."""
         response = client_with_rh.put(
             "/api/promotions/promo-unknown",
@@ -377,9 +378,7 @@ class TestPromotionsWithRhUser:
         assert response.status_code == 200
         mock_repo.update.assert_called_once()
 
-    def test_post_submit_returns_404_when_not_found(
-        self, client_with_rh: TestClient
-    ):
+    def test_post_submit_returns_404_when_not_found(self, client_with_rh: TestClient):
         """POST .../submit quand promotion inexistante → 404."""
         response = client_with_rh.post("/api/promotions/promo-unknown/submit")
         assert response.status_code == 404
@@ -396,16 +395,12 @@ class TestPromotionsWithRhUser:
             response = client_with_rh.post("/api/promotions/promo-1/mark-effective")
         assert response.status_code == 400
 
-    def test_delete_returns_404_when_not_found(
-        self, client_with_rh: TestClient
-    ):
+    def test_delete_returns_404_when_not_found(self, client_with_rh: TestClient):
         """DELETE /api/promotions/{id} quand promotion inexistante → 404."""
         response = client_with_rh.delete("/api/promotions/promo-unknown")
         assert response.status_code == 404
 
-    def test_delete_returns_204_when_draft(
-        self, client_with_rh: TestClient, mock_repo
-    ):
+    def test_delete_returns_204_when_draft(self, client_with_rh: TestClient, mock_repo):
         """DELETE /api/promotions/{id} quand draft → 204."""
         mock_repo.get_by_id.return_value = _promotion_read(status="draft")
         response = client_with_rh.delete("/api/promotions/promo-1")
@@ -429,15 +424,19 @@ class TestPromotionsApproveReject:
         from app.core.security import get_current_user
 
         app.dependency_overrides[get_current_user] = lambda: _make_admin_user()
-        with patch(
-            "app.modules.promotions.application.queries.get_promotion_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.promotions.application.commands.get_promotion_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.promotions.application.commands.get_promotion_by_id_query",
-            return_value=_promotion_read(status="approved"),
+        with (
+            patch(
+                "app.modules.promotions.application.queries.get_promotion_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.promotions.application.commands.get_promotion_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.promotions.application.commands.get_promotion_by_id_query",
+                return_value=_promotion_read(status="approved"),
+            ),
         ):
             yield client
         app.dependency_overrides.pop(get_current_user, None)
@@ -481,19 +480,20 @@ class TestPromotionsApproveReject:
         from app.core.security import get_current_user
 
         app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
-        with patch(
-            "app.modules.promotions.application.commands.get_promotion_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.promotions.application.queries.get_promotion_repository",
-            return_value=mock_repo,
+        with (
+            patch(
+                "app.modules.promotions.application.commands.get_promotion_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.promotions.application.queries.get_promotion_repository",
+                return_value=mock_repo,
+            ),
         ):
             yield client
         app.dependency_overrides.pop(get_current_user, None)
 
-    def test_post_approve_as_rh_returns_403(
-        self, client_with_rh_only: TestClient
-    ):
+    def test_post_approve_as_rh_returns_403(self, client_with_rh_only: TestClient):
         """POST .../approve en tant que RH (non admin) → 403."""
         response = client_with_rh_only.post(
             "/api/promotions/promo-1/approve",
@@ -518,12 +518,15 @@ class TestPromotionsForbiddenNonRh:
         from app.core.security import get_current_user
 
         app.dependency_overrides[get_current_user] = lambda: _make_collaborator_user()
-        with patch(
-            "app.modules.promotions.application.queries.get_promotion_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.promotions.application.commands.get_promotion_repository",
-            return_value=mock_repo,
+        with (
+            patch(
+                "app.modules.promotions.application.queries.get_promotion_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.promotions.application.commands.get_promotion_repository",
+                return_value=mock_repo,
+            ),
         ):
             yield client
         app.dependency_overrides.pop(get_current_user, None)
@@ -534,7 +537,9 @@ class TestPromotionsForbiddenNonRh:
         """GET /api/promotions en tant que collaborateur → 403."""
         response = client_with_collaborator.get("/api/promotions")
         assert response.status_code == 403
-        assert "Accès réservé" in response.json().get("detail", "") or "RH" in response.json().get("detail", "")
+        assert "Accès réservé" in response.json().get(
+            "detail", ""
+        ) or "RH" in response.json().get("detail", "")
 
     def test_post_create_returns_403_for_collaborator(
         self, client_with_collaborator: TestClient
@@ -595,4 +600,9 @@ class TestPromotionsNoActiveCompany:
         response = client_no_company.get("/api/promotions")
         assert response.status_code in (400, 403)
         detail = response.json().get("detail", "").lower()
-        assert "entreprise" in detail or "active" in detail or "réservé" in detail or "rh" in detail
+        assert (
+            "entreprise" in detail
+            or "active" in detail
+            or "réservé" in detail
+            or "rh" in detail
+        )

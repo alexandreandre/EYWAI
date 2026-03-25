@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module monthly_inputs.
 Vérifient que l'injection des dépendances et le flux de bout en bout
 (router -> application commands/queries -> repository / provider) fonctionnent.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -46,7 +47,14 @@ class TestMonthlyInputsWiring:
             "app.modules.monthly_inputs.application.commands.monthly_inputs_repository"
         ) as repo:
             repo.insert_batch.return_value = [
-                {"id": "new-1", "employee_id": "550e8400-e29b-41d4-a716-446655440000", "year": 2025, "month": 3, "name": "Prime", "amount": 100.0},
+                {
+                    "id": "new-1",
+                    "employee_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "year": 2025,
+                    "month": 3,
+                    "name": "Prime",
+                    "amount": 100.0,
+                },
             ]
             response = client.post(
                 "/api/monthly-inputs",

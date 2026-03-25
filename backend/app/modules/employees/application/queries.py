@@ -4,6 +4,7 @@ Cas d'usage en lecture du module employees.
 Délègue au repository, storage provider et queries infrastructure.
 Comportement identique au router legacy. Aucun accès DB direct.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
@@ -34,15 +35,10 @@ def get_employees(company_id: str) -> List[Dict[str, Any]]:
     Comportement identique à get_employees (router legacy).
     """
     rows = _employee_repository.get_by_company(company_id)
-    return [
-        enrich_employee_with_residence_permit_status(row)
-        for row in rows
-    ]
+    return [enrich_employee_with_residence_permit_status(row) for row in rows]
 
 
-def get_employee_by_id(
-    employee_id: str, company_id: str
-) -> Optional[Dict[str, Any]]:
+def get_employee_by_id(employee_id: str, company_id: str) -> Optional[Dict[str, Any]]:
     """
     Détail d'un employé (enrichi titre de séjour + entretien annuel).
     Comportement identique à get_employee_details (router legacy).
@@ -97,9 +93,7 @@ def get_credentials_pdf_url(employee_id: str) -> Optional[str]:
     if not company_id:
         return None
     storage = get_storage_provider()
-    list_response = storage.list_files(
-        "creation_compte", f"{company_id}/{employee_id}"
-    )
+    list_response = storage.list_files("creation_compte", f"{company_id}/{employee_id}")
     if not any(f.get("name") == "creation_compte.pdf" for f in list_response):
         return None
     return storage.create_signed_url(
@@ -119,9 +113,7 @@ def get_identity_document_url(employee_id: str) -> Optional[str]:
     if not company_id:
         return None
     storage = get_storage_provider()
-    list_response = storage.list_files(
-        "piece_identite", f"{company_id}/{employee_id}"
-    )
+    list_response = storage.list_files("piece_identite", f"{company_id}/{employee_id}")
     for ext in [".pdf", ".jpg", ".jpeg", ".png"]:
         name = f"piece_identite{ext}"
         if any(f.get("name") == name for f in list_response):

@@ -3,6 +3,7 @@ Repository dashboard : implémentation de IDashboardDataReader.
 
 Délègue aux fonctions de infrastructure.queries (Supabase).
 """
+
 from __future__ import annotations
 
 from datetime import date

@@ -31,9 +31,11 @@ USER_AGENT = (
 
 # --- Fonctions ---
 
+
 def iso_now() -> str:
     """Retourne l'heure actuelle en format ISO UTC."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
 
 def _fetch_text_with_requests(url: str) -> str | None:
     """Récupère le texte brut d'une page web via requests/BeautifulSoup."""
@@ -46,6 +48,7 @@ def _fetch_text_with_requests(url: str) -> str | None:
         print(f"ERREUR (AGS_AI): Échec fetch Requests sur {url}: {e}", file=sys.stderr)
         return None
 
+
 def _extract_rate_with_gpt(page_text: str) -> float | None:
     """Extrait uniquement le taux AGS général via GPT."""
     api_key = os.getenv("OPENAI_API_KEY")
@@ -55,16 +58,15 @@ def _extract_rate_with_gpt(page_text: str) -> float | None:
 
     client = OpenAI(api_key=api_key)
     current_year = datetime.now().year
-    
+
     # Prompt conçu pour ignorer ETT et se concentrer sur le taux général
     prompt = (
         f"Extrait le pourcentage du taux patronal de la cotisation AGS (Assurance Garantie des Salaires) "
         f"en France pour l'année {current_year}. Ignore spécifiquement les taux pour les 'entreprises de travail temporaire' (ETT).\n"
-        "- Réponds uniquement en JSON avec la clé: {{\"taux_general\": <nombre|null>}}\n"
+        '- Réponds uniquement en JSON avec la clé: {{"taux_general": <nombre|null>}}\n'
         "- Ne garde que le taux général, pas le taux ETT.\n"
         "- Le taux doit être un nombre (ex: 0.25% -> 0.25). Pas de signe %, pas de texte.\n\n"
-        "Texte à analyser (max 15000 chars):\n---\n"
-        + page_text[:15000]
+        "Texte à analyser (max 15000 chars):\n---\n" + page_text[:15000]
     )
 
     try:
@@ -73,28 +75,34 @@ def _extract_rate_with_gpt(page_text: str) -> float | None:
             response_format={"type": "json_object"},
             temperature=0,
             messages=[
-                {"role": "system", "content": "Assistant d'extraction JSON pur, focalisé sur le taux général."},
+                {
+                    "role": "system",
+                    "content": "Assistant d'extraction JSON pur, focalisé sur le taux général.",
+                },
                 {"role": "user", "content": prompt},
             ],
         )
         data = json.loads(resp.choices[0].message.content.strip())
         val = data.get("taux_general")
-        
+
         if val is None:
-            print("INFO (AGS_AI): L'IA n'a pas trouvé de 'taux_general'.", file=sys.stderr)
+            print(
+                "INFO (AGS_AI): L'IA n'a pas trouvé de 'taux_general'.", file=sys.stderr
+            )
             return None
-        
+
         # Conversion en taux (ex: 0.25 -> 0.0025)
         rate = round(float(str(val).replace(",", ".")) / 100.0, 6)
         return rate
-        
+
     except Exception as e:
         print(f"ERREUR (AGS_AI): Extraction IA échouée: {e}", file=sys.stderr)
         return None
 
+
 def build_payload(rate: float | None, found_url: str | None) -> dict:
     """Construit le JSON final strict demandé."""
-    
+
     # Détermine la source
     if rate is not None and found_url:
         source_url = found_url
@@ -102,7 +110,7 @@ def build_payload(rate: float | None, found_url: str | None) -> dict:
     else:
         source_url = "N/A"
         source_label = "N/A (Taux non trouvé par l'IA)"
-        
+
     return {
         "id": "ags",
         "type": "cotisation",
@@ -110,25 +118,22 @@ def build_payload(rate: float | None, found_url: str | None) -> dict:
         "base": "brut",
         "valeurs": {
             "salarial": None,
-            "patronal": rate  # CORRIGÉ: renvoie 'null' si rate est None
+            "patronal": rate,  # CORRIGÉ: renvoie 'null' si rate est None
         },
         "meta": {
-            "source": [
-                {
-                    "url": source_url,
-                    "label": source_label,
-                    "date_doc": ""
-                }
-            ],
-            "generator": "scripts/AGS/AGS_AI.py" # CORRIGÉ: nom du script
+            "source": [{"url": source_url, "label": source_label, "date_doc": ""}],
+            "generator": "scripts/AGS/AGS_AI.py",  # CORRIGÉ: nom du script
         },
     }
+
 
 def main() -> None:
     current_year = datetime.now().year
     SEARCH_QUERY = SEARCH_QUERY_TEMPLATE.format(year=current_year)
-    print(f"INFO (AGS_AI): Démarrage. Recherche DDGS: '{SEARCH_QUERY}'", file=sys.stderr)
-    
+    print(
+        f"INFO (AGS_AI): Démarrage. Recherche DDGS: '{SEARCH_QUERY}'", file=sys.stderr
+    )
+
     results = []
     try:
         # 1. Recherche DuckDuckGo
@@ -136,10 +141,12 @@ def main() -> None:
         if search_results:
             results = [r["href"] for r in search_results]
         if not results:
-             print("ERREUR (AGS_AI): DDGS n'a retourné aucun résultat.", file=sys.stderr)
-             
+            print("ERREUR (AGS_AI): DDGS n'a retourné aucun résultat.", file=sys.stderr)
+
     except Exception as e:
-        print(f"ERREUR (AGS_AI): Échec de la recherche DuckDuckGo: {e}", file=sys.stderr)
+        print(
+            f"ERREUR (AGS_AI): Échec de la recherche DuckDuckGo: {e}", file=sys.stderr
+        )
 
     rate = None
     successful_url = None
@@ -147,26 +154,31 @@ def main() -> None:
     # 2. Itération sur les 5 URL
     for url in results:
         print(f"INFO (AGS_AI): Analyse URL: {url}", file=sys.stderr)
-        
+
         # 3. Fetch du texte (sans Selenium)
         txt = _fetch_text_with_requests(url)
         if not txt:
             print("INFO (AGS_AI): ...Échec fetch ou texte vide.", file=sys.stderr)
             continue
-        
+
         # 4. Extraction IA
         rate = _extract_rate_with_gpt(txt)
-        
+
         # 5. Si trouvé, on arrête
         if rate is not None:
             print(f"INFO (AGS_AI): Taux trouvé sur cette URL: {rate}", file=sys.stderr)
             successful_url = url
             break
         else:
-             print("INFO (AGS_AI): ...Taux non trouvé par l'IA sur cette URL.", file=sys.stderr)
+            print(
+                "INFO (AGS_AI): ...Taux non trouvé par l'IA sur cette URL.",
+                file=sys.stderr,
+            )
 
     if rate is None:
-        print("ERREUR (AGS_AI): Taux non trouvé après analyse des URLs.", file=sys.stderr)
+        print(
+            "ERREUR (AGS_AI): Taux non trouvé après analyse des URLs.", file=sys.stderr
+        )
 
     # 6. Construit le payload (même s'il a échoué, pour renvoyer 'null')
     payload = build_payload(rate, successful_url)

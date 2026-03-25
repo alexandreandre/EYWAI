@@ -6,6 +6,7 @@ user_permissions, user_company_accesses, role_templates, role_template_permissio
 Retourne des structures brutes (dict, list) ; la couche application construit les DTOs/schémas.
 Les classes Supabase* implémentent les ports du domain (IPermissionCatalogReader, IRoleTemplateRepository).
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -60,7 +61,9 @@ def get_permissions_for_matrix() -> list[dict[str, Any]]:
     """Toutes les permissions actives avec id, code, label, description, category_id, action_id, required_role, is_active."""
     result = (
         supabase.table("permissions")
-        .select("id, code, label, description, category_id, action_id, required_role, is_active")
+        .select(
+            "id, code, label, description, category_id, action_id, required_role, is_active"
+        )
         .eq("is_active", True)
         .execute()
     )
@@ -159,10 +162,7 @@ def get_role_template_permissions_count(template_id: str) -> int:
 def get_role_template_by_id(template_id: str) -> dict[str, Any] | None:
     """Un template par ID."""
     result = (
-        supabase.table("role_templates")
-        .select("*")
-        .eq("id", template_id)
-        .execute()
+        supabase.table("role_templates").select("*").eq("id", template_id).execute()
     )
     if not result.data or len(result.data) == 0:
         return None
@@ -177,11 +177,7 @@ def get_role_template_permission_details(template_id: str) -> list[dict[str, Any
         .eq("template_id", template_id)
         .execute()
     )
-    return [
-        row["permissions"]
-        for row in (result.data or [])
-        if row.get("permissions")
-    ]
+    return [row["permissions"] for row in (result.data or []) if row.get("permissions")]
 
 
 def role_template_name_exists(company_id: str, name: str) -> bool:
@@ -227,10 +223,12 @@ def attach_permissions_to_role_template(
 ) -> None:
     """Associe des permissions à un template."""
     for permission_id in permission_ids:
-        supabase.table("role_template_permissions").insert({
-            "template_id": template_id,
-            "permission_id": str(permission_id),
-        }).execute()
+        supabase.table("role_template_permissions").insert(
+            {
+                "template_id": template_id,
+                "permission_id": str(permission_id),
+            }
+        ).execute()
 
 
 # --- Implémentations des ports domain ---

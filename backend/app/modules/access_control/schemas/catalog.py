@@ -4,6 +4,7 @@ Schémas catalogue du module access_control (contrat API : catégories, actions,
 Définitions canoniques pour les endpoints du module. Contrat identique au legacy schemas.permissions.
 Utilisés par api/router.py et application/queries.py. Pas d'import legacy.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -16,6 +17,7 @@ from uuid import UUID
 # =====================================================
 # CATÉGORIES DE PERMISSIONS
 # =====================================================
+
 
 class PermissionCategoryBase(BaseModel):
     code: str = Field(..., max_length=50, description="Code unique de la catégorie")
@@ -38,6 +40,7 @@ class PermissionCategory(PermissionCategoryBase):
 # ACTIONS DE PERMISSIONS
 # =====================================================
 
+
 class PermissionActionBase(BaseModel):
     code: str = Field(..., max_length=50, description="Code unique de l'action")
     label: str = Field(..., max_length=100, description="Libellé de l'action")
@@ -58,16 +61,19 @@ class PermissionAction(PermissionActionBase):
 # PERMISSIONS
 # =====================================================
 
+
 class PermissionBase(BaseModel):
     category_id: UUID = Field(..., description="ID de la catégorie")
     action_id: UUID = Field(..., description="ID de l'action")
-    code: str = Field(..., max_length=100, description="Code unique (ex: payslips.create)")
+    code: str = Field(
+        ..., max_length=100, description="Code unique (ex: payslips.create)"
+    )
     label: str = Field(..., max_length=200, description="Libellé de la permission")
     description: Optional[str] = Field(None, description="Description")
     required_role: Optional[str] = Field(
         None,
         pattern="^(admin|rh|collaborateur_rh|collaborateur|custom)$",
-        description="Rôle minimum requis"
+        description="Rôle minimum requis",
     )
     is_active: bool = Field(True, description="Permission active")
 
@@ -83,6 +89,7 @@ class Permission(PermissionBase):
 
 class PermissionWithMetadata(BaseModel):
     """Permission avec métadonnées pour l'interface"""
+
     id: UUID
     code: str
     label: str
@@ -93,26 +100,32 @@ class PermissionWithMetadata(BaseModel):
     action_label: str
     required_role: Optional[str]
     is_active: bool
-    is_granted: bool = Field(False, description="Si la permission est accordée à l'utilisateur")
+    is_granted: bool = Field(
+        False, description="Si la permission est accordée à l'utilisateur"
+    )
 
 
 # =====================================================
 # MATRICE ET RÉSUMÉ
 # =====================================================
 
+
 class PermissionMatrixCategory(BaseModel):
     """Une catégorie avec ses permissions dans la matrice"""
+
     code: str
     label: str
     description: Optional[str] = None
-    actions: List[dict] = Field(default_factory=list, description="Liste des permissions/actions")
+    actions: List[dict] = Field(
+        default_factory=list, description="Liste des permissions/actions"
+    )
 
 
 class PermissionMatrix(BaseModel):
     """Structure organisée pour l'affichage des permissions"""
+
     categories: List[PermissionMatrixCategory] = Field(
-        default_factory=list,
-        description="Liste des catégories avec leurs actions"
+        default_factory=list, description="Liste des catégories avec leurs actions"
     )
 
     class Config:
@@ -124,8 +137,13 @@ class PermissionMatrix(BaseModel):
                         "label": "Bulletins de paie",
                         "description": "Gestion des bulletins de paie",
                         "actions": [
-                            {"code": "create", "label": "Créer", "permission_id": "uuid", "is_granted": False}
-                        ]
+                            {
+                                "code": "create",
+                                "label": "Créer",
+                                "permission_id": "uuid",
+                                "is_granted": False,
+                            }
+                        ],
                     }
                 ]
             }
@@ -134,6 +152,7 @@ class PermissionMatrix(BaseModel):
 
 class UserPermissionsSummary(BaseModel):
     """Résumé des permissions d'un utilisateur"""
+
     user_id: UUID
     company_id: UUID
     base_role: str
@@ -141,8 +160,7 @@ class UserPermissionsSummary(BaseModel):
     role_template_name: Optional[str]
     total_permissions: int
     permissions_by_category: dict = Field(
-        default_factory=dict,
-        description="Nombre de permissions par catégorie"
+        default_factory=dict, description="Nombre de permissions par catégorie"
     )
     all_permissions: List[PermissionWithMetadata] = Field(default_factory=list)
 
@@ -151,6 +169,7 @@ class UserPermissionsSummary(BaseModel):
 # TEMPLATES DE RÔLES
 # =====================================================
 
+
 class RoleTemplateBase(BaseModel):
     name: str = Field(..., max_length=100, description="Nom du template")
     description: Optional[str] = Field(None, description="Description du template")
@@ -158,9 +177,11 @@ class RoleTemplateBase(BaseModel):
     base_role: str = Field(
         ...,
         pattern="^(admin|rh|collaborateur_rh|collaborateur|custom)$",
-        description="Rôle de base"
+        description="Rôle de base",
     )
-    company_id: Optional[UUID] = Field(None, description="ID de l'entreprise (NULL = template système)")
+    company_id: Optional[UUID] = Field(
+        None, description="ID de l'entreprise (NULL = template système)"
+    )
 
 
 class RoleTemplate(RoleTemplateBase):
@@ -177,12 +198,14 @@ class RoleTemplate(RoleTemplateBase):
 
 class RoleTemplateWithPermissions(RoleTemplate):
     """Template avec liste des permissions"""
+
     permissions: List[Permission] = Field(default_factory=list)
     permissions_count: int = Field(0, description="Nombre de permissions")
 
 
 class RoleTemplateDetail(BaseModel):
     """Template avec toutes les métadonnées pour l'affichage"""
+
     id: UUID
     name: str
     description: Optional[str]
@@ -202,16 +225,18 @@ class RoleTemplateDetail(BaseModel):
 
 class RoleTemplateQuickCreate(BaseModel):
     """Schéma pour créer rapidement un template avec un nom et un rôle de base"""
-    name: str = Field(..., max_length=100, description="Nom du template (ex: Responsable Paie)")
+
+    name: str = Field(
+        ..., max_length=100, description="Nom du template (ex: Responsable Paie)"
+    )
     job_title: str = Field(..., max_length=100, description="Titre du poste")
     base_role: str = Field(
         ...,
         pattern="^(admin|rh|collaborateur_rh|collaborateur|custom)$",
-        description="Rôle de base"
+        description="Rôle de base",
     )
     company_id: UUID = Field(..., description="ID de l'entreprise")
     description: Optional[str] = Field(None, description="Description du template")
     permission_ids: List[UUID] = Field(
-        default_factory=list,
-        description="Liste des IDs de permissions à associer"
+        default_factory=list, description="Liste des IDs de permissions à associer"
     )

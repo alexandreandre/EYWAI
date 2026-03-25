@@ -3,6 +3,7 @@ Tests unitaires des queries participation (application/queries.py).
 
 Service mocké ; pas de DB ni HTTP.
 """
+
 from datetime import datetime
 from uuid import uuid4
 from unittest.mock import MagicMock
@@ -66,9 +67,7 @@ class TestGetEmployeeParticipationData:
         mock_service = MagicMock()
         mock_service.get_employee_participation_data.return_value = rows
 
-        result = get_employee_participation_data(
-            COMPANY_ID, 2024, service=mock_service
-        )
+        result = get_employee_participation_data(COMPANY_ID, 2024, service=mock_service)
 
         mock_service.get_employee_participation_data.assert_called_once_with(
             COMPANY_ID, 2024
@@ -83,9 +82,7 @@ class TestGetEmployeeParticipationData:
         mock_service = MagicMock()
         mock_service.get_employee_participation_data.return_value = []
 
-        result = get_employee_participation_data(
-            COMPANY_ID, 2025, service=mock_service
-        )
+        result = get_employee_participation_data(COMPANY_ID, 2025, service=mock_service)
 
         assert result == []
 
@@ -111,9 +108,7 @@ class TestListParticipationSimulations:
         mock_service = MagicMock()
         mock_service.list_simulations.return_value = []
 
-        list_participation_simulations(
-            COMPANY_ID, year=2024, service=mock_service
-        )
+        list_participation_simulations(COMPANY_ID, year=2024, service=mock_service)
 
         mock_service.list_simulations.assert_called_once_with(COMPANY_ID, 2024)
 
@@ -153,7 +148,5 @@ class TestGetParticipationSimulation:
             "sim-unknown", COMPANY_ID, service=mock_service
         )
 
-        mock_service.get_simulation.assert_called_once_with(
-            "sim-unknown", COMPANY_ID
-        )
+        mock_service.get_simulation.assert_called_once_with("sim-unknown", COMPANY_ID)
         assert result is None

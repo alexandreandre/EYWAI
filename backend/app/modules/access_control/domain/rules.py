@@ -5,6 +5,7 @@ rôles "viewable" par un créateur, etc.
 Aucune dépendance à la base ni à FastAPI. Utilisées par le service
 d'autorisation (application/service.py).
 """
+
 from __future__ import annotations
 
 # Hiérarchie : un rôle peut créer/modifier uniquement des rôles strictement inférieurs.

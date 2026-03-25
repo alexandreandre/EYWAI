@@ -23,9 +23,7 @@ from openai import OpenAI
 
 load_dotenv()
 
-SEARCH_QUERY_TEMPLATE = (
-    "taux contribution dialogue social URSSAF site:urssaf.fr OR site:legisocial.fr {year}"
-)
+SEARCH_QUERY_TEMPLATE = "taux contribution dialogue social URSSAF site:urssaf.fr OR site:legisocial.fr {year}"
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
@@ -33,6 +31,7 @@ USER_AGENT = (
 
 
 # --- UTILITAIRES ---
+
 
 def iso_now() -> str:
     """Retourne la date et l'heure actuelles au format ISO 8601 UTC."""
@@ -47,7 +46,10 @@ def _fetch_text_with_requests(url: str) -> str | None:
         soup = BeautifulSoup(r.text, "html.parser")
         return soup.get_text(" ", strip=True)
     except Exception as e:
-        print(f"ERREUR (DIALOGUE_SOCIAL_AI): Échec fetch Requests sur {url}: {e}", file=sys.stderr)
+        print(
+            f"ERREUR (DIALOGUE_SOCIAL_AI): Échec fetch Requests sur {url}: {e}",
+            file=sys.stderr,
+        )
         return None
 
 
@@ -55,7 +57,10 @@ def _extract_rate_with_gpt(page_text: str) -> dict | None:
     """Demande à GPT d'extraire le taux actuel de la contribution au dialogue social."""
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        print("ERREUR (DIALOGUE_SOCIAL_AI): Clé OPENAI_API_KEY manquante.", file=sys.stderr)
+        print(
+            "ERREUR (DIALOGUE_SOCIAL_AI): Clé OPENAI_API_KEY manquante.",
+            file=sys.stderr,
+        )
         return None
 
     client = OpenAI(api_key=api_key)
@@ -71,13 +76,12 @@ def _extract_rate_with_gpt(page_text: str) -> dict | None:
         "Donne uniquement la valeur actuellement applicable au taux général des employeurs, pas les cas particuliers.\n\n"
         "Retourne un JSON strict au format suivant :\n"
         "{\n"
-        '  \"taux\": <float|null>\n'
+        '  "taux": <float|null>\n'
         "}\n"
         "- La valeur doit être exprimée en pourcentage (ex: 0.016 pour 0,016 %).\n"
         "- Si aucune donnée actuelle n'est trouvée, mets null.\n"
         "- Ne renvoie que du JSON pur, sans texte additionnel.\n\n"
-        "Texte à analyser (max 15000 caractères) :\n---\n"
-        + page_text[:15000]
+        "Texte à analyser (max 15000 caractères) :\n---\n" + page_text[:15000]
     )
 
     try:
@@ -96,14 +100,20 @@ def _extract_rate_with_gpt(page_text: str) -> dict | None:
         data = json.loads(resp.choices[0].message.content.strip())
         return {"taux": data.get("taux")}
     except Exception as e:
-        print(f"ERREUR (DIALOGUE_SOCIAL_AI): Extraction IA échouée: {e}", file=sys.stderr)
+        print(
+            f"ERREUR (DIALOGUE_SOCIAL_AI): Extraction IA échouée: {e}", file=sys.stderr
+        )
         return None
 
 
 def build_payload(rate_pct: float | None, found_url: str | None) -> dict:
     """Construit la charge utile JSON finale."""
     try:
-        rate_decimal = round(float(str(rate_pct).replace(",", ".")) / 100.0, 6) if rate_pct is not None else None
+        rate_decimal = (
+            round(float(str(rate_pct).replace(",", ".")) / 100.0, 6)
+            if rate_pct is not None
+            else None
+        )
     except Exception:
         rate_decimal = None
 
@@ -134,7 +144,10 @@ def main() -> None:
     """Orchestre la recherche et l'extraction du taux via IA."""
     current_year = datetime.now().year
     SEARCH_QUERY = SEARCH_QUERY_TEMPLATE.format(year=current_year)
-    print(f"INFO (DIALOGUE_SOCIAL_AI): Démarrage. Recherche DDGS: '{SEARCH_QUERY}'", file=sys.stderr)
+    print(
+        f"INFO (DIALOGUE_SOCIAL_AI): Démarrage. Recherche DDGS: '{SEARCH_QUERY}'",
+        file=sys.stderr,
+    )
 
     results = []
     try:
@@ -142,9 +155,15 @@ def main() -> None:
         if search_results:
             results = [r["href"] for r in search_results]
         if not results:
-            print("ERREUR (DIALOGUE_SOCIAL_AI): DDGS n'a retourné aucun résultat.", file=sys.stderr)
+            print(
+                "ERREUR (DIALOGUE_SOCIAL_AI): DDGS n'a retourné aucun résultat.",
+                file=sys.stderr,
+            )
     except Exception as e:
-        print(f"ERREUR (DIALOGUE_SOCIAL_AI): Échec de la recherche DDGS: {e}", file=sys.stderr)
+        print(
+            f"ERREUR (DIALOGUE_SOCIAL_AI): Échec de la recherche DDGS: {e}",
+            file=sys.stderr,
+        )
 
     rate, successful_url = None, None
 
@@ -152,18 +171,27 @@ def main() -> None:
         print(f"INFO (DIALOGUE_SOCIAL_AI): Analyse URL: {url}", file=sys.stderr)
         txt = _fetch_text_with_requests(url)
         if not txt:
-            print("INFO (DIALOGUE_SOCIAL_AI): ...Échec fetch ou texte vide.", file=sys.stderr)
+            print(
+                "INFO (DIALOGUE_SOCIAL_AI): ...Échec fetch ou texte vide.",
+                file=sys.stderr,
+            )
             continue
 
         data = _extract_rate_with_gpt(txt)
         if data and data.get("taux") is not None:
             rate = data.get("taux")
             successful_url = url
-            print(f"INFO (DIALOGUE_SOCIAL_AI): Taux trouvé sur {url}: {rate}", file=sys.stderr)
+            print(
+                f"INFO (DIALOGUE_SOCIAL_AI): Taux trouvé sur {url}: {rate}",
+                file=sys.stderr,
+            )
             break
 
     if rate is None:
-        print("ERREUR (DIALOGUE_SOCIAL_AI): Aucun taux trouvé après analyse.", file=sys.stderr)
+        print(
+            "ERREUR (DIALOGUE_SOCIAL_AI): Aucun taux trouvé après analyse.",
+            file=sys.stderr,
+        )
 
     payload = build_payload(rate, successful_url)
     print(json.dumps(payload, ensure_ascii=False))

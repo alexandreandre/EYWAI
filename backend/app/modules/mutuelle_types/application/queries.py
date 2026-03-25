@@ -3,6 +3,7 @@ Requêtes applicatives (read) pour mutuelle_types.
 
 Délègue au service (repository injecté) ; pas d’accès DB direct ici.
 """
+
 from __future__ import annotations
 
 import traceback

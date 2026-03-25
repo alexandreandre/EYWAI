@@ -3,6 +3,7 @@ Routes /api/uploads/* : délégation stricte aux commandes applicatives.
 
 Aucun accès persistance ici (garde d’architecture test_router_db_guard).
 """
+
 from __future__ import annotations
 
 from typing import Literal

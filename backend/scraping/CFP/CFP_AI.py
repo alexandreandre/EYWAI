@@ -36,6 +36,7 @@ USER_AGENT = (
 
 # --- UTILITAIRES ---
 
+
 def iso_now() -> str:
     """Retourne la date et l'heure actuelles au format ISO 8601 UTC."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -67,19 +68,18 @@ def _extract_rates_with_gpt(page_text: str) -> dict[str, float | None] | None:
         f"Analyse ce texte pour extraire les taux de la Contribution à la Formation Professionnelle (CFP) "
         f"applicables en France pour l'année {current_year}.\n"
         "- Deux taux sont attendus :\n"
-        '  1. \"taux_moins_11\" (moins de 11 salariés)\n'
-        '  2. \"taux_11_et_plus\" (11 salariés et plus)\n\n'
+        '  1. "taux_moins_11" (moins de 11 salariés)\n'
+        '  2. "taux_11_et_plus" (11 salariés et plus)\n\n'
         "Retourne un JSON strict avec ces deux clés et leurs valeurs en pourcentage (ex: 0.55 ou 1.0) :\n"
         "{\n"
-        '  \"taux_moins_11\": <float|null>,\n'
-        '  \"taux_11_et_plus\": <float|null>\n'
+        '  "taux_moins_11": <float|null>,\n'
+        '  "taux_11_et_plus": <float|null>\n'
         "}\n"
         "- Toutes les clés doivent être présentes.\n"
         "- Si une valeur est absente, mets null.\n"
         "- Ne renvoie que du JSON pur.\n"
         "Vérifie bien que la source soit fiable, et prend du recul. Choisi les valeurs comme si t'étais un humain qui lisait l'article.\n\n"
-        "Texte à analyser (max 15000 caractères):\n---\n"
-        + page_text[:15000]
+        "Texte à analyser (max 15000 caractères):\n---\n" + page_text[:15000]
     )
 
     try:
@@ -88,7 +88,10 @@ def _extract_rates_with_gpt(page_text: str) -> dict[str, float | None] | None:
             response_format={"type": "json_object"},
             temperature=0,
             messages=[
-                {"role": "system", "content": "Assistant d'extraction JSON pur pour les taux CFP."},
+                {
+                    "role": "system",
+                    "content": "Assistant d'extraction JSON pur pour les taux CFP.",
+                },
                 {"role": "user", "content": prompt},
             ],
         )
@@ -105,6 +108,7 @@ def _extract_rates_with_gpt(page_text: str) -> dict[str, float | None] | None:
 
 def build_payload(rates: dict[str, float | None] | None, found_url: str | None) -> dict:
     """Construit la charge utile JSON finale pour l'orchestrateur."""
+
     def _to_rate(val):
         if val is None:
             return None
@@ -116,7 +120,10 @@ def build_payload(rates: dict[str, float | None] | None, found_url: str | None) 
     taux_moins_11 = _to_rate(rates.get("taux_moins_11")) if rates else None
     taux_11_et_plus = _to_rate(rates.get("taux_11_et_plus")) if rates else None
 
-    source_url = found_url or "https://www.urssaf.fr/accueil/employeur/cotisations/liste-cotisations/formation-professionnelle.html"
+    source_url = (
+        found_url
+        or "https://www.urssaf.fr/accueil/employeur/cotisations/liste-cotisations/formation-professionnelle.html"
+    )
     source_label = "URSSAF - Contribution à la formation professionnelle"
 
     return {
@@ -129,9 +136,7 @@ def build_payload(rates: dict[str, float | None] | None, found_url: str | None) 
             "patronal_11_et_plus": taux_11_et_plus,
         },
         "meta": {
-            "source": [
-                {"url": source_url, "label": source_label, "date_doc": ""}
-            ],
+            "source": [{"url": source_url, "label": source_label, "date_doc": ""}],
             "scraped_at": iso_now(),
             "generator": "scripts/CFP/CFP.py",
             "method": "primary",
@@ -143,7 +148,9 @@ def main() -> None:
     """Orchestre la recherche et l'extraction des deux taux CFP via l'IA."""
     current_year = datetime.now().year
     SEARCH_QUERY = SEARCH_QUERY_TEMPLATE.format(year=current_year)
-    print(f"INFO (CFP_AI): Démarrage. Recherche DDGS: '{SEARCH_QUERY}'", file=sys.stderr)
+    print(
+        f"INFO (CFP_AI): Démarrage. Recherche DDGS: '{SEARCH_QUERY}'", file=sys.stderr
+    )
 
     results = []
     try:
@@ -153,7 +160,9 @@ def main() -> None:
         if not results:
             print("ERREUR (CFP_AI): DDGS n'a retourné aucun résultat.", file=sys.stderr)
     except Exception as e:
-        print(f"ERREUR (CFP_AI): Échec de la recherche DuckDuckGo: {e}", file=sys.stderr)
+        print(
+            f"ERREUR (CFP_AI): Échec de la recherche DuckDuckGo: {e}", file=sys.stderr
+        )
 
     rates = None
     successful_url = None
@@ -166,7 +175,10 @@ def main() -> None:
             continue
 
         rates = _extract_rates_with_gpt(txt)
-        if rates and (rates.get("taux_moins_11") is not None or rates.get("taux_11_et_plus") is not None):
+        if rates and (
+            rates.get("taux_moins_11") is not None
+            or rates.get("taux_11_et_plus") is not None
+        ):
             print(
                 f"INFO (CFP_AI): Taux trouvés sur cette URL: "
                 f"moins_11={rates.get('taux_moins_11')} plus_11={rates.get('taux_11_et_plus')}",
@@ -187,4 +199,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -4,6 +4,7 @@
 Alignées sur schemas/expense.py (ExpenseStatus, ExpenseType).
 À utiliser par le domain et les schemas du module.
 """
+
 from enum import Enum
 from typing import Literal
 

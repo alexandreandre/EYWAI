@@ -3,6 +3,7 @@ Tests unitaires du service applicatif promotions (application/service.py).
 
 Dépendances (IEmployeeUpdater) mockées ; pas de DB.
 """
+
 from unittest.mock import MagicMock, patch
 
 

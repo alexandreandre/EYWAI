@@ -14,7 +14,9 @@ from app.modules.payroll.engine.bulletin import creer_bulletin_final
 from app.modules.payroll.engine.calcul_brut import calculer_salaire_brut
 from app.modules.payroll.engine.calcul_cotisations import calculer_cotisations
 from app.modules.payroll.engine.calcul_net import calculer_net_et_impot
-from app.modules.payroll.engine.calcul_reduction_generale import calculer_reduction_generale
+from app.modules.payroll.engine.calcul_reduction_generale import (
+    calculer_reduction_generale,
+)
 from app.modules.payroll.engine.contexte import ContextePaie
 
 from .payslip_run_common import (
@@ -43,9 +45,7 @@ def _preparer_calendrier_enrichi(
         else {}
     )
     prevu_par_jour = {j["jour"]: j for j in calendrier_prevu_data}
-    reels_par_jour = {
-        j["jour"]: j for j in horaires_reels_data.get("calendrier", [])
-    }
+    reels_par_jour = {j["jour"]: j for j in horaires_reels_data.get("calendrier", [])}
     calendrier_final_mois = []
     _, num_days = calendar.monthrange(annee, mois)
     for day_num in range(1, num_days + 1):
@@ -55,10 +55,7 @@ def _preparer_calendrier_enrichi(
             jour_final = jour_reel.copy()
         else:
             heures_prevues = jour_prevu.get("heures_prevues", 0.0)
-            if (
-                jour_prevu.get("type") == "travail"
-                and heures_prevues > 0
-            ):
+            if jour_prevu.get("type") == "travail" and heures_prevues > 0:
                 jour_final = {
                     "jour": day_num,
                     "type": "absence_injustifiee",
@@ -149,7 +146,11 @@ def run_payslip_generation_heures(
                 )
                 soumise_impot_par_defaut = saisie.get("soumise_a_impot", True)
 
-            prime_calculee = {"libelle": libelle, "montant": montant, "prime_id": prime_id}
+            prime_calculee = {
+                "libelle": libelle,
+                "montant": montant,
+                "prime_id": prime_id,
+            }
             if prime_id == "prime_partage_valeur":
                 if effectif_entreprise >= 50:
                     if soumise_cotis:
@@ -197,9 +198,7 @@ def run_payslip_generation_heures(
         jours_de_conges * (duree_contrat_hebdo / 5)
     )
     heures_travaillees_reelles = sum(
-        j.get("heures", 0)
-        for j in calendrier_du_mois
-        if j.get("type") == "travail"
+        j.get("heures", 0) for j in calendrier_du_mois if j.get("type") == "travail"
     )
     heures_sup_conjoncturelles_mois = max(
         0, heures_travaillees_reelles - heures_dues_hors_conges

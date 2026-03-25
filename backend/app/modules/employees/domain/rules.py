@@ -3,6 +3,7 @@ Règles métier pures du module employees.
 
 Aucune dépendance FastAPI, DB ou HTTP. Utilisées par l'application.
 """
+
 from typing import Any, Dict, List
 
 # Comportement identique au router legacy (employment_status par défaut, etc.)

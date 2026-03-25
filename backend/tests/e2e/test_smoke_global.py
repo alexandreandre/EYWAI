@@ -4,6 +4,7 @@ Smoke tests globaux : démarrage app, health, openapi, auth login/me.
 Regroupe test_startup_health (app starts, health endpoint, openapi) et des
 smoke auth. Utilise les fixtures client et auth_headers du conftest.
 """
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient

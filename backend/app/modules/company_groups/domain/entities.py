@@ -4,6 +4,7 @@ Entités du domaine company_groups.
 Structure cible pour la migration. Alignée sur la table company_groups
 et les réponses API (api/routers/company_groups.py).
 """
+
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -16,6 +17,7 @@ class CompanyGroup:
     Champs alignés sur la table company_groups (id, group_name, siren, description,
     logo_url, logo_scale, settings, is_active, created_at, updated_at).
     """
+
     id: str
     group_name: str
     is_active: bool = True
@@ -31,6 +33,7 @@ class CompanyGroup:
 @dataclass
 class CompanyInGroupRef:
     """Référence à une entreprise dans un groupe (pour agrégat)."""
+
     id: str
     company_name: str
     siret: Optional[str] = None

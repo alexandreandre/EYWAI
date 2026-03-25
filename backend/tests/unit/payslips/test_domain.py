@@ -3,6 +3,7 @@ Tests unitaires du domaine payslips : entités, value objects, enums et règles 
 
 Sans DB, sans HTTP. Couvre toutes les entités, value objects et règles du domain/.
 """
+
 import pytest
 
 from app.modules.payslips.domain.entities import Payslip
@@ -80,6 +81,7 @@ class TestPayslipPeriod:
     def test_period_is_frozen(self):
         """PayslipPeriod est immutable (frozen)."""
         from dataclasses import FrozenInstanceError
+
         period = PayslipPeriod(year=2024, month=1)
         with pytest.raises(FrozenInstanceError):
             period.year = 2025  # type: ignore
@@ -134,79 +136,100 @@ class TestCanViewPayslip:
     def test_employee_can_view_own_payslip(self):
         """L'employé peut consulter son propre bulletin (employee_id == user_id)."""
         payslip = {"employee_id": "user-1", "company_id": "co-1"}
-        assert can_view_payslip(
-            payslip,
-            user_id="user-1",
-            is_super_admin=False,
-            has_rh_access_in_company=lambda c: False,
-            active_company_id="co-2",
-        ) is True
+        assert (
+            can_view_payslip(
+                payslip,
+                user_id="user-1",
+                is_super_admin=False,
+                has_rh_access_in_company=lambda c: False,
+                active_company_id="co-2",
+            )
+            is True
+        )
 
     def test_super_admin_can_view_any_payslip(self):
         """Un super admin peut consulter n'importe quel bulletin."""
         payslip = {"employee_id": "emp-1", "company_id": "co-1"}
-        assert can_view_payslip(
-            payslip,
-            user_id="other-user",
-            is_super_admin=True,
-            has_rh_access_in_company=lambda c: False,
-            active_company_id=None,
-        ) is True
+        assert (
+            can_view_payslip(
+                payslip,
+                user_id="other-user",
+                is_super_admin=True,
+                has_rh_access_in_company=lambda c: False,
+                active_company_id=None,
+            )
+            is True
+        )
 
     def test_rh_with_access_and_matching_company_can_view(self):
         """Un RH avec accès à l'entreprise du bulletin et entreprise active identique peut consulter."""
         payslip = {"employee_id": "emp-1", "company_id": "co-1"}
-        assert can_view_payslip(
-            payslip,
-            user_id="rh-user",
-            is_super_admin=False,
-            has_rh_access_in_company=lambda c: c == "co-1",
-            active_company_id="co-1",
-        ) is True
+        assert (
+            can_view_payslip(
+                payslip,
+                user_id="rh-user",
+                is_super_admin=False,
+                has_rh_access_in_company=lambda c: c == "co-1",
+                active_company_id="co-1",
+            )
+            is True
+        )
 
     def test_rh_with_access_but_different_active_company_cannot_view(self):
         """Un RH avec accès à co-1 mais entreprise active co-2 ne peut pas consulter un bulletin co-1."""
         payslip = {"employee_id": "emp-1", "company_id": "co-1"}
-        assert can_view_payslip(
-            payslip,
-            user_id="rh-user",
-            is_super_admin=False,
-            has_rh_access_in_company=lambda c: c == "co-1",
-            active_company_id="co-2",
-        ) is False
+        assert (
+            can_view_payslip(
+                payslip,
+                user_id="rh-user",
+                is_super_admin=False,
+                has_rh_access_in_company=lambda c: c == "co-1",
+                active_company_id="co-2",
+            )
+            is False
+        )
 
     def test_no_rh_access_returns_false(self):
         """Sans accès RH sur l'entreprise du bulletin, retourne False."""
         payslip = {"employee_id": "emp-1", "company_id": "co-1"}
-        assert can_view_payslip(
-            payslip,
-            user_id="other-user",
-            is_super_admin=False,
-            has_rh_access_in_company=lambda c: False,
-            active_company_id="co-1",
-        ) is False
+        assert (
+            can_view_payslip(
+                payslip,
+                user_id="other-user",
+                is_super_admin=False,
+                has_rh_access_in_company=lambda c: False,
+                active_company_id="co-1",
+            )
+            is False
+        )
 
     def test_no_company_id_returns_false_for_non_owner(self):
         """Si le bulletin n'a pas de company_id et l'utilisateur n'est pas l'employé, retourne False."""
         payslip = {"employee_id": "emp-1", "company_id": None}
-        assert can_view_payslip(
-            payslip,
-            user_id="other-user",
-            is_super_admin=False,
-            has_rh_access_in_company=lambda c: True,
-            active_company_id="co-1",
-        ) is False
+        assert (
+            can_view_payslip(
+                payslip,
+                user_id="other-user",
+                is_super_admin=False,
+                has_rh_access_in_company=lambda c: True,
+                active_company_id="co-1",
+            )
+            is False
+        )
 
     def test_active_company_none_rh_with_access_can_view(self):
         """Si active_company_id est None mais has_rh_access sur company_id, la règle accepte (pas de filtre actif)."""
         payslip = {"employee_id": "emp-1", "company_id": "co-1"}
-        assert can_view_payslip(
-            payslip,
-            user_id="rh-user",
-            is_super_admin=False,
-            has_rh_access_in_company=lambda c: c == "co-1",
-            active_company_id=None,
-        ) is True
+        assert (
+            can_view_payslip(
+                payslip,
+                user_id="rh-user",
+                is_super_admin=False,
+                has_rh_access_in_company=lambda c: c == "co-1",
+                active_company_id=None,
+            )
+            is True
+        )
 
 
 # --- Règle can_edit_or_restore_payslip ---
@@ -218,49 +241,64 @@ class TestCanEditOrRestorePayslip:
     def test_super_admin_can_edit_any(self):
         """Un super admin peut éditer/restaurer n'importe quel bulletin."""
         payslip = {"employee_id": "emp-1", "company_id": "co-1"}
-        assert can_edit_or_restore_payslip(
-            payslip,
-            is_super_admin=True,
-            has_rh_access_in_company=lambda c: False,
-            active_company_id=None,
-        ) is True
+        assert (
+            can_edit_or_restore_payslip(
+                payslip,
+                is_super_admin=True,
+                has_rh_access_in_company=lambda c: False,
+                active_company_id=None,
+            )
+            is True
+        )
 
     def test_rh_with_access_and_matching_company_can_edit(self):
         """Un RH avec accès et entreprise active identique peut éditer."""
         payslip = {"employee_id": "emp-1", "company_id": "co-1"}
-        assert can_edit_or_restore_payslip(
-            payslip,
-            is_super_admin=False,
-            has_rh_access_in_company=lambda c: c == "co-1",
-            active_company_id="co-1",
-        ) is True
+        assert (
+            can_edit_or_restore_payslip(
+                payslip,
+                is_super_admin=False,
+                has_rh_access_in_company=lambda c: c == "co-1",
+                active_company_id="co-1",
+            )
+            is True
+        )
 
     def test_rh_with_access_but_different_active_company_cannot_edit(self):
         """Un RH avec accès à co-1 mais entreprise active co-2 ne peut pas éditer un bulletin co-1."""
         payslip = {"employee_id": "emp-1", "company_id": "co-1"}
-        assert can_edit_or_restore_payslip(
-            payslip,
-            is_super_admin=False,
-            has_rh_access_in_company=lambda c: c == "co-1",
-            active_company_id="co-2",
-        ) is False
+        assert (
+            can_edit_or_restore_payslip(
+                payslip,
+                is_super_admin=False,
+                has_rh_access_in_company=lambda c: c == "co-1",
+                active_company_id="co-2",
+            )
+            is False
+        )
 
     def test_no_company_id_returns_false(self):
         """Si le bulletin n'a pas de company_id, retourne False (sauf super admin)."""
         payslip = {"employee_id": "emp-1", "company_id": None}
-        assert can_edit_or_restore_payslip(
-            payslip,
-            is_super_admin=False,
-            has_rh_access_in_company=lambda c: True,
-            active_company_id="co-1",
-        ) is False
+        assert (
+            can_edit_or_restore_payslip(
+                payslip,
+                is_super_admin=False,
+                has_rh_access_in_company=lambda c: True,
+                active_company_id="co-1",
+            )
+            is False
+        )
 
     def test_no_rh_access_returns_false(self):
         """Sans accès RH sur l'entreprise, retourne False."""
         payslip = {"employee_id": "emp-1", "company_id": "co-1"}
-        assert can_edit_or_restore_payslip(
-            payslip,
-            is_super_admin=False,
-            has_rh_access_in_company=lambda c: False,
-            active_company_id="co-1",
-        ) is False
+        assert (
+            can_edit_or_restore_payslip(
+                payslip,
+                is_super_admin=False,
+                has_rh_access_in_company=lambda c: False,
+                active_company_id="co-1",
+            )
+            is False
+        )

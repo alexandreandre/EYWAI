@@ -3,6 +3,7 @@ Schémas de réponse API pour le module promotions.
 
 Définitions canoniques (migrées depuis schemas.promotion). Comportement identique.
 """
+
 from __future__ import annotations
 
 from datetime import date, datetime

@@ -4,28 +4,33 @@ Règles métier pures du domaine participation (Participation & Intéressement).
 Aucune dépendance à FastAPI, DB ou infrastructure. Données en entrée : dicts/listes.
 Comportement identique au routeur legacy (get_employee_participation_data).
 """
+
 from __future__ import annotations
 
 from datetime import date
 from typing import Any, Dict, List
 
 # Types de jour comptés comme présence lorsque heures_prevues > 0
-PRESENCE_DAY_TYPES = frozenset({
-    "travail",
-    "conge",
-    "conge_paye",
-    "rtt",
-    "ferie",
-    "fete",
-})
+PRESENCE_DAY_TYPES = frozenset(
+    {
+        "travail",
+        "conge",
+        "conge_paye",
+        "rtt",
+        "ferie",
+        "fete",
+    }
+)
 
 # Types de jour exclus (ne comptent jamais)
-EXCLUDED_DAY_TYPES = frozenset({
-    "weekend",
-    "maladie",
-    "arret_maladie",
-    "arret",
-})
+EXCLUDED_DAY_TYPES = frozenset(
+    {
+        "weekend",
+        "maladie",
+        "arret_maladie",
+        "arret",
+    }
+)
 
 
 def _day_counts_as_presence(
@@ -43,7 +48,11 @@ def _day_counts_as_presence(
         return True
     if day_type in EXCLUDED_DAY_TYPES:
         return False
-    if heures_prevues is not None and heures_prevues > 0 and day_type in PRESENCE_DAY_TYPES:
+    if (
+        heures_prevues is not None
+        and heures_prevues > 0
+        and day_type in PRESENCE_DAY_TYPES
+    ):
         return True
     return False
 
@@ -77,11 +86,7 @@ def compute_presence_days_for_schedules(
             if isinstance(actual_hours, dict)
             else []
         )
-        actual_by_day = {
-            d.get("jour"): d
-            for d in actual_days
-            if isinstance(d, dict)
-        }
+        actual_by_day = {d.get("jour"): d for d in actual_days if isinstance(d, dict)}
         for planned_day in planned_days:
             if not isinstance(planned_day, dict):
                 continue

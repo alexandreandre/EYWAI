@@ -3,6 +3,7 @@
 
 Alignées sur l’existant : alert_type (rib_modified | rib_duplicate), severity (info | warning | error).
 """
+
 from __future__ import annotations
 
 from enum import StrEnum

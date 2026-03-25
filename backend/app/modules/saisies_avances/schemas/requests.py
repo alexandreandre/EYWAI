@@ -1,6 +1,7 @@
 """
 Schémas de requête du module saisies_avances.
 """
+
 from datetime import date
 from decimal import Decimal
 from typing import Literal, Optional
@@ -18,6 +19,7 @@ PaymentMethod = Literal["virement", "cheque", "especes"]
 
 class SalarySeizureCreate(BaseModel):
     """Schéma pour la création d'une saisie sur salaire."""
+
     employee_id: str
     type: SalarySeizureType
     reference_legale: Optional[str] = None
@@ -35,6 +37,7 @@ class SalarySeizureCreate(BaseModel):
 
 class SalarySeizureUpdate(BaseModel):
     """Schéma pour la mise à jour d'une saisie."""
+
     status: Optional[SalarySeizureStatus] = None
     amount: Optional[Decimal] = None
     calculation_mode: Optional[CalculationMode] = None
@@ -45,6 +48,7 @@ class SalarySeizureUpdate(BaseModel):
 
 class SalaryAdvanceCreate(BaseModel):
     """Schéma pour la création d'une demande d'avance."""
+
     employee_id: str
     requested_amount: Decimal = Field(gt=0)
     requested_date: date
@@ -55,6 +59,7 @@ class SalaryAdvanceCreate(BaseModel):
 
 class SalaryAdvanceApprove(BaseModel):
     """Schéma pour l'approbation d'une avance."""
+
     approved_amount: Optional[Decimal] = None  # Si None, utilise requested_amount
     payment_method: PaymentMethod = "virement"
     repayment_mode: Optional[RepaymentMode] = None
@@ -63,11 +68,13 @@ class SalaryAdvanceApprove(BaseModel):
 
 class SalaryAdvanceReject(BaseModel):
     """Schéma pour le rejet d'une avance."""
+
     rejection_reason: str
 
 
 class SalaryAdvancePaymentCreate(BaseModel):
     """Schéma pour créer un paiement d'avance."""
+
     advance_id: str
     payment_amount: Decimal
     payment_date: date
@@ -80,6 +87,7 @@ class SalaryAdvancePaymentCreate(BaseModel):
 
 class SalaryAdvancePaymentUpdate(BaseModel):
     """Schéma pour mettre à jour un paiement d'avance."""
+
     payment_amount: Optional[Decimal] = None
     payment_date: Optional[date] = None
     payment_method: Optional[PaymentMethod] = None

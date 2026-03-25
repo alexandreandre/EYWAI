@@ -5,7 +5,12 @@ Sans DB, sans HTTP. Couvre domain/entities.py, domain/value_objects.py,
 domain/rules.py, domain/enums.py.
 """
 
-from app.modules.recruitment.domain.entities import Job, Candidate, PipelineStage, Interview
+from app.modules.recruitment.domain.entities import (
+    Job,
+    Candidate,
+    PipelineStage,
+    Interview,
+)
 from app.modules.recruitment.domain.rules import (
     VALID_OPINION_RATINGS,
     require_rejection_reason_for_rejected_stage,
@@ -16,6 +21,7 @@ from app.modules.recruitment.domain.enums import StageType, OpinionRating
 
 
 # ─── Entités ───────────────────────────────────────────────────────────
+
 
 class TestJobEntity:
     """Entité Job : offre / poste à pourvoir."""
@@ -182,13 +188,17 @@ class TestInterviewEntity:
 
 # ─── Règles métier ─────────────────────────────────────────────────────
 
+
 class TestRequireRejectionReasonForRejectedStage:
     """Règle : étape rejected exige un motif de refus."""
 
     def test_standard_stage_always_ok(self):
         assert require_rejection_reason_for_rejected_stage("standard", None) is True
         assert require_rejection_reason_for_rejected_stage("standard", "") is True
-        assert require_rejection_reason_for_rejected_stage("standard", "Profil non adapté") is True
+        assert (
+            require_rejection_reason_for_rejected_stage("standard", "Profil non adapté")
+            is True
+        )
 
     def test_hired_stage_always_ok(self):
         assert require_rejection_reason_for_rejected_stage("hired", None) is True
@@ -197,8 +207,14 @@ class TestRequireRejectionReasonForRejectedStage:
         assert require_rejection_reason_for_rejected_stage("rejected", None) is False
         assert require_rejection_reason_for_rejected_stage("rejected", "") is False
         assert require_rejection_reason_for_rejected_stage("rejected", "   ") is False
-        assert require_rejection_reason_for_rejected_stage("rejected", "Profil non adapté") is True
-        assert require_rejection_reason_for_rejected_stage("rejected", "Poste pourvu") is True
+        assert (
+            require_rejection_reason_for_rejected_stage("rejected", "Profil non adapté")
+            is True
+        )
+        assert (
+            require_rejection_reason_for_rejected_stage("rejected", "Poste pourvu")
+            is True
+        )
 
 
 class TestCanDeleteCandidate:
@@ -238,6 +254,7 @@ class TestValidOpinionRatingsConstant:
 
 
 # ─── Enums ─────────────────────────────────────────────────────────────
+
 
 class TestStageTypeEnum:
     """Enum StageType."""

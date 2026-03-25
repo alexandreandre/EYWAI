@@ -3,6 +3,7 @@ Service applicatif expenses (orchestration).
 
 Délègue aux commands/queries ; pas de logique métier ici.
 """
+
 from typing import List
 
 from app.modules.expenses.application.commands import (

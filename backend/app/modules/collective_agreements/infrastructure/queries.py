@@ -3,6 +3,7 @@ Requêtes Supabase pour collective_agreements.
 
 Lecture convention_classifications (grille par IDCC). Utilise domain.rules.idcc_variants.
 """
+
 from __future__ import annotations
 
 from typing import Any, List

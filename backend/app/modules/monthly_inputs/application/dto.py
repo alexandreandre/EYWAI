@@ -3,6 +3,7 @@ DTOs du module monthly_inputs.
 
 Objets de transfert applicatifs (optionnel : l'API actuelle renvoie des dict).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -5,6 +5,7 @@ Appelle uniquement l'application du module (queries). Résolution du contexte
 (user, entreprise active, accès RH) puis délégation ; aucune logique métier.
 Comportement HTTP identique au router legacy.
 """
+
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException

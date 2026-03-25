@@ -3,6 +3,7 @@ Mappers entre modèles persistance (dict/row Supabase) et entités domain.
 
 Pas de FastAPI ; conversions pures.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -68,9 +69,7 @@ def mutuelle_type_to_row(entity: MutuelleType) -> dict:
     return row
 
 
-def entity_to_response_dict(
-    entity: MutuelleType, employee_ids: list[str]
-) -> dict:
+def entity_to_response_dict(entity: MutuelleType, employee_ids: list[str]) -> dict:
     """Construit le dict de réponse API (formule + employee_ids). Pas de FastAPI."""
     return {
         "id": str(entity.id) if entity.id else None,
@@ -80,12 +79,8 @@ def entity_to_response_dict(
         "montant_patronal": entity.montant_patronal,
         "part_patronale_soumise_a_csg": entity.part_patronale_soumise_a_csg,
         "is_active": entity.is_active,
-        "created_at": (
-            entity.created_at.isoformat() if entity.created_at else None
-        ),
-        "updated_at": (
-            entity.updated_at.isoformat() if entity.updated_at else None
-        ),
+        "created_at": (entity.created_at.isoformat() if entity.created_at else None),
+        "updated_at": (entity.updated_at.isoformat() if entity.updated_at else None),
         "created_by": str(entity.created_by) if entity.created_by else None,
         "employee_ids": employee_ids,
     }

@@ -6,6 +6,7 @@ Comportement HTTP identique à api/routers/residence_permits (GET /api/residence
 
 Dépendances app uniquement : app.core.security, app.modules.users (User). Aucun import legacy.
 """
+
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException

@@ -4,6 +4,7 @@ Router API du module monthly_inputs.
 Appelle uniquement la couche application (commands, queries).
 Aucune logique métier, aucun accès DB. Comportement HTTP identique à l'ancien routeur.
 """
+
 from __future__ import annotations
 
 import sys

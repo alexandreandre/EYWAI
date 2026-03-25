@@ -3,6 +3,7 @@ Tests unitaires du domain rib_alerts : entités, value objects, règles, enums, 
 
 Sans DB, sans HTTP. Couvre toutes les entités, règles et types du domain/.
 """
+
 from datetime import datetime, timezone
 
 import pytest
@@ -33,7 +34,10 @@ class TestRibAlertEntity:
             severity="warning",
             title="IBAN modifié",
             message="L'IBAN a été modifié.",
-            details={"old_iban_masked": "FR76***1234", "new_iban_masked": "FR76***5678"},
+            details={
+                "old_iban_masked": "FR76***1234",
+                "new_iban_masked": "FR76***5678",
+            },
             is_read=False,
             is_resolved=False,
         )
@@ -44,7 +48,10 @@ class TestRibAlertEntity:
         assert alert.severity == "warning"
         assert alert.title == "IBAN modifié"
         assert alert.message == "L'IBAN a été modifié."
-        assert alert.details == {"old_iban_masked": "FR76***1234", "new_iban_masked": "FR76***5678"}
+        assert alert.details == {
+            "old_iban_masked": "FR76***1234",
+            "new_iban_masked": "FR76***5678",
+        }
         assert alert.is_read is False
         assert alert.is_resolved is False
         assert alert.resolved_at is None
@@ -63,7 +70,12 @@ class TestRibAlertEntity:
             severity="error",
             title="IBAN en doublon",
             message="Cet IBAN est déjà utilisé.",
-            details={"iban_masked": "FR76***9999", "duplicate_employees": [{"id": "e1", "first_name": "A", "last_name": "B"}]},
+            details={
+                "iban_masked": "FR76***9999",
+                "duplicate_employees": [
+                    {"id": "e1", "first_name": "A", "last_name": "B"}
+                ],
+            },
             is_read=True,
             is_resolved=True,
             resolved_at=now,
@@ -177,7 +189,10 @@ class TestRequireCompanyId:
     def test_none_raises_missing_company_context(self):
         with pytest.raises(MissingCompanyContextError) as exc_info:
             require_company_id(None)
-        assert "entreprise" in str(exc_info.value).lower() or "company" in str(exc_info.value).lower()
+        assert (
+            "entreprise" in str(exc_info.value).lower()
+            or "company" in str(exc_info.value).lower()
+        )
 
     def test_empty_string_raises_missing_company_context(self):
         with pytest.raises(MissingCompanyContextError):

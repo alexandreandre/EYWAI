@@ -4,12 +4,17 @@ Ports (interfaces) du domaine promotions.
 Définitions pour repository, providers et mise à jour employé ; implémentations en infrastructure.
 Aucune dépendance à FastAPI ni aux schémas API.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Protocol
 
-from app.modules.promotions.domain.enums import PromotionStatus, PromotionType, RhAccessRole
+from app.modules.promotions.domain.enums import (
+    PromotionStatus,
+    PromotionType,
+    RhAccessRole,
+)
 
 
 class PromotionApplyProtocol(Protocol):
@@ -100,8 +105,7 @@ class IPromotionDocumentProvider(ABC):
         employee_data: Dict[str, Any],
         company_data: Dict[str, Any],
         logo_path: Optional[str] = None,
-    ) -> bytes:
-        ...
+    ) -> bytes: ...
 
     @abstractmethod
     def save_document(

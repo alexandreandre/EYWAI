@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module bonus_types.
 Vérifient que l'injection des dépendances et le flux de bout en bout
 (router -> application -> service -> repository / provider) fonctionnent.
 """
+
 from datetime import datetime
 from uuid import uuid4
 from unittest.mock import MagicMock, patch

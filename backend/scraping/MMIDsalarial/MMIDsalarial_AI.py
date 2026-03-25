@@ -23,12 +23,11 @@ USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
 )
-SEARCH_QUERY = (
-    "taux cotisation salariale maladie supplémentaire Alsace-Moselle URSSAF 2025 site:urssaf.fr"
-)
+SEARCH_QUERY = "taux cotisation salariale maladie supplémentaire Alsace-Moselle URSSAF 2025 site:urssaf.fr"
 
 
 # --- UTILITAIRES ---
+
 
 def iso_now() -> str:
     """Retourne la date et l'heure actuelles au format ISO 8601 UTC."""
@@ -39,7 +38,9 @@ def _extract_taux_with_gpt() -> float | None:
     """Extrait le taux Alsace-Moselle actuel via GPT, à la date du jour."""
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        print("ERREUR (MMIDsalarial_AI): Clé OPENAI_API_KEY manquante.", file=sys.stderr)
+        print(
+            "ERREUR (MMIDsalarial_AI): Clé OPENAI_API_KEY manquante.", file=sys.stderr
+        )
         return None
 
     client = OpenAI(api_key=api_key)
@@ -53,7 +54,7 @@ def _extract_taux_with_gpt() -> float | None:
         "Indications :\n"
         "- Ce taux est uniquement SALARIAL (régime local Alsace-Moselle).\n"
         "- Il s’agit d’un petit pourcentage, autour d’environ 1,30 %.\n"
-        "- Réponds uniquement en JSON strict : {\"taux_salarial\": <nombre|null>}.\n"
+        '- Réponds uniquement en JSON strict : {"taux_salarial": <nombre|null>}.\n'
         "- La valeur doit être en pourcentage (ex: 1.30 pour 1,30 %).\n"
         "- Si tu ne trouves pas la valeur actuelle, mets null.\n"
         "- Ne renvoie que du JSON, sans texte additionnel.\n"
@@ -65,7 +66,10 @@ def _extract_taux_with_gpt() -> float | None:
             temperature=0,
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "Assistant d'extraction JSON spécialisé en cotisations sociales françaises."},
+                {
+                    "role": "system",
+                    "content": "Assistant d'extraction JSON spécialisé en cotisations sociales françaises.",
+                },
                 {"role": "user", "content": prompt},
             ],
         )
@@ -106,7 +110,10 @@ def main() -> None:
     """Orchestre l’extraction et construit le payload final."""
     rate = _extract_taux_with_gpt()
     if rate is None:
-        print("ERREUR (MMIDsalarial_AI): Impossible d’extraire le taux actuel.", file=sys.stderr)
+        print(
+            "ERREUR (MMIDsalarial_AI): Impossible d’extraire le taux actuel.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     payload = build_payload(rate)

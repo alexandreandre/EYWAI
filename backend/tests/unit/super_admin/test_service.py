@@ -3,6 +3,7 @@ Tests du service applicatif du module super_admin (application/service.py).
 
 Dépendances mockées : get_by_user_id (repository), row_to_super_admin / super_admin_to_row (mappers).
 """
+
 from unittest.mock import patch, MagicMock
 from uuid import uuid4
 

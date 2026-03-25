@@ -4,6 +4,7 @@ Tests unitaires du domaine contract_parser : value objects, règles, enums.
 Sans DB, sans HTTP. Couvre toutes les entités, value objects et règles présents
 dans app/modules/contract_parser/domain/.
 """
+
 import pytest
 
 from app.modules.contract_parser.domain.value_objects import ExtractionResult

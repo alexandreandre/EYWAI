@@ -4,6 +4,7 @@ Schémas de réponse pour le module annual_reviews.
 Source de vérité pour Read/ListItem. L'ancien fichier schemas/annual_review.py
 réexporte depuis ici pour compatibilité.
 """
+
 from datetime import date, datetime
 from typing import Literal, Optional
 

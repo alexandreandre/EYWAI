@@ -3,6 +3,7 @@ DTOs et exceptions du module saisies_avances.
 
 Exceptions levées par la couche application ; le router les convertit en HTTPException.
 """
+
 from dataclasses import dataclass
 from typing import Any
 
@@ -41,5 +42,6 @@ class ValidationError(SaisiesAvancesError):
 @dataclass(frozen=True)
 class UserContext:
     """Contexte utilisateur pour les cas d'usage (sans dépendance au modèle User)."""
+
     user_id: Any  # str ou UUID
     role: str

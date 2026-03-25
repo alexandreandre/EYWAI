@@ -7,6 +7,7 @@ Vérifie que l'injection des dépendances et le flux de bout en bout fonctionnen
 - Dépendance _require_rh_access (require_rh_access) utilisée sur les routes protégées
 - Commandes et queries appelées correctement depuis le router
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -31,16 +32,29 @@ class TestAccessControlRouterMounted:
             ("GET", "/api/access-control/permission-categories", None),
             ("GET", "/api/access-control/permission-actions", None),
             ("GET", "/api/access-control/permissions", None),
-            ("GET", "/api/access-control/permissions/matrix", {"company_id": "00000000-0000-0000-0000-000000000001"}),
+            (
+                "GET",
+                "/api/access-control/permissions/matrix",
+                {"company_id": "00000000-0000-0000-0000-000000000001"},
+            ),
             ("GET", "/api/access-control/role-templates", None),
-            ("GET", "/api/access-control/check-hierarchy", {"target_role": "rh", "company_id": "00000000-0000-0000-0000-000000000001"}),
+            (
+                "GET",
+                "/api/access-control/check-hierarchy",
+                {
+                    "target_role": "rh",
+                    "company_id": "00000000-0000-0000-0000-000000000001",
+                },
+            ),
         ]
         for method, path, params in routes_need_auth:
             if params:
                 response = client.request(method, path, params=params)
             else:
                 response = client.request(method, path)
-            assert response.status_code == 401, f"{method} {path} should return 401 without auth"
+            assert response.status_code == 401, (
+                f"{method} {path} should return 401 without auth"
+            )
 
 
 class TestAccessControlDependencyChain:
@@ -57,7 +71,16 @@ class TestAccessControlDependencyChain:
         if not auth_headers:
             pytest.skip("auth_headers non configuré (conftest)")
         mock_reader.get_permission_categories_active.return_value = [
-            {"id": "c1", "code": "payslips", "label": "Paie", "description": None, "display_order": 1, "is_active": True, "created_at": "2024-01-01T00:00:00", "updated_at": "2024-01-01T00:00:00"},
+            {
+                "id": "c1",
+                "code": "payslips",
+                "label": "Paie",
+                "description": None,
+                "display_order": 1,
+                "is_active": True,
+                "created_at": "2024-01-01T00:00:00",
+                "updated_at": "2024-01-01T00:00:00",
+            },
         ]
         response = client.get(
             "/api/access-control/permission-categories",
@@ -82,7 +105,10 @@ class TestAccessControlDependencyChain:
         mock_service.check_role_hierarchy_access.return_value = True
         response = client.get(
             "/api/access-control/check-hierarchy",
-            params={"target_role": "rh", "company_id": "00000000-0000-0000-0000-000000000001"},
+            params={
+                "target_role": "rh",
+                "company_id": "00000000-0000-0000-0000-000000000001",
+            },
             headers=auth_headers,
         )
         if response.status_code == 200:
@@ -95,7 +121,9 @@ class TestAccessControlDependencyChain:
 class TestAccessControlEndToEndFlow:
     """Flux bout en bout : une requête traverse router → command/query → repository (ou mock)."""
 
-    @patch("app.modules.access_control.infrastructure.queries.get_permission_categories_active")
+    @patch(
+        "app.modules.access_control.infrastructure.queries.get_permission_categories_active"
+    )
     def test_permission_categories_e2e_returns_list(
         self, mock_get_categories, client: TestClient, auth_headers: dict
     ):
@@ -106,6 +134,7 @@ class TestAccessControlEndToEndFlow:
         if not auth_headers:
             pytest.skip("auth_headers non configuré (conftest)")
         from uuid import uuid4
+
         uid = str(uuid4())
         mock_get_categories.return_value = [
             {
@@ -121,8 +150,12 @@ class TestAccessControlEndToEndFlow:
         ]
         # Le router utilise permission_catalog_reader (instance), pas get_permission_categories_active
         # directement. Donc on patch au niveau du reader utilisé dans queries.
-        with patch("app.modules.access_control.application.queries.permission_catalog_reader") as mock_reader:
-            mock_reader.get_permission_categories_active.return_value = mock_get_categories.return_value
+        with patch(
+            "app.modules.access_control.application.queries.permission_catalog_reader"
+        ) as mock_reader:
+            mock_reader.get_permission_categories_active.return_value = (
+                mock_get_categories.return_value
+            )
             response = client.get(
                 "/api/access-control/permission-categories",
                 headers=auth_headers,

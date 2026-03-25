@@ -4,6 +4,7 @@ Tests unitaires du service auth (application/service.py) : login.
 Résolution identifiant (email vs username), sign_in, récupération user via token.
 Dépendances mockées : is_email_like (règle), user_resolver, auth_provider, user_from_token.
 """
+
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -33,7 +34,9 @@ class TestLoginWithEmail:
         assert result["access_token"] == "jwt-xyz-123"
         assert result["token_type"] == "bearer"
         assert result["user"] is fake_user
-        auth.sign_in_with_password.assert_called_once_with("user@example.com", "SecretP@ss")
+        auth.sign_in_with_password.assert_called_once_with(
+            "user@example.com", "SecretP@ss"
+        )
         user_ft.get_user.assert_called_once_with("jwt-xyz-123")
 
     def test_email_and_invalid_password_raises_400(self):
@@ -45,7 +48,10 @@ class TestLoginWithEmail:
                 login("user@example.com", "WrongPass")
 
         assert exc_info.value.status_code == 400
-        assert "Identifiant" in exc_info.value.detail or "mot de passe" in exc_info.value.detail
+        assert (
+            "Identifiant" in exc_info.value.detail
+            or "mot de passe" in exc_info.value.detail
+        )
 
 
 class TestLoginWithUsername:
@@ -69,7 +75,9 @@ class TestLoginWithUsername:
 
         assert result["access_token"] == "jwt-abc"
         resolver.resolve_email.assert_called_once_with("jdupont")
-        auth.sign_in_with_password.assert_called_once_with("resolved@example.com", "P@ssw0rd")
+        auth.sign_in_with_password.assert_called_once_with(
+            "resolved@example.com", "P@ssw0rd"
+        )
 
     def test_username_not_found_raises_400(self):
         """Username inconnu (resolve_email → None) → HTTP 400."""

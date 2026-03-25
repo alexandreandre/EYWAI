@@ -1,4 +1,5 @@
 """Routeur global : agrège les routers des modules app.modules."""
+
 from fastapi import APIRouter
 
 from app.modules.access_control.api.router import router as access_control_router
@@ -8,7 +9,10 @@ from app.modules.auth.api.router import router as auth_router
 from app.modules.bonus_types.api.router import router as bonus_types_router
 from app.modules.companies.api.router import router as companies_router
 from app.modules.contract_parser.api.router import router as contract_parser_router
-from app.modules.copilot.api.router import router as copilot_router, router_agent as copilot_agent_router
+from app.modules.copilot.api.router import (
+    router as copilot_router,
+    router_agent as copilot_agent_router,
+)
 from app.modules.collective_agreements.api.router import (
     router as collective_agreements_router,
     router_chat as collective_agreements_chat_router,
@@ -28,7 +32,9 @@ from app.modules.payslips.api.router import router as payslips_router
 from app.modules.promotions.api.router import router as promotions_router
 from app.modules.rates.api.router import router as rates_router
 from app.modules.recruitment.api.router import router as recruitment_router
-from app.modules.repos_compensateur.api.router import router as repos_compensateur_router
+from app.modules.repos_compensateur.api.router import (
+    router as repos_compensateur_router,
+)
 from app.modules.saisies_avances.api.router import router as saisies_avances_router
 from app.modules.scraping.api.router import router as scraping_router
 from app.modules.residence_permits.api.router import router as residence_permits_router

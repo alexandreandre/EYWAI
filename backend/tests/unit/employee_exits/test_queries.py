@@ -3,6 +3,7 @@ Tests unitaires des requêtes employee_exits (application/queries.py).
 
 Repositories et providers mockés ; pas de DB ni HTTP.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -35,7 +36,13 @@ def _make_exit_with_employee():
         "employee_id": EMPLOYEE_ID,
         "exit_type": "demission",
         "status": "demission_recue",
-        "employees": {"id": EMPLOYEE_ID, "first_name": "Jean", "last_name": "Dupont", "email": "j@test.com", "job_title": "Dev"},
+        "employees": {
+            "id": EMPLOYEE_ID,
+            "first_name": "Jean",
+            "last_name": "Dupont",
+            "email": "j@test.com",
+            "job_title": "Dev",
+        },
     }
 
 
@@ -45,7 +52,9 @@ class TestGetEmployeeCompanyId:
 
     def test_returns_company_id_when_employee_found(self, mock_get_employee):
         mock_get_employee.return_value = _make_employee()
-        result = queries.get_employee_company_id(EMPLOYEE_ID, supabase_client=MagicMock())
+        result = queries.get_employee_company_id(
+            EMPLOYEE_ID, supabase_client=MagicMock()
+        )
         assert result == COMPANY_ID
 
     def test_raises_404_when_employee_not_found(self, mock_get_employee):
@@ -56,7 +65,9 @@ class TestGetEmployeeCompanyId:
         assert "Employé non trouvé" in exc_info.value.detail
 
 
-@patch("app.modules.employee_exits.application.queries.enrich_exit_with_documents_and_checklist")
+@patch(
+    "app.modules.employee_exits.application.queries.enrich_exit_with_documents_and_checklist"
+)
 @patch("app.modules.employee_exits.application.queries.EmployeeExitRepository")
 class TestListEmployeeExits:
     """Query list_employee_exits."""
@@ -96,7 +107,9 @@ class TestListEmployeeExits:
         )
 
 
-@patch("app.modules.employee_exits.application.queries.enrich_exit_with_documents_and_checklist")
+@patch(
+    "app.modules.employee_exits.application.queries.enrich_exit_with_documents_and_checklist"
+)
 @patch("app.modules.employee_exits.application.queries.EmployeeExitRepository")
 class TestGetEmployeeExit:
     """Query get_employee_exit."""
@@ -107,7 +120,9 @@ class TestGetEmployeeExit:
         mock_repo.get_with_employee.return_value = exit_record
         mock_repo_class.return_value = mock_repo
 
-        result = queries.get_employee_exit(EXIT_ID, COMPANY_ID, supabase_client=MagicMock())
+        result = queries.get_employee_exit(
+            EXIT_ID, COMPANY_ID, supabase_client=MagicMock()
+        )
 
         assert result["id"] == EXIT_ID
         assert result["employee_id"] == EMPLOYEE_ID
@@ -129,18 +144,26 @@ class TestGetEmployeeExit:
 class TestCalculateExitIndemnities:
     """Query calculate_exit_indemnities."""
 
-    def test_returns_indemnities_and_updates_exit(self, mock_repo_class, mock_calc_class):
+    def test_returns_indemnities_and_updates_exit(
+        self, mock_repo_class, mock_calc_class
+    ):
         exit_data = _make_exit_with_employee()
         mock_repo = MagicMock()
         mock_repo.get_with_employee.return_value = exit_data
         mock_repo.update.return_value = {**exit_data, "calculated_indemnities": {}}
         mock_repo_class.return_value = mock_repo
         calculator = MagicMock()
-        indemnities = {"total_gross_indemnities": 1000, "indemnite_conges": {"jours_restants": 5}, "total_net_indemnities": 800}
+        indemnities = {
+            "total_gross_indemnities": 1000,
+            "indemnite_conges": {"jours_restants": 5},
+            "total_net_indemnities": 800,
+        }
         calculator.calculate.return_value = indemnities
         mock_calc_class.return_value = calculator
 
-        result = queries.calculate_exit_indemnities(EXIT_ID, COMPANY_ID, supabase_client=MagicMock())
+        result = queries.calculate_exit_indemnities(
+            EXIT_ID, COMPANY_ID, supabase_client=MagicMock()
+        )
 
         assert result == indemnities
         mock_repo.update.assert_called_once()
@@ -153,7 +176,9 @@ class TestCalculateExitIndemnities:
         mock_repo_class.return_value = mock_repo
 
         with pytest.raises(EmployeeExitApplicationError) as exc_info:
-            queries.calculate_exit_indemnities(EXIT_ID, COMPANY_ID, supabase_client=MagicMock())
+            queries.calculate_exit_indemnities(
+                EXIT_ID, COMPANY_ID, supabase_client=MagicMock()
+            )
         assert exc_info.value.status_code == 404
 
 
@@ -167,19 +192,27 @@ class TestGetDocumentUploadUrl:
         mock_repo_class.return_value = mock_repo
 
         with pytest.raises(EmployeeExitApplicationError) as exc_info:
-            queries.get_document_upload_url(EXIT_ID, COMPANY_ID, "file.pdf", supabase_client=MagicMock())
+            queries.get_document_upload_url(
+                EXIT_ID, COMPANY_ID, "file.pdf", supabase_client=MagicMock()
+            )
         assert exc_info.value.status_code == 404
 
     @patch("app.modules.employee_exits.application.queries.get_exit_storage_provider")
-    def test_returns_upload_url_when_exit_exists(self, mock_storage_provider, mock_repo_class):
+    def test_returns_upload_url_when_exit_exists(
+        self, mock_storage_provider, mock_repo_class
+    ):
         mock_repo = MagicMock()
         mock_repo.get_by_id.return_value = {"id": EXIT_ID}
         mock_repo_class.return_value = mock_repo
         storage = MagicMock()
-        storage.create_signed_upload_url.return_value = "https://signed-upload.example/url"
+        storage.create_signed_upload_url.return_value = (
+            "https://signed-upload.example/url"
+        )
         mock_storage_provider.return_value = storage
 
-        result = queries.get_document_upload_url(EXIT_ID, COMPANY_ID, "file.pdf", supabase_client=MagicMock())
+        result = queries.get_document_upload_url(
+            EXIT_ID, COMPANY_ID, "file.pdf", supabase_client=MagicMock()
+        )
 
         assert result["upload_url"] == "https://signed-upload.example/url"
         assert "storage_path" in result
@@ -192,17 +225,25 @@ class TestGetDocumentUploadUrl:
 class TestListExitDocuments:
     """Query list_exit_documents."""
 
-    def test_returns_documents_with_download_url(self, mock_doc_repo_class, mock_storage_provider):
+    def test_returns_documents_with_download_url(
+        self, mock_doc_repo_class, mock_storage_provider
+    ):
         mock_doc_repo = MagicMock()
         mock_doc_repo.list_by_exit.return_value = [
-            {"id": DOCUMENT_ID, "storage_path": "exits/1/doc.pdf", "filename": "doc.pdf"},
+            {
+                "id": DOCUMENT_ID,
+                "storage_path": "exits/1/doc.pdf",
+                "filename": "doc.pdf",
+            },
         ]
         mock_doc_repo_class.return_value = mock_doc_repo
         storage = MagicMock()
         storage.create_signed_url.return_value = "https://download.example/url"
         mock_storage_provider.return_value = storage
 
-        result = queries.list_exit_documents(EXIT_ID, COMPANY_ID, supabase_client=MagicMock())
+        result = queries.list_exit_documents(
+            EXIT_ID, COMPANY_ID, supabase_client=MagicMock()
+        )
 
         assert len(result) == 1
         assert result[0]["download_url"] == "https://download.example/url"
@@ -219,19 +260,33 @@ class TestGetExitDocumentDetails:
     """Query get_exit_document_details."""
 
     def test_raises_404_when_document_not_found(
-        self, mock_exit_repo_class, mock_doc_repo_class, mock_storage, mock_build, mock_emp_full, mock_company
+        self,
+        mock_exit_repo_class,
+        mock_doc_repo_class,
+        mock_storage,
+        mock_build,
+        mock_emp_full,
+        mock_company,
     ):
         mock_doc_repo = MagicMock()
         mock_doc_repo.get_by_id.return_value = None
         mock_doc_repo_class.return_value = mock_doc_repo
 
         with pytest.raises(EmployeeExitApplicationError) as exc_info:
-            queries.get_exit_document_details(EXIT_ID, DOCUMENT_ID, COMPANY_ID, supabase_client=MagicMock())
+            queries.get_exit_document_details(
+                EXIT_ID, DOCUMENT_ID, COMPANY_ID, supabase_client=MagicMock()
+            )
         assert exc_info.value.status_code == 404
         assert "Document non trouvé" in exc_info.value.detail
 
     def test_returns_details_with_document_data_and_download_url(
-        self, mock_exit_repo_class, mock_doc_repo_class, mock_storage, mock_build, mock_emp_full, mock_company
+        self,
+        mock_exit_repo_class,
+        mock_doc_repo_class,
+        mock_storage,
+        mock_build,
+        mock_emp_full,
+        mock_company,
     ):
         doc = {
             "id": DOCUMENT_ID,
@@ -246,7 +301,9 @@ class TestGetExitDocumentDetails:
         storage.create_signed_url.return_value = "https://download.example/url"
         mock_storage.return_value = storage
 
-        result = queries.get_exit_document_details(EXIT_ID, DOCUMENT_ID, COMPANY_ID, supabase_client=MagicMock())
+        result = queries.get_exit_document_details(
+            EXIT_ID, DOCUMENT_ID, COMPANY_ID, supabase_client=MagicMock()
+        )
 
         assert result["id"] == DOCUMENT_ID
         assert result["document_data"] == {"employee": {"first_name": "Jean"}}
@@ -264,16 +321,26 @@ class TestGetDocumentEditHistory:
         mock_doc_repo_class.return_value = mock_doc_repo
 
         with pytest.raises(EmployeeExitApplicationError) as exc_info:
-            queries.get_document_edit_history(EXIT_ID, DOCUMENT_ID, COMPANY_ID, supabase_client=MagicMock())
+            queries.get_document_edit_history(
+                EXIT_ID, DOCUMENT_ID, COMPANY_ID, supabase_client=MagicMock()
+            )
         assert exc_info.value.status_code == 404
 
     def test_returns_history_with_version(self, mock_doc_repo_class):
-        doc = {"id": DOCUMENT_ID, "version": 2, "manually_edited": True, "last_edited_by": "user-1", "last_edited_at": "2025-01-20T10:00:00Z"}
+        doc = {
+            "id": DOCUMENT_ID,
+            "version": 2,
+            "manually_edited": True,
+            "last_edited_by": "user-1",
+            "last_edited_at": "2025-01-20T10:00:00Z",
+        }
         mock_doc_repo = MagicMock()
         mock_doc_repo.get_by_id.return_value = doc
         mock_doc_repo_class.return_value = mock_doc_repo
 
-        result = queries.get_document_edit_history(EXIT_ID, DOCUMENT_ID, COMPANY_ID, supabase_client=MagicMock())
+        result = queries.get_document_edit_history(
+            EXIT_ID, DOCUMENT_ID, COMPANY_ID, supabase_client=MagicMock()
+        )
 
         assert result["document_id"] == DOCUMENT_ID
         assert result["total_versions"] == 2
@@ -294,7 +361,9 @@ class TestGetExitChecklist:
         mock_repo.list_by_exit.return_value = items
         mock_repo_class.return_value = mock_repo
 
-        result = queries.get_exit_checklist(EXIT_ID, COMPANY_ID, supabase_client=MagicMock())
+        result = queries.get_exit_checklist(
+            EXIT_ID, COMPANY_ID, supabase_client=MagicMock()
+        )
 
         assert len(result) == 2
         assert result[0]["item_code"] == "badge_return"

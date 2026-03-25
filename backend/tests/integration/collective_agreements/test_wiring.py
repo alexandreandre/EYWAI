@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module collective_agreements.
 Vérifie que l'injection des dépendances et le flux de bout en bout fonctionnent :
 commands/queries -> service -> repository (et providers). Pas de modification du code applicatif.
 """
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -112,9 +113,7 @@ class TestQueriesWiring:
             service=mock_svc,
         )
         assert result.agreement_name == "CC Syntec"
-        mock_svc.ask_question.assert_called_once_with(
-            "agr-1", "Congés ?", "c1", True
-        )
+        mock_svc.ask_question.assert_called_once_with("agr-1", "Congés ?", "c1", True)
 
 
 class TestServiceToRepositoryWiring:

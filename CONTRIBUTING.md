@@ -24,6 +24,10 @@ Des commandes pas à pas (branches, `git add`, push) sont aussi décrites dans *
 
 Format : `<type>(<scope>): <description courte>`
 
+- **Assistant message + menus** : à la racine, `npm run commit` (Commitizen + mêmes règles que `commitlint`).
+- **Raccourci** : `git commit -m "test"` (ou toute phrase sans préfixe `type:`) est réécrite en **`chore: test`** par le hook `prepare-commit-msg` avant `commitlint`. Ça ne **découpe pas** le dépôt en plusieurs commits : pour ça, `npm run git:atomic`.
+- **Découper un gros changement** : `npm run git:atomic` affiche des propositions de `git add` groupés et d’idées de message par zone du dépôt ; tu exécutes ensuite chaque commit toi-même.
+
 - **Types** courants : `feat`, `fix`, `chore`, `docs`, et aussi `refactor`, `perf`, `test`, `build`, `ci`, `revert` (voir `commitlint.config.cjs` à la racine).
 - **Scopes** autorisés : `payroll`, `auth`, `frontend`, `infra`, `api`, `ci`, `scripts` (hooks, scripts shell à la racine).
 - Le **scope est optionnel** ; s’il est présent, il doit être dans la liste ci-dessus (ex. `docs:` sans scope reste valide).

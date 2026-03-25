@@ -7,6 +7,7 @@ Module access_control : centralisation des permissions et helpers d'autorisation
 
 Routers legacy (api/routers/user_management, users, employee_exits) conservent leurs imports et comportement ; ils utilisent encore les fonctions locales ou schemas.permissions. Ne pas supprimer ces imports tant que les clients n'ont pas basculé vers /api/access-control.
 """
+
 from app.modules.access_control.application import (
     AccessControlService,
     access_control_service,

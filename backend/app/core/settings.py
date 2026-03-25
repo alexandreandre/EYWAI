@@ -2,6 +2,7 @@
 Centralisation des variables d'environnement.
 Utilisé par app.core.config ; le legacy continue d'utiliser backend_api/core/config.py.
 """
+
 import os
 
 from dotenv import load_dotenv

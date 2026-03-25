@@ -4,6 +4,7 @@ Repository expenses (implémentation Supabase).
 Logique extraite de api/routers/expenses.py — comportement identique.
 Utilise les constantes de infrastructure.queries (table, select, order).
 """
+
 from typing import Any, Dict, List, Optional
 
 from app.modules.expenses.domain.interfaces import IExpenseRepository
@@ -21,6 +22,7 @@ class ExpenseRepository(IExpenseRepository):
     def __init__(self, supabase_client: Any = None):
         if supabase_client is None:
             from app.core.database import supabase
+
             supabase_client = supabase
         self._client = supabase_client
 
@@ -31,7 +33,12 @@ class ExpenseRepository(IExpenseRepository):
         return response.data[0]
 
     def get_by_id(self, expense_id: str) -> Optional[Dict[str, Any]]:
-        response = self._client.table(TABLE_EXPENSE_REPORTS).select("*").eq("id", expense_id).execute()
+        response = (
+            self._client.table(TABLE_EXPENSE_REPORTS)
+            .select("*")
+            .eq("id", expense_id)
+            .execute()
+        )
         if not response.data or len(response.data) == 0:
             return None
         return response.data[0]

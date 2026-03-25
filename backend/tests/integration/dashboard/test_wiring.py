@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module dashboard : injection des dépendances et f
 Vérifie que le router dashboard est monté, que les routes répondent (pas 404),
 et qu'un enchaînement typique (contexte RH → GET /all) est cohérent.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -46,7 +47,9 @@ class TestDashboardRouterMounted:
         response = client.get("/api/dashboard/all")
         assert response.status_code != 404
 
-    def test_dashboard_residence_permit_stats_responds_not_404(self, client: TestClient):
+    def test_dashboard_residence_permit_stats_responds_not_404(
+        self, client: TestClient
+    ):
         """GET /api/dashboard/residence-permit-stats répond (401 sans auth, pas 404)."""
         response = client.get("/api/dashboard/residence-permit-stats")
         assert response.status_code != 404
@@ -76,23 +79,35 @@ class TestDashboardFlowE2E:
             ResidencePermitStats,
             TeamPulse,
         )
+
         mock_dashboard.return_value = DashboardData(
             kpis=KpiData(
-                coutTotal=0, netVerse=0, effectifActif=0, tauxAbsenteisme=0,
-                currentMonth="01/2025", cdiCount=0, cddCount=0, contractDistribution={},
+                coutTotal=0,
+                netVerse=0,
+                effectifActif=0,
+                tauxAbsenteisme=0,
+                currentMonth="01/2025",
+                cdiCount=0,
+                cddCount=0,
+                contractDistribution={},
             ),
             chartData=[ChartDataPoint(name="Jan", Net_Verse=0, Charges=0)],
             actions=ActionItems(pendingAbsences=0, pendingExpenses=0),
-            alerts=AlertItems(obsoleteRates=0, expiringContracts=0, endOfTrialPeriods=0),
+            alerts=AlertItems(
+                obsoleteRates=0, expiringContracts=0, endOfTrialPeriods=0
+            ),
             teamPulse=TeamPulse(absentToday=[], upcomingEvents=[]),
             employees=[],
-            payrollStatus=PayrollStatus(currentMonth="January 2025", step=1, totalSteps=4),
+            payrollStatus=PayrollStatus(
+                currentMonth="January 2025", step=1, totalSteps=4
+            ),
         )
         mock_stats.return_value = ResidencePermitStats(
             total_expire=0, total_a_renouveler=0, total_a_renseigner=0, total_valide=0
         )
 
         from app.core.security import get_current_user
+
         app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
         try:
             r1 = client.get(
@@ -115,7 +130,9 @@ class TestDashboardFlowE2E:
             app.dependency_overrides.pop(get_current_user, None)
 
     @patch("app.modules.dashboard.application.queries.get_dashboard_data")
-    def test_dependency_injection_uses_overridden_user(self, mock_get_dashboard, client: TestClient):
+    def test_dependency_injection_uses_overridden_user(
+        self, mock_get_dashboard, client: TestClient
+    ):
         """L'override de get_current_user est bien utilisé par le router."""
         from app.modules.dashboard.schemas.responses import (
             ActionItems,
@@ -126,19 +143,31 @@ class TestDashboardFlowE2E:
             PayrollStatus,
             TeamPulse,
         )
+
         mock_get_dashboard.return_value = DashboardData(
             kpis=KpiData(
-                coutTotal=0, netVerse=0, effectifActif=0, tauxAbsenteisme=0,
-                currentMonth="01/2025", cdiCount=0, cddCount=0, contractDistribution={},
+                coutTotal=0,
+                netVerse=0,
+                effectifActif=0,
+                tauxAbsenteisme=0,
+                currentMonth="01/2025",
+                cdiCount=0,
+                cddCount=0,
+                contractDistribution={},
             ),
             chartData=[ChartDataPoint(name="Jan", Net_Verse=0, Charges=0)],
             actions=ActionItems(pendingAbsences=0, pendingExpenses=0),
-            alerts=AlertItems(obsoleteRates=0, expiringContracts=0, endOfTrialPeriods=0),
+            alerts=AlertItems(
+                obsoleteRates=0, expiringContracts=0, endOfTrialPeriods=0
+            ),
             teamPulse=TeamPulse(absentToday=[], upcomingEvents=[]),
             employees=[],
-            payrollStatus=PayrollStatus(currentMonth="January 2025", step=1, totalSteps=4),
+            payrollStatus=PayrollStatus(
+                currentMonth="January 2025", step=1, totalSteps=4
+            ),
         )
         from app.core.security import get_current_user
+
         app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
         try:
             response = client.get(

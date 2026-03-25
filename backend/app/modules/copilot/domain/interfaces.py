@@ -4,6 +4,7 @@ Ports (interfaces) du domaine copilot.
 L'application dépend de ces abstractions ; l'infrastructure les implémente.
 Aucune dépendance à FastAPI, DB ou détails techniques.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Protocol
@@ -24,9 +25,7 @@ class IOpenAIProvider(Protocol):
         """Génère une requête SQL à partir du prompt et du schéma BDD."""
         ...
 
-    def format_answer_from_data(
-        self, prompt: str, data: Any, sql_query: str
-    ) -> str:
+    def format_answer_from_data(self, prompt: str, data: Any, sql_query: str) -> str:
         """Formate les données brutes en réponse naturelle."""
         ...
 
@@ -39,7 +38,9 @@ class IOpenAIProvider(Protocol):
         """Analyse l'intention et retourne un plan (intent, clarification, steps, etc.)."""
         ...
 
-    def generate_sql_for_step(self, step_description: str, context: Dict[str, Any]) -> str:
+    def generate_sql_for_step(
+        self, step_description: str, context: Dict[str, Any]
+    ) -> str:
         """Génère une requête SQL pour une étape de récupération."""
         ...
 

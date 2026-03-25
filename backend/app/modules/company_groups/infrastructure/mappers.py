@@ -2,6 +2,7 @@
 Mappers DB -> DTOs pour company_groups.
 Agrège les lignes Supabase (plusieurs lignes par groupe si join companies) en une liste de groupes avec companies.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List

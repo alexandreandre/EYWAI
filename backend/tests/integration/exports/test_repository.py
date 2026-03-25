@@ -8,6 +8,7 @@ Sans DB de test : mocks Supabase pour valider la logique et les appels.
 Fixture documentée : db_session — session ou client DB de test pour exécuter
 les tests contre une base réelle (conftest.py). Si None, les tests utilisent des mocks.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -34,7 +35,9 @@ class TestInsertExportRecord:
             "status": "generated",
             "generated_by": "user-1",
         }
-        with patch("app.modules.exports.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.exports.infrastructure.repository.supabase"
+        ) as supabase:
             chain = MagicMock()
             chain.execute.return_value = MagicMock(data=[{"id": "export-uuid-123"}])
             table_mock = MagicMock()
@@ -49,8 +52,14 @@ class TestInsertExportRecord:
 
     def test_insert_returns_none_when_no_data_returned(self):
         """insert_export_record retourne None quand execute().data est vide ou absent."""
-        record = {"company_id": "c1", "export_type": "dsn_mensuelle", "period": "2025-02"}
-        with patch("app.modules.exports.infrastructure.repository.supabase") as supabase:
+        record = {
+            "company_id": "c1",
+            "export_type": "dsn_mensuelle",
+            "period": "2025-02",
+        }
+        with patch(
+            "app.modules.exports.infrastructure.repository.supabase"
+        ) as supabase:
             chain = MagicMock()
             chain.execute.return_value = MagicMock(data=[])
             table_mock = MagicMock()
@@ -123,7 +132,9 @@ class TestListExportsByCompany:
 
             assert result == []
             chain.eq.assert_called_with("company_id", "company-1")
-            chain.eq.return_value.order.assert_called_once_with("generated_at", desc=True)
+            chain.eq.return_value.order.assert_called_once_with(
+                "generated_at", desc=True
+            )
             chain.eq.return_value.order.return_value.limit.assert_called_once_with(100)
 
 
@@ -176,7 +187,9 @@ class TestGetUserDisplayName:
         """get_user_display_name retourne 'Utilisateur' quand le profil est absent."""
         with patch("app.modules.exports.infrastructure.queries.supabase") as supabase:
             chain = MagicMock()
-            chain.eq.return_value.single.return_value.execute.return_value = MagicMock(data=None)
+            chain.eq.return_value.single.return_value.execute.return_value = MagicMock(
+                data=None
+            )
             table_mock = MagicMock()
             table_mock.select.return_value = chain
             supabase.table.return_value = table_mock

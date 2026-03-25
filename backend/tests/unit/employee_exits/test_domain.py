@@ -3,6 +3,7 @@ Tests unitaires du domaine employee_exits : entités, value objects, règles.
 
 Aucune DB ni HTTP ; logique pure du domain/.
 """
+
 from datetime import date, datetime, timezone
 from uuid import uuid4
 
@@ -203,17 +204,23 @@ class TestGetValidStatusTransitions:
         assert trans == ["archivee"]
 
     def test_rupture_en_negociation_transitions(self):
-        trans = get_valid_status_transitions("rupture_conventionnelle", "rupture_en_negociation")
+        trans = get_valid_status_transitions(
+            "rupture_conventionnelle", "rupture_en_negociation"
+        )
         assert "rupture_validee" in trans
         assert "annulee" in trans
 
     def test_rupture_validee_to_homologuee(self):
-        trans = get_valid_status_transitions("rupture_conventionnelle", "rupture_validee")
+        trans = get_valid_status_transitions(
+            "rupture_conventionnelle", "rupture_validee"
+        )
         assert "rupture_homologuee" in trans
         assert "annulee" in trans
 
     def test_rupture_effective_to_archivee(self):
-        trans = get_valid_status_transitions("rupture_conventionnelle", "rupture_effective")
+        trans = get_valid_status_transitions(
+            "rupture_conventionnelle", "rupture_effective"
+        )
         assert trans == ["archivee"]
 
     def test_licenciement_convocation_to_notifie(self):

@@ -4,6 +4,7 @@ Service applicatif mutuelle_types : orchestration des cas d’usage.
 Utilise le repository (interface domain) et les règles métier (domain).
 Pas d’accès DB direct ; pas de FastAPI dans les dépendances domain.
 """
+
 from __future__ import annotations
 
 from uuid import UUID
@@ -37,9 +38,7 @@ class MutuelleTypesService:
         result = []
         for entity in entities:
             employee_ids = self._repo.list_employee_ids(str(entity.id))
-            result.append(
-                entity_to_response_dict(entity, employee_ids)
-            )
+            result.append(entity_to_response_dict(entity, employee_ids))
         return result
 
     def create(
@@ -49,9 +48,7 @@ class MutuelleTypesService:
         payload: MutuelleTypeCreate,
     ) -> dict:
         """Crée une formule et gère les associations employés + sync specificites_paie."""
-        existing = self._repo.find_by_company_and_libelle(
-            company_id, payload.libelle
-        )
+        existing = self._repo.find_by_company_and_libelle(company_id, payload.libelle)
         if existing is not None:
             raise HTTPException(
                 status_code=400,
@@ -108,11 +105,7 @@ class MutuelleTypesService:
                 status_code=403,
                 detail="Cette formule de mutuelle n'appartient pas à votre entreprise",
             )
-        update_data = {
-            k: v
-            for k, v in payload.model_dump().items()
-            if v is not None
-        }
+        update_data = {k: v for k, v in payload.model_dump().items() if v is not None}
         employee_ids = update_data.pop("employee_ids", None)
         if "libelle" in update_data:
             other = self._repo.find_by_company_and_libelle(
@@ -129,9 +122,7 @@ class MutuelleTypesService:
                 )
         updated = self._repo.update(mutuelle_type_id, update_data)
         if updated is None:
-            raise HTTPException(
-                status_code=500, detail="Erreur lors de la mise à jour"
-            )
+            raise HTTPException(status_code=500, detail="Erreur lors de la mise à jour")
         if employee_ids is not None:
             valid_ids = self._repo.validate_employee_ids_belong_to_company(
                 company_id, employee_ids

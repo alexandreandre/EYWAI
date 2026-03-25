@@ -4,6 +4,7 @@ Commands du module expenses (écritures).
 Délèguent au repository ; préparation des données via infrastructure (mappers).
 Comportement identique à l'ancien router.
 """
+
 from app.modules.expenses.application.dto import (
     CreateExpenseInput,
     UpdateExpenseStatusInput,

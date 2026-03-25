@@ -4,6 +4,7 @@ Commandes (cas d'usage écriture) du module scraping.
 Délégation au repository et au scraper_runner ; validation métier via domain.rules.
 Comportement identique au routeur legacy.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -40,7 +41,9 @@ def execute_scraper(
     source = repo.get_source_by_key(source_key)
     require_source_for_execution(source)
 
-    script_path_obj, script_type = resolve_script_path(source, scraper_name, use_orchestrator)
+    script_path_obj, script_type = resolve_script_path(
+        source, scraper_name, use_orchestrator
+    )
     script_path = str(script_path_obj)
 
     job_data = {

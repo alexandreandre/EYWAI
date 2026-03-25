@@ -5,12 +5,15 @@ Historique : salary_seizure_deductions, salary_advance_repayments.
 Utilisé par application.service.enrich_payslip. Comportement identique au legacy
 services.saisies_avances_integration pour les écritures et vérifications d'existence.
 """
+
 from typing import Any, Dict, Optional
 
 from app.core.database import supabase
 
 
-def get_existing_deduction(seizure_id: str, payslip_id: str) -> Optional[Dict[str, Any]]:
+def get_existing_deduction(
+    seizure_id: str, payslip_id: str
+) -> Optional[Dict[str, Any]]:
     """Vérifie si une déduction pour cette saisie et ce bulletin existe déjà."""
     r = (
         supabase.table("salary_seizure_deductions")
@@ -23,7 +26,9 @@ def get_existing_deduction(seizure_id: str, payslip_id: str) -> Optional[Dict[st
     return r.data if r.data else None
 
 
-def get_existing_repayment(advance_id: str, payslip_id: str) -> Optional[Dict[str, Any]]:
+def get_existing_repayment(
+    advance_id: str, payslip_id: str
+) -> Optional[Dict[str, Any]]:
     """Récupère le remboursement déjà enregistré pour cette avance et ce bulletin."""
     r = (
         supabase.table("salary_advance_repayments")

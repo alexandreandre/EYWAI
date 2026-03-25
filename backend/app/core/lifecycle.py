@@ -4,6 +4,7 @@ Lifecycle de l'application : startup et shutdown.
 Fonctions à enregistrer sur l'app FastAPI (on_event ou lifespan).
 Implémentation minimale : log uniquement ; à étendre (pool DB, caches, etc.) sans impact métier.
 """
+
 from __future__ import annotations
 
 from app.core.logging import get_logger

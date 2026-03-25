@@ -4,6 +4,7 @@ Tests de câblage (injection de dépendances et flux bout en bout) du module cop
 Vérifie que les routes sont enregistrées, que get_current_user est bien injecté,
 et que le flux HTTP -> router -> commands -> (service mocké) fonctionne.
 """
+
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -26,6 +27,7 @@ def fake_user():
 def app_with_copilot_user(fake_user):
     """Surcharge get_current_user pour les tests de wiring."""
     from app.main import app
+
     app.dependency_overrides[get_current_user] = lambda: fake_user
     try:
         yield app
@@ -36,12 +38,16 @@ def app_with_copilot_user(fake_user):
 class TestCopilotRoutesRegistered:
     """Vérifie que les routes du module copilot sont montées sur l'app."""
 
-    def test_copilot_query_route_exists_returns_401_without_auth(self, client: TestClient):
+    def test_copilot_query_route_exists_returns_401_without_auth(
+        self, client: TestClient
+    ):
         """POST /api/copilot/query existe (401 sans token, pas 404)."""
         response = client.post("/api/copilot/query", json={"prompt": "test"})
         assert response.status_code == 401
 
-    def test_copilot_query_agent_route_exists_returns_401_without_auth(self, client: TestClient):
+    def test_copilot_query_agent_route_exists_returns_401_without_auth(
+        self, client: TestClient
+    ):
         """POST /api/copilot/query-agent existe (401 sans token, pas 404)."""
         response = client.post(
             "/api/copilot/query-agent",
@@ -109,7 +115,9 @@ class TestCopilotEndToEndFlow:
     """Flux bout en bout : HTTP -> router -> commande (mockée) -> réponse HTTP."""
 
     @patch("app.modules.copilot.api.router.commands.execute_text_to_sql")
-    def test_text_to_sql_e2e_response_shape(self, mock_execute, client: TestClient, app_with_copilot_user):
+    def test_text_to_sql_e2e_response_shape(
+        self, mock_execute, client: TestClient, app_with_copilot_user
+    ):
         """Réponse QueryResponse contient answer, sql_query, data."""
         mock_execute.return_value = MagicMock(
             answer="Il y a 3 employés.",
@@ -131,7 +139,9 @@ class TestCopilotEndToEndFlow:
         assert body["data"] == [{"count": 3}]
 
     @patch("app.modules.copilot.api.router.commands.handle_agent_query")
-    def test_agent_e2e_response_shape(self, mock_handle, client: TestClient, app_with_copilot_user):
+    def test_agent_e2e_response_shape(
+        self, mock_handle, client: TestClient, app_with_copilot_user
+    ):
         """Réponse AgentResponse contient answer, needs_clarification, thought_process, etc."""
         mock_handle.return_value = MagicMock(
             answer="Votre entreprise compte 3 employés.",

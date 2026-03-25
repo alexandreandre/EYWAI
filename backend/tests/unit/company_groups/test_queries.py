@@ -3,6 +3,7 @@ Tests unitaires des queries du module company_groups (application/queries.py).
 
 Repository, service et providers mockés : pas d'accès DB ni RPC.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -33,9 +34,10 @@ class TestGetMyGroups:
     def test_returns_empty_when_user_has_no_accessible_companies(self):
         """Utilisateur non super_admin sans entreprises → liste vide."""
         user = _make_user(is_super_admin=False, accessible_company_ids=[])
-        with patch(f"{MODULE_QUERIES}.get_accessible_company_ids", return_value=[]), patch(
-            f"{MODULE_QUERIES}.company_group_repository"
-        ) as mock_repo:
+        with (
+            patch(f"{MODULE_QUERIES}.get_accessible_company_ids", return_value=[]),
+            patch(f"{MODULE_QUERIES}.company_group_repository") as mock_repo,
+        ):
             result = queries.get_my_groups(user)
         assert result == []
         mock_repo.list_groups_with_companies.assert_not_called()
@@ -45,7 +47,11 @@ class TestGetMyGroups:
         user = _make_user(is_super_admin=False, accessible_company_ids=["c1"])
         mock_repo = MagicMock()
         mock_repo.list_groups_with_companies.return_value = [
-            {"id": "g1", "group_name": "G1", "companies": [{"id": "c1", "company_name": "C1"}]},
+            {
+                "id": "g1",
+                "group_name": "G1",
+                "companies": [{"id": "c1", "company_name": "C1"}],
+            },
         ]
         aggregated = [
             {
@@ -57,13 +63,18 @@ class TestGetMyGroups:
                 "is_active": True,
                 "created_at": None,
                 "updated_at": None,
-                "companies": [{"id": "c1", "company_name": "C1", "siret": None, "is_active": True}],
+                "companies": [
+                    {"id": "c1", "company_name": "C1", "siret": None, "is_active": True}
+                ],
             },
         ]
-        with patch(f"{MODULE_QUERIES}.get_accessible_company_ids", return_value=["c1"]), patch(
-            f"{MODULE_QUERIES}.company_group_repository", mock_repo
-        ), patch(
-            f"{MODULE_QUERIES}.rows_to_groups_with_companies", return_value=aggregated
+        with (
+            patch(f"{MODULE_QUERIES}.get_accessible_company_ids", return_value=["c1"]),
+            patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo),
+            patch(
+                f"{MODULE_QUERIES}.rows_to_groups_with_companies",
+                return_value=aggregated,
+            ),
         ):
             result = queries.get_my_groups(user)
         assert len(result) == 1
@@ -77,9 +88,11 @@ class TestGetMyGroups:
         user = _make_user(is_super_admin=True)
         mock_repo = MagicMock()
         mock_repo.list_groups_with_companies.return_value = []
-        with patch(f"{MODULE_QUERIES}.get_accessible_company_ids", return_value=[]), patch(
-            f"{MODULE_QUERIES}.company_group_repository", mock_repo
-        ), patch(f"{MODULE_QUERIES}.rows_to_groups_with_companies", return_value=[]):
+        with (
+            patch(f"{MODULE_QUERIES}.get_accessible_company_ids", return_value=[]),
+            patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo),
+            patch(f"{MODULE_QUERIES}.rows_to_groups_with_companies", return_value=[]),
+        ):
             queries.get_my_groups(user)
         mock_repo.list_groups_with_companies.assert_called_once_with(None)
 
@@ -105,8 +118,9 @@ class TestGetGroupDetails:
             "companies": [{"id": "c1"}, {"id": "c2"}],
         }
         user = _make_user(is_super_admin=False, accessible_company_ids=[])
-        with patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo), patch(
-            f"{MODULE_QUERIES}.get_accessible_company_ids", return_value=[]
+        with (
+            patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo),
+            patch(f"{MODULE_QUERIES}.get_accessible_company_ids", return_value=[]),
         ):
             with pytest.raises(PermissionError, match="aucune entreprise"):
                 queries.get_group_details("g1", user)
@@ -122,14 +136,17 @@ class TestGetGroupDetails:
             "is_active": True,
             "created_at": None,
             "updated_at": None,
-            "companies": [{"id": "c1", "company_name": "C1", "siret": None, "is_active": True}],
+            "companies": [
+                {"id": "c1", "company_name": "C1", "siret": None, "is_active": True}
+            ],
         }
         mock_repo = MagicMock()
         mock_repo.get_by_id_with_companies.return_value = row
         user = _make_user(is_super_admin=True)
         mapped = {**row, "companies": row["companies"]}
-        with patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo), patch(
-            f"{MODULE_QUERIES}.row_to_group_with_companies", return_value=mapped
+        with (
+            patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo),
+            patch(f"{MODULE_QUERIES}.row_to_group_with_companies", return_value=mapped),
         ):
             result = queries.get_group_details("g1", user)
         assert isinstance(result, GroupWithCompaniesDto)
@@ -146,8 +163,9 @@ class TestGetGroupConsolidatedStats:
         mock_repo = MagicMock()
         mock_repo.get_companies_for_group_stats.return_value = []
         user = _make_user(is_super_admin=True)
-        with patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo), patch(
-            f"{MODULE_QUERIES}.get_company_ids_for_group", return_value=[]
+        with (
+            patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo),
+            patch(f"{MODULE_QUERIES}.get_company_ids_for_group", return_value=[]),
         ):
             with pytest.raises(LookupError, match="Aucune entreprise trouvée"):
                 queries.get_group_consolidated_stats("g1", user)
@@ -157,8 +175,9 @@ class TestGetGroupConsolidatedStats:
         mock_repo = MagicMock()
         mock_repo.get_companies_for_group_stats.return_value = [{"id": "c1"}]
         user = _make_user(is_super_admin=False)
-        with patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo), patch(
-            f"{MODULE_QUERIES}.get_company_ids_for_group", return_value=[]
+        with (
+            patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo),
+            patch(f"{MODULE_QUERIES}.get_company_ids_for_group", return_value=[]),
         ):
             with pytest.raises(PermissionError, match="aucune entreprise"):
                 queries.get_group_consolidated_stats("g1", user)
@@ -169,11 +188,13 @@ class TestGetGroupConsolidatedStats:
         mock_repo.get_companies_for_group_stats.return_value = [{"id": "c1"}]
         user = _make_user(is_super_admin=True)
         dashboard_data = {"total_employees": 10, "payroll": 50000}
-        with patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo), patch(
-            f"{MODULE_QUERIES}.get_company_ids_for_group", return_value=["c1"]
-        ), patch(
-            f"{MODULE_QUERIES}.call_get_group_consolidated_dashboard",
-            return_value=dashboard_data,
+        with (
+            patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo),
+            patch(f"{MODULE_QUERIES}.get_company_ids_for_group", return_value=["c1"]),
+            patch(
+                f"{MODULE_QUERIES}.call_get_group_consolidated_dashboard",
+                return_value=dashboard_data,
+            ),
         ):
             result = queries.get_group_consolidated_stats(
                 "g1", user, year=2024, month=6
@@ -191,10 +212,11 @@ class TestGetGroupEmployeesStats:
 
     def test_returns_provider_result(self):
         stats = [{"company_id": "c1", "employees_count": 5}]
-        with patch(
-            f"{MODULE_QUERIES}.get_company_ids_for_group", return_value=["c1"]
-        ), patch(
-            f"{MODULE_QUERIES}.call_get_group_employees_stats", return_value=stats
+        with (
+            patch(f"{MODULE_QUERIES}.get_company_ids_for_group", return_value=["c1"]),
+            patch(
+                f"{MODULE_QUERIES}.call_get_group_employees_stats", return_value=stats
+            ),
         ):
             result = queries.get_group_employees_stats("g1", _make_user())
         assert result == stats
@@ -212,11 +234,12 @@ class TestGetGroupPayrollEvolution:
 
     def test_returns_provider_result(self):
         evolution = [{"month": 1, "year": 2024, "total": 10000}]
-        with patch(
-            f"{MODULE_QUERIES}.get_company_ids_for_group", return_value=["c1"]
-        ), patch(
-            f"{MODULE_QUERIES}.call_get_group_payroll_evolution",
-            return_value=evolution,
+        with (
+            patch(f"{MODULE_QUERIES}.get_company_ids_for_group", return_value=["c1"]),
+            patch(
+                f"{MODULE_QUERIES}.call_get_group_payroll_evolution",
+                return_value=evolution,
+            ),
         ):
             result = queries.get_group_payroll_evolution(
                 "g1", _make_user(), 2024, 1, 2024, 12
@@ -230,17 +253,16 @@ class TestGetGroupCompanyComparison:
     def test_raises_permission_when_no_accessible_company(self):
         with patch(f"{MODULE_QUERIES}.get_company_ids_for_group", return_value=[]):
             with pytest.raises(PermissionError, match="Aucune entreprise accessible"):
-                queries.get_group_company_comparison(
-                    "g1", _make_user(), "employees"
-                )
+                queries.get_group_company_comparison("g1", _make_user(), "employees")
 
     def test_returns_provider_result(self):
         comparison = [{"company_id": "c1", "value": 10}]
-        with patch(
-            f"{MODULE_QUERIES}.get_company_ids_for_group", return_value=["c1"]
-        ), patch(
-            f"{MODULE_QUERIES}.call_get_group_company_comparison",
-            return_value=comparison,
+        with (
+            patch(f"{MODULE_QUERIES}.get_company_ids_for_group", return_value=["c1"]),
+            patch(
+                f"{MODULE_QUERIES}.call_get_group_company_comparison",
+                return_value=comparison,
+            ),
         ):
             result = queries.get_group_company_comparison(
                 "g1", _make_user(), "payroll", year=2024, month=6
@@ -348,9 +370,12 @@ class TestGetGroupUserAccesses:
                 "companies": {"company_name": "C1"},
             },
         ]
-        with patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo), patch(
-            f"{MODULE_QUERIES}.CompanyGroupRepository.get_user_emails_map",
-            return_value={"u1": "jean@test.com"},
+        with (
+            patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo),
+            patch(
+                f"{MODULE_QUERIES}.CompanyGroupRepository.get_user_emails_map",
+                return_value={"u1": "jean@test.com"},
+            ),
         ):
             result = queries.get_group_user_accesses("g1", user)
         assert len(result) == 1
@@ -383,9 +408,12 @@ class TestGetDetailedUserAccesses:
                 "profiles": {"first_name": "Jean", "last_name": "Dupont"},
             },
         ]
-        with patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo), patch(
-            f"{MODULE_QUERIES}.CompanyGroupRepository.get_user_emails_map",
-            return_value={"u1": "jean@test.com"},
+        with (
+            patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo),
+            patch(
+                f"{MODULE_QUERIES}.CompanyGroupRepository.get_user_emails_map",
+                return_value={"u1": "jean@test.com"},
+            ),
         ):
             result = queries.get_detailed_user_accesses("g1", user)
         assert "companies" in result

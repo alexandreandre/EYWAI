@@ -3,6 +3,7 @@ Queries du module super_admin (couche application).
 
 Délègue à l'infrastructure (DB). Comportement identique.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, Optional
@@ -22,7 +23,9 @@ def list_companies(
     is_active: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """Liste des entreprises avec filtres. Retourne { companies, total }."""
-    return infra_queries.list_companies(skip=skip, limit=limit, search=search, is_active=is_active)
+    return infra_queries.list_companies(
+        skip=skip, limit=limit, search=search, is_active=is_active
+    )
 
 
 def get_company_details(company_id: str) -> Dict[str, Any]:
@@ -66,6 +69,8 @@ def get_employees_for_reduction_fillon() -> Dict[str, Any]:
     return infra_queries.get_employees_for_reduction_fillon()
 
 
-def calculate_reduction_fillon(employee_id: str, month: int, year: int) -> Dict[str, Any]:
+def calculate_reduction_fillon(
+    employee_id: str, month: int, year: int
+) -> Dict[str, Any]:
     """Calcule la réduction Fillon pour un employé/mois. Structure détaillée identique au legacy."""
     return infra_queries.calculate_reduction_fillon(employee_id, month, year)

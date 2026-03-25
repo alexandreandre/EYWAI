@@ -4,6 +4,7 @@ Configuration du logging pour l'application.
 Logger unique pour app.core ; format et niveau configurables.
 Aucun impact sur les print() existants ; à brancher progressivement.
 """
+
 from __future__ import annotations
 
 import logging

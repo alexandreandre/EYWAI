@@ -3,6 +3,7 @@ Wrapper partagé vers l'analyse des horaires (événements de paie).
 
 Délègue à app.modules.payroll.application.analyzer (source de vérité unique).
 """
+
 from typing import Any, Dict, List
 
 
@@ -15,7 +16,9 @@ def analyser_horaires_du_mois(
     employee_name: str,
 ) -> List[Dict[str, Any]]:
     """Délègue à app.modules.payroll.application.analyzer.analyser_horaires_du_mois."""
-    from app.modules.payroll.application.analyzer import analyser_horaires_du_mois as _analyser
+    from app.modules.payroll.application.analyzer import (
+        analyser_horaires_du_mois as _analyser,
+    )
 
     return _analyser(
         planned_data_all_months=planned_data_all_months,

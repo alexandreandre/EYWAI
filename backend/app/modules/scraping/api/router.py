@@ -5,6 +5,7 @@ Appelle uniquement la couche application (queries, commands).
 Aucune logique métier ni accès DB ; conversion des exceptions applicatives en HTTP.
 Comportement HTTP identique au routeur legacy.
 """
+
 from __future__ import annotations
 
 from typing import Any, Callable, Optional, TypeVar
@@ -48,7 +49,9 @@ def _to_http(e: Exception) -> HTTPException:
         return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
     if isinstance(e, FileNotFoundError):
         return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg)
-    return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erreur : {msg}")
+    return HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erreur : {msg}"
+    )
 
 
 def _app(call: Callable[..., T], *args: Any, **kwargs: Any) -> T:
@@ -61,6 +64,7 @@ def _app(call: Callable[..., T], *args: Any, **kwargs: Any) -> T:
 
 # --- Dashboard & statistiques ---
 
+
 @router.get("/dashboard")
 async def get_scraping_dashboard(super_admin: dict = Depends(verify_super_admin)):
     """Récupère les statistiques globales du système de scraping."""
@@ -68,6 +72,7 @@ async def get_scraping_dashboard(super_admin: dict = Depends(verify_super_admin)
 
 
 # --- Sources ---
+
 
 @router.get("/sources")
 async def list_sources(
@@ -96,6 +101,7 @@ async def get_source_details(
 
 # --- Exécution ---
 
+
 @router.post("/execute")
 async def execute_scraper(
     request: ScraperExecutionRequest,
@@ -115,6 +121,7 @@ async def execute_scraper(
 
 
 # --- Jobs ---
+
 
 @router.get("/jobs")
 async def list_jobs(
@@ -155,6 +162,7 @@ async def get_job_logs(
 
 
 # --- Schedules ---
+
 
 @router.get("/schedules")
 async def list_schedules(
@@ -206,6 +214,7 @@ async def delete_schedule(
 
 
 # --- Alertes ---
+
 
 @router.get("/alerts")
 async def list_alerts(

@@ -4,6 +4,7 @@ Requêtes Supabase pour annual_reviews (exécution DB).
 Pas de logique métier : uniquement construction et exécution des appels Supabase.
 Le repository utilise ces fonctions. Comportement identique au legacy.
 """
+
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
@@ -45,9 +46,7 @@ def query_get_by_id(review_id: str) -> Optional[Dict[str, Any]]:
     return resp.data if resp.data else None
 
 
-def query_list_by_employee(
-    employee_id: str, company_id: str
-) -> List[Dict[str, Any]]:
+def query_list_by_employee(employee_id: str, company_id: str) -> List[Dict[str, Any]]:
     """Liste les entretiens d'un employé pour une entreprise."""
     resp = (
         supabase.table("annual_reviews")
@@ -85,11 +84,7 @@ def query_insert(data: Dict[str, Any]) -> Dict[str, Any]:
         raise RuntimeError("Erreur lors de la création.")
     new_id = resp.data[0]["id"]
     full = (
-        supabase.table("annual_reviews")
-        .select("*")
-        .eq("id", new_id)
-        .single()
-        .execute()
+        supabase.table("annual_reviews").select("*").eq("id", new_id).single().execute()
     )
     if not full.data:
         raise RuntimeError("Erreur lors de la récupération de l'entretien créé.")
@@ -98,12 +93,7 @@ def query_insert(data: Dict[str, Any]) -> Dict[str, Any]:
 
 def query_update(review_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Met à jour un entretien et retourne la ligne mise à jour."""
-    upd = (
-        supabase.table("annual_reviews")
-        .update(data)
-        .eq("id", review_id)
-        .execute()
-    )
+    upd = supabase.table("annual_reviews").update(data).eq("id", review_id).execute()
     if not upd.data or len(upd.data) == 0:
         return None
     full = (
@@ -150,10 +140,6 @@ def query_employee_by_id(employee_id: str) -> Optional[Dict[str, Any]]:
 def query_company_by_id(company_id: str) -> Optional[Dict[str, Any]]:
     """Retourne les données entreprise (pour PDF)."""
     resp = (
-        supabase.table("companies")
-        .select("*")
-        .eq("id", company_id)
-        .single()
-        .execute()
+        supabase.table("companies").select("*").eq("id", company_id).single().execute()
     )
     return dict(resp.data) if resp.data else None

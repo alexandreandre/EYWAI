@@ -4,6 +4,7 @@ Entités du domaine collective_agreements.
 Structure alignée sur les tables collective_agreements_catalog, company_collective_agreements,
 collective_agreement_texts (cache chat). Migration : logique métier à déplacer ici.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -38,7 +39,9 @@ class CompanyAssignmentEntity:
     collective_agreement_id: str
     assigned_at: datetime
     assigned_by: Optional[str]
-    agreement_details: Optional[CollectiveAgreementCatalogEntity] = None  # JOIN optionnel
+    agreement_details: Optional[CollectiveAgreementCatalogEntity] = (
+        None  # JOIN optionnel
+    )
 
 
 @dataclass

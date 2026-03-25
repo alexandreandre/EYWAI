@@ -3,6 +3,7 @@ Queries (cas d'usage en lecture) du module copilot.
 
 Résolution de contexte (company_id, etc.) utilisée par les commandes.
 """
+
 from __future__ import annotations
 
 from app.modules.copilot.application.service import get_company_id_for_user

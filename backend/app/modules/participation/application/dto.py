@@ -4,6 +4,7 @@ DTOs applicatifs pour participation.
 Entrées/sorties des cas d'usage (employee-data, create/list/get/delete simulation).
 Helpers de construction et de conversion entité -> réponse API.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -154,8 +155,7 @@ def entity_to_simulation_response_dict(
         "interessement_enabled": entity.interessement_enabled,
         "interessement_envelope": entity.interessement_envelope,
         "interessement_mode": entity.interessement_mode.value
-        if entity.interessement_mode
-        and hasattr(entity.interessement_mode, "value")
+        if entity.interessement_mode and hasattr(entity.interessement_mode, "value")
         else entity.interessement_mode,
         "interessement_salaire_percent": entity.interessement_salaire_percent,
         "interessement_presence_percent": entity.interessement_presence_percent,

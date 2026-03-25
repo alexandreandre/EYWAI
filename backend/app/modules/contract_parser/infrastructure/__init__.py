@@ -1,4 +1,5 @@
 """Couche infrastructure contract_parser : repository, providers."""
+
 from app.modules.contract_parser.infrastructure.providers import (
     ExtractionLLMProvider,
     PdfTextExtractor,

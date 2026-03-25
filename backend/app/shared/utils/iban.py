@@ -4,6 +4,7 @@ Utilitaires IBAN (validation, masquage, normalisation).
 Logique alignée sur services/exports/paiement_salaires (validation / masquage).
 Utilisable par rib_alerts et tout module app/* sans dépendance legacy.
 """
+
 from __future__ import annotations
 
 import re

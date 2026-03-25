@@ -4,6 +4,7 @@ Commandes du module saisies_avances.
 Chaque commande délègue au service. Le router (lors de la migration) appellera
 ces fonctions et convertira les exceptions applicatives en HTTPException.
 """
+
 from typing import Any
 
 from . import service

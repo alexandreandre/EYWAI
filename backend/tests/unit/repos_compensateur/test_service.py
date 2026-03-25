@@ -4,6 +4,7 @@ Tests unitaires du service applicatif repos_compensateur (application/service.py
 Dépendances infrastructure (get_company_effectif, get_employees_for_company,
 get_bulletins_par_mois_par_employe, upsert_credit) mockées.
 """
+
 from unittest.mock import patch
 
 
@@ -19,12 +20,15 @@ class TestCalculerCreditsRepos:
 
     def test_no_employees_returns_zero_processed_and_credits(self):
         """Entreprise sans employés → employees_processed=0, credits_created=0."""
-        with patch(
-            "app.modules.repos_compensateur.application.service.get_company_effectif",
-            return_value=25,
-        ), patch(
-            "app.modules.repos_compensateur.application.service.get_employees_for_company",
-            return_value=[],
+        with (
+            patch(
+                "app.modules.repos_compensateur.application.service.get_company_effectif",
+                return_value=25,
+            ),
+            patch(
+                "app.modules.repos_compensateur.application.service.get_employees_for_company",
+                return_value=[],
+            ),
         ):
             result = calculer_credits_repos(
                 year=2025,
@@ -40,24 +44,29 @@ class TestCalculerCreditsRepos:
 
     def test_employees_with_no_hs_no_credits_created(self):
         """Employés sans heures sup ce mois → credits_created=0, employees_processed>0."""
-        with patch(
-            "app.modules.repos_compensateur.application.service.get_company_effectif",
-            return_value=30,
-        ), patch(
-            "app.modules.repos_compensateur.application.service.get_employees_for_company",
-            return_value=[
-                {"id": "emp-1", "company_id": "comp-1"},
-                {"id": "emp-2", "company_id": "comp-1"},
-            ],
-        ), patch(
-            "app.modules.repos_compensateur.application.service.get_bulletins_par_mois_par_employe",
-            return_value={
-                "emp-1": {6: {}},  # pas de calcul_du_brut HS
-                "emp-2": {6: {}},
-            },
-        ), patch(
-            "app.modules.repos_compensateur.application.service.upsert_credit",
-            return_value=True,
+        with (
+            patch(
+                "app.modules.repos_compensateur.application.service.get_company_effectif",
+                return_value=30,
+            ),
+            patch(
+                "app.modules.repos_compensateur.application.service.get_employees_for_company",
+                return_value=[
+                    {"id": "emp-1", "company_id": "comp-1"},
+                    {"id": "emp-2", "company_id": "comp-1"},
+                ],
+            ),
+            patch(
+                "app.modules.repos_compensateur.application.service.get_bulletins_par_mois_par_employe",
+                return_value={
+                    "emp-1": {6: {}},  # pas de calcul_du_brut HS
+                    "emp-2": {6: {}},
+                },
+            ),
+            patch(
+                "app.modules.repos_compensateur.application.service.upsert_credit",
+                return_value=True,
+            ),
         ):
             result = calculer_credits_repos(
                 year=2025,
@@ -77,19 +86,24 @@ class TestCalculerCreditsRepos:
         for m in list(range(1, 5)) + list(range(7, 13)):
             bulletins_emp1[m] = {}
 
-        with patch(
-            "app.modules.repos_compensateur.application.service.get_company_effectif",
-            return_value=25,
-        ), patch(
-            "app.modules.repos_compensateur.application.service.get_employees_for_company",
-            return_value=[{"id": "emp-1", "company_id": "comp-1"}],
-        ), patch(
-            "app.modules.repos_compensateur.application.service.get_bulletins_par_mois_par_employe",
-            return_value={"emp-1": bulletins_emp1},
-        ), patch(
-            "app.modules.repos_compensateur.application.service.upsert_credit",
-            return_value=True,
-        ) as upsert:
+        with (
+            patch(
+                "app.modules.repos_compensateur.application.service.get_company_effectif",
+                return_value=25,
+            ),
+            patch(
+                "app.modules.repos_compensateur.application.service.get_employees_for_company",
+                return_value=[{"id": "emp-1", "company_id": "comp-1"}],
+            ),
+            patch(
+                "app.modules.repos_compensateur.application.service.get_bulletins_par_mois_par_employe",
+                return_value={"emp-1": bulletins_emp1},
+            ),
+            patch(
+                "app.modules.repos_compensateur.application.service.upsert_credit",
+                return_value=True,
+            ) as upsert,
+        ):
             result = calculer_credits_repos(
                 year=2025,
                 month=6,
@@ -118,19 +132,24 @@ class TestCalculerCreditsRepos:
         for m in range(7, 13):
             bulletins_emp1[m] = {}
 
-        with patch(
-            "app.modules.repos_compensateur.application.service.get_company_effectif",
-            return_value=15,
-        ), patch(
-            "app.modules.repos_compensateur.application.service.get_employees_for_company",
-            return_value=[{"id": "emp-1", "company_id": "comp-1"}],
-        ), patch(
-            "app.modules.repos_compensateur.application.service.get_bulletins_par_mois_par_employe",
-            return_value={"emp-1": bulletins_emp1},
-        ), patch(
-            "app.modules.repos_compensateur.application.service.upsert_credit",
-            return_value=True,
-        ) as upsert:
+        with (
+            patch(
+                "app.modules.repos_compensateur.application.service.get_company_effectif",
+                return_value=15,
+            ),
+            patch(
+                "app.modules.repos_compensateur.application.service.get_employees_for_company",
+                return_value=[{"id": "emp-1", "company_id": "comp-1"}],
+            ),
+            patch(
+                "app.modules.repos_compensateur.application.service.get_bulletins_par_mois_par_employe",
+                return_value={"emp-1": bulletins_emp1},
+            ),
+            patch(
+                "app.modules.repos_compensateur.application.service.upsert_credit",
+                return_value=True,
+            ) as upsert,
+        ):
             calculer_credits_repos(
                 year=2025,
                 month=6,
@@ -149,17 +168,27 @@ class TestRecalculerCreditsReposEmploye:
         """Retourne le nombre de mois pour lesquels upsert_credit a retourné True."""
         bulletins = {}
         for m in range(1, 13):
-            bulletins[m] = {} if m != 6 else {"calcul_du_brut": [{"libelle": "Heures suppl", "quantite": 230.0}]}
+            bulletins[m] = (
+                {}
+                if m != 6
+                else {
+                    "calcul_du_brut": [{"libelle": "Heures suppl", "quantite": 230.0}]
+                }
+            )
 
-        with patch(
-            "app.modules.repos_compensateur.application.service.get_company_effectif",
-            return_value=25,
-        ), patch(
-            "app.modules.repos_compensateur.application.service.get_bulletins_par_mois_par_employe",
-            return_value={"emp-1": bulletins},
-        ), patch(
-            "app.modules.repos_compensateur.application.service.upsert_credit",
-            return_value=True,
+        with (
+            patch(
+                "app.modules.repos_compensateur.application.service.get_company_effectif",
+                return_value=25,
+            ),
+            patch(
+                "app.modules.repos_compensateur.application.service.get_bulletins_par_mois_par_employe",
+                return_value={"emp-1": bulletins},
+            ),
+            patch(
+                "app.modules.repos_compensateur.application.service.upsert_credit",
+                return_value=True,
+            ),
         ):
             result = recalculer_credits_repos_employe(
                 employee_id="emp-1",

@@ -3,6 +3,7 @@ Tests des commandes applicatives du module super_admin (application/commands.py)
 
 Repositories et couche infrastructure mockés ; vérification des règles métier et du délégation.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -35,7 +36,10 @@ class TestCreateCompanyWithAdmin:
     def test_delegates_to_infra_when_permission_ok(self):
         """Délègue à l'infra et retourne le résultat si can_create_companies."""
         company_data = {"company_name": "Test Co", "siret": "123"}
-        infra_result = {"success": True, "company": {"id": "c1", "company_name": "Test Co"}}
+        infra_result = {
+            "success": True,
+            "company": {"id": "c1", "company_name": "Test Co"},
+        }
         with patch(
             "app.modules.super_admin.application.commands.infra_commands.create_company_with_admin",
             return_value=infra_result,
@@ -60,7 +64,10 @@ class TestUpdateCompany:
         """Délègue à l'infrastructure."""
         with patch(
             "app.modules.super_admin.application.commands.infra_commands.update_company",
-            return_value={"success": True, "company": {"id": "c1", "company_name": "Updated"}},
+            return_value={
+                "success": True,
+                "company": {"id": "c1", "company_name": "Updated"},
+            },
         ) as m:
             out = commands.update_company("c1", {"company_name": "Updated"})
         m.assert_called_once_with("c1", {"company_name": "Updated"})
@@ -95,7 +102,11 @@ class TestDeleteCompanyPermanent:
         """Délègue à l'infra si can_delete_companies."""
         with patch(
             "app.modules.super_admin.application.commands.infra_commands.delete_company_permanent",
-            return_value={"success": True, "message": "Supprimé", "deleted_company": {"id": "c1"}},
+            return_value={
+                "success": True,
+                "message": "Supprimé",
+                "deleted_company": {"id": "c1"},
+            },
         ) as m:
             out = commands.delete_company_permanent("c1", SUPER_ADMIN_ROW_FULL)
         m.assert_called_once_with("c1")
@@ -112,7 +123,13 @@ class TestCreateCompanyUser:
 
     def test_delegates_to_infra(self):
         """Délègue à l'infrastructure."""
-        user_data = {"email": "u@co.fr", "password": "secret", "first_name": "U", "last_name": "N", "role": "admin"}
+        user_data = {
+            "email": "u@co.fr",
+            "password": "secret",
+            "first_name": "U",
+            "last_name": "N",
+            "role": "admin",
+        }
         with patch(
             "app.modules.super_admin.application.commands.infra_commands.create_company_user",
             return_value={"success": True, "user": {"id": "u1", "email": "u@co.fr"}},
@@ -129,7 +146,10 @@ class TestUpdateCompanyUser:
         """Délègue à l'infrastructure."""
         with patch(
             "app.modules.super_admin.application.commands.infra_commands.update_company_user",
-            return_value={"success": True, "message": "Utilisateur mis à jour avec succès"},
+            return_value={
+                "success": True,
+                "message": "Utilisateur mis à jour avec succès",
+            },
         ) as m:
             out = commands.update_company_user("c1", "u1", {"first_name": "New"})
         m.assert_called_once_with("c1", "u1", {"first_name": "New"})

@@ -34,11 +34,17 @@ def request_password_reset(email: str) -> dict:
             user_id = auth_provider.find_user_id_by_email(email)
             if not user_id:
                 print(f"⚠️  [PASSWORD RESET] Email non trouvé dans auth.users: {email}")
-                return {"message": "Si cet e-mail existe, un lien de réinitialisation a été envoyé"}
+                return {
+                    "message": "Si cet e-mail existe, un lien de réinitialisation a été envoyé"
+                }
             print(f"✅ [PASSWORD RESET] Utilisateur trouvé (ID: {user_id})")
         except Exception as e:
-            print(f"⚠️  [PASSWORD RESET] Erreur lors de la recherche de l'utilisateur: {e}")
-            return {"message": "Si cet e-mail existe, un lien de réinitialisation a été envoyé"}
+            print(
+                f"⚠️  [PASSWORD RESET] Erreur lors de la recherche de l'utilisateur: {e}"
+            )
+            return {
+                "message": "Si cet e-mail existe, un lien de réinitialisation a été envoyé"
+            }
 
         user_name = get_profile_display_name(user_id, email.split("@")[0])
         print(f"✅ [PASSWORD RESET] Profil / nom: {user_name}")
@@ -46,7 +52,9 @@ def request_password_reset(email: str) -> dict:
         reset_token = secrets.token_urlsafe(32)
         print(f"🔑 [PASSWORD RESET] Token généré: {reset_token[:10]}...")
 
-        expires_at = datetime.now(timezone.utc) + timedelta(hours=RESET_TOKEN_VALIDITY_HOURS)
+        expires_at = datetime.now(timezone.utc) + timedelta(
+            hours=RESET_TOKEN_VALIDITY_HOURS
+        )
         print(f"⏰ [PASSWORD RESET] Expiration: {expires_at}")
 
         reset_token_repository.create(
@@ -68,12 +76,16 @@ def request_password_reset(email: str) -> dict:
             print("⚠️  [PASSWORD RESET] Échec de l'envoi de l'e-mail")
 
         print("=" * 80 + "\n")
-        return {"message": "Si cet e-mail existe, un lien de réinitialisation a été envoyé"}
+        return {
+            "message": "Si cet e-mail existe, un lien de réinitialisation a été envoyé"
+        }
 
     except Exception as e:
         print(f"❌ [PASSWORD RESET] Erreur: {e}")
         print(traceback.format_exc())
-        return {"message": "Si cet e-mail existe, un lien de réinitialisation a été envoyé"}
+        return {
+            "message": "Si cet e-mail existe, un lien de réinitialisation a été envoyé"
+        }
 
 
 def reset_password(token: str, new_password: str) -> dict:
@@ -101,7 +113,9 @@ def reset_password(token: str, new_password: str) -> dict:
             raise HTTPException(status_code=400, detail="Token expiré")
 
         print(f"✅ [PASSWORD RESET] Token valide (expire à {expires_at})")
-        print(f"🔄 [PASSWORD RESET] Mise à jour du mot de passe pour user_id: {token_data['user_id']}")
+        print(
+            f"🔄 [PASSWORD RESET] Mise à jour du mot de passe pour user_id: {token_data['user_id']}"
+        )
 
         auth_provider.update_user_password(token_data["user_id"], new_password)
         print("✅ [PASSWORD RESET] Mot de passe mis à jour avec succès")

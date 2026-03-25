@@ -2,6 +2,7 @@
 Génération de fichiers d'export (XLSX, CSV) et formatage (devise, période).
 Partagé entre modules (ex. CSE, exports).
 """
+
 from __future__ import annotations
 
 import csv
@@ -12,6 +13,7 @@ from typing import Any, Dict, List, Optional
 try:
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
+
     OPENPYXL_AVAILABLE = True
 except ImportError:
     OPENPYXL_AVAILABLE = False
@@ -63,9 +65,9 @@ def generate_xlsx(
                 default=0,
             ),
         )
-        ws.column_dimensions[
-            ws.cell(row=1, column=col_idx).column_letter
-        ].width = min(max_length + 2, 50)
+        ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = min(
+            max_length + 2, 50
+        )
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
@@ -95,8 +97,18 @@ def format_period(period: str) -> str:
     try:
         year, month = period.split("-")
         month_names = [
-            "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
-            "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+            "Janvier",
+            "Février",
+            "Mars",
+            "Avril",
+            "Mai",
+            "Juin",
+            "Juillet",
+            "Août",
+            "Septembre",
+            "Octobre",
+            "Novembre",
+            "Décembre",
         ]
         return f"{month_names[int(month) - 1]} {year}"
     except Exception:

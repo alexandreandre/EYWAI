@@ -3,6 +3,7 @@ Règles métier pures du module dashboard.
 
 Aucune dépendance à la DB, FastAPI ou schémas. Entrées/sorties primitives ou dict/list.
 """
+
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -72,24 +73,38 @@ def build_upcoming_events_raw(
         try:
             bday_str = emp.get("date_naissance")
             if bday_str:
-                bday = date.fromisoformat(bday_str) if isinstance(bday_str, str) else bday_str
+                bday = (
+                    date.fromisoformat(bday_str)
+                    if isinstance(bday_str, str)
+                    else bday_str
+                )
                 bday_this_year = bday.replace(year=reference_date.year)
                 bday_next_year = bday.replace(year=reference_date.year + 1)
-                if (reference_date <= bday_this_year <= end) or (reference_date <= bday_next_year <= end):
+                if (reference_date <= bday_this_year <= end) or (
+                    reference_date <= bday_next_year <= end
+                ):
                     age = reference_date.year - bday.year
-                    events.append({
-                        "id": f"bday-{emp['id']}",
-                        "type": "birthday",
-                        "employee_name": f"{emp.get('first_name', '')} {emp.get('last_name', '')}".strip(),
-                        "date": bday_this_year,
-                        "detail": f"fête ses {age} ans",
-                    })
+                    events.append(
+                        {
+                            "id": f"bday-{emp['id']}",
+                            "type": "birthday",
+                            "employee_name": f"{emp.get('first_name', '')} {emp.get('last_name', '')}".strip(),
+                            "date": bday_this_year,
+                            "detail": f"fête ses {age} ans",
+                        }
+                    )
 
             hire_str = emp.get("hire_date")
             if hire_str:
-                hire_date = date.fromisoformat(hire_str) if isinstance(hire_str, str) else hire_str
+                hire_date = (
+                    date.fromisoformat(hire_str)
+                    if isinstance(hire_str, str)
+                    else hire_str
+                )
                 hire_anniversary_this_year = hire_date.replace(year=reference_date.year)
-                hire_anniversary_next_year = hire_date.replace(year=reference_date.year + 1)
+                hire_anniversary_next_year = hire_date.replace(
+                    year=reference_date.year + 1
+                )
                 if (
                     reference_date <= hire_anniversary_this_year <= end
                     and hire_date.year < reference_date.year
@@ -99,13 +114,15 @@ def build_upcoming_events_raw(
                 ):
                     years = reference_date.year - hire_date.year
                     if years > 0:
-                        events.append({
-                            "id": f"work-{emp['id']}",
-                            "type": "work_anniversary",
-                            "employee_name": f"{emp.get('first_name', '')} {emp.get('last_name', '')}".strip(),
-                            "date": hire_anniversary_this_year,
-                            "detail": f"fête ses {years} an(s) d'ancienneté",
-                        })
+                        events.append(
+                            {
+                                "id": f"work-{emp['id']}",
+                                "type": "work_anniversary",
+                                "employee_name": f"{emp.get('first_name', '')} {emp.get('last_name', '')}".strip(),
+                                "date": hire_anniversary_this_year,
+                                "detail": f"fête ses {years} an(s) d'ancienneté",
+                            }
+                        )
         except (ValueError, TypeError, KeyError):
             continue
 

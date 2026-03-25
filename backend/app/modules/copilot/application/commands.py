@@ -4,6 +4,7 @@ Commandes (cas d'usage) du module copilot.
 Orchestration migrée depuis api/routers/copilot.py et api/routers/copilot_agent.py.
 Délègue au service pour génération SQL, formatage, intent, conventions, synthèse.
 """
+
 from __future__ import annotations
 
 import json
@@ -72,7 +73,9 @@ def handle_agent_query(input_: AgentQueryInput) -> AgentQueryResult:
         raise LookupError("Company ID non trouvé pour cet utilisateur")
 
     company_agreements = get_company_collective_agreements(company_id)
-    logging.info(f"Conventions collectives trouvées pour l'entreprise: {len(company_agreements)}")
+    logging.info(
+        f"Conventions collectives trouvées pour l'entreprise: {len(company_agreements)}"
+    )
 
     plan = analyze_intent_and_plan(prompt, conversation_history, company_agreements)
     thought_process = f"Plan d'action: {json.dumps(plan, ensure_ascii=False, indent=2)}"
@@ -99,7 +102,9 @@ def handle_agent_query(input_: AgentQueryInput) -> AgentQueryResult:
 
         if len(company_agreements) == 1:
             selected_agreement = company_agreements[0]
-            logging.info(f"Une seule convention trouvée, utilisation automatique: {selected_agreement['name']}")
+            logging.info(
+                f"Une seule convention trouvée, utilisation automatique: {selected_agreement['name']}"
+            )
         else:
             collective_agreement_query = plan.get("collective_agreement_query")
             if not collective_agreement_query:
@@ -146,7 +151,8 @@ def handle_agent_query(input_: AgentQueryInput) -> AgentQueryResult:
         return AgentQueryResult(
             answer=answer,
             needs_clarification=False,
-            thought_process=thought_process + f"\n\nConvention utilisée: {selected_agreement['name']}",
+            thought_process=thought_process
+            + f"\n\nConvention utilisée: {selected_agreement['name']}",
         )
 
     context = {}
@@ -176,7 +182,9 @@ def handle_agent_query(input_: AgentQueryInput) -> AgentQueryResult:
 
         best_match = employee_matches[0]["employee"]
         context["employee_id"] = best_match["id"]
-        context["employee_name"] = f"{best_match['first_name']} {best_match['last_name']}"
+        context["employee_name"] = (
+            f"{best_match['first_name']} {best_match['last_name']}"
+        )
         logging.info(
             f"Employé identifié: {context['employee_name']} (similarité: {employee_matches[0]['similarity']})"
         )
@@ -191,14 +199,10 @@ def handle_agent_query(input_: AgentQueryInput) -> AgentQueryResult:
 
     final_answer = synthesize_final_answer(prompt, plan, retrieval_results)
     sql_queries = [
-        r.get("sql")
-        for r in retrieval_results
-        if r.get("success") and r.get("sql")
+        r.get("sql") for r in retrieval_results if r.get("success") and r.get("sql")
     ]
     all_data = [
-        r.get("data")
-        for r in retrieval_results
-        if r.get("success") and r.get("data")
+        r.get("data") for r in retrieval_results if r.get("success") and r.get("data")
     ]
 
     return AgentQueryResult(

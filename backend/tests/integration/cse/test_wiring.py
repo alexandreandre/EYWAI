@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module CSE.
 Vérifient que l'injection des dépendances et le flux de bout en bout
 (router -> application queries/commands -> repository / service) fonctionnent.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -172,12 +173,15 @@ class TestCSEWiringExportElectedMembers:
         mock_content = b"xlsx-bytes"
         app.dependency_overrides[get_current_user] = lambda: _rh_user()
         try:
-            with patch(
-                "app.modules.cse.application.service.queries.get_elected_members",
-                return_value=[],
-            ), patch(
-                "app.modules.cse.application.service.cse_export_provider.export_elected_members",
-                return_value=mock_content,
+            with (
+                patch(
+                    "app.modules.cse.application.service.queries.get_elected_members",
+                    return_value=[],
+                ),
+                patch(
+                    "app.modules.cse.application.service.cse_export_provider.export_elected_members",
+                    return_value=mock_content,
+                ),
             ):
                 response = client.get("/api/cse/exports/elected-members")
         finally:

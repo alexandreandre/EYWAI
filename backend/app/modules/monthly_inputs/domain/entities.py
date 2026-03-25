@@ -3,6 +3,7 @@ Entités du domaine monthly_inputs.
 
 Représentation métier d'une saisie mensuelle (prime, acompte, etc.).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

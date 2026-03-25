@@ -3,6 +3,7 @@ DTOs applicatifs — transfert entre infrastructure et couche application.
 
 Utilisés par commands/queries et mappers (infrastructure).
 """
+
 from dataclasses import dataclass
 from datetime import date
 from typing import Any, List, Optional, Union
@@ -11,6 +12,7 @@ from typing import Any, List, Optional, Union
 @dataclass
 class AbsenceRequestDto:
     """Demande d'absence (sortie repository / entrée réponses API)."""
+
     id: str
     employee_id: str
     company_id: Optional[str]
@@ -29,6 +31,7 @@ class AbsenceRequestDto:
 @dataclass
 class AbsenceBalanceDto:
     """Solde pour un type (CP, RTT, repos, événement familial, sans solde)."""
+
     type: str
     acquired: float
     taken: float
@@ -38,6 +41,7 @@ class AbsenceBalanceDto:
 @dataclass
 class CalendarDayDto:
     """Jour du calendrier planifié."""
+
     jour: int
     type: str
     heures_prevues: float = 0.0
@@ -46,6 +50,7 @@ class CalendarDayDto:
 @dataclass
 class EvenementFamilialDto:
     """Événement familial avec quota et solde (sortie IEvenementFamilialQuotaProvider)."""
+
     code: str
     libelle: str
     duree_jours: int
@@ -59,5 +64,6 @@ class EvenementFamilialDto:
 @dataclass
 class SignedUploadResultDto:
     """Résultat création URL signée upload."""
+
     path: str
     signed_url: str

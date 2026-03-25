@@ -3,6 +3,7 @@ Couche application du module promotions.
 
 Expose les commandes et queries pour le router. Wrappers legacy pour l'instant.
 """
+
 from __future__ import annotations
 
 from app.modules.promotions.application.commands import (

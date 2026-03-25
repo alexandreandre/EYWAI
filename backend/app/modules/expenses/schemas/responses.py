@@ -4,6 +4,7 @@ Schémas Pydantic sortie API du module expenses.
 Migrés depuis schemas/expense.py — comportement identique.
 SimpleEmployee importé depuis le module absences (même contrat que legacy).
 """
+
 from datetime import date, datetime
 from typing import Literal
 

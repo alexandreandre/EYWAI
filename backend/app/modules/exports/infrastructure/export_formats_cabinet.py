@@ -154,11 +154,13 @@ def preview_cabinet_export(
     warnings = []
     payslip_list, totals = get_payslip_data_for_od(company_id, period, employee_ids)
     if totals["employees_count"] == 0:
-        anomalies.append({
-            "type": "error",
-            "message": "Aucun bulletin trouvé pour cette période",
-            "severity": "blocking",
-        })
+        anomalies.append(
+            {
+                "type": "error",
+                "message": "Aucun bulletin trouvé pour cette période",
+                "severity": "blocking",
+            }
+        )
     return {
         "employees_count": totals["employees_count"],
         "totals": totals,

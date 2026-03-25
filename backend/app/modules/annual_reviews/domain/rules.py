@@ -4,6 +4,7 @@ Règles métier pures annual_reviews.
 Aucune dépendance FastAPI ni DB. Entrées/sorties : types primitifs et dicts.
 Les dates sont reçues déjà sérialisées (str ou None) par la couche application.
 """
+
 from typing import Any, Dict
 
 # Statut requis pour marquer comme réalisé
@@ -31,7 +32,9 @@ def rh_can_edit_full_fiche(status: str) -> bool:
     return status in ("realise", "cloture")
 
 
-def build_employee_update_data(current_status: str, data: Dict[str, Any]) -> Dict[str, Any]:
+def build_employee_update_data(
+    current_status: str, data: Dict[str, Any]
+) -> Dict[str, Any]:
     """
     Construit le payload de mise à jour autorisé pour un employé.
     data : dict avec clés déjà sérialisées (pas d'objets date).
@@ -41,14 +44,18 @@ def build_employee_update_data(current_status: str, data: Dict[str, Any]) -> Dic
     update_data: Dict[str, Any] = {}
     if current_status == "en_attente_acceptation":
         if data.get("employee_acceptance_status") is not None:
-            update_data["employee_acceptance_status"] = data["employee_acceptance_status"]
+            update_data["employee_acceptance_status"] = data[
+                "employee_acceptance_status"
+            ]
             if data["employee_acceptance_status"] == "accepte":
                 update_data["status"] = "accepte"
             elif data["employee_acceptance_status"] == "refuse":
                 update_data["status"] = "refuse"
     if current_status == "accepte":
         if data.get("employee_preparation_notes") is not None:
-            update_data["employee_preparation_notes"] = data["employee_preparation_notes"]
+            update_data["employee_preparation_notes"] = data[
+                "employee_preparation_notes"
+            ]
     if not update_data:
         raise ValueError(
             "Vous ne pouvez modifier que vos notes de préparation lorsque l'entretien est accepté, "

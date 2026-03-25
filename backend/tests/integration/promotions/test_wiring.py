@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module promotions.
 Vérifient que l'injection des dépendances et le flux de bout en bout
 (router → application → repository / queries / provider) fonctionnent.
 """
+
 from datetime import date, datetime
 from unittest.mock import MagicMock, patch
 
@@ -75,12 +76,15 @@ class TestPromotionsWiring:
         ]
 
         app.dependency_overrides[get_current_user] = lambda: _rh_user()
-        with patch(
-            "app.modules.promotions.application.queries.get_promotion_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.promotions.application.commands.get_promotion_repository",
-            return_value=mock_repo,
+        with (
+            patch(
+                "app.modules.promotions.application.queries.get_promotion_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.promotions.application.commands.get_promotion_repository",
+                return_value=mock_repo,
+            ),
         ):
             response = client.get("/api/promotions")
 
@@ -145,12 +149,15 @@ class TestPromotionsWiring:
         )
 
         app.dependency_overrides[get_current_user] = lambda: _rh_user()
-        with patch(
-            "app.modules.promotions.application.queries.get_promotion_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.promotions.application.commands.get_promotion_repository",
-            return_value=mock_repo,
+        with (
+            patch(
+                "app.modules.promotions.application.queries.get_promotion_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.promotions.application.commands.get_promotion_repository",
+                return_value=mock_repo,
+            ),
         ):
             response = client.get("/api/promotions/promo-1")
 
@@ -168,35 +175,40 @@ class TestPromotionsWiring:
         mock_repo.create.return_value = "promo-new-id"
 
         app.dependency_overrides[get_current_user] = lambda: _rh_user()
-        with patch(
-            "app.modules.promotions.application.queries.get_promotion_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.promotions.application.commands.get_promotion_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.promotions.application.commands.get_employee_snapshot_for_promotion",
-            return_value={
-                "employee": {
-                    "job_title": "Dev",
-                    "salaire_de_base": {"valeur": 3500},
-                    "statut": "Cadre",
-                    "classification_conventionnelle": None,
+        with (
+            patch(
+                "app.modules.promotions.application.queries.get_promotion_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.promotions.application.commands.get_promotion_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.promotions.application.commands.get_employee_snapshot_for_promotion",
+                return_value={
+                    "employee": {
+                        "job_title": "Dev",
+                        "salaire_de_base": {"valeur": 3500},
+                        "statut": "Cadre",
+                        "classification_conventionnelle": None,
+                    },
+                    "previous_rh_access": None,
                 },
-                "previous_rh_access": None,
-            },
-        ), patch(
-            "app.modules.promotions.application.commands.get_promotion_by_id_query",
-            return_value=PromotionRead(
-                id="promo-new-id",
-                company_id=TEST_COMPANY_ID,
-                employee_id="emp-1",
-                promotion_type="salaire",
-                status="draft",
-                effective_date=date(2025, 6, 1),
-                request_date=date.today(),
-                created_at=datetime(2025, 3, 1, 10, 0),
-                updated_at=datetime(2025, 3, 1, 10, 0),
+            ),
+            patch(
+                "app.modules.promotions.application.commands.get_promotion_by_id_query",
+                return_value=PromotionRead(
+                    id="promo-new-id",
+                    company_id=TEST_COMPANY_ID,
+                    employee_id="emp-1",
+                    promotion_type="salaire",
+                    status="draft",
+                    effective_date=date(2025, 6, 1),
+                    request_date=date.today(),
+                    created_at=datetime(2025, 3, 1, 10, 0),
+                    updated_at=datetime(2025, 3, 1, 10, 0),
+                ),
             ),
         ):
             response = client.post(

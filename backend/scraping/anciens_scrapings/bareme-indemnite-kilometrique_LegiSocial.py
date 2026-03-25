@@ -14,13 +14,21 @@ NBSP = "\xa0"
 NNBSP = "\u202f"
 THIN = "\u2009"
 
+
 # ---------- Utils ----------
 def _clean_number(s: str) -> float:
-    s = s.strip().replace(NBSP, "").replace(NNBSP, "").replace(THIN, "").replace(" ", "")
+    s = (
+        s.strip()
+        .replace(NBSP, "")
+        .replace(NNBSP, "")
+        .replace(THIN, "")
+        .replace(" ", "")
+    )
     # LégiSocial : décimales avec virgule, milliers avec point
     s = s.replace(".", "").replace(",", ".")
     m = re.search(r"-?\d+(?:\.\d+)?", s)
     return float(m.group(0)) if m else 0.0
+
 
 def parse_formula(txt: str) -> Tuple[float, float]:
     """
@@ -45,7 +53,10 @@ def parse_formula(txt: str) -> Tuple[float, float]:
         return round(a, 3), round(b, 3)
 
     # Fallback ultra-tolérant si le motif n'a pas matché
-    nums = [ _clean_number(x) for x in re.findall(r"[-+]?\d+(?:[ \u00A0\u202F\u2009\.,]\d+)*", s) ]
+    nums = [
+        _clean_number(x)
+        for x in re.findall(r"[-+]?\d+(?:[ \u00A0\u202F\u2009\.,]\d+)*", s)
+    ]
     if not nums:
         return 0.0, 0.0
     if len(nums) == 1:
@@ -54,6 +65,7 @@ def parse_formula(txt: str) -> Tuple[float, float]:
     a_guess = min(nums)
     b_guess = max(nums)
     return round(a_guess, 3), round(b_guess, 3)
+
 
 def parse_cv_label_voiture(label: str) -> Tuple[Optional[int], Optional[int]]:
     s = label.lower().replace(NBSP, " ").replace(NNBSP, " ").replace(THIN, " ")
@@ -67,6 +79,7 @@ def parse_cv_label_voiture(label: str) -> Tuple[Optional[int], Optional[int]]:
         return n, None
     return n, n
 
+
 def parse_cv_label_moto(label: str) -> Tuple[Optional[int], Optional[int]]:
     s = label.lower().replace(NBSP, " ").replace(NNBSP, " ").replace(THIN, " ")
     nums = [int(x) for x in re.findall(r"\d+", s)]
@@ -78,6 +91,7 @@ def parse_cv_label_moto(label: str) -> Tuple[Optional[int], Optional[int]]:
         return nums[0], nums[0]
     return None, None
 
+
 def _find_table_by_banner(soup: BeautifulSoup, needle: str) -> Optional[BeautifulSoup]:
     nd = needle.lower()
     for tbl in soup.find_all("table"):
@@ -85,6 +99,7 @@ def _find_table_by_banner(soup: BeautifulSoup, needle: str) -> Optional[Beautifu
         if nd in txt:
             return tbl
     return None
+
 
 # ---------- Parsers ----------
 def scrape_voitures(soup: BeautifulSoup) -> List[Dict]:
@@ -104,17 +119,21 @@ def scrape_voitures(soup: BeautifulSoup) -> List[Dict]:
         a2, b2 = parse_formula(tds[2].get_text(" ", strip=True))
         a3, b3 = parse_formula(tds[3].get_text(" ", strip=True))
         cv_min, cv_max = parse_cv_label_voiture(label)
-        out.append({
-            "cv_min": cv_min, "cv_max": cv_max,
-            "formules": [
-                {"segment": 1, "a": a1, "b": b1},
-                {"segment": 2, "a": a2, "b": b2},
-                {"segment": 3, "a": a3, "b": b3},
-            ]
-        })
+        out.append(
+            {
+                "cv_min": cv_min,
+                "cv_max": cv_max,
+                "formules": [
+                    {"segment": 1, "a": a1, "b": b1},
+                    {"segment": 2, "a": a2, "b": b2},
+                    {"segment": 3, "a": a3, "b": b3},
+                ],
+            }
+        )
     if not out:
         raise ValueError("Données voitures vides.")
     return out
+
 
 def scrape_moto(soup: BeautifulSoup) -> List[Dict]:
     tbl = _find_table_by_banner(soup, "tarif applicable aux motocyclettes")
@@ -133,17 +152,21 @@ def scrape_moto(soup: BeautifulSoup) -> List[Dict]:
         a2, b2 = parse_formula(tds[2].get_text(" ", strip=True))
         a3, b3 = parse_formula(tds[3].get_text(" ", strip=True))
         cv_min, cv_max = parse_cv_label_moto(label)
-        out.append({
-            "cv_min": cv_min, "cv_max": cv_max,
-            "formules": [
-                {"segment": 1, "a": a1, "b": b1},
-                {"segment": 2, "a": a2, "b": b2},
-                {"segment": 3, "a": a3, "b": b3},
-            ]
-        })
+        out.append(
+            {
+                "cv_min": cv_min,
+                "cv_max": cv_max,
+                "formules": [
+                    {"segment": 1, "a": a1, "b": b1},
+                    {"segment": 2, "a": a2, "b": b2},
+                    {"segment": 3, "a": a3, "b": b3},
+                ],
+            }
+        )
     if not out:
         raise ValueError("Données motocyclettes vides.")
     return out
+
 
 def scrape_cyclo(soup: BeautifulSoup) -> List[Dict]:
     tbl = _find_table_by_banner(soup, "tarif applicable aux cyclomoteurs")
@@ -162,19 +185,25 @@ def scrape_cyclo(soup: BeautifulSoup) -> List[Dict]:
             a1, b1 = parse_formula(cols[0])
             a2, b2 = parse_formula(cols[1])
             a3, b3 = parse_formula(cols[2])
-            return [{
-                "cv_min": None, "cv_max": None,
-                "formules": [
-                    {"segment": 1, "a": a1, "b": b1},
-                    {"segment": 2, "a": a2, "b": b2},
-                    {"segment": 3, "a": a3, "b": b3},
-                ]
-            }]
+            return [
+                {
+                    "cv_min": None,
+                    "cv_max": None,
+                    "formules": [
+                        {"segment": 1, "a": a1, "b": b1},
+                        {"segment": 2, "a": a2, "b": b2},
+                        {"segment": 3, "a": a3, "b": b3},
+                    ],
+                }
+            ]
 
     raise ValueError("Formules cyclomoteurs introuvables dans le tableau ciblé.")
 
+
 # ---------- JSON update ----------
-def update_existing_keys(tr_voitures: List[Dict], tr_moto: List[Dict], tr_cyclo: List[Dict]) -> None:
+def update_existing_keys(
+    tr_voitures: List[Dict], tr_moto: List[Dict], tr_cyclo: List[Dict]
+) -> None:
     path = Path(FICHIER_TAUX)
     if not path.exists():
         raise FileNotFoundError(f"Fichier introuvable: {FICHIER_TAUX}")
@@ -199,6 +228,7 @@ def update_existing_keys(tr_voitures: List[Dict], tr_moto: List[Dict], tr_cyclo:
 
     path.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
     print("✅ JSON mis à jour depuis LégiSocial (voitures, motos, cyclomoteurs).")
+
 
 # ---------- Main ----------
 if __name__ == "__main__":

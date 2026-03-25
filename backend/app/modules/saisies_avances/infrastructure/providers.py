@@ -4,6 +4,7 @@ Providers externes du module saisies_avances.
 Implémentation de IAdvancePaymentStorage (bucket Supabase advance_payments).
 Comportement identique au router legacy.
 """
+
 from typing import Dict
 
 from app.core.database import supabase
@@ -26,9 +27,7 @@ class AdvancePaymentStorage(IAdvancePaymentStorage):
             raise ValueError(f"Clé 'signedUrl' non trouvée: {r}")
         return {"path": path, "signedURL": r["signedUrl"]}
 
-    def create_signed_download_url(
-        self, path: str, expiry_seconds: int = 3600
-    ) -> str:
+    def create_signed_download_url(self, path: str, expiry_seconds: int = 3600) -> str:
         r = supabase.storage.from_(self._bucket).create_signed_url(
             path, expiry_seconds, options={"download": True}
         )

@@ -31,7 +31,7 @@ logging.basicConfig(
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 # Charger les variables d'environnement
-dotenv_path = os.path.join(REPO_ROOT, '.env')
+dotenv_path = os.path.join(REPO_ROOT, ".env")
 if not os.path.exists(dotenv_path):
     logging.critical(f"Fichier .env non trouvé à: {dotenv_path}")
     sys.exit(1)
@@ -39,13 +39,23 @@ load_dotenv(dotenv_path=dotenv_path)
 
 # Liste des scrapers à exécuter
 SCRIPTS_TO_RUN: List[Tuple[str, str]] = [
-    ("vieillessepatronal.py", os.path.join(os.path.dirname(__file__), "vieillessepatronal.py")),
-    ("vieillessepatronal_LegiSocial.py", os.path.join(os.path.dirname(__file__), "vieillessepatronal_LegiSocial.py")),
-    ("vieillessepatronal_AI.py", os.path.join(os.path.dirname(__file__), "vieillessepatronal_AI.py")),
+    (
+        "vieillessepatronal.py",
+        os.path.join(os.path.dirname(__file__), "vieillessepatronal.py"),
+    ),
+    (
+        "vieillessepatronal_LegiSocial.py",
+        os.path.join(os.path.dirname(__file__), "vieillessepatronal_LegiSocial.py"),
+    ),
+    (
+        "vieillessepatronal_AI.py",
+        os.path.join(os.path.dirname(__file__), "vieillessepatronal_AI.py"),
+    ),
 ]
 
 
 # --- 1. Fonctions de Scraping & Validation (Standardisées) ---
+
 
 def iso_now() -> str:
     """Retourne la date/heure actuelle au format ISO UTC."""
@@ -86,9 +96,9 @@ def core_signature(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 def compare_floats(a: Optional[float], b: Optional[float], tol: float = 1e-6) -> bool:
     """Compare deux floats (ou None) avec une tolérance."""
-    if a is None or b is None: 
+    if a is None or b is None:
         logging.warning(f"Comparaison avec None: a={a}, b={b}")
-        return a is b # Doit être None si l'un est None
+        return a is b  # Doit être None si l'un est None
     try:
         return abs(float(a) - float(b)) <= tol
     except (ValueError, TypeError):
@@ -101,13 +111,13 @@ def equal_core(sig_a: Dict, sig_b: Dict) -> Tuple[bool, Optional[str]]:
     for key in keys_to_check:
         if key not in sig_a or key not in sig_b:
             return False, f"La clé '{key}' est manquante dans l'une des sorties."
-        
+
         val_a = sig_a.get(key)
         val_b = sig_b.get(key)
-        
+
         if not compare_floats(val_a, val_b):
             return False, f"Mismatch sur la clé '{key}': {val_a} != {val_b}"
-            
+
     return True, None
 
 
@@ -117,7 +127,8 @@ def merge_sources(payloads: List[Dict[str, Any]]) -> List[str]:
     source_links = []
     for p in payloads:
         for s in p.get("meta", {}).get("source", []):
-            if not isinstance(s, dict): continue
+            if not isinstance(s, dict):
+                continue
             url = s.get("url")
             if url and isinstance(url, str) and url.strip() not in seen_urls:
                 url = url.strip()
@@ -136,11 +147,14 @@ def debug_mismatch(script_a: str, script_b: str, details: str) -> None:
 def debug_success(payloads: List[Dict[str, Any]], sigs: List[Dict[str, Any]]) -> None:
     """Logge les détails d'une concordance de taux."""
     scripts = [p.get("__script", "?") for p in payloads]
-    logging.info(f"Concordance des taux Vieillesse Patronale trouvée entre: {', '.join(scripts)}")
+    logging.info(
+        f"Concordance des taux Vieillesse Patronale trouvée entre: {', '.join(scripts)}"
+    )
     logging.info(f"  ► Valeurs clés: {json.dumps(sigs[0])}")
 
 
 # --- 2. Fonctions Supabase (Standardisées) ---
+
 
 def init_supabase_client() -> Client:
     """Initialise et retourne le client Supabase."""
@@ -148,9 +162,13 @@ def init_supabase_client() -> Client:
     supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
     if not supabase_url or not supabase_key:
         logging.critical("Variables SUPABASE_URL ou SUPABASE_SERVICE_KEY manquantes.")
-        logging.critical("Assurez-vous que .env contient SUPABASE_SERVICE_KEY (la clé 'service_role').")
-        raise EnvironmentError("Variables Supabase non définies ou clé de service manquante.")
-    
+        logging.critical(
+            "Assurez-vous que .env contient SUPABASE_SERVICE_KEY (la clé 'service_role')."
+        )
+        raise EnvironmentError(
+            "Variables Supabase non définies ou clé de service manquante."
+        )
+
     try:
         client: Client = create_client(supabase_url, supabase_key)
         logging.info("Connexion Supabase établie.")
@@ -169,35 +187,45 @@ def fetch_active_config(supabase: Client, config_key: str) -> Optional[Dict[str,
             .select("*")
             .eq("config_key", config_key)
             .eq("is_active", True)
-            .maybe_single() 
+            .maybe_single()
             .execute()
         )
         if response is None:
-            logging.error("La requête execute() a retourné 'None'. Problème de connexion ou permission (406).")
+            logging.error(
+                "La requête execute() a retourné 'None'. Problème de connexion ou permission (406)."
+            )
             return None
         return response.data
     except Exception as e:
-        logging.error(f"Impossible de récupérer la config active '{config_key}'. Erreur: {e}")
+        logging.error(
+            f"Impossible de récupérer la config active '{config_key}'. Erreur: {e}"
+        )
         raise
 
 
 def apply_patch_in_memory(
-    current_config_data: Optional[Dict[str, Any]], 
-    patch_core: Dict[str, Any] # La sortie de core_signature {"plafonne": ..., "deplafonne": ...}
+    current_config_data: Optional[Dict[str, Any]],
+    patch_core: Dict[
+        str, Any
+    ],  # La sortie de core_signature {"plafonne": ..., "deplafonne": ...}
 ) -> Dict[str, Any]:
     """
     Met à jour le bloc 'cotisations' avec les patchs 'retraite_secu_plafond' et 'retraite_secu_deplafond'.
     """
-    logging.info(f"Application des patchs '{ITEM_ID_PLAFOND}' et '{ITEM_ID_DEPLAFOND}' en mémoire...")
-    
+    logging.info(
+        f"Application des patchs '{ITEM_ID_PLAFOND}' et '{ITEM_ID_DEPLAFOND}' en mémoire..."
+    )
+
     if current_config_data:
         new_config_data = json.loads(json.dumps(current_config_data))
     else:
-        logging.warning(f"Aucune config '{CONFIG_KEY_TO_UPDATE}' trouvée. Création d'un nouveau bloc.")
+        logging.warning(
+            f"Aucune config '{CONFIG_KEY_TO_UPDATE}' trouvée. Création d'un nouveau bloc."
+        )
         new_config_data = {"cotisations": []}
 
     cotisations_list = new_config_data.get("cotisations", [])
-    
+
     patch_plafond = patch_core.get("plafonne")
     patch_deplafond = patch_core.get("deplafonne")
 
@@ -218,24 +246,28 @@ def apply_patch_in_memory(
 
     if not found_plafond:
         logging.warning(f"Item '{ITEM_ID_PLAFOND}' non trouvé. Ajout au bloc.")
-        cotisations_list.append({
-            "id": ITEM_ID_PLAFOND,
-            "libelle": "Sécurité sociale Vieillesse plafonnée",
-            "base": "brut_plafonne",
-            "salarial": 0.069, # Valeur par défaut, sera écrasée par son propre scraper
-            "patronal": patch_plafond
-        })
+        cotisations_list.append(
+            {
+                "id": ITEM_ID_PLAFOND,
+                "libelle": "Sécurité sociale Vieillesse plafonnée",
+                "base": "brut_plafonne",
+                "salarial": 0.069,  # Valeur par défaut, sera écrasée par son propre scraper
+                "patronal": patch_plafond,
+            }
+        )
 
     if not found_deplafond:
         logging.warning(f"Item '{ITEM_ID_DEPLAFOND}' non trouvé. Ajout au bloc.")
-        cotisations_list.append({
-            "id": ITEM_ID_DEPLAFOND,
-            "libelle": "Sécurité sociale Vieillesse déplafonnée",
-            "base": "brut",
-            "salarial": 0.004, # Valeur par défaut
-            "patronal": patch_deplafond
-        })
-        
+        cotisations_list.append(
+            {
+                "id": ITEM_ID_DEPLAFOND,
+                "libelle": "Sécurité sociale Vieillesse déplafonnée",
+                "base": "brut",
+                "salarial": 0.004,  # Valeur par défaut
+                "patronal": patch_deplafond,
+            }
+        )
+
     new_config_data["cotisations"] = cotisations_list
     return new_config_data
 
@@ -253,7 +285,9 @@ def update_config_in_supabase(
 
     # Scénario 0 (Cold Start) : current_row est None
     if current_row is None:
-        logging.info(f"Aucune config existante. Insertion de la v1 pour '{CONFIG_KEY_TO_UPDATE}'.")
+        logging.info(
+            f"Aucune config existante. Insertion de la v1 pour '{CONFIG_KEY_TO_UPDATE}'."
+        )
         new_row = {
             "config_key": CONFIG_KEY_TO_UPDATE,
             "config_data": new_config_data,
@@ -275,10 +309,12 @@ def update_config_in_supabase(
     current_config_data = current_row["config_data"]
     current_id = current_row["id"]
     current_version = current_row["version"]
-    
+
     # --- SCÉNARIO 1 : IDENTIQUE ---
     if current_config_data == new_config_data:
-        logging.info("Les données Vieillesse Patronale sont inchangées. Mise à jour de 'last_checked_at'.")
+        logging.info(
+            "Les données Vieillesse Patronale sont inchangées. Mise à jour de 'last_checked_at'."
+        )
         try:
             supabase.table("payroll_config").update(
                 {
@@ -288,13 +324,17 @@ def update_config_in_supabase(
             ).eq("id", current_id).execute()
             logging.info("✅ Succès: 'last_checked_at' mis à jour.")
         except Exception as e:
-            logging.error(f"Échec de la mise à jour 'last_checked_at' pour ID {current_id}. Erreur: {e}")
+            logging.error(
+                f"Échec de la mise à jour 'last_checked_at' pour ID {current_id}. Erreur: {e}"
+            )
             raise
-    
+
     # --- SCÉNARIO 2 : DIFFÉRENT ---
     else:
-        logging.warning(f"Différence détectée pour Vieillesse Patronale. Création de la version {current_version + 1}...")
-        
+        logging.warning(
+            f"Différence détectée pour Vieillesse Patronale. Création de la version {current_version + 1}..."
+        )
+
         new_row = {
             "config_key": CONFIG_KEY_TO_UPDATE,
             "config_data": new_config_data,
@@ -304,41 +344,50 @@ def update_config_in_supabase(
             "last_checked_at": iso_now(),
             "source_links": source_links,
         }
-        
+
         try:
-            logging.info(f"Désactivation de la version {current_version} (ID: {current_id})...")
-            supabase.table("payroll_config").update(
-                {"is_active": False}
-            ).eq("id", current_id).execute()
-            
+            logging.info(
+                f"Désactivation de la version {current_version} (ID: {current_id})..."
+            )
+            supabase.table("payroll_config").update({"is_active": False}).eq(
+                "id", current_id
+            ).execute()
+
             logging.info(f"Insertion de la version {current_version + 1}...")
             supabase.table("payroll_config").insert(new_row).execute()
-            
-            logging.info(f"✅ Succès: '{CONFIG_KEY_TO_UPDATE}' mis à jour vers v{current_version + 1}.")
-            
+
+            logging.info(
+                f"✅ Succès: '{CONFIG_KEY_TO_UPDATE}' mis à jour vers v{current_version + 1}."
+            )
+
         except Exception as e:
             logging.error(f"Échec de la transaction de versioning. Erreur: {e}")
             try:
-                logging.warning(f"Tentative de rollback: Réactivation de la v{current_version} (ID: {current_id})...")
-                supabase.table("payroll_config").update(
-                    {"is_active": True}
-                ).eq("id", current_id).execute()
+                logging.warning(
+                    f"Tentative de rollback: Réactivation de la v{current_version} (ID: {current_id})..."
+                )
+                supabase.table("payroll_config").update({"is_active": True}).eq(
+                    "id", current_id
+                ).execute()
             except Exception as rollback_e:
-                logging.critical(f"ÉCHEC CRITIQUE DU ROLLBACK. BDD en état instable. Erreur: {rollback_e}")
+                logging.critical(
+                    f"ÉCHEC CRITIQUE DU ROLLBACK. BDD en état instable. Erreur: {rollback_e}"
+                )
             raise
 
 
 # --- 3. Fonction Principale ---
 
+
 def main() -> None:
     """Orchestre l'ensemble du processus de mise à jour des taux de vieillesse patronaux."""
     logging.info("--- DÉBUT Orchestrateur Vieillesse Patronale ---")
-    
+
     try:
         # 1. Lancer tous les scrapers
         payloads: List[Dict[str, Any]] = []
         labels: List[str] = []
-        
+
         for label, path in SCRIPTS_TO_RUN:
             payloads.append(run_script(label, path))
             labels.append(label)
@@ -355,41 +404,42 @@ def main() -> None:
         # 3. Valider la concordance
         all_equal = True
         for i in range(len(sigs) - 1):
-            are_equal, details = equal_core(sigs[i], sigs[i+1])
+            are_equal, details = equal_core(sigs[i], sigs[i + 1])
             if not are_equal:
                 all_equal = False
-                debug_mismatch(payloads[i]['__script'], payloads[i+1]['__script'], details)
+                debug_mismatch(
+                    payloads[i]["__script"], payloads[i + 1]["__script"], details
+                )
                 break
 
         if not all_equal:
             logging.error("Divergence entre les sources de scraping. Arrêt.")
             sys.exit(2)
-        
+
         debug_success(payloads, sigs)
-        
+
         # Le patch validé et les sources
         final_patch_data = sigs[0]
         source_links = merge_sources(payloads)
 
         # 4. Initialiser la BDD
         supabase = init_supabase_client()
-        
+
         # 5. Lire l'état actuel (peut être None)
         current_row = fetch_active_config(supabase, CONFIG_KEY_TO_UPDATE)
-        
+
         # 6. Appliquer le patch en mémoire
         new_config_data_blob = apply_patch_in_memory(
-            current_row["config_data"] if current_row else None, 
-            final_patch_data
+            current_row["config_data"] if current_row else None, final_patch_data
         )
-        
+
         # 7. Comparer et écrire dans Supabase
         update_config_in_supabase(
             supabase, current_row, new_config_data_blob, source_links
         )
-        
+
         logging.info("--- FIN Orchestrateur Vieillesse Patronale ---")
-        
+
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")
         sys.exit(int(str(e).split()[-1]) if str(e).split()[-1].isdigit() else 1)

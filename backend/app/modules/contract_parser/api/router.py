@@ -8,6 +8,7 @@ Dépendances externes au module (toutes sous app/*) :
 - app.core.security : get_current_user (auth transverse).
 - app.modules.users.schemas.responses : User (type du contexte auth, contrat inter-module).
 """
+
 import traceback
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -27,7 +28,9 @@ router = APIRouter(prefix="/api/contract-parser", tags=["Contract Parser"])
 def _validate_pdf_file(file: UploadFile) -> None:
     """Validation entrée : fichier PDF requis. Lève HTTPException sinon."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Le fichier doit être au format PDF.")
+        raise HTTPException(
+            status_code=400, detail="Le fichier doit être au format PDF."
+        )
 
 
 @router.post("/extract-from-pdf", response_model=ContractExtractionResponse)
@@ -92,7 +95,9 @@ async def extract_rib_from_pdf_endpoint(
         )
 
 
-@router.post("/extract-questionnaire-from-pdf", response_model=QuestionnaireExtractionResponse)
+@router.post(
+    "/extract-questionnaire-from-pdf", response_model=QuestionnaireExtractionResponse
+)
 async def extract_questionnaire_from_pdf_endpoint(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),

@@ -71,7 +71,12 @@ class MedicalObligationRepository(IObligationRepository):
 
     def obligation_exists(self, obligation_id: str, company_id: str) -> bool:
         """True si l’obligation existe pour cette entreprise (pour lever 404 côté application)."""
-        return infra_queries.get_obligation_by_id(self._supabase, obligation_id, company_id) is not None
+        return (
+            infra_queries.get_obligation_by_id(
+                self._supabase, obligation_id, company_id
+            )
+            is not None
+        )
 
     def create_on_demand(
         self,
@@ -94,7 +99,9 @@ class MedicalObligationRepository(IObligationRepository):
         }
         infra_queries.insert_obligation(self._supabase, payload)
 
-    def list_for_employee(self, company_id: str, employee_id: str) -> List[Dict[str, Any]]:
+    def list_for_employee(
+        self, company_id: str, employee_id: str
+    ) -> List[Dict[str, Any]]:
         return infra_queries.list_obligations_raw(
             self._supabase,
             company_id,
@@ -102,7 +109,9 @@ class MedicalObligationRepository(IObligationRepository):
             with_employee_join=True,
         )
 
-    def list_for_employee_no_join(self, company_id: str, employee_id: str) -> List[Dict[str, Any]]:
+    def list_for_employee_no_join(
+        self, company_id: str, employee_id: str
+    ) -> List[Dict[str, Any]]:
         """Liste obligations d’un employé sans join employee (pour /me)."""
         return infra_queries.list_obligations_raw(
             self._supabase,
@@ -114,7 +123,14 @@ class MedicalObligationRepository(IObligationRepository):
     # Méthodes de lookup employé (hors interface, utilisées par l’application)
 
     def employee_exists(self, employee_id: str, company_id: str) -> bool:
-        return infra_queries.get_employee_by_id(self._supabase, employee_id, company_id) is not None
+        return (
+            infra_queries.get_employee_by_id(self._supabase, employee_id, company_id)
+            is not None
+        )
 
-    def get_employee_id_by_user_id(self, user_id: str, company_id: str) -> Optional[str]:
-        return infra_queries.get_employee_id_by_user_id(self._supabase, user_id, company_id)
+    def get_employee_id_by_user_id(
+        self, user_id: str, company_id: str
+    ) -> Optional[str]:
+        return infra_queries.get_employee_id_by_user_id(
+            self._supabase, user_id, company_id
+        )

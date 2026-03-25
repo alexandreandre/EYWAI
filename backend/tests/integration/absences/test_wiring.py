@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module absences : injection des dépendances et fl
 Vérifie que les routes API appellent bien la couche application (commands, queries) et que
 le module est correctement monté dans l'app.
 """
+
 from datetime import date, datetime
 from unittest.mock import patch
 
@@ -24,7 +25,9 @@ class TestAbsencesRouterMounted:
         data = response.json()
         assert isinstance(data, list)
 
-    def test_get_absences_root_uses_queries_get_absence_requests(self, client: TestClient):
+    def test_get_absences_root_uses_queries_get_absence_requests(
+        self, client: TestClient
+    ):
         """GET /api/absences/ utilise bien la couche application (queries)."""
         with patch(
             "app.modules.absences.api.router.queries.get_absence_requests"
@@ -34,7 +37,12 @@ class TestAbsencesRouterMounted:
                     "id": "wired-req-1",
                     "created_at": datetime(2025, 6, 1, 9, 0, 0),
                     "employee_id": "emp-1",
-                    "employee": {"id": "emp-1", "first_name": "A", "last_name": "B", "balances": []},
+                    "employee": {
+                        "id": "emp-1",
+                        "first_name": "A",
+                        "last_name": "B",
+                        "balances": [],
+                    },
                     "type": "conge_paye",
                     "selected_days": ["2025-06-10"],
                     "comment": None,
@@ -119,15 +127,19 @@ class TestAbsencesCommandsQueriesWiring:
                 "app.modules.absences.application.commands.absence_repository"
             ) as repo:
                 repo.create.return_value = {"id": "r1", "status": "pending"}
-                request_data = type("Req", (), {
-                    "selected_days": [date(2025, 6, 10)],
-                    "type": "conge_paye",
-                    "employee_id": "emp-1",
-                    "event_subtype": None,
-                    "comment": None,
-                    "attachment_url": None,
-                    "filename": None,
-                })()
+                request_data = type(
+                    "Req",
+                    (),
+                    {
+                        "selected_days": [date(2025, 6, 10)],
+                        "type": "conge_paye",
+                        "employee_id": "emp-1",
+                        "event_subtype": None,
+                        "comment": None,
+                        "attachment_url": None,
+                        "filename": None,
+                    },
+                )()
                 result = commands.create_absence_request(request_data)
                 assert result["id"] == "r1"
                 repo.create.assert_called_once()

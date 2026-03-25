@@ -3,6 +3,7 @@ Requêtes (cas d'usage lecture) du module employee_exits.
 
 Délèguent à domain + infrastructure. Comportement identique au router legacy.
 """
+
 import sys
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -10,8 +11,12 @@ from typing import Any, Dict, List, Optional
 from app.core.database import supabase
 
 from app.modules.employee_exits.application.dto import EmployeeExitApplicationError
-from app.modules.employee_exits.application.service import enrich_exit_with_documents_and_checklist
-from app.modules.employee_exits.infrastructure.mappers import build_document_data_from_exit
+from app.modules.employee_exits.application.service import (
+    enrich_exit_with_documents_and_checklist,
+)
+from app.modules.employee_exits.infrastructure.mappers import (
+    build_document_data_from_exit,
+)
 from app.modules.employee_exits.infrastructure.providers import (
     get_exit_storage_provider,
     get_indemnity_calculator,
@@ -87,7 +92,9 @@ def calculate_exit_indemnities(
     exit_repo = EmployeeExitRepository(sb)
     calculator = get_indemnity_calculator()
     exit_data = exit_repo.get_with_employee(
-        exit_id, company_id, "id, first_name, last_name, hire_date, salaire_de_base, job_title"
+        exit_id,
+        company_id,
+        "id, first_name, last_name, hire_date, salaire_de_base, job_title",
     )
     if not exit_data:
         raise EmployeeExitApplicationError(404, "Sortie non trouvée")
@@ -95,15 +102,25 @@ def calculate_exit_indemnities(
     try:
         indemnities = calculator.calculate(employee_data, exit_data, sb)
     except ImportError as e:
-        raise EmployeeExitApplicationError(500, f"Module de calcul non disponible: {str(e)}")
+        raise EmployeeExitApplicationError(
+            500, f"Module de calcul non disponible: {str(e)}"
+        )
     except Exception as e:
         print(f"✗ Erreur calcul: {e}", file=sys.stderr)
-        raise EmployeeExitApplicationError(500, f"Erreur lors du calcul des indemnités: {str(e)}")
-    exit_repo.update(exit_id, company_id, {
-        "calculated_indemnities": indemnities,
-        "remaining_vacation_days": indemnities.get("indemnite_conges", {}).get("jours_restants", 0),
-        "final_net_amount": indemnities.get("total_net_indemnities", 0),
-    })
+        raise EmployeeExitApplicationError(
+            500, f"Erreur lors du calcul des indemnités: {str(e)}"
+        )
+    exit_repo.update(
+        exit_id,
+        company_id,
+        {
+            "calculated_indemnities": indemnities,
+            "remaining_vacation_days": indemnities.get("indemnite_conges", {}).get(
+                "jours_restants", 0
+            ),
+            "final_net_amount": indemnities.get("total_net_indemnities", 0),
+        },
+    )
     return indemnities
 
 
@@ -121,7 +138,9 @@ def get_document_upload_url(
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     storage_path = f"exits/{exit_id}/{ts}_{filename}"
     try:
-        upload_url = get_exit_storage_provider(sb).create_signed_upload_url(storage_path)
+        upload_url = get_exit_storage_provider(sb).create_signed_upload_url(
+            storage_path
+        )
         return {
             "upload_url": upload_url,
             "storage_path": storage_path,
@@ -210,12 +229,14 @@ def get_document_edit_history(
         raise EmployeeExitApplicationError(404, "Document non trouvé")
     history = []
     if doc.get("manually_edited") and doc.get("last_edited_at"):
-        history.append({
-            "version": doc.get("version", 1),
-            "edited_by": doc.get("last_edited_by"),
-            "edited_at": doc.get("last_edited_at"),
-            "changes_summary": "Document modifié",
-        })
+        history.append(
+            {
+                "version": doc.get("version", 1),
+                "edited_by": doc.get("last_edited_by"),
+                "edited_at": doc.get("last_edited_at"),
+                "changes_summary": "Document modifié",
+            }
+        )
     return {
         "document_id": document_id,
         "total_versions": doc.get("version", 1),

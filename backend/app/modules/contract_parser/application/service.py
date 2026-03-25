@@ -4,6 +4,7 @@ Orchestration du module contract_parser.
 Délègue l'extraction PDF à l'infrastructure (PdfTextExtractor).
 Les commandes utilisent aussi ExtractionLLMProvider pour l'appel au LLM.
 """
+
 from __future__ import annotations
 
 from typing import Tuple

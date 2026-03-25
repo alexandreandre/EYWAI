@@ -4,6 +4,7 @@ Commandes (cas d'usage écriture) du module absences.
 Utilise domain (règles) et infrastructure (repository, providers, queries).
 - ValueError / LookupError : à traduire en HTTPException 400 / 404 par l'appelant.
 """
+
 from __future__ import annotations
 
 import sys
@@ -112,14 +113,14 @@ def update_absence_request_status(
                 if isinstance(hire_date_raw, str)
                 else hire_date_raw
             )
-        cp_acquis = (
-            calculate_acquired_cp(hire_date, date.today()) if hire_date else 0
-        )
+        cp_acquis = calculate_acquired_cp(hire_date, date.today()) if hire_date else 0
         other_validated = list_absence_requests_validated_for_cp(
             req_before["employee_id"], exclude_request_id=request_id
         )
         cp_pris_autres = sum(
-            r.get("jours_payes") if r.get("jours_payes") is not None else len(r.get("selected_days", []))
+            r.get("jours_payes")
+            if r.get("jours_payes") is not None
+            else len(r.get("selected_days", []))
             for r in other_validated
         )
         available = max(0, cp_acquis - cp_pris_autres)
@@ -166,13 +167,9 @@ def generate_salary_certificate(
     if not absence:
         raise LookupError("Arrêt non trouvé.")
     if absence.get("status") != "validated":
-        raise ValueError(
-            "L'arrêt doit être validé pour générer une attestation."
-        )
+        raise ValueError("L'arrêt doit être validé pour générer une attestation.")
     if not requires_salary_certificate(absence.get("type", "")):
-        raise ValueError(
-            "Ce type d'arrêt ne nécessite pas d'attestation de salaire."
-        )
+        raise ValueError("Ce type d'arrêt ne nécessite pas d'attestation de salaire.")
     cert_id = salary_certificate_provider.generate_for_absence(
         absence_id, generated_by=generated_by
     )

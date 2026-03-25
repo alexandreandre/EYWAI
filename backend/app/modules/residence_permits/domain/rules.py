@@ -5,6 +5,7 @@ Logique déplacée depuis services.residence_permit_service.ResidencePermitServi
 Aucune I/O, aucun FastAPI : uniquement datetime et constantes.
 Comportement strictement identique au service legacy.
 """
+
 from __future__ import annotations
 
 from datetime import date, timedelta

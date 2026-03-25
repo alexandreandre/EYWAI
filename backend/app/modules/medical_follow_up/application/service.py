@@ -26,13 +26,19 @@ def resolve_company_id_for_medical(current_user: Any) -> Optional[str]:
 def get_obligation_repository():
     """Retourne une instance de MedicalObligationRepository (client Supabase injecté)."""
     from app.modules.medical_follow_up.infrastructure.database import get_supabase
-    from app.modules.medical_follow_up.infrastructure.repository import MedicalObligationRepository
+    from app.modules.medical_follow_up.infrastructure.repository import (
+        MedicalObligationRepository,
+    )
+
     return MedicalObligationRepository(get_supabase())
 
 
 def get_settings_provider():
     """Retourne une instance de CompanyMedicalSettingsProvider."""
-    from app.modules.medical_follow_up.infrastructure.providers import CompanyMedicalSettingsProvider
+    from app.modules.medical_follow_up.infrastructure.providers import (
+        CompanyMedicalSettingsProvider,
+    )
+
     return CompanyMedicalSettingsProvider()
 
 
@@ -49,6 +55,7 @@ def compute_obligations_for_employee(company_id: str, employee_id: str) -> List[
     from app.modules.medical_follow_up.infrastructure.obligation_engine import (
         compute_obligations_for_employee as _compute,
     )
+
     return _compute(company_id, employee_id)
 
 
@@ -74,5 +81,7 @@ def ensure_rh_access(current_user: Any, company_id: str) -> None:
     """Lève HTTPException 403 si pas d’accès RH sur l’entreprise."""
     from fastapi import HTTPException
 
-    if not getattr(current_user, "has_rh_access_in_company", lambda _: False)(company_id):
+    if not getattr(current_user, "has_rh_access_in_company", lambda _: False)(
+        company_id
+    ):
         raise HTTPException(status_code=403, detail="Accès non autorisé")

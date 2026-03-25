@@ -5,6 +5,7 @@ Délègue toute la logique à l’application du module.
 Pas d’accès DB, pas de logique métier : auth + appel application + retour.
 Comportement HTTP identique au legacy (chemins, codes, messages).
 """
+
 from __future__ import annotations
 
 from typing import List
@@ -86,9 +87,7 @@ def delete_mutuelle_type_route(
     company_id = user.active_company_id
     if not company_id:
         raise HTTPException(status_code=400, detail="Aucune entreprise active")
-    if not user.is_super_admin and not user.has_rh_access_in_company(
-        str(company_id)
-    ):
+    if not user.is_super_admin and not user.has_rh_access_in_company(str(company_id)):
         raise HTTPException(
             status_code=403,
             detail="Seuls les Admin/RH peuvent supprimer des formules de mutuelle",

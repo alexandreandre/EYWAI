@@ -13,7 +13,7 @@ print("   Credentials: anthony.espinosa6@gmail.com / (mot de passe réel)")
 
 email_data = {
     "username": "anthony.espinosa6@gmail.com",
-    "password": input("   Entrez le mot de passe pour anthony.espinosa6@gmail.com: ")
+    "password": input("   Entrez le mot de passe pour anthony.espinosa6@gmail.com: "),
 }
 
 try:
@@ -35,7 +35,7 @@ print("   Credentials: anthony.espinosa / (même mot de passe)")
 
 username_data = {
     "username": "anthony.espinosa",
-    "password": email_data["password"]  # Même mot de passe
+    "password": email_data["password"],  # Même mot de passe
 }
 
 try:
@@ -48,12 +48,13 @@ try:
         # Tester /me avec ce token
         print("\n   Test /me avec le token...")
         me_response = requests.get(
-            f"{BASE_URL}/me",
-            headers={"Authorization": f"Bearer {token}"}
+            f"{BASE_URL}/me", headers={"Authorization": f"Bearer {token}"}
         )
         if me_response.status_code == 200:
             user_data = me_response.json()
-            print(f"   ✅ Profil récupéré: {user_data.get('first_name')} {user_data.get('last_name')}")
+            print(
+                f"   ✅ Profil récupéré: {user_data.get('first_name')} {user_data.get('last_name')}"
+            )
         else:
             print(f"   ❌ Échec /me: {me_response.status_code}")
     else:

@@ -6,6 +6,7 @@ Vérifie que :
 - Le flux reader → get_all_rates (query) → group_payroll_configs_by_key (service) → domain rules
   produit le résultat attendu sans erreur.
 """
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -59,7 +60,9 @@ class TestRatesDependencyInjection:
 class TestRatesEndToEndFlow:
     """Flux complet : reader → query → service → domain → réponse HTTP."""
 
-    def test_full_flow_with_mock_reader_produces_formatted_output(self, client: TestClient):
+    def test_full_flow_with_mock_reader_produces_formatted_output(
+        self, client: TestClient
+    ):
         """De la lecture (mock) à la réponse JSON : format de sortie correct (clés API)."""
         rows = [
             {
@@ -97,7 +100,14 @@ class TestRatesEndToEndFlow:
         """get_all_rates(reader) appelle le reader et retourne le dict groupé (sans passer par HTTP)."""
         mock_reader = MagicMock()
         mock_reader.get_all_active_rows.return_value = [
-            {"config_key": "k1", "config_data": {}, "version": 1, "last_checked_at": None, "comment": None, "source_links": None},
+            {
+                "config_key": "k1",
+                "config_data": {},
+                "version": 1,
+                "last_checked_at": None,
+                "comment": None,
+                "source_links": None,
+            },
         ]
         result = get_all_rates(mock_reader)
         mock_reader.get_all_active_rows.assert_called_once()

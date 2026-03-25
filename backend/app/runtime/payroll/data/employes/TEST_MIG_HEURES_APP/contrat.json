@@ -1,0 +1,29 @@
+{
+  "salarie": {
+    "nom": "Dupont",
+    "prenom": "Jean",
+    "nir": ""
+  },
+  "contrat": {
+    "date_entree": "2024-01-01",
+    "statut": "Non-Cadre",
+    "emploi": "Employé",
+    "temps_travail": {
+      "duree_hebdomadaire": 35.0
+    }
+  },
+  "remuneration": {
+    "salaire_de_base": {
+      "valeur": 2000.0
+    },
+    "classification_conventionnelle": {},
+    "avantages_en_nature": {}
+  },
+  "specificites_paie": {
+    "prevoyance": "NON",
+    "prelevement_a_la_source": {
+      "taux": 0
+    },
+    "is_alsace_moselle": false
+  }
+}

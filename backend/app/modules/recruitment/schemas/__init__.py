@@ -3,6 +3,7 @@
 Schémas API du module recruitment (requêtes / réponses) — source de vérité migrée.
 Import de compatibilité : from app.modules.recruitment.schemas import JobOut, JobCreate, ...
 """
+
 from app.modules.recruitment.schemas.requests import (
     JobCreate,
     JobUpdate,

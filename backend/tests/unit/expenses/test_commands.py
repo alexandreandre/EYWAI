@@ -3,6 +3,7 @@ Tests unitaires des commandes expenses (application/commands.py).
 
 Chaque commande est testée avec le repository mocké (patch ExpenseRepository).
 """
+
 from datetime import date
 from unittest.mock import MagicMock, patch
 
@@ -105,7 +106,9 @@ class TestCreateExpense:
             type="Fournitures",
         )
         mock_repo = MagicMock()
-        mock_repo.create.side_effect = ValueError("Échec de la création de la note de frais.")
+        mock_repo.create.side_effect = ValueError(
+            "Échec de la création de la note de frais."
+        )
 
         with patch(
             "app.modules.expenses.application.commands.ExpenseRepository",
@@ -161,7 +164,9 @@ class TestUpdateExpenseStatus:
         assert result["status"] == "rejected"
 
     def test_update_expense_status_not_found_returns_none(self):
-        input_ = UpdateExpenseStatusInput(expense_id="exp-inexistant", status="validated")
+        input_ = UpdateExpenseStatusInput(
+            expense_id="exp-inexistant", status="validated"
+        )
         mock_repo = MagicMock()
         mock_repo.update_status.return_value = None
 

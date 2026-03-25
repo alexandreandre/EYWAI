@@ -11,12 +11,16 @@ import calendar
 from jinja2 import Environment, FileSystemLoader
 from weasyprint import HTML
 
-from app.modules.payroll.engine.analyser_jours_forfait import analyser_jours_forfait_du_mois
+from app.modules.payroll.engine.analyser_jours_forfait import (
+    analyser_jours_forfait_du_mois,
+)
 from app.modules.payroll.engine.bulletin import creer_bulletin_final
 from app.modules.payroll.engine.calcul_brut_forfait import calculer_salaire_brut_forfait
 from app.modules.payroll.engine.calcul_cotisations import calculer_cotisations
 from app.modules.payroll.engine.calcul_net import calculer_net_et_impot
-from app.modules.payroll.engine.calcul_reduction_generale import calculer_reduction_generale
+from app.modules.payroll.engine.calcul_reduction_generale import (
+    calculer_reduction_generale,
+)
 from app.modules.payroll.engine.contexte import ContextePaie
 
 from .payslip_run_common import (
@@ -45,9 +49,7 @@ def _preparer_calendrier_enrichi_forfait(
         else {}
     )
     prevu_par_jour = {j["jour"]: j for j in calendrier_prevu_data}
-    reels_par_jour = {
-        j["jour"]: j for j in horaires_reels_data.get("calendrier", [])
-    }
+    reels_par_jour = {j["jour"]: j for j in horaires_reels_data.get("calendrier", [])}
     calendrier_final_mois = []
     _, num_days = calendar.monthrange(annee, mois)
     for day_num in range(1, num_days + 1):
@@ -142,9 +144,9 @@ def run_payslip_generation_forfait(
                     j["mois"] = m
                     planned_data_all_months.append(j)
             if chemin_cal_reel.exists():
-                reel_data = json.loads(
-                    chemin_cal_reel.read_text(encoding="utf-8")
-                ).get("calendrier_reel", [])
+                reel_data = json.loads(chemin_cal_reel.read_text(encoding="utf-8")).get(
+                    "calendrier_reel", []
+                )
                 for j in reel_data:
                     j = j.copy()
                     j["annee"] = a
@@ -194,7 +196,11 @@ def run_payslip_generation_forfait(
                     "soumise_a_cotisations", saisie.get("soumise_a_csg", True)
                 )
                 soumise_impot_par_defaut = saisie.get("soumise_a_impot", True)
-            prime_calculee = {"libelle": libelle, "montant": montant, "prime_id": prime_id}
+            prime_calculee = {
+                "libelle": libelle,
+                "montant": montant,
+                "prime_id": prime_id,
+            }
             if prime_id == "prime_partage_valeur":
                 if effectif_entreprise >= 50:
                     if soumise_cotis:

@@ -5,6 +5,7 @@ Représentations métier alignées sur les tables scraping_sources, scraping_job
 scraping_schedules, scraping_alerts. Pour l'instant placeholders ; la migration
 remplira depuis l'infrastructure (dict Supabase) via des mappers.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

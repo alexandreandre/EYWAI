@@ -12,7 +12,10 @@ def validate_nir(nir: Optional[str]) -> Tuple[bool, Optional[str]]:
         return False, "NIR manquant"
     nir_clean = nir.replace(" ", "").replace("-", "").replace(".", "")
     if len(nir_clean) != 15:
-        return False, f"NIR invalide : doit contenir 15 chiffres (actuellement {len(nir_clean)})"
+        return (
+            False,
+            f"NIR invalide : doit contenir 15 chiffres (actuellement {len(nir_clean)})",
+        )
     if not nir_clean.isdigit():
         return False, "NIR invalide : doit contenir uniquement des chiffres"
     try:
@@ -33,7 +36,10 @@ def validate_siret(siret: Optional[str]) -> Tuple[bool, Optional[str]]:
         return False, "SIRET manquant"
     siret_clean = siret.replace(" ", "").replace("-", "")
     if len(siret_clean) != 14:
-        return False, f"SIRET invalide : doit contenir 14 chiffres (actuellement {len(siret_clean)})"
+        return (
+            False,
+            f"SIRET invalide : doit contenir 14 chiffres (actuellement {len(siret_clean)})",
+        )
     if not siret_clean.isdigit():
         return False, "SIRET invalide : doit contenir uniquement des chiffres"
 
@@ -51,7 +57,9 @@ def validate_siret(siret: Optional[str]) -> Tuple[bool, Optional[str]]:
 
 
 def get_company_data(company_id: str) -> Dict[str, Any]:
-    response = supabase.table("companies").select("*").eq("id", company_id).single().execute()
+    response = (
+        supabase.table("companies").select("*").eq("id", company_id).single().execute()
+    )
     return response.data if response.data else {}
 
 
@@ -62,8 +70,10 @@ def get_dsn_employees_data(
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     year, month = map(int, period.split("-"))
 
-    query = supabase.table("employees").select(
-        """
+    query = (
+        supabase.table("employees")
+        .select(
+            """
         id,
         first_name,
         last_name,
@@ -75,21 +85,29 @@ def get_dsn_employees_data(
         statut,
         company_id
         """
-    ).eq("company_id", company_id)
+        )
+        .eq("company_id", company_id)
+    )
     if employee_ids:
         query = query.in_("id", employee_ids)
     employees_response = query.execute()
     employees = employees_response.data or []
 
-    payslips_query = supabase.table("payslips").select(
-        """
+    payslips_query = (
+        supabase.table("payslips")
+        .select(
+            """
         id,
         employee_id,
         month,
         year,
         payslip_data
         """
-    ).eq("company_id", company_id).eq("year", year).eq("month", month)
+        )
+        .eq("company_id", company_id)
+        .eq("year", year)
+        .eq("month", month)
+    )
     if employee_ids:
         payslips_query = payslips_query.in_("employee_id", employee_ids)
     payslips_response = payslips_query.execute()
@@ -140,16 +158,18 @@ def get_dsn_employees_data(
             for c in cotisations_list
             if isinstance(c, dict)
         )
-        employees_data.append({
-            "employee": employee,
-            "payslip": payslip,
-            "brut": brut,
-            "net_imposable": net_imposable,
-            "pas": pas,
-            "cotisations_salariales": cotisations_salariales,
-            "cotisations_patronales": cotisations_patronales,
-            "cotisations_detail": cotisations_list,
-        })
+        employees_data.append(
+            {
+                "employee": employee,
+                "payslip": payslip,
+                "brut": brut,
+                "net_imposable": net_imposable,
+                "pas": pas,
+                "cotisations_salariales": cotisations_salariales,
+                "cotisations_patronales": cotisations_patronales,
+                "cotisations_detail": cotisations_list,
+            }
+        )
         totals["nombre_salaries"] += 1
         totals["nombre_contrats"] += 1
         totals["masse_salariale_brute"] += brut
@@ -174,22 +194,26 @@ def check_dsn_data(
     siret = company_data.get("siret")
     siret_valid, siret_error = validate_siret(siret)
     if not siret_valid:
-        anomalies.append({
-            "type": "error",
-            "message": f"SIRET établissement : {siret_error}",
-            "severity": "blocking",
-            "employee_id": None,
-            "employee_name": None,
-        })
+        anomalies.append(
+            {
+                "type": "error",
+                "message": f"SIRET établissement : {siret_error}",
+                "severity": "blocking",
+                "employee_id": None,
+                "employee_name": None,
+            }
+        )
     code_naf = company_data.get("code_naf")
     if not code_naf:
-        anomalies.append({
-            "type": "error",
-            "message": "Code NAF manquant pour l'établissement",
-            "severity": "blocking",
-            "employee_id": None,
-            "employee_name": None,
-        })
+        anomalies.append(
+            {
+                "type": "error",
+                "message": "Code NAF manquant pour l'établissement",
+                "severity": "blocking",
+                "employee_id": None,
+                "employee_name": None,
+            }
+        )
     address = company_data.get("address")
     if not address or not isinstance(address, dict):
         warnings.append("Adresse établissement incomplète")
@@ -212,22 +236,26 @@ def check_dsn_data(
         nir = employee.get("nir")
         nir_valid, nir_error = validate_nir(nir)
         if not nir_valid:
-            anomalies.append({
-                "type": "error",
-                "message": f"Salarié {employee_name} : {nir_error}",
-                "severity": "blocking",
-                "employee_id": employee_id,
-                "employee_name": employee_name,
-            })
+            anomalies.append(
+                {
+                    "type": "error",
+                    "message": f"Salarié {employee_name} : {nir_error}",
+                    "severity": "blocking",
+                    "employee_id": employee_id,
+                    "employee_name": employee_name,
+                }
+            )
         contract_type = employee.get("contract_type")
         if not contract_type:
-            anomalies.append({
-                "type": "error",
-                "message": f"Salarié {employee_name} : type de contrat manquant",
-                "severity": "blocking",
-                "employee_id": employee_id,
-                "employee_name": employee_name,
-            })
+            anomalies.append(
+                {
+                    "type": "error",
+                    "message": f"Salarié {employee_name} : type de contrat manquant",
+                    "severity": "blocking",
+                    "employee_id": employee_id,
+                    "employee_name": employee_name,
+                }
+            )
         adresse = employee.get("adresse")
         if not adresse or not isinstance(adresse, dict):
             warnings.append(f"Salarié {employee_name} : adresse incomplète")
@@ -241,21 +269,25 @@ def check_dsn_data(
         brut = emp_data.get("brut", 0)
         net_imposable = emp_data.get("net_imposable", 0)
         if brut <= 0:
-            anomalies.append({
-                "type": "error",
-                "message": f"Salarié {employee_name} : brut ≤ 0",
-                "severity": "blocking",
-                "employee_id": employee_id,
-                "employee_name": employee_name,
-            })
+            anomalies.append(
+                {
+                    "type": "error",
+                    "message": f"Salarié {employee_name} : brut ≤ 0",
+                    "severity": "blocking",
+                    "employee_id": employee_id,
+                    "employee_name": employee_name,
+                }
+            )
         if net_imposable > brut:
-            anomalies.append({
-                "type": "error",
-                "message": f"Salarié {employee_name} : net imposable > brut (incohérence)",
-                "severity": "blocking",
-                "employee_id": employee_id,
-                "employee_name": employee_name,
-            })
+            anomalies.append(
+                {
+                    "type": "error",
+                    "message": f"Salarié {employee_name} : net imposable > brut (incohérence)",
+                    "severity": "blocking",
+                    "employee_id": employee_id,
+                    "employee_name": employee_name,
+                }
+            )
         specificites = employee.get("specificites_paie", {})
         if isinstance(specificites, dict):
             mutuelle = specificites.get("mutuelle", {})
@@ -321,19 +353,21 @@ def preview_dsn(
                     organismes.add("PREVOYANCE")
                 elif "MUTUELLE" in libelle.upper():
                     organismes.add("MUTUELLE")
-        employees_preview.append({
-            "employee_id": employee.get("id"),
-            "nom": employee.get("last_name", ""),
-            "prenom": employee.get("first_name", ""),
-            "nir": employee.get("nir"),
-            "contrat_type": employee.get("contract_type"),
-            "brut": emp_data.get("brut", 0),
-            "net_imposable": emp_data.get("net_imposable", 0),
-            "pas": emp_data.get("pas", 0),
-            "cotisations_salariales": emp_data.get("cotisations_salariales", 0),
-            "cotisations_patronales": emp_data.get("cotisations_patronales", 0),
-            "organismes": list(organismes),
-        })
+        employees_preview.append(
+            {
+                "employee_id": employee.get("id"),
+                "nom": employee.get("last_name", ""),
+                "prenom": employee.get("first_name", ""),
+                "nir": employee.get("nir"),
+                "contrat_type": employee.get("contract_type"),
+                "brut": emp_data.get("brut", 0),
+                "net_imposable": emp_data.get("net_imposable", 0),
+                "pas": emp_data.get("pas", 0),
+                "cotisations_salariales": emp_data.get("cotisations_salariales", 0),
+                "cotisations_patronales": emp_data.get("cotisations_patronales", 0),
+                "organismes": list(organismes),
+            }
+        )
 
     organismes_summary = {}
     for emp_data in employees_data:
@@ -410,9 +444,7 @@ def generate_dsn_xml(
     establishment_id: Optional[str] = None,
 ) -> bytes:
     company_data = get_company_data(company_id)
-    employees_data, totals = get_dsn_employees_data(
-        company_id, period, employee_ids
-    )
+    employees_data, totals = get_dsn_employees_data(company_id, period, employee_ids)
     year, month = map(int, period.split("-"))
 
     root = ET.Element("DSN")

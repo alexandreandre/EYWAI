@@ -3,6 +3,7 @@ Schémas Pydantic sortie API du module employee_exits.
 
 Migrés depuis schemas/employee_exit.py — comportement identique.
 """
+
 from datetime import date, datetime
 from typing import Any, Dict, List, Literal, Optional
 

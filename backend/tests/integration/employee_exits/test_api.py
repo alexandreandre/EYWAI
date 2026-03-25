@@ -13,6 +13,7 @@ Fixture optionnelle à ajouter dans conftest.py si besoin de tests E2E avec toke
       Format : {\"Authorization\": \"Bearer <jwt>\", \"X-Active-Company\": \"<company_id>\"}.\"\"\"
       return auth_headers  # ou return {**auth_headers, "X-Active-Company": "<company_uuid>"}
 """
+
 from datetime import datetime, timezone
 from unittest.mock import patch
 
@@ -96,7 +97,9 @@ class TestEmployeeExitsUnauthenticated:
 
     def test_patch_returns_401_without_auth(self, client: TestClient):
         """PATCH /api/employee-exits/{exit_id} sans auth → 401."""
-        response = client.patch(f"/api/employee-exits/{EXIT_ID}", json={"exit_reason": "Test"})
+        response = client.patch(
+            f"/api/employee-exits/{EXIT_ID}", json={"exit_reason": "Test"}
+        )
         assert response.status_code == 401
 
     def test_patch_status_returns_401_without_auth(self, client: TestClient):
@@ -112,7 +115,9 @@ class TestEmployeeExitsUnauthenticated:
         response = client.delete(f"/api/employee-exits/{EXIT_ID}")
         assert response.status_code == 401
 
-    def test_post_calculate_indemnities_returns_401_without_auth(self, client: TestClient):
+    def test_post_calculate_indemnities_returns_401_without_auth(
+        self, client: TestClient
+    ):
         """POST /api/employee-exits/{exit_id}/calculate-indemnities sans auth → 401."""
         response = client.post(f"/api/employee-exits/{EXIT_ID}/calculate-indemnities")
         assert response.status_code == 401
@@ -155,7 +160,9 @@ class TestEmployeeExitsWithRhUser:
         """GET /api/employee-exits?status=...&exit_type=... transmet les filtres."""
         with patch("app.modules.employee_exits.api.router.queries") as mock_queries:
             mock_queries.list_employee_exits.return_value = []
-            client_with_rh.get("/api/employee-exits?status=demission_effective&exit_type=demission")
+            client_with_rh.get(
+                "/api/employee-exits?status=demission_effective&exit_type=demission"
+            )
             mock_queries.list_employee_exits.assert_called_once()
             call_kw = mock_queries.list_employee_exits.call_args[1]
             assert call_kw.get("status") == "demission_effective"
@@ -177,17 +184,26 @@ class TestEmployeeExitsWithRhUser:
 
     def test_get_by_id_returns_404_when_not_found(self, client_with_rh: TestClient):
         """GET /api/employee-exits/{exit_id} quand sortie inexistante → 404."""
-        from app.modules.employee_exits.application.dto import EmployeeExitApplicationError
+        from app.modules.employee_exits.application.dto import (
+            EmployeeExitApplicationError,
+        )
 
         with patch("app.modules.employee_exits.api.router.queries") as mock_queries:
-            mock_queries.get_employee_exit.side_effect = EmployeeExitApplicationError(404, "Sortie non trouvée")
+            mock_queries.get_employee_exit.side_effect = EmployeeExitApplicationError(
+                404, "Sortie non trouvée"
+            )
             response = client_with_rh.get(f"/api/employee-exits/{EXIT_ID}")
         assert response.status_code == 404
 
     def test_post_create_returns_201(self, client_with_rh: TestClient):
         """POST /api/employee-exits avec payload valide → 201."""
-        with patch("app.modules.employee_exits.api.router.queries.get_employee_company_id", return_value=TEST_COMPANY_ID):
-            with patch("app.modules.employee_exits.api.router.commands") as mock_commands:
+        with patch(
+            "app.modules.employee_exits.api.router.queries.get_employee_company_id",
+            return_value=TEST_COMPANY_ID,
+        ):
+            with patch(
+                "app.modules.employee_exits.api.router.commands"
+            ) as mock_commands:
                 created = _make_exit_response()
                 mock_commands.create_employee_exit.return_value = created
                 response = client_with_rh.post(
@@ -205,7 +221,9 @@ class TestEmployeeExitsWithRhUser:
         assert data["id"] == EXIT_ID
         assert data["employee_id"] == str(EMPLOYEE_ID)
 
-    def test_post_create_without_employee_id_returns_422(self, client_with_rh: TestClient):
+    def test_post_create_without_employee_id_returns_422(
+        self, client_with_rh: TestClient
+    ):
         """POST /api/employee-exits sans employee_id → 422 (validation)."""
         response = client_with_rh.post(
             "/api/employee-exits",
@@ -259,7 +277,9 @@ class TestEmployeeExitsWithRhUser:
                 "total_net_indemnities": 4000,
                 "indemnite_conges": {},
             }
-            response = client_with_rh.post(f"/api/employee-exits/{EXIT_ID}/calculate-indemnities")
+            response = client_with_rh.post(
+                f"/api/employee-exits/{EXIT_ID}/calculate-indemnities"
+            )
         assert response.status_code == 200
 
     def test_get_documents_returns_200(self, client_with_rh: TestClient):

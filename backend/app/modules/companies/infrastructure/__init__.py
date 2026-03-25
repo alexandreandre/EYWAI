@@ -1,4 +1,5 @@
 """Couche infrastructure companies : repository, queries (provider), mappers."""
+
 from app.modules.companies.infrastructure.queries import (
     SupabaseCompanyDetailsProvider,
     fetch_company_with_employees_and_payslips,

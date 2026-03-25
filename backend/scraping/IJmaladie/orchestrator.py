@@ -33,7 +33,7 @@ logging.basicConfig(
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 # Charger les variables d'environnement
-dotenv_path = os.path.join(REPO_ROOT, '.env')
+dotenv_path = os.path.join(REPO_ROOT, ".env")
 if not os.path.exists(dotenv_path):
     logging.critical(f"Fichier .env non trouvé à: {dotenv_path}")
     sys.exit(1)
@@ -42,12 +42,16 @@ load_dotenv(dotenv_path=dotenv_path)
 # Liste des scrapers à exécuter
 SCRIPTS_TO_RUN: List[Tuple[str, str]] = [
     ("IJmaladie.py", os.path.join(os.path.dirname(__file__), "IJmaladie.py")),
-    ("IJmaladie_LegiSocial.py", os.path.join(os.path.dirname(__file__), "IJmaladie_LegiSocial.py")),
+    (
+        "IJmaladie_LegiSocial.py",
+        os.path.join(os.path.dirname(__file__), "IJmaladie_LegiSocial.py"),
+    ),
     ("IJmaladie_AI.py", os.path.join(os.path.dirname(__file__), "IJmaladie_AI.py")),
 ]
 
 
 # --- 1. Fonctions de Scraping & Validation (Standardisées) ---
+
 
 def iso_now() -> str:
     """Retourne la date/heure actuelle au format ISO UTC."""
@@ -84,8 +88,10 @@ def run_script(label: str, path: str) -> Dict[str, Any]:
 def core_signature(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Noyau comparable: seules les 4 valeurs numériques nous intéressent."""
     if payload.get("id") != ITEM_ID_TO_VALIDATE:
-        raise ValueError(f"ID '{ITEM_ID_TO_VALIDATE}' attendu, reçu '{payload.get('id')}'")
-    
+        raise ValueError(
+            f"ID '{ITEM_ID_TO_VALIDATE}' attendu, reçu '{payload.get('id')}'"
+        )
+
     vals = payload.get("valeurs", {}) or {}
     core_vals = {}
     for k in FIELDS:
@@ -93,9 +99,11 @@ def core_signature(payload: Dict[str, Any]) -> Dict[str, Any]:
         try:
             core_vals[k] = None if v is None else round(float(v), 2)
         except (ValueError, TypeError):
-             logging.warning(f"Valeur non numérique '{v}' pour '{k}' reçue de {payload.get('__script')}.")
-             core_vals[k] = None
-             
+            logging.warning(
+                f"Valeur non numérique '{v}' pour '{k}' reçue de {payload.get('__script')}."
+            )
+            core_vals[k] = None
+
     return {"valeurs": core_vals}
 
 
@@ -118,7 +126,8 @@ def merge_sources(payloads: List[Dict[str, Any]]) -> List[str]:
     source_links = []
     for p in payloads:
         for s in p.get("meta", {}).get("source", []):
-            if not isinstance(s, dict): continue
+            if not isinstance(s, dict):
+                continue
             url = s.get("url")
             if url and isinstance(url, str) and url.strip() not in seen_urls:
                 url = url.strip()
@@ -131,7 +140,10 @@ def debug_mismatch(payloads: List[Dict[str, Any]], sigs: List[Dict[str, Any]]) -
     """Logge les détails d'une discordance de taux."""
     logging.warning(f"DISCORDANCE entre les sources pour {CONFIG_KEY_TO_UPDATE}:")
     for k in FIELDS:
-        line = " | ".join(f"{p.get('__script','?')}={s['valeurs'].get(k)}" for p, s in zip(payloads, sigs))
+        line = " | ".join(
+            f"{p.get('__script', '?')}={s['valeurs'].get(k)}"
+            for p, s in zip(payloads, sigs)
+        )
         logging.warning(f"  ► {k}: {line}")
 
 
@@ -139,11 +151,15 @@ def debug_success(payloads: List[Dict[str, Any]], sigs: List[Dict[str, Any]]) ->
     """Logge les détails d'une concordance de taux."""
     logging.info(f"Concordance des taux {CONFIG_KEY_TO_UPDATE} trouvée.")
     for k in FIELDS:
-        line = " | ".join(f"{p.get('__script','?')}={s['valeurs'].get(k)}" for p, s in zip(payloads, sigs))
+        line = " | ".join(
+            f"{p.get('__script', '?')}={s['valeurs'].get(k)}"
+            for p, s in zip(payloads, sigs)
+        )
         logging.info(f"  ► {k}: {line}")
 
 
 # --- 2. Fonctions Supabase (Standardisées) ---
+
 
 def init_supabase_client() -> Client:
     """Initialise et retourne le client Supabase."""
@@ -151,9 +167,13 @@ def init_supabase_client() -> Client:
     supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
     if not supabase_url or not supabase_key:
         logging.critical("Variables SUPABASE_URL ou SUPABASE_SERVICE_KEY manquantes.")
-        logging.critical("Assurez-vous que .env contient SUPABASE_SERVICE_KEY (la clé 'service_role').")
-        raise EnvironmentError("Variables Supabase non définies ou clé de service manquante.")
-    
+        logging.critical(
+            "Assurez-vous que .env contient SUPABASE_SERVICE_KEY (la clé 'service_role')."
+        )
+        raise EnvironmentError(
+            "Variables Supabase non définies ou clé de service manquante."
+        )
+
     try:
         client: Client = create_client(supabase_url, supabase_key)
         logging.info("Connexion Supabase établie.")
@@ -172,22 +192,26 @@ def fetch_active_config(supabase: Client, config_key: str) -> Optional[Dict[str,
             .select("*")
             .eq("config_key", config_key)
             .eq("is_active", True)
-            .maybe_single() 
+            .maybe_single()
             .execute()
         )
         if response is None:
-            logging.error("La requête execute() a retourné 'None'. Problème de connexion ou permission (406).")
+            logging.error(
+                "La requête execute() a retourné 'None'. Problème de connexion ou permission (406)."
+            )
             return None
         return response.data
     except Exception as e:
-        logging.error(f"Impossible de récupérer la config active '{config_key}'. Erreur: {e}")
+        logging.error(
+            f"Impossible de récupérer la config active '{config_key}'. Erreur: {e}"
+        )
         raise
 
 
 def update_config_in_supabase(
     supabase: Client,
     current_row: Optional[Dict[str, Any]],
-    new_config_data: Dict[str, Any], # Le dict {"maladie": ..., ...}
+    new_config_data: Dict[str, Any],  # Le dict {"maladie": ..., ...}
     source_links: List[str],
 ) -> None:
     """
@@ -197,7 +221,9 @@ def update_config_in_supabase(
 
     # Scénario 0 (Cold Start) : current_row est None
     if current_row is None:
-        logging.info(f"Aucune config existante. Insertion de la v1 pour '{CONFIG_KEY_TO_UPDATE}'.")
+        logging.info(
+            f"Aucune config existante. Insertion de la v1 pour '{CONFIG_KEY_TO_UPDATE}'."
+        )
         new_row = {
             "config_key": CONFIG_KEY_TO_UPDATE,
             "config_data": new_config_data,
@@ -219,10 +245,12 @@ def update_config_in_supabase(
     current_config_data = current_row["config_data"]
     current_id = current_row["id"]
     current_version = current_row["version"]
-    
+
     # --- SCÉNARIO 1 : IDENTIQUE ---
     if current_config_data == new_config_data:
-        logging.info(f"Les données '{CONFIG_KEY_TO_UPDATE}' sont inchangées. Mise à jour de 'last_checked_at'.")
+        logging.info(
+            f"Les données '{CONFIG_KEY_TO_UPDATE}' sont inchangées. Mise à jour de 'last_checked_at'."
+        )
         try:
             supabase.table("payroll_config").update(
                 {
@@ -232,13 +260,17 @@ def update_config_in_supabase(
             ).eq("id", current_id).execute()
             logging.info("✅ Succès: 'last_checked_at' mis à jour.")
         except Exception as e:
-            logging.error(f"Échec de la mise à jour 'last_checked_at' pour ID {current_id}. Erreur: {e}")
+            logging.error(
+                f"Échec de la mise à jour 'last_checked_at' pour ID {current_id}. Erreur: {e}"
+            )
             raise
-    
+
     # --- SCÉNARIO 2 : DIFFÉRENT ---
     else:
-        logging.warning(f"Différence détectée pour '{CONFIG_KEY_TO_UPDATE}'. Création de la version {current_version + 1}...")
-        
+        logging.warning(
+            f"Différence détectée pour '{CONFIG_KEY_TO_UPDATE}'. Création de la version {current_version + 1}..."
+        )
+
         new_row = {
             "config_key": CONFIG_KEY_TO_UPDATE,
             "config_data": new_config_data,
@@ -248,41 +280,50 @@ def update_config_in_supabase(
             "last_checked_at": iso_now(),
             "source_links": source_links,
         }
-        
+
         try:
-            logging.info(f"Désactivation de la version {current_version} (ID: {current_id})...")
-            supabase.table("payroll_config").update(
-                {"is_active": False}
-            ).eq("id", current_id).execute()
-            
+            logging.info(
+                f"Désactivation de la version {current_version} (ID: {current_id})..."
+            )
+            supabase.table("payroll_config").update({"is_active": False}).eq(
+                "id", current_id
+            ).execute()
+
             logging.info(f"Insertion de la version {current_version + 1}...")
             supabase.table("payroll_config").insert(new_row).execute()
-            
-            logging.info(f"✅ Succès: '{CONFIG_KEY_TO_UPDATE}' mis à jour vers v{current_version + 1}.")
-            
+
+            logging.info(
+                f"✅ Succès: '{CONFIG_KEY_TO_UPDATE}' mis à jour vers v{current_version + 1}."
+            )
+
         except Exception as e:
             logging.error(f"Échec de la transaction de versioning. Erreur: {e}")
             try:
-                logging.warning(f"Tentative de rollback: Réactivation de la v{current_version} (ID: {current_id})...")
-                supabase.table("payroll_config").update(
-                    {"is_active": True}
-                ).eq("id", current_id).execute()
+                logging.warning(
+                    f"Tentative de rollback: Réactivation de la v{current_version} (ID: {current_id})..."
+                )
+                supabase.table("payroll_config").update({"is_active": True}).eq(
+                    "id", current_id
+                ).execute()
             except Exception as rollback_e:
-                logging.critical(f"ÉCHEC CRITIQUE DU ROLLBACK. BDD en état instable. Erreur: {rollback_e}")
+                logging.critical(
+                    f"ÉCHEC CRITIQUE DU ROLLBACK. BDD en état instable. Erreur: {rollback_e}"
+                )
             raise
 
 
 # --- 3. Fonction Principale ---
 
+
 def main() -> None:
     """Orchestre l'ensemble du processus de mise à jour des plafonds IJ."""
     logging.info("--- DÉBUT Orchestrateur Plafonds IJ ---")
-    
+
     try:
         # 1. Lancer tous les scrapers
         payloads: List[Dict[str, Any]] = []
         labels: List[str] = []
-        
+
         for label, path in SCRIPTS_TO_RUN:
             payloads.append(run_script(label, path))
             labels.append(label)
@@ -297,37 +338,34 @@ def main() -> None:
                 sys.exit(2)
 
         # 3. Valider la concordance
-        all_equal = all(equal_core(sigs[i], sigs[i+1]) for i in range(len(sigs)-1))
+        all_equal = all(equal_core(sigs[i], sigs[i + 1]) for i in range(len(sigs) - 1))
 
         if not all_equal:
-            debug_mismatch(payloads, sigs) 
+            debug_mismatch(payloads, sigs)
             logging.error("Divergence entre les sources de scraping. Arrêt.")
             sys.exit(2)
-        
+
         debug_success(payloads, sigs)
-        
+
         # Le bloc de données validé et les sources
         # On stocke le dict {"maladie": ..., ...}
-        final_data_to_store = sigs[0]["valeurs"] 
+        final_data_to_store = sigs[0]["valeurs"]
         source_links = merge_sources(payloads)
 
         # 4. Initialiser la BDD
         supabase = init_supabase_client()
-        
+
         # 5. Lire l'état actuel (peut être None)
         current_row = fetch_active_config(supabase, CONFIG_KEY_TO_UPDATE)
-        
+
         # 6. Comparer et écrire dans Supabase
         # Pas besoin de 'apply_patch_in_memory' car on remplace le bloc entier
         update_config_in_supabase(
-            supabase, 
-            current_row, 
-            final_data_to_store, 
-            source_links
+            supabase, current_row, final_data_to_store, source_links
         )
-        
+
         logging.info("--- FIN Orchestrateur Plafonds IJ ---")
-        
+
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")
         sys.exit(int(str(e).split()[-1]) if str(e).split()[-1].isdigit() else 1)

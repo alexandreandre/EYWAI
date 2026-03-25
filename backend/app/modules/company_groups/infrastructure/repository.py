@@ -2,6 +2,7 @@
 Repository company_groups — accès table company_groups, companies, user_company_accesses, profiles.
 Implémente ICompanyGroupRepository. Logique extraite de api/routers/company_groups.py ; comportement identique.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
@@ -95,7 +96,9 @@ class CompanyGroupRepository(ICompanyGroupRepository):
         return fetch_company_ids_by_group_id(group_id)
 
     def get_companies_by_group_id(
-        self, group_id: str, columns: str = "id, company_name, siret, effectif, is_active"
+        self,
+        group_id: str,
+        columns: str = "id, company_name, siret, effectif, is_active",
     ) -> List[Dict[str, Any]]:
         """Liste les entreprises d'un groupe (super admin)."""
         return fetch_companies_by_group_id(group_id, columns)
@@ -125,14 +128,16 @@ class CompanyGroupRepository(ICompanyGroupRepository):
             data = fetch_company_effectif_by_group_id(g["id"])
             company_count = len(data)
             total_employees = sum((c.get("effectif") or 0) for c in data)
-            result.append({
-                "id": g["id"],
-                "group_name": g["group_name"],
-                "description": g.get("description"),
-                "created_at": g["created_at"],
-                "company_count": company_count,
-                "total_employees": total_employees,
-            })
+            result.append(
+                {
+                    "id": g["id"],
+                    "group_name": g["group_name"],
+                    "description": g.get("description"),
+                    "created_at": g["created_at"],
+                    "company_count": company_count,
+                    "total_employees": total_employees,
+                }
+            )
         return result
 
     # --- user_company_accesses + profiles + auth (super admin) ---
@@ -185,12 +190,14 @@ class CompanyGroupRepository(ICompanyGroupRepository):
         self, user_id: str, company_id: str, role: str, is_primary: bool
     ) -> None:
         """Insère un accès user_company_accesses."""
-        supabase.table("user_company_accesses").insert({
-            "user_id": user_id,
-            "company_id": company_id,
-            "role": role,
-            "is_primary": is_primary,
-        }).execute()
+        supabase.table("user_company_accesses").insert(
+            {
+                "user_id": user_id,
+                "company_id": company_id,
+                "role": role,
+                "is_primary": is_primary,
+            }
+        ).execute()
 
     def update_user_company_access_role(
         self, user_id: str, company_id: str, role: str
@@ -200,9 +207,7 @@ class CompanyGroupRepository(ICompanyGroupRepository):
             "user_id", user_id
         ).eq("company_id", company_id).execute()
 
-    def delete_user_company_accesses(
-        self, user_id: str, company_ids: List[str]
-    ) -> int:
+    def delete_user_company_accesses(self, user_id: str, company_ids: List[str]) -> int:
         """Supprime les accès d'un utilisateur pour les companies données. Retourne le nombre supprimé."""
         if not company_ids:
             return 0

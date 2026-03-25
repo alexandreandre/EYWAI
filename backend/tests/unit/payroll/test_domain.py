@@ -6,6 +6,7 @@ La logique métier pure (sans DB, sans HTTP) est dans application (is_forfait_jo
 (période de paie forfait, coefficient net/brut). Ces tests couvrent tout le comportement
 "domaine" exposé par le module.
 """
+
 from datetime import date
 
 import pytest
@@ -27,26 +28,31 @@ class TestDomainImports:
     def test_domain_package_imports(self):
         """Le package domain et ses sous-modules sont importables."""
         from app.modules.payroll import domain
+
         assert domain is not None
 
     def test_domain_entities_placeholder(self):
         """domain.entities est un placeholder (pas d'entités métier pour l'instant)."""
         from app.modules.payroll.domain import entities
+
         assert entities is not None
 
     def test_domain_value_objects_placeholder(self):
         """domain.value_objects est un placeholder."""
         from app.modules.payroll.domain import value_objects
+
         assert value_objects is not None
 
     def test_domain_rules_placeholder(self):
         """domain.rules est un placeholder."""
         from app.modules.payroll.domain import rules
+
         assert rules is not None
 
     def test_domain_enums_placeholder(self):
         """domain.enums est un placeholder."""
         from app.modules.payroll.domain import enums
+
         assert enums is not None
 
 
@@ -106,6 +112,7 @@ class TestDefinirPeriodeDePaie:
 
     def test_definir_periode_janvier_2025(self):
         """Période de paie pour janvier 2025 avec paramètres par défaut (vendredi avant-dernier)."""
+
         # Contexte minimal : jour_de_fin=4 (vendredi), occurrence=-2 (avant-dernier)
         class ContexteMinimal:
             entreprise = {
@@ -113,6 +120,7 @@ class TestDefinirPeriodeDePaie:
                     "periode_de_paie": {"jour_de_fin": 4, "occurrence": -2},
                 }
             }
+
         ctx = ContexteMinimal()
         date_debut, date_fin = definir_periode_de_paie(ctx, 2025, 1)
         assert date_debut is not None
@@ -122,12 +130,14 @@ class TestDefinirPeriodeDePaie:
 
     def test_definir_periode_utilise_regles_contexte(self):
         """La période dépend des paramètres entreprise (jour_de_fin, occurrence)."""
+
         class ContexteLundiDernier:
             entreprise = {
                 "parametres_paie": {
                     "periode_de_paie": {"jour_de_fin": 0, "occurrence": -1},
                 }
             }
+
         ctx = ContexteLundiDernier()
         date_debut, date_fin = definir_periode_de_paie(ctx, 2025, 3)
         assert date_debut is not None

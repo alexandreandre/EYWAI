@@ -4,6 +4,7 @@ Ports (interfaces) pour le module rates.
 L'infrastructure implémente ces interfaces ; l'application ne dépend que des abstractions.
 Lecture seule : récupération des lignes brutes (groupement/formatage en application).
 """
+
 from __future__ import annotations
 
 from typing import Any, Protocol

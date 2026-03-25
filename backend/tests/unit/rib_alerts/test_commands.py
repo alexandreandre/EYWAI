@@ -3,11 +3,15 @@ Tests unitaires des commandes rib_alerts (application/commands.py).
 
 Repository mocké : get_rib_alert_repository. Couvre mark_rib_alert_read et resolve_rib_alert.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.modules.rib_alerts.application.commands import mark_rib_alert_read, resolve_rib_alert
+from app.modules.rib_alerts.application.commands import (
+    mark_rib_alert_read,
+    resolve_rib_alert,
+)
 from app.modules.rib_alerts.domain.exceptions import MissingCompanyContextError
 
 
@@ -18,7 +22,10 @@ class TestMarkRibAlertRead:
         """Si le repository marque comme lu, retourne True."""
         mock_repo = MagicMock()
         mock_repo.mark_read.return_value = True
-        with patch("app.modules.rib_alerts.application.commands.get_rib_alert_repository", return_value=mock_repo):
+        with patch(
+            "app.modules.rib_alerts.application.commands.get_rib_alert_repository",
+            return_value=mock_repo,
+        ):
             result = mark_rib_alert_read(alert_id="alert-1", company_id="company-1")
         assert result is True
         mock_repo.mark_read.assert_called_once_with("alert-1", "company-1")
@@ -27,14 +34,22 @@ class TestMarkRibAlertRead:
         """Si l'alerte n'existe pas, le repository retourne False."""
         mock_repo = MagicMock()
         mock_repo.mark_read.return_value = False
-        with patch("app.modules.rib_alerts.application.commands.get_rib_alert_repository", return_value=mock_repo):
-            result = mark_rib_alert_read(alert_id="alert-unknown", company_id="company-1")
+        with patch(
+            "app.modules.rib_alerts.application.commands.get_rib_alert_repository",
+            return_value=mock_repo,
+        ):
+            result = mark_rib_alert_read(
+                alert_id="alert-unknown", company_id="company-1"
+            )
         assert result is False
         mock_repo.mark_read.assert_called_once_with("alert-unknown", "company-1")
 
     def test_raises_missing_company_context_when_company_id_none(self):
         """company_id None lève MissingCompanyContextError (avant appel au repository)."""
-        with patch("app.modules.rib_alerts.application.commands.get_rib_alert_repository", return_value=MagicMock()):
+        with patch(
+            "app.modules.rib_alerts.application.commands.get_rib_alert_repository",
+            return_value=MagicMock(),
+        ):
             with pytest.raises(MissingCompanyContextError):
                 mark_rib_alert_read(alert_id="alert-1", company_id=None)
         # Le repository ne doit pas être appelé
@@ -42,7 +57,10 @@ class TestMarkRibAlertRead:
 
     def test_raises_missing_company_context_when_company_id_empty(self):
         """company_id vide lève MissingCompanyContextError."""
-        with patch("app.modules.rib_alerts.application.commands.get_rib_alert_repository", return_value=MagicMock()):
+        with patch(
+            "app.modules.rib_alerts.application.commands.get_rib_alert_repository",
+            return_value=MagicMock(),
+        ):
             with pytest.raises(MissingCompanyContextError):
                 mark_rib_alert_read(alert_id="alert-1", company_id="")
 
@@ -50,7 +68,10 @@ class TestMarkRibAlertRead:
         """company_id est strippé par require_company_id avant passage au repository."""
         mock_repo = MagicMock()
         mock_repo.mark_read.return_value = True
-        with patch("app.modules.rib_alerts.application.commands.get_rib_alert_repository", return_value=mock_repo):
+        with patch(
+            "app.modules.rib_alerts.application.commands.get_rib_alert_repository",
+            return_value=mock_repo,
+        ):
             mark_rib_alert_read(alert_id="a1", company_id="  company-1  ")
         mock_repo.mark_read.assert_called_once_with("a1", "company-1")
 
@@ -62,7 +83,10 @@ class TestResolveRibAlert:
         """Si le repository marque comme résolu, retourne True."""
         mock_repo = MagicMock()
         mock_repo.resolve.return_value = True
-        with patch("app.modules.rib_alerts.application.commands.get_rib_alert_repository", return_value=mock_repo):
+        with patch(
+            "app.modules.rib_alerts.application.commands.get_rib_alert_repository",
+            return_value=mock_repo,
+        ):
             result = resolve_rib_alert(
                 alert_id="alert-1",
                 company_id="company-1",
@@ -81,7 +105,10 @@ class TestResolveRibAlert:
         """Si l'alerte n'existe pas, retourne False."""
         mock_repo = MagicMock()
         mock_repo.resolve.return_value = False
-        with patch("app.modules.rib_alerts.application.commands.get_rib_alert_repository", return_value=mock_repo):
+        with patch(
+            "app.modules.rib_alerts.application.commands.get_rib_alert_repository",
+            return_value=mock_repo,
+        ):
             result = resolve_rib_alert(
                 alert_id="alert-unknown",
                 company_id="company-1",
@@ -89,11 +116,16 @@ class TestResolveRibAlert:
                 resolution_note=None,
             )
         assert result is False
-        mock_repo.resolve.assert_called_once_with("alert-unknown", "company-1", "user-1", None)
+        mock_repo.resolve.assert_called_once_with(
+            "alert-unknown", "company-1", "user-1", None
+        )
 
     def test_raises_missing_company_context_when_company_id_none(self):
         """company_id None lève MissingCompanyContextError."""
-        with patch("app.modules.rib_alerts.application.commands.get_rib_alert_repository", return_value=MagicMock()):
+        with patch(
+            "app.modules.rib_alerts.application.commands.get_rib_alert_repository",
+            return_value=MagicMock(),
+        ):
             with pytest.raises(MissingCompanyContextError):
                 resolve_rib_alert(
                     alert_id="alert-1",
@@ -106,6 +138,11 @@ class TestResolveRibAlert:
         """resolution_note peut être None."""
         mock_repo = MagicMock()
         mock_repo.resolve.return_value = True
-        with patch("app.modules.rib_alerts.application.commands.get_rib_alert_repository", return_value=mock_repo):
-            resolve_rib_alert(alert_id="a1", company_id="c1", resolved_by="u1", resolution_note=None)
+        with patch(
+            "app.modules.rib_alerts.application.commands.get_rib_alert_repository",
+            return_value=mock_repo,
+        ):
+            resolve_rib_alert(
+                alert_id="a1", company_id="c1", resolved_by="u1", resolution_note=None
+            )
         mock_repo.resolve.assert_called_once_with("a1", "c1", "u1", None)

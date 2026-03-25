@@ -3,6 +3,7 @@ Ports (interfaces) du domaine companies.
 
 Implémentations dans infrastructure/. Aucune dépendance FastAPI ni DB ici.
 """
+
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 

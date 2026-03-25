@@ -3,6 +3,7 @@ Providers infrastructure : OpenAI, recherche employés, conventions collectives,
 
 Implémentent les interfaces du domain. Comportement strictement identique au legacy.
 """
+
 from __future__ import annotations
 
 import json
@@ -106,7 +107,8 @@ class OpenAIProvider:
     ) -> Dict[str, Any]:
         client = _get_openai_client()
         conversation_context = "\n".join(
-            f"{msg.get('role', '')}: {msg.get('content', '')}" for msg in conversation_history[-5:]
+            f"{msg.get('role', '')}: {msg.get('content', '')}"
+            for msg in conversation_history[-5:]
         )
         system_prompt = f"""Tu es un agent RH intelligent qui aide à répondre aux questions sur les employés ET les conventions collectives.
 
@@ -180,7 +182,9 @@ Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire."""
                 "estimated_sql_queries": [],
             }
 
-    def generate_sql_for_step(self, step_description: str, context: Dict[str, Any]) -> str:
+    def generate_sql_for_step(
+        self, step_description: str, context: Dict[str, Any]
+    ) -> str:
         client = _get_openai_client()
         system_prompt = f"""Tu es un expert en génération de SQL PostgreSQL.
 Génère une requête SQL SELECT pour: {step_description}
@@ -225,7 +229,7 @@ Réponds UNIQUEMENT avec la requête SQL, sans ```sql ni explication."""
 
 📋 **Convention Collective : {agreement_name}**
 🔢 **IDCC : {agreement_idcc}**
-{f'📝 **Description : {agreement_description}**' if agreement_description else ''}
+{f"📝 **Description : {agreement_description}**" if agreement_description else ""}
 
 Tu as une connaissance complète et détaillée de cette convention collective. Ton rôle est de :
 
@@ -275,7 +279,9 @@ Réponds à cette question en te basant sur le texte de la convention collective
             )
             return (response.choices[0].message.content or "").strip()
         except Exception as e:
-            logging.error("Erreur lors de la réponse sur la convention collective: %s", e)
+            logging.error(
+                "Erreur lors de la réponse sur la convention collective: %s", e
+            )
             return f"Je rencontre des difficultés pour répondre à votre question sur la convention collective. Erreur: {str(e)}"
 
     def synthesize_final_answer(
@@ -289,11 +295,11 @@ Réponds à cette question en te basant sur le texte de la convention collective
         for i, result in enumerate(retrieval_results):
             if result.get("success"):
                 results_summary.append(
-                    f"Étape {i+1} - SQL: {result.get('sql')}\nDonnées: "
+                    f"Étape {i + 1} - SQL: {result.get('sql')}\nDonnées: "
                     f"{json.dumps(result.get('data'), default=str, ensure_ascii=False)}"
                 )
             else:
-                results_summary.append(f"Étape {i+1} - Erreur: {result.get('error')}")
+                results_summary.append(f"Étape {i + 1} - Erreur: {result.get('error')}")
         results_text = "\n\n".join(results_summary)
 
         system_prompt = f"""Tu es un assistant RH professionnel et convivial, expert en données RH et en conventions collectives.
@@ -353,15 +359,19 @@ class EmployeeSearchProvider:
                     SequenceMatcher(None, query_lower, full_name).ratio(),
                     SequenceMatcher(None, query_lower, first_name).ratio(),
                     SequenceMatcher(None, query_lower, last_name).ratio(),
-                    SequenceMatcher(None, query_lower, f"{last_name} {first_name}").ratio(),
+                    SequenceMatcher(
+                        None, query_lower, f"{last_name} {first_name}"
+                    ).ratio(),
                 ]
                 max_similarity = max(similarities)
                 if max_similarity >= threshold:
-                    matches.append({
-                        "employee": emp,
-                        "similarity": max_similarity,
-                        "full_name": f"{emp.get('first_name')} {emp.get('last_name')}",
-                    })
+                    matches.append(
+                        {
+                            "employee": emp,
+                            "similarity": max_similarity,
+                            "full_name": f"{emp.get('first_name')} {emp.get('last_name')}",
+                        }
+                    )
             matches.sort(key=lambda x: x["similarity"], reverse=True)
             return matches
         except Exception as e:

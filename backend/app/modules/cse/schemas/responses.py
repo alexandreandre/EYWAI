@@ -3,6 +3,7 @@
 Schémas de réponse CSE (Read, ListItem, Status, Base, Alert).
 Comportement identique à l'ancien schemas.cse.
 """
+
 from datetime import date as date_type, datetime, time
 from typing import Any, Dict, List, Literal, Optional
 
@@ -25,6 +26,7 @@ TimelineStepStatus = Literal["pending", "completed", "overdue"]
 # ============================================================================
 # Élus CSE
 # ============================================================================
+
 
 class ElectedMemberBase(BaseModel):
     """Schéma de base pour un élu CSE."""
@@ -73,7 +75,9 @@ class ElectedMemberListItem(BaseModel):
     start_date: date_type
     end_date: date_type
     is_active: bool
-    days_remaining: Optional[int] = Field(None, description="Jours restants avant fin de mandat")
+    days_remaining: Optional[int] = Field(
+        None, description="Jours restants avant fin de mandat"
+    )
 
     class Config:
         from_attributes = True
@@ -83,13 +87,16 @@ class ElectedMemberStatus(BaseModel):
     """Schéma pour le statut élu d'un employé."""
 
     is_elected: bool = Field(..., description="Indique si l'employé est élu actif")
-    current_mandate: Optional[ElectedMemberRead] = Field(None, description="Mandat actuel si élu")
+    current_mandate: Optional[ElectedMemberRead] = Field(
+        None, description="Mandat actuel si élu"
+    )
     role: Optional[ElectedMemberRole] = Field(None, description="Rôle CSE actuel")
 
 
 # ============================================================================
 # Réunions CSE
 # ============================================================================
+
 
 class MeetingBase(BaseModel):
     """Schéma de base pour une réunion CSE."""
@@ -168,6 +175,7 @@ class MeetingListItem(BaseModel):
 # Enregistrements
 # ============================================================================
 
+
 class RecordingStatusRead(BaseModel):
     """Schéma pour le statut d'un enregistrement."""
 
@@ -188,6 +196,7 @@ class RecordingStatusRead(BaseModel):
 # ============================================================================
 # Heures de délégation
 # ============================================================================
+
 
 class DelegationHourBase(BaseModel):
     """Schéma de base pour une heure de délégation."""
@@ -250,6 +259,7 @@ class DelegationSummary(BaseModel):
 # Documents BDES
 # ============================================================================
 
+
 class BDESDocumentBase(BaseModel):
     """Schéma de base pour un document BDES."""
 
@@ -286,6 +296,7 @@ class BDESDocumentRead(BaseModel):
 # ============================================================================
 # Calendrier électoral
 # ============================================================================
+
 
 class ElectionCycleBase(BaseModel):
     """Schéma de base pour un cycle électoral."""
@@ -344,8 +355,7 @@ class ElectionAlert(BaseModel):
     mandate_end_date: date_type
     days_remaining: int
     alert_level: Literal["info", "warning", "critical"] = Field(
-        ...,
-        description="Niveau d'alerte selon les jours restants"
+        ..., description="Niveau d'alerte selon les jours restants"
     )
     message: str = Field(..., description="Message d'alerte")
 
@@ -353,6 +363,7 @@ class ElectionAlert(BaseModel):
 # ============================================================================
 # Alertes
 # ============================================================================
+
 
 class MandateAlert(BaseModel):
     """Schéma pour une alerte de fin de mandat."""

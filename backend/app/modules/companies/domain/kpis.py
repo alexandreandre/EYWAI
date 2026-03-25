@@ -4,6 +4,7 @@ Règles métier pures : calcul des KPIs entreprise.
 Aucune I/O, aucun FastAPI. Utilisé par la couche application.
 Comportement identique à l'ancien routeur (agrégations mensuelles, répartitions, etc.).
 """
+
 from collections import defaultdict
 from datetime import date, timedelta
 from typing import Any, Dict, List
@@ -77,26 +78,34 @@ def compute_company_kpis(
 
     kpis["last_month_gross_salary"] = round(last_month_data["masse_salariale_brute"], 2)
     kpis["last_month_net_salary"] = round(last_month_data["net_verse"], 2)
-    kpis["last_month_employer_charges"] = round(last_month_data["charges_patronales"], 2)
-    kpis["last_month_employee_charges"] = round(last_month_data["charges_salariales"], 2)
+    kpis["last_month_employer_charges"] = round(
+        last_month_data["charges_patronales"], 2
+    )
+    kpis["last_month_employee_charges"] = round(
+        last_month_data["charges_salariales"], 2
+    )
     kpis["last_month_total_cost"] = round(last_month_data["cout_total_employeur"], 2)
     kpis["last_month_total_charges"] = round(
         last_month_data["charges_patronales"] + last_month_data["charges_salariales"], 2
     )
 
-    sorted_months = sorted([k for k in monthly_data.keys() if k < current_month_key])[-12:]
+    sorted_months = sorted([k for k in monthly_data.keys() if k < current_month_key])[
+        -12:
+    ]
     evolution_data = []
     for month_key in sorted_months:
         data = monthly_data[month_key]
-        evolution_data.append({
-            "month": month_key,
-            "masse_salariale_brute": round(data["masse_salariale_brute"], 2),
-            "net_verse": round(data["net_verse"], 2),
-            "charges_totales": round(
-                data["charges_patronales"] + data["charges_salariales"], 2
-            ),
-            "cout_total_employeur": round(data["cout_total_employeur"], 2),
-        })
+        evolution_data.append(
+            {
+                "month": month_key,
+                "masse_salariale_brute": round(data["masse_salariale_brute"], 2),
+                "net_verse": round(data["net_verse"], 2),
+                "charges_totales": round(
+                    data["charges_patronales"] + data["charges_salariales"], 2
+                ),
+                "cout_total_employeur": round(data["cout_total_employeur"], 2),
+            }
+        )
     kpis["evolution_12_months"] = evolution_data
 
     kpis["annual_gross_salary"] = round(
@@ -128,8 +137,12 @@ def compute_company_kpis(
 
     if last_month_data["masse_salariale_brute"] > 0:
         kpis["payroll_tax_rate"] = round(
-            (last_month_data["charges_patronales"] + last_month_data["charges_salariales"])
-            / last_month_data["masse_salariale_brute"] * 100,
+            (
+                last_month_data["charges_patronales"]
+                + last_month_data["charges_salariales"]
+            )
+            / last_month_data["masse_salariale_brute"]
+            * 100,
             2,
         )
     else:

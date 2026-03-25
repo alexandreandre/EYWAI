@@ -3,6 +3,7 @@ Repository monthly_inputs : implémentation IMonthlyInputsRepository.
 
 Accès Supabase table monthly_inputs. Comportement identique à api/routers/monthly_inputs.py.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List

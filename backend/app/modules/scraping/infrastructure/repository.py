@@ -3,6 +3,7 @@ Repository scraping : accès Supabase aux tables scraping_* et RPC get_scraping_
 
 Logique strictement persistance ; pas de règles métier.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -19,7 +20,13 @@ class ScrapingRepository:
         return r.data[0] if r.data else {}
 
     def get_source_by_id(self, source_id: str) -> Optional[Dict[str, Any]]:
-        r = supabase.table("scraping_sources").select("*").eq("id", source_id).single().execute()
+        r = (
+            supabase.table("scraping_sources")
+            .select("*")
+            .eq("id", source_id)
+            .single()
+            .execute()
+        )
         return r.data if r.data else None
 
     def get_source_by_key(self, source_key: str) -> Optional[Dict[str, Any]]:
@@ -91,7 +98,9 @@ class ScrapingRepository:
         )
         return r.data if r.data else None
 
-    def get_jobs_for_source_30d(self, source_id: str) -> tuple[List[Dict[str, Any]], int]:
+    def get_jobs_for_source_30d(
+        self, source_id: str
+    ) -> tuple[List[Dict[str, Any]], int]:
         since = (datetime.now() - timedelta(days=30)).isoformat()
         r = (
             supabase.table("scraping_jobs")
@@ -112,7 +121,9 @@ class ScrapingRepository:
         )
         return r.count or 0
 
-    def get_jobs_history_for_source(self, source_id: str, limit: int = 20) -> List[Dict[str, Any]]:
+    def get_jobs_history_for_source(
+        self, source_id: str, limit: int = 20
+    ) -> List[Dict[str, Any]]:
         r = (
             supabase.table("scraping_jobs")
             .select("*")
@@ -132,7 +143,9 @@ class ScrapingRepository:
         )
         return r.data or []
 
-    def get_recent_alerts_for_source(self, source_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_recent_alerts_for_source(
+        self, source_id: str, limit: int = 10
+    ) -> List[Dict[str, Any]]:
         r = (
             supabase.table("scraping_alerts")
             .select("*")
@@ -209,12 +222,24 @@ class ScrapingRepository:
         r = supabase.table("scraping_schedules").insert(data).execute()
         return r.data[0]
 
-    def update_schedule(self, schedule_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        r = supabase.table("scraping_schedules").update(data).eq("id", schedule_id).execute()
+    def update_schedule(
+        self, schedule_id: str, data: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        r = (
+            supabase.table("scraping_schedules")
+            .update(data)
+            .eq("id", schedule_id)
+            .execute()
+        )
         return r.data[0] if r.data else None
 
     def delete_schedule(self, schedule_id: str) -> bool:
-        r = supabase.table("scraping_schedules").delete().eq("id", schedule_id).execute()
+        r = (
+            supabase.table("scraping_schedules")
+            .delete()
+            .eq("id", schedule_id)
+            .execute()
+        )
         return bool(r.data)
 
     def list_alerts(
@@ -237,7 +262,12 @@ class ScrapingRepository:
         return r.data or []
 
     def mark_alert_read(self, alert_id: str) -> bool:
-        r = supabase.table("scraping_alerts").update({"is_read": True}).eq("id", alert_id).execute()
+        r = (
+            supabase.table("scraping_alerts")
+            .update({"is_read": True})
+            .eq("id", alert_id)
+            .execute()
+        )
         return bool(r.data)
 
     def resolve_alert(self, alert_id: str, data: Dict[str, Any]) -> bool:

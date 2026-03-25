@@ -4,6 +4,7 @@ Règles métier pures du domaine company_groups.
 Aucune dépendance FastAPI ni DB. Validation et règles sur les données uniquement.
 Comportement aligné sur les attentes des routeurs (group_name requis, siren optionnel 9 caractères).
 """
+
 from __future__ import annotations
 
 import re

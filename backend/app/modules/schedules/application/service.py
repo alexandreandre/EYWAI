@@ -4,6 +4,7 @@ Service d'orchestration du module schedules.
 Logique partagée : récupération company_id/statut via IEmployeeCompanyReader,
 délégation aux règles du domain (normalisation forfait jour). Pas d'accès DB direct.
 """
+
 from typing import Any, Dict, List, Tuple
 
 from app.modules.schedules.application.exceptions import ScheduleAppError

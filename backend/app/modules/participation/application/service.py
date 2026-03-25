@@ -4,6 +4,7 @@ Service applicatif participation (orchestration).
 Délègue au repository (simulations) et aux requêtes infra (données employés).
 Comportement identique au routeur legacy.
 """
+
 from __future__ import annotations
 
 from typing import List, Optional
@@ -78,9 +79,7 @@ class ParticipationService:
         """Récupère une simulation par id si elle appartient à l'entreprise."""
         return self._repo.get_by_id(simulation_id, company_id)
 
-    def delete_simulation(
-        self, simulation_id: str, company_id: str
-    ) -> bool:
+    def delete_simulation(self, simulation_id: str, company_id: str) -> bool:
         """Supprime une simulation si elle appartient à l'entreprise. Retourne True si supprimée."""
         return self._repo.delete(simulation_id, company_id)
 

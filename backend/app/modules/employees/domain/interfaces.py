@@ -3,6 +3,7 @@ Ports (interfaces) du domaine employees.
 
 Aucune dépendance FastAPI. Implémentés dans infrastructure.
 """
+
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
@@ -15,9 +16,7 @@ class IEmployeeRepository(ABC):
         pass
 
     @abstractmethod
-    def get_by_id(
-        self, employee_id: str, company_id: str
-    ) -> Optional[Dict[str, Any]]:
+    def get_by_id(self, employee_id: str, company_id: str) -> Optional[Dict[str, Any]]:
         pass
 
     @abstractmethod

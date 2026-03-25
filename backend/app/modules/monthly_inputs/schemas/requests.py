@@ -4,6 +4,7 @@ Schémas requêtes du module monthly_inputs.
 Alignés sur backend_api/schemas/monthly_input.py pour migration progressive.
 Compatibilité : mêmes champs, types et défauts que l'existant.
 """
+
 from __future__ import annotations
 
 from datetime import datetime

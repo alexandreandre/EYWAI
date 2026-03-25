@@ -4,6 +4,7 @@ DTOs applicatifs annual_reviews.
 Les schémas Pydantic (AnnualReviewCreate, AnnualReviewUpdate) servent de DTOs
 pour les commandes. DTOs dédiés ci-dessous pour résultats ou données internes.
 """
+
 from dataclasses import dataclass
 
 

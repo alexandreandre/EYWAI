@@ -7,6 +7,7 @@ Aucune dépendance DB ni HTTP. Couvre :
 - calculate_acquired_cp, calculate_acquired_rtt, requires_salary_certificate (domain/rules.py)
 - Enums / types (AbsenceType, AbsenceStatus, SALARY_CERTIFICATE_ABSENCE_TYPES)
 """
+
 from datetime import date, datetime
 
 import pytest

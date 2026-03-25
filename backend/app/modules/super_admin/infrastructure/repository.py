@@ -3,6 +3,7 @@ Repository super_admin : accès table super_admins.
 
 Implémente l'accès lecture Supabase pour super_admins.
 """
+
 from __future__ import annotations
 
 from typing import List, Optional, Union
@@ -33,5 +34,10 @@ def get_by_user_id(user_id: Union[UUID, str]) -> Optional[SuperAdmin]:
 def list_all() -> List[SuperAdmin]:
     """Liste tous les super admins (ordre created_at desc)."""
     supabase = get_supabase_client()
-    result = supabase.table("super_admins").select("*").order("created_at", desc=True).execute()
+    result = (
+        supabase.table("super_admins")
+        .select("*")
+        .order("created_at", desc=True)
+        .execute()
+    )
     return [row_to_super_admin(row) for row in (result.data or [])]

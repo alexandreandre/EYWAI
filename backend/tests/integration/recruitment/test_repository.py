@@ -11,6 +11,7 @@ pour les tables recruitment_jobs, recruitment_candidates, recruitment_pipeline_s
 recruitment_timeline_events, recruitment_interviews, recruitment_notes, recruitment_opinions,
 recruitment_interview_participants, et employees (pour DuplicateChecker / EmployeeCreator).
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -35,7 +36,9 @@ class TestJobRepository:
     """JobRepository : get_by_id, list_by_company, create, update."""
 
     def test_get_by_id_returns_none_when_not_found(self):
-        with patch("app.modules.recruitment.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.recruitment.infrastructure.repository.supabase"
+        ) as supabase:
             table_mock = MagicMock()
             chain = MagicMock()
             chain.maybe_single.return_value.execute.return_value = MagicMock(data=None)
@@ -49,18 +52,31 @@ class TestJobRepository:
         supabase.table.assert_called_with("recruitment_jobs")
 
     def test_get_by_id_returns_job_when_found(self):
-        with patch("app.modules.recruitment.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.recruitment.infrastructure.repository.supabase"
+        ) as supabase:
             table_mock = MagicMock()
             chain = MagicMock()
             # maybe_single() peut retourner un seul objet (dict) selon le client Supabase
             chain.maybe_single.return_value.execute.return_value = MagicMock(
-                data={"id": "job-1", "company_id": "co-1", "title": "Dev", "status": "draft"}
+                data={
+                    "id": "job-1",
+                    "company_id": "co-1",
+                    "title": "Dev",
+                    "status": "draft",
+                }
             )
             table_mock.select.return_value.eq.return_value.eq.return_value = chain
             supabase.table.return_value = table_mock
 
-            with patch("app.modules.recruitment.infrastructure.repository.job_row_to_out") as mapper:
-                mapper.return_value = {"id": "job-1", "title": "Dev", "candidate_count": 0}
+            with patch(
+                "app.modules.recruitment.infrastructure.repository.job_row_to_out"
+            ) as mapper:
+                mapper.return_value = {
+                    "id": "job-1",
+                    "title": "Dev",
+                    "candidate_count": 0,
+                }
                 repo = JobRepository()
                 result = repo.get_by_id("co-1", "job-1")
 
@@ -76,7 +92,9 @@ class TestJobRepository:
             result = repo.list_by_company("co-1", status="published")
             assert len(result) == 1
             assert result[0]["title"] == "Dev"
-            q.list_jobs_with_candidate_count.assert_called_once_with("co-1", "published")
+            q.list_jobs_with_candidate_count.assert_called_once_with(
+                "co-1", "published"
+            )
 
 
 class TestCandidateRepository:
@@ -96,20 +114,41 @@ class TestCandidateRepository:
             q.get_candidate.assert_called_once_with("co-1", "cand-1")
 
     def test_create_inserts_and_returns_mapped(self):
-        with patch("app.modules.recruitment.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.recruitment.infrastructure.repository.supabase"
+        ) as supabase:
             table_mock = MagicMock()
             table_mock.insert.return_value.execute.return_value = MagicMock(
-                data=[{"id": "cand-new", "first_name": "Alice", "last_name": "Martin", "company_id": "co-1", "job_id": "job-1"}]
+                data=[
+                    {
+                        "id": "cand-new",
+                        "first_name": "Alice",
+                        "last_name": "Martin",
+                        "company_id": "co-1",
+                        "job_id": "job-1",
+                    }
+                ]
             )
             supabase.table.return_value = table_mock
-            with patch("app.modules.recruitment.infrastructure.repository.candidate_row_to_out") as mapper:
-                mapper.return_value = {"id": "cand-new", "first_name": "Alice", "last_name": "Martin"}
+            with patch(
+                "app.modules.recruitment.infrastructure.repository.candidate_row_to_out"
+            ) as mapper:
+                mapper.return_value = {
+                    "id": "cand-new",
+                    "first_name": "Alice",
+                    "last_name": "Martin",
+                }
                 repo = CandidateRepository()
-                result = repo.create("co-1", {"first_name": "Alice", "last_name": "Martin", "job_id": "job-1"})
+                result = repo.create(
+                    "co-1",
+                    {"first_name": "Alice", "last_name": "Martin", "job_id": "job-1"},
+                )
             assert result["id"] == "cand-new"
 
     def test_delete_calls_supabase_delete(self):
-        with patch("app.modules.recruitment.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.recruitment.infrastructure.repository.supabase"
+        ) as supabase:
             table_mock = MagicMock()
             chain = MagicMock()
             table_mock.delete.return_value.eq.return_value = chain
@@ -128,7 +167,13 @@ class TestPipelineStageRepository:
     def test_list_by_job_delegates_to_queries(self):
         with patch("app.modules.recruitment.infrastructure.repository.q") as q:
             q.get_pipeline_stages.return_value = [
-                {"id": "s1", "name": "Premier appel", "position": 0, "stage_type": "standard", "is_final": False},
+                {
+                    "id": "s1",
+                    "name": "Premier appel",
+                    "position": 0,
+                    "stage_type": "standard",
+                    "is_final": False,
+                },
             ]
             repo = PipelineStageRepository()
             result = repo.list_by_job("co-1", "job-1")
@@ -140,7 +185,9 @@ class TestTimelineEventWriter:
     """TimelineEventWriter : add."""
 
     def test_add_inserts_event(self):
-        with patch("app.modules.recruitment.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.recruitment.infrastructure.repository.supabase"
+        ) as supabase:
             table_mock = MagicMock()
             table_mock.insert.return_value.execute.return_value = MagicMock()
             supabase.table.return_value = table_mock
@@ -168,11 +215,20 @@ class TestDuplicateChecker:
         assert checker.check_duplicate_candidate("co-1", None, None) is None
 
     def test_check_duplicate_candidate_returns_match_when_email_exists(self):
-        with patch("app.modules.recruitment.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.recruitment.infrastructure.repository.supabase"
+        ) as supabase:
             table_mock = MagicMock()
             chain = MagicMock()
             chain.limit.return_value.execute.return_value = MagicMock(
-                data=[{"id": "cand-2", "first_name": "Bob", "last_name": "Dupont", "email": "bob@example.com"}]
+                data=[
+                    {
+                        "id": "cand-2",
+                        "first_name": "Bob",
+                        "last_name": "Dupont",
+                        "email": "bob@example.com",
+                    }
+                ]
             )
             table_mock.select.return_value.eq.return_value.eq.return_value = chain
             supabase.table.return_value = table_mock
@@ -206,7 +262,15 @@ class TestNoteRepository:
 
     def test_list_by_candidate_delegates_to_queries(self):
         with patch("app.modules.recruitment.infrastructure.repository.q") as q:
-            q.list_notes.return_value = [{"id": "n1", "content": "OK", "candidate_id": "cand-1", "author_id": "u1", "created_at": ""}]
+            q.list_notes.return_value = [
+                {
+                    "id": "n1",
+                    "content": "OK",
+                    "candidate_id": "cand-1",
+                    "author_id": "u1",
+                    "created_at": "",
+                }
+            ]
             repo = NoteRepository()
             result = repo.list_by_candidate("co-1", "cand-1")
             assert len(result) == 1
@@ -227,11 +291,14 @@ class TestOpinionRepository:
 
 # ─── Infrastructure queries (lectures directes) ────────────────────────
 
+
 class TestInfraQueries:
     """Fonctions du module infrastructure/queries.py avec supabase mocké."""
 
     def test_get_candidate_returns_none_when_not_found(self):
-        with patch("app.modules.recruitment.infrastructure.queries.supabase") as supabase:
+        with patch(
+            "app.modules.recruitment.infrastructure.queries.supabase"
+        ) as supabase:
             chain = MagicMock()
             chain.maybe_single.return_value.execute.return_value = MagicMock(data=None)
             table_mock = MagicMock()
@@ -242,12 +309,16 @@ class TestInfraQueries:
         assert result is None
 
     def test_get_candidate_with_stage_position_returns_none_when_not_found(self):
-        with patch("app.modules.recruitment.infrastructure.queries.supabase") as supabase:
+        with patch(
+            "app.modules.recruitment.infrastructure.queries.supabase"
+        ) as supabase:
             chain = MagicMock()
             chain.maybe_single.return_value.execute.return_value = MagicMock(data=None)
             table_mock = MagicMock()
             table_mock.select.return_value.eq.return_value.eq.return_value = chain
             supabase.table.return_value = table_mock
 
-            result = infra_queries.get_candidate_with_stage_position("co-1", "cand-unknown")
+            result = infra_queries.get_candidate_with_stage_position(
+                "co-1", "cand-unknown"
+            )
         assert result is None

@@ -4,6 +4,7 @@ Requêtes agrégées : stats promotions, accès RH employé.
 Implémentation de IPromotionQueries (Supabase).
 Pas de logique métier pure : délégation à domain.rules pour les rôles disponibles.
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -83,7 +84,9 @@ class PromotionQueries(IPromotionQueries):
                             ((new_value - prev_value) / prev_value) * 100
                         )
             average_salary_increase = (
-                sum(salary_increases) / len(salary_increases) if salary_increases else None
+                sum(salary_increases) / len(salary_increases)
+                if salary_increases
+                else None
             )
             promotions_with_rh_access = sum(
                 1 for p in promotions if p.get("grant_rh_access", False)
@@ -181,7 +184,10 @@ def list_promotions(
     offset: Optional[int] = None,
 ):
     """Délègue au repository (pour app.shared.infrastructure.promotion et employees)."""
-    from app.modules.promotions.infrastructure.repository import get_promotion_repository
+    from app.modules.promotions.infrastructure.repository import (
+        get_promotion_repository,
+    )
+
     repo = get_promotion_repository()
     return repo.list(
         company_id=company_id,
@@ -221,6 +227,7 @@ def get_employee_snapshot_for_promotion(
     Lève HTTPException 404 si l'employé n'existe pas.
     """
     from fastapi import HTTPException
+
     employee_response = (
         supabase.table("employees")
         .select(
@@ -252,6 +259,7 @@ def get_employee_snapshot_for_promotion(
 def get_employee_data_for_document(employee_id: str) -> Dict[str, Any]:
     """Données employé pour génération document (PDF promotion). Lève 404 si absent."""
     from fastapi import HTTPException
+
     r = (
         supabase.table("employees")
         .select("id, first_name, last_name, job_title, employee_folder_name")
@@ -267,6 +275,7 @@ def get_employee_data_for_document(employee_id: str) -> Dict[str, Any]:
 def get_company_data_for_document(company_id: str) -> Dict[str, Any]:
     """Données entreprise pour génération document (PDF promotion). Lève 404 si absente."""
     from fastapi import HTTPException
+
     r = (
         supabase.table("companies")
         .select(

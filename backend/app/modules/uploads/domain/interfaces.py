@@ -4,6 +4,7 @@ Ports (interfaces) pour le module uploads.
 Aucune dépendance à FastAPI ni à la base : l'infrastructure implémente ces interfaces.
 À migrer depuis api/routers/uploads.py (storage Supabase logos, tables companies/company_groups).
 """
+
 from __future__ import annotations
 
 from typing import Protocol
@@ -41,7 +42,9 @@ class ILogoRepository(Protocol):
         """Retourne l'URL du logo ou None si absent."""
         ...
 
-    def update_logo_url(self, entity_type: str, entity_id: str, logo_url: str | None) -> bool:
+    def update_logo_url(
+        self, entity_type: str, entity_id: str, logo_url: str | None
+    ) -> bool:
         """Met à jour logo_url. Retourne True si une ligne a été mise à jour."""
         ...
 

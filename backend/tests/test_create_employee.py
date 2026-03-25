@@ -20,14 +20,10 @@ test_employee = {
     "date_naissance": "1991-01-01",
     "lieu_naissance": "75001 Paris",
     "nationalite": "Française",
-    "adresse": {
-        "rue": "1 rue de Test",
-        "code_postal": "75001",
-        "ville": "Paris"
-    },
+    "adresse": {"rue": "1 rue de Test", "code_postal": "75001", "ville": "Paris"},
     "coordonnees_bancaires": {
         "iban": "FR7612345678901234567890123",
-        "bic": "TESTFR2AXXX"
+        "bic": "TESTFR2AXXX",
     },
     "hire_date": date.today().isoformat(),
     "contract_type": "CDI",
@@ -39,33 +35,21 @@ test_employee = {
     "classification_conventionnelle": {
         "groupe_emploi": "C",
         "classe_emploi": 6,
-        "coefficient": 240
+        "coefficient": 240,
     },
     "avantages_en_nature": {
         "repas": {"nombre_par_mois": 0},
         "logement": {"beneficie": False},
-        "vehicule": {"beneficie": False}
+        "vehicule": {"beneficie": False},
     },
     "specificites_paie": {
         "is_alsace_moselle": False,
-        "prelevement_a_la_source": {
-            "is_personnalise": False,
-            "taux": 0
-        },
+        "prelevement_a_la_source": {"is_personnalise": False, "taux": 0},
         "transport": {"abonnement_mensuel_total": 0},
-        "titres_restaurant": {
-            "beneficie": True,
-            "nombre_par_mois": 0
-        },
-        "mutuelle": {
-            "adhesion": False,
-            "lignes_specifiques": []
-        },
-        "prevoyance": {
-            "adhesion": True,
-            "lignes_specifiques": []
-        }
-    }
+        "titres_restaurant": {"beneficie": True, "nombre_par_mois": 0},
+        "mutuelle": {"adhesion": False, "lignes_specifiques": []},
+        "prevoyance": {"adhesion": True, "lignes_specifiques": []},
+    },
 }
 
 print(f"Email de test: {test_employee['email']}")
@@ -87,7 +71,7 @@ try:
         last_name=test_employee["last_name"],
         username=username,
         password=password,
-        logo_path=str(logo_path)
+        logo_path=str(logo_path),
     )
     print(f"✅ PDF généré: {len(pdf_content)} bytes\n")
 except Exception as e:
@@ -106,12 +90,13 @@ try:
     result = supabase.storage.from_("creation_compte").upload(
         path=storage_path,
         file=pdf_content,
-        file_options={"x-upsert": "true", "content-type": "application/pdf"}
+        file_options={"x-upsert": "true", "content-type": "application/pdf"},
     )
     print("✅ Upload réussi!\n")
 except Exception as e:
     print(f"❌ Erreur: {e}\n")
     import traceback
+
     traceback.print_exc()
 
 # Test récupération URL signée
@@ -120,12 +105,10 @@ try:
     list_response = supabase.storage.from_("creation_compte").list(folder_name)
     print(f"   Fichiers dans {folder_name}: {[f['name'] for f in list_response]}")
 
-    if any(f['name'] == 'creation_compte.pdf' for f in list_response):
-        signed_url_response = supabase.storage.from_("creation_compte").create_signed_url(
-            storage_path,
-            3600,
-            options={'download': True}
-        )
+    if any(f["name"] == "creation_compte.pdf" for f in list_response):
+        signed_url_response = supabase.storage.from_(
+            "creation_compte"
+        ).create_signed_url(storage_path, 3600, options={"download": True})
 
         signed_data = getattr(signed_url_response, "data", signed_url_response)
         url = signed_data.get("signedURL") if isinstance(signed_data, dict) else None
@@ -140,6 +123,7 @@ try:
 except Exception as e:
     print(f"❌ Erreur: {e}\n")
     import traceback
+
     traceback.print_exc()
 
 print("=== Test terminé ===")

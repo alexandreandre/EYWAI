@@ -3,6 +3,7 @@ Tests du domain scraping : entités, value objects, règles, enums.
 
 Sans DB, sans HTTP. Comportement pur du domaine.
 """
+
 from datetime import datetime
 
 import pytest

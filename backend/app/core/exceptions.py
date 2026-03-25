@@ -4,6 +4,7 @@ Exceptions transverses de l'application.
 Hiérarchie minimale pour les gestionnaires d'erreurs (app/api/error_handlers).
 Aucune logique métier ; compatible avec HTTPException FastAPI.
 """
+
 from __future__ import annotations
 
 
@@ -24,7 +25,9 @@ class AppException(Exception):
 class NotFoundError(AppException):
     """Ressource non trouvée (404)."""
 
-    def __init__(self, message: str = "Ressource non trouvée", detail: str | None = None):
+    def __init__(
+        self, message: str = "Ressource non trouvée", detail: str | None = None
+    ):
         super().__init__(message=message, status_code=404, detail=detail)
 
 

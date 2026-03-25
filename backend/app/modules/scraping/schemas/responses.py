@@ -5,6 +5,7 @@ Reflet exact des dict renvoyés par le routeur legacy (api/routers/scraping.py).
 Utilisables en response_model ou pour typage ; contenu des listes/dict restant Any
 pour ne pas modifier le comportement de sérialisation.
 """
+
 from __future__ import annotations
 
 from typing import Any, List, Optional

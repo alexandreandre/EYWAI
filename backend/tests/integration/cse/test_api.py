@@ -8,6 +8,7 @@ mocks des commandes/queries pour éviter la DB réelle.
 Fixture documentée : cse_headers — en-têtes pour un utilisateur RH avec active_company_id.
 À ajouter dans conftest.py si besoin de tests E2E avec JWT réel.
 """
+
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -287,16 +288,18 @@ class TestCSEElectedMembersAPI:
     def test_get_mandate_alerts_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        alerts = [{
-            "elected_member_id": "mem-1",
-            "employee_id": "emp-1",
-            "first_name": "Jean",
-            "last_name": "Dupont",
-            "role": "titulaire",
-            "end_date": "2026-12-31",
-            "days_remaining": 30,
-            "months_remaining": 1.0,
-        }]
+        alerts = [
+            {
+                "elected_member_id": "mem-1",
+                "employee_id": "emp-1",
+                "first_name": "Jean",
+                "last_name": "Dupont",
+                "role": "titulaire",
+                "end_date": "2026-12-31",
+                "days_remaining": 30,
+                "months_remaining": 1.0,
+            }
+        ]
         app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
         try:
             with patch(
@@ -426,17 +429,19 @@ class TestCSEMeetingsAPI:
     def test_add_participants_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        participants = [{
-            "meeting_id": "mtg-1",
-            "employee_id": "emp-1",
-            "role": "participant",
-            "invited_at": None,
-            "confirmed_at": None,
-            "attended": False,
-            "first_name": "Jean",
-            "last_name": "Dupont",
-            "job_title": "Delegue",
-        }]
+        participants = [
+            {
+                "meeting_id": "mtg-1",
+                "employee_id": "emp-1",
+                "role": "participant",
+                "invited_at": None,
+                "confirmed_at": None,
+                "attended": False,
+                "first_name": "Jean",
+                "last_name": "Dupont",
+                "job_title": "Delegue",
+            }
+        ]
         app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
         try:
             with patch(
@@ -460,9 +465,7 @@ class TestCSEMeetingsAPI:
                 "app.modules.cse.api.router.commands.remove_participant",
                 return_value=None,
             ):
-                response = client.delete(
-                    f"{PREFIX}/meetings/mtg-1/participants/emp-1"
-                )
+                response = client.delete(f"{PREFIX}/meetings/mtg-1/participants/emp-1")
         finally:
             app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
@@ -502,7 +505,9 @@ class TestCSERecordingAPI:
             ):
                 response = client.post(
                     f"{PREFIX}/meetings/mtg-1/recording/start",
-                    json={"consents": [{"employee_id": "emp-1", "consent_given": True}]},
+                    json={
+                        "consents": [{"employee_id": "emp-1", "consent_given": True}]
+                    },
                 )
         finally:
             app.dependency_overrides.pop(get_current_user, None)
@@ -682,16 +687,18 @@ class TestCSEDelegationAPI:
     def test_get_delegation_summary_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        summary = [{
-            "employee_id": "emp-1",
-            "first_name": "Jean",
-            "last_name": "Dupont",
-            "quota_hours_per_month": 10.0,
-            "consumed_hours": 5.0,
-            "remaining_hours": 5.0,
-            "period_start": "2024-03-01",
-            "period_end": "2024-03-31",
-        }]
+        summary = [
+            {
+                "employee_id": "emp-1",
+                "first_name": "Jean",
+                "last_name": "Dupont",
+                "quota_hours_per_month": 10.0,
+                "consumed_hours": 5.0,
+                "remaining_hours": 5.0,
+                "period_start": "2024-03-01",
+                "period_end": "2024-03-31",
+            }
+        ]
         app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
         try:
             with patch(
@@ -772,14 +779,16 @@ class TestCSEElectionCyclesAPI:
     def test_get_election_alerts_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        alerts = [{
-            "cycle_id": "cycle-1",
-            "cycle_name": "2024-2026",
-            "mandate_end_date": "2026-12-31",
-            "days_remaining": 90,
-            "alert_level": "warning",
-            "message": "Election a preparer",
-        }]
+        alerts = [
+            {
+                "cycle_id": "cycle-1",
+                "cycle_name": "2024-2026",
+                "mandate_end_date": "2026-12-31",
+                "days_remaining": 90,
+                "alert_level": "warning",
+                "message": "Election a preparer",
+            }
+        ]
         app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
         try:
             with patch(
@@ -819,7 +828,9 @@ class TestCSEExportsAPI:
 
         out = MagicMock()
         out.content = b"xlsx"
-        out.media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        out.media_type = (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
         out.filename = "base_elus_cse.xlsx"
         app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
         try:
@@ -839,7 +850,9 @@ class TestCSEExportsAPI:
 
         out = MagicMock()
         out.content = b"xlsx"
-        out.media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        out.media_type = (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
         out.filename = "heures_delegation_cse.xlsx"
         app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
         try:
@@ -857,7 +870,9 @@ class TestCSEExportsAPI:
 
         out = MagicMock()
         out.content = b"xlsx"
-        out.media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        out.media_type = (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
         out.filename = "historique_reunions_cse.xlsx"
         app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
         try:

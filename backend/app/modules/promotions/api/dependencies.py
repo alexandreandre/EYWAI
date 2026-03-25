@@ -4,6 +4,7 @@ Dépendances FastAPI du module promotions.
 Contexte utilisateur et garde-fous d'autorisation (RH, admin).
 Aucune logique métier : uniquement extraction company_id et vérifications d'accès.
 """
+
 from __future__ import annotations
 
 from fastapi import Depends, HTTPException

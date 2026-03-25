@@ -2,6 +2,7 @@
 """
 Couche infrastructure CSE — DB (queries), repositories, providers, mappers.
 """
+
 from app.modules.cse.infrastructure.providers import (
     cse_export_provider,
     cse_pdf_provider,

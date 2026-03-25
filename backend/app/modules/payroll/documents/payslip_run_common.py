@@ -47,8 +47,8 @@ def definir_periode_de_paie(
     Détermine la période de paie en lisant les règles depuis la configuration de l'entreprise.
     La période de travail s'arrête le dimanche de la semaine du jour de référence.
     """
-    regles_paie = (
-        contexte.entreprise.get("parametres_paie", {}).get("periode_de_paie", {})
+    regles_paie = contexte.entreprise.get("parametres_paie", {}).get(
+        "periode_de_paie", {}
     )
     jour_reference = regles_paie.get("jour_de_fin", 4)
     occurrence_reference = regles_paie.get("occurrence", -2)
@@ -122,9 +122,7 @@ def creer_calendrier_etendu(
     current_date = date_debut_periode
     while current_date <= date_fin_periode:
         mois_a_charger.add((current_date.year, current_date.month))
-        current_date = (current_date.replace(day=28) + timedelta(days=4)).replace(
-            day=1
-        )
+        current_date = (current_date.replace(day=28) + timedelta(days=4)).replace(day=1)
 
     for annee, mois in mois_a_charger:
         chemin_fichier = chemin_employe / "evenements_paie" / f"{mois:02d}.json"

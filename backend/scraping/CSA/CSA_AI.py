@@ -23,9 +23,7 @@ from openai import OpenAI
 
 load_dotenv()
 
-SEARCH_QUERY_TEMPLATE = (
-    "taux contribution solidarité autonomie CSA URSSAF site:urssaf.fr OR site:legisocial.fr {year}"
-)
+SEARCH_QUERY_TEMPLATE = "taux contribution solidarité autonomie CSA URSSAF site:urssaf.fr OR site:legisocial.fr {year}"
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
@@ -33,6 +31,7 @@ USER_AGENT = (
 
 
 # --- UTILITAIRES ---
+
 
 def iso_now() -> str:
     """Retourne la date et l'heure actuelles au format ISO 8601 UTC."""
@@ -72,8 +71,7 @@ def _extract_rate_with_gpt(page_text: str) -> float | None:
         "- La valeur doit être en pourcentage (ex: 0.30 pour 0,30%).\n"
         "- Si aucune valeur trouvée, mets null.\n"
         "- Ne renvoie que du JSON pur.\n\n"
-        "Texte à analyser (max 15000 caractères):\n---\n"
-        + page_text[:15000]
+        "Texte à analyser (max 15000 caractères):\n---\n" + page_text[:15000]
     )
 
     try:
@@ -82,7 +80,10 @@ def _extract_rate_with_gpt(page_text: str) -> float | None:
             response_format={"type": "json_object"},
             temperature=0,
             messages=[
-                {"role": "system", "content": "Assistant d'extraction JSON pur pour taux CSA."},
+                {
+                    "role": "system",
+                    "content": "Assistant d'extraction JSON pur pour taux CSA.",
+                },
                 {"role": "user", "content": prompt},
             ],
         )
@@ -127,10 +128,13 @@ def build_payload(rate_patronal: float | None, found_url: str | None) -> dict:
 
 # --- FONCTION PRINCIPALE ---
 
+
 def main() -> None:
     current_year = datetime.now().year
     SEARCH_QUERY = SEARCH_QUERY_TEMPLATE.format(year=current_year)
-    print(f"INFO (CSA_AI): Démarrage. Recherche DDGS: '{SEARCH_QUERY}'", file=sys.stderr)
+    print(
+        f"INFO (CSA_AI): Démarrage. Recherche DDGS: '{SEARCH_QUERY}'", file=sys.stderr
+    )
 
     results = []
     try:

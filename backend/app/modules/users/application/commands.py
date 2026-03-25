@@ -4,6 +4,7 @@ Commandes (cas d'usage écriture) du module users.
 Délègue au domain (règles) et à l'infrastructure (repositories, providers).
 Comportement identique. Lève PermissionError (403), LookupError (404), ValueError (400).
 """
+
 import traceback
 from typing import Any, Optional
 
@@ -123,7 +124,10 @@ def revoke_company_access(
     """Révoque l'accès. Vérification admin côté appelant."""
     access_repo = get_user_company_access_repository()
     domain_rules.validate_cannot_revoke_last_admin(
-        is_revoking_self=(user_id == current_user.id and not getattr(current_user, "is_super_admin", False)),
+        is_revoking_self=(
+            user_id == current_user.id
+            and not getattr(current_user, "is_super_admin", False)
+        ),
         admin_count=access_repo.count_admins(company_id),
     )
     result = access_repo.delete(user_id, company_id)
@@ -173,7 +177,11 @@ def create_user_with_permissions(data: Any, current_user: Any) -> CreateUserResu
         r = auth.create_user(
             data.email,
             data.password,
-            {"first_name": data.first_name, "last_name": data.last_name, "job_title": data.job_title},
+            {
+                "first_name": data.first_name,
+                "last_name": data.last_name,
+                "job_title": data.job_title,
+            },
         )
         user_id = r.user.id
     except Exception as e:
@@ -184,14 +192,16 @@ def create_user_with_permissions(data: Any, current_user: Any) -> CreateUserResu
     perm_repo = get_user_permission_repository()
     try:
         primary_access = primary_accesses[0]
-        user_repo.create({
-            "id": user_id,
-            "first_name": data.first_name,
-            "last_name": data.last_name,
-            "job_title": data.job_title,
-            "company_id": str(primary_access.company_id),
-            "role": primary_access.base_role,
-        })
+        user_repo.create(
+            {
+                "id": user_id,
+                "first_name": data.first_name,
+                "last_name": data.last_name,
+                "job_title": data.job_title,
+                "company_id": str(primary_access.company_id),
+                "role": primary_access.base_role,
+            }
+        )
 
         for access in data.company_accesses:
             company_id = str(access.company_id)
@@ -200,7 +210,9 @@ def create_user_with_permissions(data: Any, current_user: Any) -> CreateUserResu
                 "company_id": company_id,
                 "role": access.base_role,
                 "is_primary": access.is_primary,
-                "role_template_id": str(access.role_template_id) if access.role_template_id else None,
+                "role_template_id": str(access.role_template_id)
+                if access.role_template_id
+                else None,
             }
             if getattr(access, "contract_type", None):
                 access_data["contract_type"] = access.contract_type
@@ -242,8 +254,12 @@ def create_user_with_permissions(data: Any, current_user: Any) -> CreateUserResu
             try:
                 pdf_provider = get_credentials_pdf_provider()
                 storage = get_storage_provider()
-                first_name_for_username = remove_accents(data.first_name).lower().replace(" ", "_")
-                last_name_for_username = remove_accents(data.last_name).lower().replace(" ", "_")
+                first_name_for_username = (
+                    remove_accents(data.first_name).lower().replace(" ", "_")
+                )
+                last_name_for_username = (
+                    remove_accents(data.last_name).lower().replace(" ", "_")
+                )
                 username = f"{first_name_for_username}.{last_name_for_username}"
                 logo_path = pdf_provider.get_logo_path()
                 pdf_content = pdf_provider.generate(
@@ -270,7 +286,9 @@ def create_user_with_permissions(data: Any, current_user: Any) -> CreateUserResu
             auth.delete_user(user_id)
         except Exception:
             pass
-        raise RuntimeError(f"Erreur lors de la configuration de l'utilisateur: {e}") from e
+        raise RuntimeError(
+            f"Erreur lors de la configuration de l'utilisateur: {e}"
+        ) from e
 
 
 def update_user_with_permissions(
@@ -301,7 +319,9 @@ def update_user_with_permissions(
             company_id,
             {
                 "role": data.base_role,
-                "role_template_id": str(data.role_template_id) if data.role_template_id else None,
+                "role_template_id": str(data.role_template_id)
+                if data.role_template_id
+                else None,
             },
         )
 

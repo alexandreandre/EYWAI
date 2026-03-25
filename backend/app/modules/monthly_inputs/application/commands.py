@@ -3,6 +3,7 @@ Commandes (cas d'usage écriture) du module monthly_inputs.
 
 Délégation au repository. Comportement identique à api/routers/monthly_inputs.py.
 """
+
 from __future__ import annotations
 
 import sys
@@ -12,7 +13,9 @@ from app.modules.monthly_inputs.application.dto import (
     CreateBatchResultDto,
     CreateSingleResultDto,
 )
-from app.modules.monthly_inputs.infrastructure.repository import monthly_inputs_repository
+from app.modules.monthly_inputs.infrastructure.repository import (
+    monthly_inputs_repository,
+)
 from app.modules.monthly_inputs.schemas.requests import MonthlyInput, MonthlyInputCreate
 
 

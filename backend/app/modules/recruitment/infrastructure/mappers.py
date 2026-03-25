@@ -3,6 +3,7 @@
 Mappers Supabase/DB → dicts compatibles schémas responses (JobOut, CandidateOut, etc.).
 Pas de dépendance FastAPI. Utilisés par repository et queries.
 """
+
 from typing import Any, Optional
 
 

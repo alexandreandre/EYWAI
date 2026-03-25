@@ -3,6 +3,7 @@ Requêtes de lecture — employees, employee_schedules, repos_compensateur_credi
 
 Pas de logique métier : uniquement lecture Supabase. Comportement identique à l'ancien routeur.
 """
+
 from datetime import date
 from typing import Any, Dict, List, Optional
 
@@ -75,9 +76,7 @@ def get_employees_hire_dates_batch(
     for row in r.data or []:
         if row.get("hire_date"):
             h = row["hire_date"]
-            result[row["id"]] = (
-                date.fromisoformat(h) if isinstance(h, str) else h
-            )
+            result[row["id"]] = date.fromisoformat(h) if isinstance(h, str) else h
     return result
 
 

@@ -3,6 +3,7 @@ Tests unitaires du domaine exports : value objects et règles métier.
 
 Sans DB, sans HTTP. Couvre value_objects (frozensets) et rules (validation DSN, types supportés).
 """
+
 import pytest
 
 from app.modules.exports.domain.value_objects import (
@@ -43,22 +44,26 @@ class TestExportValueObjects:
 
     def test_export_types_od_subset(self):
         """EXPORT_TYPES_OD ne contient que les types OD (écritures comptables)."""
-        assert EXPORT_TYPES_OD == frozenset({
-            "od_salaires",
-            "od_charges_sociales",
-            "od_pas",
-            "od_globale",
-        })
+        assert EXPORT_TYPES_OD == frozenset(
+            {
+                "od_salaires",
+                "od_charges_sociales",
+                "od_pas",
+                "od_globale",
+            }
+        )
         for t in EXPORT_TYPES_OD:
             assert t in EXPORT_TYPES_PREVIEW
 
     def test_export_types_cabinet_subset(self):
         """EXPORT_TYPES_CABINET ne contient que les types cabinet."""
-        assert EXPORT_TYPES_CABINET == frozenset({
-            "export_cabinet_generique",
-            "export_cabinet_quadra",
-            "export_cabinet_sage",
-        })
+        assert EXPORT_TYPES_CABINET == frozenset(
+            {
+                "export_cabinet_generique",
+                "export_cabinet_quadra",
+                "export_cabinet_sage",
+            }
+        )
         for t in EXPORT_TYPES_CABINET:
             assert t in EXPORT_TYPES_PREVIEW
 
@@ -80,7 +85,11 @@ class TestRulesPreview:
             assert rules.is_supported_export_type_for_preview(t) is True
 
     def test_preview_cabinet_types_supported(self):
-        for t in ["export_cabinet_generique", "export_cabinet_quadra", "export_cabinet_sage"]:
+        for t in [
+            "export_cabinet_generique",
+            "export_cabinet_quadra",
+            "export_cabinet_sage",
+        ]:
             assert rules.is_supported_export_type_for_preview(t) is True
 
     def test_preview_unknown_type_not_supported(self):
@@ -121,7 +130,10 @@ class TestValidateDsnCanGenerate:
                 },
                 accept_warnings=True,
             )
-        assert "bloquante" in str(exc_info.value).lower() or "impossible" in str(exc_info.value).lower()
+        assert (
+            "bloquante" in str(exc_info.value).lower()
+            or "impossible" in str(exc_info.value).lower()
+        )
 
     def test_multiple_blocking_raises(self):
         """Plusieurs anomalies bloquantes lèvent avec le bon message."""
@@ -163,7 +175,9 @@ class TestValidateDsnCanGenerate:
     def test_preview_data_without_anomalies_key_ok(self):
         """preview_data sans clé 'anomalies' traité comme liste vide."""
         rules.validate_dsn_can_generate(preview_data={}, accept_warnings=True)
-        rules.validate_dsn_can_generate(preview_data={"warnings": []}, accept_warnings=False)
+        rules.validate_dsn_can_generate(
+            preview_data={"warnings": []}, accept_warnings=False
+        )
 
     def test_warning_severity_ignored_for_blocking(self):
         """Seules les anomalies avec severity=='blocking' bloquent."""

@@ -4,6 +4,7 @@ Requêtes Supabase réutilisables pour company_groups.
 Fonctions de lecture DB (select) utilisables par le repository ou la couche application.
 Comportement identique aux appels dans api/routers/company_groups.py.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
@@ -124,12 +125,7 @@ def fetch_companies_for_group_stats(
 
 def fetch_group_company_ids_for_permission_check(group_id: str) -> List[str]:
     """IDs des entreprises du groupe (toutes, pour vérification admin)."""
-    res = (
-        supabase.table("companies")
-        .select("id")
-        .eq("group_id", group_id)
-        .execute()
-    )
+    res = supabase.table("companies").select("id").eq("group_id", group_id).execute()
     return [c["id"] for c in (res.data or [])]
 
 

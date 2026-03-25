@@ -4,6 +4,7 @@ Règles métier pures du domaine saisies et avances.
 Aucune dépendance : pas de FastAPI, pas de DB, pas de services externes.
 Comportement identique à services.saisies_avances_calculator pour les calculs purs.
 """
+
 from datetime import date
 from decimal import Decimal
 from typing import Any, Dict, List, Tuple
@@ -118,9 +119,7 @@ def initial_advance_status(
     return "approved" if requested_amount <= auto_approval_threshold else "pending"
 
 
-def remaining_to_pay_value(
-    approved_amount: Decimal, total_paid: Decimal
-) -> float:
+def remaining_to_pay_value(approved_amount: Decimal, total_paid: Decimal) -> float:
     """
     Montant restant à verser à l'employé (pour affichage).
     """

@@ -4,6 +4,7 @@ Service applicatif collective_agreements.
 Orchestration : domain (règles, interfaces) + infrastructure (repository, providers).
 Convertit les exceptions du domain en HTTPException. Comportement identique au legacy.
 """
+
 from __future__ import annotations
 
 from typing import Any, List, Optional
@@ -117,7 +118,9 @@ class CollectiveAgreementsService:
         self, data: CatalogCreateInput, is_super_admin: bool
     ) -> dict[str, Any]:
         if not is_super_admin:
-            raise HTTPException(status_code=403, detail="Accès réservé au super administrateur")
+            raise HTTPException(
+                status_code=403, detail="Accès réservé au super administrateur"
+            )
         try:
             db_data = {
                 "name": data.name,
@@ -137,22 +140,33 @@ class CollectiveAgreementsService:
         self, agreement_id: str, update_dict_raw: dict[str, Any], is_super_admin: bool
     ) -> Optional[dict[str, Any]]:
         if not is_super_admin:
-            raise HTTPException(status_code=403, detail="Accès réservé au super administrateur")
+            raise HTTPException(
+                status_code=403, detail="Accès réservé au super administrateur"
+            )
         try:
             update_dict = build_catalog_update_dict(update_dict_raw)
             if not update_dict:
-                raise HTTPException(status_code=400, detail="Aucune donnée à mettre à jour")
+                raise HTTPException(
+                    status_code=400, detail="Aucune donnée à mettre à jour"
+                )
             current_path = self._repo.get_catalog_item_rules_path(agreement_id)
-            if "rules_pdf_path" in update_dict_raw and update_dict_raw["rules_pdf_path"] is None:
+            if (
+                "rules_pdf_path" in update_dict_raw
+                and update_dict_raw["rules_pdf_path"] is None
+            ):
                 if current_path:
                     self._storage.remove([current_path])
-            return self._repo.update_catalog_item(agreement_id, serialize_dates(update_dict))
+            return self._repo.update_catalog_item(
+                agreement_id, serialize_dates(update_dict)
+            )
         except (NotFoundError, ForbiddenError, ValidationError) as e:
             raise _to_http(e)
 
     def delete_catalog_item(self, agreement_id: str, is_super_admin: bool) -> bool:
         if not is_super_admin:
-            raise HTTPException(status_code=403, detail="Accès réservé au super administrateur")
+            raise HTTPException(
+                status_code=403, detail="Accès réservé au super administrateur"
+            )
         try:
             current_path = self._repo.get_catalog_item_rules_path(agreement_id)
             if current_path:
@@ -171,7 +185,9 @@ class CollectiveAgreementsService:
             for assignment in assignments:
                 details = assignment.get("agreement_details")
                 if details and details.get("rules_pdf_path"):
-                    url = self._storage.create_signed_url(details["rules_pdf_path"], 3600)
+                    url = self._storage.create_signed_url(
+                        details["rules_pdf_path"], 3600
+                    )
                     add_signed_url_to_agreement(details, url)
             return assignments
         except (NotFoundError, ForbiddenError, ValidationError) as e:
@@ -205,14 +221,18 @@ class CollectiveAgreementsService:
 
     def get_all_assignments(self, is_super_admin: bool) -> List[dict[str, Any]]:
         if not is_super_admin:
-            raise HTTPException(status_code=403, detail="Accès réservé au super administrateur")
+            raise HTTPException(
+                status_code=403, detail="Accès réservé au super administrateur"
+            )
         try:
             result = self._repo.get_all_assignments_by_company()
             for item in result:
                 for assignment in item.get("assigned_agreements", []):
                     details = assignment.get("agreement_details")
                     if details and details.get("rules_pdf_path"):
-                        url = self._storage.create_signed_url(details["rules_pdf_path"], 3600)
+                        url = self._storage.create_signed_url(
+                            details["rules_pdf_path"], 3600
+                        )
                         add_signed_url_to_agreement(details, url)
             return result
         except (NotFoundError, ForbiddenError, ValidationError) as e:
@@ -267,7 +287,7 @@ class CollectiveAgreementsService:
 
 📋 **Convention Collective : {agreement_name}**
 🔢 **IDCC : {agreement_idcc}**
-{f'📝 **Description : {agreement_description}**' if agreement_description else ''}
+{f"📝 **Description : {agreement_description}**" if agreement_description else ""}
 
 Tu as une connaissance complète et détaillée de cette convention collective. Ton rôle est de :
 
@@ -308,7 +328,9 @@ Réponds à cette question en te basant sur le texte de la convention collective
 
     def refresh_text_cache(self, agreement_id: str, is_super_admin: bool) -> None:
         if not is_super_admin:
-            raise HTTPException(status_code=403, detail="Accès réservé au super administrateur")
+            raise HTTPException(
+                status_code=403, detail="Accès réservé au super administrateur"
+            )
         try:
             agreement = self._repo.get_agreement_for_chat(agreement_id)
             if not agreement:

@@ -33,6 +33,7 @@ USER_AGENT = (
 
 # --- Fonctions utilitaires ---
 
+
 def iso_now() -> str:
     """Retourne l'heure actuelle au format ISO UTC."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -72,8 +73,7 @@ def _extract_rates_with_gpt(page_text: str) -> dict | None:
         '  "solde": {"taux_metropole": 0.09, "taux_alsace_moselle": 0.0}\n'
         "}\n"
         "Aucune explication. Uniquement le JSON.\n\n"
-        "Texte à analyser (max 15000 caractères):\n---\n"
-        + page_text[:15000]
+        "Texte à analyser (max 15000 caractères):\n---\n" + page_text[:15000]
     )
 
     try:
@@ -82,7 +82,10 @@ def _extract_rates_with_gpt(page_text: str) -> dict | None:
             response_format={"type": "json_object"},
             temperature=0,
             messages=[
-                {"role": "system", "content": "Assistant d'extraction JSON pur, spécialisé URSSAF."},
+                {
+                    "role": "system",
+                    "content": "Assistant d'extraction JSON pur, spécialisé URSSAF.",
+                },
                 {"role": "user", "content": prompt},
             ],
         )
@@ -95,6 +98,7 @@ def _extract_rates_with_gpt(page_text: str) -> dict | None:
 
 def build_payload(rates: dict | None, found_url: str | None) -> dict:
     """Construit la charge utile JSON finale dans le format strict."""
+
     def _to_rate(val):
         if val is None:
             return None
@@ -118,8 +122,7 @@ def build_payload(rates: dict | None, found_url: str | None) -> dict:
 
     total = {
         "taux_metropole": (
-            (part_principale["taux_metropole"] or 0)
-            + (solde["taux_metropole"] or 0)
+            (part_principale["taux_metropole"] or 0) + (solde["taux_metropole"] or 0)
         ),
         "taux_alsace_moselle": (
             (part_principale["taux_alsace_moselle"] or 0)
@@ -128,7 +131,9 @@ def build_payload(rates: dict | None, found_url: str | None) -> dict:
     }
 
     source_url = found_url or "N/A"
-    source_label = "Source IA (via DDGS)" if found_url else "N/A (Taux non trouvé par l'IA)"
+    source_label = (
+        "Source IA (via DDGS)" if found_url else "N/A (Taux non trouvé par l'IA)"
+    )
 
     return {
         "id": "taxe_apprentissage",
@@ -161,7 +166,10 @@ def main() -> None:
         if search_results:
             results = [r["href"] for r in search_results]
         if not results:
-            print("ERREUR (TAXEAPP_AI): DDGS n'a retourné aucun résultat.", file=sys.stderr)
+            print(
+                "ERREUR (TAXEAPP_AI): DDGS n'a retourné aucun résultat.",
+                file=sys.stderr,
+            )
     except Exception as e:
         print(f"ERREUR (TAXEAPP_AI): Échec recherche DuckDuckGo: {e}", file=sys.stderr)
 
@@ -189,7 +197,10 @@ def main() -> None:
             successful_url = url
             break
         else:
-            print("INFO (TAXEAPP_AI): Données incomplètes, passage à l'URL suivante.", file=sys.stderr)
+            print(
+                "INFO (TAXEAPP_AI): Données incomplètes, passage à l'URL suivante.",
+                file=sys.stderr,
+            )
         time.sleep(1)
 
     if final_rates is None:

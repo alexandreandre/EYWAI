@@ -3,6 +3,7 @@ Règles métier pures pour collective_agreements.
 
 Sans dépendance à FastAPI, DB ou infrastructure. Comportement identique au legacy.
 """
+
 from __future__ import annotations
 
 from typing import Any, List
@@ -41,6 +42,7 @@ def generate_upload_path(filename: str) -> str:
     from datetime import datetime
     from uuid import uuid4
     import os
+
     _root, ext = os.path.splitext(filename)
     unique = f"{datetime.now().isoformat()}-{uuid4().hex}{ext}"
     return f"catalog/{unique}"

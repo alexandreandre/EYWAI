@@ -3,6 +3,7 @@
 Ports (interfaces) du domaine recruitment — pour l'infrastructure.
 Implémentations à fournir dans infrastructure/ lors de la migration.
 """
+
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
@@ -23,7 +24,9 @@ class IJobRepository(ABC):
         pass
 
     @abstractmethod
-    def list_by_company(self, company_id: str, status: Optional[str] = None) -> list[dict[str, Any]]:
+    def list_by_company(
+        self, company_id: str, status: Optional[str] = None
+    ) -> list[dict[str, Any]]:
         pass
 
     @abstractmethod
@@ -31,7 +34,9 @@ class IJobRepository(ABC):
         pass
 
     @abstractmethod
-    def update(self, job_id: str, company_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    def update(
+        self, job_id: str, company_id: str, data: dict[str, Any]
+    ) -> dict[str, Any]:
         pass
 
 
@@ -58,7 +63,9 @@ class ICandidateRepository(ABC):
         pass
 
     @abstractmethod
-    def update(self, candidate_id: str, company_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    def update(
+        self, candidate_id: str, company_id: str, data: dict[str, Any]
+    ) -> dict[str, Any]:
         pass
 
     @abstractmethod
@@ -74,7 +81,9 @@ class IPipelineStageRepository(ABC):
         pass
 
     @abstractmethod
-    def create_default_for_job(self, company_id: str, job_id: str) -> list[dict[str, Any]]:
+    def create_default_for_job(
+        self, company_id: str, job_id: str
+    ) -> list[dict[str, Any]]:
         pass
 
 
@@ -153,7 +162,9 @@ class IInterviewRepository(ABC):
         pass
 
     @abstractmethod
-    def create(self, company_id: str, user_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    def create(
+        self, company_id: str, user_id: str, data: dict[str, Any]
+    ) -> dict[str, Any]:
         pass
 
     @abstractmethod
@@ -171,11 +182,15 @@ class INoteRepository(ABC):
     """Accès persistance aux notes candidat."""
 
     @abstractmethod
-    def list_by_candidate(self, company_id: str, candidate_id: str) -> list[dict[str, Any]]:
+    def list_by_candidate(
+        self, company_id: str, candidate_id: str
+    ) -> list[dict[str, Any]]:
         pass
 
     @abstractmethod
-    def create(self, company_id: str, author_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    def create(
+        self, company_id: str, author_id: str, data: dict[str, Any]
+    ) -> dict[str, Any]:
         pass
 
 
@@ -183,11 +198,15 @@ class IOpinionRepository(ABC):
     """Accès persistance aux avis candidat."""
 
     @abstractmethod
-    def list_by_candidate(self, company_id: str, candidate_id: str) -> list[dict[str, Any]]:
+    def list_by_candidate(
+        self, company_id: str, candidate_id: str
+    ) -> list[dict[str, Any]]:
         pass
 
     @abstractmethod
-    def create(self, company_id: str, author_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    def create(
+        self, company_id: str, author_id: str, data: dict[str, Any]
+    ) -> dict[str, Any]:
         pass
 
 
@@ -195,5 +214,7 @@ class ITimelineEventReader(ABC):
     """Lecture des événements timeline d'un candidat."""
 
     @abstractmethod
-    def list_by_candidate(self, company_id: str, candidate_id: str) -> list[dict[str, Any]]:
+    def list_by_candidate(
+        self, company_id: str, candidate_id: str
+    ) -> list[dict[str, Any]]:
         pass

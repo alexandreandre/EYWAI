@@ -5,11 +5,14 @@ Vérifie que le repository délègue correctement aux requêtes infrastructure
 et retourne les données attendues. Les requêtes DB sont mockées (pas de DB réelle).
 Pour des tests contre une DB de test, prévoir db_session et données dans annual_reviews/employees/companies.
 """
+
 from unittest.mock import patch
 
 import pytest
 
-from app.modules.annual_reviews.infrastructure.repository import SupabaseAnnualReviewRepository
+from app.modules.annual_reviews.infrastructure.repository import (
+    SupabaseAnnualReviewRepository,
+)
 
 
 pytestmark = pytest.mark.integration
@@ -33,7 +36,9 @@ class TestSupabaseAnnualReviewRepositoryListByCompany:
             repo.list_by_company("co-1")
             mock_query.assert_called_once_with("co-1", year=None, status=None)
 
-    def test_calls_query_with_year_and_status(self, repo: SupabaseAnnualReviewRepository):
+    def test_calls_query_with_year_and_status(
+        self, repo: SupabaseAnnualReviewRepository
+    ):
         """Transmet year et status aux filtres."""
         with patch(
             "app.modules.annual_reviews.infrastructure.repository.infra_queries.query_list_by_company",
@@ -78,7 +83,13 @@ class TestSupabaseAnnualReviewRepositoryGetById:
 
     def test_returns_row_or_none(self, repo: SupabaseAnnualReviewRepository):
         """Retourne la ligne ou None."""
-        row = {"id": "rev-1", "employee_id": "emp-1", "company_id": "co-1", "year": 2024, "status": "accepte"}
+        row = {
+            "id": "rev-1",
+            "employee_id": "emp-1",
+            "company_id": "co-1",
+            "year": 2024,
+            "status": "accepte",
+        }
         with patch(
             "app.modules.annual_reviews.infrastructure.repository.infra_queries.query_get_by_id",
             return_value=row,
@@ -97,7 +108,9 @@ class TestSupabaseAnnualReviewRepositoryGetById:
 class TestSupabaseAnnualReviewRepositoryListByEmployee:
     """list_by_employee."""
 
-    def test_calls_query_with_employee_and_company(self, repo: SupabaseAnnualReviewRepository):
+    def test_calls_query_with_employee_and_company(
+        self, repo: SupabaseAnnualReviewRepository
+    ):
         """Délègue à query_list_by_employee(employee_id, company_id)."""
         with patch(
             "app.modules.annual_reviews.infrastructure.repository.infra_queries.query_list_by_employee",
@@ -108,7 +121,9 @@ class TestSupabaseAnnualReviewRepositoryListByEmployee:
 
     def test_returns_list_from_query(self, repo: SupabaseAnnualReviewRepository):
         """Retourne la liste des entretiens de l'employé."""
-        data = [{"id": "rev-1", "employee_id": "emp-1", "company_id": "co-1", "year": 2024}]
+        data = [
+            {"id": "rev-1", "employee_id": "emp-1", "company_id": "co-1", "year": 2024}
+        ]
         with patch(
             "app.modules.annual_reviews.infrastructure.repository.infra_queries.query_list_by_employee",
             return_value=data,
@@ -120,7 +135,9 @@ class TestSupabaseAnnualReviewRepositoryListByEmployee:
 class TestSupabaseAnnualReviewRepositoryGetMyCurrent:
     """get_my_current."""
 
-    def test_calls_query_with_employee_company_year(self, repo: SupabaseAnnualReviewRepository):
+    def test_calls_query_with_employee_company_year(
+        self, repo: SupabaseAnnualReviewRepository
+    ):
         """Délègue à query_get_my_current(employee_id, company_id, year)."""
         with patch(
             "app.modules.annual_reviews.infrastructure.repository.infra_queries.query_get_my_current",
@@ -131,7 +148,12 @@ class TestSupabaseAnnualReviewRepositoryGetMyCurrent:
 
     def test_returns_row_or_none(self, repo: SupabaseAnnualReviewRepository):
         """Retourne l'entretien de l'année ou None."""
-        row = {"id": "rev-1", "employee_id": "emp-1", "company_id": "co-1", "year": 2024}
+        row = {
+            "id": "rev-1",
+            "employee_id": "emp-1",
+            "company_id": "co-1",
+            "year": 2024,
+        }
         with patch(
             "app.modules.annual_reviews.infrastructure.repository.infra_queries.query_get_my_current",
             return_value=row,
@@ -151,7 +173,12 @@ class TestSupabaseAnnualReviewRepositoryCreate:
             "year": 2024,
             "status": "en_attente_acceptation",
         }
-        created = {**insert_data, "id": "rev-new", "created_at": "2024-01-01T00:00:00", "updated_at": "2024-01-01T00:00:00"}
+        created = {
+            **insert_data,
+            "id": "rev-new",
+            "created_at": "2024-01-01T00:00:00",
+            "updated_at": "2024-01-01T00:00:00",
+        }
         with patch(
             "app.modules.annual_reviews.infrastructure.repository.infra_queries.query_insert",
             return_value=created,
@@ -165,7 +192,9 @@ class TestSupabaseAnnualReviewRepositoryCreate:
 class TestSupabaseAnnualReviewRepositoryUpdate:
     """update."""
 
-    def test_calls_query_update_and_returns_updated_row(self, repo: SupabaseAnnualReviewRepository):
+    def test_calls_query_update_and_returns_updated_row(
+        self, repo: SupabaseAnnualReviewRepository
+    ):
         """Délègue à query_update(review_id, data)."""
         update_data = {"status": "realise", "completed_date": "2024-06-15"}
         updated = {"id": "rev-1", "status": "realise", "completed_date": "2024-06-15"}
@@ -177,7 +206,9 @@ class TestSupabaseAnnualReviewRepositoryUpdate:
             mock_update.assert_called_once_with("rev-1", update_data)
         assert result == updated
 
-    def test_returns_none_when_query_returns_none(self, repo: SupabaseAnnualReviewRepository):
+    def test_returns_none_when_query_returns_none(
+        self, repo: SupabaseAnnualReviewRepository
+    ):
         """Si la requête ne renvoie pas de ligne, retourne None."""
         with patch(
             "app.modules.annual_reviews.infrastructure.repository.infra_queries.query_update",
@@ -221,7 +252,12 @@ class TestSupabaseAnnualReviewRepositoryEmployeeAndCompany:
 
     def test_get_employee_by_id(self, repo: SupabaseAnnualReviewRepository):
         """get_employee_by_id retourne les champs employé pour le PDF."""
-        emp = {"id": "emp-1", "first_name": "Jean", "last_name": "Dupont", "job_title": "Dev"}
+        emp = {
+            "id": "emp-1",
+            "first_name": "Jean",
+            "last_name": "Dupont",
+            "job_title": "Dev",
+        }
         with patch(
             "app.modules.annual_reviews.infrastructure.repository.infra_queries.query_employee_by_id",
             return_value=emp,

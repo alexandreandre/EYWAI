@@ -3,6 +3,7 @@ Providers du module participation.
 
 Implémentation des ports du domain : données employés pour le simulateur.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List

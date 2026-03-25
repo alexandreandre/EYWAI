@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module scraping.
 Vérifient que l'injection des dépendances et le flux de bout en bout
 (router -> application commands/queries -> repository) fonctionnent pour ce module.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -37,7 +38,9 @@ def _super_admin_dep():
 class TestScrapingWiringDashboard:
     """Flux GET /api/scraping/dashboard : router -> queries.get_scraping_dashboard -> infra."""
 
-    def test_dashboard_flow_uses_queries_and_returns_structure(self, client: TestClient):
+    def test_dashboard_flow_uses_queries_and_returns_structure(
+        self, client: TestClient
+    ):
         from app.core.security import get_current_user
         from app.modules.scraping.api.dependencies import verify_super_admin
 
@@ -109,17 +112,27 @@ class TestScrapingWiringSchedules:
         try:
             with patch(
                 "app.modules.scraping.application.queries.ScrapingRepository",
-                return_value=MagicMock(**{"list_schedules.return_value": [{"id": "s1"}]}),
+                return_value=MagicMock(
+                    **{"list_schedules.return_value": [{"id": "s1"}]}
+                ),
             ):
                 # list_schedules est appelée depuis queries.list_schedules qui utilise _repo()
                 with patch(
                     "app.modules.scraping.application.queries.infra_get_dashboard_data",
-                    return_value={"stats": {}, "recent_jobs": [], "unread_alerts": [], "critical_sources": []},
+                    return_value={
+                        "stats": {},
+                        "recent_jobs": [],
+                        "unread_alerts": [],
+                        "critical_sources": [],
+                    },
                 ):
                     pass  # pour dashboard on a déjà un test
                 with patch(
                     "app.modules.scraping.api.router.queries.list_schedules",
-                    return_value={"schedules": [{"id": "s1", "source_id": "src-1"}], "total": 1},
+                    return_value={
+                        "schedules": [{"id": "s1", "source_id": "src-1"}],
+                        "total": 1,
+                    },
                 ):
                     response = client.get("/api/scraping/schedules")
         finally:
@@ -170,7 +183,10 @@ class TestScrapingWiringAlerts:
         try:
             with patch(
                 "app.modules.scraping.api.router.queries.list_alerts",
-                return_value={"alerts": [{"id": "a1", "severity": "warning"}], "total": 1},
+                return_value={
+                    "alerts": [{"id": "a1", "severity": "warning"}],
+                    "total": 1,
+                },
             ):
                 response = client.get("/api/scraping/alerts")
         finally:

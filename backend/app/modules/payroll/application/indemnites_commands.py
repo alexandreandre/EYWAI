@@ -15,6 +15,7 @@ def calculer_indemnites_sortie(
 ) -> dict[str, Any]:
     """Calcule les indemnités de sortie. Délègue à engine.calcul_indemnites_sortie."""
     from app.modules.payroll.engine import calculer_indemnites_sortie as _impl
+
     return _impl(
         employee_data=employee_data,
         exit_data=exit_data,

@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module mutuelle_types.
 Vérifient que l'injection des dépendances et le flux de bout en bout
 (router -> application commands/queries -> service -> repository) fonctionnent.
 """
+
 from datetime import datetime
 from uuid import UUID, uuid4
 from unittest.mock import MagicMock, patch

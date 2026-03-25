@@ -5,6 +5,7 @@ Sans DB de test : mocks Supabase pour valider la logique et les appels.
 Avec DB de test : prévoir la fixture db_session (conftest) et des données
 dans expense_reports pour des tests CRUD réels.
 """
+
 from datetime import datetime
 from unittest.mock import MagicMock
 

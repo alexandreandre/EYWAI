@@ -3,6 +3,7 @@ Tests unitaires des queries du module absences (application/queries.py).
 
 Repository et providers mockés. Pas de DB ni HTTP.
 """
+
 from datetime import date
 from unittest.mock import patch
 
@@ -58,7 +59,11 @@ class TestGetAbsenceRequests:
             {
                 "id": "req-1",
                 "employee_id": "emp-1",
-                "employee": {"id": "emp-1", "first_name": "Jean", "last_name": "Dupont"},
+                "employee": {
+                    "id": "emp-1",
+                    "first_name": "Jean",
+                    "last_name": "Dupont",
+                },
                 "type": "conge_paye",
                 "selected_days": ["2025-06-10"],
                 "status": "pending",
@@ -261,9 +266,7 @@ class TestGetMyAbsencesPageData:
                         "app.modules.absences.application.queries.get_planned_calendar",
                         return_value=[],
                     ):
-                        result = queries.get_my_absences_page_data(
-                            "emp-1", 2025, 6
-                        )
+                        result = queries.get_my_absences_page_data("emp-1", 2025, 6)
 
         assert "balances" in result
         assert "calendar_days" in result

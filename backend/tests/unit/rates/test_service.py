@@ -4,6 +4,7 @@ Tests unitaires du service applicatif rates (application/service.py).
 group_payroll_configs_by_key(rows) : groupement par config_key (règles domain) + formatage sortie.
 Aucune I/O ; dépendances = règles du domain (pures).
 """
+
 from app.modules.rates.application.service import group_payroll_configs_by_key
 
 
@@ -43,9 +44,33 @@ class TestGroupPayrollConfigsByKey:
     def test_best_row_per_key_selected_by_version_then_created_at(self):
         """Pour une même config_key, version max puis created_at le plus récent."""
         rows = [
-            {"config_key": "x", "version": 1, "config_data": {"v": 1}, "last_checked_at": None, "comment": None, "source_links": None, "created_at": "2025-01-01T00:00:00Z"},
-            {"config_key": "x", "version": 2, "config_data": {"v": 2}, "last_checked_at": None, "comment": None, "source_links": None, "created_at": "2025-01-05T00:00:00Z"},
-            {"config_key": "x", "version": 2, "config_data": {"v": "latest"}, "last_checked_at": None, "comment": None, "source_links": None, "created_at": "2025-01-10T00:00:00Z"},
+            {
+                "config_key": "x",
+                "version": 1,
+                "config_data": {"v": 1},
+                "last_checked_at": None,
+                "comment": None,
+                "source_links": None,
+                "created_at": "2025-01-01T00:00:00Z",
+            },
+            {
+                "config_key": "x",
+                "version": 2,
+                "config_data": {"v": 2},
+                "last_checked_at": None,
+                "comment": None,
+                "source_links": None,
+                "created_at": "2025-01-05T00:00:00Z",
+            },
+            {
+                "config_key": "x",
+                "version": 2,
+                "config_data": {"v": "latest"},
+                "last_checked_at": None,
+                "comment": None,
+                "source_links": None,
+                "created_at": "2025-01-10T00:00:00Z",
+            },
         ]
         result = group_payroll_configs_by_key(rows)
         assert result["x"]["version"] == 2
@@ -55,9 +80,30 @@ class TestGroupPayrollConfigsByKey:
     def test_multiple_keys_each_with_best_row(self):
         """Plusieurs config_key : chacune a sa meilleure ligne."""
         rows = [
-            {"config_key": "A", "version": 2, "config_data": {"a": 2}, "last_checked_at": None, "comment": None, "source_links": None},
-            {"config_key": "B", "version": 1, "config_data": {"b": 1}, "last_checked_at": None, "comment": None, "source_links": None},
-            {"config_key": "A", "version": 1, "config_data": {"a": 1}, "last_checked_at": None, "comment": None, "source_links": None},
+            {
+                "config_key": "A",
+                "version": 2,
+                "config_data": {"a": 2},
+                "last_checked_at": None,
+                "comment": None,
+                "source_links": None,
+            },
+            {
+                "config_key": "B",
+                "version": 1,
+                "config_data": {"b": 1},
+                "last_checked_at": None,
+                "comment": None,
+                "source_links": None,
+            },
+            {
+                "config_key": "A",
+                "version": 1,
+                "config_data": {"a": 1},
+                "last_checked_at": None,
+                "comment": None,
+                "source_links": None,
+            },
         ]
         result = group_payroll_configs_by_key(rows)
         assert result["A"]["version"] == 2 and result["A"]["config_data"] == {"a": 2}

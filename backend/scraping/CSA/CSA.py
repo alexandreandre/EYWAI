@@ -44,7 +44,10 @@ def get_taux_csa() -> float | None:
         employeur_section = None
         for article in soup.find_all("article"):
             h2 = article.find("h2", class_="h4-like")
-            if h2 and "taux de cotisations employeur" in h2.get_text(strip=True).lower():
+            if (
+                h2
+                and "taux de cotisations employeur" in h2.get_text(strip=True).lower()
+            ):
                 employeur_section = article
                 break
         if not employeur_section:
@@ -53,13 +56,21 @@ def get_taux_csa() -> float | None:
         # 2) Parcourir les lignes du tableau pour "Contribution solidarité autonomie (CSA)"
         for row in employeur_section.find_all("tr", class_="table_custom__tbody"):
             header_cell = row.find("th")
-            if header_cell and "Contribution solidarité autonomie (CSA)" in header_cell.get_text(strip=True):
+            if (
+                header_cell
+                and "Contribution solidarité autonomie (CSA)"
+                in header_cell.get_text(strip=True)
+            ):
                 value_cell = row.find("td")
                 if not value_cell:
-                    raise ValueError("Ligne 'CSA' trouvée, mais cellule de valeur manquante.")
+                    raise ValueError(
+                        "Ligne 'CSA' trouvée, mais cellule de valeur manquante."
+                    )
                 taux = parse_percent_to_rate(value_cell.get_text(strip=True))
                 if taux is None:
-                    raise ValueError(f"Taux CSA introuvable dans la cellule: '{value_cell.get_text(strip=True)}'")
+                    raise ValueError(
+                        f"Taux CSA introuvable dans la cellule: '{value_cell.get_text(strip=True)}'"
+                    )
                 return taux
 
         raise ValueError("Ligne 'Contribution solidarité autonomie (CSA)' introuvable.")
@@ -75,7 +86,13 @@ def build_payload(rate_patronal: float | None) -> dict:
         "base": "brut",
         "valeurs": {"salarial": None, "patronal": rate_patronal},
         "meta": {
-            "source": [{"url": URL_URSSAF, "label": "URSSAF — Taux secteur privé", "date_doc": ""}],
+            "source": [
+                {
+                    "url": URL_URSSAF,
+                    "label": "URSSAF — Taux secteur privé",
+                    "date_doc": "",
+                }
+            ],
             "scraped_at": iso_now(),
             "generator": "CSA/CSA.py",
             "method": "primary",

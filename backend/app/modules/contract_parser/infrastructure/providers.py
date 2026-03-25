@@ -5,6 +5,7 @@ Providers (services externes) du module contract_parser.
 - ExtractionLLMProvider : appels OpenAI (prompts contrat, RIB, questionnaire).
 Comportement strictement identique à l'ancien router.
 """
+
 from __future__ import annotations
 
 import io
@@ -13,12 +14,16 @@ import os
 import traceback
 from typing import Any, Dict, Tuple
 
-from app.modules.contract_parser.domain.interfaces import IExtractionLLM, IPdfTextExtractor
+from app.modules.contract_parser.domain.interfaces import (
+    IExtractionLLM,
+    IPdfTextExtractor,
+)
 from app.modules.contract_parser.domain.rules import is_scanned_pdf
 
 # Import des bibliothèques pour la lecture de PDF
 try:
     import pdfplumber
+
     _PDFPLUMBER_AVAILABLE = True
 except ImportError:
     _PDFPLUMBER_AVAILABLE = False
@@ -26,6 +31,7 @@ except ImportError:
 
 try:
     import PyPDF2
+
     _PYPDF2_AVAILABLE = True
 except ImportError:
     _PYPDF2_AVAILABLE = False
@@ -36,6 +42,7 @@ try:
     import pytesseract
     from PIL import Image
     from PIL import ImageEnhance
+
     _OCR_AVAILABLE = True
 except ImportError:
     _OCR_AVAILABLE = False
@@ -94,10 +101,12 @@ class PdfTextExtractor(IPdfTextExtractor):
             return ""
         try:
             print("INFO: Conversion du PDF en images pour OCR...")
-            images = convert_from_bytes(file_content, dpi=300, first_page=1, last_page=max_pages)
+            images = convert_from_bytes(
+                file_content, dpi=300, first_page=1, last_page=max_pages
+            )
             text = ""
             for i, img in enumerate(images):
-                print(f"INFO: OCR de la page {i+1}/{len(images)}...")
+                print(f"INFO: OCR de la page {i + 1}/{len(images)}...")
                 processed_img = self._preprocess_image_for_ocr(img)
                 custom_config = r"--oem 3 --psm 6"
                 page_text = pytesseract.image_to_string(
@@ -119,10 +128,14 @@ class PdfTextExtractor(IPdfTextExtractor):
             text = self._extract_with_pdfplumber(file_content)
             if text and len(text) > 100 and not is_scanned_pdf(text):
                 method = "pdfplumber"
-                print(f"INFO: Extraction réussie avec pdfplumber ({len(text)} caractères)")
+                print(
+                    f"INFO: Extraction réussie avec pdfplumber ({len(text)} caractères)"
+                )
                 return text, method
             elif text:
-                print(f"WARNING: pdfplumber a extrait du texte ({len(text)} caractères) mais il semble être un PDF scanné")
+                print(
+                    f"WARNING: pdfplumber a extrait du texte ({len(text)} caractères) mais il semble être un PDF scanné"
+                )
 
         if not text and _PYPDF2_AVAILABLE:
             print("INFO: Tentative d'extraction avec PyPDF2...")
@@ -132,10 +145,14 @@ class PdfTextExtractor(IPdfTextExtractor):
                 print(f"INFO: Extraction réussie avec PyPDF2 ({len(text)} caractères)")
                 return text, method
             elif text:
-                print(f"WARNING: PyPDF2 a extrait du texte ({len(text)} caractères) mais il semble être un PDF scanné")
+                print(
+                    f"WARNING: PyPDF2 a extrait du texte ({len(text)} caractères) mais il semble être un PDF scanné"
+                )
 
         if _OCR_AVAILABLE:
-            print("INFO: Le PDF semble être scanné ou l'extraction a échoué. Tentative d'OCR...")
+            print(
+                "INFO: Le PDF semble être scanné ou l'extraction a échoué. Tentative d'OCR..."
+            )
             ocr_text = self._extract_with_ocr(file_content, max_pages=5)
             if ocr_text and len(ocr_text) > 50:
                 method = "OCR (Tesseract)"
@@ -144,11 +161,15 @@ class PdfTextExtractor(IPdfTextExtractor):
 
         if text and len(text) > 20:
             method = "Extraction de base (qualité limitée)"
-            print(f"WARNING: OCR non disponible. Utilisation du texte extrait avec qualité limitée ({len(text)} caractères)")
+            print(
+                f"WARNING: OCR non disponible. Utilisation du texte extrait avec qualité limitée ({len(text)} caractères)"
+            )
             return text, method
 
         if not text or len(text) < 20:
-            raise Exception("Impossible d'extraire le texte du PDF avec les méthodes disponibles")
+            raise Exception(
+                "Impossible d'extraire le texte du PDF avec les méthodes disponibles"
+            )
 
         return text, method
 
@@ -390,6 +411,7 @@ class ExtractionLLMProvider(IExtractionLLM):
     def _get_client(self) -> Any:
         if self._client is None:
             from openai import OpenAI
+
             self._client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         return self._client
 
@@ -402,7 +424,9 @@ class ExtractionLLMProvider(IExtractionLLM):
     ) -> Dict[str, Any]:
         client = self._get_client()
         full_content = f"{prompt}\n\n{user_content}"
-        print(f"INFO: Appel de l'API OpenAI (gpt-4o-mini){' ' + log_prefix if log_prefix else ''}...")
+        print(
+            f"INFO: Appel de l'API OpenAI (gpt-4o-mini){' ' + log_prefix if log_prefix else ''}..."
+        )
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": full_content}],
@@ -410,13 +434,17 @@ class ExtractionLLMProvider(IExtractionLLM):
             temperature=0.1,
         )
         raw_response = response.choices[0].message.content or ""
-        print(f"DEBUG: Réponse brute de GPT-4o-mini{log_prefix}: {raw_response[:500]}...")
+        print(
+            f"DEBUG: Réponse brute de GPT-4o-mini{log_prefix}: {raw_response[:500]}..."
+        )
         try:
             parsed = json.loads(raw_response)
         except json.JSONDecodeError as e:
             print(f"ERROR: Impossible de parser la réponse JSON : {e}")
             print(f"DEBUG: Réponse complète : {raw_response}")
-            raise ValueError("Le modèle AI n'a pas retourné un JSON valide. Veuillez réessayer.") from e
+            raise ValueError(
+                "Le modèle AI n'a pas retourné un JSON valide. Veuillez réessayer."
+            ) from e
         if "extracted_data" not in parsed:
             parsed = {
                 "extracted_data": parsed,
@@ -428,17 +456,25 @@ class ExtractionLLMProvider(IExtractionLLM):
     def extract_contract(self, extracted_text: str) -> Dict[str, Any]:
         user_content = f"--- CONTENU DU CONTRAT PDF ---\n\n{extracted_text}"
         return self._call_llm(
-            _CONTRACT_PROMPT, user_content, max_tokens=4096, log_prefix="pour l'analyse du texte"
+            _CONTRACT_PROMPT,
+            user_content,
+            max_tokens=4096,
+            log_prefix="pour l'analyse du texte",
         )
 
     def extract_rib(self, extracted_text: str) -> Dict[str, Any]:
         user_content = f"--- CONTENU DU RIB PDF ---\n\n{extracted_text}"
         return self._call_llm(
-            _RIB_PROMPT, user_content, max_tokens=2048, log_prefix="pour l'analyse du RIB"
+            _RIB_PROMPT,
+            user_content,
+            max_tokens=2048,
+            log_prefix="pour l'analyse du RIB",
         )
 
     def extract_questionnaire(self, extracted_text: str) -> Dict[str, Any]:
-        user_content = f"--- CONTENU DU QUESTIONNAIRE D'EMBAUCHE PDF ---\n\n{extracted_text}"
+        user_content = (
+            f"--- CONTENU DU QUESTIONNAIRE D'EMBAUCHE PDF ---\n\n{extracted_text}"
+        )
         return self._call_llm(
             _QUESTIONNAIRE_PROMPT,
             user_content,

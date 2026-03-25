@@ -4,13 +4,18 @@ Entités du domaine promotions.
 Placeholder : structure minimale pour la migration.
 À terme : entité Promotion riche avec invariants.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
-from app.modules.promotions.domain.enums import PromotionStatus, PromotionType, RhAccessRole
+from app.modules.promotions.domain.enums import (
+    PromotionStatus,
+    PromotionType,
+    RhAccessRole,
+)
 
 
 @dataclass
@@ -51,5 +56,6 @@ class Promotion:
     promotion_letter_url: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
 
 __all__ = ["Promotion"]

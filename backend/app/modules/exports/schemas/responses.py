@@ -17,6 +17,7 @@ ExportStatus = Literal["previewed", "generated", "cancelled", "replaced"]
 
 class ExportAnomaly(BaseModel):
     """Anomalie détectée lors de la prévisualisation"""
+
     type: Literal["error", "warning"]
     message: str
     severity: Literal["blocking", "warning"]
@@ -26,6 +27,7 @@ class ExportAnomaly(BaseModel):
 
 class ExportTotals(BaseModel):
     """Totaux de contrôle pour un export"""
+
     employees_count: int
     total_brut: Optional[float] = None
     total_cotisations_salariales: Optional[float] = None
@@ -37,6 +39,7 @@ class ExportTotals(BaseModel):
 
 class ExportPreviewResponse(BaseModel):
     """Réponse de prévisualisation d'export"""
+
     export_type: ExportType
     period: str
     employees_count: int
@@ -48,6 +51,7 @@ class ExportPreviewResponse(BaseModel):
 
 class ExportFileInfo(BaseModel):
     """Informations sur un fichier généré"""
+
     filename: str
     path: str
     size: int
@@ -56,6 +60,7 @@ class ExportFileInfo(BaseModel):
 
 class ExportReport(BaseModel):
     """Rapport d'export généré"""
+
     export_type: ExportType
     period: str
     generated_at: datetime
@@ -69,6 +74,7 @@ class ExportReport(BaseModel):
 
 class ExportGenerateResponse(BaseModel):
     """Réponse de génération d'export"""
+
     export_id: str
     export_type: ExportType
     period: str
@@ -85,6 +91,7 @@ class ExportGenerateResponse(BaseModel):
 
 class ExportHistoryEntry(BaseModel):
     """Entrée dans l'historique des exports"""
+
     id: str
     export_type: ExportType
     period: str
@@ -98,6 +105,7 @@ class ExportHistoryEntry(BaseModel):
 
 class ExportHistoryResponse(BaseModel):
     """Réponse de l'historique des exports"""
+
     exports: List[ExportHistoryEntry]
     total: int
 
@@ -109,23 +117,33 @@ class ExportHistoryResponse(BaseModel):
 
 class ODType(BaseModel):
     """Type d'OD comptable"""
+
     type: Literal["od_salaires", "od_charges_sociales", "od_pas", "od_globale"]
     libelle: str
 
 
 class AccountingMapping(BaseModel):
     """Mapping comptable rubrique → compte"""
+
     rubrique_code: str
     rubrique_libelle: str
     compte_comptable: str
     sens: Literal["debit", "credit"]
-    type_rubrique: Literal["salaire", "charge_patronale", "dette_salarie", "dette_organisme", "pas", "autre"]
+    type_rubrique: Literal[
+        "salaire",
+        "charge_patronale",
+        "dette_salarie",
+        "dette_organisme",
+        "pas",
+        "autre",
+    ]
     analytique: Optional[str] = None
     journal: str = "OD"
 
 
 class EcritureComptable(BaseModel):
     """Une ligne d'écriture comptable"""
+
     date_ecriture: str
     journal: str
     compte_comptable: str
@@ -140,6 +158,7 @@ class EcritureComptable(BaseModel):
 
 class ODPreviewResponse(BaseModel):
     """Réponse de prévisualisation d'OD"""
+
     od_type: str
     period: str
     date_ecriture: str
@@ -156,6 +175,7 @@ class ODPreviewResponse(BaseModel):
 
 class ODGenerateResponse(BaseModel):
     """Réponse de génération d'OD"""
+
     export_id: str
     od_type: str
     period: str
@@ -175,12 +195,14 @@ class ODGenerateResponse(BaseModel):
 
 class DSNType(BaseModel):
     """Type de DSN"""
+
     type: Literal["dsn_mensuelle_normale", "dsn_neant"]
     libelle: str
 
 
 class DSNEmployeePreview(BaseModel):
     """Prévisualisation DSN pour un salarié"""
+
     employee_id: str
     nom: str
     prenom: str
@@ -196,6 +218,7 @@ class DSNEmployeePreview(BaseModel):
 
 class DSNOrganismeSummary(BaseModel):
     """Résumé par organisme"""
+
     organisme: str
     code_organisme: Optional[str] = None
     nombre_salaries: int
@@ -205,6 +228,7 @@ class DSNOrganismeSummary(BaseModel):
 
 class DSNPreviewResponse(BaseModel):
     """Réponse de prévisualisation DSN"""
+
     period: str
     dsn_type: str
     establishment_siret: Optional[str] = None
@@ -223,6 +247,7 @@ class DSNPreviewResponse(BaseModel):
 
 class DSNReport(BaseModel):
     """Rapport DSN détaillé"""
+
     period: str
     dsn_type: str
     establishment_siret: Optional[str] = None
@@ -237,13 +262,16 @@ class DSNReport(BaseModel):
 
 class DSNGenerateResponse(BaseModel):
     """Réponse de génération DSN"""
+
     export_id: str
     period: str
     status: ExportStatus
     files: List[ExportFileInfo]
     report: DSNReport
     download_urls: Dict[str, str]
-    message_teletransmission: str = "Ce fichier doit être télétransmis manuellement sur net-entreprises.fr"
+    message_teletransmission: str = (
+        "Ce fichier doit être télétransmis manuellement sur net-entreprises.fr"
+    )
 
 
 __all__ = [

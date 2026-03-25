@@ -3,6 +3,7 @@ Tests unitaires des requêtes bonus_types (application/queries.py).
 
 Chaque query est testée avec un service mocké injecté.
 """
+
 from uuid import uuid4
 
 from app.modules.bonus_types.application.dto import BonusCalculationResult
@@ -17,6 +18,7 @@ from app.modules.bonus_types.domain.enums import BonusTypeKind
 
 def _make_mock_service():
     from unittest.mock import MagicMock
+
     return MagicMock()
 
 

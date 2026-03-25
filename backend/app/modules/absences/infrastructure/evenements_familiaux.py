@@ -4,6 +4,7 @@ Calcul des droits aux événements familiaux selon la convention collective.
 Logique migrée depuis services/evenements_familiaux.py pour autonomie du module.
 Utilise uniquement app.core.database (aucun import legacy).
 """
+
 from datetime import date
 from typing import Any, Dict, List, Optional
 
@@ -53,9 +54,7 @@ def get_employee_collective_agreement(employee_id: str) -> Optional[str]:
     return None
 
 
-def get_quota_evenement(
-    employee_id: str, event_code: str
-) -> Optional[Dict[str, Any]]:
+def get_quota_evenement(employee_id: str, event_code: str) -> Optional[Dict[str, Any]]:
     """
     Retourne le quota pour un événement donné selon la CC de l'employé.
     Retourne {duree_jours, type_jours, condition_anciennete_jours} ou None.
@@ -167,9 +166,7 @@ def get_events_disponibles(employee_id: str) -> List[Dict[str, Any]]:
     hire_date = None
     if emp and emp.data and emp.data.get("hire_date"):
         h = emp.data["hire_date"]
-        hire_date = (
-            date.fromisoformat(h) if isinstance(h, str) else h
-        )
+        hire_date = date.fromisoformat(h) if isinstance(h, str) else h
 
     cc_id = get_employee_collective_agreement(employee_id)
     if not cc_id:
@@ -177,9 +174,7 @@ def get_events_disponibles(employee_id: str) -> List[Dict[str, Any]]:
 
     overrides = (
         supabase.table("cc_evenements_familiaux")
-        .select(
-            "event_code, duree_jours, type_jours, condition_anciennete_jours"
-        )
+        .select("event_code, duree_jours, type_jours, condition_anciennete_jours")
         .eq("collective_agreement_id", cc_id)
         .execute()
     )
@@ -217,14 +212,16 @@ def get_events_disponibles(employee_id: str) -> List[Dict[str, Any]]:
                 continue
 
         solde_data = get_solde_evenement(employee_id, code, hire_date)
-        result.append({
-            "code": code,
-            "libelle": ref["libelle"],
-            "duree_jours": duree,
-            "type_jours": type_j,
-            "quota": duree,
-            "solde_restant": solde_data["solde_restant"],
-            "taken": solde_data["taken"],
-            "cycles_completed": solde_data.get("cycles_completed", 0),
-        })
+        result.append(
+            {
+                "code": code,
+                "libelle": ref["libelle"],
+                "duree_jours": duree,
+                "type_jours": type_j,
+                "quota": duree,
+                "solde_restant": solde_data["solde_restant"],
+                "taken": solde_data["taken"],
+                "cycles_completed": solde_data.get("cycles_completed", 0),
+            }
+        )
     return result

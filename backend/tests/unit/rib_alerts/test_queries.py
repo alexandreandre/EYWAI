@@ -4,12 +4,16 @@ Tests unitaires des queries rib_alerts (application/queries.py).
 Repository et mappers mockés : get_rib_alert_repository, rib_alert_to_response_dict.
 Couvre get_rib_alerts.
 """
+
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.modules.rib_alerts.application.dto import RibAlertListFilters, RibAlertListResult
+from app.modules.rib_alerts.application.dto import (
+    RibAlertListFilters,
+    RibAlertListResult,
+)
 from app.modules.rib_alerts.application.queries import get_rib_alerts
 from app.modules.rib_alerts.domain.entities import RibAlert
 from app.modules.rib_alerts.domain.exceptions import MissingCompanyContextError
@@ -54,14 +58,28 @@ class TestGetRibAlerts:
         mock_repo.list.return_value = ([alert1, alert2], 2)
 
         def fake_mapper(a: RibAlert) -> dict:
-            return {"id": a.id, "company_id": a.company_id, "alert_type": a.alert_type, "total": 2}
+            return {
+                "id": a.id,
+                "company_id": a.company_id,
+                "alert_type": a.alert_type,
+                "total": 2,
+            }
 
-        with patch("app.modules.rib_alerts.application.queries.get_rib_alert_repository", return_value=mock_repo), patch(
-            "app.modules.rib_alerts.application.queries.rib_alert_to_response_dict", side_effect=fake_mapper
+        with (
+            patch(
+                "app.modules.rib_alerts.application.queries.get_rib_alert_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.rib_alerts.application.queries.rib_alert_to_response_dict",
+                side_effect=fake_mapper,
+            ),
         ):
             result = get_rib_alerts(
                 company_id="company-1",
-                filters=RibAlertListFilters(is_read=None, is_resolved=None, limit=50, offset=0),
+                filters=RibAlertListFilters(
+                    is_read=None, is_resolved=None, limit=50, offset=0
+                ),
             )
 
         assert isinstance(result, RibAlertListResult)
@@ -83,8 +101,15 @@ class TestGetRibAlerts:
         """Les filtres (is_read, is_resolved, alert_type, employee_id, limit, offset) sont passés au repository."""
         mock_repo = MagicMock()
         mock_repo.list.return_value = ([], 0)
-        with patch("app.modules.rib_alerts.application.queries.get_rib_alert_repository", return_value=mock_repo), patch(
-            "app.modules.rib_alerts.application.queries.rib_alert_to_response_dict", return_value={}
+        with (
+            patch(
+                "app.modules.rib_alerts.application.queries.get_rib_alert_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.rib_alerts.application.queries.rib_alert_to_response_dict",
+                return_value={},
+            ),
         ):
             get_rib_alerts(
                 company_id="company-1",
@@ -109,13 +134,19 @@ class TestGetRibAlerts:
 
     def test_raises_missing_company_context_when_company_id_none(self):
         """company_id None lève MissingCompanyContextError (pas d'appel au repository)."""
-        with patch("app.modules.rib_alerts.application.queries.get_rib_alert_repository", return_value=MagicMock()):
+        with patch(
+            "app.modules.rib_alerts.application.queries.get_rib_alert_repository",
+            return_value=MagicMock(),
+        ):
             with pytest.raises(MissingCompanyContextError):
                 get_rib_alerts(company_id=None, filters=RibAlertListFilters())
 
     def test_raises_missing_company_context_when_company_id_empty(self):
         """company_id vide lève MissingCompanyContextError."""
-        with patch("app.modules.rib_alerts.application.queries.get_rib_alert_repository", return_value=MagicMock()):
+        with patch(
+            "app.modules.rib_alerts.application.queries.get_rib_alert_repository",
+            return_value=MagicMock(),
+        ):
             with pytest.raises(MissingCompanyContextError):
                 get_rib_alerts(company_id="", filters=RibAlertListFilters())
 
@@ -123,9 +154,18 @@ class TestGetRibAlerts:
         """Aucune alerte : liste vide et total 0."""
         mock_repo = MagicMock()
         mock_repo.list.return_value = ([], 0)
-        with patch("app.modules.rib_alerts.application.queries.get_rib_alert_repository", return_value=mock_repo), patch(
-            "app.modules.rib_alerts.application.queries.rib_alert_to_response_dict", return_value={}
+        with (
+            patch(
+                "app.modules.rib_alerts.application.queries.get_rib_alert_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.rib_alerts.application.queries.rib_alert_to_response_dict",
+                return_value={},
+            ),
         ):
-            result = get_rib_alerts(company_id="company-1", filters=RibAlertListFilters())
+            result = get_rib_alerts(
+                company_id="company-1", filters=RibAlertListFilters()
+            )
         assert result.total == 0
         assert result.alerts == []

@@ -4,6 +4,7 @@ Ports (interfaces) pour le module collective_agreements.
 L'infrastructure implémente ces interfaces. Aucune dépendance à FastAPI.
 Contrats en dict pour rester aligné avec le comportement API actuel.
 """
+
 from __future__ import annotations
 
 from typing import Any, List, Optional, Protocol

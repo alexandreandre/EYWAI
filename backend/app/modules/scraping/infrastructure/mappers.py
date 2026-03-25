@@ -4,6 +4,7 @@ Mappers dict DB <-> entités domaine scraping.
 Placeholder : à utiliser lors de la migration si on passe par des entités.
 Pour l'instant le module travaille en dict pour compatibilité avec le legacy.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict

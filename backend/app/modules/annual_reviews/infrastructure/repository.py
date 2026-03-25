@@ -3,6 +3,7 @@ Repository annual_reviews : implémentation IAnnualReviewRepository.
 
 Délègue l'exécution DB à infrastructure/queries.py. Comportement identique au legacy.
 """
+
 from typing import Any, Dict, List, Optional
 
 from app.modules.annual_reviews.domain.interfaces import IAnnualReviewRepository
@@ -36,9 +37,7 @@ class SupabaseAnnualReviewRepository(IAnnualReviewRepository):
     def create(self, data: Dict[str, Any]) -> Dict[str, Any]:
         return infra_queries.query_insert(data)
 
-    def update(
-        self, review_id: str, data: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+    def update(self, review_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return infra_queries.query_update(review_id, data)
 
     def delete(self, review_id: str) -> None:

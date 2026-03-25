@@ -3,6 +3,7 @@ Ports (interfaces) pour le module rib_alerts.
 
 L’infrastructure implémente ces interfaces ; l’application ne dépend que des abstractions.
 """
+
 from __future__ import annotations
 
 from typing import Any, Optional, Protocol

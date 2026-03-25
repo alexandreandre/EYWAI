@@ -6,4 +6,5 @@ Les endpoints check-hierarchy et check-permission sont en GET avec query params
 donc pas de schémas request à migrer. Ce fichier reste un placeholder pour d'éventuels
 futurs endpoints (ex. bulk check).
 """
+
 from __future__ import annotations

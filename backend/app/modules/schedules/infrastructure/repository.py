@@ -3,6 +3,7 @@ Repository employee_schedules : implémentation Supabase du port IScheduleReposi
 
 Tout accès DB à la table employee_schedules. Comportement identique à l'ancien router.
 """
+
 import sys
 import traceback
 from typing import Any, Dict, List, Optional, Tuple
@@ -117,9 +118,7 @@ class ScheduleRepository(IScheduleRepository):
     ) -> None:
         supabase.table("employee_schedules").update(
             {"payroll_events": payroll_events}
-        ).match(
-            {"employee_id": employee_id, "year": year, "month": month}
-        ).execute()
+        ).match({"employee_id": employee_id, "year": year, "month": month}).execute()
 
     def exists_schedule(self, employee_id: str, year: int, month: int) -> bool:
         response = (
@@ -159,9 +158,7 @@ class ScheduleRepository(IScheduleRepository):
     ) -> None:
         supabase.table("employee_schedules").update(
             {"planned_calendar": planned_calendar}
-        ).match(
-            {"employee_id": employee_id, "year": year, "month": month}
-        ).execute()
+        ).match({"employee_id": employee_id, "year": year, "month": month}).execute()
 
 
 # Instance pour l'application

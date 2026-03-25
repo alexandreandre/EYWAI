@@ -101,11 +101,13 @@ def supabase_client():
     try:
         if os.getenv("SUPABASE_TEST_URL") and os.getenv("SUPABASE_TEST_KEY"):
             from supabase import create_client
+
             return create_client(
                 os.environ["SUPABASE_TEST_URL"],
                 os.environ["SUPABASE_TEST_KEY"],
             )
         from app.core.database import get_supabase_client
+
         return get_supabase_client()
     except Exception:
         return None

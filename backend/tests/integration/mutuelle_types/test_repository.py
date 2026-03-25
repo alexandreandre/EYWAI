@@ -5,6 +5,7 @@ Sans DB de test : mocks Supabase pour valider la logique et les appels.
 Avec DB de test : prévoir la fixture db_session (conftest) et des données
 dans company_mutuelle_types, employee_mutuelle_types pour des tests CRUD réels.
 """
+
 from datetime import datetime
 from uuid import uuid4
 from unittest.mock import MagicMock
@@ -103,9 +104,7 @@ class TestSupabaseMutuelleTypeRepositoryGetById:
         assert result is not None
         assert result.libelle == "Formule X"
         chain.eq.assert_any_call("id", mt_id)
-        chain.eq.return_value.eq.assert_called_once_with(
-            "company_id", COMPANY_UUID_1
-        )
+        chain.eq.return_value.eq.assert_called_once_with("company_id", COMPANY_UUID_1)
 
     def test_get_by_id_without_company_does_not_filter_company(self):
         mt_id = str(uuid4())
@@ -210,9 +209,7 @@ class TestSupabaseMutuelleTypeRepositoryCreate:
             montant_patronal=40.0,
         )
         table = MagicMock()
-        table.insert.return_value.execute.return_value = MagicMock(
-            data=[inserted_row]
-        )
+        table.insert.return_value.execute.return_value = MagicMock(data=[inserted_row])
         mock_supabase.table.return_value = table
 
         repo = SupabaseMutuelleTypeRepository(mock_supabase)
@@ -252,7 +249,12 @@ class TestSupabaseMutuelleTypeRepositoryUpdate:
 
         repo = SupabaseMutuelleTypeRepository(mock_supabase)
         result = repo.update(
-            mt_id, {"libelle": "Mis à jour", "montant_salarial": 70.0, "montant_patronal": 45.0}
+            mt_id,
+            {
+                "libelle": "Mis à jour",
+                "montant_salarial": 70.0,
+                "montant_patronal": 45.0,
+            },
         )
 
         table.update.assert_called_once()

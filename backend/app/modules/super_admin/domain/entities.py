@@ -4,6 +4,7 @@ Entités du domaine super_admin.
 Préparation migration : structure alignée sur la table super_admins
 (api/routers/super_admin.py, migrations/00_create_super_admin.sql).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -18,6 +19,7 @@ class SuperAdmin:
     Super administrateur plateforme.
     Correspond à une ligne de la table super_admins.
     """
+
     id: UUID
     user_id: UUID
     email: str

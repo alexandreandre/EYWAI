@@ -5,6 +5,7 @@ SupabaseRibAlertRepository : list, get_by_id, mark_read, resolve, create.
 Les requêtes DB (infrastructure/queries) sont mockées pour valider la logique et les appels.
 Avec DB de test réelle : utiliser la fixture db_session (conftest) et des données dans rib_alerts.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -51,7 +52,9 @@ class TestSupabaseRibAlertRepositoryList:
 
     def test_list_passes_filters_to_query(self):
         """list transmet is_read, is_resolved, alert_type, employee_id, limit, offset."""
-        with patch(f"{QUERIES_PATH}.list_rib_alerts_rows", return_value=([], 0)) as mock_list:
+        with patch(
+            f"{QUERIES_PATH}.list_rib_alerts_rows", return_value=([], 0)
+        ) as mock_list:
             repo = SupabaseRibAlertRepository()
             repo.list(
                 "company-1",
@@ -125,7 +128,9 @@ class TestSupabaseRibAlertRepositoryMarkRead:
 
     def test_mark_read_calls_update_and_returns_true(self):
         """mark_read appelle update_rib_alert_read et retourne True."""
-        with patch(f"{QUERIES_PATH}.update_rib_alert_read", return_value=True) as mock_update:
+        with patch(
+            f"{QUERIES_PATH}.update_rib_alert_read", return_value=True
+        ) as mock_update:
             repo = SupabaseRibAlertRepository()
             result = repo.mark_read("alert-1", "company-1")
         assert result is True
@@ -145,15 +150,23 @@ class TestSupabaseRibAlertRepositoryResolve:
 
     def test_resolve_calls_update_with_resolved_by_and_note(self):
         """resolve appelle update_rib_alert_resolve avec resolved_by et resolution_note."""
-        with patch(f"{QUERIES_PATH}.update_rib_alert_resolve", return_value=True) as mock_update:
+        with patch(
+            f"{QUERIES_PATH}.update_rib_alert_resolve", return_value=True
+        ) as mock_update:
             repo = SupabaseRibAlertRepository()
-            result = repo.resolve("alert-1", "company-1", "user-1", "Résolu manuellement")
+            result = repo.resolve(
+                "alert-1", "company-1", "user-1", "Résolu manuellement"
+            )
         assert result is True
-        mock_update.assert_called_once_with("alert-1", "company-1", "user-1", "Résolu manuellement")
+        mock_update.assert_called_once_with(
+            "alert-1", "company-1", "user-1", "Résolu manuellement"
+        )
 
     def test_resolve_with_none_note(self):
         """resolution_note peut être None."""
-        with patch(f"{QUERIES_PATH}.update_rib_alert_resolve", return_value=True) as mock_update:
+        with patch(
+            f"{QUERIES_PATH}.update_rib_alert_resolve", return_value=True
+        ) as mock_update:
             repo = SupabaseRibAlertRepository()
             repo.resolve("alert-1", "company-1", "user-1", None)
         mock_update.assert_called_once_with("alert-1", "company-1", "user-1", None)
@@ -189,7 +202,16 @@ class TestSupabaseRibAlertRepositoryCreate:
         }
         with patch(f"{QUERIES_PATH}.insert_rib_alert", return_value=row):
             repo = SupabaseRibAlertRepository()
-            alert = repo.create({"company_id": "company-1", "alert_type": "rib_modified", "title": "Nouvelle alerte", "message": "Msg", "severity": "warning", "details": {}})
+            alert = repo.create(
+                {
+                    "company_id": "company-1",
+                    "alert_type": "rib_modified",
+                    "title": "Nouvelle alerte",
+                    "message": "Msg",
+                    "severity": "warning",
+                    "details": {},
+                }
+            )
         assert alert is not None
         assert alert.id == "alert-new"
         assert alert.company_id == "company-1"

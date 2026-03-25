@@ -6,11 +6,13 @@ les permissions granulaires (schemas.permissions). Ne pas déplacer
 les enums métier des autres modules ici ; ce module centralise uniquement
 le vocabulaire commun (rôles, hiérarchie).
 """
+
 from enum import StrEnum
 
 
 class RoleKind(StrEnum):
     """Rôles utilisateur dans une entreprise (base_role)."""
+
     SUPER_ADMIN = "super_admin"
     ADMIN = "admin"
     RH = "rh"

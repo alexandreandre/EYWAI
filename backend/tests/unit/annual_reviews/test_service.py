@@ -3,6 +3,7 @@ Tests unitaires du service applicatif annual_reviews (application/service.py).
 
 Dépendances (repository, pdf_generator) mockées.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -59,7 +60,10 @@ class TestGenerateAnnualReviewPdf:
                     is_rh=True,
                     repository=repo,
                 )
-            assert "Entretien" in str(exc_info.value) or "trouvé" in str(exc_info.value).lower()
+            assert (
+                "Entretien" in str(exc_info.value)
+                or "trouvé" in str(exc_info.value).lower()
+            )
 
     def test_raises_lookup_error_when_employee_not_found(self):
         """Données entretien OK mais employé non trouvé → LookupError."""
@@ -85,7 +89,10 @@ class TestGenerateAnnualReviewPdf:
                     is_rh=True,
                     repository=repo,
                 )
-            assert "Employé" in str(exc_info.value) or "trouvé" in str(exc_info.value).lower()
+            assert (
+                "Employé" in str(exc_info.value)
+                or "trouvé" in str(exc_info.value).lower()
+            )
 
     def test_returns_pdf_bytes_and_filename(self):
         """Données complètes → (pdf_bytes, filename)."""
@@ -172,4 +179,8 @@ class TestGenerateAnnualReviewPdf:
                 pdf_generator=pdf_gen,
             )
 
-        assert " " not in filename or "Jean_Pierre" in filename or "Dupont_Martin" in filename
+        assert (
+            " " not in filename
+            or "Jean_Pierre" in filename
+            or "Dupont_Martin" in filename
+        )

@@ -4,12 +4,15 @@ Providers externes pour le dashboard.
 Résidence / titres de séjour : adaptateur vers app.shared.infrastructure.residence_permit
 pour IResidencePermitStatusCalculator (aucun import legacy).
 """
+
 from __future__ import annotations
 
 from typing import Any
 
 from app.modules.dashboard.domain.interfaces import IResidencePermitStatusCalculator
-from app.shared.infrastructure.residence_permit import calculate_residence_permit_status as _calc_status
+from app.shared.infrastructure.residence_permit import (
+    calculate_residence_permit_status as _calc_status,
+)
 
 
 class ResidencePermitCalculatorAdapter:

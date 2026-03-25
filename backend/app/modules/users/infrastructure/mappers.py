@@ -3,6 +3,7 @@ Mappers : conversion entre lignes DB (Supabase) et schémas / DTOs.
 
 Comportement identique aux constructions inline des anciens routers.
 """
+
 from typing import Optional
 
 from app.modules.users.schemas.responses import CompanyAccess, UserDetail

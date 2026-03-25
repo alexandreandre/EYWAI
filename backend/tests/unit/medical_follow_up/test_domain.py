@@ -3,6 +3,7 @@ Tests unitaires du domaine medical_follow_up : entités, règles, enums.
 
 Aucune dépendance DB ni HTTP. Logique pure du domain/.
 """
+
 from datetime import date
 
 
@@ -95,7 +96,11 @@ class TestComputeKpisFromRows:
         rows = [
             {"due_date": "2025-03-01", "status": "a_faire", "completed_date": None},
             {"due_date": "2025-03-10", "status": "planifiee", "completed_date": None},
-            {"due_date": "2025-03-05", "status": "realisee", "completed_date": "2025-03-06"},
+            {
+                "due_date": "2025-03-05",
+                "status": "realisee",
+                "completed_date": "2025-03-06",
+            },
         ]
         result = compute_kpis_from_rows(rows, today)
         assert result["overdue_count"] == 2  # a_faire et planifiee, pas realisee
@@ -106,7 +111,11 @@ class TestComputeKpisFromRows:
         rows = [
             {"due_date": "2025-03-17", "status": "a_faire", "completed_date": None},
             {"due_date": "2025-04-15", "status": "a_faire", "completed_date": None},
-            {"due_date": "2025-04-20", "status": "a_faire", "completed_date": None},  # > 30 j
+            {
+                "due_date": "2025-04-20",
+                "status": "a_faire",
+                "completed_date": None,
+            },  # > 30 j
         ]
         result = compute_kpis_from_rows(rows, today)
         assert result["due_within_30_count"] == 2
@@ -117,7 +126,11 @@ class TestComputeKpisFromRows:
         rows = [
             {"due_date": "2025-04-01", "status": "a_faire", "completed_date": None},
             {"due_date": "2025-04-02", "status": "planifiee", "completed_date": None},
-            {"due_date": "2025-03-01", "status": "realisee", "completed_date": "2025-03-10"},
+            {
+                "due_date": "2025-03-01",
+                "status": "realisee",
+                "completed_date": "2025-03-10",
+            },
         ]
         result = compute_kpis_from_rows(rows, today)
         assert result["active_total"] == 2
@@ -126,9 +139,21 @@ class TestComputeKpisFromRows:
         """Réalisées ce mois : status == realisee et completed_date >= début du mois."""
         today = date(2025, 3, 17)
         rows = [
-            {"due_date": "2025-02-01", "status": "realisee", "completed_date": "2025-03-05"},
-            {"due_date": "2025-02-15", "status": "realisee", "completed_date": "2025-02-20"},
-            {"due_date": "2025-03-01", "status": "realisee", "completed_date": "2025-03-01"},
+            {
+                "due_date": "2025-02-01",
+                "status": "realisee",
+                "completed_date": "2025-03-05",
+            },
+            {
+                "due_date": "2025-02-15",
+                "status": "realisee",
+                "completed_date": "2025-02-20",
+            },
+            {
+                "due_date": "2025-03-01",
+                "status": "realisee",
+                "completed_date": "2025-03-01",
+            },
         ]
         result = compute_kpis_from_rows(rows, today)
         assert result["completed_this_month"] == 2  # 2025-03-05 et 2025-03-01
@@ -151,7 +176,11 @@ class TestComputeKpisFromRows:
         rows = [
             {"due_date": "2025-03-01", "status": "a_faire", "completed_date": None},
             {"due_date": "2025-04-01", "status": "a_faire", "completed_date": None},
-            {"due_date": "2025-03-10", "status": "realisee", "completed_date": "2025-03-12"},
+            {
+                "due_date": "2025-03-10",
+                "status": "realisee",
+                "completed_date": "2025-03-12",
+            },
         ]
         result = compute_kpis_from_rows(rows, today)
         assert result["overdue_count"] == 1
@@ -176,8 +205,13 @@ class TestVisitType:
 
     def test_aptitude_sir_and_vip_mineur_nuit(self):
         """Types spécifiques SIR / VIP mineur nuit."""
-        assert VisitType.APTITUDE_SIR_AVANT_AFFECTATION == "aptitude_sir_avant_affectation"
-        assert VisitType.VIP_AVANT_AFFECTATION_MINEUR_NUIT == "vip_avant_affectation_mineur_nuit"
+        assert (
+            VisitType.APTITUDE_SIR_AVANT_AFFECTATION == "aptitude_sir_avant_affectation"
+        )
+        assert (
+            VisitType.VIP_AVANT_AFFECTATION_MINEUR_NUIT
+            == "vip_avant_affectation_mineur_nuit"
+        )
 
 
 class TestObligationStatus:

@@ -3,6 +3,7 @@ Tests des queries du module copilot (application/queries.py).
 
 Repositories / service mockés : pas d'appel réel à la DB.
 """
+
 from unittest.mock import patch
 
 import pytest

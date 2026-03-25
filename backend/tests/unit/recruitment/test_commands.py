@@ -4,6 +4,7 @@ Tests unitaires des commandes du module recruitment (application/commands.py).
 Repositories et service mockés via patch du module service appelé par les commandes.
 Pas de DB ni HTTP.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -92,9 +93,15 @@ class TestCreateCandidate:
         )
 
     def test_raises_value_error_poste_non_trouve(self, _patch_service):
-        _patch_service.service_create_candidate.side_effect = ValueError("Poste non trouvé")
+        _patch_service.service_create_candidate.side_effect = ValueError(
+            "Poste non trouvé"
+        )
         with pytest.raises(ValueError, match="Poste non trouvé"):
-            commands.create_candidate("co-1", "user-1", {"job_id": "job-x", "first_name": "A", "last_name": "B"})
+            commands.create_candidate(
+                "co-1",
+                "user-1",
+                {"job_id": "job-x", "first_name": "A", "last_name": "B"},
+            )
 
 
 class TestUpdateCandidate:
@@ -194,10 +201,14 @@ class TestCreateInterview:
         )
 
     def test_raises_value_error_candidat_non_trouve(self, _patch_service):
-        _patch_service.service_create_interview.side_effect = ValueError("Candidat non trouvé")
+        _patch_service.service_create_interview.side_effect = ValueError(
+            "Candidat non trouvé"
+        )
         with pytest.raises(ValueError, match="Candidat non trouvé"):
             commands.create_interview(
-                "co-1", "user-1", {"candidate_id": "cand-x", "scheduled_at": "2025-03-20T10:00:00"}
+                "co-1",
+                "user-1",
+                {"candidate_id": "cand-x", "scheduled_at": "2025-03-20T10:00:00"},
             )
 
 
@@ -292,6 +303,8 @@ class TestHireCandidate:
         )
 
     def test_raises_value_error_candidat_introuvable(self, _patch_service):
-        _patch_service.service_hire_candidate.side_effect = ValueError("Candidat non trouvé")
+        _patch_service.service_hire_candidate.side_effect = ValueError(
+            "Candidat non trouvé"
+        )
         with pytest.raises(ValueError, match="Candidat non trouvé"):
             commands.hire_candidate("cand-unknown", "co-1", "2025-03-01")

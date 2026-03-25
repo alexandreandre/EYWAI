@@ -3,6 +3,7 @@ Mappers et helpers pour collective_agreements.
 
 Sérialisation des dates pour la DB, pas de dépendance à FastAPI.
 """
+
 from __future__ import annotations
 
 from datetime import date, datetime

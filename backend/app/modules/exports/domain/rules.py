@@ -6,12 +6,14 @@ from typing import Any, Dict
 def is_supported_export_type_for_preview(export_type: str) -> bool:
     """Vrai si le type d'export est supporté pour la prévisualisation."""
     from .value_objects import EXPORT_TYPES_PREVIEW
+
     return export_type in EXPORT_TYPES_PREVIEW
 
 
 def is_supported_export_type_for_generate(export_type: str) -> bool:
     """Vrai si le type d'export est supporté pour la génération."""
     from .value_objects import EXPORT_TYPES_GENERATE
+
     return export_type in EXPORT_TYPES_GENERATE
 
 

@@ -5,6 +5,7 @@ Utilisée par AccessControlService. À terme, toute lecture des tables
 permission_categories, permission_actions, permissions, user_permissions,
 role_templates, etc. peut transiter par ce repository ou des queries dédiées.
 """
+
 from __future__ import annotations
 
 from app.core.database import supabase
@@ -29,7 +30,11 @@ class SupabasePermissionRepository:
             )
             for row in result.data:
                 perm = row.get("permissions")
-                if perm and perm.get("code") == permission_code and perm.get("is_active", False):
+                if (
+                    perm
+                    and perm.get("code") == permission_code
+                    and perm.get("is_active", False)
+                ):
                     return True
             return False
         except Exception:

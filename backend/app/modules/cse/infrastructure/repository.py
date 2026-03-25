@@ -3,6 +3,7 @@
 Implémentations des repositories CSE — délégation vers services existants + queries/mappers locaux.
 Comportement strictement identique à l'existant.
 """
+
 from datetime import date
 from typing import Any, List, Optional
 
@@ -26,22 +27,31 @@ class ElectedMemberRepository(IElectedMemberRepository):
 
     def list_by_company(self, company_id: str, active_only: bool = True) -> List[Any]:
         from app.modules.cse.infrastructure.cse_service_impl import get_elected_members
+
         return get_elected_members(company_id, active_only=active_only)
 
     def get_by_id(self, member_id: str) -> Any:
-        from app.modules.cse.infrastructure.cse_service_impl import get_elected_member_by_id
+        from app.modules.cse.infrastructure.cse_service_impl import (
+            get_elected_member_by_id,
+        )
+
         return get_elected_member_by_id(member_id)
 
     def get_by_employee(self, company_id: str, employee_id: str) -> Optional[Any]:
-        from app.modules.cse.infrastructure.cse_service_impl import get_elected_member_by_employee
+        from app.modules.cse.infrastructure.cse_service_impl import (
+            get_elected_member_by_employee,
+        )
+
         return get_elected_member_by_employee(company_id, employee_id)
 
     def is_elected(self, company_id: str, employee_id: str) -> bool:
         from app.modules.cse.infrastructure.cse_service_impl import _is_elected_member
+
         return _is_elected_member(company_id, employee_id)
 
     def get_mandate_alerts(self, company_id: str, months_before: int = 3) -> List[Any]:
         from app.modules.cse.infrastructure.cse_service_impl import get_mandate_alerts
+
         return get_mandate_alerts(company_id, months_before=months_before)
 
 
@@ -56,6 +66,7 @@ class MeetingRepository(IMeetingRepository):
         participant_id: Optional[str] = None,
     ) -> List[Any]:
         from app.modules.cse.infrastructure.cse_service_impl import get_meetings
+
         return get_meetings(
             company_id,
             status=status,
@@ -65,10 +76,14 @@ class MeetingRepository(IMeetingRepository):
 
     def get_by_id(self, meeting_id: str, company_id: str) -> Any:
         from app.modules.cse.infrastructure.cse_service_impl import get_meeting_by_id
+
         return get_meeting_by_id(meeting_id, company_id)
 
     def get_participants(self, meeting_id: str) -> List[Any]:
-        from app.modules.cse.infrastructure.cse_service_impl import get_meeting_participants
+        from app.modules.cse.infrastructure.cse_service_impl import (
+            get_meeting_participants,
+        )
+
         return get_meeting_participants(meeting_id)
 
 
@@ -77,6 +92,7 @@ class RecordingRepository(IRecordingRepository):
 
     def get_status(self, meeting_id: str) -> Any:
         from app.modules.cse.infrastructure.cse_service_impl import get_recording_status
+
         return get_recording_status(meeting_id)
 
     def get_minutes_path(self, meeting_id: str, company_id: str) -> Optional[str]:
@@ -88,6 +104,7 @@ class DelegationRepository(IDelegationRepository):
 
     def get_quota(self, company_id: str, employee_id: str) -> Optional[Any]:
         from app.modules.cse.infrastructure.cse_service_impl import get_delegation_quota
+
         return get_delegation_quota(company_id, employee_id)
 
     def list_quotas(self, company_id: str) -> List[Any]:
@@ -102,12 +119,16 @@ class DelegationRepository(IDelegationRepository):
         period_end: Optional[date] = None,
     ) -> List[Any]:
         from app.modules.cse.infrastructure.cse_service_impl import get_delegation_hours
+
         return get_delegation_hours(company_id, employee_id, period_start, period_end)
 
     def get_summary(
         self, company_id: str, period_start: Any, period_end: Any
     ) -> List[Any]:
-        from app.modules.cse.infrastructure.cse_service_impl import get_delegation_summary
+        from app.modules.cse.infrastructure.cse_service_impl import (
+            get_delegation_summary,
+        )
+
         return get_delegation_summary(company_id, period_start, period_end)
 
 
@@ -122,6 +143,7 @@ class BDESDocumentRepository(IBDESDocumentRepository):
         visible_to_elected_only: bool = False,
     ) -> List[Any]:
         from app.modules.cse.infrastructure.cse_service_impl import get_bdes_documents
+
         return get_bdes_documents(
             company_id,
             year=year,
@@ -130,7 +152,10 @@ class BDESDocumentRepository(IBDESDocumentRepository):
         )
 
     def get_by_id(self, document_id: str, company_id: str) -> Any:
-        from app.modules.cse.infrastructure.cse_service_impl import get_bdes_document_by_id
+        from app.modules.cse.infrastructure.cse_service_impl import (
+            get_bdes_document_by_id,
+        )
+
         return get_bdes_document_by_id(document_id, company_id)
 
 
@@ -139,14 +164,19 @@ class ElectionCycleRepository(IElectionCycleRepository):
 
     def list_by_company(self, company_id: str) -> List[Any]:
         from app.modules.cse.infrastructure.cse_service_impl import get_election_cycles
+
         return get_election_cycles(company_id)
 
     def get_by_id(self, cycle_id: str, company_id: str) -> Any:
-        from app.modules.cse.infrastructure.cse_service_impl import get_election_cycle_by_id
+        from app.modules.cse.infrastructure.cse_service_impl import (
+            get_election_cycle_by_id,
+        )
+
         return get_election_cycle_by_id(cycle_id, company_id)
 
     def get_election_alerts(self, company_id: str) -> List[Any]:
         from app.modules.cse.infrastructure.cse_service_impl import get_election_alerts
+
         return get_election_alerts(company_id)
 
 

@@ -3,6 +3,7 @@ Schémas du module saisies_avances.
 
 Définitions dans requests.py et responses.py.
 """
+
 from .requests import (
     CalculationMode,
     PaymentMethod,

@@ -4,6 +4,7 @@ Orchestration partagée du module companies.
 Résolution du company_id (contexte settings vs details).
 Le calcul des KPIs est dans domain/kpis.py (règle pure).
 """
+
 from typing import Any, Optional
 
 from app.modules.companies.infrastructure import queries as companies_queries

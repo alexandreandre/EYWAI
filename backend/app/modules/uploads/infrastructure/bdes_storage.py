@@ -1,4 +1,5 @@
 """Stockage des fichiers BDES (bucket Supabase dédié)."""
+
 from __future__ import annotations
 
 import re

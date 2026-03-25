@@ -12,6 +12,7 @@ Fixture à ajouter dans conftest.py si besoin de tests E2E avec token réel :
   et droits RH (ou collaborateur pour /me). Format :
   {"Authorization": "Bearer <jwt>", "X-Active-Company": "<company_id>"}.
 """
+
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -32,6 +33,7 @@ TEST_EMPLOYEE_ID = "770e8400-e29b-41d4-a716-446655440002"
 def _salary_seizure_row(**overrides):
     """Dict conforme au schéma SalarySeizure pour les mocks."""
     from datetime import datetime
+
     d = {
         "id": "s1",
         "company_id": TEST_COMPANY_ID,
@@ -60,6 +62,7 @@ def _salary_seizure_row(**overrides):
 def _salary_advance_row(**overrides):
     """Dict conforme au schéma SalaryAdvance pour les mocks."""
     from datetime import datetime
+
     d = {
         "id": "a1",
         "company_id": TEST_COMPANY_ID,
@@ -105,7 +108,9 @@ def _make_rh_user(company_id: str = TEST_COMPANY_ID, user_id: str = TEST_USER_ID
     )
 
 
-def _make_collaborator_user(company_id: str = TEST_COMPANY_ID, user_id: str = TEST_EMPLOYEE_ID):
+def _make_collaborator_user(
+    company_id: str = TEST_COMPANY_ID, user_id: str = TEST_EMPLOYEE_ID
+):
     return User(
         id=user_id,
         email="emp@saisies-test.com",
@@ -189,7 +194,9 @@ class TestSalarySeizuresAPI:
     def test_get_salary_seizures_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.saisies_avances.application.queries.get_salary_seizures") as q:
+        with patch(
+            "app.modules.saisies_avances.application.queries.get_salary_seizures"
+        ) as q:
             q.return_value = [_salary_seizure_row()]
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
@@ -205,7 +212,9 @@ class TestSalarySeizuresAPI:
     def test_get_salary_seizure_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.saisies_avances.application.queries.get_salary_seizure") as q:
+        with patch(
+            "app.modules.saisies_avances.application.queries.get_salary_seizure"
+        ) as q:
             q.return_value = _salary_seizure_row(creditor_name="Créancier")
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
@@ -219,7 +228,9 @@ class TestSalarySeizuresAPI:
         from app.core.security import get_current_user
         from app.modules.saisies_avances.application.dto import NotFoundError
 
-        with patch("app.modules.saisies_avances.application.queries.get_salary_seizure") as q:
+        with patch(
+            "app.modules.saisies_avances.application.queries.get_salary_seizure"
+        ) as q:
             q.side_effect = NotFoundError("Saisie non trouvée.")
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
@@ -231,7 +242,9 @@ class TestSalarySeizuresAPI:
     def test_post_salary_seizure_201(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.saisies_avances.application.commands.create_salary_seizure") as cmd:
+        with patch(
+            "app.modules.saisies_avances.application.commands.create_salary_seizure"
+        ) as cmd:
             cmd.return_value = _salary_seizure_row(id="s-new")
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
@@ -254,7 +267,9 @@ class TestSalarySeizuresAPI:
     def test_patch_salary_seizure_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.saisies_avances.application.commands.update_salary_seizure") as cmd:
+        with patch(
+            "app.modules.saisies_avances.application.commands.update_salary_seizure"
+        ) as cmd:
             cmd.return_value = _salary_seizure_row(status="suspended")
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
@@ -269,7 +284,9 @@ class TestSalarySeizuresAPI:
     def test_delete_salary_seizure_204(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.saisies_avances.application.commands.delete_salary_seizure") as cmd:
+        with patch(
+            "app.modules.saisies_avances.application.commands.delete_salary_seizure"
+        ) as cmd:
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
                 response = client.delete(f"{BASE}/salary-seizures/s1")
@@ -285,7 +302,9 @@ class TestSalaryAdvancesAPI:
     def test_get_salary_advances_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.saisies_avances.application.queries.get_salary_advances") as q:
+        with patch(
+            "app.modules.saisies_avances.application.queries.get_salary_advances"
+        ) as q:
             q.return_value = [_salary_advance_row()]
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
@@ -298,8 +317,12 @@ class TestSalaryAdvancesAPI:
     def test_get_salary_advance_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.saisies_avances.application.queries.get_salary_advance") as q:
-            q.return_value = _salary_advance_row(status="approved", requested_amount=200.0)
+        with patch(
+            "app.modules.saisies_avances.application.queries.get_salary_advance"
+        ) as q:
+            q.return_value = _salary_advance_row(
+                status="approved", requested_amount=200.0
+            )
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
                 response = client.get(f"{BASE}/salary-advances/a1")
@@ -310,7 +333,9 @@ class TestSalaryAdvancesAPI:
     def test_post_salary_advance_201(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.saisies_avances.application.commands.create_salary_advance") as cmd:
+        with patch(
+            "app.modules.saisies_avances.application.commands.create_salary_advance"
+        ) as cmd:
             cmd.return_value = _salary_advance_row(id="a-new", status="pending")
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
@@ -330,7 +355,9 @@ class TestSalaryAdvancesAPI:
     def test_patch_approve_salary_advance_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.saisies_avances.application.commands.approve_salary_advance") as cmd:
+        with patch(
+            "app.modules.saisies_avances.application.commands.approve_salary_advance"
+        ) as cmd:
             cmd.return_value = _salary_advance_row(status="approved")
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
@@ -342,7 +369,9 @@ class TestSalaryAdvancesAPI:
     def test_patch_reject_salary_advance_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.saisies_avances.application.commands.reject_salary_advance") as cmd:
+        with patch(
+            "app.modules.saisies_avances.application.commands.reject_salary_advance"
+        ) as cmd:
             cmd.return_value = _salary_advance_row(status="rejected")
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
@@ -361,9 +390,13 @@ class TestEmployeesMeAPI:
     def test_get_my_salary_advances_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.saisies_avances.application.queries.get_my_salary_advances") as q:
+        with patch(
+            "app.modules.saisies_avances.application.queries.get_my_salary_advances"
+        ) as q:
             q.return_value = [_salary_advance_row()]
-            app.dependency_overrides[get_current_user] = lambda: _make_collaborator_user()
+            app.dependency_overrides[get_current_user] = lambda: (
+                _make_collaborator_user()
+            )
             try:
                 response = client.get(f"{BASE}/employees/me/salary-advances")
             finally:
@@ -373,8 +406,11 @@ class TestEmployeesMeAPI:
     def test_get_my_advance_available_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.saisies_avances.application.queries.get_my_advance_available") as q:
+        with patch(
+            "app.modules.saisies_avances.application.queries.get_my_advance_available"
+        ) as q:
             from app.modules.saisies_avances.schemas import AdvanceAvailableAmount
+
             q.return_value = AdvanceAvailableAmount(
                 available_amount=Decimal("500"),
                 daily_salary=Decimal("50"),
@@ -382,7 +418,9 @@ class TestEmployeesMeAPI:
                 outstanding_advances=Decimal("0"),
                 max_advance_days=10,
             )
-            app.dependency_overrides[get_current_user] = lambda: _make_collaborator_user()
+            app.dependency_overrides[get_current_user] = lambda: (
+                _make_collaborator_user()
+            )
             try:
                 response = client.get(f"{BASE}/employees/me/advance-available")
             finally:
@@ -398,11 +436,15 @@ class TestEmployeeSalarySeizuresAdvances:
     def test_get_employee_salary_seizures_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.saisies_avances.application.queries.get_employee_salary_seizures") as q:
+        with patch(
+            "app.modules.saisies_avances.application.queries.get_employee_salary_seizures"
+        ) as q:
             q.return_value = []
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
-                response = client.get(f"{BASE}/employees/{TEST_EMPLOYEE_ID}/salary-seizures")
+                response = client.get(
+                    f"{BASE}/employees/{TEST_EMPLOYEE_ID}/salary-seizures"
+                )
             finally:
                 app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
@@ -410,11 +452,15 @@ class TestEmployeeSalarySeizuresAdvances:
     def test_get_employee_salary_advances_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.saisies_avances.application.queries.get_employee_salary_advances") as q:
+        with patch(
+            "app.modules.saisies_avances.application.queries.get_employee_salary_advances"
+        ) as q:
             q.return_value = []
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
-                response = client.get(f"{BASE}/employees/{TEST_EMPLOYEE_ID}/salary-advances")
+                response = client.get(
+                    f"{BASE}/employees/{TEST_EMPLOYEE_ID}/salary-advances"
+                )
             finally:
                 app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
@@ -426,7 +472,9 @@ class TestPayslipsDeductionsRepayments:
     def test_get_payslip_deductions_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.saisies_avances.application.queries.get_payslip_deductions") as q:
+        with patch(
+            "app.modules.saisies_avances.application.queries.get_payslip_deductions"
+        ) as q:
             q.return_value = []
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
@@ -438,7 +486,9 @@ class TestPayslipsDeductionsRepayments:
     def test_get_payslip_advance_repayments_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.saisies_avances.application.queries.get_payslip_advance_repayments") as q:
+        with patch(
+            "app.modules.saisies_avances.application.queries.get_payslip_advance_repayments"
+        ) as q:
             q.return_value = []
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
@@ -454,7 +504,9 @@ class TestAdvancePaymentsAPI:
     def test_post_upload_url_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.saisies_avances.application.commands.get_payment_upload_url") as cmd:
+        with patch(
+            "app.modules.saisies_avances.application.commands.get_payment_upload_url"
+        ) as cmd:
             cmd.return_value = {"path": "u/file.pdf", "signedURL": "https://signed"}
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
@@ -471,7 +523,9 @@ class TestAdvancePaymentsAPI:
         from app.core.security import get_current_user
         from datetime import datetime
 
-        with patch("app.modules.saisies_avances.application.commands.create_advance_payment") as cmd:
+        with patch(
+            "app.modules.saisies_avances.application.commands.create_advance_payment"
+        ) as cmd:
             cmd.return_value = {
                 "id": "pay-1",
                 "advance_id": "a1",
@@ -504,21 +558,25 @@ class TestAdvancePaymentsAPI:
         from app.core.security import get_current_user
         from datetime import datetime
 
-        with patch("app.modules.saisies_avances.application.queries.get_advance_payments") as q:
-            q.return_value = [{
-                "id": "pay-1",
-                "advance_id": "a1",
-                "company_id": TEST_COMPANY_ID,
-                "payment_amount": 100.0,
-                "payment_date": "2025-03-15",
-                "payment_method": None,
-                "proof_file_path": None,
-                "proof_file_name": None,
-                "proof_file_type": None,
-                "notes": None,
-                "created_at": datetime.now().isoformat(),
-                "created_by": TEST_USER_ID,
-            }]
+        with patch(
+            "app.modules.saisies_avances.application.queries.get_advance_payments"
+        ) as q:
+            q.return_value = [
+                {
+                    "id": "pay-1",
+                    "advance_id": "a1",
+                    "company_id": TEST_COMPANY_ID,
+                    "payment_amount": 100.0,
+                    "payment_date": "2025-03-15",
+                    "payment_method": None,
+                    "proof_file_path": None,
+                    "proof_file_name": None,
+                    "proof_file_type": None,
+                    "notes": None,
+                    "created_at": datetime.now().isoformat(),
+                    "created_by": TEST_USER_ID,
+                }
+            ]
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
                 response = client.get(f"{BASE}/advances/a1/payments")
@@ -529,7 +587,9 @@ class TestAdvancePaymentsAPI:
     def test_get_payment_proof_url_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.saisies_avances.application.queries.get_payment_proof_url") as q:
+        with patch(
+            "app.modules.saisies_avances.application.queries.get_payment_proof_url"
+        ) as q:
             q.return_value = "https://signed/download"
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
@@ -542,7 +602,9 @@ class TestAdvancePaymentsAPI:
     def test_delete_advance_payment_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.saisies_avances.application.commands.delete_advance_payment") as cmd:
+        with patch(
+            "app.modules.saisies_avances.application.commands.delete_advance_payment"
+        ) as cmd:
             cmd.return_value = {"success": True}
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:

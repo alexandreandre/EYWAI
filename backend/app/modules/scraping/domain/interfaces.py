@@ -3,6 +3,7 @@ Interfaces (ports) du domaine scraping.
 
 L'infrastructure implémente ces abstractions ; l'application ne dépend pas des détails.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Protocol
@@ -70,7 +71,9 @@ class IScrapingRepository(Protocol):
         """Crée une planification."""
         ...
 
-    def update_schedule(self, schedule_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def update_schedule(
+        self, schedule_id: str, data: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """Met à jour une planification."""
         ...
 

@@ -3,6 +3,7 @@ Tests unitaires des commandes du module employees (create, update, delete).
 
 Repositories et providers mockés. Pas d'accès DB ni HTTP.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -29,7 +30,10 @@ def _minimal_employee_data():
         "lieu_naissance": "Paris",
         "nationalite": "Française",
         "adresse": {"rue": "1 rue Test", "ville": "Paris", "code_postal": "75001"},
-        "coordonnees_bancaires": {"iban": "FR7612345678901234567890123", "bic": "BNPAFRPP"},
+        "coordonnees_bancaires": {
+            "iban": "FR7612345678901234567890123",
+            "bic": "BNPAFRPP",
+        },
         "hire_date": "2024-01-01",
         "contract_type": "CDI",
         "statut": "actif",
@@ -66,7 +70,11 @@ async def test_create_employee_success_returns_employee_with_generated_password(
     mock_get_auth.return_value = auth
     mock_get_storage.return_value = MagicMock()
     mock_get_company_reader.return_value = MagicMock()
-    mock_prepare_insert.return_value = {"id": "user-uuid-123", "first_name": "Jean", "last_name": "Dupont"}
+    mock_prepare_insert.return_value = {
+        "id": "user-uuid-123",
+        "first_name": "Jean",
+        "last_name": "Dupont",
+    }
     mock_emp_repo.create.return_value = {
         "id": "user-uuid-123",
         "first_name": "Jean",
@@ -105,7 +113,10 @@ async def test_create_employee_auth_failure_raises_400(mock_get_auth):
             company_id="company-1",
         )
     assert exc_info.value.status_code == 400
-    assert "email" in (exc_info.value.detail or "").lower() or "utilisateur" in (exc_info.value.detail or "").lower()
+    assert (
+        "email" in (exc_info.value.detail or "").lower()
+        or "utilisateur" in (exc_info.value.detail or "").lower()
+    )
 
 
 @patch("app.modules.employees.application.commands.on_rib_submitted")
@@ -165,7 +176,9 @@ def test_update_employee_success_returns_updated_data(mock_emp_repo):
     }
     result = update_employee("emp-1", {"phone_number": "+33600000000"})
     assert result["phone_number"] == "+33600000000"
-    mock_emp_repo.update.assert_called_once_with("emp-1", {"phone_number": "+33600000000"})
+    mock_emp_repo.update.assert_called_once_with(
+        "emp-1", {"phone_number": "+33600000000"}
+    )
 
 
 @patch("app.modules.employees.application.commands._employee_repository")

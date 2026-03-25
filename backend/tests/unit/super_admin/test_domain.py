@@ -3,6 +3,7 @@ Tests du domaine super_admin : entités, value objects, règles, enums, exceptio
 
 Sans DB, sans HTTP. Couvre domain/entities.py, value_objects.py, rules.py, enums.py, exceptions.py.
 """
+
 from dataclasses import FrozenInstanceError
 from datetime import datetime
 from uuid import uuid4

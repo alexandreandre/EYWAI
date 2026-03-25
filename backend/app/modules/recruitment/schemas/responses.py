@@ -4,6 +4,7 @@ Schémas Pydantic sortie API du module recruitment (source de vérité migrée).
 Comportement identique à l’ancien router api/routers/recruitment.py.
 Pour utiliser : from app.modules.recruitment.schemas import JobOut, ...
 """
+
 from typing import Optional
 from pydantic import BaseModel
 

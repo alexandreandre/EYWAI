@@ -4,6 +4,7 @@ Helpers PDF génériques : styles ReportLab et formatage (date, devise, safe cas
 Utilisés par les générateurs PDF sous app/* (ex. attestations de salaire).
 Aucune dépendance legacy (api/*, schemas/*, services/*, core/* racine).
 """
+
 from datetime import datetime, date
 from typing import Any
 
@@ -87,8 +88,18 @@ def format_date(date_value: Any) -> str:
 
     if isinstance(date_value, (datetime, date)):
         mois_francais = [
-            "janvier", "février", "mars", "avril", "mai", "juin",
-            "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+            "janvier",
+            "février",
+            "mars",
+            "avril",
+            "mai",
+            "juin",
+            "juillet",
+            "août",
+            "septembre",
+            "octobre",
+            "novembre",
+            "décembre",
         ]
         d = date_value.date() if isinstance(date_value, datetime) else date_value
         return f"{d.day} {mois_francais[d.month - 1]} {d.year}"

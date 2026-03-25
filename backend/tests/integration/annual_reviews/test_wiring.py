@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module annual_reviews.
 Vérifient que l'injection des dépendances et le flux de bout en bout
 (router -> application -> repository / pdf generator) fonctionnent.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -58,12 +59,19 @@ class TestAnnualReviewsWiring:
                 "planned_date": None,
                 "completed_date": None,
                 "created_at": "2024-01-01T00:00:00",
-                "employees": {"first_name": "Jean", "last_name": "Dupont", "job_title": "Dev"},
+                "employees": {
+                    "first_name": "Jean",
+                    "last_name": "Dupont",
+                    "job_title": "Dev",
+                },
             },
         ]
 
         app.dependency_overrides[get_current_user] = lambda: _rh_user()
-        with patch("app.modules.annual_reviews.application.service.get_repository", return_value=mock_repo):
+        with patch(
+            "app.modules.annual_reviews.application.service.get_repository",
+            return_value=mock_repo,
+        ):
             response = client.get("/api/annual-reviews")
 
         app.dependency_overrides.pop(get_current_user, None)
@@ -75,7 +83,9 @@ class TestAnnualReviewsWiring:
         assert data[0]["id"] == "rev-1"
         assert data[0]["first_name"] == "Jean"
         assert data[0]["last_name"] == "Dupont"
-        mock_repo.list_by_company.assert_called_once_with(TEST_COMPANY_ID, year=None, status=None)
+        mock_repo.list_by_company.assert_called_once_with(
+            TEST_COMPANY_ID, year=None, status=None
+        )
 
     def test_create_flow_uses_repository(self, client: TestClient):
         """POST /api/annual-reviews : create_annual_review -> repo.get_employee_company_id + repo.create."""
@@ -95,7 +105,10 @@ class TestAnnualReviewsWiring:
         }
 
         app.dependency_overrides[get_current_user] = lambda: _rh_user()
-        with patch("app.modules.annual_reviews.application.service.get_repository", return_value=mock_repo):
+        with patch(
+            "app.modules.annual_reviews.application.service.get_repository",
+            return_value=mock_repo,
+        ):
             response = client.post(
                 "/api/annual-reviews",
                 json={"employee_id": "emp-1", "year": 2024},
@@ -130,7 +143,10 @@ class TestAnnualReviewsWiring:
         }
 
         app.dependency_overrides[get_current_user] = lambda: _rh_user()
-        with patch("app.modules.annual_reviews.application.service.get_repository", return_value=mock_repo):
+        with patch(
+            "app.modules.annual_reviews.application.service.get_repository",
+            return_value=mock_repo,
+        ):
             response = client.get("/api/annual-reviews/rev-1")
 
         app.dependency_overrides.pop(get_current_user, None)
@@ -156,18 +172,25 @@ class TestAnnualReviewsWiring:
         mock_pdf_gen.generate.return_value = b"%PDF-1.4 fake"
 
         app.dependency_overrides[get_current_user] = lambda: _rh_user()
-        with patch("app.modules.annual_reviews.application.service.get_repository", return_value=mock_repo), patch(
-            "app.modules.annual_reviews.application.service.get_pdf_generator",
-            return_value=mock_pdf_gen,
-        ), patch(
-            "app.modules.annual_reviews.application.queries.get_annual_review_for_pdf",
-            return_value={
-                "id": "rev-1",
-                "company_id": TEST_COMPANY_ID,
-                "employee_id": "emp-1",
-                "year": 2024,
-                "status": "cloture",
-            },
+        with (
+            patch(
+                "app.modules.annual_reviews.application.service.get_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.annual_reviews.application.service.get_pdf_generator",
+                return_value=mock_pdf_gen,
+            ),
+            patch(
+                "app.modules.annual_reviews.application.queries.get_annual_review_for_pdf",
+                return_value={
+                    "id": "rev-1",
+                    "company_id": TEST_COMPANY_ID,
+                    "employee_id": "emp-1",
+                    "year": 2024,
+                    "status": "cloture",
+                },
+            ),
         ):
             response = client.get("/api/annual-reviews/rev-1/pdf")
 

@@ -2,6 +2,7 @@
 Promotions et accès RH employé.
 Délégation au module promotions (repository / queries), sans passer par services/.
 """
+
 from typing import Any, Dict, List, Optional
 
 

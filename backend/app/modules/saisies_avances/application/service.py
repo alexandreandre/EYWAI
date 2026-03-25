@@ -4,6 +4,7 @@ Service applicatif saisies et avances.
 Orchestration : domain (règles pures) + infrastructure (repositories, queries, providers).
 Comportement strictement identique à l'ancien router.
 """
+
 import os
 import uuid
 from datetime import date, datetime
@@ -52,6 +53,7 @@ AUTO_APPROVAL_THRESHOLD = Decimal(str(AUTO_APPROVAL_THRESHOLD_EUR))
 
 
 # ----- Requêtes (lecture) -----
+
 
 def get_salary_seizures(
     employee_id: Optional[str] = None,
@@ -145,9 +147,8 @@ def calculate_seizable(
 
 # ----- Commandes (écriture) -----
 
-def create_salary_seizure(
-    seizure_data: Any, created_by_id: Any
-) -> Dict[str, Any]:
+
+def create_salary_seizure(seizure_data: Any, created_by_id: Any) -> Dict[str, Any]:
     """Crée une saisie sur salaire."""
     company_id = employee_company_provider.get_company_id(seizure_data.employee_id)
     if not company_id:
@@ -161,9 +162,13 @@ def create_salary_seizure(
         "creditor_iban": seizure_data.creditor_iban,
         "amount": float(seizure_data.amount) if seizure_data.amount else None,
         "calculation_mode": seizure_data.calculation_mode,
-        "percentage": float(seizure_data.percentage) if seizure_data.percentage else None,
+        "percentage": float(seizure_data.percentage)
+        if seizure_data.percentage
+        else None,
         "start_date": seizure_data.start_date.isoformat(),
-        "end_date": seizure_data.end_date.isoformat() if seizure_data.end_date else None,
+        "end_date": seizure_data.end_date.isoformat()
+        if seizure_data.end_date
+        else None,
         "priority": seizure_data.priority,
         "document_url": seizure_data.document_url,
         "notes": seizure_data.notes,
@@ -355,9 +360,7 @@ def delete_advance_payment(payment_id: str) -> Dict[str, bool]:
         except Exception as e:
             print(f"Erreur suppression fichier: {e}")
     advance_payment_repository.delete(payment_id)
-    total_paid = advance_payment_repository.get_total_paid_by_advance_id(
-        advance["id"]
-    )
+    total_paid = advance_payment_repository.get_total_paid_by_advance_id(advance["id"])
     approved_amount = Decimal(str(advance.get("approved_amount", 0)))
     new_remaining = approved_amount - total_paid
     update_data = {}
@@ -391,7 +394,9 @@ def enrich_payslip(
     # 1. Traitement des saisies
     seizures = get_seizures_for_period(employee_id, year, month)
     seizures = domain_rules.apply_priority_order(seizures)
-    seizable_amount = domain_rules.calculate_seizable_amount(net_a_payer, dependents_count)
+    seizable_amount = domain_rules.calculate_seizable_amount(
+        net_a_payer, dependents_count
+    )
 
     total_deductions = Decimal("0")
     saisies_appliquees: List[Dict[str, Any]] = []
@@ -410,12 +415,14 @@ def enrich_payslip(
         if deduction > 0:
             total_deductions += deduction
             remaining_seizable -= deduction
-            saisies_appliquees.append({
-                "type": seizure.get("type"),
-                "montant": float(deduction),
-                "creditor_name": seizure.get("creditor_name"),
-                "reference": seizure.get("reference_legale"),
-            })
+            saisies_appliquees.append(
+                {
+                    "type": seizure.get("type"),
+                    "montant": float(deduction),
+                    "creditor_name": seizure.get("creditor_name"),
+                    "reference": seizure.get("reference_legale"),
+                }
+            )
             if payslip_id:
                 try:
                     insert_seizure_deduction(
@@ -449,13 +456,19 @@ def enrich_payslip(
         if payslip_id:
             existing_repayment = get_existing_repayment(advance["id"], payslip_id)
             if existing_repayment:
-                repayment_already = Decimal(str(existing_repayment.get("repayment_amount", 0)))
-                remaining_after = Decimal(str(existing_repayment.get("remaining_after", 0)))
-                remboursements_appliques.append({
-                    "montant": float(repayment_already),
-                    "date_avance": advance.get("requested_date"),
-                    "reste_apres": float(remaining_after),
-                })
+                repayment_already = Decimal(
+                    str(existing_repayment.get("repayment_amount", 0))
+                )
+                remaining_after = Decimal(
+                    str(existing_repayment.get("remaining_after", 0))
+                )
+                remboursements_appliques.append(
+                    {
+                        "montant": float(repayment_already),
+                        "date_avance": advance.get("requested_date"),
+                        "reste_apres": float(remaining_after),
+                    }
+                )
                 total_repayments += repayment_already
                 continue
         if advance.get("repayment_mode") == "single":
@@ -468,13 +481,17 @@ def enrich_payslip(
         remaining_after_to_use = remaining - repayment_to_use
         if repayment_to_use > 0:
             total_repayments += repayment_to_use
-            remboursements_appliques.append({
-                "montant": float(repayment_to_use),
-                "date_avance": advance.get("requested_date"),
-                "reste_apres": float(remaining_after_to_use),
-            })
+            remboursements_appliques.append(
+                {
+                    "montant": float(repayment_to_use),
+                    "date_avance": advance.get("requested_date"),
+                    "reste_apres": float(remaining_after_to_use),
+                }
+            )
             try:
-                update_data: Dict[str, Any] = {"remaining_amount": float(remaining_after_to_use)}
+                update_data: Dict[str, Any] = {
+                    "remaining_amount": float(remaining_after_to_use)
+                }
                 if advance.get("status") == "approved":
                     update_data["status"] = "paid"
                     update_data["payment_date"] = date(year, month, 1).isoformat()

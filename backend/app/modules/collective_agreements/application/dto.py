@@ -3,6 +3,7 @@ DTOs applicatifs pour collective_agreements.
 
 Entrées/sorties des commandes et requêtes (sans dépendance aux schémas API).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

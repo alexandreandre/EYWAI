@@ -3,6 +3,7 @@ Schémas de réponse pour le module uploads.
 
 Contrat API sortie strictement identique à api/routers/uploads.py.
 """
+
 from pydantic import BaseModel, Field
 
 

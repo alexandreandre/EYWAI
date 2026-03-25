@@ -5,6 +5,7 @@ Cible de migration : logique actuellement dans api/routers/schedules.py
 (is_forfait_jour, normalize_planned_calendar_for_forfait_jour,
 normalize_actual_hours_for_forfait_jour). Aucune I/O, pas de dépendance FastAPI/DB.
 """
+
 from typing import Any, Dict, List
 
 

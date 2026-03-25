@@ -7,6 +7,7 @@ Aucune dépendance DB ni HTTP. Couvre :
   extraire_heures_hs_du_bulletin, cumuler_heures_hs_annee (domain/rules.py)
 - SourceCredit (domain/enums.py)
 """
+
 from app.modules.repos_compensateur.domain.entities import ReposCredit
 from app.modules.repos_compensateur.domain.rules import (
     CONTINGENT_DEFAUT,
@@ -316,7 +317,9 @@ class TestCumulerHeuresHsAnnee:
 
     def test_un_mois_rempli(self):
         """Un seul mois avec 10 h HS → cumul 10 ce mois, puis constant."""
-        bulletins = {6: {"calcul_du_brut": [{"libelle": "Heures suppl", "quantite": 10.0}]}}
+        bulletins = {
+            6: {"calcul_du_brut": [{"libelle": "Heures suppl", "quantite": 10.0}]}
+        }
         result = cumuler_heures_hs_annee(bulletins)
         assert result[1] == 0.0
         assert result[5] == 0.0

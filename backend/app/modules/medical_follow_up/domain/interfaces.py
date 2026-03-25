@@ -28,22 +28,38 @@ class IObligationRepository(ABC):
         ...
 
     @abstractmethod
-    def mark_planified(self, obligation_id: str, company_id: str, planned_date: str, justification: Optional[str]) -> None:
+    def mark_planified(
+        self,
+        obligation_id: str,
+        company_id: str,
+        planned_date: str,
+        justification: Optional[str],
+    ) -> None:
         """Marque une obligation comme planifiée."""
         ...
 
     @abstractmethod
-    def mark_completed(self, obligation_id: str, company_id: str, completed_date: str, justification: Optional[str]) -> None:
+    def mark_completed(
+        self,
+        obligation_id: str,
+        company_id: str,
+        completed_date: str,
+        justification: Optional[str],
+    ) -> None:
         """Marque une obligation comme réalisée."""
         ...
 
     @abstractmethod
-    def create_on_demand(self, company_id: str, employee_id: str, request_motif: str, request_date: str) -> None:
+    def create_on_demand(
+        self, company_id: str, employee_id: str, request_motif: str, request_date: str
+    ) -> None:
         """Crée une obligation « visite à la demande »."""
         ...
 
     @abstractmethod
-    def list_for_employee(self, company_id: str, employee_id: str) -> List[Dict[str, Any]]:
+    def list_for_employee(
+        self, company_id: str, employee_id: str
+    ) -> List[Dict[str, Any]]:
         """Liste les obligations d’un collaborateur (hors annulées)."""
         ...
 

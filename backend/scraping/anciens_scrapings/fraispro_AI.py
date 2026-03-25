@@ -7,11 +7,13 @@ from bs4 import BeautifulSoup
 from openai import OpenAI
 from googlesearch import search
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # --- Fichiers de configuration ---
-FICHIER_BAREMES = 'config/baremes.json'
+FICHIER_BAREMES = "config/baremes.json"
 SEARCH_QUERY = "barèmes frais professionnels URSSAF 2025"
+
 
 def extract_json_with_gpt(page_text: str, prompt: str) -> dict | None:
     """
@@ -22,22 +24,32 @@ def extract_json_with_gpt(page_text: str, prompt: str) -> dict | None:
         return None
     try:
         client = OpenAI()
-        print("   - Envoi de la requête à l'API GPT-4o-mini pour extraction JSON (requête complexe)...")
+        print(
+            "   - Envoi de la requête à l'API GPT-4o-mini pour extraction JSON (requête complexe)..."
+        )
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "Tu es un assistant expert en extraction de données qui répond au format JSON de manière stricte."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "Tu es un assistant expert en extraction de données qui répond au format JSON de manière stricte.",
+                },
+                {"role": "user", "content": prompt},
             ],
-            temperature=0
+            temperature=0,
         )
         extracted_text = response.choices[0].message.content.strip()
-        print(f"   - Réponse brute de l'API (premiers 200 caractères): {extracted_text[:200]}...")
+        print(
+            f"   - Réponse brute de l'API (premiers 200 caractères): {extracted_text[:200]}..."
+        )
         return json.loads(extracted_text)
     except Exception as e:
-        print(f"   - ERREUR : L'appel à l'API ou le parsing JSON a échoué. Raison : {e}")
+        print(
+            f"   - ERREUR : L'appel à l'API ou le parsing JSON a échoué. Raison : {e}"
+        )
         return None
+
 
 def get_fraispro_via_ai() -> dict | None:
     """
@@ -109,9 +121,13 @@ def get_fraispro_via_ai() -> dict | None:
         return None
 
     for i, page_url in enumerate(search_results):
-        print(f"\n--- Tentative {i+1}/{len(search_results)} sur la page : {page_url} ---")
+        print(
+            f"\n--- Tentative {i + 1}/{len(search_results)} sur la page : {page_url} ---"
+        )
         try:
-            response = requests.get(page_url, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
+            response = requests.get(
+                page_url, timeout=20, headers={"User-Agent": "Mozilla/5.0"}
+            )
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
             page_text = soup.get_text(" ", strip=True)
@@ -124,7 +140,9 @@ def get_fraispro_via_ai() -> dict | None:
                 print("✅ JSON avec la structure racine correcte extrait de la page !")
                 return data["FRAIS_PROFESSIONNELS_2025"]
             else:
-                print("   - Le JSON extrait n'a pas la bonne structure racine, passage à la page suivante.")
+                print(
+                    "   - Le JSON extrait n'a pas la bonne structure racine, passage à la page suivante."
+                )
 
         except Exception as e:
             print(f"   - ERREUR inattendue : {e}. Passage à la page suivante.")
@@ -132,8 +150,9 @@ def get_fraispro_via_ai() -> dict | None:
     print("\n❌ ERREUR FATALE : Aucune donnée valide n'a pu être extraite.")
     return None
 
+
 if __name__ == "__main__":
     baremes = get_fraispro_via_ai()
-    
+
     if baremes is not None:
         print(json.dumps(baremes))

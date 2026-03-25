@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module companies.
 Vérifient que l'injection des dépendances et le flux de bout en bout
 (router -> service / queries / commands -> repository / provider) fonctionnent.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -49,16 +50,21 @@ class TestCompaniesWiringDetails:
         from app.core.security import get_current_user
 
         company_data = {"id": TEST_COMPANY_ID, "company_name": "Wiring Co"}
-        with patch(
-            "app.modules.companies.infrastructure.queries.get_company_id_from_profile",
-            return_value=TEST_COMPANY_ID,
-        ), patch(
-            "app.modules.companies.application.queries.fetch_company_with_employees_and_payslips",
-            return_value={
-                "company_data": company_data,
-                "employees": [{"id": "e1", "contract_type": "CDI", "job_title": "Dev"}],
-                "payslips": [],
-            },
+        with (
+            patch(
+                "app.modules.companies.infrastructure.queries.get_company_id_from_profile",
+                return_value=TEST_COMPANY_ID,
+            ),
+            patch(
+                "app.modules.companies.application.queries.fetch_company_with_employees_and_payslips",
+                return_value={
+                    "company_data": company_data,
+                    "employees": [
+                        {"id": "e1", "contract_type": "CDI", "job_title": "Dev"}
+                    ],
+                    "payslips": [],
+                },
+            ),
         ):
             app.dependency_overrides[get_current_user] = lambda: _rh_user()
             try:

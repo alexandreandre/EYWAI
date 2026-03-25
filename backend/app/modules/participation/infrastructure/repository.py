@@ -4,6 +4,7 @@ Repository participation_simulations (implémentation du port).
 Table Supabase : participation_simulations.
 Comportement identique au routeur legacy.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
@@ -24,9 +25,7 @@ class ParticipationSimulationRepository:
     def create(self, data: Dict[str, Any], created_by: str) -> ParticipationSimulation:
         """Crée une simulation ; data contient tous les champs sauf created_by (passé à part)."""
         payload = {**data, "created_by": created_by}
-        result = (
-            supabase.table("participation_simulations").insert(payload).execute()
-        )
+        result = supabase.table("participation_simulations").insert(payload).execute()
         if not result.data:
             raise RuntimeError("Insert returned no data")
         return row_to_participation_simulation(result.data[0])

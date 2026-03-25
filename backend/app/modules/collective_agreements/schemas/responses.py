@@ -3,6 +3,7 @@ Schémas réponses API pour collective_agreements.
 
 Migrés depuis schemas/collective_agreement.py. Comportement identique.
 """
+
 from __future__ import annotations
 
 from datetime import date, datetime

@@ -4,6 +4,7 @@ Queries (cas d'usage lecture) du module schedules.
 Délèguent au repository et aux providers (infrastructure). Comportement identique.
 Lève ScheduleAppError pour not_found / erreurs ; le router convertira en HTTPException.
 """
+
 import traceback
 from typing import Any, Dict, List
 
@@ -32,9 +33,7 @@ def get_employee_calendar(
         planned_data = file_calendar_provider.read_planned_calendar(
             folder_name, year, month
         )
-        actual_data = file_calendar_provider.read_actual_hours(
-            folder_name, year, month
-        )
+        actual_data = file_calendar_provider.read_actual_hours(folder_name, year, month)
         return {"planned": planned_data, "actual": actual_data}
     except ScheduleNotFoundError as e:
         raise ScheduleAppError("not_found", str(e), status_code=404) from e
@@ -75,9 +74,7 @@ def get_actual_hours(employee_id: str, year: int, month: int) -> Dict[str, Any]:
     Retourne {"year": int, "month": int, "calendrier_reel": [...]}.
     """
     try:
-        actual_hours = schedule_repository.get_actual_hours(
-            employee_id, year, month
-        )
+        actual_hours = schedule_repository.get_actual_hours(employee_id, year, month)
         print(f"DEBUG (actual): actual_hours={actual_hours}")
 
         calendrier_reel = extract_calendrier_reel_from_actual_hours(actual_hours)
@@ -115,7 +112,9 @@ def get_my_current_cumuls(employee_id: str) -> CumulsResponse:
             )
             return CumulsResponse(periode=None, cumuls=None)
 
-        print(f"WARN [get_my_current_cumuls]: Aucun cumul trouvé pour ID: {employee_id}")
+        print(
+            f"WARN [get_my_current_cumuls]: Aucun cumul trouvé pour ID: {employee_id}"
+        )
         return CumulsResponse(periode=None, cumuls=None)
 
     except Exception as e:

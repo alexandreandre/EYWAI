@@ -3,6 +3,7 @@ Types et énumérations du domaine promotions.
 
 Alignés sur schemas.promotion (legacy). À terme : source de vérité du domain.
 """
+
 from __future__ import annotations
 
 from typing import Literal

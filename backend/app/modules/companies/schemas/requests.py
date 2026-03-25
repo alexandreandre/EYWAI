@@ -4,6 +4,7 @@ Schémas Pydantic entrée API du module companies.
 Définitions canoniques : settings, CRUD entreprise (create/update).
 Comportement identique aux anciennes définitions (api/routers/company, api/routers/super_admin).
 """
+
 from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, EmailStr, Field
@@ -17,6 +18,7 @@ class CompanySettingsUpdate(BaseModel):
     Body pour PATCH /api/company/settings.
     Compatible avec le comportement actuel (dict avec medical_follow_up_enabled, etc.).
     """
+
     medical_follow_up_enabled: Optional[bool] = Field(
         None, description="Activation du module suivi médical"
     )
@@ -32,6 +34,7 @@ class CompanySettingsUpdate(BaseModel):
 
 class CompanyCreate(BaseModel):
     """Création d'une entreprise (sans admin)."""
+
     company_name: str
     siret: Optional[str] = None
     siren: Optional[str] = None
@@ -44,6 +47,7 @@ class CompanyCreate(BaseModel):
 
 class CompanyCreateWithAdmin(BaseModel):
     """Création d'une entreprise avec un admin associé."""
+
     company_name: str
     siret: Optional[str] = None
     email: Optional[EmailStr] = None
@@ -58,6 +62,7 @@ class CompanyCreateWithAdmin(BaseModel):
 
 class CompanyUpdate(BaseModel):
     """Mise à jour partielle d'une entreprise."""
+
     company_name: Optional[str] = None
     siret: Optional[str] = None
     siren: Optional[str] = None

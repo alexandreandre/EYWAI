@@ -3,6 +3,7 @@ Types de primes (catalogue entreprise).
 
 Aligné sur le legacy : schemas.bonus_type.BonusTypeEnum.
 """
+
 from enum import Enum
 
 

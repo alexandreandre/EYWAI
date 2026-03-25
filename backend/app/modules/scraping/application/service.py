@@ -7,4 +7,5 @@ et le lancement du runner en arrière-plan. Les queries délèguent au repositor
 enrichissement (last_job, success_rate_30d, etc.) dans queries.py.
 Aucune logique métier supplémentaire ici pour l'instant.
 """
+
 from __future__ import annotations

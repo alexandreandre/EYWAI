@@ -3,6 +3,7 @@ Tests unitaires des commandes participation (application/commands.py).
 
 Repositories et service mockés ; pas de DB ni HTTP.
 """
+
 from datetime import datetime
 from uuid import uuid4
 from unittest.mock import MagicMock

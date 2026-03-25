@@ -5,6 +5,7 @@ Logique applicative extraite des routers legacy (user_management) : listes caté
 actions, permissions, matrice, résumé permissions utilisateur, templates de rôles.
 Les vérifications RH / hiérarchie sont déléguées au service.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, List, Optional
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
 
 
 # --- Vérifications pures (déjà utilisées par le router du module) ---
+
 
 def check_hierarchy(
     current_user: "User",
@@ -74,12 +76,14 @@ def check_permission(
 
 # --- Listes (catégories, actions, permissions) ---
 
+
 def get_permission_categories(current_user: "User") -> list:
     """
     Liste toutes les catégories de permissions actives.
     L'appelant doit avoir vérifié l'accès RH (require_rh_access) avant d'appeler.
     """
     from app.modules.access_control.schemas import PermissionCategory
+
     rows = permission_catalog_reader.get_permission_categories_active()
     return [PermissionCategory(**row) for row in rows]
 
@@ -90,6 +94,7 @@ def get_permission_actions(current_user: "User") -> list:
     L'appelant doit avoir vérifié l'accès RH avant d'appeler.
     """
     from app.modules.access_control.schemas import PermissionAction
+
     rows = permission_catalog_reader.get_permission_actions_active()
     return [PermissionAction(**row) for row in rows]
 
@@ -104,6 +109,7 @@ def get_all_permissions(
     L'appelant doit avoir vérifié l'accès RH avant d'appeler.
     """
     from app.modules.access_control.schemas import Permission
+
     rows = permission_catalog_reader.get_permissions_active(
         category_id=category_id,
         required_role=required_role,
@@ -112,6 +118,7 @@ def get_all_permissions(
 
 
 # --- Matrice des permissions ---
+
 
 def get_permissions_matrix(
     current_user: "User",
@@ -123,7 +130,10 @@ def get_permissions_matrix(
     Si user_id fourni : permissions accordées à cet utilisateur ; sinon à current_user.
     Lève 403 si l'utilisateur n'a pas accès RH pour cette entreprise.
     """
-    from app.modules.access_control.schemas import PermissionMatrix, PermissionMatrixCategory
+    from app.modules.access_control.schemas import (
+        PermissionMatrix,
+        PermissionMatrixCategory,
+    )
 
     if not access_control_service.can_access_company_as_rh(current_user, company_id):
         raise HTTPException(
@@ -152,11 +162,13 @@ def get_permissions_matrix(
                 "is_granted": str(perm["id"]) in granted_ids,
                 "action_code": (
                     perm["permission_actions"]["code"]
-                    if perm.get("permission_actions") else None
+                    if perm.get("permission_actions")
+                    else None
                 ),
                 "action_label": (
                     perm["permission_actions"]["label"]
-                    if perm.get("permission_actions") else None
+                    if perm.get("permission_actions")
+                    else None
                 ),
             }
             for perm in all_permissions
@@ -175,6 +187,7 @@ def get_permissions_matrix(
 
 # --- Permissions d'un utilisateur (résumé) ---
 
+
 def get_user_permissions_summary(
     current_user: "User",
     user_id: str,
@@ -185,7 +198,10 @@ def get_user_permissions_summary(
     Respecte la hiérarchie : seuls les rôles visibles par le créateur sont autorisés.
     Lève 403 si accès RH manquant ou utilisateur cible hors hiérarchie.
     """
-    from app.modules.access_control.schemas import UserPermissionsSummary, PermissionWithMetadata
+    from app.modules.access_control.schemas import (
+        UserPermissionsSummary,
+        PermissionWithMetadata,
+    )
 
     access = permission_catalog_reader.get_user_company_access(user_id, company_id)
     if not access:
@@ -247,7 +263,9 @@ def get_user_permissions_summary(
                 )
 
     role_templates = access.get("role_templates") or {}
-    template_name = role_templates.get("name") if isinstance(role_templates, dict) else None
+    template_name = (
+        role_templates.get("name") if isinstance(role_templates, dict) else None
+    )
 
     return UserPermissionsSummary(
         user_id=user_id,
@@ -262,6 +280,7 @@ def get_user_permissions_summary(
 
 
 # --- Templates de rôles ---
+
 
 def get_role_templates(
     current_user: "User",
@@ -312,7 +331,10 @@ def get_role_template_by_id(current_user: "User", template_id: str) -> "object":
     Un template de rôle avec ses permissions.
     L'appelant doit avoir vérifié l'accès RH avant d'appeler.
     """
-    from app.modules.access_control.schemas import Permission, RoleTemplateWithPermissions
+    from app.modules.access_control.schemas import (
+        Permission,
+        RoleTemplateWithPermissions,
+    )
 
     template = role_template_repository.get_role_template_by_id(template_id)
     if not template:

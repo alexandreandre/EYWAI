@@ -3,14 +3,20 @@ Repository collective_agreements : persistance catalogue et assignations.
 
 Implémentation des accès DB (Supabase). Lève domain.exceptions.
 """
+
 from __future__ import annotations
 
 from typing import Any, List, Optional
 
 from app.core.database import get_supabase_client
-from app.modules.collective_agreements.domain.exceptions import NotFoundError, ValidationError
+from app.modules.collective_agreements.domain.exceptions import (
+    NotFoundError,
+    ValidationError,
+)
 from app.modules.collective_agreements.infrastructure.mappers import serialize_dates
-from app.modules.collective_agreements.infrastructure.queries import get_classifications_for_idcc
+from app.modules.collective_agreements.infrastructure.queries import (
+    get_classifications_for_idcc,
+)
 
 SELECT_AGREEMENT_DETAILS = (
     "*, agreement_details:collective_agreement_id(id, name, idcc, description, sector, "
@@ -70,7 +76,11 @@ class CollectiveAgreementRepository:
 
     def create_catalog_item(self, data: dict[str, Any]) -> dict[str, Any]:
         db_data = serialize_dates(data)
-        response = self._supabase.table("collective_agreements_catalog").insert(db_data).execute()
+        response = (
+            self._supabase.table("collective_agreements_catalog")
+            .insert(db_data)
+            .execute()
+        )
         if not response.data:
             raise ValidationError("Échec de la création")
         return response.data[0]
@@ -150,7 +160,9 @@ class CollectiveAgreementRepository:
         return True
 
     def get_all_assignments_by_company(self) -> List[dict[str, Any]]:
-        companies_response = self._supabase.table("companies").select("id, company_name").execute()
+        companies_response = (
+            self._supabase.table("companies").select("id, company_name").execute()
+        )
         if not companies_response.data:
             return []
         result = []
@@ -161,11 +173,13 @@ class CollectiveAgreementRepository:
                 .eq("company_id", company["id"])
                 .execute()
             )
-            result.append({
-                "id": company["id"],
-                "company_name": company["company_name"],
-                "assigned_agreements": list(assignments_response.data or []),
-            })
+            result.append(
+                {
+                    "id": company["id"],
+                    "company_name": company["company_name"],
+                    "assigned_agreements": list(assignments_response.data or []),
+                }
+            )
         return result
 
     def check_assignment_exists(

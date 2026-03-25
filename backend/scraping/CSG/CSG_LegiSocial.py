@@ -30,7 +30,9 @@ def fetch_page() -> BeautifulSoup:
     r = requests.get(
         URL_LEGISOCIAL,
         timeout=25,
-        headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"},
+        headers={
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+        },
     )
     r.raise_for_status()
     return BeautifulSoup(r.text, "html.parser")
@@ -47,7 +49,10 @@ def get_taux_csg_legisocial() -> dict | None:
     # Trouver le bloc "COTISATIONS CSG et CRDS"
     target_h3 = None
     for h3 in soup.find_all("h3"):
-        if "csg" in h3.get_text(strip=True).lower() and "crds" in h3.get_text(strip=True).lower():
+        if (
+            "csg" in h3.get_text(strip=True).lower()
+            and "crds" in h3.get_text(strip=True).lower()
+        ):
             target_h3 = h3
             break
     if not target_h3:
@@ -85,7 +90,9 @@ def get_taux_csg_legisocial() -> dict | None:
             vals["deductible"] = rate
         elif "csg non déductible" in label_lower or "csg non deductible" in label_lower:
             vals["non_deductible_csg"] = rate
-        elif "crds non déductible" in label_lower or "crds non deductible" in label_lower:
+        elif (
+            "crds non déductible" in label_lower or "crds non deductible" in label_lower
+        ):
             vals["non_deductible_crds"] = rate
 
         if all(v is not None for v in vals.values()):
@@ -101,7 +108,10 @@ def get_taux_csg_legisocial() -> dict | None:
 def build_payload(taux: dict | None) -> dict:
     vals = {"salarial": None, "patronal": None}
     if taux is not None:
-        vals["salarial"] = {"deductible": taux.get("deductible"), "non_deductible": taux.get("non_deductible")}
+        vals["salarial"] = {
+            "deductible": taux.get("deductible"),
+            "non_deductible": taux.get("non_deductible"),
+        }
     return {
         "id": "csg",
         "type": "cotisation",
@@ -109,7 +119,13 @@ def build_payload(taux: dict | None) -> dict:
         "base": "brut",
         "valeurs": vals,
         "meta": {
-            "source": [{"url": URL_LEGISOCIAL, "label": "LégiSocial — Taux cotisations URSSAF 2025", "date_doc": ""}],
+            "source": [
+                {
+                    "url": URL_LEGISOCIAL,
+                    "label": "LégiSocial — Taux cotisations URSSAF 2025",
+                    "date_doc": "",
+                }
+            ],
             "scraped_at": iso_now(),
             "generator": "scripts/CSG/CSG_LegiSocial.py",
             "method": "secondary",

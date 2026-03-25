@@ -16,6 +16,7 @@ Usages typiques :
 
 Alias : ``PATH_TO_PAYROLL_ENGINE`` = ``PAYROLL_ENGINE_ROOT`` (compat. ``core.config``).
 """
+
 from __future__ import annotations
 
 from pathlib import Path

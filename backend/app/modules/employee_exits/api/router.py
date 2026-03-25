@@ -5,6 +5,7 @@ Délègue uniquement à la couche application (commands, queries).
 Aucune logique métier lourde : auth, permissions, conversion erreurs → HTTP.
 Comportement HTTP identique à api/routers/employee_exits.py.
 """
+
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -46,6 +47,7 @@ router = APIRouter(
 # ---------------------------------------------------------------------------
 # Helpers HTTP (auth, permissions) — pas de logique métier
 # ---------------------------------------------------------------------------
+
 
 def _company_id_required(user: User) -> str:
     cid = user.active_company_id
@@ -114,6 +116,7 @@ def _to_http(e: EmployeeExitApplicationError) -> HTTPException:
 # Sorties
 # ---------------------------------------------------------------------------
 
+
 @router.post("/", response_model=EmployeeExit, status_code=201)
 async def create_employee_exit(
     exit_data: EmployeeExitCreate,
@@ -132,7 +135,9 @@ async def create_employee_exit(
             payload[k] = payload[k].isoformat()
     try:
         created = commands.create_employee_exit(
-            payload, company_id, str(current_user.id),
+            payload,
+            company_id,
+            str(current_user.id),
         )
         return EmployeeExit(**created)
     except EmployeeExitApplicationError as e:
@@ -150,7 +155,9 @@ async def list_employee_exits(
     company_id = _company_id_required(current_user)
     _check_exit_permission(current_user, company_id, "view_all")
     try:
-        items = queries.list_employee_exits(company_id, status=status, exit_type=exit_type, employee_id=employee_id)
+        items = queries.list_employee_exits(
+            company_id, status=status, exit_type=exit_type, employee_id=employee_id
+        )
         return items
     except EmployeeExitApplicationError as e:
         raise _to_http(e)
@@ -232,7 +239,10 @@ async def delete_employee_exit(
 # Indemnités
 # ---------------------------------------------------------------------------
 
-@router.post("/{exit_id}/calculate-indemnities", response_model=ExitIndemnityCalculation)
+
+@router.post(
+    "/{exit_id}/calculate-indemnities", response_model=ExitIndemnityCalculation
+)
 async def calculate_exit_indemnities(
     exit_id: str,
     current_user: User = Depends(get_current_user),
@@ -249,7 +259,10 @@ async def calculate_exit_indemnities(
 # Documents
 # ---------------------------------------------------------------------------
 
-@router.post("/{exit_id}/documents/upload-url", response_model=DocumentUploadUrlResponse)
+
+@router.post(
+    "/{exit_id}/documents/upload-url", response_model=DocumentUploadUrlResponse
+)
 async def get_document_upload_url(
     exit_id: str,
     request: DocumentUploadUrlRequest,
@@ -258,7 +271,9 @@ async def get_document_upload_url(
     """Génère une URL signée pour uploader un document."""
     company_id = _company_id_required(current_user)
     try:
-        result = queries.get_document_upload_url(str(exit_id), company_id, request.filename)
+        result = queries.get_document_upload_url(
+            str(exit_id), company_id, request.filename
+        )
         return DocumentUploadUrlResponse(**result)
     except EmployeeExitApplicationError as e:
         raise _to_http(e)
@@ -275,7 +290,10 @@ async def create_exit_document(
     data = document_data.model_dump()
     try:
         created = commands.create_exit_document(
-            str(exit_id), company_id, data, str(current_user.id),
+            str(exit_id),
+            company_id,
+            data,
+            str(current_user.id),
         )
         return ExitDocument(**created)
     except EmployeeExitApplicationError as e:
@@ -305,7 +323,10 @@ async def generate_exit_document(
     company_id = _company_id_required(current_user)
     try:
         return commands.generate_exit_document(
-            str(exit_id), company_id, document_type, str(current_user.id),
+            str(exit_id),
+            company_id,
+            document_type,
+            str(current_user.id),
         )
     except EmployeeExitApplicationError as e:
         raise _to_http(e)
@@ -326,7 +347,9 @@ async def delete_exit_document(
     return None
 
 
-@router.post("/{exit_id}/documents/publish", response_model=PublishExitDocumentsResponse)
+@router.post(
+    "/{exit_id}/documents/publish", response_model=PublishExitDocumentsResponse
+)
 async def publish_exit_documents(
     exit_id: str,
     request: PublishExitDocumentsRequest,
@@ -338,14 +361,20 @@ async def publish_exit_documents(
     doc_ids = [str(d) for d in request.document_ids] if request.document_ids else None
     try:
         result = commands.publish_exit_documents(
-            str(exit_id), company_id, doc_ids, request.force_update, str(current_user.id),
+            str(exit_id),
+            company_id,
+            doc_ids,
+            request.force_update,
+            str(current_user.id),
         )
         return PublishExitDocumentsResponse(**result)
     except EmployeeExitApplicationError as e:
         raise _to_http(e)
 
 
-@router.post("/{exit_id}/documents/{document_id}/unpublish", response_model=ExitDocument)
+@router.post(
+    "/{exit_id}/documents/{document_id}/unpublish", response_model=ExitDocument
+)
 async def unpublish_exit_document(
     exit_id: str,
     document_id: str,
@@ -355,13 +384,17 @@ async def unpublish_exit_document(
     company_id = _company_id_required(current_user)
     _check_unpublish_permission(current_user, company_id)
     try:
-        updated = commands.unpublish_exit_document(str(exit_id), str(document_id), company_id)
+        updated = commands.unpublish_exit_document(
+            str(exit_id), str(document_id), company_id
+        )
         return ExitDocument(**updated)
     except EmployeeExitApplicationError as e:
         raise _to_http(e)
 
 
-@router.get("/{exit_id}/documents/{document_id}/details", response_model=ExitDocumentDetails)
+@router.get(
+    "/{exit_id}/documents/{document_id}/details", response_model=ExitDocumentDetails
+)
 async def get_exit_document_details(
     exit_id: str,
     document_id: str,
@@ -370,12 +403,16 @@ async def get_exit_document_details(
     """Détails complets d'un document avec données éditables."""
     company_id = _company_id_required(current_user)
     try:
-        return queries.get_exit_document_details(str(exit_id), str(document_id), company_id)
+        return queries.get_exit_document_details(
+            str(exit_id), str(document_id), company_id
+        )
     except EmployeeExitApplicationError as e:
         raise _to_http(e)
 
 
-@router.post("/{exit_id}/documents/{document_id}/edit", response_model=ExitDocumentEditResponse)
+@router.post(
+    "/{exit_id}/documents/{document_id}/edit", response_model=ExitDocumentEditResponse
+)
 async def edit_exit_document(
     exit_id: str,
     document_id: str,
@@ -387,13 +424,20 @@ async def edit_exit_document(
     edit_data = edit_request.model_dump()
     if edit_data.get("document_data"):
         for section in ("employee", "company", "exit"):
-            if section in edit_data["document_data"] and edit_data["document_data"][section]:
+            if (
+                section in edit_data["document_data"]
+                and edit_data["document_data"][section]
+            ):
                 for k, v in list(edit_data["document_data"][section].items()):
                     if hasattr(v, "isoformat"):
                         edit_data["document_data"][section][k] = v.isoformat()
     try:
         result = commands.edit_exit_document(
-            str(exit_id), str(document_id), company_id, edit_data, str(current_user.id),
+            str(exit_id),
+            str(document_id),
+            company_id,
+            edit_data,
+            str(current_user.id),
         )
         return ExitDocumentEditResponse(**result)
     except EmployeeExitApplicationError as e:
@@ -409,7 +453,9 @@ async def get_document_edit_history(
     """Historique des modifications d'un document."""
     company_id = _company_id_required(current_user)
     try:
-        return queries.get_document_edit_history(str(exit_id), str(document_id), company_id)
+        return queries.get_document_edit_history(
+            str(exit_id), str(document_id), company_id
+        )
     except EmployeeExitApplicationError as e:
         raise _to_http(e)
 
@@ -417,6 +463,7 @@ async def get_document_edit_history(
 # ---------------------------------------------------------------------------
 # Checklist
 # ---------------------------------------------------------------------------
+
 
 @router.get("/{exit_id}/checklist", response_model=List[ChecklistItem])
 async def get_exit_checklist(
@@ -463,7 +510,11 @@ async def mark_checklist_item_complete(
         update_data["due_date"] = update_data["due_date"].isoformat()
     try:
         updated = commands.mark_checklist_item_complete(
-            str(exit_id), str(item_id), company_id, update_data, str(current_user.id),
+            str(exit_id),
+            str(item_id),
+            company_id,
+            update_data,
+            str(current_user.id),
         )
         return ChecklistItem(**updated)
     except EmployeeExitApplicationError as e:

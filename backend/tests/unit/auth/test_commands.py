@@ -3,6 +3,7 @@ Tests unitaires des commandes auth (application/commands.py).
 
 Repositories et providers mockés ; pas de DB ni HTTP.
 """
+
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 
@@ -19,8 +20,12 @@ class TestRequestPasswordReset:
         """Si l'utilisateur existe, token créé, email envoyé, message générique retourné."""
         with (
             patch("app.modules.auth.application.commands.auth_provider") as auth,
-            patch("app.modules.auth.application.commands.get_profile_display_name") as get_name,
-            patch("app.modules.auth.application.commands.reset_token_repository") as repo,
+            patch(
+                "app.modules.auth.application.commands.get_profile_display_name"
+            ) as get_name,
+            patch(
+                "app.modules.auth.application.commands.reset_token_repository"
+            ) as repo,
             patch("app.modules.auth.application.commands.email_sender") as email,
         ):
             auth.find_user_id_by_email.return_value = "user-uuid-123"
@@ -29,7 +34,9 @@ class TestRequestPasswordReset:
 
             result = commands.request_password_reset("user@example.com")
 
-        assert result == {"message": "Si cet e-mail existe, un lien de réinitialisation a été envoyé"}
+        assert result == {
+            "message": "Si cet e-mail existe, un lien de réinitialisation a été envoyé"
+        }
         auth.find_user_id_by_email.assert_called_once_with("user@example.com")
         get_name.assert_called_once()
         repo.create.assert_called_once()
@@ -40,14 +47,18 @@ class TestRequestPasswordReset:
         """Si l'email n'existe pas, on retourne le même message (sécurité)."""
         with (
             patch("app.modules.auth.application.commands.auth_provider") as auth,
-            patch("app.modules.auth.application.commands.reset_token_repository") as repo,
+            patch(
+                "app.modules.auth.application.commands.reset_token_repository"
+            ) as repo,
             patch("app.modules.auth.application.commands.email_sender") as email,
         ):
             auth.find_user_id_by_email.return_value = None
 
             result = commands.request_password_reset("inconnu@example.com")
 
-        assert result == {"message": "Si cet e-mail existe, un lien de réinitialisation a été envoyé"}
+        assert result == {
+            "message": "Si cet e-mail existe, un lien de réinitialisation a été envoyé"
+        }
         repo.create.assert_not_called()
         email.send_password_reset.assert_not_called()
 
@@ -58,7 +69,9 @@ class TestRequestPasswordReset:
 
             result = commands.request_password_reset("user@example.com")
 
-        assert result == {"message": "Si cet e-mail existe, un lien de réinitialisation a été envoyé"}
+        assert result == {
+            "message": "Si cet e-mail existe, un lien de réinitialisation a été envoyé"
+        }
 
 
 class TestResetPassword:
@@ -68,7 +81,9 @@ class TestResetPassword:
         """Token valide : update password, mark_used, message succès."""
         expires = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
         with (
-            patch("app.modules.auth.application.commands.reset_token_repository") as repo,
+            patch(
+                "app.modules.auth.application.commands.reset_token_repository"
+            ) as repo,
             patch("app.modules.auth.application.commands.auth_provider") as auth,
         ):
             repo.get_valid.return_value = {
@@ -86,7 +101,9 @@ class TestResetPassword:
     def test_invalid_token_raises_400(self):
         """Token invalide ou déjà utilisé → HTTP 400."""
         with (
-            patch("app.modules.auth.application.commands.reset_token_repository") as repo,
+            patch(
+                "app.modules.auth.application.commands.reset_token_repository"
+            ) as repo,
             patch("app.modules.auth.application.commands.auth_provider") as auth,
         ):
             repo.get_valid.return_value = None
@@ -95,7 +112,10 @@ class TestResetPassword:
                 commands.reset_password("invalid-token", "NewP@ss")
 
         assert exc_info.value.status_code == 400
-        assert "invalide" in exc_info.value.detail.lower() or "expiré" in exc_info.value.detail.lower()
+        assert (
+            "invalide" in exc_info.value.detail.lower()
+            or "expiré" in exc_info.value.detail.lower()
+        )
         auth.update_user_password.assert_not_called()
 
 
@@ -116,7 +136,9 @@ class TestChangePassword:
             )
 
         assert result == {"message": "Mot de passe modifié avec succès"}
-        auth.sign_in_with_password.assert_called_once_with("user@example.com", "OldPass")
+        auth.sign_in_with_password.assert_called_once_with(
+            "user@example.com", "OldPass"
+        )
         auth.update_user_password.assert_called_once_with("user-123", "NewP@ss")
 
     def test_current_password_wrong_raises_400(self):
@@ -133,7 +155,10 @@ class TestChangePassword:
                 )
 
         assert exc_info.value.status_code == 400
-        assert "actuel" in exc_info.value.detail.lower() or "incorrect" in exc_info.value.detail.lower()
+        assert (
+            "actuel" in exc_info.value.detail.lower()
+            or "incorrect" in exc_info.value.detail.lower()
+        )
         auth.update_user_password.assert_not_called()
 
 

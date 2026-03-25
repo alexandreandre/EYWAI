@@ -3,6 +3,7 @@ Tests unitaires des queries annual_reviews (application/queries.py).
 
 Repository mocké ; pas de DB ni HTTP.
 """
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -30,7 +31,11 @@ class TestListAllAnnualReviews:
                 "planned_date": None,
                 "completed_date": None,
                 "created_at": "2024-01-01T00:00:00",
-                "employees": {"first_name": "Jean", "last_name": "Dupont", "job_title": "Dev"},
+                "employees": {
+                    "first_name": "Jean",
+                    "last_name": "Dupont",
+                    "job_title": "Dev",
+                },
             },
         ]
 
@@ -51,9 +56,13 @@ class TestListAllAnnualReviews:
         repo = _mock_repo()
         repo.list_by_company.return_value = []
 
-        queries.list_all_annual_reviews("co-1", repository=repo, year=2024, status="cloture")
+        queries.list_all_annual_reviews(
+            "co-1", repository=repo, year=2024, status="cloture"
+        )
 
-        repo.list_by_company.assert_called_once_with("co-1", year=2024, status="cloture")
+        repo.list_by_company.assert_called_once_with(
+            "co-1", year=2024, status="cloture"
+        )
 
 
 class TestGetAnnualReviewById:
@@ -63,17 +72,27 @@ class TestGetAnnualReviewById:
         """Entretien inexistant → None."""
         repo = _mock_repo()
         repo.get_by_id.return_value = None
-        assert queries.get_annual_review_by_id(
-            "rev-unknown", "co-1", "user-1", True, repository=repo
-        ) is None
+        assert (
+            queries.get_annual_review_by_id(
+                "rev-unknown", "co-1", "user-1", True, repository=repo
+            )
+            is None
+        )
 
     def test_returns_none_when_other_company(self):
         """Entretien d'une autre entreprise → None."""
         repo = _mock_repo()
-        repo.get_by_id.return_value = {"id": "rev-1", "company_id": "co-other", "employee_id": "emp-1"}
-        assert queries.get_annual_review_by_id(
-            "rev-1", "co-1", "user-1", True, repository=repo
-        ) is None
+        repo.get_by_id.return_value = {
+            "id": "rev-1",
+            "company_id": "co-other",
+            "employee_id": "emp-1",
+        }
+        assert (
+            queries.get_annual_review_by_id(
+                "rev-1", "co-1", "user-1", True, repository=repo
+            )
+            is None
+        )
 
     def test_returns_none_when_employee_not_owner_and_not_rh(self):
         """Employé non propriétaire et pas RH → None."""
@@ -87,9 +106,12 @@ class TestGetAnnualReviewById:
             "created_at": "2024-01-01T00:00:00",
             "updated_at": "2024-01-01T00:00:00",
         }
-        assert queries.get_annual_review_by_id(
-            "rev-1", "co-1", "user-1", is_rh=False, repository=repo
-        ) is None
+        assert (
+            queries.get_annual_review_by_id(
+                "rev-1", "co-1", "user-1", is_rh=False, repository=repo
+            )
+            is None
+        )
 
     def test_returns_read_when_rh(self):
         """RH → retourne AnnualReviewRead."""
@@ -246,17 +268,27 @@ class TestGetAnnualReviewForPdf:
         """Entretien inexistant → None."""
         repo = _mock_repo()
         repo.get_by_id.return_value = None
-        assert queries.get_annual_review_for_pdf(
-            "rev-unknown", "co-1", "user-1", True, repository=repo
-        ) is None
+        assert (
+            queries.get_annual_review_for_pdf(
+                "rev-unknown", "co-1", "user-1", True, repository=repo
+            )
+            is None
+        )
 
     def test_returns_none_when_other_company(self):
         """Autre entreprise → None."""
         repo = _mock_repo()
-        repo.get_by_id.return_value = {"id": "rev-1", "company_id": "co-other", "employee_id": "emp-1"}
-        assert queries.get_annual_review_for_pdf(
-            "rev-1", "co-1", "user-1", True, repository=repo
-        ) is None
+        repo.get_by_id.return_value = {
+            "id": "rev-1",
+            "company_id": "co-other",
+            "employee_id": "emp-1",
+        }
+        assert (
+            queries.get_annual_review_for_pdf(
+                "rev-1", "co-1", "user-1", True, repository=repo
+            )
+            is None
+        )
 
     def test_returns_none_when_employee_not_owner_and_not_rh(self):
         """Employé non propriétaire et pas RH → None."""
@@ -267,9 +299,12 @@ class TestGetAnnualReviewForPdf:
             "employee_id": "emp-other",
             "status": "cloture",
         }
-        assert queries.get_annual_review_for_pdf(
-            "rev-1", "co-1", "user-1", is_rh=False, repository=repo
-        ) is None
+        assert (
+            queries.get_annual_review_for_pdf(
+                "rev-1", "co-1", "user-1", is_rh=False, repository=repo
+            )
+            is None
+        )
 
     def test_raises_value_error_when_status_not_cloture(self):
         """Statut != cloture → ValueError (PDF non autorisé)."""

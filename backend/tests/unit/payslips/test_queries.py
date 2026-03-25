@@ -3,6 +3,7 @@ Tests unitaires des queries du module payslips (application/queries.py).
 
 Chaque query est testée avec l'infrastructure mockée (pas de DB, pas de HTTP).
 """
+
 from unittest.mock import patch
 
 
@@ -20,7 +21,14 @@ class TestGetMyPayslipsQuery:
     def test_returns_list_from_infra(self):
         """get_my_payslips retourne la liste renvoyée par l'infrastructure."""
         expected = [
-            {"id": "ps-1", "name": "Bulletin_01-2024.pdf", "month": 1, "year": 2024, "url": "https://signed.url/1", "net_a_payer": 2500.0},
+            {
+                "id": "ps-1",
+                "name": "Bulletin_01-2024.pdf",
+                "month": 1,
+                "year": 2024,
+                "url": "https://signed.url/1",
+                "net_a_payer": 2500.0,
+            },
         ]
         with patch(
             "app.modules.payslips.application.queries._get_my_payslips",
@@ -46,7 +54,13 @@ class TestGetEmployeePayslipsQuery:
     def test_returns_list_from_infra(self):
         """get_employee_payslips retourne la liste renvoyée par l'infrastructure."""
         expected = [
-            {"id": "ps-1", "name": "Bulletin_03-2024.pdf", "month": 3, "year": 2024, "url": "https://signed.url/1"},
+            {
+                "id": "ps-1",
+                "name": "Bulletin_03-2024.pdf",
+                "month": 3,
+                "year": 2024,
+                "url": "https://signed.url/1",
+            },
         ]
         with patch(
             "app.modules.payslips.application.queries._get_employee_payslips",
@@ -106,8 +120,18 @@ class TestGetPayslipHistoryQuery:
     def test_returns_history_list_from_infra(self):
         """get_payslip_history retourne la liste d'historique."""
         expected = [
-            {"version": 1, "edited_at": "2024-03-15T10:00:00", "edited_by": "user-1", "changes_summary": "Création"},
-            {"version": 2, "edited_at": "2024-03-20T14:00:00", "edited_by": "user-2", "changes_summary": "Modif brut"},
+            {
+                "version": 1,
+                "edited_at": "2024-03-15T10:00:00",
+                "edited_by": "user-1",
+                "changes_summary": "Création",
+            },
+            {
+                "version": 2,
+                "edited_at": "2024-03-20T14:00:00",
+                "edited_by": "user-2",
+                "changes_summary": "Modif brut",
+            },
         ]
         with patch(
             "app.modules.payslips.application.queries._get_payslip_history",

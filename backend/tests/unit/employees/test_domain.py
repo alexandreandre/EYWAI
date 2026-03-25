@@ -5,6 +5,7 @@ Sans DB, sans HTTP. Couvre rules.py (build_employee_folder_name,
 default_company_data_fallback, constantes). Les entités et value_objects
 sont des placeholders vides dans ce module.
 """
+
 import pytest
 
 from app.modules.employees.domain.rules import (

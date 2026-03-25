@@ -9,6 +9,7 @@ get_current_user pour fournir un contexte utilisateur (super_admin, RH avec comp
 Si vous avez une fixture collective_agreements_headers (token Bearer valide avec company
 et droits RH), vous pouvez l'utiliser à la place du override pour des tests E2E réels.
 """
+
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock
@@ -138,7 +139,9 @@ class TestGetCatalogUploadUrl:
         finally:
             _clear_override()
 
-    def test_as_super_admin_returns_200_with_path_and_url_or_500(self, client: TestClient):
+    def test_as_super_admin_returns_200_with_path_and_url_or_500(
+        self, client: TestClient
+    ):
         _override_user(_make_mock_user(role="super_admin"))
         try:
             response = client.post(
@@ -325,9 +328,7 @@ class TestRefreshCache:
     """POST /api/collective-agreements-chat/refresh-cache/{agreement_id}."""
 
     def test_without_auth_returns_401(self, client: TestClient):
-        response = client.post(
-            "/api/collective-agreements-chat/refresh-cache/agr-1"
-        )
+        response = client.post("/api/collective-agreements-chat/refresh-cache/agr-1")
         assert response.status_code == 401
 
     def test_as_non_super_admin_returns_403(self, client: TestClient):

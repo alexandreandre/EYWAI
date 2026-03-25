@@ -29,6 +29,7 @@ USER_AGENT = (
     "(KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
 )
 
+
 # --- UTILITAIRES ---
 def iso_now() -> str:
     """Retourne la date et l'heure actuelles au format ISO 8601 UTC."""
@@ -71,7 +72,10 @@ Texte :
             response_format={"type": "json_object"},
             temperature=0,
             messages=[
-                {"role": "system", "content": "Assistant d'extraction. Ne renvoie que du JSON valide."},
+                {
+                    "role": "system",
+                    "content": "Assistant d'extraction. Ne renvoie que du JSON valide.",
+                },
                 {"role": "user", "content": prompt},
             ],
         )
@@ -145,15 +149,17 @@ def main():
         "libelle": "Salaire Minimum Interprofessionnel de Croissance (SMIC) - Taux horaire",
         "sections": smic_data,
         "meta": {
-            "source": [{
-                "url": "https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/montant-smic.html",
-                "label": "URSSAF - Montant du Smic",
-                "date_doc": ""
-            }],
+            "source": [
+                {
+                    "url": "https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/montant-smic.html",
+                    "label": "URSSAF - Montant du Smic",
+                    "date_doc": "",
+                }
+            ],
             "scraped_at": iso_now(),
             "generator": "scripts/SMIC/SMIC_AI.py",
-            "method": "ai"
-        }
+            "method": "ai",
+        },
     }
 
     print(json.dumps(payload, ensure_ascii=False))

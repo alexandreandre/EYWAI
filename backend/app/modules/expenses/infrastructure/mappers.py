@@ -4,6 +4,7 @@ Mappers expenses (dict Supabase <-> entités / préparation données).
 Logique de préparation des données pour la DB et de conversion row <-> entity.
 Comportement identique à l'ancien router (format date, clés, statut initial).
 """
+
 from datetime import date, datetime
 from typing import Any, Dict
 
@@ -74,7 +75,9 @@ def entity_to_row(entity: ExpenseReportEntity) -> Dict[str, Any]:
         "id": entity.id,
         "employee_id": entity.employee_id,
         "company_id": entity.company_id,
-        "date": entity.date.isoformat() if isinstance(entity.date, date) else entity.date,
+        "date": entity.date.isoformat()
+        if isinstance(entity.date, date)
+        else entity.date,
         "amount": entity.amount,
         "type": entity.type,
         "description": entity.description,

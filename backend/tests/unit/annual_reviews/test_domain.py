@@ -3,6 +3,7 @@ Tests unitaires du domaine annual_reviews : entités, value objects, règles, en
 
 Aucune dépendance DB ni HTTP. Logique pure du domain/.
 """
+
 from datetime import date, datetime
 
 import pytest
@@ -85,7 +86,10 @@ class TestAnnualReviewStatusEnum:
     def test_all_status_values_defined(self):
         """Tous les statuts métier sont définis."""
         assert AnnualReviewStatusEnum.PLANIFIE.value == "planifie"
-        assert AnnualReviewStatusEnum.EN_ATTENTE_ACCEPTATION.value == "en_attente_acceptation"
+        assert (
+            AnnualReviewStatusEnum.EN_ATTENTE_ACCEPTATION.value
+            == "en_attente_acceptation"
+        )
         assert AnnualReviewStatusEnum.ACCEPTE.value == "accepte"
         assert AnnualReviewStatusEnum.REFUSE.value == "refuse"
         assert AnnualReviewStatusEnum.REALISE.value == "realise"
@@ -112,7 +116,10 @@ class TestRulesEmployeePermissions:
 
     def test_employee_can_update_acceptance_only_when_en_attente(self):
         """Employé peut accepter/refuser uniquement si en_attente_acceptation."""
-        assert domain_rules.employee_can_update_acceptance("en_attente_acceptation") is True
+        assert (
+            domain_rules.employee_can_update_acceptance("en_attente_acceptation")
+            is True
+        )
         assert domain_rules.employee_can_update_acceptance("accepte") is False
         assert domain_rules.employee_can_update_acceptance("refuse") is False
         assert domain_rules.employee_can_update_acceptance("realise") is False
@@ -121,7 +128,10 @@ class TestRulesEmployeePermissions:
     def test_employee_can_update_preparation_notes_only_when_accepte(self):
         """Employé peut modifier ses notes de préparation si accepte."""
         assert domain_rules.employee_can_update_preparation_notes("accepte") is True
-        assert domain_rules.employee_can_update_preparation_notes("en_attente_acceptation") is False
+        assert (
+            domain_rules.employee_can_update_preparation_notes("en_attente_acceptation")
+            is False
+        )
         assert domain_rules.employee_can_update_preparation_notes("realise") is False
 
 
@@ -172,7 +182,9 @@ class TestBuildEmployeeUpdateData:
         """Lève ValueError si aucune modification autorisée."""
         with pytest.raises(ValueError) as exc_info:
             domain_rules.build_employee_update_data("accepte", {})
-        assert "notes de préparation" in str(exc_info.value) or "accepter/refuser" in str(exc_info.value)
+        assert "notes de préparation" in str(
+            exc_info.value
+        ) or "accepter/refuser" in str(exc_info.value)
 
     def test_raises_value_error_when_wrong_status_for_acceptance(self):
         """En statut accepte, envoyer employee_acceptance_status ne donne pas de mise à jour employé (pas d'acceptation)."""

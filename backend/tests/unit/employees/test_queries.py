@@ -3,6 +3,7 @@ Tests unitaires des queries du module employees.
 
 Repository et providers mockés. Pas d'accès DB ni HTTP.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -13,7 +14,9 @@ from app.modules.employees.application import queries as queries_module
 pytestmark = pytest.mark.unit
 
 
-@patch("app.modules.employees.application.queries.enrich_employee_with_residence_permit_status")
+@patch(
+    "app.modules.employees.application.queries.enrich_employee_with_residence_permit_status"
+)
 @patch("app.modules.employees.application.queries._employee_repository")
 def test_get_employees_returns_enriched_list(mock_repo, mock_enrich):
     """get_employees : retourne la liste enrichie avec statut titre de séjour."""
@@ -28,9 +31,13 @@ def test_get_employees_returns_enriched_list(mock_repo, mock_enrich):
 
 
 @patch("app.modules.employees.application.queries.enrich_employee_with_annual_review")
-@patch("app.modules.employees.application.queries.enrich_employee_with_residence_permit_status")
+@patch(
+    "app.modules.employees.application.queries.enrich_employee_with_residence_permit_status"
+)
 @patch("app.modules.employees.application.queries._employee_repository")
-def test_get_employee_by_id_returns_enriched_employee(mock_repo, mock_enrich_res, mock_enrich_review):
+def test_get_employee_by_id_returns_enriched_employee(
+    mock_repo, mock_enrich_res, mock_enrich_review
+):
     """get_employee_by_id : retourne l'employé enrichi titre de séjour + entretien annuel."""
     raw = {"id": "e1", "first_name": "Jean", "company_id": "c1"}
     mock_repo.get_by_id.return_value = raw
@@ -44,9 +51,13 @@ def test_get_employee_by_id_returns_enriched_employee(mock_repo, mock_enrich_res
 
 
 @patch("app.modules.employees.application.queries.enrich_employee_with_annual_review")
-@patch("app.modules.employees.application.queries.enrich_employee_with_residence_permit_status")
+@patch(
+    "app.modules.employees.application.queries.enrich_employee_with_residence_permit_status"
+)
 @patch("app.modules.employees.application.queries._employee_repository")
-def test_get_employee_by_id_not_found_returns_none(mock_repo, mock_enrich_res, mock_enrich_review):
+def test_get_employee_by_id_not_found_returns_none(
+    mock_repo, mock_enrich_res, mock_enrich_review
+):
     """get_employee_by_id : si employé inexistant → None."""
     mock_repo.get_by_id.return_value = None
     result = queries_module.get_employee_by_id("unknown", "c1")
@@ -67,7 +78,9 @@ def test_get_my_contract_url_no_company_returns_none(mock_get_company, mock_stor
 
 @patch("app.modules.employees.application.queries.get_storage_provider")
 @patch("app.modules.employees.application.queries.get_employee_company_id")
-def test_get_my_contract_url_no_contract_file_returns_none(mock_get_company, mock_storage):
+def test_get_my_contract_url_no_contract_file_returns_none(
+    mock_get_company, mock_storage
+):
     """get_my_contract_url : pas de fichier contrat.pdf → None."""
     mock_get_company.return_value = "c1"
     storage = MagicMock()
@@ -111,7 +124,9 @@ def test_get_my_published_exit_documents_no_company_returns_empty(
 def test_get_my_published_exit_documents_returns_docs(mock_fetch, mock_get_company):
     """get_my_published_exit_documents : retourne la liste des documents de sortie."""
     mock_get_company.return_value = "c1"
-    mock_fetch.return_value = [{"id": "doc1", "name": "Attestation", "url": "https://u"}]
+    mock_fetch.return_value = [
+        {"id": "doc1", "name": "Attestation", "url": "https://u"}
+    ]
     result = queries_module.get_my_published_exit_documents("emp-1")
     assert len(result) == 1
     assert result[0]["name"] == "Attestation"

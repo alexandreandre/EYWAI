@@ -3,6 +3,7 @@ DTOs du module expenses (entrées/sorties application).
 
 Alignés sur le comportement de api/routers/expenses.py.
 """
+
 from dataclasses import dataclass
 from datetime import date
 from typing import Optional

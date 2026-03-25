@@ -3,6 +3,7 @@
 Commandes (écritures) recruitment — délégation au service applicatif.
 Comportement identique au legacy. Les routers appellent ces commandes.
 """
+
 from typing import Any
 
 from . import service as svc

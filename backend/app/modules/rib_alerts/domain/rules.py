@@ -3,6 +3,7 @@ Règles métier pures du domaine rib_alerts (sans FastAPI, sans I/O).
 
 Comportement identique aux vérifications implicites des routeurs legacy.
 """
+
 from __future__ import annotations
 
 from typing import Optional

@@ -26,8 +26,14 @@ FORBIDDEN_IMPORT_PATTERNS = (
 FORBIDDEN_CODE_PATTERNS: tuple[tuple[str, str], ...] = (
     (r"\bsupabase\b", "usage direct de 'supabase'"),
     (r"\.table\s*\(", "appel direct '.table(...)'"),
-    (r"(?i)\bexecute\s*\(\s*[\"']\s*(select|insert|update|delete)\b", "exécution SQL brute"),
-    (r"(?i)[\"']\s*(select|insert|update|delete)\b[\s\S]{0,120}\bfrom\b", "chaîne SQL brute"),
+    (
+        r"(?i)\bexecute\s*\(\s*[\"']\s*(select|insert|update|delete)\b",
+        "exécution SQL brute",
+    ),
+    (
+        r"(?i)[\"']\s*(select|insert|update|delete)\b[\s\S]{0,120}\bfrom\b",
+        "chaîne SQL brute",
+    ),
 )
 
 

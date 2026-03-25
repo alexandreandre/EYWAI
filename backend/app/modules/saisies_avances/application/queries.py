@@ -4,6 +4,7 @@ Requêtes (lecture) du module saisies_avances.
 Chaque requête délègue au service. Le router (lors de la migration) appellera
 ces fonctions et convertira les exceptions applicatives en HTTPException.
 """
+
 from decimal import Decimal
 from typing import Any, List, Optional
 
@@ -76,8 +77,6 @@ def get_payment_proof_url(payment_id: str) -> str:
     return service.get_payment_proof_url(payment_id)
 
 
-def calculate_seizable(
-    net_salary: Decimal, dependents_count: int = 0
-) -> Any:
+def calculate_seizable(net_salary: Decimal, dependents_count: int = 0) -> Any:
     """Calcule la quotité saisissable pour un salaire donné."""
     return service.calculate_seizable(net_salary, dependents_count)

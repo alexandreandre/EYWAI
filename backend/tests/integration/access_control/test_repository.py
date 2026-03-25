@@ -8,11 +8,14 @@ create_role_template, attach_permissions_to_role_template, etc.
 
 Avec DB de test (fixture db_session) ou mocks Supabase pour valider la logique et les appels.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.modules.access_control.infrastructure.repository import SupabasePermissionRepository
+from app.modules.access_control.infrastructure.repository import (
+    SupabasePermissionRepository,
+)
 from app.modules.access_control.infrastructure.queries import (
     get_permission_categories_active,
     get_permission_actions_active,
@@ -34,7 +37,9 @@ class TestSupabasePermissionRepository:
 
     def test_user_has_permission_returns_true_when_permission_found(self):
         """user_has_permission retourne True si une ligne user_permissions a la permission active."""
-        with patch("app.modules.access_control.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.access_control.infrastructure.repository.supabase"
+        ) as supabase:
             table_mock = MagicMock()
             chain = MagicMock()
             chain.execute.return_value = MagicMock(
@@ -60,7 +65,9 @@ class TestSupabasePermissionRepository:
 
     def test_user_has_permission_returns_false_when_no_match(self):
         """user_has_permission retourne False si code ne correspond pas ou is_active False."""
-        with patch("app.modules.access_control.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.access_control.infrastructure.repository.supabase"
+        ) as supabase:
             table_mock = MagicMock()
             chain = MagicMock()
             chain.execute.return_value = MagicMock(
@@ -81,7 +88,9 @@ class TestSupabasePermissionRepository:
 
     def test_user_has_permission_returns_false_when_empty_data(self):
         """user_has_permission retourne False si pas de données."""
-        with patch("app.modules.access_control.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.access_control.infrastructure.repository.supabase"
+        ) as supabase:
             table_mock = MagicMock()
             chain = MagicMock()
             chain.execute.return_value = MagicMock(data=[])
@@ -95,7 +104,9 @@ class TestSupabasePermissionRepository:
 
     def test_user_has_any_rh_permission_returns_true_when_rh_permission_exists(self):
         """user_has_any_rh_permission True si une permission a required_role in (rh, admin)."""
-        with patch("app.modules.access_control.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.access_control.infrastructure.repository.supabase"
+        ) as supabase:
             table_mock = MagicMock()
             chain = MagicMock()
             chain.execute.return_value = MagicMock(
@@ -113,12 +124,19 @@ class TestSupabasePermissionRepository:
 
     def test_user_has_any_rh_permission_returns_false_when_no_rh_permission(self):
         """user_has_any_rh_permission False si aucune permission rh/admin."""
-        with patch("app.modules.access_control.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.access_control.infrastructure.repository.supabase"
+        ) as supabase:
             table_mock = MagicMock()
             chain = MagicMock()
             chain.execute.return_value = MagicMock(
                 data=[
-                    {"permissions": {"required_role": "collaborateur", "is_active": True}},
+                    {
+                        "permissions": {
+                            "required_role": "collaborateur",
+                            "is_active": True,
+                        }
+                    },
                 ]
             )
             table_mock.select.return_value.eq.return_value.eq.return_value = chain
@@ -139,7 +157,9 @@ class TestPermissionCatalogQueries:
         """get_permission_categories_active appelle la table et retourne une liste."""
         table_mock = MagicMock()
         chain = MagicMock()
-        chain.execute.return_value = MagicMock(data=[{"id": "c1", "code": "payslips", "is_active": True}])
+        chain.execute.return_value = MagicMock(
+            data=[{"id": "c1", "code": "payslips", "is_active": True}]
+        )
         table_mock.select.return_value.eq.return_value.order.return_value = chain
         supabase_mock.table.return_value = table_mock
 
@@ -290,7 +310,9 @@ class TestRoleTemplateQueries:
         result = role_template_name_exists("company-1", "Mon Template")
 
         assert result is True
-        table_mock.select.return_value.eq.return_value.eq.assert_called_with("name", "Mon Template")
+        table_mock.select.return_value.eq.return_value.eq.assert_called_with(
+            "name", "Mon Template"
+        )
 
     @patch("app.modules.access_control.infrastructure.queries.supabase")
     def test_create_role_template_calls_insert_and_returns_id(self, supabase_mock):
@@ -321,7 +343,9 @@ class TestRoleTemplateQueries:
         assert call_data["is_active"] is True
 
     @patch("app.modules.access_control.infrastructure.queries.supabase")
-    def test_attach_permissions_to_role_template_inserts_per_template(self, supabase_mock):
+    def test_attach_permissions_to_role_template_inserts_per_template(
+        self, supabase_mock
+    ):
         """attach_permissions_to_role_template fait un insert par permission_id."""
         table_mock = MagicMock()
         chain = MagicMock()

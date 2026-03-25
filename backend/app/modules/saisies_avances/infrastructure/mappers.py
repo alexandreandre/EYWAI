@@ -4,6 +4,7 @@ Mappers dict/BDD <-> DTOs du module saisies_avances.
 Construction des schémas de réponse (AdvanceAvailableAmount, SeizableAmountCalculation)
 à partir des données brutes ou des sorties des règles.
 """
+
 from decimal import Decimal
 from typing import Any, Dict
 

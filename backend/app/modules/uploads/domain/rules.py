@@ -4,18 +4,21 @@ Règles métier pures pour les uploads de logos.
 Constantes et validations sans I/O. Aucune dépendance FastAPI ni DB.
 Comportement identique à api/routers/uploads.py.
 """
+
 from __future__ import annotations
 
 from app.modules.uploads.domain.enums import EntityType
 
 # Types MIME autorisés pour les logos (legacy: ALLOWED_LOGO_MIMETYPES)
-ALLOWED_LOGO_MIMETYPES = frozenset({
-    "image/png",
-    "image/jpeg",
-    "image/jpg",
-    "image/svg+xml",
-    "image/webp",
-})
+ALLOWED_LOGO_MIMETYPES = frozenset(
+    {
+        "image/png",
+        "image/jpeg",
+        "image/jpg",
+        "image/svg+xml",
+        "image/webp",
+    }
+)
 
 # Taille maximale des logos : 2 MB (legacy: MAX_LOGO_SIZE)
 MAX_LOGO_SIZE_BYTES = 2 * 1024 * 1024

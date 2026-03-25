@@ -5,6 +5,7 @@ Rôle strict : validation des entrées (query params), auth, appel de l'applicat
 Aucune logique métier : tout est délégué à l'application du module.
 Comportement HTTP identique à l'ancien router (POST /calculer-credits).
 """
+
 from __future__ import annotations
 
 import traceback

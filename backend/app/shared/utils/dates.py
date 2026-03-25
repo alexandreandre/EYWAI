@@ -3,6 +3,7 @@ Utilitaires génériques pour les dates (ISO, parsing).
 
 Sans logique métier ; wrappers évidents pour réutilisation.
 """
+
 from __future__ import annotations
 
 from datetime import date, datetime

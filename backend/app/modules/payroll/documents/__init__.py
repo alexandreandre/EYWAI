@@ -11,7 +11,9 @@ from app.modules.payroll.documents.payslip_editor import (
     save_edited_payslip,
     restore_payslip_version,
 )
-from app.modules.payroll.documents.salary_certificate_generator import SalaryCertificateGenerator
+from app.modules.payroll.documents.salary_certificate_generator import (
+    SalaryCertificateGenerator,
+)
 from app.modules.payroll.documents.simulated_payslip_generator import (
     SimulatedPayslipGenerator,
     generate_simulated_payslip_pdf,

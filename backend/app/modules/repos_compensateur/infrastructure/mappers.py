@@ -3,6 +3,7 @@ Mappers dict/row DB <-> domain entities.
 
 Comportement identique aux écritures/lectures actuelles (repos_compensateur_credits).
 """
+
 from __future__ import annotations
 
 from typing import Any

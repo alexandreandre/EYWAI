@@ -5,6 +5,7 @@ Orchestration des commands et queries, et contrôles d'accès (autorisation).
 Les routers n'ont plus à porter la logique métier : ils appellent le service
 et mappent les exceptions (PayslipNotFoundError -> 404, PayslipForbiddenError -> 403).
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -28,7 +29,10 @@ from app.modules.payslips.application.queries import (
     get_payslip_details,
     get_payslip_history,
 )
-from app.modules.payslips.domain.rules import can_edit_or_restore_payslip, can_view_payslip
+from app.modules.payslips.domain.rules import (
+    can_edit_or_restore_payslip,
+    can_view_payslip,
+)
 from app.modules.payslips.infrastructure.readers import (
     debug_storage_info_provider,
     payslip_meta_reader,
@@ -37,9 +41,12 @@ from app.modules.payslips.infrastructure.readers import (
 
 # --- Use cases sans contrôle d'accès (router gère l'auth si besoin) ---
 
+
 def generate_payslip_use_case(employee_id: str, year: int, month: int) -> Any:
     """Génération d'un bulletin (logique : forfait vs heures dans commands)."""
-    return generate_payslip(GeneratePayslipInput(employee_id=employee_id, year=year, month=month))
+    return generate_payslip(
+        GeneratePayslipInput(employee_id=employee_id, year=year, month=month)
+    )
 
 
 def delete_payslip_use_case(payslip_id: str) -> None:
@@ -63,6 +70,7 @@ def get_debug_storage_info(employee_id: str, year: int, month: int) -> dict[str,
 
 
 # --- Use cases avec autorisation : le service vérifie et lève si interdit ---
+
 
 def get_payslip_details_for_user(
     payslip_id: str,
@@ -138,16 +146,20 @@ def edit_payslip_for_user(
         ctx.has_rh_access_in_company,
         ctx.active_company_id,
     ):
-        raise PayslipForbiddenError("Vous n'avez pas les permissions pour modifier les bulletins")
-    return edit_payslip(EditPayslipInput(
-        payslip_id=payslip_id,
-        payslip_data=payslip_data,
-        changes_summary=changes_summary,
-        current_user_id=ctx.user_id,
-        current_user_name=ctx.display_name(),
-        pdf_notes=pdf_notes,
-        internal_note=internal_note,
-    ))
+        raise PayslipForbiddenError(
+            "Vous n'avez pas les permissions pour modifier les bulletins"
+        )
+    return edit_payslip(
+        EditPayslipInput(
+            payslip_id=payslip_id,
+            payslip_data=payslip_data,
+            changes_summary=changes_summary,
+            current_user_id=ctx.user_id,
+            current_user_name=ctx.display_name(),
+            pdf_notes=pdf_notes,
+            internal_note=internal_note,
+        )
+    )
 
 
 def restore_payslip_for_user(
@@ -174,15 +186,18 @@ def restore_payslip_for_user(
         raise PayslipForbiddenError(
             "Vous n'avez pas les permissions pour restaurer les bulletins"
         )
-    return restore_payslip_version(RestorePayslipInput(
-        payslip_id=payslip_id,
-        version=version,
-        current_user_id=ctx.user_id,
-        current_user_name=ctx.display_name(),
-    ))
+    return restore_payslip_version(
+        RestorePayslipInput(
+            payslip_id=payslip_id,
+            version=version,
+            current_user_id=ctx.user_id,
+            current_user_name=ctx.display_name(),
+        )
+    )
 
 
 # --- Ré-exports pour compatibilité : signature (user_id, user_name) au lieu de UserContext ---
+
 
 def edit_payslip_use_case(
     payslip_id: str,
@@ -194,15 +209,17 @@ def edit_payslip_use_case(
     internal_note: str | None = None,
 ) -> dict[str, Any]:
     """Édition d'un bulletin (signature legacy : user_id, user_name)."""
-    return edit_payslip(EditPayslipInput(
-        payslip_id=payslip_id,
-        payslip_data=payslip_data,
-        changes_summary=changes_summary,
-        current_user_id=current_user_id,
-        current_user_name=current_user_name,
-        pdf_notes=pdf_notes,
-        internal_note=internal_note,
-    ))
+    return edit_payslip(
+        EditPayslipInput(
+            payslip_id=payslip_id,
+            payslip_data=payslip_data,
+            changes_summary=changes_summary,
+            current_user_id=current_user_id,
+            current_user_name=current_user_name,
+            pdf_notes=pdf_notes,
+            internal_note=internal_note,
+        )
+    )
 
 
 def restore_payslip_use_case(
@@ -212,9 +229,11 @@ def restore_payslip_use_case(
     current_user_name: str,
 ) -> dict[str, Any]:
     """Restauration d'une version (signature legacy : user_id, user_name)."""
-    return restore_payslip_version(RestorePayslipInput(
-        payslip_id=payslip_id,
-        version=version,
-        current_user_id=current_user_id,
-        current_user_name=current_user_name,
-    ))
+    return restore_payslip_version(
+        RestorePayslipInput(
+            payslip_id=payslip_id,
+            version=version,
+            current_user_id=current_user_id,
+            current_user_name=current_user_name,
+        )
+    )

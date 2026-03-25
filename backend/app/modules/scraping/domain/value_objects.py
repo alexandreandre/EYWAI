@@ -3,6 +3,7 @@ Value objects du domaine scraping.
 
 Représentations typées des identifiants et valeurs métier.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

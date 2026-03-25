@@ -5,6 +5,7 @@ Implémentations dans infrastructure/. Source : api/routers/employee_exits.py,
 services/document_generator.py ; calcul indemnités via le moteur paie (app / adaptateur).
 Aucune dépendance FastAPI ni DB ici.
 """
+
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
@@ -41,7 +42,9 @@ class IEmployeeExitRepository(ABC):
         ...
 
     @abstractmethod
-    def update(self, exit_id: str, company_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def update(
+        self, exit_id: str, company_id: str, data: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """Met à jour une sortie. Retourne la ligne mise à jour."""
         ...
 

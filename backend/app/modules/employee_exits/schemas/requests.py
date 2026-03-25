@@ -3,6 +3,7 @@ Schémas Pydantic entrée API du module employee_exits.
 
 Migrés depuis schemas/employee_exit.py — comportement identique.
 """
+
 from datetime import date
 from typing import Any, Dict, List, Literal, Optional
 
@@ -186,7 +187,9 @@ class StatusUpdateRequest(BaseModel):
 class PublishExitDocumentsRequest(BaseModel):
     """Requête pour publier des documents de sortie vers l'espace Documents du salarié"""
 
-    document_ids: Optional[List[str]] = None  # Si None, publie tous les documents générés
+    document_ids: Optional[List[str]] = (
+        None  # Si None, publie tous les documents générés
+    )
     force_update: bool = False  # Si True, met à jour même si déjà publié
 
 

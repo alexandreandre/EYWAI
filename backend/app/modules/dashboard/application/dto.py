@@ -3,6 +3,7 @@ DTOs et constantes applicatives du module dashboard.
 
 Constantes partagées pour l'agrégation (libellés de mois, mapping types absence).
 """
+
 from typing import Dict
 
 # Noms de mois en français abrégés pour le graphique (comportement legacy)

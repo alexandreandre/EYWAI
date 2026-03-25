@@ -5,6 +5,7 @@ Mappers : ligne DB ↔ entités / DTOs (optionnel).
 - soldes bruts → AbsenceBalanceDto
 - planned_calendar entries → CalendarDayDto
 """
+
 from typing import Any, Dict
 
 from app.modules.absences.application.dto import (
@@ -25,9 +26,13 @@ def row_to_absence_dto(row: Dict[str, Any]) -> AbsenceRequestDto:
     raise NotImplementedError("À implémenter")
 
 
-def to_balance_dto(type_label: str, acquired: float, taken: float, remaining: Any) -> AbsenceBalanceDto:
+def to_balance_dto(
+    type_label: str, acquired: float, taken: float, remaining: Any
+) -> AbsenceBalanceDto:
     """Construit AbsenceBalanceDto (libellés identiques : Congés Payés, RTT, etc.)."""
-    return AbsenceBalanceDto(type=type_label, acquired=acquired, taken=taken, remaining=remaining)
+    return AbsenceBalanceDto(
+        type=type_label, acquired=acquired, taken=taken, remaining=remaining
+    )
 
 
 def calendar_entry_to_dto(entry: Dict[str, Any]) -> CalendarDayDto:

@@ -4,6 +4,7 @@ Types / énumérations du domaine employee_exits.
 Alignés sur app.modules.employee_exits.schemas.requests (ExitType, ExitStatus, etc.).
 Définis ici pour le domain ; les schémas API réutilisent les mêmes Literal.
 """
+
 from typing import Literal
 
 ExitType = Literal[

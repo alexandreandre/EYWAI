@@ -3,6 +3,7 @@ Envelope de réponse API générique (success, data, message).
 
 Pour uniformiser les réponses JSON quand on ne suit pas un schéma métier précis.
 """
+
 from __future__ import annotations
 
 from typing import Any, Generic, TypeVar

@@ -33,4 +33,6 @@ class PasswordResetTokenRepository(IResetTokenStore):
         return resp.data[0]
 
     def mark_used(self, token: str) -> None:
-        supabase.table("password_resets").update({"used": True}).eq("token", token).execute()
+        supabase.table("password_resets").update({"used": True}).eq(
+            "token", token
+        ).execute()

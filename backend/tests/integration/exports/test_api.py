@@ -7,6 +7,7 @@ get_current_user et get_active_company_id ; le service peut être mocké pour é
 Fixture documentée : exports_headers — si conftest fournit des en-têtes (Authorization + X-Active-Company),
 les tests peuvent les utiliser pour des appels E2E avec token réel.
 """
+
 from datetime import datetime
 from unittest.mock import patch
 
@@ -113,7 +114,9 @@ class TestExportsWithRhUser:
             app.dependency_overrides.pop(get_current_user, None)
             app.dependency_overrides.pop(get_active_company_id, None)
 
-    def test_post_preview_returns_200_and_preview_shape(self, client_with_exports_auth: TestClient):
+    def test_post_preview_returns_200_and_preview_shape(
+        self, client_with_exports_auth: TestClient
+    ):
         """POST /api/exports/preview avec auth et company → 200 et structure ExportPreviewResponse."""
         mock_response = {
             "export_type": "journal_paie",
@@ -140,7 +143,9 @@ class TestExportsWithRhUser:
         assert "totals" in data
         assert "can_generate" in data
 
-    def test_post_preview_unsupported_type_returns_400(self, client_with_exports_auth: TestClient):
+    def test_post_preview_unsupported_type_returns_400(
+        self, client_with_exports_auth: TestClient
+    ):
         """POST /api/exports/preview avec type non supporté → 400."""
         with patch(
             "app.modules.exports.application.service.preview_export",
@@ -153,7 +158,9 @@ class TestExportsWithRhUser:
         assert response.status_code == 400
         assert "detail" in response.json()
 
-    def test_post_preview_invalid_period_returns_422(self, client_with_exports_auth: TestClient):
+    def test_post_preview_invalid_period_returns_422(
+        self, client_with_exports_auth: TestClient
+    ):
         """POST /api/exports/preview avec période invalide (format) → 422."""
         response = client_with_exports_auth.post(
             "/api/exports/preview",
@@ -161,14 +168,18 @@ class TestExportsWithRhUser:
         )
         assert response.status_code == 422
 
-    def test_post_generate_returns_200_and_response_shape(self, client_with_exports_auth: TestClient):
+    def test_post_generate_returns_200_and_response_shape(
+        self, client_with_exports_auth: TestClient
+    ):
         """POST /api/exports/generate avec auth → 200 et export_id, files, report."""
         mock_response = {
             "export_id": "exp-uuid-1",
             "export_type": "journal_paie",
             "period": "2025-01",
             "status": "generated",
-            "files": [{"filename": "out.xlsx", "path": "p", "size": 100, "format": "xlsx"}],
+            "files": [
+                {"filename": "out.xlsx", "path": "p", "size": 100, "format": "xlsx"}
+            ],
             "report": {
                 "export_type": "journal_paie",
                 "period": "2025-01",
@@ -188,7 +199,11 @@ class TestExportsWithRhUser:
         ):
             response = client_with_exports_auth.post(
                 "/api/exports/generate",
-                json={"export_type": "journal_paie", "period": "2025-01", "format": "xlsx"},
+                json={
+                    "export_type": "journal_paie",
+                    "period": "2025-01",
+                    "format": "xlsx",
+                },
             )
         assert response.status_code == 200
         data = response.json()
@@ -197,7 +212,9 @@ class TestExportsWithRhUser:
         assert len(data["files"]) == 1
         assert "download_urls" in data
 
-    def test_get_history_returns_200_and_list(self, client_with_exports_auth: TestClient):
+    def test_get_history_returns_200_and_list(
+        self, client_with_exports_auth: TestClient
+    ):
         """GET /api/exports/history → 200 et exports, total."""
         mock_response = {"exports": [], "total": 0}
         with patch(
@@ -211,7 +228,9 @@ class TestExportsWithRhUser:
         assert "total" in data
         assert data["total"] == 0
 
-    def test_get_history_accepts_query_params(self, client_with_exports_auth: TestClient):
+    def test_get_history_accepts_query_params(
+        self, client_with_exports_auth: TestClient
+    ):
         """GET /api/exports/history?export_type=dsn_mensuelle&period=2025-01 transmet les filtres."""
         with patch(
             "app.modules.exports.application.service.get_export_history",
@@ -224,7 +243,9 @@ class TestExportsWithRhUser:
             assert mock_get.call_args[0][1] == "dsn_mensuelle"
             assert mock_get.call_args[0][2] == "2025-01"
 
-    def test_get_download_returns_200_with_download_url(self, client_with_exports_auth: TestClient):
+    def test_get_download_returns_200_with_download_url(
+        self, client_with_exports_auth: TestClient
+    ):
         """GET /api/exports/download/{export_id} → 200 et download_url."""
         with patch(
             "app.modules.exports.application.service.get_export_download_url",
@@ -235,7 +256,9 @@ class TestExportsWithRhUser:
         data = response.json()
         assert data["download_url"] == "https://signed.url/file.xlsx"
 
-    def test_get_download_export_not_found_returns_404(self, client_with_exports_auth: TestClient):
+    def test_get_download_export_not_found_returns_404(
+        self, client_with_exports_auth: TestClient
+    ):
         """GET /api/exports/download/{id} quand export inexistant → 404."""
         with patch(
             "app.modules.exports.application.service.get_export_download_url",

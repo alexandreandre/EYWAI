@@ -3,6 +3,7 @@ Règles métier du module copilot.
 
 À utiliser depuis la couche application uniquement.
 """
+
 from __future__ import annotations
 
 

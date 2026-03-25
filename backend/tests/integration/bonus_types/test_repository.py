@@ -5,6 +5,7 @@ Sans DB de test : mocks Supabase pour valider la logique et les appels.
 Avec DB de test : prévoir la fixture db_session (conftest) et des données
 dans company_bonus_types pour des tests CRUD réels.
 """
+
 from datetime import datetime
 from uuid import uuid4
 from unittest.mock import MagicMock, patch
@@ -125,8 +126,8 @@ class TestSupabaseBonusTypeRepositoryGetById:
         ) as supabase:
             table = MagicMock()
             chain = MagicMock()
-            chain.eq.return_value.maybe_single.return_value.execute.return_value = MagicMock(
-                data=_row(COMPANY_UUID_1, id=bt_id)
+            chain.eq.return_value.maybe_single.return_value.execute.return_value = (
+                MagicMock(data=_row(COMPANY_UUID_1, id=bt_id))
             )
             table.select.return_value = chain
             supabase.table.return_value = table
@@ -151,7 +152,9 @@ class TestSupabaseBonusTypeRepositoryGetById:
             supabase.table.return_value = table
 
             repo = SupabaseBonusTypeRepository()
-            result = repo.get_by_id("770e8400-e29b-41d4-a716-446655440003", COMPANY_UUID_1)
+            result = repo.get_by_id(
+                "770e8400-e29b-41d4-a716-446655440003", COMPANY_UUID_1
+            )
 
             assert result is None
 
@@ -211,7 +214,9 @@ class TestSupabaseBonusTypeRepositoryUpdate:
             table = MagicMock()
             chain = MagicMock()
             chain.eq.return_value.execute.return_value = MagicMock(
-                data=[_row(COMPANY_UUID_1, id=bt_id, libelle="Mis à jour", montant=150.0)]
+                data=[
+                    _row(COMPANY_UUID_1, id=bt_id, libelle="Mis à jour", montant=150.0)
+                ]
             )
             table.update.return_value = chain
             supabase.table.return_value = table

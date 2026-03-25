@@ -4,6 +4,7 @@ Orchestration partagée du module employees.
 Enrichissements (titre de séjour, entretien annuel) via domain rules et infrastructure.
 Aucun accès direct à la DB : utilise les ports (calculateur résidence, query entretien annuel).
 """
+
 from __future__ import annotations
 
 import traceback
@@ -67,16 +68,12 @@ def enrich_employee_with_annual_review(
 
         current_year = date.today().year
         query = get_annual_review_query()
-        review = query.fetch_for_employee_year(
-            employee_id, company_id, current_year
-        )
+        review = query.fetch_for_employee_year(employee_id, company_id, current_year)
         result = dict(employee_data)
         if review:
             result["annual_review_current_status"] = review.get("status")
             result["annual_review_current_year"] = current_year
-            result["annual_review_current_planned_date"] = review.get(
-                "planned_date"
-            )
+            result["annual_review_current_planned_date"] = review.get("planned_date")
             result["annual_review_current_completed_date"] = review.get(
                 "completed_date"
             )

@@ -6,17 +6,26 @@ from app.modules.payroll.engine.calcul_brut import calculer_salaire_brut
 from app.modules.payroll.engine.calcul_brut_forfait import calculer_salaire_brut_forfait
 from app.modules.payroll.engine.calcul_cotisations import calculer_cotisations
 from app.modules.payroll.engine.calcul_net import calculer_net_et_impot
-from app.modules.payroll.engine.calcul_reduction_generale import calculer_reduction_generale
-from app.modules.payroll.engine.bulletin import creer_bulletin_final, creer_bulletin_sortie
+from app.modules.payroll.engine.calcul_reduction_generale import (
+    calculer_reduction_generale,
+)
+from app.modules.payroll.engine.bulletin import (
+    creer_bulletin_final,
+    creer_bulletin_sortie,
+)
 from app.modules.payroll.engine.calcul_conges import calculer_indemnite_conges
 from app.modules.payroll.engine.calcul_absences import calculer_deduction_absence
-from app.modules.payroll.engine.calcul_indemnites_sortie import calculer_indemnites_sortie
+from app.modules.payroll.engine.calcul_indemnites_sortie import (
+    calculer_indemnites_sortie,
+)
 from app.modules.payroll.engine.calcul_inverse import (
     calculer_brut_depuis_net,
     CalculInverseError,
     NonConvergenceError,
 )
-from app.modules.payroll.engine.analyser_jours_forfait import analyser_jours_forfait_du_mois
+from app.modules.payroll.engine.analyser_jours_forfait import (
+    analyser_jours_forfait_du_mois,
+)
 from app.modules.payroll.engine.period_forfait import definir_periode_de_paie
 from app.modules.payroll.engine.analyser_horaires import analyser_horaires_du_mois
 from app.modules.payroll.engine.simulation import (

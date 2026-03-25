@@ -3,6 +3,7 @@ Génération et enregistrement des événements de paie dans Supabase.
 
 Migré depuis backend_api/payroll_writer.py.
 """
+
 import sys
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -27,14 +28,24 @@ def generer_et_enregistrer_evenements(
     """
     try:
         supabase = get_supabase_admin_client()
-        print(f"🧮 [PayrollWriter] Début génération événements {employee_name} ({month}/{year})", file=sys.stderr)
+        print(
+            f"🧮 [PayrollWriter] Début génération événements {employee_name} ({month}/{year})",
+            file=sys.stderr,
+        )
 
-        res = supabase.table("employee_schedules").select("planned_calendar, actual_hours") \
-            .match({"employee_id": employee_id, "year": year, "month": month}) \
-            .maybe_single().execute()
+        res = (
+            supabase.table("employee_schedules")
+            .select("planned_calendar, actual_hours")
+            .match({"employee_id": employee_id, "year": year, "month": month})
+            .maybe_single()
+            .execute()
+        )
 
         if not res.data:
-            print(f"❌ Aucun calendrier trouvé pour {employee_name} ({month}/{year})", file=sys.stderr)
+            print(
+                f"❌ Aucun calendrier trouvé pour {employee_name} ({month}/{year})",
+                file=sys.stderr,
+            )
             return None
 
         planned_calendar = res.data.get("planned_calendar") or []
@@ -46,19 +57,17 @@ def generer_et_enregistrer_evenements(
 
         payload = {
             "periode": {"mois": month, "annee": year},
-            "calendrier_analyse": evenements
+            "calendrier_analyse": evenements,
         }
 
-        supabase.table("employee_schedules").update({
-            "payroll_events": payload,
-            "updated_at": datetime.utcnow().isoformat()
-        }).match({
-            "employee_id": employee_id,
-            "year": year,
-            "month": month
-        }).execute()
+        supabase.table("employee_schedules").update(
+            {"payroll_events": payload, "updated_at": datetime.utcnow().isoformat()}
+        ).match({"employee_id": employee_id, "year": year, "month": month}).execute()
 
-        print(f"✅ [PayrollWriter] {len(evenements)} événements enregistrés pour {employee_name} ({month}/{year})", file=sys.stderr)
+        print(
+            f"✅ [PayrollWriter] {len(evenements)} événements enregistrés pour {employee_name} ({month}/{year})",
+            file=sys.stderr,
+        )
         return payload
 
     except Exception as e:

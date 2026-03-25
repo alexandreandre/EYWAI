@@ -3,6 +3,7 @@ Schémas réponses du module monthly_inputs.
 
 Formes de réponse identiques à l'existant (api/routers/monthly_inputs.py).
 """
+
 from __future__ import annotations
 
 from typing import Any

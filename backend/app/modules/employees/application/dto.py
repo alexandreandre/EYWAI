@@ -1,6 +1,7 @@
 """
 DTOs et exceptions applicatives du module employees.
 """
+
 from typing import Dict, List
 
 
@@ -11,7 +12,11 @@ class EmployeeCreateValidationError(Exception):
     400 avec field_errors (comportement identique au router legacy).
     """
 
-    def __init__(self, field_errors: Dict[str, str], message: str = "Erreur lors de la création de l'employé"):
+    def __init__(
+        self,
+        field_errors: Dict[str, str],
+        message: str = "Erreur lors de la création de l'employé",
+    ):
         self.field_errors = field_errors
         self.message = message
         super().__init__(message)

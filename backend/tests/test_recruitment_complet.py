@@ -45,6 +45,7 @@ sys.path.insert(0, str(_here))
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv(_here / ".env")
 except ImportError:
     pass
@@ -90,6 +91,7 @@ def add_timeline_event(
 # Helpers
 # ═══════════════════════════════════════════════════════════════════════
 
+
 class TestResult:
     def __init__(self, name: str, success: bool, message: str, data: Any = None):
         self.name = name
@@ -109,12 +111,19 @@ def _list_jobs(company_id: str, status: Optional[str] = None) -> List[Dict]:
 def _get_stages(company_id: str, job_id: str) -> List[Dict]:
     return (
         supabase.table("recruitment_pipeline_stages")
-        .select("*").eq("job_id", job_id).eq("company_id", company_id)
-        .order("position").execute().data or []
+        .select("*")
+        .eq("job_id", job_id)
+        .eq("company_id", company_id)
+        .order("position")
+        .execute()
+        .data
+        or []
     )
 
 
-def _list_candidates(company_id: str, job_id: Optional[str] = None, search: Optional[str] = None) -> List[Dict]:
+def _list_candidates(
+    company_id: str, job_id: Optional[str] = None, search: Optional[str] = None
+) -> List[Dict]:
     q = (
         supabase.table("recruitment_candidates")
         .select("*, stage:recruitment_pipeline_stages(name, stage_type)")
@@ -127,7 +136,8 @@ def _list_candidates(company_id: str, job_id: Optional[str] = None, search: Opti
     if search:
         s = search.lower()
         rows = [
-            c for c in rows
+            c
+            for c in rows
             if s in (c.get("first_name", "") + " " + c.get("last_name", "")).lower()
             or s in (c.get("email") or "").lower()
             or s in (c.get("phone") or "").lower()
@@ -139,8 +149,10 @@ def _get_candidate(company_id: str, candidate_id: str) -> Optional[Dict]:
     r = (
         supabase.table("recruitment_candidates")
         .select("*, stage:recruitment_pipeline_stages(name, stage_type)")
-        .eq("id", candidate_id).eq("company_id", company_id)
-        .maybe_single().execute()
+        .eq("id", candidate_id)
+        .eq("company_id", company_id)
+        .maybe_single()
+        .execute()
     )
     return r.data if r else None
 
@@ -149,8 +161,12 @@ def _list_notes(company_id: str, candidate_id: str) -> List[Dict]:
     return (
         supabase.table("recruitment_notes")
         .select("*, author:profiles!author_id(first_name, last_name)")
-        .eq("candidate_id", candidate_id).eq("company_id", company_id)
-        .order("created_at", desc=True).execute().data or []
+        .eq("candidate_id", candidate_id)
+        .eq("company_id", company_id)
+        .order("created_at", desc=True)
+        .execute()
+        .data
+        or []
     )
 
 
@@ -158,8 +174,12 @@ def _list_opinions(company_id: str, candidate_id: str) -> List[Dict]:
     return (
         supabase.table("recruitment_opinions")
         .select("*, author:profiles!author_id(first_name, last_name)")
-        .eq("candidate_id", candidate_id).eq("company_id", company_id)
-        .order("created_at", desc=True).execute().data or []
+        .eq("candidate_id", candidate_id)
+        .eq("company_id", company_id)
+        .order("created_at", desc=True)
+        .execute()
+        .data
+        or []
     )
 
 
@@ -178,14 +198,19 @@ def _list_timeline(company_id: str, candidate_id: str) -> List[Dict]:
     return (
         supabase.table("recruitment_timeline_events")
         .select("*")
-        .eq("candidate_id", candidate_id).eq("company_id", company_id)
-        .order("created_at", desc=True).execute().data or []
+        .eq("candidate_id", candidate_id)
+        .eq("company_id", company_id)
+        .order("created_at", desc=True)
+        .execute()
+        .data
+        or []
     )
 
 
 # ═══════════════════════════════════════════════════════════════════════
 # Main tester
 # ═══════════════════════════════════════════════════════════════════════
+
 
 class RecruitmentTester:
     def __init__(self):
@@ -214,11 +239,19 @@ class RecruitmentTester:
     # ── Logging ───────────────────────────────────────────────────
 
     def log(self, message: str, level: str = "INFO"):
-        prefix = {"INFO": "ℹ️ ", "SUCCESS": "✅", "ERROR": "❌", "WARNING": "⚠️ ", "TEST": "🧪"}.get(level, "ℹ️ ")
+        prefix = {
+            "INFO": "ℹ️ ",
+            "SUCCESS": "✅",
+            "ERROR": "❌",
+            "WARNING": "⚠️ ",
+            "TEST": "🧪",
+        }.get(level, "ℹ️ ")
         print(f"{prefix} {message}")
 
     def add(self, name: str, success: bool, message: str, data: Any = None):
-        self.results.append(TestResult(name=name, success=success, message=message, data=data))
+        self.results.append(
+            TestResult(name=name, success=success, message=message, data=data)
+        )
         self.log(f"{name}: {message}", "SUCCESS" if success else "ERROR")
 
     # ── Setup ─────────────────────────────────────────────────────
@@ -238,7 +271,11 @@ class RecruitmentTester:
                 return False
             self.actor_id = r.data[0]["id"]
 
-            self.add("Setup", True, f"company={self.company_id[:8]}..., actor={self.actor_id[:8]}...")
+            self.add(
+                "Setup",
+                True,
+                f"company={self.company_id[:8]}..., actor={self.actor_id[:8]}...",
+            )
             return True
         except Exception as e:
             self.add("Setup", False, str(e))
@@ -339,7 +376,9 @@ class RecruitmentTester:
         try:
             jobs = _list_jobs(self.company_id)
             found = any(j["id"] == self._job_id for j in jobs)
-            self.add("Liste des postes", found, f"{len(jobs)} poste(s), test trouvé={found}")
+            self.add(
+                "Liste des postes", found, f"{len(jobs)} poste(s), test trouvé={found}"
+            )
         except Exception as e:
             self.add("Liste des postes", False, str(e))
 
@@ -351,12 +390,25 @@ class RecruitmentTester:
             self.add("Modifier un poste", False, "Pas de job créé")
             return
         try:
-            supabase.table("recruitment_jobs").update({
-                "description": "Poste modifié par test auto"
-            }).eq("id", self._job_id).execute()
-            updated = supabase.table("recruitment_jobs").select("description").eq("id", self._job_id).single().execute()
-            ok = updated.data and updated.data.get("description") == "Poste modifié par test auto"
-            self.add("Modifier un poste", ok, "description mise à jour" if ok else "mise à jour non reflétée")
+            supabase.table("recruitment_jobs").update(
+                {"description": "Poste modifié par test auto"}
+            ).eq("id", self._job_id).execute()
+            updated = (
+                supabase.table("recruitment_jobs")
+                .select("description")
+                .eq("id", self._job_id)
+                .single()
+                .execute()
+            )
+            ok = (
+                updated.data
+                and updated.data.get("description") == "Poste modifié par test auto"
+            )
+            self.add(
+                "Modifier un poste",
+                ok,
+                "description mise à jour" if ok else "mise à jour non reflétée",
+            )
         except Exception as e:
             self.add("Modifier un poste", False, str(e))
 
@@ -413,29 +465,60 @@ class RecruitmentTester:
             self._created_candidate_ids.append(cid)
 
             add_timeline_event(
-                self.company_id, cid, "candidate_created",
-                "Candidat créé : Jean Test-Recrut", self.actor_id,
+                self.company_id,
+                cid,
+                "candidate_created",
+                "Candidat créé : Jean Test-Recrut",
+                self.actor_id,
             )
 
-            ok = c.get("first_name") == "Jean" and c.get("current_stage_id") == first_stage["id"]
-            self.add("Créer un candidat", ok, f"id={cid[:8]}..., étape={first_stage['name']}")
+            ok = (
+                c.get("first_name") == "Jean"
+                and c.get("current_stage_id") == first_stage["id"]
+            )
+            self.add(
+                "Créer un candidat", ok, f"id={cid[:8]}..., étape={first_stage['name']}"
+            )
         except Exception as e:
             self.add("Créer un candidat", False, str(e))
 
     # ─── 7. Créer des candidats supplémentaires ──────────────────
 
     def test_07_create_extra_candidates(self):
-        self.log("\n--- 07. Créer candidats supplémentaires (refus, embauche, suppression, doublon) ---", "TEST")
+        self.log(
+            "\n--- 07. Créer candidats supplémentaires (refus, embauche, suppression, doublon) ---",
+            "TEST",
+        )
         if not self._job_id or not self._stages:
             self.add("Candidats supplémentaires", False, "Pas de job ou stages")
             return
         try:
             first_stage = self._stages[0]
             extras = [
-                {"first_name": "Marie", "last_name": "Refusée", "email": "marie.refusee@example.com", "attr": "_candidate_id_reject"},
-                {"first_name": "Paul", "last_name": "Embauché", "email": "paul.embauche@example.com", "attr": "_candidate_id_hire"},
-                {"first_name": "Luc", "last_name": "Supprimé", "email": "luc.supprime@example.com", "attr": "_candidate_id_delete"},
-                {"first_name": "Jean-Dup", "last_name": "Doublon", "email": "jean.test.recrut.auto@example.com", "attr": "_candidate_id_dup"},
+                {
+                    "first_name": "Marie",
+                    "last_name": "Refusée",
+                    "email": "marie.refusee@example.com",
+                    "attr": "_candidate_id_reject",
+                },
+                {
+                    "first_name": "Paul",
+                    "last_name": "Embauché",
+                    "email": "paul.embauche@example.com",
+                    "attr": "_candidate_id_hire",
+                },
+                {
+                    "first_name": "Luc",
+                    "last_name": "Supprimé",
+                    "email": "luc.supprime@example.com",
+                    "attr": "_candidate_id_delete",
+                },
+                {
+                    "first_name": "Jean-Dup",
+                    "last_name": "Doublon",
+                    "email": "jean.test.recrut.auto@example.com",
+                    "attr": "_candidate_id_dup",
+                },
             ]
             created_count = 0
             for ex in extras:
@@ -457,7 +540,11 @@ class RecruitmentTester:
                     self._created_candidate_ids.append(cid)
                     created_count += 1
 
-            self.add("Candidats supplémentaires", created_count == 4, f"{created_count}/4 créés")
+            self.add(
+                "Candidats supplémentaires",
+                created_count == 4,
+                f"{created_count}/4 créés",
+            )
         except Exception as e:
             self.add("Candidats supplémentaires", False, str(e))
 
@@ -469,7 +556,11 @@ class RecruitmentTester:
             all_cands = _list_candidates(self.company_id, job_id=self._job_id)
             our_ids = set(self._created_candidate_ids)
             found = [c for c in all_cands if c["id"] in our_ids]
-            self.add("Liste candidats (par job)", len(found) >= 5, f"{len(found)} candidats test trouvés sur {len(all_cands)} total")
+            self.add(
+                "Liste candidats (par job)",
+                len(found) >= 5,
+                f"{len(found)} candidats test trouvés sur {len(all_cands)} total",
+            )
         except Exception as e:
             self.add("Liste candidats (par job)", False, str(e))
 
@@ -478,9 +569,15 @@ class RecruitmentTester:
     def test_09_list_candidates_search(self):
         self.log("\n--- 09. Recherche candidats (nom) ---", "TEST")
         try:
-            results = _list_candidates(self.company_id, job_id=self._job_id, search="Jean Test-Recrut")
+            results = _list_candidates(
+                self.company_id, job_id=self._job_id, search="Jean Test-Recrut"
+            )
             found = any(c["id"] == self._candidate_id_main for c in results)
-            self.add("Recherche candidats (nom)", found, f"{len(results)} résultat(s), principal trouvé={found}")
+            self.add(
+                "Recherche candidats (nom)",
+                found,
+                f"{len(results)} résultat(s), principal trouvé={found}",
+            )
         except Exception as e:
             self.add("Recherche candidats (nom)", False, str(e))
 
@@ -512,40 +609,60 @@ class RecruitmentTester:
             self.add("Modifier candidat", False, "Pas de candidat")
             return
         try:
-            supabase.table("recruitment_candidates").update({
-                "phone": "0611111111",
-                "source": "LinkedIn (modifié)",
-            }).eq("id", self._candidate_id_main).execute()
+            supabase.table("recruitment_candidates").update(
+                {
+                    "phone": "0611111111",
+                    "source": "LinkedIn (modifié)",
+                }
+            ).eq("id", self._candidate_id_main).execute()
 
             c = _get_candidate(self.company_id, self._candidate_id_main)
-            ok = c and c.get("phone") == "0611111111" and c.get("source") == "LinkedIn (modifié)"
-            self.add("Modifier candidat", ok, "phone + source mis à jour" if ok else "mise à jour non reflétée")
+            ok = (
+                c
+                and c.get("phone") == "0611111111"
+                and c.get("source") == "LinkedIn (modifié)"
+            )
+            self.add(
+                "Modifier candidat",
+                ok,
+                "phone + source mis à jour" if ok else "mise à jour non reflétée",
+            )
         except Exception as e:
             self.add("Modifier candidat", False, str(e))
 
     # ─── 12. Déplacer un candidat dans le pipeline ────────────────
 
     def test_12_move_candidate(self):
-        self.log("\n--- 12. Déplacer un candidat (Premier appel → Entretien RH) ---", "TEST")
+        self.log(
+            "\n--- 12. Déplacer un candidat (Premier appel → Entretien RH) ---", "TEST"
+        )
         if not self._candidate_id_main or len(self._stages) < 2:
-            self.add("Déplacer candidat", False, "Pas de candidat ou pas assez d'étapes")
+            self.add(
+                "Déplacer candidat", False, "Pas de candidat ou pas assez d'étapes"
+            )
             return
         try:
             target_stage = self._stages[1]  # "Entretien RH"
-            supabase.table("recruitment_candidates").update({
-                "current_stage_id": target_stage["id"]
-            }).eq("id", self._candidate_id_main).execute()
+            supabase.table("recruitment_candidates").update(
+                {"current_stage_id": target_stage["id"]}
+            ).eq("id", self._candidate_id_main).execute()
 
             add_timeline_event(
-                self.company_id, self._candidate_id_main, "stage_changed",
-                f"Jean Test-Recrut déplacé vers \"{target_stage['name']}\"",
+                self.company_id,
+                self._candidate_id_main,
+                "stage_changed",
+                f'Jean Test-Recrut déplacé vers "{target_stage["name"]}"',
                 self.actor_id,
                 {"stage_id": target_stage["id"], "stage_name": target_stage["name"]},
             )
 
             c = _get_candidate(self.company_id, self._candidate_id_main)
             ok = c and c.get("current_stage_id") == target_stage["id"]
-            self.add("Déplacer candidat", ok, f"→ {target_stage['name']}" if ok else "déplacement non reflété")
+            self.add(
+                "Déplacer candidat",
+                ok,
+                f"→ {target_stage['name']}" if ok else "déplacement non reflété",
+            )
         except Exception as e:
             self.add("Déplacer candidat", False, str(e))
 
@@ -570,8 +687,11 @@ class RecruitmentTester:
                 self._created_note_ids.append(nid)
 
             add_timeline_event(
-                self.company_id, self._candidate_id_main, "note_added",
-                "Note ajoutée", self.actor_id,
+                self.company_id,
+                self._candidate_id_main,
+                "note_added",
+                "Note ajoutée",
+                self.actor_id,
             )
 
             ok = nid is not None and n.get("content") == row["content"]
@@ -612,12 +732,17 @@ class RecruitmentTester:
                 self._created_opinion_ids.append(oid)
 
             add_timeline_event(
-                self.company_id, self._candidate_id_main, "opinion_added",
-                "Avis favorable donné", self.actor_id,
+                self.company_id,
+                self._candidate_id_main,
+                "opinion_added",
+                "Avis favorable donné",
+                self.actor_id,
             )
 
             ok = oid is not None and o.get("rating") == "favorable"
-            self.add("Avis favorable", ok, f"id={oid[:8]}..." if ok else "insert échoué")
+            self.add(
+                "Avis favorable", ok, f"id={oid[:8]}..." if ok else "insert échoué"
+            )
         except Exception as e:
             self.add("Avis favorable", False, str(e))
 
@@ -643,12 +768,17 @@ class RecruitmentTester:
                 self._created_opinion_ids.append(oid)
 
             add_timeline_event(
-                self.company_id, self._candidate_id_main, "opinion_added",
-                "Avis défavorable donné", self.actor_id,
+                self.company_id,
+                self._candidate_id_main,
+                "opinion_added",
+                "Avis défavorable donné",
+                self.actor_id,
             )
 
             ok = oid is not None and o.get("rating") == "defavorable"
-            self.add("Avis défavorable", ok, f"id={oid[:8]}..." if ok else "insert échoué")
+            self.add(
+                "Avis défavorable", ok, f"id={oid[:8]}..." if ok else "insert échoué"
+            )
         except Exception as e:
             self.add("Avis défavorable", False, str(e))
 
@@ -661,7 +791,11 @@ class RecruitmentTester:
             fav = sum(1 for o in opinions if o.get("rating") == "favorable")
             defav = sum(1 for o in opinions if o.get("rating") == "defavorable")
             ok = fav >= 1 and defav >= 1
-            self.add("Lister avis", ok, f"{len(opinions)} avis (favorable={fav}, défavorable={defav})")
+            self.add(
+                "Lister avis",
+                ok,
+                f"{len(opinions)} avis (favorable={fav}, défavorable={defav})",
+            )
         except Exception as e:
             self.add("Lister avis", False, str(e))
 
@@ -692,8 +826,10 @@ class RecruitmentTester:
                 self._created_interview_ids.append(iid)
 
             add_timeline_event(
-                self.company_id, self._candidate_id_main, "interview_planned",
-                f"Entretien \"Entretien technique\" planifié le {scheduled[:10]}",
+                self.company_id,
+                self._candidate_id_main,
+                "interview_planned",
+                f'Entretien "Entretien technique" planifié le {scheduled[:10]}',
                 self.actor_id,
             )
 
@@ -703,7 +839,11 @@ class RecruitmentTester:
                 and i.get("duration_minutes") == 45
                 and i.get("status") == "planned"
             )
-            self.add("Planifier entretien", ok, f"id={iid[:8]}..., {i.get('interview_type')}, {i.get('duration_minutes')}min")
+            self.add(
+                "Planifier entretien",
+                ok,
+                f"id={iid[:8]}..., {i.get('interview_type')}, {i.get('duration_minutes')}min",
+            )
         except Exception as e:
             self.add("Planifier entretien", False, str(e))
 
@@ -720,10 +860,18 @@ class RecruitmentTester:
                 "user_id": self.actor_id,
                 "role": "interviewer",
             }
-            res = supabase.table("recruitment_interview_participants").insert(row).execute()
+            res = (
+                supabase.table("recruitment_interview_participants")
+                .insert(row)
+                .execute()
+            )
             p = (res.data or [{}])[0]
             ok = p.get("id") is not None
-            self.add("Ajouter participant", ok, f"user={self.actor_id[:8]}... ajouté comme interviewer")
+            self.add(
+                "Ajouter participant",
+                ok,
+                f"user={self.actor_id[:8]}... ajouté comme interviewer",
+            )
         except Exception as e:
             self.add("Ajouter participant", False, str(e))
 
@@ -737,7 +885,11 @@ class RecruitmentTester:
             if ok:
                 i = interviews[0]
                 parts = i.get("recruitment_interview_participants") or []
-                self.add("Lister entretiens", True, f"{len(interviews)} entretien(s), {len(parts)} participant(s)")
+                self.add(
+                    "Lister entretiens",
+                    True,
+                    f"{len(interviews)} entretien(s), {len(parts)} participant(s)",
+                )
             else:
                 self.add("Lister entretiens", False, "Aucun entretien trouvé")
         except Exception as e:
@@ -751,26 +903,46 @@ class RecruitmentTester:
             self.add("Compte-rendu entretien", False, "Pas d'entretien")
             return
         try:
-            supabase.table("recruitment_interviews").update({
-                "summary": "Candidat très technique, maîtrise Python/FastAPI. À challenger sur le front.",
-                "status": "completed",
-            }).eq("id", self._interview_id).execute()
+            supabase.table("recruitment_interviews").update(
+                {
+                    "summary": "Candidat très technique, maîtrise Python/FastAPI. À challenger sur le front.",
+                    "status": "completed",
+                }
+            ).eq("id", self._interview_id).execute()
 
-            i = supabase.table("recruitment_interviews").select("summary, status").eq("id", self._interview_id).single().execute()
-            ok = i.data and i.data.get("status") == "completed" and "technique" in (i.data.get("summary") or "")
-            self.add("Compte-rendu entretien", ok, "summary + status=completed" if ok else "mise à jour non reflétée")
+            i = (
+                supabase.table("recruitment_interviews")
+                .select("summary, status")
+                .eq("id", self._interview_id)
+                .single()
+                .execute()
+            )
+            ok = (
+                i.data
+                and i.data.get("status") == "completed"
+                and "technique" in (i.data.get("summary") or "")
+            )
+            self.add(
+                "Compte-rendu entretien",
+                ok,
+                "summary + status=completed" if ok else "mise à jour non reflétée",
+            )
         except Exception as e:
             self.add("Compte-rendu entretien", False, str(e))
 
     # ─── 22. Vérifier participant ────────────────────────────────
 
     def test_22_check_participant(self):
-        self.log("\n--- 22. Vérifier si l'acteur est participant du candidat ---", "TEST")
+        self.log(
+            "\n--- 22. Vérifier si l'acteur est participant du candidat ---", "TEST"
+        )
         if not self._candidate_id_main:
             self.add("Check participant", False, "Pas de candidat")
             return
         try:
-            is_part = is_user_participant_for_candidate(self.actor_id, self._candidate_id_main)
+            is_part = is_user_participant_for_candidate(
+                self.actor_id, self._candidate_id_main
+            )
             self.add("Check participant", is_part is True, f"is_participant={is_part}")
         except Exception as e:
             self.add("Check participant", False, str(e))
@@ -791,7 +963,9 @@ class RecruitmentTester:
             has_opinion = "opinion_added" in types
             has_interview = "interview_planned" in types
 
-            ok = has_created and has_moved and has_note and has_opinion and has_interview
+            ok = (
+                has_created and has_moved and has_note and has_opinion and has_interview
+            )
             self.add(
                 "Timeline",
                 ok,
@@ -815,7 +989,9 @@ class RecruitmentTester:
             self.add(
                 "Doublon candidat",
                 ok,
-                f"Doublon détecté: {dup.get('first_name')} {dup.get('last_name')} (id={dup['id'][:8]}...)" if ok else "Pas de doublon détecté",
+                f"Doublon détecté: {dup.get('first_name')} {dup.get('last_name')} (id={dup['id'][:8]}...)"
+                if ok
+                else "Pas de doublon détecté",
             )
         except Exception as e:
             self.add("Doublon candidat", False, str(e))
@@ -828,20 +1004,26 @@ class RecruitmentTester:
             self.add("Refuser candidat", False, "Pas de candidat ou stages")
             return
         try:
-            rejected_stage = next((s for s in self._stages if s["stage_type"] == "rejected"), None)
+            rejected_stage = next(
+                (s for s in self._stages if s["stage_type"] == "rejected"), None
+            )
             if not rejected_stage:
                 self.add("Refuser candidat", False, "Étape 'rejected' non trouvée")
                 return
 
-            supabase.table("recruitment_candidates").update({
-                "current_stage_id": rejected_stage["id"],
-                "rejection_reason": "Prétentions salariales",
-                "rejection_reason_detail": "Budget dépassé de 15k",
-            }).eq("id", self._candidate_id_reject).execute()
+            supabase.table("recruitment_candidates").update(
+                {
+                    "current_stage_id": rejected_stage["id"],
+                    "rejection_reason": "Prétentions salariales",
+                    "rejection_reason_detail": "Budget dépassé de 15k",
+                }
+            ).eq("id", self._candidate_id_reject).execute()
 
             add_timeline_event(
-                self.company_id, self._candidate_id_reject, "rejected",
-                "Marie Refusée déplacée vers \"Refusé\"",
+                self.company_id,
+                self._candidate_id_reject,
+                "rejected",
+                'Marie Refusée déplacée vers "Refusé"',
                 self.actor_id,
                 {"stage_id": rejected_stage["id"], "stage_name": "Refusé"},
             )
@@ -852,7 +1034,11 @@ class RecruitmentTester:
                 and c.get("current_stage_id") == rejected_stage["id"]
                 and c.get("rejection_reason") == "Prétentions salariales"
             )
-            self.add("Refuser candidat", ok, f"raison={c.get('rejection_reason')}" if ok else "refus non reflété")
+            self.add(
+                "Refuser candidat",
+                ok,
+                f"raison={c.get('rejection_reason')}" if ok else "refus non reflété",
+            )
         except Exception as e:
             self.add("Refuser candidat", False, str(e))
 
@@ -864,14 +1050,18 @@ class RecruitmentTester:
             self.add("Embaucher candidat", False, "Pas de candidat ou stages")
             return
         try:
-            hired_stage = next((s for s in self._stages if s["stage_type"] == "hired"), None)
+            hired_stage = next(
+                (s for s in self._stages if s["stage_type"] == "hired"), None
+            )
             if not hired_stage:
                 self.add("Embaucher candidat", False, "Étape 'hired' non trouvée")
                 return
 
-            supabase.table("recruitment_candidates").update({
-                "current_stage_id": hired_stage["id"],
-            }).eq("id", self._candidate_id_hire).execute()
+            supabase.table("recruitment_candidates").update(
+                {
+                    "current_stage_id": hired_stage["id"],
+                }
+            ).eq("id", self._candidate_id_hire).execute()
 
             employee = service_hire_candidate(
                 self._candidate_id_hire,
@@ -896,7 +1086,9 @@ class RecruitmentTester:
             self.add(
                 "Embaucher candidat",
                 ok,
-                f"employee_id={emp_id[:8]}..., hired_at={c.get('hired_at')}" if ok else "embauche échouée",
+                f"employee_id={emp_id[:8]}..., hired_at={c.get('hired_at')}"
+                if ok
+                else "embauche échouée",
             )
         except Exception as e:
             self.add("Embaucher candidat", False, str(e))
@@ -906,12 +1098,16 @@ class RecruitmentTester:
     def test_27_duplicate_employee(self):
         self.log("\n--- 27. Détection doublon salarié (même email) ---", "TEST")
         try:
-            dup = check_duplicate_employee(self.company_id, email="paul.embauche@example.com", phone=None)
+            dup = check_duplicate_employee(
+                self.company_id, email="paul.embauche@example.com", phone=None
+            )
             ok = dup is not None and dup.get("first_name") == "Paul"
             self.add(
                 "Doublon salarié",
                 ok,
-                f"Doublon détecté: {dup.get('first_name')} {dup.get('last_name')}" if ok else "Pas de doublon détecté (salarié créé juste avant)",
+                f"Doublon détecté: {dup.get('first_name')} {dup.get('last_name')}"
+                if ok
+                else "Pas de doublon détecté (salarié créé juste avant)",
             )
         except Exception as e:
             self.add("Doublon salarié", False, str(e))
@@ -924,13 +1120,19 @@ class RecruitmentTester:
             self.add("Supprimer candidat", False, "Pas de candidat")
             return
         try:
-            supabase.table("recruitment_candidates").delete().eq("id", self._candidate_id_delete).execute()
+            supabase.table("recruitment_candidates").delete().eq(
+                "id", self._candidate_id_delete
+            ).execute()
             c = _get_candidate(self.company_id, self._candidate_id_delete)
             ok = c is None
             if ok:
                 self._created_candidate_ids.remove(self._candidate_id_delete)
                 self._candidate_id_delete = None
-            self.add("Supprimer candidat", ok, "candidat supprimé" if ok else "candidat encore présent")
+            self.add(
+                "Supprimer candidat",
+                ok,
+                "candidat supprimé" if ok else "candidat encore présent",
+            )
         except Exception as e:
             self.add("Supprimer candidat", False, str(e))
 
@@ -940,7 +1142,11 @@ class RecruitmentTester:
         self.log("\n--- 29. Motifs de refus ---", "TEST")
         try:
             ok = len(REJECTION_REASONS) >= 3 and "Autre" in REJECTION_REASONS
-            self.add("Motifs de refus", ok, f"{len(REJECTION_REASONS)} motifs: {', '.join(REJECTION_REASONS)}")
+            self.add(
+                "Motifs de refus",
+                ok,
+                f"{len(REJECTION_REASONS)} motifs: {', '.join(REJECTION_REASONS)}",
+            )
         except Exception as e:
             self.add("Motifs de refus", False, str(e))
 
@@ -961,7 +1167,9 @@ class RecruitmentTester:
         # 2. Supprimer les entretiens (participants supprimés en cascade)
         for iid in self._created_interview_ids:
             try:
-                supabase.table("recruitment_interviews").delete().eq("id", iid).execute()
+                supabase.table("recruitment_interviews").delete().eq(
+                    "id", iid
+                ).execute()
                 self.log(f"  Entretien supprimé: {iid[:8]}...", "SUCCESS")
             except Exception as e:
                 errors.append(f"Entretien {iid[:8]}: {e}")
@@ -985,14 +1193,18 @@ class RecruitmentTester:
         # 5. Supprimer timeline events (par candidats)
         for cid in self._created_candidate_ids:
             try:
-                supabase.table("recruitment_timeline_events").delete().eq("candidate_id", cid).execute()
+                supabase.table("recruitment_timeline_events").delete().eq(
+                    "candidate_id", cid
+                ).execute()
             except Exception:
                 pass
 
         # 6. Supprimer candidats (timeline supprimée en cascade normalement)
         for cid in self._created_candidate_ids:
             try:
-                supabase.table("recruitment_candidates").delete().eq("id", cid).execute()
+                supabase.table("recruitment_candidates").delete().eq(
+                    "id", cid
+                ).execute()
                 self.log(f"  Candidat supprimé: {cid[:8]}...", "SUCCESS")
             except Exception as e:
                 errors.append(f"Candidat {cid[:8]}: {e}")
@@ -1000,14 +1212,18 @@ class RecruitmentTester:
         # 7. Supprimer pipeline stages puis le job
         for jid in self._created_job_ids:
             try:
-                supabase.table("recruitment_pipeline_stages").delete().eq("job_id", jid).execute()
+                supabase.table("recruitment_pipeline_stages").delete().eq(
+                    "job_id", jid
+                ).execute()
                 supabase.table("recruitment_jobs").delete().eq("id", jid).execute()
                 self.log(f"  Job + pipeline supprimé: {jid[:8]}...", "SUCCESS")
             except Exception as e:
                 errors.append(f"Job {jid[:8]}: {e}")
 
         if errors:
-            self.add("Nettoyage", False, f"{len(errors)} erreur(s): {'; '.join(errors)}")
+            self.add(
+                "Nettoyage", False, f"{len(errors)} erreur(s): {'; '.join(errors)}"
+            )
         else:
             self.add("Nettoyage", True, "Toutes les données de test supprimées")
 
@@ -1041,6 +1257,7 @@ class RecruitmentTester:
 
 
 # ═══════════════════════════════════════════════════════════════════════
+
 
 def main():
     if not os.getenv("SUPABASE_URL") or not os.getenv("SUPABASE_KEY"):

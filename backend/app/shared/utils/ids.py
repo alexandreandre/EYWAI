@@ -3,6 +3,7 @@ Utilitaires génériques pour les identifiants (UUID, etc.).
 
 Sans logique métier ; wrappers évidents pour validation/parsing.
 """
+
 from __future__ import annotations
 
 import uuid

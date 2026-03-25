@@ -4,6 +4,7 @@ Schémas de réponse du module users (définitions canoniques).
 Migrés depuis schemas/user.py — comportement identique.
 Compatibilité : schemas.user réexporte depuis ce module.
 """
+
 from datetime import datetime
 from typing import List, Optional
 
@@ -12,6 +13,7 @@ from pydantic import BaseModel, computed_field
 
 class CompanyAccess(BaseModel):
     """Représente l'accès d'un utilisateur à une entreprise"""
+
     company_id: str
     company_name: str
     role: str  # admin, rh, collaborateur, collaborateur_rh
@@ -37,7 +39,7 @@ class CompanyAccess(BaseModel):
                 "group_id": None,
                 "group_name": None,
                 "group_logo_url": None,
-                "group_logo_scale": 1.0
+                "group_logo_scale": 1.0,
             }
         }
 
@@ -49,6 +51,7 @@ class User(BaseModel):
     Un utilisateur peut avoir accès à plusieurs entreprises avec des rôles différents.
     L'entreprise active (active_company_id) détermine le contexte de travail actuel.
     """
+
     id: str
     email: Optional[str] = None
     first_name: Optional[str] = None
@@ -100,7 +103,9 @@ class User(BaseModel):
         """Vérifie si l'utilisateur a accès à une entreprise"""
         if self.is_super_admin:
             return True
-        return any(access.company_id == company_id for access in self.accessible_companies)
+        return any(
+            access.company_id == company_id for access in self.accessible_companies
+        )
 
     def get_role_in_company(self, company_id: str) -> Optional[str]:
         """Retourne le rôle de l'utilisateur dans une entreprise spécifique"""
@@ -159,22 +164,23 @@ class User(BaseModel):
                         "company_id": "660e8400-e29b-41d4-a716-446655440001",
                         "company_name": "Société A",
                         "role": "admin",
-                        "is_primary": True
+                        "is_primary": True,
                     },
                     {
                         "company_id": "660e8400-e29b-41d4-a716-446655440002",
                         "company_name": "Société B",
                         "role": "rh",
-                        "is_primary": False
-                    }
+                        "is_primary": False,
+                    },
                 ],
-                "active_company_id": "660e8400-e29b-41d4-a716-446655440001"
+                "active_company_id": "660e8400-e29b-41d4-a716-446655440001",
             }
         }
 
 
 class UserSimple(BaseModel):
     """Modèle simplifié pour compatibilité avec l'ancien code"""
+
     id: str
     email: Optional[str] = None
     role: str
@@ -185,6 +191,7 @@ class UserSimple(BaseModel):
 
 class UserDetail(BaseModel):
     """Modèle détaillé pour affichage d'un utilisateur"""
+
     id: str
     email: str
     first_name: str
@@ -192,9 +199,13 @@ class UserDetail(BaseModel):
     job_title: Optional[str] = None
     company_id: str
     role: str
-    role_template_name: Optional[str] = None  # Nom du template de rôle pour les rôles custom
+    role_template_name: Optional[str] = (
+        None  # Nom du template de rôle pour les rôles custom
+    )
     created_at: Optional[datetime] = None
-    can_edit: bool = False  # Indique si l'utilisateur courant peut modifier cet utilisateur
+    can_edit: bool = (
+        False  # Indique si l'utilisateur courant peut modifier cet utilisateur
+    )
 
     class Config:
         from_attributes = True

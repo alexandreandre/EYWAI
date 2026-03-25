@@ -5,6 +5,7 @@ Avec DB de test (fixture db_session) : opérations CRUD réelles contre absence_
 Sans DB : mock de supabase pour valider les appels (create, get_by_id, update, list_by_status,
 list_validated_for_employees, list_by_employee_id).
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -69,7 +70,15 @@ class TestSupabaseAbsenceRepositoryCreate:
 
             repo = SupabaseAbsenceRepository()
             with pytest.raises(RuntimeError, match="Échec de la création"):
-                repo.create({"employee_id": "emp-1", "company_id": "c1", "type": "rtt", "status": "pending", "selected_days": []})
+                repo.create(
+                    {
+                        "employee_id": "emp-1",
+                        "company_id": "c1",
+                        "type": "rtt",
+                        "status": "pending",
+                        "selected_days": [],
+                    }
+                )
 
 
 class TestSupabaseAbsenceRepositoryGetById:
@@ -157,8 +166,8 @@ class TestSupabaseAbsenceRepositoryUpdate:
             )
             table_mock.update.return_value = update_chain
             select_chain = MagicMock()
-            select_chain.eq.return_value.single.return_value.execute.return_value = MagicMock(
-                data=updated_row
+            select_chain.eq.return_value.single.return_value.execute.return_value = (
+                MagicMock(data=updated_row)
             )
             table_mock.select.return_value = select_chain
             supabase.table.return_value = table_mock
@@ -182,9 +191,7 @@ class TestSupabaseAbsenceRepositoryListByStatus:
         ) as supabase:
             table_mock = MagicMock()
             select_chain = MagicMock()
-            select_chain.order.return_value.execute.return_value = MagicMock(
-                data=None
-            )
+            select_chain.order.return_value.execute.return_value = MagicMock(data=None)
             table_mock.select.return_value = select_chain
             supabase.table.return_value = table_mock
 
@@ -200,8 +207,8 @@ class TestSupabaseAbsenceRepositoryListByStatus:
         ) as supabase:
             table_mock = MagicMock()
             select_chain = MagicMock()
-            select_chain.eq.return_value.order.return_value.execute.return_value = MagicMock(
-                data=[]
+            select_chain.eq.return_value.order.return_value.execute.return_value = (
+                MagicMock(data=[])
             )
             table_mock.select.return_value = select_chain
             supabase.table.return_value = table_mock
@@ -229,8 +236,17 @@ class TestSupabaseAbsenceRepositoryListValidatedForEmployees:
         ) as supabase:
             table_mock = MagicMock()
             select_chain = MagicMock()
-            select_chain.in_.return_value.eq.return_value.execute.return_value = MagicMock(
-                data=[{"employee_id": "emp-1", "type": "conge_paye", "selected_days": [], "jours_payes": 5}]
+            select_chain.in_.return_value.eq.return_value.execute.return_value = (
+                MagicMock(
+                    data=[
+                        {
+                            "employee_id": "emp-1",
+                            "type": "conge_paye",
+                            "selected_days": [],
+                            "jours_payes": 5,
+                        }
+                    ]
+                )
             )
             table_mock.select.return_value = select_chain
             supabase.table.return_value = table_mock
@@ -255,8 +271,8 @@ class TestSupabaseAbsenceRepositoryListByEmployeeId:
         ) as supabase:
             table_mock = MagicMock()
             select_chain = MagicMock()
-            select_chain.eq.return_value.order.return_value.execute.return_value = MagicMock(
-                data=None
+            select_chain.eq.return_value.order.return_value.execute.return_value = (
+                MagicMock(data=None)
             )
             table_mock.select.return_value = select_chain
             supabase.table.return_value = table_mock
@@ -277,8 +293,8 @@ class TestSupabaseAbsenceRepositoryListByEmployeeId:
         ) as supabase:
             table_mock = MagicMock()
             select_chain = MagicMock()
-            select_chain.eq.return_value.order.return_value.execute.return_value = MagicMock(
-                data=data
+            select_chain.eq.return_value.order.return_value.execute.return_value = (
+                MagicMock(data=data)
             )
             table_mock.select.return_value = select_chain
             supabase.table.return_value = table_mock

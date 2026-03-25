@@ -18,6 +18,7 @@ Fixture à ajouter dans conftest.py pour tests E2E avec JWT réel :
       Recrutement. Format : {\"Authorization\": \"Bearer <jwt>\", \"X-Active-Company\": \"<company_id>\"}.\"\"\"
       return auth_headers  # ou return {**auth_headers, "X-Active-Company": "<company_uuid>"}
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -58,6 +59,7 @@ def _make_rh_user(company_id: str = TEST_COMPANY_ID, user_id: str = TEST_RH_USER
 @pytest.fixture
 def recruitment_client(client: TestClient):
     """Client avec get_current_user overridé pour retourner un utilisateur RH avec company."""
+
     def _get_current_user_override():
         return _make_rh_user()
 
@@ -69,6 +71,7 @@ def recruitment_client(client: TestClient):
 
 
 # ─── Sans auth ─────────────────────────────────────────────────────────
+
 
 class TestRecruitmentUnauthenticated:
     """Sans token : routes protégées renvoient 401."""
@@ -99,11 +102,14 @@ class TestRecruitmentUnauthenticated:
 
 # ─── Settings ───────────────────────────────────────────────────────────
 
+
 class TestRecruitmentSettings:
     """GET /api/recruitment/settings."""
 
     def test_returns_enabled_with_auth(self, recruitment_client: TestClient):
-        with patch("app.modules.recruitment.api.router.queries.get_recruitment_settings") as m:
+        with patch(
+            "app.modules.recruitment.api.router.queries.get_recruitment_settings"
+        ) as m:
             m.return_value = {"enabled": True}
             response = recruitment_client.get("/api/recruitment/settings")
         assert response.status_code == 200
@@ -112,13 +118,22 @@ class TestRecruitmentSettings:
 
 # ─── Jobs ──────────────────────────────────────────────────────────────
 
+
 class TestRecruitmentJobs:
     """GET/POST/PATCH /api/recruitment/jobs."""
 
     def test_list_jobs_returns_200_and_list(self, recruitment_client: TestClient):
         with patch("app.modules.recruitment.api.router.queries.list_jobs") as m:
             m.return_value = [
-                {"id": "j1", "company_id": TEST_COMPANY_ID, "title": "Dev", "status": "draft", "candidate_count": 0, "created_at": "", "updated_at": ""},
+                {
+                    "id": "j1",
+                    "company_id": TEST_COMPANY_ID,
+                    "title": "Dev",
+                    "status": "draft",
+                    "candidate_count": 0,
+                    "created_at": "",
+                    "updated_at": "",
+                },
             ]
             response = recruitment_client.get("/api/recruitment/jobs")
         assert response.status_code == 200
@@ -166,13 +181,23 @@ class TestRecruitmentJobs:
 
 # ─── Pipeline stages ──────────────────────────────────────────────────
 
+
 class TestRecruitmentPipelineStages:
     """GET /api/recruitment/jobs/{job_id}/stages."""
 
     def test_get_stages_returns_200_and_list(self, recruitment_client: TestClient):
-        with patch("app.modules.recruitment.api.router.queries.get_pipeline_stages") as m:
+        with patch(
+            "app.modules.recruitment.api.router.queries.get_pipeline_stages"
+        ) as m:
             m.return_value = [
-                {"id": "s1", "job_id": "job-1", "name": "Premier appel", "position": 0, "stage_type": "standard", "is_final": False},
+                {
+                    "id": "s1",
+                    "job_id": "job-1",
+                    "name": "Premier appel",
+                    "position": 0,
+                    "stage_type": "standard",
+                    "is_final": False,
+                },
             ]
             response = recruitment_client.get("/api/recruitment/jobs/job-1/stages")
         assert response.status_code == 200
@@ -182,13 +207,22 @@ class TestRecruitmentPipelineStages:
 
 # ─── Candidates ────────────────────────────────────────────────────────
 
+
 class TestRecruitmentCandidates:
     """GET/POST/PATCH/DELETE /api/recruitment/candidates, move, check-duplicate, hire."""
 
     def test_list_candidates_returns_200(self, recruitment_client: TestClient):
         with patch("app.modules.recruitment.api.router.queries.list_candidates") as m:
             m.return_value = [
-                {"id": "c1", "company_id": TEST_COMPANY_ID, "job_id": "job-1", "first_name": "Alice", "last_name": "Martin", "created_at": "", "updated_at": ""},
+                {
+                    "id": "c1",
+                    "company_id": TEST_COMPANY_ID,
+                    "job_id": "job-1",
+                    "first_name": "Alice",
+                    "last_name": "Martin",
+                    "created_at": "",
+                    "updated_at": "",
+                },
             ]
             response = recruitment_client.get("/api/recruitment/candidates")
         assert response.status_code == 200
@@ -227,10 +261,14 @@ class TestRecruitmentCandidates:
         assert response.status_code == 200
         assert response.json()["id"] == "cand-1"
 
-    def test_get_candidate_returns_404_when_not_found(self, recruitment_client: TestClient):
+    def test_get_candidate_returns_404_when_not_found(
+        self, recruitment_client: TestClient
+    ):
         with patch("app.modules.recruitment.api.router.queries.get_candidate") as m:
             m.return_value = None
-            response = recruitment_client.get("/api/recruitment/candidates/cand-unknown")
+            response = recruitment_client.get(
+                "/api/recruitment/candidates/cand-unknown"
+            )
         assert response.status_code == 404
 
     def test_update_candidate_returns_200(self, recruitment_client: TestClient):
@@ -259,7 +297,11 @@ class TestRecruitmentCandidates:
 
     def test_move_candidate_returns_200(self, recruitment_client: TestClient):
         with patch("app.modules.recruitment.api.router.commands.move_candidate") as m:
-            m.return_value = {"id": "stage-5", "name": "Refusé", "stage_type": "rejected"}
+            m.return_value = {
+                "id": "stage-5",
+                "name": "Refusé",
+                "stage_type": "rejected",
+            }
             response = recruitment_client.post(
                 "/api/recruitment/candidates/cand-1/move",
                 json={"stage_id": "stage-5", "rejection_reason": "Profil non adapté"},
@@ -268,7 +310,9 @@ class TestRecruitmentCandidates:
         assert response.json()["ok"] is True
         assert "stage" in response.json()
 
-    def test_check_duplicate_returns_200_with_warnings(self, recruitment_client: TestClient):
+    def test_check_duplicate_returns_200_with_warnings(
+        self, recruitment_client: TestClient
+    ):
         with patch("app.modules.recruitment.api.router.queries.check_duplicate") as m:
             m.return_value = {"warnings": []}
             response = recruitment_client.post(
@@ -290,6 +334,7 @@ class TestRecruitmentCandidates:
 
 
 # ─── Interviews ─────────────────────────────────────────────────────────
+
 
 class TestRecruitmentInterviews:
     """GET/POST /api/recruitment/interviews, PATCH /api/recruitment/interviews/{id}."""
@@ -334,6 +379,7 @@ class TestRecruitmentInterviews:
 
 
 # ─── Notes & Opinions ───────────────────────────────────────────────────
+
 
 class TestRecruitmentNotesAndOpinions:
     """GET/POST /api/recruitment/notes, GET/POST /api/recruitment/opinions."""
@@ -391,13 +437,20 @@ class TestRecruitmentNotesAndOpinions:
 
 # ─── Timeline & Rejection reasons ───────────────────────────────────────
 
+
 class TestRecruitmentTimelineAndRejectionReasons:
     """GET /api/recruitment/timeline, GET /api/recruitment/rejection-reasons."""
 
     def test_get_timeline_returns_200(self, recruitment_client: TestClient):
         with patch("app.modules.recruitment.api.router.queries.get_timeline") as m:
             m.return_value = [
-                {"id": "e1", "candidate_id": "cand-1", "event_type": "candidate_created", "description": "Créé", "created_at": ""},
+                {
+                    "id": "e1",
+                    "candidate_id": "cand-1",
+                    "event_type": "candidate_created",
+                    "description": "Créé",
+                    "created_at": "",
+                },
             ]
             response = recruitment_client.get(
                 "/api/recruitment/timeline",
@@ -407,7 +460,9 @@ class TestRecruitmentTimelineAndRejectionReasons:
         assert len(response.json()) == 1
 
     def test_get_rejection_reasons_returns_200(self, recruitment_client: TestClient):
-        with patch("app.modules.recruitment.api.router.queries.get_rejection_reasons") as m:
+        with patch(
+            "app.modules.recruitment.api.router.queries.get_rejection_reasons"
+        ) as m:
             m.return_value = ["Profil non adapté", "Poste pourvu"]
             response = recruitment_client.get("/api/recruitment/rejection-reasons")
         assert response.status_code == 200

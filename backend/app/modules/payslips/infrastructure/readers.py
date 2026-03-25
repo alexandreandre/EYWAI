@@ -3,6 +3,7 @@ Readers infrastructure : implémentation des ports domain (IEmployeeStatutReader
 
 Délèguent aux queries pour statut/meta ; pas de FastAPI.
 """
+
 from __future__ import annotations
 
 import requests

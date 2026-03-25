@@ -4,6 +4,7 @@ Tests unitaires des commandes du module users.
 Chaque commande est testée avec repositories et providers mockés (patch sur
 app.modules.users.application.commands ou service).
 """
+
 from unittest.mock import MagicMock, patch
 from uuid import UUID
 
@@ -38,7 +39,10 @@ class TestSetPrimaryCompany:
     def test_success_returns_result(self, get_repo):
         access_repo = MagicMock()
         get_repo.return_value = access_repo
-        access_repo.get_by_user_and_company.return_value = {"company_id": "c1", "is_primary": True}
+        access_repo.get_by_user_and_company.return_value = {
+            "company_id": "c1",
+            "is_primary": True,
+        }
 
         result = commands.set_primary_company("u1", "c1", _current_user())
 
@@ -68,7 +72,9 @@ class TestGrantCompanyAccessByEmail:
     @patch("app.modules.users.application.commands.get_company_repository")
     @patch("app.modules.users.application.commands.get_user_company_access_repository")
     @patch("app.modules.users.application.commands.get_user_repository")
-    def test_user_not_found_raises_lookup_error(self, get_user_repo, get_access_repo, get_company_repo):
+    def test_user_not_found_raises_lookup_error(
+        self, get_user_repo, get_access_repo, get_company_repo
+    ):
         get_user_repo.return_value.get_by_email.return_value = None
         with pytest.raises(LookupError) as exc_info:
             commands.grant_company_access_by_email(
@@ -79,7 +85,9 @@ class TestGrantCompanyAccessByEmail:
     @patch("app.modules.users.application.commands.get_company_repository")
     @patch("app.modules.users.application.commands.get_user_company_access_repository")
     @patch("app.modules.users.application.commands.get_user_repository")
-    def test_company_not_found_raises_lookup_error(self, get_user_repo, get_access_repo, get_company_repo):
+    def test_company_not_found_raises_lookup_error(
+        self, get_user_repo, get_access_repo, get_company_repo
+    ):
         get_user_repo.return_value.get_by_email.return_value = {"id": "u1"}
         get_company_repo.return_value.get_name.return_value = None
 
@@ -92,11 +100,16 @@ class TestGrantCompanyAccessByEmail:
     @patch("app.modules.users.application.commands.get_company_repository")
     @patch("app.modules.users.application.commands.get_user_company_access_repository")
     @patch("app.modules.users.application.commands.get_user_repository")
-    def test_grant_new_access_returns_success(self, get_user_repo, get_access_repo, get_company_repo):
+    def test_grant_new_access_returns_success(
+        self, get_user_repo, get_access_repo, get_company_repo
+    ):
         get_user_repo.return_value.get_by_email.return_value = {"id": "u1"}
         get_company_repo.return_value.get_name.return_value = "Ma Société"
         get_access_repo.return_value.get_by_user_and_company.return_value = None
-        get_access_repo.return_value.create.return_value = {"user_id": "u1", "company_id": "c1"}
+        get_access_repo.return_value.create.return_value = {
+            "user_id": "u1",
+            "company_id": "c1",
+        }
 
         result = commands.grant_company_access_by_email(
             "user@example.com", "c1", "rh", True, _current_user()
@@ -110,17 +123,27 @@ class TestGrantCompanyAccessByEmail:
     @patch("app.modules.users.application.commands.get_company_repository")
     @patch("app.modules.users.application.commands.get_user_company_access_repository")
     @patch("app.modules.users.application.commands.get_user_repository")
-    def test_update_existing_access_returns_success(self, get_user_repo, get_access_repo, get_company_repo):
+    def test_update_existing_access_returns_success(
+        self, get_user_repo, get_access_repo, get_company_repo
+    ):
         get_user_repo.return_value.get_by_email.return_value = {"id": "u1"}
         get_company_repo.return_value.get_name.return_value = "Ma Société"
-        get_access_repo.return_value.get_by_user_and_company.return_value = {"role": "collaborateur"}
-        get_access_repo.return_value.update.return_value = {"user_id": "u1", "company_id": "c1", "role": "rh"}
+        get_access_repo.return_value.get_by_user_and_company.return_value = {
+            "role": "collaborateur"
+        }
+        get_access_repo.return_value.update.return_value = {
+            "user_id": "u1",
+            "company_id": "c1",
+            "role": "rh",
+        }
 
         result = commands.grant_company_access_by_email(
             "user@example.com", "c1", "rh", False, _current_user()
         )
 
-        assert "mis à jour" in result.message.lower() or "succès" in result.message.lower()
+        assert (
+            "mis à jour" in result.message.lower() or "succès" in result.message.lower()
+        )
         get_access_repo.return_value.update.assert_called_once()
 
 
@@ -133,7 +156,9 @@ class TestGrantCompanyAccessByUserId:
     @patch("app.modules.users.application.commands.get_company_repository")
     @patch("app.modules.users.application.commands.get_user_company_access_repository")
     @patch("app.modules.users.application.commands.get_user_repository")
-    def test_user_not_found_raises_lookup_error(self, get_user_repo, get_access_repo, get_company_repo):
+    def test_user_not_found_raises_lookup_error(
+        self, get_user_repo, get_access_repo, get_company_repo
+    ):
         get_user_repo.return_value.get_by_id.return_value = None
 
         with pytest.raises(LookupError) as exc_info:
@@ -145,11 +170,16 @@ class TestGrantCompanyAccessByUserId:
     @patch("app.modules.users.application.commands.get_company_repository")
     @patch("app.modules.users.application.commands.get_user_company_access_repository")
     @patch("app.modules.users.application.commands.get_user_repository")
-    def test_grant_creates_access(self, get_user_repo, get_access_repo, get_company_repo):
+    def test_grant_creates_access(
+        self, get_user_repo, get_access_repo, get_company_repo
+    ):
         get_user_repo.return_value.get_by_id.return_value = {"id": "u1"}
         get_company_repo.return_value.get_name.return_value = "Société"
         get_access_repo.return_value.get_by_user_and_company.return_value = None
-        get_access_repo.return_value.create.return_value = {"user_id": "u1", "company_id": "c1"}
+        get_access_repo.return_value.create.return_value = {
+            "user_id": "u1",
+            "company_id": "c1",
+        }
 
         result = commands.grant_company_access_by_user_id(
             "u1", "c1", "collaborateur_rh", True, _current_user()
@@ -229,7 +259,11 @@ class TestUpdateCompanyAccess:
     def test_update_role_success(self, get_repo):
         access_repo = MagicMock()
         get_repo.return_value = access_repo
-        access_repo.update.return_value = {"user_id": "u1", "company_id": "c1", "role": "rh"}
+        access_repo.update.return_value = {
+            "user_id": "u1",
+            "company_id": "c1",
+            "role": "rh",
+        }
 
         result = commands.update_company_access("u1", "c1", "rh", None, _current_user())
 
@@ -257,7 +291,9 @@ class TestUpdateUserWithPermissions:
     @patch("app.modules.users.application.commands.get_user_permission_repository")
     @patch("app.modules.users.application.commands.get_user_company_access_repository")
     @patch("app.modules.users.application.commands.get_user_repository")
-    def test_no_access_to_company_raises_lookup_error(self, get_user_repo, get_access_repo, get_perm_repo):
+    def test_no_access_to_company_raises_lookup_error(
+        self, get_user_repo, get_access_repo, get_perm_repo
+    ):
         get_access_repo.return_value.get_by_user_and_company.return_value = None
         data = MagicMock()
         data.company_id = UUID("660e8400-e29b-41d4-a716-446655440001")

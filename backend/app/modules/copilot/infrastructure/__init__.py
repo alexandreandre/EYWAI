@@ -6,6 +6,7 @@ Couche infrastructure du module copilot.
 - queries : requêtes Supabase (profiles, employees, conventions)
 - providers : OpenAIProvider, EmployeeSearchProvider, CollectiveAgreementProvider, UserCompanyResolver
 """
+
 from app.modules.copilot.infrastructure.providers import (
     CollectiveAgreementProvider,
     EmployeeSearchProvider,

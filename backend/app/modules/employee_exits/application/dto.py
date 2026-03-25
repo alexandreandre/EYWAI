@@ -6,6 +6,7 @@ Réexport des builders/mappers depuis infrastructure pour les commands (build_ex
 build_document_data_from_exit est importé depuis infrastructure.mappers dans queries.
 Aucune dépendance FastAPI dans ce fichier.
 """
+
 from app.modules.employee_exits.infrastructure.mappers import (
     DOCUMENT_NAME_MAP,
     GENERATABLE_DOCUMENT_TYPES,

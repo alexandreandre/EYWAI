@@ -4,6 +4,7 @@ Router API rib_alerts : délégation à la couche application uniquement.
 Aucune logique métier : validation entrée (FastAPI), appel application, mapping exceptions → HTTP.
 Comportement HTTP identique au legacy (403, 404, 500).
 """
+
 from __future__ import annotations
 
 from typing import Optional
@@ -11,11 +12,18 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.security import get_current_user
-from app.modules.rib_alerts.application.commands import mark_rib_alert_read, resolve_rib_alert
+from app.modules.rib_alerts.application.commands import (
+    mark_rib_alert_read,
+    resolve_rib_alert,
+)
 from app.modules.rib_alerts.application.dto import RibAlertListFilters
 from app.modules.rib_alerts.application.queries import get_rib_alerts
 from app.modules.rib_alerts.domain.exceptions import MissingCompanyContextError
-from app.modules.rib_alerts.schemas import RibAlertResolve, RibAlertsListResponse, RibAlertSuccessResponse
+from app.modules.rib_alerts.schemas import (
+    RibAlertResolve,
+    RibAlertsListResponse,
+    RibAlertSuccessResponse,
+)
 from app.modules.users.schemas.responses import User
 
 router = APIRouter(
@@ -44,7 +52,9 @@ def list_rib_alerts(
             limit=limit,
             offset=offset,
         )
-        result = get_rib_alerts(company_id=current_user.active_company_id, filters=filters)
+        result = get_rib_alerts(
+            company_id=current_user.active_company_id, filters=filters
+        )
         return RibAlertsListResponse(alerts=result.alerts, total=result.total)
     except MissingCompanyContextError:
         raise HTTPException(status_code=403, detail="Aucune entreprise active.")
@@ -59,7 +69,9 @@ def patch_mark_rib_alert_read(
 ):
     """Marque une alerte RIB comme lue."""
     try:
-        ok = mark_rib_alert_read(alert_id=alert_id, company_id=current_user.active_company_id)
+        ok = mark_rib_alert_read(
+            alert_id=alert_id, company_id=current_user.active_company_id
+        )
     except MissingCompanyContextError:
         raise HTTPException(status_code=403, detail="Aucune entreprise active.")
     except HTTPException:

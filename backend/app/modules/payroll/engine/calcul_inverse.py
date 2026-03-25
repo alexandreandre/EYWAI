@@ -11,11 +11,13 @@ logger = logging.getLogger(__name__)
 
 class CalculInverseError(Exception):
     """Exception levée en cas d'erreur dans le calcul inverse"""
+
     pass
 
 
 class NonConvergenceError(CalculInverseError):
     """Exception levée quand l'algorithme ne converge pas"""
+
     pass
 
 
@@ -32,8 +34,8 @@ def estimer_coefficient_net_brut(statut: str, taux_pas: float = 0.0) -> float:
     """
     # Coefficients de base (cotisations salariales moyennes)
     coefficients_base = {
-        "Cadre": 1.30,      # ~23% de cotisations salariales
-        "Non-cadre": 1.28   # ~22% de cotisations salariales
+        "Cadre": 1.30,  # ~23% de cotisations salariales
+        "Non-cadre": 1.28,  # ~22% de cotisations salariales
     }
 
     coefficient = coefficients_base.get(statut, 1.28)
@@ -57,7 +59,7 @@ def calculer_brut_depuis_net(
     saisies: Dict[str, Any],
     options: Optional[Dict[str, Any]] = None,
     tolerance: float = 1.0,
-    max_iterations: int = 25
+    max_iterations: int = 25,
 ) -> Dict[str, Any]:
     """
     Calcule le brut nécessaire pour obtenir un net cible via recherche dichotomique
@@ -102,7 +104,9 @@ def calculer_brut_depuis_net(
     # Estimation initiale des bornes
     coefficient = estimer_coefficient_net_brut(statut, taux_pas)
 
-    logger.info(f"Calcul inverse: net_cible={net_cible}€, type={type_net}, statut={statut}")
+    logger.info(
+        f"Calcul inverse: net_cible={net_cible}€, type={type_net}, statut={statut}"
+    )
     logger.info(f"Coefficient estimé: {coefficient}")
 
     # Bornes initiales (large pour garantir l'encadrement)
@@ -110,13 +114,15 @@ def calculer_brut_depuis_net(
     borne_max = net_cible * coefficient * 1.20
 
     meilleur_resultat = None
-    meilleur_ecart = float('inf')
+    meilleur_ecart = float("inf")
 
     for iteration in range(1, max_iterations + 1):
         # Estimation du brut (milieu de l'intervalle)
         brut_estime = (borne_min + borne_max) / 2
 
-        logger.debug(f"Itération {iteration}: brut_estime={brut_estime:.2f}€ (bornes: {borne_min:.2f} - {borne_max:.2f})")
+        logger.debug(
+            f"Itération {iteration}: brut_estime={brut_estime:.2f}€ (bornes: {borne_min:.2f} - {borne_max:.2f})"
+        )
 
         try:
             # Calcul du bulletin complet avec ce brut
@@ -127,7 +133,7 @@ def calculer_brut_depuis_net(
                 baremes,
                 calendrier,
                 saisies,
-                options
+                options,
             )
 
             # Extraction du net selon le type demandé
@@ -149,12 +155,14 @@ def calculer_brut_depuis_net(
                     "iterations": iteration,
                     "bulletin_complet": bulletin,
                     "cout_employeur": _calculer_cout_employeur(bulletin),
-                    "convergence": ecart_abs < tolerance
+                    "convergence": ecart_abs < tolerance,
                 }
 
             # Vérification de la convergence
             if ecart_abs < tolerance:
-                logger.info(f"Convergence atteinte en {iteration} itérations (écart: {ecart:.2f}€)")
+                logger.info(
+                    f"Convergence atteinte en {iteration} itérations (écart: {ecart:.2f}€)"
+                )
                 return meilleur_resultat
 
             # Ajustement des bornes
@@ -177,7 +185,9 @@ def calculer_brut_depuis_net(
 
     # Si on arrive ici, on n'a pas convergé dans le nombre d'itérations
     if meilleur_resultat is not None:
-        logger.warning(f"Non-convergence: meilleur écart={meilleur_ecart:.2f}€ après {max_iterations} itérations")
+        logger.warning(
+            f"Non-convergence: meilleur écart={meilleur_ecart:.2f}€ après {max_iterations} itérations"
+        )
         return meilleur_resultat
     else:
         raise NonConvergenceError(
@@ -193,7 +203,7 @@ def _calculer_bulletin_avec_brut_override(
     baremes: Dict[str, Any],
     calendrier: Dict[str, Any],
     saisies: Dict[str, Any],
-    options: Optional[Dict[str, Any]] = None
+    options: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Calcule un bulletin complet en forçant un brut spécifique
@@ -218,9 +228,7 @@ def _calculer_bulletin_avec_brut_override(
     from .simulation import _creer_bulletin_simplifie
 
     # Préparer les paramètres du scénario avec le brut forcé
-    scenario_params = {
-        "salaire_base_override": brut_force
-    }
+    scenario_params = {"salaire_base_override": brut_force}
 
     # Appeler la fonction qui utilise les taux réels
     bulletin = _creer_bulletin_simplifie(
@@ -229,7 +237,7 @@ def _calculer_bulletin_avec_brut_override(
         scenario_params,
         month=1,  # Non utilisé pour le calcul inverse, mais requis
         year=2025,  # Non utilisé pour le calcul inverse, mais requis
-        baremes=baremes
+        baremes=baremes,
     )
 
     return bulletin
@@ -275,7 +283,7 @@ def simuler_avec_net_cible(
     type_net: str,
     month: int,
     year: int,
-    options: Optional[Dict[str, Any]] = None
+    options: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Fonction de haut niveau pour simuler un bulletin à partir d'un net cible
@@ -308,9 +316,7 @@ def simuler_avec_net_cible(
 
 # Fonction de commodité pour tests
 def calculer_brut_simple(
-    net_cible: float,
-    statut: str = "Non-cadre",
-    taux_pas: float = 0.0
+    net_cible: float, statut: str = "Non-cadre", taux_pas: float = 0.0
 ) -> Dict[str, Any]:
     """
     Calcul simplifié du brut (estimation rapide sans calcul complet)
@@ -332,5 +338,5 @@ def calculer_brut_simple(
         "net_cible": net_cible,
         "statut": statut,
         "taux_pas": taux_pas,
-        "precision": "estimation_rapide"
+        "precision": "estimation_rapide",
     }

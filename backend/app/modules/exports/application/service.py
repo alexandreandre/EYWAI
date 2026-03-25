@@ -8,7 +8,10 @@ from app.modules.exports.application import commands
 from app.modules.exports.application import queries
 from app.modules.exports.application.dto import ExportRecordForInsert
 from app.modules.exports.infrastructure import providers
-from app.modules.exports.infrastructure.storage import upload_export_file, create_signed_url
+from app.modules.exports.infrastructure.storage import (
+    upload_export_file,
+    create_signed_url,
+)
 from app.modules.exports.domain import rules as domain_rules
 from app.modules.exports.infrastructure.queries import get_user_display_name
 from app.modules.exports.schemas import (
@@ -28,7 +31,9 @@ from app.modules.exports.schemas import (
 BUCKET = "exports"
 
 
-def preview_export(company_id: str, request: ExportPreviewRequest) -> ExportPreviewResponse:
+def preview_export(
+    company_id: str, request: ExportPreviewRequest
+) -> ExportPreviewResponse:
     """Prévisualise un export sans générer de fichier."""
     return queries.preview_export(company_id, request)
 
@@ -63,9 +68,18 @@ def generate_export(
 
     if request.export_type == "journal_paie":
         return _generate_journal_paie(company_id, user_id, user_name, request)
-    elif request.export_type in ["od_salaires", "od_charges_sociales", "od_pas", "od_globale"]:
+    elif request.export_type in [
+        "od_salaires",
+        "od_charges_sociales",
+        "od_pas",
+        "od_globale",
+    ]:
         return _generate_od(company_id, user_id, user_name, request)
-    elif request.export_type in ["export_cabinet_generique", "export_cabinet_quadra", "export_cabinet_sage"]:
+    elif request.export_type in [
+        "export_cabinet_generique",
+        "export_cabinet_quadra",
+        "export_cabinet_sage",
+    ]:
         return _generate_cabinet(company_id, user_id, user_name, request)
     elif request.export_type == "dsn_mensuelle":
         return _generate_dsn(company_id, user_id, user_name, request)
@@ -93,10 +107,14 @@ def _generate_journal_paie(
     timestamp = int(time.time())
     filename = f"journal_paie_{period_formatted}_{timestamp}.{extension}"
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
-    final_storage_path = upload_export_file(BUCKET, storage_path, file_content, _content_type(extension))
+    final_storage_path = upload_export_file(
+        BUCKET, storage_path, file_content, _content_type(extension)
+    )
     signed_url = create_signed_url(storage_path, 3600)
 
-    _, totals = providers.get_journal_paie_data(company_id, request.period, request.employee_ids)
+    _, totals = providers.get_journal_paie_data(
+        company_id, request.period, request.employee_ids
+    )
     parameters = {"employee_ids": request.employee_ids, "filters": request.filters}
     export_record: ExportRecordForInsert = {
         "company_id": company_id,
@@ -179,7 +197,9 @@ def _generate_od(
     }.get(request.export_type, "od")
     filename = f"{type_label}_{period_formatted}.{request.format}"
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
-    final_storage_path = upload_export_file(BUCKET, storage_path, file_content, _content_type(request.format))
+    final_storage_path = upload_export_file(
+        BUCKET, storage_path, file_content, _content_type(request.format)
+    )
     signed_url = create_signed_url(final_storage_path, 3600)
 
     parameters = {
@@ -190,11 +210,13 @@ def _generate_od(
     anomalies_list: List[Dict[str, Any]] = []
     warnings_list: List[str] = []
     if not od_totals["equilibre"]:
-        anomalies_list.append({
-            "type": "error",
-            "message": f"OD non équilibrée: écart de {od_totals['ecart']:.2f}€",
-            "severity": "blocking",
-        })
+        anomalies_list.append(
+            {
+                "type": "error",
+                "message": f"OD non équilibrée: écart de {od_totals['ecart']:.2f}€",
+                "severity": "blocking",
+            }
+        )
     export_record: ExportRecordForInsert = {
         "company_id": company_id,
         "export_type": request.export_type,
@@ -215,7 +237,9 @@ def _generate_od(
         "generated_by": user_id,
     }
     export_id = commands.record_export_history(export_record)
-    totals_export = ExportTotals(employees_count=0, total_amount=od_totals["total_debit"])
+    totals_export = ExportTotals(
+        employees_count=0, total_amount=od_totals["total_debit"]
+    )
 
     return ExportGenerateResponse(
         export_id=export_id,
@@ -271,10 +295,14 @@ def _generate_cabinet(
     }.get(request.export_type, "cabinet")
     filename = f"{type_label}_{period_formatted}.{request.format}"
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
-    final_storage_path = upload_export_file(BUCKET, storage_path, file_content, _content_type(request.format))
+    final_storage_path = upload_export_file(
+        BUCKET, storage_path, file_content, _content_type(request.format)
+    )
     signed_url = create_signed_url(final_storage_path, 3600)
 
-    _, totals = providers.get_payslip_data_for_od(company_id, request.period, request.employee_ids)
+    _, totals = providers.get_payslip_data_for_od(
+        company_id, request.period, request.employee_ids
+    )
     parameters = {"employee_ids": request.employee_ids, "filters": request.filters}
     export_record: ExportRecordForInsert = {
         "company_id": company_id,
@@ -327,12 +355,20 @@ def _generate_dsn(
     user_name: str,
     request: ExportGenerateRequest,
 ) -> DSNGenerateResponse:
-    dsn_type = request.filters.get("dsn_type", "dsn_mensuelle_normale") if request.filters else "dsn_mensuelle_normale"
-    establishment_id = request.filters.get("establishment_id") if request.filters else None
+    dsn_type = (
+        request.filters.get("dsn_type", "dsn_mensuelle_normale")
+        if request.filters
+        else "dsn_mensuelle_normale"
+    )
+    establishment_id = (
+        request.filters.get("establishment_id") if request.filters else None
+    )
     preview_data = providers.preview_dsn(
         company_id, request.period, dsn_type, request.employee_ids, establishment_id
     )
-    accept_warnings = bool(request.filters.get("accept_warnings", False) if request.filters else False)
+    accept_warnings = bool(
+        request.filters.get("accept_warnings", False) if request.filters else False
+    )
     domain_rules.validate_dsn_can_generate(preview_data, accept_warnings)
 
     dsn_xml_content = providers.generate_dsn_xml(
@@ -344,11 +380,15 @@ def _generate_dsn(
     period_formatted = request.period.replace("-", "_")
     filename = f"dsn_mensuelle_{period_formatted}.xml"
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
-    final_storage_path = upload_export_file(BUCKET, storage_path, dsn_xml_content, "application/xml")
+    final_storage_path = upload_export_file(
+        BUCKET, storage_path, dsn_xml_content, "application/xml"
+    )
     signed_url = create_signed_url(final_storage_path, 3600)
 
     company_data = providers.get_company_data(company_id)
-    _, totals = providers.get_dsn_employees_data(company_id, request.period, request.employee_ids)
+    _, totals = providers.get_dsn_employees_data(
+        company_id, request.period, request.employee_ids
+    )
     parameters = {
         "employee_ids": request.employee_ids,
         "filters": request.filters,
@@ -367,7 +407,9 @@ def _generate_dsn(
             "total_pas": totals["total_pas"],
         },
         controles=[ExportAnomaly(**a) for a in preview_data["anomalies"]],
-        avertissements_acceptes=preview_data["warnings"] if request.filters.get("accept_warnings", False) else [],
+        avertissements_acceptes=preview_data["warnings"]
+        if request.filters.get("accept_warnings", False)
+        else [],
         utilisateur_generateur=user_name,
         date_generation=datetime.now(),
         version_norme_dsn="V01",
@@ -381,7 +423,10 @@ def _generate_dsn(
         "report": {
             "nombre_salaries": totals["nombre_salaries"],
             "totaux_financiers": dsn_report.totaux_financiers,
-            "controles": [(a.model_dump() if hasattr(a, "model_dump") else a.dict()) for a in dsn_report.controles],
+            "controles": [
+                (a.model_dump() if hasattr(a, "model_dump") else a.dict())
+                for a in dsn_report.controles
+            ],
             "avertissements_acceptes": dsn_report.avertissements_acceptes,
             "version_norme_dsn": dsn_report.version_norme_dsn,
         },
@@ -436,8 +481,12 @@ def _generate_virement_salaires(
     bank_filename = f"virement_salaires_bancaire_{period_formatted}.csv"
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     bank_storage_path = f"exports/{company_id}/{request.export_type}/{bank_filename}"
-    final_storage_path = upload_export_file(BUCKET, storage_path, file_content, _content_type(request.format))
-    final_bank_storage_path = upload_export_file(BUCKET, bank_storage_path, bank_file_content, "text/csv")
+    final_storage_path = upload_export_file(
+        BUCKET, storage_path, file_content, _content_type(request.format)
+    )
+    final_bank_storage_path = upload_export_file(
+        BUCKET, bank_storage_path, bank_file_content, "text/csv"
+    )
     signed_url = create_signed_url(final_storage_path, 3600)
     bank_signed_url = create_signed_url(final_bank_storage_path, 3600)
 
@@ -463,7 +512,9 @@ def _generate_virement_salaires(
         "parameters": parameters,
         "file_paths": [final_storage_path, final_bank_storage_path],
         "report": {
-            "employees_count": totals.get("employees_count", totals.get("virements_count", 0)),
+            "employees_count": totals.get(
+                "employees_count", totals.get("virements_count", 0)
+            ),
             "totals": totals,
             "anomalies": [a for a in anomalies],
             "warnings": warnings,
@@ -473,7 +524,12 @@ def _generate_virement_salaires(
     }
     export_id = commands.record_export_history(export_record)
     files_list = [
-        ExportFileInfo(filename=filename, path=storage_path, size=len(file_content), format=request.format),
+        ExportFileInfo(
+            filename=filename,
+            path=storage_path,
+            size=len(file_content),
+            format=request.format,
+        ),
         ExportFileInfo(
             filename=bank_filename,
             path=final_bank_storage_path,
@@ -493,7 +549,9 @@ def _generate_virement_salaires(
             period=request.period,
             generated_at=datetime.now(),
             generated_by=user_name,
-            employees_count=totals.get("employees_count", totals.get("virements_count", 0)),
+            employees_count=totals.get(
+                "employees_count", totals.get("virements_count", 0)
+            ),
             totals=ExportTotals(**totals),
             anomalies=[ExportAnomaly(**a) for a in anomalies],
             warnings=warnings,

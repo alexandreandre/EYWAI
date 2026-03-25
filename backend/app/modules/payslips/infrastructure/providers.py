@@ -3,6 +3,7 @@ Providers payslips : délégation vers app.shared.infrastructure.payslip_service
 
 Aucun import legacy (services/*) : tout passe par le pont partagé app/shared/infrastructure.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -27,14 +28,18 @@ class PayslipGeneratorProvider:
             return self.generate_forfait(employee_id, year, month)
         return self.generate_heures(employee_id, year, month)
 
-    def generate_heures(self, employee_id: str, year: int, month: int) -> dict[str, Any]:
+    def generate_heures(
+        self, employee_id: str, year: int, month: int
+    ) -> dict[str, Any]:
         return process_payslip_generation(
             employee_id=employee_id,
             year=year,
             month=month,
         )
 
-    def generate_forfait(self, employee_id: str, year: int, month: int) -> dict[str, Any]:
+    def generate_forfait(
+        self, employee_id: str, year: int, month: int
+    ) -> dict[str, Any]:
         return process_payslip_generation_forfait(
             employee_id=employee_id,
             year=year,

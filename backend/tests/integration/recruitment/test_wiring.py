@@ -7,6 +7,7 @@ Vérifie que :
 - Le service utilise les repositories et les règles du domaine.
 Un test bout en bout avec mocks permet de valider le flux sans DB réelle.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -56,7 +57,9 @@ class TestWiringSettingsToQueries:
     """Flux GET /api/recruitment/settings → queries.get_recruitment_settings → service."""
 
     def test_settings_flow_calls_queries(self, recruitment_client: TestClient):
-        with patch("app.modules.recruitment.api.router.queries.get_recruitment_settings") as get_settings:
+        with patch(
+            "app.modules.recruitment.api.router.queries.get_recruitment_settings"
+        ) as get_settings:
             get_settings.return_value = {"enabled": True}
             response = recruitment_client.get("/api/recruitment/settings")
         assert response.status_code == 200
@@ -67,8 +70,12 @@ class TestWiringSettingsToQueries:
 class TestWiringCreateJobCommandToService:
     """Flux POST /api/recruitment/jobs → commands.create_job → service.service_create_job."""
 
-    def test_create_job_flow_calls_command_with_company_and_user(self, recruitment_client: TestClient):
-        with patch("app.modules.recruitment.api.router.commands.create_job") as create_job:
+    def test_create_job_flow_calls_command_with_company_and_user(
+        self, recruitment_client: TestClient
+    ):
+        with patch(
+            "app.modules.recruitment.api.router.commands.create_job"
+        ) as create_job:
             create_job.return_value = {
                 "id": "job-wired",
                 "company_id": TEST_COMPANY_ID,
@@ -94,8 +101,12 @@ class TestWiringCreateJobCommandToService:
 class TestWiringListCandidatesQueryToService:
     """Flux GET /api/recruitment/candidates → queries.list_candidates → service."""
 
-    def test_list_candidates_flow_calls_query_with_company(self, recruitment_client: TestClient):
-        with patch("app.modules.recruitment.api.router.queries.list_candidates") as list_candidates:
+    def test_list_candidates_flow_calls_query_with_company(
+        self, recruitment_client: TestClient
+    ):
+        with patch(
+            "app.modules.recruitment.api.router.queries.list_candidates"
+        ) as list_candidates:
             list_candidates.return_value = [
                 {
                     "id": "c1",
@@ -118,9 +129,17 @@ class TestWiringListCandidatesQueryToService:
 class TestWiringMoveCandidateCommandToService:
     """Flux POST /api/recruitment/candidates/{id}/move → commands.move_candidate → service."""
 
-    def test_move_candidate_flow_passes_actor_id_from_current_user(self, recruitment_client: TestClient):
-        with patch("app.modules.recruitment.api.router.commands.move_candidate") as move_candidate:
-            move_candidate.return_value = {"id": "stage-5", "name": "Refusé", "stage_type": "rejected"}
+    def test_move_candidate_flow_passes_actor_id_from_current_user(
+        self, recruitment_client: TestClient
+    ):
+        with patch(
+            "app.modules.recruitment.api.router.commands.move_candidate"
+        ) as move_candidate:
+            move_candidate.return_value = {
+                "id": "stage-5",
+                "name": "Refusé",
+                "stage_type": "rejected",
+            }
             response = recruitment_client.post(
                 "/api/recruitment/candidates/cand-1/move",
                 json={"stage_id": "stage-5", "rejection_reason": "Profil non adapté"},
@@ -135,12 +154,20 @@ class TestWiringMoveCandidateCommandToService:
 class TestWiringCreateOpinionCommandValidatesRating:
     """Flux POST /api/recruitment/opinions : la commande appelle le service qui applique la règle domaine (rating)."""
 
-    def test_create_opinion_invalid_rating_returns_400(self, recruitment_client: TestClient):
-        with patch("app.modules.recruitment.api.router.commands.create_opinion") as create_opinion:
-            create_opinion.side_effect = ValueError("L'avis doit être 'favorable' ou 'defavorable'.")
+    def test_create_opinion_invalid_rating_returns_400(
+        self, recruitment_client: TestClient
+    ):
+        with patch(
+            "app.modules.recruitment.api.router.commands.create_opinion"
+        ) as create_opinion:
+            create_opinion.side_effect = ValueError(
+                "L'avis doit être 'favorable' ou 'defavorable'."
+            )
             response = recruitment_client.post(
                 "/api/recruitment/opinions",
                 json={"candidate_id": "cand-1", "rating": "neutre"},
             )
         assert response.status_code == 400
-        assert "favorable" in response.json().get("detail", "") or "defavorable" in response.json().get("detail", "")
+        assert "favorable" in response.json().get(
+            "detail", ""
+        ) or "defavorable" in response.json().get("detail", "")

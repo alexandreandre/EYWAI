@@ -1,6 +1,7 @@
 """
 Énumérations du domaine annual_reviews.
 """
+
 from enum import Enum
 
 

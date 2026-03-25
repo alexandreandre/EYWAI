@@ -3,6 +3,7 @@
 Router CSE — endpoints HTTP déléguant à la couche application uniquement.
 Même préfixe, tags et comportement que api/routers/cse.py. Aucune logique métier dans le router.
 """
+
 from datetime import datetime
 from typing import List, Optional
 
@@ -58,10 +59,13 @@ router = APIRouter(
 # Helpers HTTP (contexte, auth) — pas de logique métier
 # ---------------------------------------------------------------------------
 
+
 def _get_company_id(user: User) -> str:
     cid = user.active_company_id
     if not cid:
-        raise HTTPException(status_code=400, detail="Aucune entreprise active sélectionnée.")
+        raise HTTPException(
+            status_code=400, detail="Aucune entreprise active sélectionnée."
+        )
     return str(cid)
 
 
@@ -102,6 +106,7 @@ def _consents_to_dict(consents) -> list:
 # ---------------------------------------------------------------------------
 # Élus CSE
 # ---------------------------------------------------------------------------
+
 
 @router.get("/elected-members", response_model=List[ElectedMemberListItem])
 def list_elected_members(
@@ -169,6 +174,7 @@ def get_my_elected_status(
 # Réunions CSE
 # ---------------------------------------------------------------------------
 
+
 @router.get("/meetings", response_model=List[MeetingListItem])
 def list_meetings(
     status: Optional[MeetingStatus] = Query(None),
@@ -227,7 +233,9 @@ def update_meeting_endpoint(
     return commands.update_meeting(meeting_id, company_id, body)
 
 
-@router.post("/meetings/{meeting_id}/participants", response_model=List[MeetingParticipantRead])
+@router.post(
+    "/meetings/{meeting_id}/participants", response_model=List[MeetingParticipantRead]
+)
 def add_meeting_participants_endpoint(
     meeting_id: str,
     body: MeetingParticipantAdd,
@@ -271,7 +279,10 @@ def update_meeting_status_endpoint(
 # Enregistrements
 # ---------------------------------------------------------------------------
 
-@router.post("/meetings/{meeting_id}/recording/start", response_model=RecordingStatusRead)
+
+@router.post(
+    "/meetings/{meeting_id}/recording/start", response_model=RecordingStatusRead
+)
 def start_recording_endpoint(
     meeting_id: str,
     body: RecordingStart,
@@ -288,7 +299,9 @@ def start_recording_endpoint(
     )
 
 
-@router.post("/meetings/{meeting_id}/recording/stop", response_model=RecordingStatusRead)
+@router.post(
+    "/meetings/{meeting_id}/recording/stop", response_model=RecordingStatusRead
+)
 def stop_recording_endpoint(
     meeting_id: str,
     current_user: User = Depends(get_current_user),
@@ -300,7 +313,9 @@ def stop_recording_endpoint(
     return commands.stop_recording(meeting_id, company_id)
 
 
-@router.get("/meetings/{meeting_id}/recording/status", response_model=RecordingStatusRead)
+@router.get(
+    "/meetings/{meeting_id}/recording/status", response_model=RecordingStatusRead
+)
 def get_recording_status_endpoint(
     meeting_id: str,
     current_user: User = Depends(get_current_user),
@@ -327,6 +342,7 @@ def process_recording_endpoint(
 # ---------------------------------------------------------------------------
 # PV et documents BDES
 # ---------------------------------------------------------------------------
+
 
 @router.get("/meetings/{meeting_id}/minutes")
 def download_minutes(
@@ -408,6 +424,7 @@ def download_bdes_document(
 # ---------------------------------------------------------------------------
 # Heures de délégation
 # ---------------------------------------------------------------------------
+
 
 @router.get("/delegation/quota", response_model=Optional[DelegationQuotaRead])
 def get_delegation_quota_endpoint(
@@ -501,6 +518,7 @@ def list_delegation_quotas(
 # Calendrier électoral
 # ---------------------------------------------------------------------------
 
+
 @router.get("/election-cycles", response_model=List[ElectionCycleRead])
 def list_election_cycles(
     current_user: User = Depends(get_current_user),
@@ -550,6 +568,7 @@ def get_election_cycle_endpoint(
 # ---------------------------------------------------------------------------
 # Exports
 # ---------------------------------------------------------------------------
+
 
 @router.get("/exports/elected-members")
 def export_elected_members(

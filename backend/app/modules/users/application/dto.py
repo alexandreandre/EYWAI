@@ -4,6 +4,7 @@ DTOs applicatifs du module users.
 Objets de transfert internes pour les cas d'usage (sans dépendance directe aux schémas HTTP).
 Comportement aligné sur les réponses des anciens routers.
 """
+
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -11,6 +12,7 @@ from typing import Any, Optional
 @dataclass
 class CompanyAccessDto:
     """Accès utilisateur à une entreprise (interne)."""
+
     company_id: str
     company_name: str
     role: str
@@ -27,6 +29,7 @@ class CompanyAccessDto:
 @dataclass
 class UserDetailDto:
     """Détail utilisateur pour liste (get_company_users)."""
+
     id: str
     email: str
     first_name: str
@@ -42,6 +45,7 @@ class UserDetailDto:
 @dataclass
 class AccessibleCompanyDto:
     """Entreprise dans laquelle l'utilisateur peut créer des utilisateurs."""
+
     company_id: str
     company_name: str
     creator_role: str
@@ -51,6 +55,7 @@ class AccessibleCompanyDto:
 @dataclass
 class UserDetailFullDto:
     """Détail complet utilisateur pour une entreprise (get_user_detail)."""
+
     id: str
     email: str
     first_name: str
@@ -67,6 +72,7 @@ class UserDetailFullDto:
 @dataclass
 class SetPrimaryCompanyResult:
     """Résultat de set_primary_company."""
+
     message: str
     company_id: str
 
@@ -74,6 +80,7 @@ class SetPrimaryCompanyResult:
 @dataclass
 class GrantAccessResult:
     """Résultat de grant_access / grant_access_by_user_id."""
+
     message: str
     access: Optional[dict]
 
@@ -81,6 +88,7 @@ class GrantAccessResult:
 @dataclass
 class RevokeAccessResult:
     """Résultat de revoke_access."""
+
     message: str
     user_id: str
     company_id: str
@@ -89,6 +97,7 @@ class RevokeAccessResult:
 @dataclass
 class UpdateAccessResult:
     """Résultat de update_access."""
+
     message: str
     access: dict
 
@@ -96,6 +105,7 @@ class UpdateAccessResult:
 @dataclass
 class CreateUserResult:
     """Résultat de create_user_with_permissions."""
+
     message: str
     user_id: str
     email: str
@@ -105,5 +115,6 @@ class CreateUserResult:
 @dataclass
 class UpdateUserResult:
     """Résultat de update_user_with_permissions."""
+
     message: str
     user_id: str

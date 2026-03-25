@@ -4,6 +4,7 @@ DTOs applicatifs pour le module copilot.
 Objets de transfert entre api et application (entrée/sortie des cas d'usage).
 Sans dépendance FastAPI.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

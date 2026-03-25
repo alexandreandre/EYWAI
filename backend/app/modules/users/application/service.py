@@ -4,6 +4,7 @@ Service applicatif users : orchestration et délégation.
 Délègue au domain (règles pures) et à l'infrastructure (repositories, providers).
 Plus d'accès DB direct ici.
 """
+
 from typing import Any
 
 from app.modules.users.domain import rules as domain_rules
@@ -25,12 +26,14 @@ from app.modules.users.infrastructure.repository import (
 def get_supabase():
     """Client Supabase par défaut (délégation app.core.database)."""
     from app.core.database import supabase
+
     return supabase
 
 
 def get_admin_client():
     """Client Supabase admin (délégation app.core.database)."""
     from app.core.database import get_supabase_admin_client
+
     return get_supabase_admin_client()
 
 
@@ -58,6 +61,7 @@ def get_default_system_template_id(base_role: str):
 
 def get_credentials_logo_path():
     from pathlib import Path
+
     return Path(credentials_pdf_provider.get_logo_path())
 
 

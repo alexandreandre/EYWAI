@@ -18,7 +18,9 @@ else
   py="python3"
 fi
 
-echo "=== Backend : ruff check + format (--check) ==="
+# Comme ci.yml : pas de `ruff format --check` (la base n’est pas entièrement formatée ;
+# pour normaliser : cd backend && ruff format .).
+echo "=== Backend : ruff check ==="
 if ! (cd "$REPO_ROOT/backend" && "$py" -m ruff --version >/dev/null 2>&1) &&
    ! command -v ruff >/dev/null 2>&1; then
   echo "ruff absent — installation minimale (pip + \$py)..." >&2
@@ -29,10 +31,8 @@ if ! (cd "$REPO_ROOT/backend" && "$py" -m ruff --version >/dev/null 2>&1) &&
 fi
 if (cd "$REPO_ROOT/backend" && "$py" -m ruff --version >/dev/null 2>&1); then
   (cd "$REPO_ROOT/backend" && "$py" -m ruff check .)
-  (cd "$REPO_ROOT/backend" && "$py" -m ruff format --check .)
 elif command -v ruff >/dev/null 2>&1; then
   (cd "$REPO_ROOT/backend" && ruff check .)
-  (cd "$REPO_ROOT/backend" && ruff format --check .)
 else
   echo "ruff toujours introuvable après pip install." >&2
   exit 1

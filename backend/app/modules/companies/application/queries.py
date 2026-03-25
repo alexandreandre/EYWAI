@@ -4,6 +4,7 @@ Requêtes (cas d'usage lecture) du module companies.
 Délégation à l'infrastructure (repository, queries) et au service (calcul KPIs).
 Comportement identique à l'ancien routeur api/routers/company.py.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -13,7 +14,9 @@ from app.modules.companies.application.dto import (
     CompanySettingsResultDto,
 )
 from app.modules.companies.domain.kpis import compute_company_kpis
-from app.modules.companies.infrastructure.queries import fetch_company_with_employees_and_payslips
+from app.modules.companies.infrastructure.queries import (
+    fetch_company_with_employees_and_payslips,
+)
 from app.modules.companies.infrastructure.repository import company_repository
 
 
@@ -36,7 +39,9 @@ def get_company_details_and_kpis(
     return CompanyDetailsWithKpisDto(company_data=company_data, kpis=kpis)
 
 
-def get_company_settings(company_id: str, current_user: Any) -> CompanySettingsResultDto:
+def get_company_settings(
+    company_id: str, current_user: Any
+) -> CompanySettingsResultDto:
     """Retourne les settings de l'entreprise (contexte actif)."""
     settings = company_repository.get_settings(company_id)
     if settings is None:

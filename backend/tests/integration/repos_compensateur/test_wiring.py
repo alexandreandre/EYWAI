@@ -3,6 +3,7 @@ Tests de câblage (wiring) du module repos_compensateur : injection des dépenda
 
 Vérifie que la route API appelle bien la commande applicative et que le module est correctement monté.
 """
+
 from unittest.mock import patch
 
 import pytest

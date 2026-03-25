@@ -4,6 +4,7 @@ Queries (cas d'usage lecture) du module absences.
 Utilise domain (règles) et infrastructure (repository, providers, queries).
 Retourne des dicts / listes de dicts compatibles avec les schémas de réponse API.
 """
+
 from __future__ import annotations
 
 import sys
@@ -55,18 +56,14 @@ def _enrich_with_signed_urls(
 
 def get_upload_url_signed(user_id: str, filename: str) -> dict:
     """Génère une URL signée pour l'upload d'un justificatif. Retourne {"path": ..., "signedURL": ...}."""
-    _root, extension = (
-        filename.rsplit(".", 1) if "." in filename else (filename, "")
-    )
+    _root, extension = filename.rsplit(".", 1) if "." in filename else (filename, "")
     if "." in filename and extension:
         extension = f".{extension}"
     else:
         extension = ""
     unique_filename = f"{datetime.now().isoformat()}-{uuid4().hex}{extension}"
     path = f"{user_id}/{unique_filename}"
-    url = storage_provider.create_signed_upload_url(
-        path, BUCKET_LEAVE_ATTACHMENTS
-    )
+    url = storage_provider.create_signed_upload_url(path, BUCKET_LEAVE_ATTACHMENTS)
     return {"path": path, "signedURL": url}
 
 
@@ -79,12 +76,8 @@ def get_absence_requests(status: str | None = None) -> List[dict]:
     employee_ids = list({req["employee"]["id"] for req in requests})
     today = date.today()
     hire_dates = get_employees_hire_dates_batch(employee_ids)
-    validated_reqs = absence_repository.list_validated_for_employees(
-        employee_ids
-    )
-    repos_credits_by_emp = get_repos_credits_by_employee_year(
-        employee_ids, today.year
-    )
+    validated_reqs = absence_repository.list_validated_for_employees(employee_ids)
+    repos_credits_by_emp = get_repos_credits_by_employee_year(employee_ids, today.year)
 
     balances_map: dict[str, List[dict]] = {}
     for emp_id in employee_ids:
@@ -95,7 +88,9 @@ def get_absence_requests(status: str | None = None) -> List[dict]:
         rtt_acquis = calculate_acquired_rtt(hire_date, today)
         emp_validated = [r for r in validated_reqs if r["employee_id"] == emp_id]
         cp_pris = sum(
-            r.get("jours_payes") if r.get("jours_payes") is not None else len(r.get("selected_days", []))
+            r.get("jours_payes")
+            if r.get("jours_payes") is not None
+            else len(r.get("selected_days", []))
             for r in emp_validated
             if r["type"] == "conge_paye"
         )
@@ -109,10 +104,30 @@ def get_absence_requests(status: str | None = None) -> List[dict]:
         )
         repos_acquis = repos_credits_by_emp.get(emp_id, 0.0)
         balances_map[emp_id] = [
-            {"type": "Congés Payés", "acquired": cp_acquis, "taken": cp_pris, "remaining": cp_acquis - cp_pris},
-            {"type": "RTT", "acquired": rtt_acquis, "taken": rtt_pris, "remaining": rtt_acquis - rtt_pris},
-            {"type": "Repos compensateur", "acquired": repos_acquis, "taken": repos_pris, "remaining": repos_acquis - repos_pris},
-            {"type": "Événement familial", "acquired": 0, "taken": 0, "remaining": "selon événement"},
+            {
+                "type": "Congés Payés",
+                "acquired": cp_acquis,
+                "taken": cp_pris,
+                "remaining": cp_acquis - cp_pris,
+            },
+            {
+                "type": "RTT",
+                "acquired": rtt_acquis,
+                "taken": rtt_pris,
+                "remaining": rtt_acquis - rtt_pris,
+            },
+            {
+                "type": "Repos compensateur",
+                "acquired": repos_acquis,
+                "taken": repos_pris,
+                "remaining": repos_acquis - repos_pris,
+            },
+            {
+                "type": "Événement familial",
+                "acquired": 0,
+                "taken": 0,
+                "remaining": "selon événement",
+            },
         ]
 
     for req in requests:
@@ -173,16 +188,20 @@ def get_my_absence_balances(employee_id: str) -> List[dict]:
 
     cp_acquis = calculate_acquired_cp(hire_date, today)
     rtt_acquis = calculate_acquired_rtt(hire_date, today)
-    validated_list = absence_repository.list_validated_for_employees(
-        [employee_id]
-    )
+    validated_list = absence_repository.list_validated_for_employees([employee_id])
     cp_pris = sum(
-        r.get("jours_payes") if r.get("jours_payes") is not None else len(r.get("selected_days", []))
+        r.get("jours_payes")
+        if r.get("jours_payes") is not None
+        else len(r.get("selected_days", []))
         for r in validated_list
         if r.get("type") == "conge_paye"
     )
-    rtt_pris = sum(len(r["selected_days"]) for r in validated_list if r.get("type") == "rtt")
-    ss_pris = sum(len(r["selected_days"]) for r in validated_list if r.get("type") == "sans_solde")
+    rtt_pris = sum(
+        len(r["selected_days"]) for r in validated_list if r.get("type") == "rtt"
+    )
+    ss_pris = sum(
+        len(r["selected_days"]) for r in validated_list if r.get("type") == "sans_solde"
+    )
     repos_pris = sum(
         len(r["selected_days"])
         for r in validated_list
@@ -195,11 +214,36 @@ def get_my_absence_balances(employee_id: str) -> List[dict]:
     repos_restant = repos_acquis - repos_pris
 
     return [
-        {"type": "Congés Payés", "acquired": cp_acquis, "taken": cp_pris, "remaining": cp_restant},
-        {"type": "RTT", "acquired": rtt_acquis, "taken": rtt_pris, "remaining": rtt_restant},
-        {"type": "Repos compensateur", "acquired": repos_acquis, "taken": repos_pris, "remaining": repos_restant},
-        {"type": "Événement familial", "acquired": 0, "taken": 0, "remaining": "selon événement"},
-        {"type": "Congé sans solde", "acquired": 0, "taken": ss_pris, "remaining": "N/A"},
+        {
+            "type": "Congés Payés",
+            "acquired": cp_acquis,
+            "taken": cp_pris,
+            "remaining": cp_restant,
+        },
+        {
+            "type": "RTT",
+            "acquired": rtt_acquis,
+            "taken": rtt_pris,
+            "remaining": rtt_restant,
+        },
+        {
+            "type": "Repos compensateur",
+            "acquired": repos_acquis,
+            "taken": repos_pris,
+            "remaining": repos_restant,
+        },
+        {
+            "type": "Événement familial",
+            "acquired": 0,
+            "taken": 0,
+            "remaining": "selon événement",
+        },
+        {
+            "type": "Congé sans solde",
+            "acquired": 0,
+            "taken": ss_pris,
+            "remaining": "N/A",
+        },
     ]
 
 
@@ -217,9 +261,7 @@ def get_my_absences_history(employee_id: str) -> List[dict]:
     return data
 
 
-def get_my_absences_page_data(
-    employee_id: str, year: int, month: int
-) -> dict:
+def get_my_absences_page_data(employee_id: str, year: int, month: int) -> dict:
     """Soldes + calendrier + historique pour la page absences. Keys: balances, calendar_days, history."""
     today = date.today()
     hire_date_raw = get_employee_hire_date(employee_id)
@@ -233,16 +275,22 @@ def get_my_absences_page_data(
 
     cp_acquis = calculate_acquired_cp(hire_date, today)
     rtt_acquis = calculate_acquired_rtt(hire_date, today)
-    validated_requests = absence_repository.list_validated_for_employees(
-        [employee_id]
-    )
+    validated_requests = absence_repository.list_validated_for_employees([employee_id])
     cp_pris = sum(
-        req.get("jours_payes") if req.get("jours_payes") is not None else len(req.get("selected_days", []))
+        req.get("jours_payes")
+        if req.get("jours_payes") is not None
+        else len(req.get("selected_days", []))
         for req in validated_requests
         if req["type"] == "conge_paye"
     )
-    rtt_pris = sum(len(req["selected_days"]) for req in validated_requests if req["type"] == "rtt")
-    ss_pris = sum(len(req["selected_days"]) for req in validated_requests if req["type"] == "sans_solde")
+    rtt_pris = sum(
+        len(req["selected_days"]) for req in validated_requests if req["type"] == "rtt"
+    )
+    ss_pris = sum(
+        len(req["selected_days"])
+        for req in validated_requests
+        if req["type"] == "sans_solde"
+    )
     repos_pris = sum(
         len(req["selected_days"])
         for req in validated_requests
@@ -252,11 +300,36 @@ def get_my_absences_page_data(
     repos_acquis = repos_credits.get(employee_id, 0.0)
 
     balances_data = [
-        {"type": "Congés Payés", "acquired": cp_acquis, "taken": cp_pris, "remaining": cp_acquis - cp_pris},
-        {"type": "RTT", "acquired": rtt_acquis, "taken": rtt_pris, "remaining": rtt_acquis - rtt_pris},
-        {"type": "Repos compensateur", "acquired": repos_acquis, "taken": repos_pris, "remaining": repos_acquis - repos_pris},
-        {"type": "Événement familial", "acquired": 0, "taken": 0, "remaining": "selon événement"},
-        {"type": "Congé sans solde", "acquired": 0, "taken": ss_pris, "remaining": "N/A"},
+        {
+            "type": "Congés Payés",
+            "acquired": cp_acquis,
+            "taken": cp_pris,
+            "remaining": cp_acquis - cp_pris,
+        },
+        {
+            "type": "RTT",
+            "acquired": rtt_acquis,
+            "taken": rtt_pris,
+            "remaining": rtt_acquis - rtt_pris,
+        },
+        {
+            "type": "Repos compensateur",
+            "acquired": repos_acquis,
+            "taken": repos_pris,
+            "remaining": repos_acquis - repos_pris,
+        },
+        {
+            "type": "Événement familial",
+            "acquired": 0,
+            "taken": 0,
+            "remaining": "selon événement",
+        },
+        {
+            "type": "Congé sans solde",
+            "acquired": 0,
+            "taken": ss_pris,
+            "remaining": "N/A",
+        },
     ]
 
     calendar_data = get_planned_calendar(employee_id, year, month)
@@ -318,9 +391,7 @@ def download_salary_certificate(absence_id: str) -> tuple[bytes, str] | None:
         return None
     storage_path = cert["storage_path"]
     filename = cert["filename"]
-    file_resp = storage_provider.download(
-        BUCKET_SALARY_CERTIFICATES, storage_path
-    )
+    file_resp = storage_provider.download(BUCKET_SALARY_CERTIFICATES, storage_path)
     if isinstance(file_resp, dict) and file_resp.get("error"):
         return None
     return (file_resp, filename)

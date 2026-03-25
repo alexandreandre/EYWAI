@@ -10,6 +10,7 @@ Fixture documentée : companies_headers — si besoin de tests E2E avec token r�
 ajouter dans conftest.py une fixture companies_headers (ou auth_headers) pour un
 utilisateur avec active_company_id et droits RH pour PATCH /settings.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -26,7 +27,9 @@ TEST_COMPANY_ID = "550e8400-e29b-41d4-a716-446655440000"
 TEST_USER_ID = "660e8400-e29b-41d4-a716-446655440001"
 
 
-def _make_user_with_company(role: str = "admin", active_company_id: str = TEST_COMPANY_ID):
+def _make_user_with_company(
+    role: str = "admin", active_company_id: str = TEST_COMPANY_ID
+):
     """Utilisateur avec une entreprise active et un rôle donné."""
     access = CompanyAccess(
         company_id=TEST_COMPANY_ID,
@@ -72,6 +75,7 @@ class TestCompanyDetails:
     def test_details_with_user_no_company_returns_403(self, client: TestClient):
         """Utilisateur sans company_id (profil) → 403."""
         from app.core.security import get_current_user
+
         user = _make_user_without_company()
         with patch(
             "app.modules.companies.infrastructure.queries.get_company_id_from_profile",
@@ -88,18 +92,24 @@ class TestCompanyDetails:
     def test_details_with_mock_data_returns_200(self, client: TestClient):
         """Avec company_id résolu et données mockées → 200 et company_data + kpis."""
         from app.core.security import get_current_user
+
         user = _make_user_with_company()
         company_data = {"id": TEST_COMPANY_ID, "company_name": "Test SARL"}
-        with patch(
-            "app.modules.companies.infrastructure.queries.get_company_id_from_profile",
-            return_value=TEST_COMPANY_ID,
-        ), patch(
-            "app.modules.companies.application.queries.fetch_company_with_employees_and_payslips",
-            return_value={
-                "company_data": company_data,
-                "employees": [{"id": "e1", "contract_type": "CDI", "job_title": "Dev"}],
-                "payslips": [],
-            },
+        with (
+            patch(
+                "app.modules.companies.infrastructure.queries.get_company_id_from_profile",
+                return_value=TEST_COMPANY_ID,
+            ),
+            patch(
+                "app.modules.companies.application.queries.fetch_company_with_employees_and_payslips",
+                return_value={
+                    "company_data": company_data,
+                    "employees": [
+                        {"id": "e1", "contract_type": "CDI", "job_title": "Dev"}
+                    ],
+                    "payslips": [],
+                },
+            ),
         ):
             app.dependency_overrides[get_current_user] = lambda: user
             try:
@@ -125,6 +135,7 @@ class TestCompanySettingsGet:
     def test_settings_without_active_company_returns_400(self, client: TestClient):
         """Utilisateur sans entreprise active → 400."""
         from app.core.security import get_current_user
+
         user = _make_user_without_company()
         app.dependency_overrides[get_current_user] = lambda: user
         try:
@@ -132,11 +143,15 @@ class TestCompanySettingsGet:
         finally:
             app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 400
-        assert "entreprise" in response.json().get("detail", "").lower() or "active" in response.json().get("detail", "").lower()
+        assert (
+            "entreprise" in response.json().get("detail", "").lower()
+            or "active" in response.json().get("detail", "").lower()
+        )
 
     def test_settings_with_mock_repo_returns_200(self, client: TestClient):
         """Avec entreprise active et repository mocké → 200 et settings."""
         from app.core.security import get_current_user
+
         user = _make_user_with_company()
         mock_repo = MagicMock()
         mock_repo.get_settings.return_value = {"medical_follow_up_enabled": True}
@@ -166,9 +181,12 @@ class TestCompanySettingsPatch:
         )
         assert response.status_code == 401
 
-    def test_patch_settings_without_active_company_returns_400(self, client: TestClient):
+    def test_patch_settings_without_active_company_returns_400(
+        self, client: TestClient
+    ):
         """Sans entreprise active → 400."""
         from app.core.security import get_current_user
+
         user = _make_user_without_company()
         app.dependency_overrides[get_current_user] = lambda: user
         try:
@@ -183,6 +201,7 @@ class TestCompanySettingsPatch:
     def test_patch_settings_without_rh_access_returns_403(self, client: TestClient):
         """Utilisateur collaborateur (sans droits RH) → 403."""
         from app.core.security import get_current_user
+
         user = _make_user_with_company(role="collaborateur")
         app.dependency_overrides[get_current_user] = lambda: user
         try:
@@ -193,11 +212,16 @@ class TestCompanySettingsPatch:
         finally:
             app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 403
-        assert "Droits" in response.json().get("detail", "") or "insuffisants" in response.json().get("detail", "")
+        assert "Droits" in response.json().get(
+            "detail", ""
+        ) or "insuffisants" in response.json().get("detail", "")
 
-    def test_patch_settings_with_rh_user_and_mock_repo_returns_200(self, client: TestClient):
+    def test_patch_settings_with_rh_user_and_mock_repo_returns_200(
+        self, client: TestClient
+    ):
         """Utilisateur RH + repository mocké → 200 et settings mis à jour."""
         from app.core.security import get_current_user
+
         user = _make_user_with_company(role="rh")
         mock_repo = MagicMock()
         mock_repo.get_settings.return_value = {"medical_follow_up_enabled": False}

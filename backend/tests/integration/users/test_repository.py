@@ -5,6 +5,7 @@ Avec DB de test (fixture db_session) : tests réels contre les tables.
 Sans DB : mocks Supabase pour valider la logique et les appels.
 Le conftest fournit db_session (peut être None) ; si None, on utilise des mocks.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -153,7 +154,9 @@ class TestSupabaseUserCompanyAccessRepository:
         row = {"user_id": "u1", "company_id": "c1"}
         table = MagicMock()
         chain = MagicMock()
-        chain.eq.return_value.eq.return_value.execute.return_value = MagicMock(data=[row])
+        chain.eq.return_value.eq.return_value.execute.return_value = MagicMock(
+            data=[row]
+        )
         table.delete.return_value = chain
         supabase.table.return_value = table
 
@@ -223,8 +226,8 @@ class TestSupabaseRoleTemplateRepository:
     def test_get_default_system_template_id_returns_none_for_custom(self, supabase):
         table = MagicMock()
         chain = MagicMock()
-        chain.eq.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(
-            data=[]
+        chain.eq.return_value.eq.return_value.eq.return_value.execute.return_value = (
+            MagicMock(data=[])
         )
         table.select.return_value = chain
         supabase.table.return_value = table
@@ -238,8 +241,8 @@ class TestSupabaseRoleTemplateRepository:
     def test_get_default_system_template_id_returns_id_for_rh(self, supabase):
         table = MagicMock()
         chain = MagicMock()
-        chain.eq.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(
-            data=[{"id": "template-uuid-1"}]
+        chain.eq.return_value.eq.return_value.eq.return_value.execute.return_value = (
+            MagicMock(data=[{"id": "template-uuid-1"}])
         )
         table.select.return_value = chain
         supabase.table.return_value = table

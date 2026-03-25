@@ -10,6 +10,7 @@ Contenu :
 Les permissions métier spécifiques (vérifications par module) restent dans les routers
 ou seront migrées plus tard dans les modules. Ne pas les déplacer ici.
 """
+
 from __future__ import annotations
 
 import traceback
@@ -49,19 +50,28 @@ def get_current_user(
         user_response = supabase.auth.get_user(token)
         user = user_response.user
         if not user:
-            print("--- ❌ [get_current_user] Token valide mais aucun utilisateur trouvé.")
+            print(
+                "--- ❌ [get_current_user] Token valide mais aucun utilisateur trouvé."
+            )
             raise HTTPException(status_code=401, detail="Utilisateur non trouvé")
 
-        print(f"--- ✅ [get_current_user] Utilisateur authentifié: {user.email} (ID: {user.id})")
+        print(
+            f"--- ✅ [get_current_user] Utilisateur authentifié: {user.email} (ID: {user.id})"
+        )
 
         # 2. Récupérer le profil de base
         print("--- 🕵️ [get_current_user] Récupération du profil...")
         profile_response = (
-            supabase.table("profiles").select("first_name, last_name").eq("id", user.id).execute()
+            supabase.table("profiles")
+            .select("first_name, last_name")
+            .eq("id", user.id)
+            .execute()
         )
 
         if not profile_response.data or len(profile_response.data) == 0:
-            print(f"--- ❌ [get_current_user] Profil non trouvé pour l'utilisateur ID: {user.id}")
+            print(
+                f"--- ❌ [get_current_user] Profil non trouvé pour l'utilisateur ID: {user.id}"
+            )
             raise HTTPException(status_code=404, detail="Profil utilisateur non trouvé")
 
         profile_data = profile_response.data[0]
@@ -75,8 +85,12 @@ def get_current_user(
             .eq("is_active", True)
             .execute()
         )
-        is_super_admin = bool(super_admin_response.data and len(super_admin_response.data) > 0)
-        print(f"--- {'👑' if is_super_admin else '👤'} [get_current_user] Super admin: {is_super_admin}")
+        is_super_admin = bool(
+            super_admin_response.data and len(super_admin_response.data) > 0
+        )
+        print(
+            f"--- {'👑' if is_super_admin else '👤'} [get_current_user] Super admin: {is_super_admin}"
+        )
 
         # 4. Charger les accès multi-entreprises
         print("--- 🕵️ [get_current_user] Chargement des accès multi-entreprises...")
@@ -99,7 +113,9 @@ def get_current_user(
                 if company_data.get("company_groups"):
                     group_name = company_data["company_groups"].get("group_name")
                     group_logo_url = company_data["company_groups"].get("logo_url")
-                    group_logo_scale = company_data["company_groups"].get("logo_scale", 1.0)
+                    group_logo_scale = company_data["company_groups"].get(
+                        "logo_scale", 1.0
+                    )
 
                 accessible_companies.append(
                     CompanyAccess(
@@ -117,32 +133,46 @@ def get_current_user(
                     )
                 )
 
-        print(f"--- 📊 [get_current_user] Entreprises accessibles: {len(accessible_companies)}")
+        print(
+            f"--- 📊 [get_current_user] Entreprises accessibles: {len(accessible_companies)}"
+        )
 
         # 5. Déterminer l'entreprise active
         active_company_id = None
 
         if is_super_admin and x_active_company:
             active_company_id = x_active_company
-            print(f"--- 👑 [get_current_user] Super admin - Entreprise active depuis header: {active_company_id}")
+            print(
+                f"--- 👑 [get_current_user] Super admin - Entreprise active depuis header: {active_company_id}"
+            )
         elif x_active_company:
             if any(acc.company_id == x_active_company for acc in accessible_companies):
                 active_company_id = x_active_company
-                print(f"--- ✅ [get_current_user] Entreprise active depuis header (validée): {active_company_id}")
+                print(
+                    f"--- ✅ [get_current_user] Entreprise active depuis header (validée): {active_company_id}"
+                )
             else:
                 print(
                     f"--- ⚠️  [get_current_user] Header X-Active-Company invalide (entreprise non accessible): {x_active_company}"
                 )
-                print("--- 🔄 [get_current_user] Utilisation de l'entreprise primaire à la place...")
+                print(
+                    "--- 🔄 [get_current_user] Utilisation de l'entreprise primaire à la place..."
+                )
 
         if not active_company_id and accessible_companies:
-            primary = next((acc for acc in accessible_companies if acc.is_primary), None)
+            primary = next(
+                (acc for acc in accessible_companies if acc.is_primary), None
+            )
             if primary:
                 active_company_id = primary.company_id
-                print(f"--- 📍 [get_current_user] Entreprise active: primaire par défaut ({primary.company_name})")
+                print(
+                    f"--- 📍 [get_current_user] Entreprise active: primaire par défaut ({primary.company_name})"
+                )
             else:
                 active_company_id = accessible_companies[0].company_id
-                print("--- 📍 [get_current_user] Entreprise active: première de la liste")
+                print(
+                    "--- 📍 [get_current_user] Entreprise active: première de la liste"
+                )
 
         # 6. Définir le contexte d'entreprise dans PostgreSQL (lecture/écriture du contexte)
         print("")
@@ -152,14 +182,20 @@ def get_current_user(
         print("")
 
         if active_company_id:
-            print(f"--- 🔧 [get_current_user] Définition du contexte PostgreSQL: {active_company_id}")
+            print(
+                f"--- 🔧 [get_current_user] Définition du contexte PostgreSQL: {active_company_id}"
+            )
             try:
-                supabase.rpc("set_session_company", {"p_company_id": active_company_id}).execute()
+                supabase.rpc(
+                    "set_session_company", {"p_company_id": active_company_id}
+                ).execute()
                 print(
                     f"--- ✅ [get_current_user] Contexte PostgreSQL défini avec succès pour: {active_company_id}"
                 )
             except Exception as e:
-                print(f"--- ⚠️  [get_current_user] Erreur lors de la définition du contexte: {e}")
+                print(
+                    f"--- ⚠️  [get_current_user] Erreur lors de la définition du contexte: {e}"
+                )
         else:
             print(
                 "--- ⚠️  [get_current_user] AUCUNE ENTREPRISE ACTIVE - Contexte PostgreSQL NON défini"
@@ -168,12 +204,16 @@ def get_current_user(
         # 7. Vérifier si group admin
         is_group_admin = False
         if not is_super_admin and len(accessible_companies) > 1:
-            admin_companies = [acc for acc in accessible_companies if acc.role == "admin"]
+            admin_companies = [
+                acc for acc in accessible_companies if acc.role == "admin"
+            ]
             if len(admin_companies) >= 2:
                 groups = set(acc.group_id for acc in admin_companies if acc.group_id)
                 is_group_admin = len(groups) > 0
 
-        print(f"--- {'🏢' if is_group_admin else '👤'} [get_current_user] Group admin: {is_group_admin}")
+        print(
+            f"--- {'🏢' if is_group_admin else '👤'} [get_current_user] Group admin: {is_group_admin}"
+        )
 
         # 8. Construire l'objet User complet
         user_data = User(

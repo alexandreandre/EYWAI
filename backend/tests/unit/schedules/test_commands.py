@@ -3,6 +3,7 @@ Tests unitaires des commandes du module schedules (application/commands.py).
 
 Repositories et providers mockés. Pas de DB ni HTTP.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -23,25 +24,38 @@ class TestUpdatePlannedCalendar:
         payload.year = 2025
         payload.month = 3
         payload.calendrier_prevu = [
-            MagicMock(model_dump=MagicMock(return_value={"jour": 1, "type": "work", "heures_prevues": 8})),
+            MagicMock(
+                model_dump=MagicMock(
+                    return_value={"jour": 1, "type": "work", "heures_prevues": 8}
+                )
+            ),
         ]
 
-        with patch(
-            "app.modules.schedules.application.commands.get_employee_company_and_statut",
-            return_value=("company-1", "employé"),
-        ), patch(
-            "app.modules.schedules.application.commands.normalize_planned_calendar_for_employee",
-            return_value=[{"jour": 1, "type": "work", "heures_prevues": 8}],
-        ), patch(
-            "app.modules.schedules.application.commands.schedule_repository",
-        ) as repo:
+        with (
+            patch(
+                "app.modules.schedules.application.commands.get_employee_company_and_statut",
+                return_value=("company-1", "employé"),
+            ),
+            patch(
+                "app.modules.schedules.application.commands.normalize_planned_calendar_for_employee",
+                return_value=[{"jour": 1, "type": "work", "heures_prevues": 8}],
+            ),
+            patch(
+                "app.modules.schedules.application.commands.schedule_repository",
+            ) as repo,
+        ):
             result = commands.update_planned_calendar("emp-1", payload)
 
-        assert result == {"status": "success", "message": "Planning prévisionnel enregistré."}
+        assert result == {
+            "status": "success",
+            "message": "Planning prévisionnel enregistré.",
+        }
         repo.upsert_schedule.assert_called_once()
         call_kw = repo.upsert_schedule.call_args[1]
         assert call_kw["planned_calendar"] is not None
-        assert call_kw["planned_calendar"]["calendrier_prevu"] == [{"jour": 1, "type": "work", "heures_prevues": 8}]
+        assert call_kw["planned_calendar"]["calendrier_prevu"] == [
+            {"jour": 1, "type": "work", "heures_prevues": 8}
+        ]
 
     def test_raises_schedule_app_error_when_employee_not_found(self):
         """Employé non trouvé → ScheduleAppError not_found."""
@@ -52,7 +66,9 @@ class TestUpdatePlannedCalendar:
 
         with patch(
             "app.modules.schedules.application.commands.get_employee_company_and_statut",
-            side_effect=ScheduleAppError("not_found", "Employé non trouvé", status_code=404),
+            side_effect=ScheduleAppError(
+                "not_found", "Employé non trouvé", status_code=404
+            ),
         ):
             with pytest.raises(ScheduleAppError) as exc_info:
                 commands.update_planned_calendar("emp-unknown", payload)
@@ -72,25 +88,36 @@ class TestUpdateActualHours:
         payload.year = 2025
         payload.month = 4
         payload.calendrier_reel = [
-            MagicMock(model_dump=MagicMock(return_value={"jour": 1, "heures_faites": 7.5})),
+            MagicMock(
+                model_dump=MagicMock(return_value={"jour": 1, "heures_faites": 7.5})
+            ),
         ]
 
-        with patch(
-            "app.modules.schedules.application.commands.get_employee_company_and_statut",
-            return_value=("company-1", None),
-        ), patch(
-            "app.modules.schedules.application.commands.normalize_actual_hours_for_employee",
-            return_value=[{"jour": 1, "heures_faites": 7.5}],
-        ), patch(
-            "app.modules.schedules.application.commands.schedule_repository",
-        ) as repo:
+        with (
+            patch(
+                "app.modules.schedules.application.commands.get_employee_company_and_statut",
+                return_value=("company-1", None),
+            ),
+            patch(
+                "app.modules.schedules.application.commands.normalize_actual_hours_for_employee",
+                return_value=[{"jour": 1, "heures_faites": 7.5}],
+            ),
+            patch(
+                "app.modules.schedules.application.commands.schedule_repository",
+            ) as repo,
+        ):
             result = commands.update_actual_hours("emp-1", payload)
 
-        assert result == {"status": "success", "message": "Heures réelles enregistrées."}
+        assert result == {
+            "status": "success",
+            "message": "Heures réelles enregistrées.",
+        }
         repo.upsert_schedule.assert_called_once()
         call_kw = repo.upsert_schedule.call_args[1]
         assert call_kw["actual_hours"] is not None
-        assert call_kw["actual_hours"]["calendrier_reel"] == [{"jour": 1, "heures_faites": 7.5}]
+        assert call_kw["actual_hours"]["calendrier_reel"] == [
+            {"jour": 1, "heures_faites": 7.5}
+        ]
 
 
 # --- calculate_payroll_events ---
@@ -131,18 +158,23 @@ class TestCalculatePayrollEvents:
             {"type": "heures_normales", "heures": 35},
         ]
 
-        with patch(
-            "app.modules.schedules.application.commands.domain_rules.is_forfait_jour",
-            return_value=False,
-        ), patch(
-            "app.modules.schedules.application.commands.employee_company_reader",
-            reader,
-        ), patch(
-            "app.modules.schedules.application.commands.schedule_repository",
-            repo,
-        ), patch(
-            "app.modules.schedules.application.commands.payroll_analyzer_provider",
-            analyzer,
+        with (
+            patch(
+                "app.modules.schedules.application.commands.domain_rules.is_forfait_jour",
+                return_value=False,
+            ),
+            patch(
+                "app.modules.schedules.application.commands.employee_company_reader",
+                reader,
+            ),
+            patch(
+                "app.modules.schedules.application.commands.schedule_repository",
+                repo,
+            ),
+            patch(
+                "app.modules.schedules.application.commands.payroll_analyzer_provider",
+                analyzer,
+            ),
         ):
             result = commands.calculate_payroll_events("emp-1", 2025, 3)
 
@@ -274,14 +306,18 @@ class TestApplyScheduleModel:
             5: _make_week_config(8.0, 0.0),
         }
 
-        with patch(
-            "app.modules.schedules.application.commands.employee_company_reader",
-        ) as reader, patch(
-            "app.modules.schedules.application.commands.domain_rules.is_forfait_jour",
-            return_value=False,
-        ), patch(
-            "app.modules.schedules.application.commands.schedule_repository",
-        ) as repo:
+        with (
+            patch(
+                "app.modules.schedules.application.commands.employee_company_reader",
+            ) as reader,
+            patch(
+                "app.modules.schedules.application.commands.domain_rules.is_forfait_jour",
+                return_value=False,
+            ),
+            patch(
+                "app.modules.schedules.application.commands.schedule_repository",
+            ) as repo,
+        ):
             reader.get_company_and_statut.return_value = ("comp-1", "employé")
             repo.exists_schedule.return_value = True
 
@@ -311,15 +347,22 @@ class TestApplyScheduleModel:
             5: _make_week_config(7.0, 0.0),
         }
 
-        with patch(
-            "app.modules.schedules.application.commands.employee_company_reader",
-        ) as reader, patch(
-            "app.modules.schedules.application.commands.domain_rules.is_forfait_jour",
-            return_value=True,
-        ), patch(
-            "app.modules.schedules.application.commands.schedule_repository",
-        ) as repo:
-            reader.get_company_and_statut.return_value = ("comp-1", "cadre forfait jour")
+        with (
+            patch(
+                "app.modules.schedules.application.commands.employee_company_reader",
+            ) as reader,
+            patch(
+                "app.modules.schedules.application.commands.domain_rules.is_forfait_jour",
+                return_value=True,
+            ),
+            patch(
+                "app.modules.schedules.application.commands.schedule_repository",
+            ) as repo,
+        ):
+            reader.get_company_and_statut.return_value = (
+                "comp-1",
+                "cadre forfait jour",
+            )
             repo.exists_schedule.return_value = False
 
             result = commands.apply_schedule_model(request, user)

@@ -3,6 +3,7 @@ Tests unitaires des commandes du module payslips (application/commands.py).
 
 Chaque commande est testée avec repositories et providers mockés (pas de DB, pas de HTTP).
 """
+
 from unittest.mock import patch
 
 
@@ -25,13 +26,20 @@ class TestGeneratePayslipCommand:
     def test_generates_forfait_when_statut_is_forfait_jour(self):
         """Quand le statut employé est forfait jour, délègue à generate_forfait."""
         cmd = GeneratePayslipInput(employee_id="emp-1", year=2024, month=3)
-        mock_result = {"status": "ok", "message": "Généré", "download_url": "https://example.com/doc.pdf"}
+        mock_result = {
+            "status": "ok",
+            "message": "Généré",
+            "download_url": "https://example.com/doc.pdf",
+        }
 
-        with patch(
-            "app.modules.payslips.application.commands.employee_statut_reader"
-        ) as mock_reader, patch(
-            "app.modules.payslips.application.commands.payslip_generator_provider"
-        ) as mock_provider:
+        with (
+            patch(
+                "app.modules.payslips.application.commands.employee_statut_reader"
+            ) as mock_reader,
+            patch(
+                "app.modules.payslips.application.commands.payslip_generator_provider"
+            ) as mock_provider,
+        ):
             mock_reader.get_employee_statut.return_value = "Cadre forfait jour"
             mock_provider.generate_forfait.return_value = mock_result
             mock_provider.generate_heures.return_value = {}
@@ -50,13 +58,20 @@ class TestGeneratePayslipCommand:
     def test_generates_heures_when_statut_is_not_forfait_jour(self):
         """Quand le statut n'est pas forfait jour, délègue à generate_heures."""
         cmd = GeneratePayslipInput(employee_id="emp-2", year=2024, month=6)
-        mock_result = {"status": "ok", "message": "Bulletin heures", "download_url": "https://example.com/h.pdf"}
+        mock_result = {
+            "status": "ok",
+            "message": "Bulletin heures",
+            "download_url": "https://example.com/h.pdf",
+        }
 
-        with patch(
-            "app.modules.payslips.application.commands.employee_statut_reader"
-        ) as mock_reader, patch(
-            "app.modules.payslips.application.commands.payslip_generator_provider"
-        ) as mock_provider:
+        with (
+            patch(
+                "app.modules.payslips.application.commands.employee_statut_reader"
+            ) as mock_reader,
+            patch(
+                "app.modules.payslips.application.commands.payslip_generator_provider"
+            ) as mock_provider,
+        ):
             mock_reader.get_employee_statut.return_value = "Cadre au forfait heures"
             mock_provider.generate_heures.return_value = mock_result
             mock_provider.generate_forfait.return_value = {}
@@ -76,11 +91,14 @@ class TestGeneratePayslipCommand:
         cmd = GeneratePayslipInput(employee_id="emp-3", year=2025, month=1)
         mock_result = {"status": "ok", "message": "OK", "download_url": ""}
 
-        with patch(
-            "app.modules.payslips.application.commands.employee_statut_reader"
-        ) as mock_reader, patch(
-            "app.modules.payslips.application.commands.payslip_generator_provider"
-        ) as mock_provider:
+        with (
+            patch(
+                "app.modules.payslips.application.commands.employee_statut_reader"
+            ) as mock_reader,
+            patch(
+                "app.modules.payslips.application.commands.payslip_generator_provider"
+            ) as mock_provider,
+        ):
             mock_reader.get_employee_statut.return_value = None
             mock_provider.generate_heures.return_value = mock_result
 
@@ -117,7 +135,10 @@ class TestEditPayslipCommand:
             pdf_notes="Note PDF",
             internal_note="Note interne",
         )
-        expected = {"payslip": {"id": "ps-1"}, "new_pdf_url": "https://example.com/new.pdf"}
+        expected = {
+            "payslip": {"id": "ps-1"},
+            "new_pdf_url": "https://example.com/new.pdf",
+        }
 
         with patch(
             "app.modules.payslips.application.commands.payslip_editor_provider"

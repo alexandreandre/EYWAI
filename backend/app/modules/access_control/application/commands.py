@@ -3,6 +3,7 @@ Cas d'usage écriture / effets de bord pour access_control.
 
 Logique applicative extraite des routers legacy : require_rh_access, quick_create_role_template.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -24,16 +25,12 @@ def require_rh_access(current_user: "User") -> None:
     access_control_service.require_rh_access(current_user)
 
 
-def require_rh_access_for_company(
-    current_user: "User", company_id: str
-) -> None:
+def require_rh_access_for_company(current_user: "User", company_id: str) -> None:
     """
     Lève HTTPException 403 si l'utilisateur n'a pas d'accès RH pour cette entreprise.
     Aligné legacy GET /check-permission (garder même comportement que user_management).
     """
-    access_control_service.require_rh_access_for_company(
-        current_user, company_id
-    )
+    access_control_service.require_rh_access_for_company(current_user, company_id)
 
 
 def quick_create_role_template(

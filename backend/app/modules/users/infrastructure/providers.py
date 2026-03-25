@@ -3,6 +3,7 @@ Providers : services externes (Auth, PDF, Storage).
 
 Comportement identique aux appels des anciens routers.
 """
+
 from pathlib import Path
 from typing import Any
 
@@ -26,16 +27,16 @@ class SupabaseAuthProvider(IAuthProvider):
             self._client = get_supabase_admin_client()
         return self._client
 
-    def create_user(
-        self, email: str, password: str, metadata: dict
-    ) -> Any:
+    def create_user(self, email: str, password: str, metadata: dict) -> Any:
         client = self._get_client()
-        r = client.auth.admin.create_user({
-            "email": email,
-            "password": password,
-            "email_confirm": True,
-            "user_metadata": metadata,
-        })
+        r = client.auth.admin.create_user(
+            {
+                "email": email,
+                "password": password,
+                "email_confirm": True,
+                "user_metadata": metadata,
+            }
+        )
         return r
 
     def get_user_by_id(self, user_id: str) -> Any:
@@ -64,6 +65,7 @@ class CredentialsPdfProvider(ICredentialsPdfProvider):
         logo_path: str,
     ) -> bytes:
         from app.shared.infrastructure.pdf import generate_credentials_pdf
+
         return generate_credentials_pdf(
             first_name=first_name,
             last_name=last_name,

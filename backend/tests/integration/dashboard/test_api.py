@@ -8,6 +8,7 @@ Pour des tests avec token réel, ajouter dans conftest.py une fixture dashboard_
   has_rh_access_in_company(company_id)=True (format Authorization: Bearer <jwt>,
   optionnel X-Active-Company: <company_id>).
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -90,7 +91,10 @@ class TestDashboardAll:
     def test_with_auth_no_active_company_returns_400(self, client: TestClient):
         """Utilisateur sans entreprise active → 400."""
         from app.core.security import get_current_user
-        app.dependency_overrides[get_current_user] = lambda: _make_user_without_company()
+
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_user_without_company()
+        )
         try:
             response = client.get(
                 "/api/dashboard/all",
@@ -104,7 +108,10 @@ class TestDashboardAll:
     def test_with_auth_no_rh_access_returns_403(self, client: TestClient):
         """Utilisateur sans accès RH sur l'entreprise active → 403."""
         from app.core.security import get_current_user
-        app.dependency_overrides[get_current_user] = lambda: _make_user_without_rh_access()
+
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_user_without_rh_access()
+        )
         try:
             response = client.get(
                 "/api/dashboard/all",
@@ -128,6 +135,7 @@ class TestDashboardAll:
             PayrollStatus,
             TeamPulse,
         )
+
         mock_get_dashboard.return_value = DashboardData(
             kpis=KpiData(
                 coutTotal=1000.0,
@@ -141,13 +149,18 @@ class TestDashboardAll:
             ),
             chartData=[ChartDataPoint(name="Fév", Net_Verse=800.0, Charges=200.0)],
             actions=ActionItems(pendingAbsences=1, pendingExpenses=0),
-            alerts=AlertItems(obsoleteRates=0, expiringContracts=0, endOfTrialPeriods=0),
+            alerts=AlertItems(
+                obsoleteRates=0, expiringContracts=0, endOfTrialPeriods=0
+            ),
             teamPulse=TeamPulse(absentToday=[], upcomingEvents=[]),
             employees=[],
-            payrollStatus=PayrollStatus(currentMonth="March 2025", step=1, totalSteps=4),
+            payrollStatus=PayrollStatus(
+                currentMonth="March 2025", step=1, totalSteps=4
+            ),
         )
 
         from app.core.security import get_current_user
+
         app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
         try:
             response = client.get(
@@ -183,6 +196,7 @@ class TestDashboardResidencePermitStats:
     ):
         """Avec utilisateur RH → 200 et structure ResidencePermitStats."""
         from app.modules.dashboard.schemas.responses import ResidencePermitStats
+
         mock_get_stats.return_value = ResidencePermitStats(
             total_expire=0,
             total_a_renouveler=2,
@@ -191,6 +205,7 @@ class TestDashboardResidencePermitStats:
         )
 
         from app.core.security import get_current_user
+
         app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
         try:
             response = client.get(

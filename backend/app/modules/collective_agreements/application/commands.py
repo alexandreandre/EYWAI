@@ -3,6 +3,7 @@ Commandes applicatives (write) pour collective_agreements.
 
 Délèguent au CollectiveAgreementsService (logique extraite des routers legacy).
 """
+
 from __future__ import annotations
 
 from typing import Any, Optional

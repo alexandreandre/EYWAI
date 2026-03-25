@@ -8,6 +8,7 @@ pour des tests CRUD réels (get_by_user_id, list_all).
 Fixture optionnelle : super_admin_db_session(db_session) si db_session fournit un client
 Supabase de test avec table super_admins.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -79,13 +80,16 @@ class TestGetByUserId:
     def test_accepts_uuid_or_str(self):
         """Accepte user_id en UUID ou str."""
         from uuid import UUID
+
         uid_str = TEST_USER_ID
         uid_uuid = UUID(uid_str)
         with patch(
             "app.modules.super_admin.infrastructure.repository.get_supabase_client",
         ) as m_get_client:
             chain = MagicMock()
-            chain.eq.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+            chain.eq.return_value.eq.return_value.execute.return_value = MagicMock(
+                data=[]
+            )
             m_get_client.return_value.table.return_value.select.return_value = chain
 
             get_by_user_id(uid_str)

@@ -4,6 +4,7 @@ Schémas requêtes API pour collective_agreements.
 Structure alignée sur le legacy (api/routers/collective_agreements*.py, schemas/collective_agreement.py).
 Migration : remplacer les imports legacy par ceux-ci.
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -54,7 +55,9 @@ class CompanyCollectiveAgreementCreate(BaseModel):
 class AssignAgreementBody(BaseModel):
     """Corps POST /assign : id de la convention à assigner à l'entreprise active."""
 
-    collective_agreement_id: str = Field(..., description="ID de la convention collective")
+    collective_agreement_id: str = Field(
+        ..., description="ID de la convention collective"
+    )
 
 
 # --- Upload URL (super admin) ---

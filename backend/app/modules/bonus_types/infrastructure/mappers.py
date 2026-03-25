@@ -1,6 +1,7 @@
 """
 Mappers dict/row Supabase <-> entités domaine BonusType.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -43,7 +44,9 @@ def row_to_bonus_type(row: dict[str, Any]) -> BonusType:
         libelle=str(row.get("libelle", "")),
         type=_parse_kind(row.get("type")),
         montant=float(row.get("montant", 0)),
-        seuil_heures=float(row["seuil_heures"]) if row.get("seuil_heures") is not None else None,
+        seuil_heures=float(row["seuil_heures"])
+        if row.get("seuil_heures") is not None
+        else None,
         soumise_a_cotisations=bool(row.get("soumise_a_cotisations", True)),
         soumise_a_impot=bool(row.get("soumise_a_impot", True)),
         prompt_ia=row.get("prompt_ia"),

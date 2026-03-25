@@ -6,6 +6,7 @@ Avec mock de get_supabase_admin_client pour éviter la DB réelle.
 Pour tests contre une DB de test : utiliser la fixture db_session (à compléter dans conftest.py)
 et injecter un client Supabase de test ; documenté en commentaire.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest

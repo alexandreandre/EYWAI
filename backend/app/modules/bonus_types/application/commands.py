@@ -3,6 +3,7 @@ Commandes applicatives (write) pour bonus_types.
 
 Délèguent au BonusTypesService ; logique métier dans le service.
 """
+
 from __future__ import annotations
 
 from app.modules.bonus_types.application.dto import (

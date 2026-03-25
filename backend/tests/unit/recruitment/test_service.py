@@ -4,6 +4,7 @@ Tests unitaires du service applicatif recruitment (application/service.py).
 Dépendances (repositories, providers, infra queries) mockées. Pas de DB ni HTTP.
 Vérifie l'orchestration : règles domaine + appels infrastructure.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -14,19 +15,43 @@ from app.modules.recruitment.application import service as svc
 @pytest.fixture
 def mock_repos():
     """Mocks pour les repositories et readers injectés dans le service."""
-    with patch("app.modules.recruitment.application.service._settings_reader") as settings:
+    with patch(
+        "app.modules.recruitment.application.service._settings_reader"
+    ) as settings:
         with patch("app.modules.recruitment.application.service._job_repo") as job_repo:
-            with patch("app.modules.recruitment.application.service._pipeline_stage_repo") as stage_repo:
-                with patch("app.modules.recruitment.application.service._candidate_repo") as cand_repo:
-                    with patch("app.modules.recruitment.application.service._timeline_writer") as timeline:
-                        with patch("app.modules.recruitment.application.service._timeline_reader") as timeline_reader:
-                            with patch("app.modules.recruitment.application.service._interview_repo") as interview_repo:
-                                with patch("app.modules.recruitment.application.service._note_repo") as note_repo:
-                                    with patch("app.modules.recruitment.application.service._opinion_repo") as opinion_repo:
-                                        with patch("app.modules.recruitment.application.service._duplicate_checker") as dup:
-                                            with patch("app.modules.recruitment.application.service._employee_creator") as emp_creator:
-                                                with patch("app.modules.recruitment.application.service._participant_checker") as participant:
-                                                    with patch("app.modules.recruitment.application.service.infra_queries") as infra_q:
+            with patch(
+                "app.modules.recruitment.application.service._pipeline_stage_repo"
+            ) as stage_repo:
+                with patch(
+                    "app.modules.recruitment.application.service._candidate_repo"
+                ) as cand_repo:
+                    with patch(
+                        "app.modules.recruitment.application.service._timeline_writer"
+                    ) as timeline:
+                        with patch(
+                            "app.modules.recruitment.application.service._timeline_reader"
+                        ) as timeline_reader:
+                            with patch(
+                                "app.modules.recruitment.application.service._interview_repo"
+                            ) as interview_repo:
+                                with patch(
+                                    "app.modules.recruitment.application.service._note_repo"
+                                ) as note_repo:
+                                    with patch(
+                                        "app.modules.recruitment.application.service._opinion_repo"
+                                    ) as opinion_repo:
+                                        with patch(
+                                            "app.modules.recruitment.application.service._duplicate_checker"
+                                        ) as dup:
+                                            with patch(
+                                                "app.modules.recruitment.application.service._employee_creator"
+                                            ) as emp_creator:
+                                                with patch(
+                                                    "app.modules.recruitment.application.service._participant_checker"
+                                                ) as participant:
+                                                    with patch(
+                                                        "app.modules.recruitment.application.service.infra_queries"
+                                                    ) as infra_q:
                                                         yield {
                                                             "settings": settings,
                                                             "job_repo": job_repo,
@@ -94,7 +119,10 @@ class TestServiceUpdateJob:
 
     def test_updates_and_returns(self, mock_repos):
         mock_repos["job_repo"].get_by_id.return_value = {"id": "job-1"}
-        mock_repos["job_repo"].update.return_value = {"id": "job-1", "title": "Dev Back"}
+        mock_repos["job_repo"].update.return_value = {
+            "id": "job-1",
+            "title": "Dev Back",
+        }
         result = svc.service_update_job("job-1", "co-1", {"title": "Dev Back"})
         assert result["title"] == "Dev Back"
         mock_repos["job_repo"].update.assert_called_once_with(
@@ -109,12 +137,16 @@ class TestServiceCreateCandidate:
         mock_repos["job_repo"].get_by_id.return_value = None
         with pytest.raises(ValueError, match="Poste non trouvé"):
             svc.service_create_candidate(
-                "co-1", "user-1", {"job_id": "job-x", "first_name": "A", "last_name": "B"}
+                "co-1",
+                "user-1",
+                {"job_id": "job-x", "first_name": "A", "last_name": "B"},
             )
 
     def test_creates_candidate_and_timeline_event(self, mock_repos):
         mock_repos["job_repo"].get_by_id.return_value = {"id": "job-1"}
-        mock_repos["stage_repo"].list_by_job.return_value = [{"id": "stage-0", "position": 0}]
+        mock_repos["stage_repo"].list_by_job.return_value = [
+            {"id": "stage-0", "position": 0}
+        ]
         mock_repos["cand_repo"].create.return_value = {
             "id": "cand-new",
             "first_name": "Alice",
@@ -136,7 +168,9 @@ class TestServiceDeleteCandidate:
     """service_delete_candidate."""
 
     def test_raises_when_candidate_not_found(self, mock_repos):
-        mock_repos["infra_queries"].get_candidate_with_stage_position.return_value = None
+        mock_repos[
+            "infra_queries"
+        ].get_candidate_with_stage_position.return_value = None
         with pytest.raises(ValueError, match="Candidat non trouvé"):
             svc.service_delete_candidate("cand-x", "co-1")
 
@@ -166,26 +200,43 @@ class TestServiceMoveCandidate:
             svc.service_move_candidate("cand-x", "co-1", "stage-1")
 
     def test_raises_when_stage_not_found(self, mock_repos):
-        mock_repos["cand_repo"].get_by_id.return_value = {"id": "cand-1", "job_id": "job-1"}
+        mock_repos["cand_repo"].get_by_id.return_value = {
+            "id": "cand-1",
+            "job_id": "job-1",
+        }
         mock_repos["stage_repo"].list_by_job.return_value = []
         with pytest.raises(ValueError, match="Étape non trouvée"):
             svc.service_move_candidate("cand-1", "co-1", "stage-unknown")
 
     def test_raises_when_rejected_without_reason(self, mock_repos):
-        mock_repos["cand_repo"].get_by_id.return_value = {"id": "cand-1", "job_id": "job-1", "first_name": "A", "last_name": "B"}
+        mock_repos["cand_repo"].get_by_id.return_value = {
+            "id": "cand-1",
+            "job_id": "job-1",
+            "first_name": "A",
+            "last_name": "B",
+        }
         mock_repos["stage_repo"].list_by_job.return_value = [
             {"id": "stage-rej", "name": "Refusé", "stage_type": "rejected"},
         ]
         with pytest.raises(ValueError, match="motif de refus"):
-            svc.service_move_candidate("cand-1", "co-1", "stage-rej", rejection_reason=None)
+            svc.service_move_candidate(
+                "cand-1", "co-1", "stage-rej", rejection_reason=None
+            )
 
     def test_updates_and_writes_timeline_for_rejected(self, mock_repos):
-        mock_repos["cand_repo"].get_by_id.return_value = {"id": "cand-1", "job_id": "job-1", "first_name": "Alice", "last_name": "Martin"}
+        mock_repos["cand_repo"].get_by_id.return_value = {
+            "id": "cand-1",
+            "job_id": "job-1",
+            "first_name": "Alice",
+            "last_name": "Martin",
+        }
         mock_repos["stage_repo"].list_by_job.return_value = [
             {"id": "stage-rej", "name": "Refusé", "stage_type": "rejected"},
         ]
         result = svc.service_move_candidate(
-            "cand-1", "co-1", "stage-rej",
+            "cand-1",
+            "co-1",
+            "stage-rej",
             rejection_reason="Profil non adapté",
             rejection_reason_detail="Détail",
             actor_id="user-1",
@@ -210,7 +261,9 @@ class TestServiceCreateOpinion:
 
     def test_creates_opinion_and_timeline_when_favorable(self, mock_repos):
         mock_repos["opinion_repo"].create.return_value = {
-            "id": "op-1", "candidate_id": "cand-1", "rating": "favorable",
+            "id": "op-1",
+            "candidate_id": "cand-1",
+            "rating": "favorable",
         }
         result = svc.service_create_opinion(
             "co-1", "user-1", {"candidate_id": "cand-1", "rating": "favorable"}

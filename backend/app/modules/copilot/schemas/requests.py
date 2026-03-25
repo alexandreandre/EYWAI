@@ -4,6 +4,7 @@ Schémas Pydantic entrée API pour le module copilot.
 Contrats alignés sur api/routers/copilot.py et api/routers/copilot_agent.py.
 Migration : à remplacer par les mêmes définitions une fois le code migré.
 """
+
 from typing import List, Optional
 
 from pydantic import BaseModel

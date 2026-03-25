@@ -14,6 +14,7 @@ avec active_company_id et droits RH. À ajouter si besoin de tests E2E avec toke
       Format : {\"Authorization\": \"Bearer <jwt>\", \"X-Active-Company\": \"<company_id>\" (optionnel).\"\"\"
       return auth_headers  # ou return {**auth_headers, \"X-Active-Company\": \"<company_uuid>\"}
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -76,9 +77,35 @@ class TestListRibAlerts:
         """Avec utilisateur ayant active_company_id et mock get_rib_alerts → 200 et { alerts, total }."""
         from app.core.security import get_current_user
 
-        mock_result = type("R", (), {"alerts": [{"id": "a1", "company_id": TEST_COMPANY_ID, "alert_type": "rib_modified", "severity": "warning", "title": "T", "message": "M", "details": {}, "is_read": False, "is_resolved": False, "resolved_at": None, "resolution_note": None, "created_at": "2024-01-01T00:00:00Z"}], "total": 1})()
-        app.dependency_overrides[get_current_user] = lambda: _make_rh_user_with_company()
-        with patch("app.modules.rib_alerts.api.router.get_rib_alerts", return_value=mock_result):
+        mock_result = type(
+            "R",
+            (),
+            {
+                "alerts": [
+                    {
+                        "id": "a1",
+                        "company_id": TEST_COMPANY_ID,
+                        "alert_type": "rib_modified",
+                        "severity": "warning",
+                        "title": "T",
+                        "message": "M",
+                        "details": {},
+                        "is_read": False,
+                        "is_resolved": False,
+                        "resolved_at": None,
+                        "resolution_note": None,
+                        "created_at": "2024-01-01T00:00:00Z",
+                    }
+                ],
+                "total": 1,
+            },
+        )()
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_rh_user_with_company()
+        )
+        with patch(
+            "app.modules.rib_alerts.api.router.get_rib_alerts", return_value=mock_result
+        ):
             response = client.get("/api/rib-alerts")
         app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
@@ -94,23 +121,39 @@ class TestListRibAlerts:
         """Utilisateur sans active_company_id → 403 (MissingCompanyContextError). On n’utilise pas de mock pour que get_rib_alerts soit appelé avec company_id=None et lève."""
         from app.core.security import get_current_user
 
-        app.dependency_overrides[get_current_user] = lambda: _make_user_without_company()
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_user_without_company()
+        )
         # Pas de patch : le router appelle get_rib_alerts(company_id=None) qui lève MissingCompanyContextError → 403
         response = client.get("/api/rib-alerts")
         app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 403
-        assert "entreprise" in response.json().get("detail", "").lower() or "active" in response.json().get("detail", "").lower()
+        assert (
+            "entreprise" in response.json().get("detail", "").lower()
+            or "active" in response.json().get("detail", "").lower()
+        )
 
     def test_with_auth_accepts_query_params(self, client: TestClient):
         """Query params is_read, is_resolved, alert_type, employee_id, limit, offset sont acceptés."""
         from app.core.security import get_current_user
 
         mock_result = type("R", (), {"alerts": [], "total": 0})()
-        app.dependency_overrides[get_current_user] = lambda: _make_rh_user_with_company()
-        with patch("app.modules.rib_alerts.api.router.get_rib_alerts", return_value=mock_result) as mock_get:
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_rh_user_with_company()
+        )
+        with patch(
+            "app.modules.rib_alerts.api.router.get_rib_alerts", return_value=mock_result
+        ) as mock_get:
             response = client.get(
                 "/api/rib-alerts",
-                params={"is_read": "true", "is_resolved": "false", "alert_type": "rib_duplicate", "employee_id": "emp-1", "limit": 20, "offset": 0},
+                params={
+                    "is_read": "true",
+                    "is_resolved": "false",
+                    "alert_type": "rib_duplicate",
+                    "employee_id": "emp-1",
+                    "limit": 20,
+                    "offset": 0,
+                },
             )
         app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
@@ -139,8 +182,12 @@ class TestPatchMarkRibAlertRead:
         """Marque comme lu : mock retourne True → 200 et { success: true }."""
         from app.core.security import get_current_user
 
-        app.dependency_overrides[get_current_user] = lambda: _make_rh_user_with_company()
-        with patch("app.modules.rib_alerts.api.router.mark_rib_alert_read", return_value=True):
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_rh_user_with_company()
+        )
+        with patch(
+            "app.modules.rib_alerts.api.router.mark_rib_alert_read", return_value=True
+        ):
             response = client.patch("/api/rib-alerts/alert-1/read")
         app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
@@ -150,18 +197,27 @@ class TestPatchMarkRibAlertRead:
         """Alerte inexistante → 404."""
         from app.core.security import get_current_user
 
-        app.dependency_overrides[get_current_user] = lambda: _make_rh_user_with_company()
-        with patch("app.modules.rib_alerts.api.router.mark_rib_alert_read", return_value=False):
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_rh_user_with_company()
+        )
+        with patch(
+            "app.modules.rib_alerts.api.router.mark_rib_alert_read", return_value=False
+        ):
             response = client.patch("/api/rib-alerts/alert-unknown/read")
         app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 404
-        assert "non trouvée" in response.json().get("detail", "").lower() or "not found" in response.json().get("detail", "").lower()
+        assert (
+            "non trouvée" in response.json().get("detail", "").lower()
+            or "not found" in response.json().get("detail", "").lower()
+        )
 
     def test_with_auth_without_company_returns_403(self, client: TestClient):
         """Utilisateur sans active_company_id → 403. Pas de mock pour que mark_rib_alert_read reçoive company_id=None et lève."""
         from app.core.security import get_current_user
 
-        app.dependency_overrides[get_current_user] = lambda: _make_user_without_company()
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_user_without_company()
+        )
         response = client.patch("/api/rib-alerts/alert-1/read")
         app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 403
@@ -172,15 +228,21 @@ class TestPatchResolveRibAlert:
 
     def test_without_auth_returns_401(self, client: TestClient):
         """Sans token → 401."""
-        response = client.patch("/api/rib-alerts/alert-1/resolve", json={"resolution_note": "OK"})
+        response = client.patch(
+            "/api/rib-alerts/alert-1/resolve", json={"resolution_note": "OK"}
+        )
         assert response.status_code == 401
 
     def test_with_auth_success_returns_200(self, client: TestClient):
         """Résolution avec body resolution_note → 200 et { success: true }."""
         from app.core.security import get_current_user
 
-        app.dependency_overrides[get_current_user] = lambda: _make_rh_user_with_company()
-        with patch("app.modules.rib_alerts.api.router.resolve_rib_alert", return_value=True):
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_rh_user_with_company()
+        )
+        with patch(
+            "app.modules.rib_alerts.api.router.resolve_rib_alert", return_value=True
+        ):
             response = client.patch(
                 "/api/rib-alerts/alert-1/resolve",
                 json={"resolution_note": "Vérifié manuellement"},
@@ -193,8 +255,12 @@ class TestPatchResolveRibAlert:
         """Alerte inexistante → 404."""
         from app.core.security import get_current_user
 
-        app.dependency_overrides[get_current_user] = lambda: _make_rh_user_with_company()
-        with patch("app.modules.rib_alerts.api.router.resolve_rib_alert", return_value=False):
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_rh_user_with_company()
+        )
+        with patch(
+            "app.modules.rib_alerts.api.router.resolve_rib_alert", return_value=False
+        ):
             response = client.patch("/api/rib-alerts/alert-unknown/resolve", json={})
         app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 404
@@ -203,7 +269,9 @@ class TestPatchResolveRibAlert:
         """Utilisateur sans active_company_id → 403. Pas de mock pour que resolve_rib_alert reçoive company_id=None et lève."""
         from app.core.security import get_current_user
 
-        app.dependency_overrides[get_current_user] = lambda: _make_user_without_company()
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_user_without_company()
+        )
         response = client.patch("/api/rib-alerts/alert-1/resolve", json={})
         app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 403
@@ -212,8 +280,12 @@ class TestPatchResolveRibAlert:
         """Body peut être vide (resolution_note optionnel)."""
         from app.core.security import get_current_user
 
-        app.dependency_overrides[get_current_user] = lambda: _make_rh_user_with_company()
-        with patch("app.modules.rib_alerts.api.router.resolve_rib_alert", return_value=True):
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_rh_user_with_company()
+        )
+        with patch(
+            "app.modules.rib_alerts.api.router.resolve_rib_alert", return_value=True
+        ):
             response = client.patch("/api/rib-alerts/alert-1/resolve", json={})
         app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200

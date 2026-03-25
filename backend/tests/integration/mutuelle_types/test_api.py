@@ -7,6 +7,7 @@ Utilise : client (TestClient), dependency_overrides pour get_current_user,
 et patch des fonctions application (list_mutuelle_types, create_mutuelle_type, etc.)
 pour éviter la DB réelle.
 """
+
 from datetime import datetime
 from uuid import uuid4
 from unittest.mock import patch
@@ -232,7 +233,9 @@ class TestMutuelleTypesPostCreate:
             app.dependency_overrides.pop(get_current_user, None)
 
         assert response.status_code == 403
-        assert "Admin" in response.json().get("detail", "") or "RH" in response.json().get("detail", "")
+        assert "Admin" in response.json().get(
+            "detail", ""
+        ) or "RH" in response.json().get("detail", "")
 
     def test_create_with_invalid_body_returns_422(self, client: TestClient):
         from app.core.security import get_current_user
@@ -325,7 +328,10 @@ class TestMutuelleTypesDelete:
         try:
             with patch(
                 "app.modules.mutuelle_types.api.router.delete_mutuelle_type",
-                return_value={"status": "success", "message": "Formule de mutuelle supprimée avec succès"},
+                return_value={
+                    "status": "success",
+                    "message": "Formule de mutuelle supprimée avec succès",
+                },
             ):
                 response = client.delete(f"/api/mutuelle-types/{mutuelle_id}")
         finally:
@@ -343,7 +349,10 @@ class TestMutuelleTypesDelete:
         try:
             with patch(
                 "app.modules.mutuelle_types.api.router.delete_mutuelle_type",
-                return_value={"status": "success", "message": "Formule de mutuelle supprimée avec succès"},
+                return_value={
+                    "status": "success",
+                    "message": "Formule de mutuelle supprimée avec succès",
+                },
             ):
                 response = client.delete(f"/api/mutuelle-types/{mutuelle_id}")
         finally:

@@ -5,6 +5,7 @@ Délègue toute la logique à la couche application (commands / queries).
 Convertit les exceptions applicatives en HTTPException.
 Comportement HTTP identique à api/routers/saisies_avances.py.
 """
+
 import traceback
 from decimal import Decimal
 from typing import List, Optional, Literal
@@ -211,9 +212,7 @@ async def create_salary_advance(
 @router.get("/salary-advances", response_model=List[SalaryAdvance])
 async def get_salary_advances(
     employee_id: Optional[str] = Query(None),
-    status: Optional[
-        Literal["pending", "approved", "rejected", "paid"]
-    ] = Query(None),
+    status: Optional[Literal["pending", "approved", "rejected", "paid"]] = Query(None),
     current_user: User = Depends(get_current_user),
 ):
     """Récupère la liste des avances avec filtres."""

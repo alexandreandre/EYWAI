@@ -6,6 +6,7 @@ Aucune dépendance DB ni HTTP. Couvre :
 - Period (domain/value_objects.py)
 - is_valid_period (domain/rules.py)
 """
+
 from datetime import datetime
 from uuid import uuid4
 

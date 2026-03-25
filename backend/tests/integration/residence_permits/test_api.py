@@ -13,6 +13,7 @@ Fixture documentée : residence_permits_headers
   auth_headers quand auth_headers fournit un JWT valide pour un utilisateur
   ayant active_company_id et has_rh_access_in_company(active_company_id)=True.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -107,7 +108,10 @@ class TestGetResidencePermitsListAuthenticated:
             assert response.status_code == 400
             data = response.json()
             assert "detail" in data
-            assert "entreprise" in data["detail"].lower() or "active" in data["detail"].lower()
+            assert (
+                "entreprise" in data["detail"].lower()
+                or "active" in data["detail"].lower()
+            )
         finally:
             app.dependency_overrides.pop(get_current_user, None)
 
@@ -191,6 +195,8 @@ class TestGetResidencePermitsListAuthenticated:
             assert response.status_code == 500
             data = response.json()
             assert "detail" in data
-            assert "erreur" in data["detail"].lower() or "error" in data["detail"].lower()
+            assert (
+                "erreur" in data["detail"].lower() or "error" in data["detail"].lower()
+            )
         finally:
             app.dependency_overrides.pop(get_current_user, None)

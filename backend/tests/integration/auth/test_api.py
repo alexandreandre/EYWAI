@@ -4,6 +4,7 @@ Tests d'intégration HTTP des routes du module auth.
 Utilise les fixtures : client (TestClient), auth_headers (conftest.py).
 Préfixe des routes : /api/auth.
 """
+
 import pytest
 from fastapi.testclient import TestClient
 

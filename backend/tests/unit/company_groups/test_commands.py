@@ -3,6 +3,7 @@ Tests unitaires des commandes du module company_groups (application/commands.py)
 
 Repository et user lookup mockés : pas d'accès DB ni Auth.
 """
+
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
@@ -30,7 +31,9 @@ def _make_create_data(**kwargs):
     return d
 
 
-def _make_manage_request(user_email: str, accesses: list, first_name=None, last_name=None):
+def _make_manage_request(
+    user_email: str, accesses: list, first_name=None, last_name=None
+):
     """Objet type ManageUserAccessRequest."""
     r = MagicMock()
     r.user_email = user_email
@@ -108,7 +111,9 @@ class TestUpdateGroup:
         assert isinstance(result, CompanyGroupDto)
         assert result.id == "g-1"
         assert result.group_name == "Groupe Mis à Jour"
-        mock_repo.update.assert_called_once_with("g-1", mock_repo.update.call_args[0][1])
+        mock_repo.update.assert_called_once_with(
+            "g-1", mock_repo.update.call_args[0][1]
+        )
 
     def test_update_group_raises_when_not_found(self):
         """LookupError si le groupe n'existe pas."""
@@ -190,7 +195,9 @@ class TestRemoveCompanyFromGroup:
 
         with patch(f"{MODULE_COMMANDS}.company_group_repository", mock_repo):
             with pytest.raises(LookupError, match="pas dans ce groupe"):
-                commands.remove_company_from_group("g-1", "c-1", current_user=MagicMock())
+                commands.remove_company_from_group(
+                    "g-1", "c-1", current_user=MagicMock()
+                )
 
 
 class TestBulkAddCompaniesToGroup:
@@ -200,7 +207,11 @@ class TestBulkAddCompaniesToGroup:
         """Ajoute plusieurs entreprises et retourne succès / échecs."""
         mock_repo = MagicMock()
         mock_repo.exists.return_value = True
-        mock_repo.set_company_group.side_effect = [True, False, True]  # c1 ok, c2 ko, c3 ok
+        mock_repo.set_company_group.side_effect = [
+            True,
+            False,
+            True,
+        ]  # c1 ok, c2 ko, c3 ok
 
         with patch(f"{MODULE_COMMANDS}.company_group_repository", mock_repo):
             result = commands.bulk_add_companies_to_group(
@@ -248,7 +259,9 @@ class TestManageUserAccessInGroup:
         """ValueError si request.accesses est vide."""
         request = _make_manage_request("user@test.com", [])
         with pytest.raises(ValueError, match="Au moins un accès"):
-            commands.manage_user_access_in_group("g-1", request, current_user=MagicMock())
+            commands.manage_user_access_in_group(
+                "g-1", request, current_user=MagicMock()
+            )
 
     def test_manage_user_access_raises_when_company_not_in_group(self):
         """ValueError si une company des accès n'appartient pas au groupe."""
@@ -261,7 +274,9 @@ class TestManageUserAccessInGroup:
 
         with patch(f"{MODULE_COMMANDS}.company_group_repository", mock_repo):
             with pytest.raises(ValueError, match="n'appartient pas à ce groupe"):
-                commands.manage_user_access_in_group("g-1", request, current_user=MagicMock())
+                commands.manage_user_access_in_group(
+                    "g-1", request, current_user=MagicMock()
+                )
 
     def test_manage_user_access_raises_when_user_not_found(self):
         """LookupError si l'utilisateur (email) n'existe pas."""
@@ -272,9 +287,12 @@ class TestManageUserAccessInGroup:
         acc.role = "admin"
         request = _make_manage_request("inconnu@test.com", [acc])
 
-        with patch(f"{MODULE_COMMANDS}.company_group_repository", mock_repo), patch(
-            f"{MODULE_COMMANDS}.CompanyGroupRepository.get_user_by_email",
-            return_value=None,
+        with (
+            patch(f"{MODULE_COMMANDS}.company_group_repository", mock_repo),
+            patch(
+                f"{MODULE_COMMANDS}.CompanyGroupRepository.get_user_by_email",
+                return_value=None,
+            ),
         ):
             with pytest.raises(LookupError, match="Utilisateur.*non trouvé"):
                 commands.manage_user_access_in_group(
@@ -295,9 +313,12 @@ class TestManageUserAccessInGroup:
         acc2.role = "rh"
         request = _make_manage_request("user@test.com", [acc1, acc2])
 
-        with patch(f"{MODULE_COMMANDS}.company_group_repository", mock_repo), patch(
-            f"{MODULE_COMMANDS}.CompanyGroupRepository.get_user_by_email",
-            return_value={"id": "u-1", "email": "user@test.com"},
+        with (
+            patch(f"{MODULE_COMMANDS}.company_group_repository", mock_repo),
+            patch(
+                f"{MODULE_COMMANDS}.CompanyGroupRepository.get_user_by_email",
+                return_value={"id": "u-1", "email": "user@test.com"},
+            ),
         ):
             result = commands.manage_user_access_in_group(
                 "g-1", request, current_user=MagicMock()

@@ -85,7 +85,9 @@ def get_taux_csg() -> dict | None:
             return None
 
         taux_deductible = found["csg_non_imposable"]
-        taux_non_deductible = round((found["csg_imposable"] or 0) + (found["crds"] or 0), 6)
+        taux_non_deductible = round(
+            (found["csg_imposable"] or 0) + (found["crds"] or 0), 6
+        )
 
         return {"deductible": taux_deductible, "non_deductible": taux_non_deductible}
     except Exception:
@@ -97,7 +99,10 @@ def build_payload(taux: dict | None) -> dict:
     # valeurs.salarial contient un objet {deductible, non_deductible}
     vals = {"salarial": None, "patronal": None}
     if taux is not None:
-        vals["salarial"] = {"deductible": taux.get("deductible"), "non_deductible": taux.get("non_deductible")}
+        vals["salarial"] = {
+            "deductible": taux.get("deductible"),
+            "non_deductible": taux.get("non_deductible"),
+        }
     return {
         "id": "csg",
         "type": "cotisation",
@@ -105,7 +110,13 @@ def build_payload(taux: dict | None) -> dict:
         "base": "brut",
         "valeurs": vals,
         "meta": {
-            "source": [{"url": URL_URSSAF, "label": "URSSAF — Taux secteur privé", "date_doc": ""}],
+            "source": [
+                {
+                    "url": URL_URSSAF,
+                    "label": "URSSAF — Taux secteur privé",
+                    "date_doc": "",
+                }
+            ],
             "scraped_at": iso_now(),
             "generator": "scripts/CSG/CSG.py",
             "method": "primary",

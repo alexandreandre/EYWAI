@@ -76,8 +76,10 @@ def get_payslip_data_for_od(
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     year, month = map(int, period.split("-"))
 
-    query = supabase.table("payslips").select(
-        """
+    query = (
+        supabase.table("payslips")
+        .select(
+            """
         id,
         employee_id,
         month,
@@ -90,7 +92,11 @@ def get_payslip_data_for_od(
             company_id
         )
         """
-    ).eq("company_id", company_id).eq("year", year).eq("month", month)
+        )
+        .eq("company_id", company_id)
+        .eq("year", year)
+        .eq("month", month)
+    )
 
     if employee_ids:
         query = query.in_("employee_id", employee_ids)
@@ -119,7 +125,9 @@ def get_payslip_data_for_od(
         net_a_payer = float(payslip_data.get("net_a_payer", 0) or 0)
         synthese_net = payslip_data.get("synthese_net", {})
         float(
-            synthese_net.get("net_imposable", 0) if isinstance(synthese_net, dict) else 0
+            synthese_net.get("net_imposable", 0)
+            if isinstance(synthese_net, dict)
+            else 0
         )
         pas = float(
             synthese_net.get("impot_preleve_a_la_source", 0)
@@ -137,17 +145,19 @@ def get_payslip_data_for_od(
                 cotisations_salariales += float(coti.get("montant_salarial", 0) or 0)
                 cotisations_patronales += float(coti.get("montant_patronal", 0) or 0)
 
-        payslip_list.append({
-            "payslip_id": payslip["id"],
-            "employee_id": employee.get("id"),
-            "employee_name": f"{employee.get('first_name', '')} {employee.get('last_name', '')}".strip(),
-            "brut": brut,
-            "net_a_payer": net_a_payer,
-            "cotisations_salariales": cotisations_salariales,
-            "cotisations_patronales": cotisations_patronales,
-            "pas": pas,
-            "cotisations_detail": cotisations_list,
-        })
+        payslip_list.append(
+            {
+                "payslip_id": payslip["id"],
+                "employee_id": employee.get("id"),
+                "employee_name": f"{employee.get('first_name', '')} {employee.get('last_name', '')}".strip(),
+                "brut": brut,
+                "net_a_payer": net_a_payer,
+                "cotisations_salariales": cotisations_salariales,
+                "cotisations_patronales": cotisations_patronales,
+                "pas": pas,
+                "cotisations_detail": cotisations_list,
+            }
+        )
         totals["total_brut"] += brut
         totals["total_net_a_payer"] += net_a_payer
         totals["total_cotisations_salariales"] += cotisations_salariales
@@ -179,77 +189,87 @@ def generate_od_salaires(
 
     mapping_brut = mappings.get("salaire_brut") or get_default_mapping("salaire_brut")
     if mapping_brut:
-        ecritures.append({
-            "date_ecriture": date_ecriture,
-            "journal": mapping_brut.get("journal", "OD"),
-            "compte_comptable": mapping_brut["compte_comptable"],
-            "libelle": f"Salaires {format_period(period)}",
-            "debit": totals["total_brut"],
-            "credit": 0.0,
-            "analytique": mapping_brut.get("analytique"),
-            "reference_export": f"OD_SAL_{period}",
-            "periode_paie": period,
-        })
+        ecritures.append(
+            {
+                "date_ecriture": date_ecriture,
+                "journal": mapping_brut.get("journal", "OD"),
+                "compte_comptable": mapping_brut["compte_comptable"],
+                "libelle": f"Salaires {format_period(period)}",
+                "debit": totals["total_brut"],
+                "credit": 0.0,
+                "analytique": mapping_brut.get("analytique"),
+                "reference_export": f"OD_SAL_{period}",
+                "periode_paie": period,
+            }
+        )
 
     mapping_net = mappings.get("net_a_payer") or get_default_mapping("net_a_payer")
     if mapping_net:
-        ecritures.append({
-            "date_ecriture": date_ecriture,
-            "journal": mapping_net.get("journal", "OD"),
-            "compte_comptable": mapping_net["compte_comptable"],
-            "libelle": f"Net à payer {format_period(period)}",
-            "debit": 0.0,
-            "credit": totals["total_net_a_payer"],
-            "analytique": mapping_net.get("analytique"),
-            "reference_export": f"OD_SAL_{period}",
-            "periode_paie": period,
-        })
+        ecritures.append(
+            {
+                "date_ecriture": date_ecriture,
+                "journal": mapping_net.get("journal", "OD"),
+                "compte_comptable": mapping_net["compte_comptable"],
+                "libelle": f"Net à payer {format_period(period)}",
+                "debit": 0.0,
+                "credit": totals["total_net_a_payer"],
+                "analytique": mapping_net.get("analytique"),
+                "reference_export": f"OD_SAL_{period}",
+                "periode_paie": period,
+            }
+        )
 
     mapping_cot_sal = mappings.get("cotisation_salariale") or get_default_mapping(
         "cotisation_salariale"
     )
     if mapping_cot_sal and totals["total_cotisations_salariales"] > 0:
-        ecritures.append({
-            "date_ecriture": date_ecriture,
-            "journal": mapping_cot_sal.get("journal", "OD"),
-            "compte_comptable": mapping_cot_sal["compte_comptable"],
-            "libelle": f"Cotisations salariales {format_period(period)}",
-            "debit": 0.0,
-            "credit": totals["total_cotisations_salariales"],
-            "analytique": mapping_cot_sal.get("analytique"),
-            "reference_export": f"OD_SAL_{period}",
-            "periode_paie": period,
-        })
+        ecritures.append(
+            {
+                "date_ecriture": date_ecriture,
+                "journal": mapping_cot_sal.get("journal", "OD"),
+                "compte_comptable": mapping_cot_sal["compte_comptable"],
+                "libelle": f"Cotisations salariales {format_period(period)}",
+                "debit": 0.0,
+                "credit": totals["total_cotisations_salariales"],
+                "analytique": mapping_cot_sal.get("analytique"),
+                "reference_export": f"OD_SAL_{period}",
+                "periode_paie": period,
+            }
+        )
 
     mapping_cot_pat = mappings.get("cotisation_patronale") or get_default_mapping(
         "cotisation_patronale"
     )
     if mapping_cot_pat and totals["total_cotisations_patronales"] > 0:
-        ecritures.append({
-            "date_ecriture": date_ecriture,
-            "journal": mapping_cot_pat.get("journal", "OD"),
-            "compte_comptable": mapping_cot_pat["compte_comptable"],
-            "libelle": f"Charges sociales patronales {format_period(period)}",
-            "debit": totals["total_cotisations_patronales"],
-            "credit": 0.0,
-            "analytique": mapping_cot_pat.get("analytique"),
-            "reference_export": f"OD_SAL_{period}",
-            "periode_paie": period,
-        })
+        ecritures.append(
+            {
+                "date_ecriture": date_ecriture,
+                "journal": mapping_cot_pat.get("journal", "OD"),
+                "compte_comptable": mapping_cot_pat["compte_comptable"],
+                "libelle": f"Charges sociales patronales {format_period(period)}",
+                "debit": totals["total_cotisations_patronales"],
+                "credit": 0.0,
+                "analytique": mapping_cot_pat.get("analytique"),
+                "reference_export": f"OD_SAL_{period}",
+                "periode_paie": period,
+            }
+        )
 
     mapping_pas = mappings.get("pas") or get_default_mapping("pas")
     if mapping_pas and totals["total_pas"] > 0:
-        ecritures.append({
-            "date_ecriture": date_ecriture,
-            "journal": mapping_pas.get("journal", "OD"),
-            "compte_comptable": mapping_pas["compte_comptable"],
-            "libelle": f"Prélèvement à la source {format_period(period)}",
-            "debit": 0.0,
-            "credit": totals["total_pas"],
-            "analytique": mapping_pas.get("analytique"),
-            "reference_export": f"OD_SAL_{period}",
-            "periode_paie": period,
-        })
+        ecritures.append(
+            {
+                "date_ecriture": date_ecriture,
+                "journal": mapping_pas.get("journal", "OD"),
+                "compte_comptable": mapping_pas["compte_comptable"],
+                "libelle": f"Prélèvement à la source {format_period(period)}",
+                "debit": 0.0,
+                "credit": totals["total_pas"],
+                "analytique": mapping_pas.get("analytique"),
+                "reference_export": f"OD_SAL_{period}",
+                "periode_paie": period,
+            }
+        )
 
     total_debit = sum(e["debit"] for e in ecritures)
     total_credit = sum(e["credit"] for e in ecritures)
@@ -315,17 +335,19 @@ def generate_od_charges_sociales(
     )
     for key, charge in charges_par_caisse.items():
         if mapping_cot_pat:
-            ecritures.append({
-                "date_ecriture": date_ecriture,
-                "journal": mapping_cot_pat.get("journal", "OD"),
-                "compte_comptable": mapping_cot_pat["compte_comptable"],
-                "libelle": f"Charges {charge['libelle']} - {charge['organisme']} {format_period(period)}",
-                "debit": charge["montant"],
-                "credit": 0.0,
-                "analytique": mapping_cot_pat.get("analytique"),
-                "reference_export": f"OD_CHG_{period}",
-                "periode_paie": period,
-            })
+            ecritures.append(
+                {
+                    "date_ecriture": date_ecriture,
+                    "journal": mapping_cot_pat.get("journal", "OD"),
+                    "compte_comptable": mapping_cot_pat["compte_comptable"],
+                    "libelle": f"Charges {charge['libelle']} - {charge['organisme']} {format_period(period)}",
+                    "debit": charge["montant"],
+                    "credit": 0.0,
+                    "analytique": mapping_cot_pat.get("analytique"),
+                    "reference_export": f"OD_CHG_{period}",
+                    "periode_paie": period,
+                }
+            )
 
     mapping_dette = mappings.get("dette_organisme") or {
         "compte_comptable": "431000",
@@ -333,17 +355,19 @@ def generate_od_charges_sociales(
     }
     total_charges = sum(c["montant"] for c in charges_par_caisse.values())
     if total_charges > 0:
-        ecritures.append({
-            "date_ecriture": date_ecriture,
-            "journal": mapping_dette.get("journal", "OD"),
-            "compte_comptable": mapping_dette["compte_comptable"],
-            "libelle": f"Dettes organismes sociaux {format_period(period)}",
-            "debit": 0.0,
-            "credit": total_charges,
-            "analytique": mapping_dette.get("analytique"),
-            "reference_export": f"OD_CHG_{period}",
-            "periode_paie": period,
-        })
+        ecritures.append(
+            {
+                "date_ecriture": date_ecriture,
+                "journal": mapping_dette.get("journal", "OD"),
+                "compte_comptable": mapping_dette["compte_comptable"],
+                "libelle": f"Dettes organismes sociaux {format_period(period)}",
+                "debit": 0.0,
+                "credit": total_charges,
+                "analytique": mapping_dette.get("analytique"),
+                "reference_export": f"OD_CHG_{period}",
+                "periode_paie": period,
+            }
+        )
 
     total_debit = sum(e["debit"] for e in ecritures)
     total_credit = sum(e["credit"] for e in ecritures)
@@ -376,32 +400,36 @@ def generate_od_pas(
     mapping_pas = mappings.get("pas") or get_default_mapping("pas")
 
     if totals["total_pas"] > 0:
-        ecritures.append({
-            "date_ecriture": date_ecriture,
-            "journal": mapping_pas.get("journal", "OD"),
-            "compte_comptable": mapping_pas["compte_comptable"],
-            "libelle": f"PAS {format_period(period)}",
-            "debit": totals["total_pas"],
-            "credit": 0.0,
-            "analytique": mapping_pas.get("analytique"),
-            "reference_export": f"OD_PAS_{period}",
-            "periode_paie": period,
-        })
+        ecritures.append(
+            {
+                "date_ecriture": date_ecriture,
+                "journal": mapping_pas.get("journal", "OD"),
+                "compte_comptable": mapping_pas["compte_comptable"],
+                "libelle": f"PAS {format_period(period)}",
+                "debit": totals["total_pas"],
+                "credit": 0.0,
+                "analytique": mapping_pas.get("analytique"),
+                "reference_export": f"OD_PAS_{period}",
+                "periode_paie": period,
+            }
+        )
         mapping_dette = mappings.get("net_a_payer") or get_default_mapping(
             "net_a_payer"
         )
         if mapping_dette:
-            ecritures.append({
-                "date_ecriture": date_ecriture,
-                "journal": mapping_dette.get("journal", "OD"),
-                "compte_comptable": mapping_dette["compte_comptable"],
-                "libelle": f"PAS déduit du net {format_period(period)}",
-                "debit": 0.0,
-                "credit": totals["total_pas"],
-                "analytique": mapping_dette.get("analytique"),
-                "reference_export": f"OD_PAS_{period}",
-                "periode_paie": period,
-            })
+            ecritures.append(
+                {
+                    "date_ecriture": date_ecriture,
+                    "journal": mapping_dette.get("journal", "OD"),
+                    "compte_comptable": mapping_dette["compte_comptable"],
+                    "libelle": f"PAS déduit du net {format_period(period)}",
+                    "debit": 0.0,
+                    "credit": totals["total_pas"],
+                    "analytique": mapping_dette.get("analytique"),
+                    "reference_export": f"OD_PAS_{period}",
+                    "periode_paie": period,
+                }
+            )
 
     total_debit = sum(e["debit"] for e in ecritures)
     total_credit = sum(e["credit"] for e in ecritures)
@@ -453,17 +481,21 @@ def preview_od(
         }
 
     if not od_totals["equilibre"]:
-        anomalies.append({
-            "type": "error",
-            "message": f"OD non équilibrée: écart de {od_totals['ecart']:.2f}€",
-            "severity": "blocking",
-        })
+        anomalies.append(
+            {
+                "type": "error",
+                "message": f"OD non équilibrée: écart de {od_totals['ecart']:.2f}€",
+                "severity": "blocking",
+            }
+        )
     if len(ecritures) == 0:
-        anomalies.append({
-            "type": "error",
-            "message": "Aucune écriture à générer",
-            "severity": "blocking",
-        })
+        anomalies.append(
+            {
+                "type": "error",
+                "message": "Aucune écriture à générer",
+                "severity": "blocking",
+            }
+        )
     if not mappings:
         warnings.append(
             "Utilisation des mappings par défaut. Configurez vos mappings comptables pour personnaliser."

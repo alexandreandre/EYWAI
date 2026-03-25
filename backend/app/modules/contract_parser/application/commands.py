@@ -4,6 +4,7 @@ Commandes (cas d'usage) du module contract_parser.
 Orchestration : extraction texte PDF via infrastructure, puis LLM via infrastructure.
 Comportement strictement identique à l'ancien router.
 """
+
 from __future__ import annotations
 
 from app.modules.contract_parser.application.dto import ExtractionResultDto
@@ -22,7 +23,9 @@ def extract_contract_from_pdf(file_content: bytes) -> ExtractionResultDto:
     print(f"INFO: Texte extrait avec succès ({method})")
     print(f"INFO: Longueur du texte : {len(extracted_text)} caractères")
     parsed = extraction_llm_provider.extract_contract(extracted_text)
-    print(f"INFO: Extraction réussie. Nombre de champs extraits : {len(parsed.get('extracted_data', {}))}")
+    print(
+        f"INFO: Extraction réussie. Nombre de champs extraits : {len(parsed.get('extracted_data', {}))}"
+    )
     return ExtractionResultDto(
         extracted_data=parsed["extracted_data"],
         confidence=parsed["confidence"],
@@ -39,7 +42,9 @@ def extract_rib_from_pdf(file_content: bytes) -> ExtractionResultDto:
     print(f"INFO: Texte du RIB extrait avec succès ({method})")
     print(f"INFO: Longueur du texte : {len(extracted_text)} caractères")
     parsed = extraction_llm_provider.extract_rib(extracted_text)
-    print(f"INFO: Extraction du RIB réussie. Nombre de champs extraits : {len(parsed.get('extracted_data', {}))}")
+    print(
+        f"INFO: Extraction du RIB réussie. Nombre de champs extraits : {len(parsed.get('extracted_data', {}))}"
+    )
     return ExtractionResultDto(
         extracted_data=parsed["extracted_data"],
         confidence=parsed["confidence"],
@@ -56,7 +61,9 @@ def extract_questionnaire_from_pdf(file_content: bytes) -> ExtractionResultDto:
     print(f"INFO: Texte du questionnaire extrait avec succès ({method})")
     print(f"INFO: Longueur du texte : {len(extracted_text)} caractères")
     parsed = extraction_llm_provider.extract_questionnaire(extracted_text)
-    print(f"INFO: Extraction du questionnaire réussie. Nombre de champs extraits : {len(parsed.get('extracted_data', {}))}")
+    print(
+        f"INFO: Extraction du questionnaire réussie. Nombre de champs extraits : {len(parsed.get('extracted_data', {}))}"
+    )
     return ExtractionResultDto(
         extracted_data=parsed["extracted_data"],
         confidence=parsed["confidence"],

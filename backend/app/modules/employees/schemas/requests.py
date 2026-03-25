@@ -4,6 +4,7 @@ Schémas Pydantic entrée API du module employees.
 Définitions canoniques : création et mise à jour d'un employé.
 Comportement identique à l'ancien schemas.employee (NewFullEmployee, UpdateEmployee).
 """
+
 from datetime import date
 from typing import Any, Dict
 

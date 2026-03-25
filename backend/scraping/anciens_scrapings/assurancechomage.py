@@ -6,8 +6,9 @@ import requests
 from datetime import datetime
 from bs4 import BeautifulSoup
 
-FICHIER_TAUX = 'config/taux_cotisations.json'
+FICHIER_TAUX = "config/taux_cotisations.json"
 URL_URSSAF = "https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/taux-cotisations-secteur-prive.html"
+
 
 def get_taux_chomage() -> float | None:
     """
@@ -16,39 +17,50 @@ def get_taux_chomage() -> float | None:
     """
     try:
         print(f" scraping de l'URL : {URL_URSSAF}...")
-        r = requests.get(URL_URSSAF, timeout=20, headers={
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-        })
+        r = requests.get(
+            URL_URSSAF,
+            timeout=20,
+            headers={
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+            },
+        )
         r.raise_for_status()
 
         soup = BeautifulSoup(r.text, "html.parser")
-        
+
         # 1. Isoler la section "employeur"
-        articles = soup.find_all('article')
+        articles = soup.find_all("article")
         employeur_section = None
         for article in articles:
-            h2 = article.find('h2', class_='h4-like')
-            if h2 and 'taux de cotisations employeur' in h2.get_text(strip=True).lower():
+            h2 = article.find("h2", class_="h4-like")
+            if (
+                h2
+                and "taux de cotisations employeur" in h2.get_text(strip=True).lower()
+            ):
                 employeur_section = article
                 break
         if not employeur_section:
             raise ValueError("Section 'Taux de cotisations employeur' introuvable.")
 
         # 2. Trouver la ligne "Contribution assurance chômage"
-        table_rows = employeur_section.find_all('tr', class_='table_custom__tbody')
+        table_rows = employeur_section.find_all("tr", class_="table_custom__tbody")
         value_text = ""
         for row in table_rows:
-            header_cell = row.find('th')
-            if header_cell and 'Contribution assurance chômage' in header_cell.get_text(strip=True):
-                value_cell = row.find('td')
+            header_cell = row.find("th")
+            if header_cell and "Contribution assurance chômage" in header_cell.get_text(
+                strip=True
+            ):
+                value_cell = row.find("td")
                 if not value_cell:
-                    raise ValueError("Ligne 'Assurance chômage' trouvée, mais cellule de valeur manquante.")
+                    raise ValueError(
+                        "Ligne 'Assurance chômage' trouvée, mais cellule de valeur manquante."
+                    )
                 value_text = value_cell.get_text(" ", strip=True)
                 break
-        
+
         if not value_text:
             raise ValueError("Ligne 'Contribution assurance chômage' introuvable.")
-            
+
         # 3. Extraire les deux taux avec leurs dates
         motif_avant = r"Jusqu’au\s*(\d{2}/\d{2}/\d{4})\s*:\s*([0-9,]+)\s*%"
         motif_apres = r"partir du\s*(\d{2}/\d{2}/\d{4})\s*:\s*([0-9,]+)\s*%"
@@ -58,29 +70,34 @@ def get_taux_chomage() -> float | None:
 
         if not match_avant or not match_apres:
             raise ValueError("Impossible d'extraire les deux taux basés sur les dates.")
-            
+
         # 4. Comparer la date actuelle à la date charnière
         date_charniere_str = match_apres.group(1)
         date_charniere = datetime.strptime(date_charniere_str, "%d/%m/%Y").date()
         date_actuelle = datetime.now().date()
-        
+
         if date_actuelle < date_charniere:
             taux_str = match_avant.group(2)
-            print(f"Date actuelle ({date_actuelle.strftime('%d/%m/%Y')}) est avant la date charnière ({date_charniere_str}). Application du premier taux.")
+            print(
+                f"Date actuelle ({date_actuelle.strftime('%d/%m/%Y')}) est avant la date charnière ({date_charniere_str}). Application du premier taux."
+            )
         else:
             taux_str = match_apres.group(2)
-            print(f"Date actuelle ({date_actuelle.strftime('%d/%m/%Y')}) est après ou égale à la date charnière ({date_charniere_str}). Application du second taux.")
+            print(
+                f"Date actuelle ({date_actuelle.strftime('%d/%m/%Y')}) est après ou égale à la date charnière ({date_charniere_str}). Application du second taux."
+            )
 
         taux = round(float(taux_str.replace(",", ".")) / 100.0, 5)
-        print(f" Taux sélectionné : {taux*100:.2f}%")
+        print(f" Taux sélectionné : {taux * 100:.2f}%")
         return taux
-        
+
     except Exception as e:
         print(f"ERREUR : Le scraping a échoué. Raison : {e}")
         return None
 
+
 if __name__ == "__main__":
     taux = get_taux_chomage()
-    
+
     if taux is not None:
         print(json.dumps(taux))

@@ -3,6 +3,7 @@ Tests unitaires des commandes du module repos_compensateur (application/commands
 
 Repositories et providers (infrastructure) mockés. Pas de DB ni HTTP.
 """
+
 from unittest.mock import patch
 
 

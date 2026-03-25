@@ -23,6 +23,7 @@ Inventaire des usages actuels de create_client (à migrer progressivement) :
 Ne pas remplacer tous les appels d'un coup : migrer module par module en important
 depuis app.core.database et en utilisant get_supabase_client() ou get_supabase_admin_client().
 """
+
 from __future__ import annotations
 
 from supabase import Client, create_client

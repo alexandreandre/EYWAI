@@ -3,6 +3,7 @@ Tests unitaires des queries medical_follow_up (application/queries.py).
 
 Repository et service (compute_obligations, get_company_medical_setting) mockés ; pas de DB ni HTTP.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -55,7 +56,15 @@ class TestListObligations:
         assert isinstance(result[0], ObligationListDTO)
         assert result[0].id == "obl-1"
         assert result[0].visit_type == "vip"
-        repo.list_for_company.assert_called_once_with("co-1", employee_id=None, visit_type=None, status=None, priority=None, due_from=None, due_to=None)
+        repo.list_for_company.assert_called_once_with(
+            "co-1",
+            employee_id=None,
+            visit_type=None,
+            status=None,
+            priority=None,
+            due_from=None,
+            due_to=None,
+        )
 
     def test_passes_filters_to_repo(self, mock_get_repo):
         """Transmet employee_id, visit_type, status, etc. au repo."""
@@ -105,7 +114,9 @@ class TestGetKpis:
         repo.get_kpis.assert_called_once_with("co-1")
 
 
-@patch("app.modules.medical_follow_up.application.queries.compute_obligations_for_employee")
+@patch(
+    "app.modules.medical_follow_up.application.queries.compute_obligations_for_employee"
+)
 @patch("app.modules.medical_follow_up.application.queries.get_obligation_repository")
 class TestListObligationsForEmployee:
     """Query list_obligations_for_employee."""
@@ -143,7 +154,9 @@ class TestListObligationsForEmployee:
         assert result[0].id == "obl-1"
 
 
-@patch("app.modules.medical_follow_up.application.queries.compute_obligations_for_employee")
+@patch(
+    "app.modules.medical_follow_up.application.queries.compute_obligations_for_employee"
+)
 @patch("app.modules.medical_follow_up.application.queries.get_obligation_repository")
 class TestMyObligations:
     """Query my_obligations (obligations du collaborateur connecté)."""
@@ -210,11 +223,15 @@ class TestGetMedicalSettings:
 
 @patch("app.modules.medical_follow_up.application.queries.my_obligations")
 @patch("app.modules.medical_follow_up.application.queries.get_company_medical_setting")
-@patch("app.modules.medical_follow_up.application.queries.resolve_company_id_for_medical")
+@patch(
+    "app.modules.medical_follow_up.application.queries.resolve_company_id_for_medical"
+)
 class TestGetMyObligationsWithGuards:
     """Query get_my_obligations_with_guards (route /me avec gardes)."""
 
-    def test_raises_400_when_no_company(self, mock_resolve, mock_setting, mock_my_obligations):
+    def test_raises_400_when_no_company(
+        self, mock_resolve, mock_setting, mock_my_obligations
+    ):
         """Pas d'entreprise active → HTTPException 400."""
         mock_resolve.return_value = None
         with pytest.raises(HTTPException) as exc_info:
@@ -224,17 +241,24 @@ class TestGetMyObligationsWithGuards:
         mock_setting.assert_not_called()
         mock_my_obligations.assert_not_called()
 
-    def test_raises_403_when_module_disabled(self, mock_resolve, mock_setting, mock_my_obligations):
+    def test_raises_403_when_module_disabled(
+        self, mock_resolve, mock_setting, mock_my_obligations
+    ):
         """Module désactivé → HTTPException 403."""
         mock_resolve.return_value = "co-1"
         mock_setting.return_value = False
         with pytest.raises(HTTPException) as exc_info:
             queries.get_my_obligations_with_guards(MagicMock())
         assert exc_info.value.status_code == 403
-        assert "suivi médical" in exc_info.value.detail.lower() or "non activé" in exc_info.value.detail
+        assert (
+            "suivi médical" in exc_info.value.detail.lower()
+            or "non activé" in exc_info.value.detail
+        )
         mock_my_obligations.assert_not_called()
 
-    def test_returns_my_obligations_when_ok(self, mock_resolve, mock_setting, mock_my_obligations):
+    def test_returns_my_obligations_when_ok(
+        self, mock_resolve, mock_setting, mock_my_obligations
+    ):
         """Entreprise active et module activé → appelle my_obligations et retourne la liste."""
         mock_resolve.return_value = "co-1"
         mock_setting.return_value = True

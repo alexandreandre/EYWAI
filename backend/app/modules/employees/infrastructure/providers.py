@@ -5,6 +5,7 @@ Providers (services externes) du module employees.
 - PDF, RIB, promotions, résidence, texte : app.shared.infrastructure et app.shared.utils.
 Comportement strictement identique au router legacy.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
@@ -62,11 +63,13 @@ class SupabaseAuthProvider(IAuthProvider):
     """Implémentation Supabase Auth de IAuthProvider."""
 
     def create_user(self, email: str, password: str) -> str:
-        response = supabase.auth.admin.create_user({
-            "email": email,
-            "password": password,
-            "email_confirm": True,
-        })
+        response = supabase.auth.admin.create_user(
+            {
+                "email": email,
+                "password": password,
+                "email_confirm": True,
+            }
+        )
         if response.user is None:
             raise RuntimeError("Auth create_user returned no user")
         return str(response.user.id)
@@ -101,7 +104,10 @@ class SupabaseResidencePermitStatusCalculator(IResidencePermitStatusCalculator):
         employment_status: str,
         reference_date: Optional[Any] = None,
     ) -> Dict[str, Any]:
-        from app.shared.infrastructure.residence_permit import calculate_residence_permit_status
+        from app.shared.infrastructure.residence_permit import (
+            calculate_residence_permit_status,
+        )
+
         return calculate_residence_permit_status(
             is_subject_to_residence_permit=is_subject_to_residence_permit,
             residence_permit_expiry_date=residence_permit_expiry_date,
@@ -145,6 +151,7 @@ def generate_credentials_pdf(
 ) -> bytes:
     """Via app.shared.infrastructure.pdf."""
     from app.shared.infrastructure.pdf import generate_credentials_pdf as _impl
+
     return _impl(first_name, last_name, username, password, logo_path)
 
 
@@ -155,12 +162,14 @@ def generate_contract_pdf(
 ) -> bytes:
     """Via app.shared.infrastructure.pdf."""
     from app.shared.infrastructure.pdf import generate_contract_pdf as _impl
+
     return _impl(employee_data, company_data, logo_path)
 
 
 def remove_accents(text: str) -> str:
     """Via app.shared.utils."""
     from app.shared.utils import remove_accents as _impl
+
     return _impl(text)
 
 
@@ -182,6 +191,7 @@ def calculate_residence_permit_status(
 def normalize_iban(iban: str) -> str:
     """Via app.shared.infrastructure.rib_alert."""
     from app.shared.infrastructure.rib_alert import normalize_iban as _impl
+
     return _impl(iban)
 
 
@@ -194,6 +204,7 @@ def on_rib_updated(
 ) -> None:
     """Via app.shared.infrastructure.rib_alert."""
     from app.shared.infrastructure.rib_alert import on_rib_updated as _impl
+
     return _impl(company_id, employee_id, old_iban, new_iban, employee_name)
 
 
@@ -205,6 +216,7 @@ def on_rib_submitted(
 ) -> List[Dict[str, Any]]:
     """Via app.shared.infrastructure.rib_alert."""
     from app.shared.infrastructure.rib_alert import on_rib_submitted as _impl
+
     return _impl(company_id, employee_id, new_iban, employee_name)
 
 
@@ -215,6 +227,7 @@ def get_promotions(
 ) -> List[PromotionListItem]:
     """Via app.shared.infrastructure.promotion ; conversion en schémas du module."""
     from app.shared.infrastructure.promotion import get_promotions as _get_raw
+
     raw = _get_raw(company_id=company_id, employee_id=employee_id, **kwargs)
     return [PromotionListItem(**item) for item in raw]
 
@@ -222,5 +235,6 @@ def get_promotions(
 def get_employee_rh_access(employee_id: str, company_id: str) -> EmployeeRhAccess:
     """Via app.shared.infrastructure.promotion ; conversion en schéma du module."""
     from app.shared.infrastructure.promotion import get_employee_rh_access as _get_raw
+
     raw = _get_raw(employee_id=employee_id, company_id=company_id)
     return EmployeeRhAccess(**raw)

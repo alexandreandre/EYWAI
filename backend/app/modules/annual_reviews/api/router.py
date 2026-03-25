@@ -4,6 +4,7 @@ Router annual_reviews — délègue toute la logique à la couche application.
 Comportement HTTP identique au legacy. Aucune logique métier : uniquement
 auth (company_id, is_rh), appel application, et traduction des exceptions en HTTP.
 """
+
 from datetime import date
 from typing import List, Optional
 
@@ -31,7 +32,9 @@ router = APIRouter(
 
 def _company_id(user: User) -> str:
     if not user.active_company_id:
-        raise HTTPException(status_code=400, detail="Aucune entreprise active sélectionnée.")
+        raise HTTPException(
+            status_code=400, detail="Aucune entreprise active sélectionnée."
+        )
     return user.active_company_id
 
 
@@ -131,7 +134,9 @@ def create_annual_review(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e) or "Erreur lors de la création.")
+        raise HTTPException(
+            status_code=500, detail=str(e) or "Erreur lors de la création."
+        )
 
 
 # --- PUT update
@@ -160,7 +165,9 @@ def update_annual_review(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e) or "Erreur lors de la mise à jour.")
+        raise HTTPException(
+            status_code=500, detail=str(e) or "Erreur lors de la mise à jour."
+        )
 
 
 # --- POST mark completed (RH)

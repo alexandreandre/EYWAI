@@ -4,6 +4,7 @@ Répositories Supabase pour saisies et avances.
 Implémentation des interfaces domain (ISeizureRepository, IAdvanceRepository,
 IAdvancePaymentRepository, IEmployeeCompanyProvider).
 """
+
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
@@ -27,7 +28,13 @@ class SeizureRepository(ISeizureRepository):
         return r.data[0]
 
     def get_by_id(self, seizure_id: str) -> Optional[Dict[str, Any]]:
-        r = supabase.table("salary_seizures").select("*").eq("id", seizure_id).single().execute()
+        r = (
+            supabase.table("salary_seizures")
+            .select("*")
+            .eq("id", seizure_id)
+            .single()
+            .execute()
+        )
         return r.data if r.data else None
 
     def list_(
@@ -44,7 +51,12 @@ class SeizureRepository(ISeizureRepository):
         return r.data or []
 
     def update(self, seizure_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        r = supabase.table("salary_seizures").update(data).eq("id", seizure_id).execute()
+        r = (
+            supabase.table("salary_seizures")
+            .update(data)
+            .eq("id", seizure_id)
+            .execute()
+        )
         return r.data[0] if r.data else None
 
     def delete(self, seizure_id: str) -> None:
@@ -61,7 +73,13 @@ class AdvanceRepository(IAdvanceRepository):
         return r.data[0]
 
     def get_by_id(self, advance_id: str) -> Optional[Dict[str, Any]]:
-        r = supabase.table("salary_advances").select("*").eq("id", advance_id).single().execute()
+        r = (
+            supabase.table("salary_advances")
+            .select("*")
+            .eq("id", advance_id)
+            .single()
+            .execute()
+        )
         return r.data if r.data else None
 
     def list_(
@@ -78,7 +96,12 @@ class AdvanceRepository(IAdvanceRepository):
         return r.data or []
 
     def update(self, advance_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        r = supabase.table("salary_advances").update(data).eq("id", advance_id).execute()
+        r = (
+            supabase.table("salary_advances")
+            .update(data)
+            .eq("id", advance_id)
+            .execute()
+        )
         return r.data[0] if r.data else None
 
 
@@ -108,12 +131,12 @@ class AdvancePaymentRepository(IAdvancePaymentRepository):
             .eq("advance_id", advance_id)
             .execute()
         )
-        return sum(
-            Decimal(str(p.get("payment_amount", 0))) for p in (r.data or [])
-        )
+        return sum(Decimal(str(p.get("payment_amount", 0))) for p in (r.data or []))
 
     def delete(self, payment_id: str) -> None:
-        supabase.table("salary_advance_payments").delete().eq("id", payment_id).execute()
+        supabase.table("salary_advance_payments").delete().eq(
+            "id", payment_id
+        ).execute()
 
 
 class EmployeeCompanyProvider(IEmployeeCompanyProvider):

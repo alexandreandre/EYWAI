@@ -6,6 +6,7 @@ Les routers legacy (api/routers/user_management, user_creation, users, employee_
 conservent leurs définitions locales ou importent depuis user_management ; ne pas
 supprimer ces imports tant que les clients n'ont pas basculé vers /api/access-control.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -14,7 +15,9 @@ from fastapi import HTTPException, status
 
 from app.modules.access_control.domain import rules
 from app.modules.access_control.domain.interfaces import IPermissionRepository
-from app.modules.access_control.infrastructure.repository import SupabasePermissionRepository
+from app.modules.access_control.infrastructure.repository import (
+    SupabasePermissionRepository,
+)
 
 if TYPE_CHECKING:
     from uuid import UUID

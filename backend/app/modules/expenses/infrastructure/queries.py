@@ -4,6 +4,7 @@ Constantes et repères pour les requêtes expenses (table, colonnes, ordre).
 Utilisées par le repository ; pas de logique FastAPI.
 Comportement identique à l'ancien router (noms de table et de colonnes).
 """
+
 # Table Supabase
 TABLE_EXPENSE_REPORTS = "expense_reports"
 

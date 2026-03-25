@@ -15,14 +15,18 @@ from pathlib import Path
 # Charger .env si disponible (pour tests intégration BDD)
 try:
     from dotenv import load_dotenv
+
     load_dotenv(Path(__file__).parent / ".env")
 except ImportError:
     pass
 
+
 # --- Tests unitaires (logique pure, pas de BDD) ---
 def test_extraction_hs():
     """Extraction des heures supp depuis calcul_du_brut"""
-    from app.modules.repos_compensateur.domain.rules import extraire_heures_hs_du_bulletin
+    from app.modules.repos_compensateur.domain.rules import (
+        extraire_heures_hs_du_bulletin,
+    )
 
     # Bulletin vide
     assert extraire_heures_hs_du_bulletin(None) == 0.0
@@ -184,7 +188,9 @@ def test_imports_and_structure():
 
     assert hasattr(repos_router, "routes")
     routes = [r.path for r in repos_router.routes if hasattr(r, "path")]
-    assert any("calculer-credits" in p for p in routes), "Route calculer-credits manquante"
+    assert any("calculer-credits" in p for p in routes), (
+        "Route calculer-credits manquante"
+    )
 
     print("  ✓ Imports et structure OK")
 

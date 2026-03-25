@@ -15,11 +15,14 @@ def is_forfait_jour(statut: str | None) -> bool:
     return "forfait jour" in statut.lower()
 
 
-def process_payslip_generation(employee_id: str, year: int, month: int) -> dict[str, Any]:
+def process_payslip_generation(
+    employee_id: str, year: int, month: int
+) -> dict[str, Any]:
     """Génère une fiche de paie (heures). Délègue à documents.payslip_generator."""
     from app.modules.payroll.documents.payslip_generator import (
         process_payslip_generation as _impl,
     )
+
     return _impl(employee_id=employee_id, year=year, month=month)
 
 
@@ -30,6 +33,7 @@ def process_payslip_generation_forfait(
     from app.modules.payroll.documents.payslip_generator_forfait import (
         process_payslip_generation_forfait as _impl,
     )
+
     return _impl(employee_id=employee_id, year=year, month=month)
 
 
@@ -43,7 +47,10 @@ def save_edited_payslip(
     internal_note: str | None = None,
 ) -> dict[str, Any]:
     """Enregistre un bulletin édité. Délègue à documents.payslip_editor."""
-    from app.modules.payroll.documents.payslip_editor import save_edited_payslip as _impl
+    from app.modules.payroll.documents.payslip_editor import (
+        save_edited_payslip as _impl,
+    )
+
     return _impl(
         payslip_id=payslip_id,
         new_payslip_data=new_payslip_data,
@@ -65,6 +72,7 @@ def restore_payslip_version(
     from app.modules.payroll.documents.payslip_editor import (
         restore_payslip_version as _impl,
     )
+
     return _impl(
         payslip_id=payslip_id,
         version=version,

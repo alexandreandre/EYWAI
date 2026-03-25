@@ -5,6 +5,7 @@ Les commandes et requêtes retournent des dicts compatibles avec les schémas
 responses (JobOut, CandidateOut, etc.) ; ces DTOs servent de référence pour
 la structure des données en couche application.
 """
+
 from dataclasses import dataclass
 from typing import Optional
 
@@ -12,6 +13,7 @@ from typing import Optional
 @dataclass
 class JobDto:
     """Job pour couche application."""
+
     id: str
     company_id: str
     title: str
@@ -29,6 +31,7 @@ class JobDto:
 @dataclass
 class CandidateDto:
     """Candidat pour couche application."""
+
     id: str
     company_id: str
     job_id: str

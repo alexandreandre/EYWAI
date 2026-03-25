@@ -5,6 +5,7 @@ Sans DB de test : mocks Supabase pour valider la logique et les appels.
 Avec DB de test : prévoir la fixture db_session (conftest) et des données
 dans companies / company_groups pour des tests CRUD réels.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -28,9 +29,7 @@ class TestLogoRepositoryEntityExists:
     """entity_exists(entity_type, entity_id)."""
 
     def test_company_exists_returns_true(self):
-        with patch(
-            "app.modules.uploads.infrastructure.repository.supabase"
-        ) as mock_sb:
+        with patch("app.modules.uploads.infrastructure.repository.supabase") as mock_sb:
             table = MagicMock()
             chain = MagicMock()
             chain.eq.return_value.execute.return_value = MagicMock(
@@ -48,9 +47,7 @@ class TestLogoRepositoryEntityExists:
             assert result is True
 
     def test_company_not_exists_returns_false(self):
-        with patch(
-            "app.modules.uploads.infrastructure.repository.supabase"
-        ) as mock_sb:
+        with patch("app.modules.uploads.infrastructure.repository.supabase") as mock_sb:
             table = MagicMock()
             chain = MagicMock()
             chain.eq.return_value.execute.return_value = MagicMock(data=[])
@@ -63,9 +60,7 @@ class TestLogoRepositoryEntityExists:
             assert result is False
 
     def test_group_uses_company_groups_table(self):
-        with patch(
-            "app.modules.uploads.infrastructure.repository.supabase"
-        ) as mock_sb:
+        with patch("app.modules.uploads.infrastructure.repository.supabase") as mock_sb:
             table = MagicMock()
             chain = MagicMock()
             chain.eq.return_value.execute.return_value = MagicMock(
@@ -84,9 +79,7 @@ class TestLogoRepositoryGetLogoUrl:
     """get_logo_url(entity_type, entity_id)."""
 
     def test_returns_url_when_present(self):
-        with patch(
-            "app.modules.uploads.infrastructure.repository.supabase"
-        ) as mock_sb:
+        with patch("app.modules.uploads.infrastructure.repository.supabase") as mock_sb:
             table = MagicMock()
             chain = MagicMock()
             chain.eq.return_value.execute.return_value = MagicMock(
@@ -102,9 +95,7 @@ class TestLogoRepositoryGetLogoUrl:
             assert result == "https://storage/logo.png"
 
     def test_returns_none_when_no_row(self):
-        with patch(
-            "app.modules.uploads.infrastructure.repository.supabase"
-        ) as mock_sb:
+        with patch("app.modules.uploads.infrastructure.repository.supabase") as mock_sb:
             table = MagicMock()
             chain = MagicMock()
             chain.eq.return_value.execute.return_value = MagicMock(data=[])
@@ -117,9 +108,7 @@ class TestLogoRepositoryGetLogoUrl:
             assert result is None
 
     def test_returns_none_when_logo_url_null(self):
-        with patch(
-            "app.modules.uploads.infrastructure.repository.supabase"
-        ) as mock_sb:
+        with patch("app.modules.uploads.infrastructure.repository.supabase") as mock_sb:
             table = MagicMock()
             chain = MagicMock()
             chain.eq.return_value.execute.return_value = MagicMock(
@@ -136,9 +125,7 @@ class TestLogoRepositoryUpdateLogoUrl:
     """update_logo_url(entity_type, entity_id, logo_url)."""
 
     def test_update_returns_true_when_row_updated(self):
-        with patch(
-            "app.modules.uploads.infrastructure.repository.supabase"
-        ) as mock_sb:
+        with patch("app.modules.uploads.infrastructure.repository.supabase") as mock_sb:
             table = MagicMock()
             chain = MagicMock()
             chain.eq.return_value.execute.return_value = MagicMock(
@@ -148,18 +135,14 @@ class TestLogoRepositoryUpdateLogoUrl:
             mock_sb.table.return_value = table
 
             repo = LogoRepository()
-            result = repo.update_logo_url(
-                "company", COMPANY_ID, "https://new/logo.png"
-            )
+            result = repo.update_logo_url("company", COMPANY_ID, "https://new/logo.png")
 
             table.update.assert_called_once_with({"logo_url": "https://new/logo.png"})
             chain.eq.assert_called_once_with("id", COMPANY_ID)
             assert result is True
 
     def test_update_none_clears_logo(self):
-        with patch(
-            "app.modules.uploads.infrastructure.repository.supabase"
-        ) as mock_sb:
+        with patch("app.modules.uploads.infrastructure.repository.supabase") as mock_sb:
             table = MagicMock()
             chain = MagicMock()
             chain.eq.return_value.execute.return_value = MagicMock(
@@ -178,9 +161,7 @@ class TestLogoRepositoryUpdateLogoScale:
     """update_logo_scale(entity_type, entity_id, scale)."""
 
     def test_update_scale_returns_true_when_row_updated(self):
-        with patch(
-            "app.modules.uploads.infrastructure.repository.supabase"
-        ) as mock_sb:
+        with patch("app.modules.uploads.infrastructure.repository.supabase") as mock_sb:
             table = MagicMock()
             chain = MagicMock()
             chain.eq.return_value.execute.return_value = MagicMock(
@@ -205,9 +186,7 @@ class TestRepositoryModuleFunctions:
         ) as mock_repo:
             mock_repo.entity_exists.return_value = True
             assert entity_exists("company", COMPANY_ID) is True
-            mock_repo.entity_exists.assert_called_once_with(
-                "company", COMPANY_ID
-            )
+            mock_repo.entity_exists.assert_called_once_with("company", COMPANY_ID)
 
     def test_get_logo_url_delegates(self):
         with patch(
@@ -221,10 +200,7 @@ class TestRepositoryModuleFunctions:
             "app.modules.uploads.infrastructure.repository._default_repository"
         ) as mock_repo:
             mock_repo.update_logo_url.return_value = True
-            assert (
-                update_logo_url("company", COMPANY_ID, "https://x.png")
-                is True
-            )
+            assert update_logo_url("company", COMPANY_ID, "https://x.png") is True
 
     def test_update_logo_scale_delegates(self):
         with patch(

@@ -3,6 +3,7 @@ Tests unitaires des commandes applicatives exports.
 
 Chaque commande est testée avec le repository (insert_export_record) mocké.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -63,7 +64,10 @@ class TestRecordExportHistory:
             "company_id": "co-1",
             "export_type": "virement_salaires",
             "period": "2025-03",
-            "parameters": {"execution_date": "2025-03-15", "payment_label": "Salaire mars"},
+            "parameters": {
+                "execution_date": "2025-03-15",
+                "payment_label": "Salaire mars",
+            },
             "file_paths": ["path/export.csv", "path/bank.csv"],
             "report": {"employees_count": 10, "totals": {"total_net_a_payer": 25000.0}},
             "status": "generated",

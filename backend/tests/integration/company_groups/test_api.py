@@ -14,6 +14,7 @@ ajouter dans conftest.py une fixture company_groups_headers (ou auth_headers) po
 un utilisateur super_admin ou admin de plusieurs entreprises, avec format
 {\"Authorization\": \"Bearer <jwt>\"}. Optionnel : \"X-Active-Company\": \"<company_id>\".
 """
+
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
@@ -108,7 +109,12 @@ class TestCompanyGroupsUnauthenticated:
     def test_post_create_group_returns_401(self, client: TestClient):
         response = client.post(
             "/api/company-groups/",
-            json={"group_name": "Groupe", "siren": None, "description": None, "logo_url": None},
+            json={
+                "group_name": "Groupe",
+                "siren": None,
+                "description": None,
+                "logo_url": None,
+            },
         )
         assert response.status_code == 401
 
@@ -215,7 +221,14 @@ class TestGetGroupDetails:
         dto.is_active = True
         dto.created_at = datetime.now()
         dto.updated_at = datetime.now()
-        dto.companies = [{"id": TEST_COMPANY_ID, "company_name": "C1", "siret": None, "is_active": True}]
+        dto.companies = [
+            {
+                "id": TEST_COMPANY_ID,
+                "company_name": "C1",
+                "siret": None,
+                "is_active": True,
+            }
+        ]
         with patch(
             "app.modules.company_groups.application.queries.get_group_details",
             return_value=dto,
@@ -233,15 +246,24 @@ class TestGetGroupDetails:
 class TestCreateGroup:
     """POST /api/company-groups/."""
 
-    def test_returns_403_when_not_admin_of_at_least_two_companies(self, client: TestClient):
+    def test_returns_403_when_not_admin_of_at_least_two_companies(
+        self, client: TestClient
+    ):
         """Utilisateur non super_admin et admin d'une seule entreprise → 403."""
         from app.core.security import get_current_user
 
-        app.dependency_overrides[get_current_user] = lambda: _make_admin_user([TEST_COMPANY_ID])
+        app.dependency_overrides[get_current_user] = lambda: _make_admin_user(
+            [TEST_COMPANY_ID]
+        )
         try:
             response = client.post(
                 "/api/company-groups/",
-                json={"group_name": "Groupe", "siren": None, "description": None, "logo_url": None},
+                json={
+                    "group_name": "Groupe",
+                    "siren": None,
+                    "description": None,
+                    "logo_url": None,
+                },
             )
         finally:
             app.dependency_overrides.pop(get_current_user, None)
@@ -297,14 +319,19 @@ class TestUpdateGroup:
         dto.is_active = True
         dto.created_at = datetime.now()
         dto.updated_at = datetime.now()
-        with patch(
-            "app.modules.company_groups.application.commands.update_group",
-            return_value=dto,
-        ), patch(
-            "app.modules.company_groups.api.router.get_group_company_ids_for_permission_check",
-            return_value=[TEST_COMPANY_ID],
+        with (
+            patch(
+                "app.modules.company_groups.application.commands.update_group",
+                return_value=dto,
+            ),
+            patch(
+                "app.modules.company_groups.api.router.get_group_company_ids_for_permission_check",
+                return_value=[TEST_COMPANY_ID],
+            ),
         ):
-            app.dependency_overrides[get_current_user] = lambda: _make_admin_user([TEST_COMPANY_ID])
+            app.dependency_overrides[get_current_user] = lambda: _make_admin_user(
+                [TEST_COMPANY_ID]
+            )
             try:
                 response = client.patch(
                     f"/api/company-groups/{TEST_GROUP_ID}",
@@ -520,7 +547,9 @@ class TestStatsAndComparisonRoutes:
 
         with patch(
             "app.modules.company_groups.application.queries.get_group_consolidated_stats",
-            side_effect=PermissionError("Vous n'avez accès à aucune entreprise de ce groupe"),
+            side_effect=PermissionError(
+                "Vous n'avez accès à aucune entreprise de ce groupe"
+            ),
         ):
             app.dependency_overrides[get_current_user] = lambda: _make_admin_user([])
             try:

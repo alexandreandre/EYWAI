@@ -14,11 +14,19 @@ NBSP = "\xa0"
 NNBSP = "\u202f"
 THIN = "\u2009"
 
+
 def _clean_number(s: str) -> float:
-    s = s.strip().replace(NBSP, "").replace(NNBSP, "").replace(THIN, "").replace(" ", "")
+    s = (
+        s.strip()
+        .replace(NBSP, "")
+        .replace(NNBSP, "")
+        .replace(THIN, "")
+        .replace(" ", "")
+    )
     s = s.replace(",", ".")
     m = re.search(r"-?\d+(?:\.\d+)?", s)
     return float(m.group(0)) if m else 0.0
+
 
 def parse_formula(txt: str) -> Tuple[float, float]:
     # "d x 0,529" -> (0.529, 0.0) ; "(d x 0,316) + 1 065" -> (0.316, 1065.0)
@@ -31,6 +39,7 @@ def parse_formula(txt: str) -> Tuple[float, float]:
     m_b = re.search(r"\+\s*([0-9][0-9 \u00A0\u202F\u2009]*)", s)
     b = _clean_number(m_b.group(1)) if m_b else 0.0
     return round(a, 3), round(b, 3)
+
 
 def parse_cv_label_voiture(label: str) -> Tuple[Optional[int], Optional[int]]:
     # "3 CV et moins" -> (None,3) ; "7 CV et plus" -> (7,None) ; "4 CV" -> (4,4)
@@ -45,6 +54,7 @@ def parse_cv_label_voiture(label: str) -> Tuple[Optional[int], Optional[int]]:
         return n, None
     return n, n
 
+
 def parse_cv_label_moto(label: str) -> Tuple[Optional[int], Optional[int]]:
     # "1 ou 2 CV" -> (1,2) ; "3, 4 ou 5 CV" -> (3,5) ; "plus de 5 CV" -> (6,None)
     s = label.lower().replace(NBSP, " ").replace(NNBSP, " ").replace(THIN, " ")
@@ -57,12 +67,16 @@ def parse_cv_label_moto(label: str) -> Tuple[Optional[int], Optional[int]]:
         return nums[0], nums[0]
     return None, None
 
-def find_table_by_caption(soup: BeautifulSoup, contains: str) -> Optional[BeautifulSoup]:
+
+def find_table_by_caption(
+    soup: BeautifulSoup, contains: str
+) -> Optional[BeautifulSoup]:
     for tbl in soup.find_all("table"):
         cap = tbl.find("caption")
         if cap and contains in cap.get_text(" ", strip=True).lower():
             return tbl
     return None
+
 
 def scrape_voitures(soup: BeautifulSoup) -> List[Dict]:
     tbl = find_table_by_caption(soup, "kilométrique applicable aux voitures")
@@ -81,17 +95,21 @@ def scrape_voitures(soup: BeautifulSoup) -> List[Dict]:
         a1, b1 = parse_formula(tds[0].get_text(" ", strip=True))
         a2, b2 = parse_formula(tds[1].get_text(" ", strip=True))
         a3, b3 = parse_formula(tds[2].get_text(" ", strip=True))
-        out.append({
-            "cv_min": cv_min, "cv_max": cv_max,
-            "formules": [
-                {"segment": 1, "a": a1, "b": b1},
-                {"segment": 2, "a": a2, "b": b2},
-                {"segment": 3, "a": a3, "b": b3},
-            ]
-        })
+        out.append(
+            {
+                "cv_min": cv_min,
+                "cv_max": cv_max,
+                "formules": [
+                    {"segment": 1, "a": a1, "b": b1},
+                    {"segment": 2, "a": a2, "b": b2},
+                    {"segment": 3, "a": a3, "b": b3},
+                ],
+            }
+        )
     if not out:
         raise ValueError("Données voitures vides.")
     return out
+
 
 def scrape_moto(soup: BeautifulSoup) -> List[Dict]:
     tbl = find_table_by_caption(soup, "kilométrique applicable aux motocyclettes")
@@ -108,17 +126,21 @@ def scrape_moto(soup: BeautifulSoup) -> List[Dict]:
         a1, b1 = parse_formula(tds[0].get_text(" ", strip=True))
         a2, b2 = parse_formula(tds[1].get_text(" ", strip=True))
         a3, b3 = parse_formula(tds[2].get_text(" ", strip=True))
-        out.append({
-            "cv_min": cv_min, "cv_max": cv_max,
-            "formules": [
-                {"segment": 1, "a": a1, "b": b1},
-                {"segment": 2, "a": a2, "b": b2},
-                {"segment": 3, "a": a3, "b": b3},
-            ]
-        })
+        out.append(
+            {
+                "cv_min": cv_min,
+                "cv_max": cv_max,
+                "formules": [
+                    {"segment": 1, "a": a1, "b": b1},
+                    {"segment": 2, "a": a2, "b": b2},
+                    {"segment": 3, "a": a3, "b": b3},
+                ],
+            }
+        )
     if not out:
         raise ValueError("Données motocyclettes vides.")
     return out
+
 
 def scrape_cyclo(soup: BeautifulSoup) -> List[Dict]:
     tbl = find_table_by_caption(soup, "kilométrique applicable aux cyclomoteurs")
@@ -134,16 +156,22 @@ def scrape_cyclo(soup: BeautifulSoup) -> List[Dict]:
     a1, b1 = parse_formula(tds[0].get_text(" ", strip=True))
     a2, b2 = parse_formula(tds[1].get_text(" ", strip=True))
     a3, b3 = parse_formula(tds[2].get_text(" ", strip=True))
-    return [{
-        "cv_min": None, "cv_max": None,
-        "formules": [
-            {"segment": 1, "a": a1, "b": b1},
-            {"segment": 2, "a": a2, "b": b2},
-            {"segment": 3, "a": a3, "b": b3},
-        ]
-    }]
+    return [
+        {
+            "cv_min": None,
+            "cv_max": None,
+            "formules": [
+                {"segment": 1, "a": a1, "b": b1},
+                {"segment": 2, "a": a2, "b": b2},
+                {"segment": 3, "a": a3, "b": b3},
+            ],
+        }
+    ]
 
-def update_json(tr_voitures: List[Dict], tr_moto: List[Dict], tr_cyclo: List[Dict]) -> None:
+
+def update_json(
+    tr_voitures: List[Dict], tr_moto: List[Dict], tr_cyclo: List[Dict]
+) -> None:
     path = Path(FICHIER_TAUX)
     if not path.exists():
         raise FileNotFoundError(f"Fichier introuvable: {FICHIER_TAUX}")
@@ -158,9 +186,9 @@ def update_json(tr_voitures: List[Dict], tr_moto: List[Dict], tr_cyclo: List[Dic
         "segments": [
             {"d_min": 0, "d_max": 5000},
             {"d_min": 5001, "d_max": 20000},
-            {"d_min": 20001, "d_max": None}
+            {"d_min": 20001, "d_max": None},
         ],
-        "tranches_cv": tr_voitures
+        "tranches_cv": tr_voitures,
     }
 
     tc["bareme_kilometrique_motocyclettes_2025"] = {
@@ -169,9 +197,9 @@ def update_json(tr_voitures: List[Dict], tr_moto: List[Dict], tr_cyclo: List[Dic
         "segments": [
             {"d_min": 0, "d_max": 3000},
             {"d_min": 3001, "d_max": 6000},
-            {"d_min": 6001, "d_max": None}
+            {"d_min": 6001, "d_max": None},
         ],
-        "tranches_cv": tr_moto
+        "tranches_cv": tr_moto,
     }
 
     tc["bareme_kilometrique_cyclomoteurs_2025"] = {
@@ -180,12 +208,13 @@ def update_json(tr_voitures: List[Dict], tr_moto: List[Dict], tr_cyclo: List[Dic
         "segments": [
             {"d_min": 0, "d_max": 3000},
             {"d_min": 3001, "d_max": 6000},
-            {"d_min": 6001, "d_max": None}
+            {"d_min": 6001, "d_max": None},
         ],
-        "tranches_cv": tr_cyclo
+        "tranches_cv": tr_cyclo,
     }
 
     print(json.dumps(cfg))
+
 
 if __name__ == "__main__":
     try:

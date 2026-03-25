@@ -40,7 +40,7 @@ class PasswordResetSmtpSender:
             msg["To"] = to_email
 
             text_content = f"""
-Bonjour{' ' + user_name if user_name else ''},
+Bonjour{" " + user_name if user_name else ""},
 
 Vous avez demandé la réinitialisation de votre mot de passe.
 
@@ -106,7 +106,7 @@ L'équipe SIRH
             <h1>Réinitialisation de mot de passe</h1>
         </div>
         <div class="content">
-            <p>Bonjour{' ' + user_name if user_name else ''},</p>
+            <p>Bonjour{" " + user_name if user_name else ""},</p>
 
             <p>Vous avez demandé la réinitialisation de votre mot de passe pour votre compte SIRH.</p>
 
@@ -140,7 +140,9 @@ L'équipe SIRH
             msg.attach(part2)
 
             if not self.smtp_user or not self.smtp_password:
-                print("⚠️  [EmailService] SMTP credentials not configured. Email not sent.")
+                print(
+                    "⚠️  [EmailService] SMTP credentials not configured. Email not sent."
+                )
                 print(f"📧 [EmailService] Would have sent email to: {to_email}")
                 print(f"🔗 [EmailService] Reset link: {reset_link}")
                 return True

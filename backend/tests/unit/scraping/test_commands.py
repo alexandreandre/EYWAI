@@ -4,6 +4,7 @@ Tests unitaires des commandes scraping (application/commands.py).
 Repository et scraper_runner mockés. Couvre execute_scraper, create_schedule,
 update_schedule, delete_schedule, mark_alert_as_read, resolve_alert.
 """
+
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -21,7 +22,13 @@ from app.modules.scraping.application.commands import (
 COMMANDS_MODULE = "app.modules.scraping.application.commands"
 
 
-def _make_source(id="src-1", source_key="SMIC", source_name="Salaire minimum", is_active=True, **kwargs):
+def _make_source(
+    id="src-1",
+    source_key="SMIC",
+    source_name="Salaire minimum",
+    is_active=True,
+    **kwargs,
+):
     d = {
         "id": id,
         "source_key": source_key,
@@ -46,9 +53,12 @@ class TestExecuteScraper:
         mock_repo.create_job.return_value = {"id": "job-123"}
         mock_repo.update_job.return_value = None
 
-        with patch(f"{COMMANDS_MODULE}.ScrapingRepository", return_value=mock_repo), patch(
-            f"{COMMANDS_MODULE}.resolve_script_path",
-            return_value=(Path("/fake/script.py"), "orchestrator"),
+        with (
+            patch(f"{COMMANDS_MODULE}.ScrapingRepository", return_value=mock_repo),
+            patch(
+                f"{COMMANDS_MODULE}.resolve_script_path",
+                return_value=(Path("/fake/script.py"), "orchestrator"),
+            ),
         ):
             result = execute_scraper(
                 source_key="SMIC",
@@ -82,9 +92,12 @@ class TestExecuteScraper:
         def capture_add_task(fn, *args, **kwargs):
             background_calls.append((fn, args, kwargs))
 
-        with patch(f"{COMMANDS_MODULE}.ScrapingRepository", return_value=mock_repo), patch(
-            f"{COMMANDS_MODULE}.resolve_script_path",
-            return_value=(Path("/fake/script.py"), "orchestrator"),
+        with (
+            patch(f"{COMMANDS_MODULE}.ScrapingRepository", return_value=mock_repo),
+            patch(
+                f"{COMMANDS_MODULE}.resolve_script_path",
+                return_value=(Path("/fake/script.py"), "orchestrator"),
+            ),
         ):
             execute_scraper(
                 source_key="SMIC",
@@ -94,11 +107,14 @@ class TestExecuteScraper:
 
         assert len(background_calls) == 1
         fn, args, kwargs = background_calls[0]
-        from app.modules.scraping.infrastructure.scraper_runner import run_scraper_script_background
+        from app.modules.scraping.infrastructure.scraper_runner import (
+            run_scraper_script_background,
+        )
+
         assert fn is run_scraper_script_background
         assert args[0] == source
         assert args[1] is None  # scraper_name
-        assert args[2] is True   # use_orchestrator
+        assert args[2] is True  # use_orchestrator
         assert args[3] == "user-2"
         assert args[4] == "job-456"
 
@@ -206,7 +222,9 @@ class TestUpdateSchedule:
 
         assert result["success"] is True
         assert result["schedule"]["is_enabled"] is False
-        mock_repo.update_schedule.assert_called_once_with("sched-1", {"is_enabled": False})
+        mock_repo.update_schedule.assert_called_once_with(
+            "sched-1", {"is_enabled": False}
+        )
 
     def test_raises_when_schedule_not_found(self):
         mock_repo = MagicMock()

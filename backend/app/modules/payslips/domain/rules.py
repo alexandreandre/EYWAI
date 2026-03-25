@@ -4,6 +4,7 @@ Règles métier pures du domaine payslips.
 Pas d'I/O, pas de dépendances infrastructure. Utilisées par l'application
 pour autorisation (qui peut voir/éditer/restaurer) et validation.
 """
+
 from __future__ import annotations
 
 from typing import Any, Callable

@@ -29,10 +29,13 @@ def extract_json_with_gpt(page_text: str, prompt: str) -> dict | None:
             model="gpt-4o-mini",
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "Tu es un extracteur de données qui répond uniquement en JSON valide."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "Tu es un extracteur de données qui répond uniquement en JSON valide.",
+                },
+                {"role": "user", "content": prompt},
             ],
-            temperature=0
+            temperature=0,
         )
         extracted_text = response.choices[0].message.content.strip()
         return json.loads(extracted_text)
@@ -78,7 +81,11 @@ def normalize_sections(sections: dict) -> dict:
         if isinstance(gd.get(grp), dict):
             val = gd[grp]
             sections["grand_deplacement"][grp] = [
-                {"periode_sejour": "forfait", "hebergement": val.get("hebergement", 0), "repas": val.get("repas", 0)}
+                {
+                    "periode_sejour": "forfait",
+                    "hebergement": val.get("hebergement", 0),
+                    "repas": val.get("repas", 0),
+                }
             ]
 
     return sections
@@ -198,7 +205,7 @@ Structure attendue :
     try:
         results = list(search(SEARCH_QUERY, num_results=5, lang="fr"))
     except Exception:
-        pass # ERREUR recherche Google
+        pass  # ERREUR recherche Google
 
     if not results:
         return None
@@ -214,7 +221,7 @@ Structure attendue :
             if data and "FRAIS_PROFESSIONNELS_2025" in data:
                 return normalize_sections(data["FRAIS_PROFESSIONNELS_2025"])
         except Exception:
-            pass # ERREUR page
+            pass  # ERREUR page
 
     return None
 
@@ -244,7 +251,7 @@ def build_payload(sections: dict) -> dict:
 if __name__ == "__main__":
     # La variable data_from_ai contient l'objet complet { "id": ..., "sections": {...} }
     data_from_ai = get_fraispro_via_ai()
-    
+
     if data_from_ai:
         # On extrait UNIQUEMENT le dictionnaire de la clé "sections"
         sections_data = data_from_ai.get("sections", {})
@@ -253,14 +260,37 @@ if __name__ == "__main__":
     else:
         # En cas d'échec, on génère une structure vide correcte
         empty_sections = {
-            "repas": {"sur_lieu_travail": 0, "hors_locaux_avec_restaurant": 0, "hors_locaux_sans_restaurant": 0},
+            "repas": {
+                "sur_lieu_travail": 0,
+                "hors_locaux_avec_restaurant": 0,
+                "hors_locaux_sans_restaurant": 0,
+            },
             "petit_deplacement": [],
-            "grand_deplacement": {"metropole": [], "outre_mer_groupe1": [], "outre_mer_groupe2": []},
+            "grand_deplacement": {
+                "metropole": [],
+                "outre_mer_groupe1": [],
+                "outre_mer_groupe2": [],
+            },
             "mutation_professionnelle": {
                 "hebergement_provisoire": {"montant_par_jour": 0},
-                "hebergement_definitif": {"frais_installation": 0, "majoration_par_enfant": 0, "plafond_total": 0},
+                "hebergement_definitif": {
+                    "frais_installation": 0,
+                    "majoration_par_enfant": 0,
+                    "plafond_total": 0,
+                },
             },
-            "mobilite_durable": {"employeurs_prives": {"limite_base": 0, "limite_cumul_transport_public": 0}},
-            "teletravail": {"indemnite_sans_accord": {"par_jour": 0, "limite_mensuelle": 0, "par_mois_pour_1_jour_semaine": 0}},
+            "mobilite_durable": {
+                "employeurs_prives": {
+                    "limite_base": 0,
+                    "limite_cumul_transport_public": 0,
+                }
+            },
+            "teletravail": {
+                "indemnite_sans_accord": {
+                    "par_jour": 0,
+                    "limite_mensuelle": 0,
+                    "par_mois_pour_1_jour_semaine": 0,
+                }
+            },
         }
         print(json.dumps(build_payload(empty_sections), ensure_ascii=False))

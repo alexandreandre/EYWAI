@@ -4,6 +4,7 @@ Schémas Pydantic entrée API du module schedules.
 Définitions canoniques : calendrier prévu/réel, apply-model.
 Comportement identique à l’ancien schemas/schedule.py et api/routers/schedules.py.
 """
+
 from typing import Dict, List, Literal
 
 from pydantic import BaseModel
@@ -21,6 +22,7 @@ class PlannedCalendarEntry(BaseModel):
     - Pour non forfait jour : nombre d'heures (ex: 8, 7.5)
     Le forfait jour est déterminé par employees.statut (contient "forfait jour").
     """
+
     jour: int
     type: str
     heures_prevues: float | None = None
@@ -52,14 +54,23 @@ class ActualHoursRequest(BaseModel):
 
 class DayConfigModel(BaseModel):
     """Configuration d'un jour pour apply-model (work, rest, holiday, etc.)."""
+
     type: Literal[
-        "work", "rest", "holiday", "travail", "weekend", "conge", "ferie", "arret_maladie"
+        "work",
+        "rest",
+        "holiday",
+        "travail",
+        "weekend",
+        "conge",
+        "ferie",
+        "arret_maladie",
     ]
     hours: float
 
 
 class WeekConfigModel(BaseModel):
     """Configuration d'une semaine (lundi à dimanche)."""
+
     monday: DayConfigModel
     tuesday: DayConfigModel
     wednesday: DayConfigModel
@@ -71,10 +82,13 @@ class WeekConfigModel(BaseModel):
 
 class ApplyModelRequest(BaseModel):
     """Body POST /api/schedules/apply-model : appliquer un modèle à plusieurs employés."""
+
     employee_ids: List[str]
     year: int
     month: int
-    week_configs: Dict[int, WeekConfigModel]  # 1-5 : configuration de chaque semaine du mois
+    week_configs: Dict[
+        int, WeekConfigModel
+    ]  # 1-5 : configuration de chaque semaine du mois
 
 
 __all__ = [

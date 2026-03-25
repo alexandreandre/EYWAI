@@ -8,6 +8,7 @@ GET /api/debug-storage/{employee_id}/{year}/{month}.
 Utilise : client (TestClient). Pour les routes protégées, dependency_overrides
 pour get_current_user et patch des commands/queries/service (pas de JWT ni DB réels).
 """
+
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -95,9 +96,7 @@ class TestPayslipsGenerateRoute:
 
     def test_generate_returns_200_with_mock(self, client: TestClient):
         """Génération mockée retourne status/message/download_url."""
-        with patch(
-            "app.modules.payslips.api.router.generate_payslip"
-        ) as mock_gen:
+        with patch("app.modules.payslips.api.router.generate_payslip") as mock_gen:
             mock_gen.return_value = MagicMock(
                 status="ok",
                 message="Bulletin généré",
@@ -137,7 +136,14 @@ class TestPayslipsMyPayslipsRoute:
         with patch(
             "app.modules.payslips.api.router.get_my_payslips",
             return_value=[
-                {"id": "ps-1", "name": "Bulletin_03-2024.pdf", "month": 3, "year": 2024, "url": "https://u.fr", "net_a_payer": 2500.0},
+                {
+                    "id": "ps-1",
+                    "name": "Bulletin_03-2024.pdf",
+                    "month": 3,
+                    "year": 2024,
+                    "url": "https://u.fr",
+                    "net_a_payer": 2500.0,
+                },
             ],
         ):
             app.dependency_overrides[get_current_user] = lambda: _make_employee_user()
@@ -162,7 +168,13 @@ class TestPayslipsEmployeePayslipsRoute:
         with patch(
             "app.modules.payslips.api.router.get_employee_payslips",
             return_value=[
-                {"id": "ps-1", "name": "B.pdf", "month": 1, "year": 2024, "url": "https://u.fr"},
+                {
+                    "id": "ps-1",
+                    "name": "B.pdf",
+                    "month": 1,
+                    "year": 2024,
+                    "url": "https://u.fr",
+                },
             ],
         ):
             response = client.get("/api/employees/emp-1/payslips")
@@ -177,9 +189,7 @@ class TestPayslipsDeleteRoute:
 
     def test_delete_returns_204_with_mock(self, client: TestClient):
         """Suppression mockée → 204."""
-        with patch(
-            "app.modules.payslips.api.router.delete_payslip"
-        ) as mock_del:
+        with patch("app.modules.payslips.api.router.delete_payslip") as mock_del:
             response = client.delete("/api/payslips/ps-123")
         assert response.status_code == 204
         mock_del.assert_called_once_with("ps-123")
@@ -204,6 +214,7 @@ class TestPayslipsDetailRoute:
             "app.modules.payslips.api.router.get_payslip_details_for_user"
         ) as mock_get:
             from app.modules.payslips.application.dto import PayslipNotFoundError
+
             mock_get.side_effect = PayslipNotFoundError("Bulletin non trouvé")
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
@@ -221,8 +232,11 @@ class TestPayslipsDetailRoute:
             "app.modules.payslips.api.router.get_payslip_details_for_user"
         ) as mock_get:
             from app.modules.payslips.application.dto import PayslipForbiddenError
+
             mock_get.side_effect = PayslipForbiddenError("Accès refusé")
-            app.dependency_overrides[get_current_user] = lambda: _make_employee_user("other-emp")
+            app.dependency_overrides[get_current_user] = lambda: _make_employee_user(
+                "other-emp"
+            )
             try:
                 response = client.get("/api/payslips/ps-1")
             finally:
@@ -315,6 +329,7 @@ class TestPayslipsEditRoute:
             "app.modules.payslips.api.router.edit_payslip_for_user"
         ) as mock_edit:
             from app.modules.payslips.application.dto import PayslipNotFoundError
+
             mock_edit.side_effect = PayslipNotFoundError("Bulletin non trouvé")
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
@@ -340,7 +355,15 @@ class TestPayslipsHistoryRoute:
         from app.core.security import get_current_user
 
         history = [
-            {"version": 1, "edited_at": "2024-03-01T10:00:00", "edited_by": "u1", "edited_by_name": "Admin", "changes_summary": "Création", "previous_payslip_data": {}, "previous_pdf_url": None},
+            {
+                "version": 1,
+                "edited_at": "2024-03-01T10:00:00",
+                "edited_by": "u1",
+                "edited_by_name": "Admin",
+                "changes_summary": "Création",
+                "previous_payslip_data": {},
+                "previous_pdf_url": None,
+            },
         ]
         with patch(
             "app.modules.payslips.api.router.get_payslip_history_for_user",
@@ -399,19 +422,25 @@ class TestPayslipsDebugStorageRoute:
         """Métadonnées storage (mock) → 200."""
         with patch(
             "app.modules.payslips.api.router.get_debug_storage_info",
-            return_value={"path": "co/emp/bulletins/Bulletin_03-2024.pdf", "size": 12345},
+            return_value={
+                "path": "co/emp/bulletins/Bulletin_03-2024.pdf",
+                "size": 12345,
+            },
         ):
             response = client.get("/api/debug-storage/emp-1/2024/3")
         assert response.status_code == 200
         data = response.json()
         assert "path" in data
 
-    def test_debug_storage_returns_404_when_employee_not_found(self, client: TestClient):
+    def test_debug_storage_returns_404_when_employee_not_found(
+        self, client: TestClient
+    ):
         """Employé inexistant → 404."""
         with patch(
             "app.modules.payslips.api.router.get_debug_storage_info"
         ) as mock_get:
             from app.modules.payslips.application.dto import PayslipNotFoundError
+
             mock_get.side_effect = PayslipNotFoundError("Employé non trouvé")
             response = client.get("/api/debug-storage/emp-unknown/2024/1")
         assert response.status_code == 404

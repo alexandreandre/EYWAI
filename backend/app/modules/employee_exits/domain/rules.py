@@ -5,6 +5,7 @@ Règles métier pures pour les sorties de salariés.
 règle période de rétractation 15j (rupture conventionnelle).
 Aucune dépendance DB ni FastAPI.
 """
+
 from typing import List
 
 # Map exit_type -> statut initial
@@ -19,7 +20,11 @@ _INITIAL_STATUS: dict[str, str] = {
 # Map (exit_type, current_status) -> liste des statuts cibles autorisés
 _TRANSITIONS: dict[str, dict[str, List[str]]] = {
     "demission": {
-        "demission_recue": ["demission_preavis_en_cours", "demission_effective", "annulee"],
+        "demission_recue": [
+            "demission_preavis_en_cours",
+            "demission_effective",
+            "annulee",
+        ],
         "demission_preavis_en_cours": ["demission_effective", "annulee"],
         "demission_effective": ["archivee"],
     },
@@ -31,7 +36,11 @@ _TRANSITIONS: dict[str, dict[str, List[str]]] = {
     },
     "licenciement": {
         "licenciement_convocation": ["licenciement_notifie", "annulee"],
-        "licenciement_notifie": ["licenciement_preavis_en_cours", "licenciement_effective", "annulee"],
+        "licenciement_notifie": [
+            "licenciement_preavis_en_cours",
+            "licenciement_effective",
+            "annulee",
+        ],
         "licenciement_preavis_en_cours": ["licenciement_effective", "annulee"],
         "licenciement_effective": ["archivee"],
     },

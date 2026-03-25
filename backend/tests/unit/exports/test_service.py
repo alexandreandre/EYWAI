@@ -4,6 +4,7 @@ Tests unitaires du service applicatif exports.
 Le service orchestre preview, history, download et generate ; les dépendances (queries, commands,
 providers, storage) sont mockées.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -36,7 +37,9 @@ class TestServicePreviewExport:
             warnings=[],
             can_generate=True,
         )
-        with patch.object(export_service.queries, "preview_export", return_value=expected) as mock_q:
+        with patch.object(
+            export_service.queries, "preview_export", return_value=expected
+        ) as mock_q:
             result = export_service.preview_export("company-1", req)
             mock_q.assert_called_once_with("company-1", req)
             assert result == expected
@@ -48,8 +51,12 @@ class TestServiceGetExportHistory:
     def test_delegates_to_queries(self):
         """get_export_history délègue à queries.get_export_history."""
         expected = ExportHistoryResponse(exports=[], total=0)
-        with patch.object(export_service.queries, "get_export_history", return_value=expected) as mock_q:
-            result = export_service.get_export_history("company-1", "dsn_mensuelle", "2025-01")
+        with patch.object(
+            export_service.queries, "get_export_history", return_value=expected
+        ) as mock_q:
+            result = export_service.get_export_history(
+                "company-1", "dsn_mensuelle", "2025-01"
+            )
             mock_q.assert_called_once_with("company-1", "dsn_mensuelle", "2025-01")
             assert result == expected
 
@@ -110,7 +117,10 @@ class TestServiceGenerateExport:
                     with patch.object(
                         export_service.providers,
                         "get_journal_paie_data",
-                        return_value=([], {"employees_count": 3, "total_brut": 10000.0}),
+                        return_value=(
+                            [],
+                            {"employees_count": 3, "total_brut": 10000.0},
+                        ),
                     ):
                         with patch.object(
                             export_service,
@@ -127,7 +137,9 @@ class TestServiceGenerateExport:
                                     "record_export_history",
                                     return_value="export-uuid-xyz",
                                 ):
-                                    result = export_service.generate_export("company-1", "user-1", req)
+                                    result = export_service.generate_export(
+                                        "company-1", "user-1", req
+                                    )
 
         assert result.export_id == "export-uuid-xyz"
         assert result.export_type == "journal_paie"

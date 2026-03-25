@@ -3,6 +3,7 @@ Tests unitaires du service applicatif participation (application/service.py).
 
 Repository et requêtes infra mockés ; pas de DB réelle.
 """
+
 from datetime import datetime
 from uuid import uuid4
 from unittest.mock import MagicMock, patch
@@ -78,7 +79,9 @@ def _make_entity(name: str = "Sim test"):
 class TestParticipationServiceGetEmployeeParticipationData:
     """ParticipationService.get_employee_participation_data."""
 
-    @patch("app.modules.participation.application.service.fetch_employee_participation_data")
+    @patch(
+        "app.modules.participation.application.service.fetch_employee_participation_data"
+    )
     def test_delegates_to_fetch_and_maps_to_rows(self, mock_fetch):
         """Délègue à fetch_employee_participation_data et mappe en EmployeeParticipationRow."""
         mock_fetch.return_value = [
@@ -106,7 +109,9 @@ class TestParticipationServiceGetEmployeeParticipationData:
         assert result[0].presence_days == 200
         assert result[0].has_real_salary is True
 
-    @patch("app.modules.participation.application.service.fetch_employee_participation_data")
+    @patch(
+        "app.modules.participation.application.service.fetch_employee_participation_data"
+    )
     def test_empty_list_when_fetch_returns_empty(self, mock_fetch):
         """Liste vide quand fetch retourne une liste vide."""
         mock_fetch.return_value = []
@@ -131,9 +136,7 @@ class TestParticipationServiceCreateSimulation:
 
         result = service.create_simulation(input_data)
 
-        mock_repo.exists_with_name.assert_called_once_with(
-            COMPANY_ID, 2024, "Sim test"
-        )
+        mock_repo.exists_with_name.assert_called_once_with(COMPANY_ID, 2024, "Sim test")
         mock_repo.create.assert_called_once()
         call_data = mock_repo.create.call_args[0][0]
         assert call_data["company_id"] == COMPANY_ID

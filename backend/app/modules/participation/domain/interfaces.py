@@ -3,6 +3,7 @@ Ports (interfaces) du module participation.
 
 L'infrastructure implémente ces interfaces ; l'application ne dépend que des abstractions.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Protocol
@@ -17,7 +18,9 @@ class IParticipationSimulationRepository(Protocol):
         """Crée une simulation ; data contient les champs métier + company_id, year, simulation_name."""
         ...
 
-    def get_by_id(self, simulation_id: str, company_id: str) -> Optional[ParticipationSimulation]:
+    def get_by_id(
+        self, simulation_id: str, company_id: str
+    ) -> Optional[ParticipationSimulation]:
         """Retourne une simulation par id si elle appartient à l'entreprise."""
         ...
 
@@ -33,7 +36,9 @@ class IParticipationSimulationRepository(Protocol):
         """Supprime une simulation si elle appartient à l'entreprise. Retourne True si supprimée."""
         ...
 
-    def exists_with_name(self, company_id: str, year: int, simulation_name: str) -> bool:
+    def exists_with_name(
+        self, company_id: str, year: int, simulation_name: str
+    ) -> bool:
         """Vérifie si une simulation avec ce nom existe déjà pour l'année."""
         ...
 

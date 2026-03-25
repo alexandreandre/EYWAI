@@ -4,6 +4,7 @@ Schémas du module employee_exits.
 Définitions locales (requests.py, responses.py). Compatibilité legacy :
 les anciens imports depuis schemas.employee_exit restent valides via le fichier legacy.
 """
+
 from app.modules.employee_exits.schemas.requests import (
     ChecklistCategory,
     ChecklistItemCreate,

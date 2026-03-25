@@ -33,6 +33,7 @@ USER_AGENT = (
 
 # --- UTILITAIRES ---
 
+
 def iso_now() -> str:
     """Retourne la date et l'heure actuelles au format ISO 8601 UTC."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -46,7 +47,10 @@ def _fetch_text_with_requests(url: str) -> str | None:
         soup = BeautifulSoup(r.text, "html.parser")
         return soup.get_text(" ", strip=True)
     except Exception as e:
-        print(f"ERREUR (IJMALADIE_AI): Échec fetch Requests sur {url}: {e}", file=sys.stderr)
+        print(
+            f"ERREUR (IJMALADIE_AI): Échec fetch Requests sur {url}: {e}",
+            file=sys.stderr,
+        )
         return None
 
 
@@ -66,23 +70,22 @@ def _extract_json_with_gpt(page_text: str) -> dict | None:
         f"Analyse attentivement le texte suivant et identifie les montants maximums en vigueur à cette date "
         f"des indemnités journalières de la Sécurité sociale (IJSS) en France pour l'année {current_year}.\n\n"
         "Tu dois extraire les quatre montants suivants :\n"
-        '1. maladie\n'
-        '2. maternite_paternite\n'
-        '3. at_mp (accidents du travail / maladies professionnelles)\n'
-        '4. at_mp_majoree (version majorée de l’AT/MP)\n\n'
+        "1. maladie\n"
+        "2. maternite_paternite\n"
+        "3. at_mp (accidents du travail / maladies professionnelles)\n"
+        "4. at_mp_majoree (version majorée de l’AT/MP)\n\n"
         "Ignore toute mention d'années précédentes ou de valeurs périmées. Garde uniquement les chiffres actuels "
         "correspondant aux montants maximums en euros par jour.\n\n"
         "Retourne un JSON strict avec les clés suivantes et leurs valeurs numériques (pas de texte, pas de symbole €) :\n"
         "{\n"
-        '  \"maladie\": <float|null>,\n'
-        '  \"maternite_paternite\": <float|null>,\n'
-        '  \"at_mp\": <float|null>,\n'
-        '  \"at_mp_majoree\": <float|null>\n'
+        '  "maladie": <float|null>,\n'
+        '  "maternite_paternite": <float|null>,\n'
+        '  "at_mp": <float|null>,\n'
+        '  "at_mp_majoree": <float|null>\n'
         "}\n"
         "- Si une valeur est absente, mets null.\n"
         "- Ne renvoie AUCUNE explication, uniquement du JSON pur.\n\n"
-        "Texte à analyser (max 15000 caractères) :\n---\n"
-        + page_text[:15000]
+        "Texte à analyser (max 15000 caractères) :\n---\n" + page_text[:15000]
     )
 
     try:
@@ -91,7 +94,10 @@ def _extract_json_with_gpt(page_text: str) -> dict | None:
             response_format={"type": "json_object"},
             temperature=0,
             messages=[
-                {"role": "system", "content": "Assistant d'extraction JSON pur expert en Sécurité sociale française."},
+                {
+                    "role": "system",
+                    "content": "Assistant d'extraction JSON pur expert en Sécurité sociale française.",
+                },
                 {"role": "user", "content": prompt},
             ],
         )
@@ -117,12 +123,14 @@ def build_payload(vals: dict | None, found_url: str | None) -> dict:
         "unite": "EUR/jour",
     }
     if vals:
-        valeurs.update({
-            "maladie": vals.get("maladie"),
-            "maternite_paternite": vals.get("maternite_paternite"),
-            "at_mp": vals.get("at_mp"),
-            "at_mp_majoree": vals.get("at_mp_majoree"),
-        })
+        valeurs.update(
+            {
+                "maladie": vals.get("maladie"),
+                "maternite_paternite": vals.get("maternite_paternite"),
+                "at_mp": vals.get("at_mp"),
+                "at_mp_majoree": vals.get("at_mp_majoree"),
+            }
+        )
 
     source_url = (
         found_url
@@ -149,7 +157,10 @@ def main() -> None:
     """Orchestre la recherche et l’extraction des montants IJSS via IA."""
     current_year = datetime.now().year
     SEARCH_QUERY = SEARCH_QUERY_TEMPLATE.format(year=current_year)
-    print(f"INFO (IJMALADIE_AI): Démarrage. Recherche DDGS: '{SEARCH_QUERY}'", file=sys.stderr)
+    print(
+        f"INFO (IJMALADIE_AI): Démarrage. Recherche DDGS: '{SEARCH_QUERY}'",
+        file=sys.stderr,
+    )
 
     results = []
     try:
@@ -157,9 +168,14 @@ def main() -> None:
         if search_results:
             results = [r["href"] for r in search_results]
         if not results:
-            print("ERREUR (IJMALADIE_AI): DDGS n'a retourné aucun résultat.", file=sys.stderr)
+            print(
+                "ERREUR (IJMALADIE_AI): DDGS n'a retourné aucun résultat.",
+                file=sys.stderr,
+            )
     except Exception as e:
-        print(f"ERREUR (IJMALADIE_AI): Échec de la recherche DDGS: {e}", file=sys.stderr)
+        print(
+            f"ERREUR (IJMALADIE_AI): Échec de la recherche DDGS: {e}", file=sys.stderr
+        )
 
     vals, successful_url = None, None
     for url in results:
@@ -170,14 +186,20 @@ def main() -> None:
             continue
 
         data = _extract_json_with_gpt(txt)
-        if data and all(k in data and data[k] is not None for k in ("maladie", "maternite_paternite", "at_mp", "at_mp_majoree")):
+        if data and all(
+            k in data and data[k] is not None
+            for k in ("maladie", "maternite_paternite", "at_mp", "at_mp_majoree")
+        ):
             vals = data
             successful_url = url
             print(f"INFO (IJMALADIE_AI): Données trouvées sur {url}", file=sys.stderr)
             break
 
     if vals is None:
-        print("ERREUR (IJMALADIE_AI): Aucun montant trouvé après analyse.", file=sys.stderr)
+        print(
+            "ERREUR (IJMALADIE_AI): Aucun montant trouvé après analyse.",
+            file=sys.stderr,
+        )
 
     payload = build_payload(vals, successful_url)
     print(json.dumps(payload, ensure_ascii=False))

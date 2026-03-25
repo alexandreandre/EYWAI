@@ -3,6 +3,7 @@ Schémas Pydantic de base partagés.
 
 Config commune (alias, validation) ; pas de champs métier.
 """
+
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict

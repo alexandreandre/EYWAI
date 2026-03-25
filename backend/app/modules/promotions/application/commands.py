@@ -3,6 +3,7 @@ Commandes (cas d'usage écriture) du module promotions.
 
 Orchestration : domain rules + repository + employee updater. Aucune logique DB directe.
 """
+
 from __future__ import annotations
 
 import logging
@@ -14,7 +15,9 @@ from fastapi import HTTPException
 from app.modules.promotions.application.queries import get_promotion_by_id_query
 from app.modules.promotions.application.service import apply_promotion_changes
 from app.modules.promotions.domain.rules import validate_rh_access_transition
-from app.modules.promotions.infrastructure.providers import get_promotion_document_provider
+from app.modules.promotions.infrastructure.providers import (
+    get_promotion_document_provider,
+)
 from app.modules.promotions.infrastructure.queries import (
     get_employee_snapshot_for_promotion,
 )
@@ -40,7 +43,9 @@ def create_promotion_cmd(
         previous_rh_access = snapshot["previous_rh_access"]
 
         if body.grant_rh_access and body.new_rh_access:
-            if not validate_rh_access_transition(previous_rh_access, body.new_rh_access):
+            if not validate_rh_access_transition(
+                previous_rh_access, body.new_rh_access
+            ):
                 raise HTTPException(
                     status_code=400,
                     detail=f"Transition de rôle RH non autorisée: {previous_rh_access} → {body.new_rh_access}",
@@ -71,12 +76,16 @@ def create_promotion_cmd(
             "performance_review_id": body.performance_review_id,
             "requested_by": requested_by,
             "approved_by": requested_by if initial_status == "effective" else None,
-            "approved_at": datetime.now().isoformat() if initial_status == "effective" else None,
+            "approved_at": datetime.now().isoformat()
+            if initial_status == "effective"
+            else None,
         }
         repo = get_promotion_repository()
         created_promotion_id = repo.create(insert_data, company_id, requested_by)
         if initial_status == "effective":
-            created_promotion = get_promotion_by_id_query(created_promotion_id, company_id)
+            created_promotion = get_promotion_by_id_query(
+                created_promotion_id, company_id
+            )
             apply_promotion_changes(created_promotion, company_id)
         return get_promotion_by_id_query(created_promotion_id, company_id)
     except HTTPException:
@@ -159,12 +168,14 @@ def submit_promotion_cmd(promotion_id: str, company_id: str) -> PromotionRead:
                 status_code=400,
                 detail=f"Impossible de soumettre une promotion en statut '{current_promo.status}'",
             )
-        if not any([
-            current_promo.new_job_title,
-            current_promo.new_salary,
-            current_promo.new_statut,
-            current_promo.new_classification,
-        ]):
+        if not any(
+            [
+                current_promo.new_job_title,
+                current_promo.new_salary,
+                current_promo.new_statut,
+                current_promo.new_classification,
+            ]
+        ):
             raise HTTPException(
                 status_code=400,
                 detail="Au moins un champ 'nouveau' doit être renseigné avant de soumettre",
@@ -206,12 +217,14 @@ def approve_promotion_cmd(
             current_notes = current_promo.notes or []
             if not isinstance(current_notes, list):
                 current_notes = []
-            current_notes.append({
-                "author_id": approved_by,
-                "timestamp": datetime.now().isoformat(),
-                "content": notes,
-                "type": "approval_note",
-            })
+            current_notes.append(
+                {
+                    "author_id": approved_by,
+                    "timestamp": datetime.now().isoformat(),
+                    "content": notes,
+                    "type": "approval_note",
+                }
+            )
             update_data["notes"] = current_notes
         repo.update(promotion_id, company_id, update_data)
         try:
@@ -219,6 +232,7 @@ def approve_promotion_cmd(
                 get_company_data_for_document,
                 get_employee_data_for_document,
             )
+
             employee_data = get_employee_data_for_document(current_promo.employee_id)
             company_data = get_company_data_for_document(company_id)
             promotion_dict = (

@@ -8,6 +8,7 @@ Génération d'attestations de salaire pour les arrêts de travail (Cerfa 11135*
 Source de vérité : app.modules.payroll.documents. Le module absences utilise ce générateur
 via ISalaryCertificateProvider / SalaryCertificateProvider (injection du generator).
 """
+
 import io
 from calendar import monthrange
 from datetime import date, datetime
@@ -75,11 +76,13 @@ class SalaryCertificateGenerator:
             if month <= 0:
                 month += 12
                 year -= 1
-            reference_months.append({
-                "year": year,
-                "month": month,
-                "month_name": self._get_month_name(month),
-            })
+            reference_months.append(
+                {
+                    "year": year,
+                    "month": month,
+                    "month_name": self._get_month_name(month),
+                }
+            )
         reference_months.reverse()
 
         total_brut = 0.0
@@ -88,11 +91,13 @@ class SalaryCertificateGenerator:
             payslip = (
                 supabase.table("payslips")
                 .select("id, month, year, payslip_data")
-                .match({
-                    "employee_id": employee_id,
-                    "year": month_info["year"],
-                    "month": month_info["month"],
-                })
+                .match(
+                    {
+                        "employee_id": employee_id,
+                        "year": month_info["year"],
+                        "month": month_info["month"],
+                    }
+                )
                 .maybe_single()
                 .execute()
             )
@@ -128,9 +133,7 @@ class SalaryCertificateGenerator:
                     month_info["total"] = 0.0
                     month_info["has_payslip"] = False
 
-        months_with_data = sum(
-            1 for m in reference_months if m.get("total", 0) > 0
-        )
+        months_with_data = sum(1 for m in reference_months if m.get("total", 0) > 0)
         average_monthly_brut = (
             total_brut / max(months_with_data, 1) if months_with_data > 0 else 0.0
         )
@@ -138,9 +141,7 @@ class SalaryCertificateGenerator:
         last_month = reference_months[-1]
         period_start = date(first_month["year"], first_month["month"], 1)
         last_day = monthrange(last_month["year"], last_month["month"])[1]
-        period_end = date(
-            last_month["year"], last_month["month"], last_day
-        )
+        period_end = date(last_month["year"], last_month["month"], last_day)
         return {
             "reference_months": reference_months,
             "total_brut": total_brut,
@@ -154,8 +155,19 @@ class SalaryCertificateGenerator:
 
     def _get_month_name(self, month: int) -> str:
         months = [
-            "", "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
-            "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+            "",
+            "Janvier",
+            "Février",
+            "Mars",
+            "Avril",
+            "Mai",
+            "Juin",
+            "Juillet",
+            "Août",
+            "Septembre",
+            "Octobre",
+            "Novembre",
+            "Décembre",
         ]
         return months[month] if 1 <= month <= 12 else ""
 
@@ -188,9 +200,8 @@ class SalaryCertificateGenerator:
         )
         story = []
 
-        company_name = (
-            company_data.get("name")
-            or company_data.get("raison_sociale", "Entreprise")
+        company_name = company_data.get("name") or company_data.get(
+            "raison_sociale", "Entreprise"
         )
         story.append(
             Paragraph(
@@ -255,13 +266,15 @@ class SalaryCertificateGenerator:
         ]
         table_salarie = Table(data_salarie, colWidths=[5 * cm, 11 * cm])
         table_salarie.setStyle(
-            TableStyle([
-                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
-                ("FONTSIZE", (0, 0), (-1, -1), 10),
-                ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ])
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 10),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ]
+            )
         )
         story.append(table_salarie)
         story.append(Spacer(1, 0.8 * cm))
@@ -296,13 +309,15 @@ class SalaryCertificateGenerator:
         ]
         table_arret = Table(data_arret, colWidths=[5 * cm, 11 * cm])
         table_arret.setStyle(
-            TableStyle([
-                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
-                ("FONTSIZE", (0, 0), (-1, -1), 10),
-                ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ])
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 10),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ]
+            )
         )
         story.append(table_arret)
         story.append(Spacer(1, 0.8 * cm))
@@ -336,37 +351,39 @@ class SalaryCertificateGenerator:
         total_remuneration_str = self._format_currency(
             reference_salary["total_remuneration"]
         )
-        table_data.append([
-            "<b>TOTAL</b>",
-            f"<b>{total_brut_str}</b>",
-            f"<b>{total_primes_str}</b>",
-            f"<b>{total_remuneration_str}</b>",
-        ])
+        table_data.append(
+            [
+                "<b>TOTAL</b>",
+                f"<b>{total_brut_str}</b>",
+                f"<b>{total_primes_str}</b>",
+                f"<b>{total_remuneration_str}</b>",
+            ]
+        )
         table_remuneration = Table(
             table_data,
             colWidths=[4 * cm, 3.5 * cm, 3.5 * cm, 3.5 * cm],
         )
         table_remuneration.setStyle(
-            TableStyle([
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e5e7eb")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
-                ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, 0), 10),
-                ("FONTSIZE", (0, 1), (-1, -2), 9),
-                ("FONTSIZE", (0, -1), (-1, -1), 10),
-                ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
-                ("BOTTOMPADDING", (0, 1), (-1, -2), 8),
-                ("BOTTOMPADDING", (0, -1), (-1, -1), 12),
-                ("GRID", (0, 0), (-1, -1), 1, colors.black),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ])
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e5e7eb")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+                    ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, 0), 10),
+                    ("FONTSIZE", (0, 1), (-1, -2), 9),
+                    ("FONTSIZE", (0, -1), (-1, -1), 10),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                    ("BOTTOMPADDING", (0, 1), (-1, -2), 8),
+                    ("BOTTOMPADDING", (0, -1), (-1, -1), 12),
+                    ("GRID", (0, 0), (-1, -1), 1, colors.black),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ]
+            )
         )
         story.append(table_remuneration)
         story.append(Spacer(1, 0.5 * cm))
-        average_str = self._format_currency(
-            reference_salary["average_monthly_brut"]
-        )
+        average_str = self._format_currency(reference_salary["average_monthly_brut"])
         story.append(
             Paragraph(
                 f"<b>Rémunération mensuelle moyenne : {average_str}</b>",

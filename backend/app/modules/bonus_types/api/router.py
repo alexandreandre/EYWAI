@@ -4,6 +4,7 @@ Router API bonus_types : appelle uniquement l'application du module.
 Aucune logique métier : validation du corps (schémas), injection contexte user, appel application, format réponse.
 Comportement HTTP identique au legacy. Contexte utilisateur via Protocol (aucune dépendance à app.modules.users).
 """
+
 from __future__ import annotations
 
 import traceback
@@ -58,9 +59,7 @@ def create_bonus_type(
         company_id = user.active_company_id
         if not company_id:
             raise HTTPException(status_code=400, detail="Aucune entreprise active")
-        input_data = build_create_input(
-            bonus_type, str(company_id), str(user.id)
-        )
+        input_data = build_create_input(bonus_type, str(company_id), str(user.id))
         entity = create_bonus_type_cmd(
             input_data,
             has_rh_access=user.has_rh_access_in_company(str(company_id)),

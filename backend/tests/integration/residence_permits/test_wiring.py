@@ -5,6 +5,7 @@ Vérifient que l'injection des dépendances et le flux de bout en bout sont corr
 router monté sous /api/residence-permits, get_current_user utilisé,
 get_residence_permits_list appelé avec company_id dérivé de l'utilisateur RH.
 """
+
 from unittest.mock import patch
 
 import pytest

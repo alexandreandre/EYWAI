@@ -8,8 +8,10 @@ from bs4 import BeautifulSoup
 
 URL_LEGISOCIAL = "https://www.legisocial.fr/reperes-sociaux/indemnites-journalieres-de-securite-sociale-ijss-2025.html"
 
+
 def iso_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
 
 def parse_valeur_numerique(text: str) -> float:
     if not text:
@@ -23,6 +25,7 @@ def parse_valeur_numerique(text: str) -> float:
     )
     m = re.search(r"([0-9]+\.?[0-9]*)", cleaned)
     return float(m.group(1)) if m else 0.0
+
 
 def get_all_plafonds_ij_legisocial() -> dict | None:
     try:
@@ -55,10 +58,15 @@ def get_all_plafonds_ij_legisocial() -> dict | None:
                         plafonds["maladie"] = valeur_maladie
 
             # Maternité/Paternité: 1re valeur "pour tous les assurés"
-            elif "congé de maternité" in header_text and "maternite_paternite" not in plafonds:
+            elif (
+                "congé de maternité" in header_text
+                and "maternite_paternite" not in plafonds
+            ):
                 row = table.find(
-                    lambda tag: tag.name == "td"
-                    and "pour tous les assurés" in tag.get_text(strip=True).lower()
+                    lambda tag: (
+                        tag.name == "td"
+                        and "pour tous les assurés" in tag.get_text(strip=True).lower()
+                    )
                 )
                 if row:
                     parent_row = row.find_parent("tr")
@@ -83,12 +91,18 @@ def get_all_plafonds_ij_legisocial() -> dict | None:
                     elif "partir du 29" in libelle and "at_mp_majoree" not in plafonds:
                         plafonds["at_mp_majoree"] = valeur
 
-        if set(plafonds.keys()) != {"maladie", "maternite_paternite", "at_mp", "at_mp_majoree"}:
+        if set(plafonds.keys()) != {
+            "maladie",
+            "maternite_paternite",
+            "at_mp",
+            "at_mp_majoree",
+        }:
             raise ValueError(f"Incomplet: {plafonds}")
 
         return plafonds
     except Exception:
         return None
+
 
 def build_payload(vals: dict | None) -> dict:
     valeurs = {
@@ -127,10 +141,12 @@ def build_payload(vals: dict | None) -> dict:
         },
     }
 
+
 def main() -> None:
     vals = get_all_plafonds_ij_legisocial()
     payload = build_payload(vals)
     print(json.dumps(payload, ensure_ascii=False))
+
 
 if __name__ == "__main__":
     main()

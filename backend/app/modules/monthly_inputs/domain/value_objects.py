@@ -1,6 +1,7 @@
 """
 Value objects du domaine monthly_inputs.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

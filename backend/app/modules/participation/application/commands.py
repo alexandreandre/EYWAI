@@ -4,6 +4,7 @@ Commandes applicatives (write) pour participation.
 Délèguent au ParticipationService. Comportement identique au routeur legacy.
 Le routeur (lorsqu'il sera branché) fournira company_id et created_by depuis le contexte utilisateur.
 """
+
 from __future__ import annotations
 
 from typing import Optional

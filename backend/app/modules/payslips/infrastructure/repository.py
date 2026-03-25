@@ -5,6 +5,7 @@ Wrapper prêt pour la migration ; utilise app.core.database.supabase.
 Pour l'instant get_by_id / list_by_employee peuvent passer par les queries ;
 delete réplique le comportement du router legacy (BDD + storage + recalc COR).
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -59,7 +60,10 @@ class PayslipRepository:
                 )
             except Exception as err:
                 import warnings
-                warnings.warn(f"Recalc COR après suppression bulletin: {err}", stacklevel=2)
+
+                warnings.warn(
+                    f"Recalc COR après suppression bulletin: {err}", stacklevel=2
+                )
 
         if row and row.get("pdf_storage_path"):
             supabase.storage.from_("payslips").remove([row["pdf_storage_path"]])

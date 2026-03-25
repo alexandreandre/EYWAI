@@ -4,6 +4,7 @@ Providers (services externes) du module promotions.
 - IPromotionDocumentProvider : génération et stockage PDF (implémentation locale sous app/*).
 - IEmployeeUpdater : application des changements promotion sur employé et accès RH (Supabase).
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, Optional
@@ -81,7 +82,9 @@ class EmployeeUpdater(IEmployeeUpdater):
             if promotion.new_statut:
                 update_data["statut"] = promotion.new_statut
             if promotion.new_classification:
-                update_data["classification_conventionnelle"] = promotion.new_classification
+                update_data["classification_conventionnelle"] = (
+                    promotion.new_classification
+                )
 
             if update_data:
                 response = (
@@ -170,14 +173,16 @@ class EmployeeUpdater(IEmployeeUpdater):
                     .execute()
                 )
                 is_primary = len(other_accesses.data or []) == 0
-                supabase.table("user_company_accesses").insert({
-                    "user_id": user_id,
-                    "company_id": company_id,
-                    "base_role": new_rh_access,
-                    "is_primary": is_primary,
-                    "contract_type": employee.get("contract_type"),
-                    "statut": employee.get("statut"),
-                }).execute()
+                supabase.table("user_company_accesses").insert(
+                    {
+                        "user_id": user_id,
+                        "company_id": company_id,
+                        "base_role": new_rh_access,
+                        "is_primary": is_primary,
+                        "contract_type": employee.get("contract_type"),
+                        "statut": employee.get("statut"),
+                    }
+                ).execute()
         except HTTPException:
             raise
         except Exception as e:

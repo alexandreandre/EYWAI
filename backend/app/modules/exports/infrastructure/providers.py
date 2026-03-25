@@ -62,7 +62,12 @@ def preview_paiement_salaires(
     payment_label: Optional[str],
 ) -> Dict[str, Any]:
     return _preview_paiement_salaires(
-        company_id, period, employee_ids, excluded_employee_ids, execution_date, payment_label
+        company_id,
+        period,
+        employee_ids,
+        excluded_employee_ids,
+        execution_date,
+        payment_label,
     )
 
 
@@ -76,7 +81,13 @@ def generate_paiement_salaires_export(
     format: str,
 ) -> bytes:
     return _generate_paiement_salaires_export(
-        company_id, period, employee_ids, excluded_employee_ids, execution_date, payment_label, format
+        company_id,
+        period,
+        employee_ids,
+        excluded_employee_ids,
+        execution_date,
+        payment_label,
+        format,
     )
 
 
@@ -89,7 +100,12 @@ def generate_bank_file(
     payment_label: Optional[str],
 ) -> bytes:
     return _generate_bank_file(
-        company_id, period, employee_ids, excluded_employee_ids, execution_date, payment_label
+        company_id,
+        period,
+        employee_ids,
+        excluded_employee_ids,
+        execution_date,
+        payment_label,
     )
 
 
@@ -102,7 +118,12 @@ def get_paiement_salaires_data(
     payment_label: Optional[str],
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any], List[Dict[str, Any]], List[str]]:
     return _get_paiement_salaires_data(
-        company_id, period, employee_ids, excluded_employee_ids, execution_date, payment_label
+        company_id,
+        period,
+        employee_ids,
+        excluded_employee_ids,
+        execution_date,
+        payment_label,
     )
 
 
@@ -117,19 +138,30 @@ def preview_od(
 
 
 def generate_od_salaires(
-    company_id: str, period: str, employee_ids: Optional[List[str]], date_ecriture: Optional[str]
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]],
+    date_ecriture: Optional[str],
 ):
     return _generate_od_salaires(company_id, period, employee_ids, date_ecriture)
 
 
 def generate_od_charges_sociales(
-    company_id: str, period: str, employee_ids: Optional[List[str]], date_ecriture: Optional[str]
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]],
+    date_ecriture: Optional[str],
 ):
-    return _generate_od_charges_sociales(company_id, period, employee_ids, date_ecriture)
+    return _generate_od_charges_sociales(
+        company_id, period, employee_ids, date_ecriture
+    )
 
 
 def generate_od_pas(
-    company_id: str, period: str, employee_ids: Optional[List[str]], date_ecriture: Optional[str]
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]],
+    date_ecriture: Optional[str],
 ):
     return _generate_od_pas(company_id, period, employee_ids, date_ecriture)
 
@@ -180,9 +212,7 @@ def preview_dsn(
     employee_ids: Optional[List[str]],
     establishment_id: Optional[str],
 ) -> Dict[str, Any]:
-    return _preview_dsn(
-        company_id, period, dsn_type, employee_ids, establishment_id
-    )
+    return _preview_dsn(company_id, period, dsn_type, employee_ids, establishment_id)
 
 
 def generate_dsn_xml(

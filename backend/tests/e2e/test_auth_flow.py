@@ -3,6 +3,7 @@ Tests e2e du flux auth : login (token ou 401), /me sans auth (401), /me avec tok
 
 Utilise les fixtures client et auth_headers du conftest. Code minimal, pas de refactor app.
 """
+
 import pytest
 from fastapi.testclient import TestClient
 

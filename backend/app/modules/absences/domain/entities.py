@@ -4,6 +4,7 @@ Entités du domaine absences.
 Alignées sur la table absence_requests et les schémas du module (schemas/responses.AbsenceRequest).
 Pas de dépendance DB ni FastAPI.
 """
+
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import List, Optional
@@ -15,6 +16,7 @@ class AbsenceRequestEntity:
     Demande d'absence (agrégat racine).
     Source : table absence_requests, schémas du module absences.
     """
+
     id: str
     employee_id: str
     company_id: Optional[str]

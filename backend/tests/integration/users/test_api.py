@@ -7,6 +7,7 @@ Pour les tests authentifiés, on utilise auth_headers ; si la fixture est vide (
 les requêtes protégées retournent 401. Documenter en conftest : auth_headers doit
 fournir un token Bearer valide pour tester les routes protégées.
 """
+
 from uuid import uuid4
 
 import pytest
@@ -98,7 +99,9 @@ class TestUsersMyCompanies:
         response = client.get(f"{USERS_PREFIX}/my-companies")
         assert response.status_code == 401
 
-    def test_my_companies_with_override_returns_200(self, client_with_user_override: TestClient):
+    def test_my_companies_with_override_returns_200(
+        self, client_with_user_override: TestClient
+    ):
         response = client_with_user_override.get(f"{USERS_PREFIX}/my-companies")
         assert response.status_code == 200
         data = response.json()
@@ -118,7 +121,9 @@ class TestUsersSetPrimaryCompany:
         )
         assert response.status_code == 401
 
-    def test_set_primary_with_override_calls_app(self, client_with_user_override: TestClient):
+    def test_set_primary_with_override_calls_app(
+        self, client_with_user_override: TestClient
+    ):
         response = client_with_user_override.patch(
             f"{USERS_PREFIX}/set-primary-company",
             json={"company_id": "company-1"},
@@ -165,7 +170,9 @@ class TestUsersGrantAccess:
         )
         assert response.status_code == 401
 
-    def test_grant_access_with_invalid_body_returns_422(self, client_with_user_override: TestClient):
+    def test_grant_access_with_invalid_body_returns_422(
+        self, client_with_user_override: TestClient
+    ):
         response = client_with_user_override.post(
             f"{USERS_PREFIX}/grant-access",
             json={"company_id": "c1"},
@@ -179,7 +186,9 @@ class TestUsersGrantAccess:
 class TestUsersGrantAccessByUserId:
     """POST /api/users/grant-access-by-user-id."""
 
-    def test_grant_access_by_user_id_without_token_returns_401(self, client: TestClient):
+    def test_grant_access_by_user_id_without_token_returns_401(
+        self, client: TestClient
+    ):
         response = client.post(
             f"{USERS_PREFIX}/grant-access-by-user-id",
             json={
@@ -208,9 +217,7 @@ class TestUsersRevokeAccess:
     """DELETE /api/users/revoke-access/{user_id}/{company_id}."""
 
     def test_revoke_access_without_token_returns_401(self, client: TestClient):
-        response = client.delete(
-            f"{USERS_PREFIX}/revoke-access/user-1/company-1"
-        )
+        response = client.delete(f"{USERS_PREFIX}/revoke-access/user-1/company-1")
         assert response.status_code == 401
 
 
@@ -227,7 +234,9 @@ class TestUsersUpdateAccess:
         )
         assert response.status_code == 401
 
-    def test_update_access_empty_body_returns_422(self, client_with_user_override: TestClient):
+    def test_update_access_empty_body_returns_422(
+        self, client_with_user_override: TestClient
+    ):
         response = client_with_user_override.patch(
             f"{USERS_PREFIX}/update-access/user-1/company-1",
             json={},
@@ -261,7 +270,9 @@ class TestUsersCreateWithPermissions:
         )
         assert response.status_code == 401
 
-    def test_create_without_primary_access_returns_400(self, client_with_user_override: TestClient):
+    def test_create_without_primary_access_returns_400(
+        self, client_with_user_override: TestClient
+    ):
         response = client_with_user_override.post(
             f"{USERS_PREFIX}/create-with-permissions",
             json={
@@ -364,7 +375,9 @@ class TestUsersUpdateUser:
         )
         assert response.status_code == 401
 
-    def test_update_user_missing_company_id_returns_422(self, client_with_user_override: TestClient):
+    def test_update_user_missing_company_id_returns_422(
+        self, client_with_user_override: TestClient
+    ):
         response = client_with_user_override.put(
             f"{USERS_PREFIX}/user-test-1/update",
             json={"first_name": "Updated"},

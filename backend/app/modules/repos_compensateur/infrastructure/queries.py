@@ -3,6 +3,7 @@ Requêtes de lecture transverses (companies, employees) pour le module repos_com
 
 Pas de logique métier : lecture Supabase uniquement. Comportement identique au service actuel.
 """
+
 from __future__ import annotations
 
 from app.core.database import supabase

@@ -5,6 +5,7 @@ Logique extraite de api/routers/company_groups.py ; comportement identique.
 Les vérifications d'autorisation (super_admin, admin de X entreprises) restent
 à faire côté appelant (router) ; les commandes présument que l'appelant a vérifié.
 """
+
 from __future__ import annotations
 
 from typing import Any, List
@@ -154,9 +155,7 @@ def manage_user_access_in_group(
             )
     user = CompanyGroupRepository.get_user_by_email(request.user_email)
     if not user:
-        raise LookupError(
-            f"Utilisateur avec l'email {request.user_email} non trouvé"
-        )
+        raise LookupError(f"Utilisateur avec l'email {request.user_email} non trouvé")
     user_id = user["id"]
     if request.first_name or request.last_name:
         company_group_repository.update_user_profile(

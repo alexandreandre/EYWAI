@@ -5,6 +5,7 @@ Sans DB de test : mocks Supabase pour valider la logique et les appels.
 Avec DB de test : prévoir db_session (conftest) et données dans salary_seizures,
 salary_advances, salary_advance_payments, employees pour des tests CRUD réels.
 """
+
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
@@ -25,21 +26,32 @@ class TestSeizureRepository:
     """SeizureRepository (table salary_seizures)."""
 
     def test_create_calls_insert_and_returns_row(self):
-        with patch("app.modules.saisies_avances.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.saisies_avances.infrastructure.repository.supabase"
+        ) as supabase:
             table = MagicMock()
             inserted = {"id": "s1", "employee_id": "emp1", "status": "active"}
             table.insert.return_value.execute.return_value = MagicMock(data=[inserted])
             supabase.table.return_value = table
 
             repo = SeizureRepository()
-            data = {"employee_id": "emp1", "company_id": "co1", "type": "pension_alimentaire", "creditor_name": "X", "start_date": "2025-01-01", "status": "active"}
+            data = {
+                "employee_id": "emp1",
+                "company_id": "co1",
+                "type": "pension_alimentaire",
+                "creditor_name": "X",
+                "start_date": "2025-01-01",
+                "status": "active",
+            }
             result = repo.create(data)
 
             table.insert.assert_called_once_with(data)
             assert result == inserted
 
     def test_get_by_id_returns_row(self):
-        with patch("app.modules.saisies_avances.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.saisies_avances.infrastructure.repository.supabase"
+        ) as supabase:
             table = MagicMock()
             chain = MagicMock()
             chain.eq.return_value.single.return_value.execute.return_value = MagicMock(
@@ -56,10 +68,14 @@ class TestSeizureRepository:
             chain.eq.assert_called_once_with("id", "s1")
 
     def test_get_by_id_returns_none_when_empty(self):
-        with patch("app.modules.saisies_avances.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.saisies_avances.infrastructure.repository.supabase"
+        ) as supabase:
             table = MagicMock()
             chain = MagicMock()
-            chain.eq.return_value.single.return_value.execute.return_value = MagicMock(data=None)
+            chain.eq.return_value.single.return_value.execute.return_value = MagicMock(
+                data=None
+            )
             table.select.return_value = chain
             supabase.table.return_value = table
 
@@ -69,12 +85,16 @@ class TestSeizureRepository:
             assert result is None
 
     def test_list_filters_by_employee_and_status(self):
-        with patch("app.modules.saisies_avances.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.saisies_avances.infrastructure.repository.supabase"
+        ) as supabase:
             table = MagicMock()
             chain = MagicMock()
             # list_ fait: select -> eq(employee_id) -> eq(status) -> order -> execute
             chain.eq.return_value = chain
-            chain.order.return_value.execute.return_value = MagicMock(data=[{"id": "s1"}])
+            chain.order.return_value.execute.return_value = MagicMock(
+                data=[{"id": "s1"}]
+            )
             table.select.return_value = chain
             supabase.table.return_value = table
 
@@ -86,10 +106,14 @@ class TestSeizureRepository:
             chain.eq.assert_any_call("status", "active")
 
     def test_update_returns_updated_row(self):
-        with patch("app.modules.saisies_avances.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.saisies_avances.infrastructure.repository.supabase"
+        ) as supabase:
             table = MagicMock()
             chain = MagicMock()
-            chain.eq.return_value.execute.return_value = MagicMock(data=[{"id": "s1", "status": "suspended"}])
+            chain.eq.return_value.execute.return_value = MagicMock(
+                data=[{"id": "s1", "status": "suspended"}]
+            )
             table.update.return_value = chain
             supabase.table.return_value = table
 
@@ -101,7 +125,9 @@ class TestSeizureRepository:
             chain.eq.assert_called_once_with("id", "s1")
 
     def test_delete_calls_delete_eq(self):
-        with patch("app.modules.saisies_avances.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.saisies_avances.infrastructure.repository.supabase"
+        ) as supabase:
             table = MagicMock()
             chain = MagicMock()
             table.delete.return_value = chain
@@ -118,23 +144,38 @@ class TestAdvanceRepository:
     """AdvanceRepository (table salary_advances)."""
 
     def test_create_returns_inserted_row(self):
-        with patch("app.modules.saisies_avances.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.saisies_avances.infrastructure.repository.supabase"
+        ) as supabase:
             table = MagicMock()
             inserted = {"id": "a1", "employee_id": "emp1", "status": "pending"}
             table.insert.return_value.execute.return_value = MagicMock(data=[inserted])
             supabase.table.return_value = table
 
             repo = AdvanceRepository()
-            data = {"employee_id": "emp1", "company_id": "co1", "requested_amount": 200, "requested_date": "2025-03-01", "status": "pending", "repayment_mode": "single", "repayment_months": 1, "remaining_amount": 0}
+            data = {
+                "employee_id": "emp1",
+                "company_id": "co1",
+                "requested_amount": 200,
+                "requested_date": "2025-03-01",
+                "status": "pending",
+                "repayment_mode": "single",
+                "repayment_months": 1,
+                "remaining_amount": 0,
+            }
             result = repo.create(data)
 
             assert result == inserted
 
     def test_get_by_id_returns_none_when_empty(self):
-        with patch("app.modules.saisies_avances.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.saisies_avances.infrastructure.repository.supabase"
+        ) as supabase:
             table = MagicMock()
             chain = MagicMock()
-            chain.eq.return_value.single.return_value.execute.return_value = MagicMock(data=None)
+            chain.eq.return_value.single.return_value.execute.return_value = MagicMock(
+                data=None
+            )
             table.select.return_value = chain
             supabase.table.return_value = table
 
@@ -143,7 +184,9 @@ class TestAdvanceRepository:
             assert result is None
 
     def test_list_returns_empty_list(self):
-        with patch("app.modules.saisies_avances.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.saisies_avances.infrastructure.repository.supabase"
+        ) as supabase:
             table = MagicMock()
             chain = MagicMock()
             chain.order.return_value.execute.return_value = MagicMock(data=[])
@@ -159,7 +202,9 @@ class TestAdvancePaymentRepository:
     """AdvancePaymentRepository (table salary_advance_payments)."""
 
     def test_list_by_advance_id_returns_payments(self):
-        with patch("app.modules.saisies_avances.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.saisies_avances.infrastructure.repository.supabase"
+        ) as supabase:
             table = MagicMock()
             chain = MagicMock()
             chain.eq.return_value.order.return_value.execute.return_value = MagicMock(
@@ -175,7 +220,9 @@ class TestAdvancePaymentRepository:
             assert result[0]["payment_amount"] == 100
 
     def test_get_total_paid_by_advance_id_sums_amounts(self):
-        with patch("app.modules.saisies_avances.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.saisies_avances.infrastructure.repository.supabase"
+        ) as supabase:
             table = MagicMock()
             chain = MagicMock()
             chain.eq.return_value.execute.return_value = MagicMock(
@@ -190,7 +237,9 @@ class TestAdvancePaymentRepository:
             assert result == Decimal("150")
 
     def test_delete_calls_delete_eq(self):
-        with patch("app.modules.saisies_avances.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.saisies_avances.infrastructure.repository.supabase"
+        ) as supabase:
             table = MagicMock()
             chain = MagicMock()
             table.delete.return_value = chain
@@ -206,7 +255,9 @@ class TestEmployeeCompanyProvider:
     """EmployeeCompanyProvider (lecture company_id depuis employees)."""
 
     def test_get_company_id_returns_id(self):
-        with patch("app.modules.saisies_avances.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.saisies_avances.infrastructure.repository.supabase"
+        ) as supabase:
             table = MagicMock()
             chain = MagicMock()
             chain.eq.return_value.single.return_value.execute.return_value = MagicMock(
@@ -222,10 +273,14 @@ class TestEmployeeCompanyProvider:
             chain.eq.assert_called_once_with("id", "emp1")
 
     def test_get_company_id_returns_none_when_no_row(self):
-        with patch("app.modules.saisies_avances.infrastructure.repository.supabase") as supabase:
+        with patch(
+            "app.modules.saisies_avances.infrastructure.repository.supabase"
+        ) as supabase:
             table = MagicMock()
             chain = MagicMock()
-            chain.eq.return_value.single.return_value.execute.return_value = MagicMock(data=None)
+            chain.eq.return_value.single.return_value.execute.return_value = MagicMock(
+                data=None
+            )
             table.select.return_value = chain
             supabase.table.return_value = table
 

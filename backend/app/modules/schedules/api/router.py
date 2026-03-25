@@ -4,6 +4,7 @@ Routers du module schedules : délégation à la couche application uniquement.
 Aucune logique métier ni accès DB : validation (schémas), Depends, appel application,
 conversion ScheduleAppError -> HTTPException, retour HTTP. Comportement identique aux anciens endpoints.
 """
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.security import get_current_user

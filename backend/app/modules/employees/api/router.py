@@ -4,6 +4,7 @@ Router API du module employees.
 Délègue toute la logique à la couche application. Aucune logique métier ni accès DB.
 Comportement HTTP identique à api/routers/employees.py (legacy).
 """
+
 import json
 import traceback
 from typing import List, Optional
@@ -77,9 +78,7 @@ def get_my_published_exit_documents(
         raise
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"Erreur interne: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
 
 @router.get("/{employee_id}", response_model=FullEmployee)
@@ -127,7 +126,11 @@ async def create_employee(
         )
 
     data_dict = json.loads(data)
-    for key in ("residence_permit_expiry_date", "residence_permit_type", "residence_permit_number"):
+    for key in (
+        "residence_permit_expiry_date",
+        "residence_permit_type",
+        "residence_permit_number",
+    ):
         if key in data_dict and data_dict[key] == "":
             data_dict[key] = None
     cleaned_data = json.dumps(data_dict)
@@ -243,9 +246,7 @@ def get_employee_credentials_pdf_url(
         raise
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"Erreur interne: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
 
 @router.get("/{employee_id}/identity-document", response_model=ContractResponse)
@@ -260,9 +261,7 @@ def get_employee_identity_document_url(
         raise
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"Erreur interne: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
 
 @router.get("/{employee_id}/contract", response_model=ContractResponse)
@@ -278,9 +277,7 @@ def get_employee_contract_url(
         raise
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"Erreur interne: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
 
 # ----- Promotions et accès RH -----
@@ -296,9 +293,8 @@ def get_employee_promotions(
         company_id = queries.get_employee_company_id(employee_id)
         if not company_id:
             raise HTTPException(status_code=404, detail="Employé non trouvé.")
-        if (
-            current_user.active_company_id != company_id
-            and not getattr(current_user, "is_super_admin", False)
+        if current_user.active_company_id != company_id and not getattr(
+            current_user, "is_super_admin", False
         ):
             raise HTTPException(
                 status_code=403, detail="Accès non autorisé à cet employé."
@@ -308,9 +304,7 @@ def get_employee_promotions(
         raise
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"Erreur interne: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
 
 @router.get("/{employee_id}/rh-access", response_model=EmployeeRhAccess)
@@ -323,9 +317,8 @@ def get_employee_rh_access_info(
         company_id = queries.get_employee_company_id(employee_id)
         if not company_id:
             raise HTTPException(status_code=404, detail="Employé non trouvé.")
-        if (
-            current_user.active_company_id != company_id
-            and not getattr(current_user, "is_super_admin", False)
+        if current_user.active_company_id != company_id and not getattr(
+            current_user, "is_super_admin", False
         ):
             raise HTTPException(
                 status_code=403, detail="Accès non autorisé à cet employé."
@@ -333,14 +326,10 @@ def get_employee_rh_access_info(
         if not getattr(current_user, "has_rh_access_in_company", lambda _: False)(
             company_id
         ) and not getattr(current_user, "is_super_admin", False):
-            raise HTTPException(
-                status_code=403, detail="Accès réservé aux RH."
-            )
+            raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
         return queries.get_employee_rh_access(employee_id, company_id)
     except HTTPException:
         raise
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"Erreur interne: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")

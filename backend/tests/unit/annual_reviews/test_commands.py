@@ -3,6 +3,7 @@ Tests unitaires des commandes annual_reviews (application/commands.py).
 
 Repository mocké ; pas de DB ni HTTP.
 """
+
 from datetime import date
 from unittest.mock import MagicMock
 
@@ -28,7 +29,9 @@ class TestCreateAnnualReview:
                 data={"year": 2024},
                 repository=repo,
             )
-        assert "employee_id" in str(exc_info.value).lower() or "requis" in str(exc_info.value)
+        assert "employee_id" in str(exc_info.value).lower() or "requis" in str(
+            exc_info.value
+        )
         repo.get_employee_company_id.assert_not_called()
 
     def test_raises_lookup_error_when_employee_not_found(self):
@@ -41,7 +44,9 @@ class TestCreateAnnualReview:
                 data={"employee_id": "emp-1", "year": 2024},
                 repository=repo,
             )
-        assert "Employé" in str(exc_info.value) or "trouvé" in str(exc_info.value).lower()
+        assert (
+            "Employé" in str(exc_info.value) or "trouvé" in str(exc_info.value).lower()
+        )
         repo.get_employee_company_id.assert_called_once_with("emp-1")
 
     def test_raises_lookup_error_when_employee_in_other_company(self):
@@ -225,7 +230,12 @@ class TestUpdateAnnualReview:
     def test_returns_row_when_update_returns_none(self):
         """Si update retourne None, la commande retourne la row initiale."""
         repo = _mock_repo()
-        row = {"id": "rev-1", "company_id": "co-1", "employee_id": "emp-1", "status": "accepte"}
+        row = {
+            "id": "rev-1",
+            "company_id": "co-1",
+            "employee_id": "emp-1",
+            "status": "accepte",
+        }
         repo.get_by_id.return_value = row
         repo.update.return_value = None
 
@@ -254,7 +264,11 @@ class TestMarkCompleted:
     def test_raises_lookup_error_when_other_company(self):
         """Entretien autre entreprise → LookupError."""
         repo = _mock_repo()
-        repo.get_by_id.return_value = {"id": "rev-1", "company_id": "co-other", "status": "accepte"}
+        repo.get_by_id.return_value = {
+            "id": "rev-1",
+            "company_id": "co-other",
+            "status": "accepte",
+        }
         with pytest.raises(LookupError):
             commands.mark_completed("rev-1", "co-1", repository=repo)
 
@@ -268,7 +282,9 @@ class TestMarkCompleted:
         }
         with pytest.raises(ValueError) as exc_info:
             commands.mark_completed("rev-1", "co-1", repository=repo)
-        assert "accepté" in str(exc_info.value) or "réalisé" in str(exc_info.value).lower()
+        assert (
+            "accepté" in str(exc_info.value) or "réalisé" in str(exc_info.value).lower()
+        )
 
     def test_updates_to_realise_with_completed_date(self):
         """Statut accepte → realise et completed_date = today."""
@@ -298,11 +314,17 @@ class TestMarkCompleted:
     def test_raises_runtime_error_when_updated_missing_created_updated_at(self):
         """Si update ne renvoie pas created_at/updated_at → RuntimeError."""
         repo = _mock_repo()
-        repo.get_by_id.return_value = {"id": "rev-1", "company_id": "co-1", "status": "accepte"}
+        repo.get_by_id.return_value = {
+            "id": "rev-1",
+            "company_id": "co-1",
+            "status": "accepte",
+        }
         repo.update.return_value = {"id": "rev-1", "status": "realise"}
         with pytest.raises(RuntimeError) as exc_info:
             commands.mark_completed("rev-1", "co-1", repository=repo)
-        assert "created_at" in str(exc_info.value) or "updated_at" in str(exc_info.value)
+        assert "created_at" in str(exc_info.value) or "updated_at" in str(
+            exc_info.value
+        )
 
 
 class TestDeleteAnnualReview:

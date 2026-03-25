@@ -5,6 +5,7 @@ Structures alignées sur les réponses exactes du router legacy
 (api/routers/super_admin.py). Conservent le comportement exact pour
 validation / documentation / future utilisation en response_model.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
@@ -42,6 +43,7 @@ class DashboardTopCompany(BaseModel):
 
 class DashboardStatsResponse(BaseModel):
     """Réponse exacte GET /dashboard/stats."""
+
     companies: DashboardStatsCompanies
     users: DashboardStatsUsers
     employees: DashboardStatsEmployees
@@ -54,6 +56,7 @@ class DashboardStatsResponse(BaseModel):
 
 class CompaniesListResponse(BaseModel):
     """Réponse exacte GET /companies."""
+
     companies: List[Dict[str, Any]] = Field(default_factory=list)
     total: int = 0
 
@@ -74,6 +77,7 @@ class CompanyStats(BaseModel):
 
 class CompanyActionResponse(BaseModel):
     """Réponse POST /companies, PATCH /companies/{company_id}, DELETE /companies/{company_id}."""
+
     success: bool = True
     company: Optional[Dict[str, Any]] = None
     message: Optional[str] = None
@@ -90,6 +94,7 @@ class DeletedCompanyInfo(BaseModel):
 
 class DeleteCompanyPermanentResponse(BaseModel):
     """Réponse exacte DELETE /companies/{company_id}/permanent."""
+
     success: bool = True
     message: str = ""
     deleted_company: DeletedCompanyInfo
@@ -102,6 +107,7 @@ class DeleteCompanyPermanentResponse(BaseModel):
 
 class UsersListResponse(BaseModel):
     """Réponse exacte GET /users et GET /companies/{company_id}/users."""
+
     users: List[Dict[str, Any]] = Field(default_factory=list)
     total: int = 0
 
@@ -129,6 +135,7 @@ class DeleteCompanyUserResponse(BaseModel):
 
 class SystemHealthResponse(BaseModel):
     """Réponse exacte GET /system/health."""
+
     status: str = "healthy"
     checks: Dict[str, str] = Field(default_factory=dict)
     integrity_issues: List[Any] = Field(default_factory=list)
@@ -140,6 +147,7 @@ class SystemHealthResponse(BaseModel):
 
 class SuperAdminsListResponse(BaseModel):
     """Réponse exacte GET /super-admins."""
+
     super_admins: List[Dict[str, Any]] = Field(default_factory=list)
     total: int = 0
 
@@ -165,5 +173,6 @@ class ReductionFillonEmployeeItem(BaseModel):
 
 class ReductionFillonEmployeesResponse(BaseModel):
     """Réponse exacte GET /reduction-fillon/employees."""
+
     employees: List[Dict[str, Any]] = Field(default_factory=list)
     total: int = 0

@@ -3,6 +3,7 @@ Tests unitaires du MutuelleTypesService (application/service.py).
 
 Service testé avec repository mocké (injection au constructeur).
 """
+
 from datetime import datetime
 from uuid import UUID, uuid4
 from unittest.mock import MagicMock
@@ -79,7 +80,9 @@ class TestMutuelleTypesServiceCreate:
             is_active=True,
             employee_ids=[],
         )
-        created = _make_mutuelle_entity(libelle="Nouvelle formule", montant_salarial=60.0)
+        created = _make_mutuelle_entity(
+            libelle="Nouvelle formule", montant_salarial=60.0
+        )
         repo = MagicMock()
         repo.find_by_company_and_libelle.return_value = None
         repo.create.return_value = created
@@ -89,7 +92,9 @@ class TestMutuelleTypesServiceCreate:
 
         result = svc.create(COMPANY_ID, USER_ID, payload)
 
-        repo.find_by_company_and_libelle.assert_called_once_with(COMPANY_ID, "Nouvelle formule")
+        repo.find_by_company_and_libelle.assert_called_once_with(
+            COMPANY_ID, "Nouvelle formule"
+        )
         repo.create.assert_called_once()
         assert result["libelle"] == "Nouvelle formule"
         assert result["montant_salarial"] == 60.0
@@ -199,7 +204,9 @@ class TestMutuelleTypesServiceDelete:
     """Service delete."""
 
     def test_delete_success_returns_status(self):
-        existing = _make_mutuelle_entity(company_id=UUID(COMPANY_ID), libelle="À supprimer")
+        existing = _make_mutuelle_entity(
+            company_id=UUID(COMPANY_ID), libelle="À supprimer"
+        )
         repo = MagicMock()
         repo.get_by_id.return_value = existing
         repo.list_employee_ids.return_value = ["emp-1"]

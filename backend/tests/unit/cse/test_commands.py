@@ -4,6 +4,7 @@ Tests unitaires des commandes CSE (application/commands.py).
 Les commandes délèguent à l'infrastructure (cse_service_impl, cse_ai_impl).
 On mocke ces appels pour vérifier les paramètres et retours.
 """
+
 from datetime import date
 from unittest.mock import patch, MagicMock
 

@@ -4,6 +4,7 @@ Entités du domaine companies.
 Placeholder : structure cible pour la migration.
 L'entité Company représentera l'agrégat entreprise (données + settings).
 """
+
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
@@ -14,6 +15,7 @@ class Company:
     Agrégat entreprise.
     Champs alignés sur la table companies (à compléter lors de la migration).
     """
+
     id: str
     company_name: str
     siret: Optional[str] = None

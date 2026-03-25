@@ -5,6 +5,7 @@ Schémas de réponse pour le module rates.
 - ContributionRate, DashboardRatesResponse : définis ici (réexportés par schemas/general.py pour compatibilité).
 À conserver strictement pour compatibilité.
 """
+
 from __future__ import annotations
 
 from typing import Any, List
@@ -32,11 +33,18 @@ class DashboardRatesResponse(BaseModel):
 class RateCategory(BaseModel):
     """Une catégorie de taux (config_key) avec métadonnées."""
 
-    config_data: Any = Field(..., description="Données de configuration (structure variable selon config_key)")
+    config_data: Any = Field(
+        ...,
+        description="Données de configuration (structure variable selon config_key)",
+    )
     version: int | None = Field(None, description="Version de la configuration")
-    last_checked_at: str | None = Field(None, description="Date du dernier contrôle (ISO)")
+    last_checked_at: str | None = Field(
+        None, description="Date du dernier contrôle (ISO)"
+    )
     comment: str | None = Field(None, description="Commentaire optionnel")
-    source_links: list[str] | None = Field(None, description="Liens sources (ex. LegiSocial)")
+    source_links: list[str] | None = Field(
+        None, description="Liens sources (ex. LegiSocial)"
+    )
 
     model_config = {"extra": "forbid"}
 

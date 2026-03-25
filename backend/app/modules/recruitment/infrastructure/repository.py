@@ -3,6 +3,7 @@
 Implémentations des interfaces domain (IJobRepository, etc.) avec Supabase.
 Comportement identique au legacy. Accès DB via app.core.database.supabase.
 """
+
 import unicodedata
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -45,12 +46,14 @@ def _remove_accents(text: str) -> str:
 
 # ─── Settings ─────────────────────────────────────────────────────────
 
+
 class RecruitmentSettingsReader(IRecruitmentSettingsReader):
     def is_enabled(self, company_id: str) -> bool:
         return get_recruitment_setting_placeholder(company_id)
 
 
 # ─── Jobs ──────────────────────────────────────────────────────────────
+
 
 class JobRepository(IJobRepository):
     def get_by_id(self, company_id: str, job_id: str) -> Optional[dict[str, Any]]:
@@ -81,17 +84,13 @@ class JobRepository(IJobRepository):
     def update(
         self, job_id: str, company_id: str, data: dict[str, Any]
     ) -> dict[str, Any]:
-        res = (
-            supabase.table("recruitment_jobs")
-            .update(data)
-            .eq("id", job_id)
-            .execute()
-        )
+        res = supabase.table("recruitment_jobs").update(data).eq("id", job_id).execute()
         j = res.data[0] if res.data else {}
         return job_row_to_out(j, 0)
 
 
 # ─── Pipeline stages ───────────────────────────────────────────────────
+
 
 class PipelineStageRepository(IPipelineStageRepository):
     def list_by_job(self, company_id: str, job_id: str) -> list[dict[str, Any]]:
@@ -111,6 +110,7 @@ class PipelineStageRepository(IPipelineStageRepository):
 
 # ─── Timeline ──────────────────────────────────────────────────────────
 
+
 class TimelineEventWriter(ITimelineEventWriter):
     def add(
         self,
@@ -121,14 +121,16 @@ class TimelineEventWriter(ITimelineEventWriter):
         actor_id: Optional[str] = None,
         metadata: Optional[dict[str, Any]] = None,
     ) -> None:
-        supabase.table("recruitment_timeline_events").insert({
-            "company_id": company_id,
-            "candidate_id": candidate_id,
-            "event_type": event_type,
-            "description": description,
-            "actor_id": actor_id,
-            "metadata": metadata or {},
-        }).execute()
+        supabase.table("recruitment_timeline_events").insert(
+            {
+                "company_id": company_id,
+                "candidate_id": candidate_id,
+                "event_type": event_type,
+                "description": description,
+                "actor_id": actor_id,
+                "metadata": metadata or {},
+            }
+        ).execute()
 
 
 class TimelineEventReader(ITimelineEventReader):
@@ -140,10 +142,9 @@ class TimelineEventReader(ITimelineEventReader):
 
 # ─── Candidates ───────────────────────────────────────────────────────
 
+
 class CandidateRepository(ICandidateRepository):
-    def get_by_id(
-        self, company_id: str, candidate_id: str
-    ) -> Optional[dict[str, Any]]:
+    def get_by_id(self, company_id: str, candidate_id: str) -> Optional[dict[str, Any]]:
         return q.get_candidate(company_id, candidate_id)
 
     def list_by_company(
@@ -188,6 +189,7 @@ class CandidateRepository(ICandidateRepository):
 
 
 # ─── Duplicate checker ────────────────────────────────────────────────
+
 
 class DuplicateChecker(IDuplicateChecker):
     def check_duplicate_candidate(
@@ -246,6 +248,7 @@ class DuplicateChecker(IDuplicateChecker):
 
 # ─── Participant checker ───────────────────────────────────────────────
 
+
 class ParticipantChecker(IParticipantChecker):
     def is_participant(self, user_id: str, candidate_id: str) -> bool:
         res = (
@@ -260,6 +263,7 @@ class ParticipantChecker(IParticipantChecker):
 
 
 # ─── Employee creator (cross-module) ────────────────────────────────────
+
 
 class EmployeeCreator(IEmployeeCreator):
     def __init__(self, timeline_writer: ITimelineEventWriter):
@@ -312,10 +316,12 @@ class EmployeeCreator(IEmployeeCreator):
         if not res.data:
             raise ValueError("Erreur lors de la création du salarié")
         employee = res.data[0]
-        supabase.table("recruitment_candidates").update({
-            "employee_id": employee["id"],
-            "hired_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("id", candidate_id).execute()
+        supabase.table("recruitment_candidates").update(
+            {
+                "employee_id": employee["id"],
+                "hired_at": datetime.now(timezone.utc).isoformat(),
+            }
+        ).eq("id", candidate_id).execute()
         self._timeline.add(
             company_id=company_id,
             candidate_id=candidate_id,
@@ -328,6 +334,7 @@ class EmployeeCreator(IEmployeeCreator):
 
 
 # ─── Interviews ────────────────────────────────────────────────────────
+
 
 class InterviewRepository(IInterviewRepository):
     def list_by_company(
@@ -359,12 +366,14 @@ class InterviewRepository(IInterviewRepository):
         if not res.data:
             raise ValueError("Erreur lors de la création de l'entretien")
         interview = res.data[0]
-        for uid in (data.get("participant_user_ids") or []):
-            supabase.table("recruitment_interview_participants").insert({
-                "interview_id": interview["id"],
-                "user_id": uid,
-                "role": "interviewer",
-            }).execute()
+        for uid in data.get("participant_user_ids") or []:
+            supabase.table("recruitment_interview_participants").insert(
+                {
+                    "interview_id": interview["id"],
+                    "user_id": uid,
+                    "role": "interviewer",
+                }
+            ).execute()
         return interview_row_to_out(interview)
 
     def update(
@@ -400,6 +409,7 @@ class InterviewRepository(IInterviewRepository):
 
 # ─── Notes ─────────────────────────────────────────────────────────────
 
+
 class NoteRepository(INoteRepository):
     def list_by_candidate(
         self, company_id: str, candidate_id: str
@@ -422,6 +432,7 @@ class NoteRepository(INoteRepository):
 
 
 # ─── Opinions ───────────────────────────────────────────────────────────
+
 
 class OpinionRepository(IOpinionRepository):
     def list_by_candidate(

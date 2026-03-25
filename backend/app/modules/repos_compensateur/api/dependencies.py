@@ -5,6 +5,7 @@ Dépendances FastAPI du module repos_compensateur.
   de dépendre de app.modules.users ; satisfait par le User retourné par get_current_user.
 - get_current_user (app.core.security) pour les routes protégées (calculer-credits).
 """
+
 from __future__ import annotations
 
 from typing import Protocol

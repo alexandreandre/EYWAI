@@ -16,7 +16,9 @@ from app.modules.exports.schemas import (
 )
 
 
-def preview_export(company_id: str, request: ExportPreviewRequest) -> ExportPreviewResponse:
+def preview_export(
+    company_id: str, request: ExportPreviewRequest
+) -> ExportPreviewResponse:
     """
     Prévisualise un export sans générer de fichier.
     Comportement identique à l'ancien router POST /preview.
@@ -26,7 +28,9 @@ def preview_export(company_id: str, request: ExportPreviewRequest) -> ExportPrev
         raise ValueError(f"Type d'export '{request.export_type}' non implémenté")
 
     if request.export_type == "journal_paie":
-        preview = providers.preview_journal_paie(company_id, request.period, request.employee_ids)
+        preview = providers.preview_journal_paie(
+            company_id, request.period, request.employee_ids
+        )
         return ExportPreviewResponse(
             export_type=request.export_type,
             period=request.period,
@@ -54,7 +58,12 @@ def preview_export(company_id: str, request: ExportPreviewRequest) -> ExportPrev
             warnings=preview["warnings"],
             can_generate=preview["can_generate"],
         )
-    elif request.export_type in ["od_salaires", "od_charges_sociales", "od_pas", "od_globale"]:
+    elif request.export_type in [
+        "od_salaires",
+        "od_charges_sociales",
+        "od_pas",
+        "od_globale",
+    ]:
         preview = providers.preview_od(
             company_id,
             request.period,
@@ -75,7 +84,11 @@ def preview_export(company_id: str, request: ExportPreviewRequest) -> ExportPrev
             warnings=preview["warnings"],
             can_generate=preview["can_generate"],
         )
-    elif request.export_type in ["export_cabinet_generique", "export_cabinet_quadra", "export_cabinet_sage"]:
+    elif request.export_type in [
+        "export_cabinet_generique",
+        "export_cabinet_quadra",
+        "export_cabinet_sage",
+    ]:
         preview = providers.preview_cabinet_export(
             company_id,
             request.period,
@@ -93,9 +106,13 @@ def preview_export(company_id: str, request: ExportPreviewRequest) -> ExportPrev
         )
     elif request.export_type == "dsn_mensuelle":
         dsn_type = (
-            request.filters.get("dsn_type", "dsn_mensuelle_normale") if request.filters else "dsn_mensuelle_normale"
+            request.filters.get("dsn_type", "dsn_mensuelle_normale")
+            if request.filters
+            else "dsn_mensuelle_normale"
         )
-        establishment_id = request.filters.get("establishment_id") if request.filters else None
+        establishment_id = (
+            request.filters.get("establishment_id") if request.filters else None
+        )
         preview = providers.preview_dsn(
             company_id,
             request.period,

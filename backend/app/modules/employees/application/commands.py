@@ -4,6 +4,7 @@ Cas d'usage en écriture du module employees.
 Délègue au repository, auth, storage, company reader, mappers et domain rules.
 Comportement identique au router legacy. Aucun accès DB direct.
 """
+
 from __future__ import annotations
 
 import secrets
@@ -205,7 +206,9 @@ async def create_employee(
                     content_type,
                 )
             except Exception as storage_error:
-                print(f"ERROR: Échec de l'upload de la pièce d'identité: {storage_error}")
+                print(
+                    f"ERROR: Échec de l'upload de la pièce d'identité: {storage_error}"
+                )
                 traceback.print_exc()
 
         try:
@@ -223,7 +226,9 @@ async def create_employee(
                 "application/pdf",
             )
         except Exception as pdf_error:
-            print(f"ERROR: Échec de la génération/upload du PDF de création de compte: {pdf_error}")
+            print(
+                f"ERROR: Échec de la génération/upload du PDF de création de compte: {pdf_error}"
+            )
             traceback.print_exc()
 
         response_data = dict(new_employee_db)
@@ -258,28 +263,36 @@ async def create_employee(
             try:
                 auth.delete_user(new_user_id)
             except Exception as delete_error:
-                print(f"FATAL: Impossible de supprimer l'utilisateur orphelin {new_user_id}: {delete_error}")
+                print(
+                    f"FATAL: Impossible de supprimer l'utilisateur orphelin {new_user_id}: {delete_error}"
+                )
         raise
     except EmployeeCreateValidationError:
         if new_user_id:
             try:
                 auth.delete_user(new_user_id)
             except Exception as delete_error:
-                print(f"FATAL: Impossible de supprimer l'utilisateur orphelin {new_user_id}: {delete_error}")
+                print(
+                    f"FATAL: Impossible de supprimer l'utilisateur orphelin {new_user_id}: {delete_error}"
+                )
         raise
     except Exception as e:
         if new_user_id:
             try:
                 auth.delete_user(new_user_id)
             except Exception as delete_error:
-                print(f"FATAL: Impossible de supprimer l'utilisateur orphelin {new_user_id}: {delete_error}")
+                print(
+                    f"FATAL: Impossible de supprimer l'utilisateur orphelin {new_user_id}: {delete_error}"
+                )
         error_message = str(e)
         field_errors = {}
         if "duplicate key" in error_message.lower():
             if "email" in error_message.lower():
                 field_errors["email"] = "Cette adresse email est déjà utilisée"
             if "nir" in error_message.lower():
-                field_errors["nir"] = "Ce numéro de sécurité sociale est déjà enregistré"
+                field_errors["nir"] = (
+                    "Ce numéro de sécurité sociale est déjà enregistré"
+                )
         if field_errors:
             raise EmployeeCreateValidationError(
                 field_errors=field_errors,
@@ -289,9 +302,7 @@ async def create_employee(
         raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}") from e
 
 
-def update_employee(
-    employee_id: str, update_data: Dict[str, Any]
-) -> Dict[str, Any]:
+def update_employee(employee_id: str, update_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Met à jour un employé (dont alertes RIB si coordonnées bancaires modifiées).
     Comportement identique à update_employee (router legacy).
@@ -301,7 +312,9 @@ def update_employee(
             curr = _employee_repository.get_by_id_only(employee_id)
             if curr:
                 company_id = curr.get("company_id")
-                emp_name = f"{curr.get('first_name', '')} {curr.get('last_name', '')}".strip()
+                emp_name = (
+                    f"{curr.get('first_name', '')} {curr.get('last_name', '')}".strip()
+                )
                 old_coord = curr.get("coordonnees_bancaires") or {}
                 old_iban = (
                     (old_coord.get("iban") or "").strip()

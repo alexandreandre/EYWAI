@@ -7,11 +7,13 @@ from bs4 import BeautifulSoup
 from openai import OpenAI
 from googlesearch import search
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # --- Fichiers de configuration ---
-FICHIER_TAUX = 'config/taux_cotisations.json'
+FICHIER_TAUX = "config/taux_cotisations.json"
 SEARCH_QUERY = "taux csg crds salarié urssaf 2025"
+
 
 def extract_json_with_gpt(page_text: str, prompt: str) -> dict | None:
     """
@@ -27,17 +29,23 @@ def extract_json_with_gpt(page_text: str, prompt: str) -> dict | None:
             model="gpt-4o-mini",
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "Tu es un expert en extraction de données qui répond au format JSON."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "Tu es un expert en extraction de données qui répond au format JSON.",
+                },
+                {"role": "user", "content": prompt},
             ],
-            temperature=0
+            temperature=0,
         )
         extracted_text = response.choices[0].message.content.strip()
         print(f"   - Réponse brute de l'API : {extracted_text}")
         return json.loads(extracted_text)
     except Exception as e:
-        print(f"   - ERREUR : L'appel à l'API ou le parsing JSON a échoué. Raison : {e}")
+        print(
+            f"   - ERREUR : L'appel à l'API ou le parsing JSON a échoué. Raison : {e}"
+        )
         return None
+
 
 def get_taux_csg_crds_via_ai() -> dict | None:
     """
@@ -69,9 +77,11 @@ def get_taux_csg_crds_via_ai() -> dict | None:
 
     taux_bruts = None
     for i, page_url in enumerate(search_results):
-        print(f"\n--- Tentative {i+1}/3 sur la page : {page_url} ---")
+        print(f"\n--- Tentative {i + 1}/3 sur la page : {page_url} ---")
         try:
-            response = requests.get(page_url, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
+            response = requests.get(
+                page_url, timeout=20, headers={"User-Agent": "Mozilla/5.0"}
+            )
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
             page_text = soup.get_text(" ", strip=True)
@@ -79,12 +89,16 @@ def get_taux_csg_crds_via_ai() -> dict | None:
             final_prompt = prompt_template + page_text[:12000]
             data = extract_json_with_gpt(page_text, final_prompt)
 
-            if data and all(key in data for key in ["csg_imposable", "csg_non_imposable", "crds"]):
+            if data and all(
+                key in data for key in ["csg_imposable", "csg_non_imposable", "crds"]
+            ):
                 print("✅ JSON valide et complet extrait de la page !")
                 taux_bruts = data
-                break # On a trouvé, on sort de la boucle
+                break  # On a trouvé, on sort de la boucle
             else:
-                print("   - Le JSON extrait est incomplet ou invalide, passage à la page suivante.")
+                print(
+                    "   - Le JSON extrait est incomplet ou invalide, passage à la page suivante."
+                )
         except Exception as e:
             print(f"   - ERREUR inattendue : {e}. Passage à la page suivante.")
 
@@ -95,16 +109,22 @@ def get_taux_csg_crds_via_ai() -> dict | None:
         taux_non_deductible_final = round(taux_non_deductible_brut / 100.0, 5)
 
         print("\nCalcul final des taux :")
-        print(f"  - Taux déductible : {taux_deductible*100:.2f}%")
-        print(f"  - Taux non déductible : {taux_non_deductible_final*100:.2f}% (calculé depuis {taux_bruts['csg_imposable']}% + {taux_bruts['crds']}%)")
+        print(f"  - Taux déductible : {taux_deductible * 100:.2f}%")
+        print(
+            f"  - Taux non déductible : {taux_non_deductible_final * 100:.2f}% (calculé depuis {taux_bruts['csg_imposable']}% + {taux_bruts['crds']}%)"
+        )
 
-        return {"deductible": taux_deductible, "non_deductible": taux_non_deductible_final}
+        return {
+            "deductible": taux_deductible,
+            "non_deductible": taux_non_deductible_final,
+        }
 
     print("\n❌ ERREUR FATALE : Aucune donnée valide n'a pu être extraite.")
     return None
 
+
 if __name__ == "__main__":
     taux = get_taux_csg_crds_via_ai()
-    
+
     if taux is not None:
         print(json.dumps(taux))

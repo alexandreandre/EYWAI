@@ -3,6 +3,7 @@ DTOs applicatifs pour le module rates.
 
 Types pour la lecture payroll_config : lignes brutes et sortie groupée.
 """
+
 from __future__ import annotations
 
 from typing import Any, TypedDict

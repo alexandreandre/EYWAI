@@ -5,6 +5,7 @@ Orchestration via domain (règles COR + extraction HS) et infrastructure (DB, qu
 Aucune logique métier lourde : délégation au domain et à l'infrastructure.
 Comportement strictement identique.
 """
+
 from __future__ import annotations
 
 from app.modules.repos_compensateur.application.dto import CalculerCreditsResult

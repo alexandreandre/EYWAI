@@ -4,6 +4,7 @@ Tests unitaires des queries du module dashboard.
 Chaque query délègue au service applicatif. On mocke le service pour vérifier
 que les queries appellent le bon cas d'usage et retournent le résultat.
 """
+
 from unittest.mock import patch
 
 
@@ -25,6 +26,7 @@ def _make_minimal_dashboard_data():
         PayrollStatus,
         TeamPulse,
     )
+
     return DashboardData(
         kpis=KpiData(
             coutTotal=1000.0,

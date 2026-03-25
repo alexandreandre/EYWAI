@@ -13,18 +13,19 @@ from typing import Any, Dict, List, Optional
 
 load_dotenv()
 
-FICHIER_TAUX = 'config/taux_cotisations.json'
+FICHIER_TAUX = "config/taux_cotisations.json"
 # Cible principale + requêtes de recherche
 PREFERRED_URL = "https://bofip.impots.gouv.fr/bofip/11255-PGP.html/identifiant%3DBOI-BAREME-000037-20250410"
 SEARCH_QUERIES = [
     "BOFiP barème taux neutre prélèvement à la source actuel mensuel",
     "BOI-BAREME-000037 actuel taux par défaut PAS",
-    "grille taux par défaut prélèvement à la source actuel bofip"
+    "grille taux par défaut prélèvement à la source actuel bofip",
 ]
 
 NBSP = "\xa0"
 NNBSP = "\u202f"
 THIN = "\u2009"
+
 
 # ---------- Utils ----------
 def _to_float(x: Any) -> Optional[float]:
@@ -32,15 +33,26 @@ def _to_float(x: Any) -> Optional[float]:
         return None
     if isinstance(x, (int, float)):
         return float(x)
-    s = str(x).strip().replace(NBSP, "").replace(NNBSP, "").replace(THIN, "").replace(" ", "")
+    s = (
+        str(x)
+        .strip()
+        .replace(NBSP, "")
+        .replace(NNBSP, "")
+        .replace(THIN, "")
+        .replace(" ", "")
+    )
     s = s.replace(",", ".")
     m = re.search(r"-?\d+(?:\.\d+)?", s)
     return float(m.group(0)) if m else None
 
+
 def _download(url: str) -> str:
-    r = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0", "Accept-Language": "fr"})
+    r = requests.get(
+        url, timeout=30, headers={"User-Agent": "Mozilla/5.0", "Accept-Language": "fr"}
+    )
     r.raise_for_status()
     return r.text
+
 
 def extract_json_with_gpt(page_text: str, prompt: str) -> Optional[Dict[str, Any]]:
     if not os.getenv("OPENAI_API_KEY"):
@@ -53,17 +65,21 @@ def extract_json_with_gpt(page_text: str, prompt: str) -> Optional[Dict[str, Any
             model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "Tu es un extracteur de données réglementaires. Réponds en JSON STRICT et valide."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "Tu es un extracteur de données réglementaires. Réponds en JSON STRICT et valide.",
+                },
+                {"role": "user", "content": prompt},
             ],
-            temperature=0
+            temperature=0,
         )
         raw = resp.choices[0].message.content.strip()
-        print(f"   - Réponse brute : {raw[:220]}{'…' if len(raw)>220 else ''}")
+        print(f"   - Réponse brute : {raw[:220]}{'…' if len(raw) > 220 else ''}")
         return json.loads(raw)
     except Exception as e:
         print(f"   - ERREUR OpenAI/JSON : {e}")
         return None
+
 
 # ---------- Core ----------
 def get_pas_baremes_via_ai() -> Optional[Dict[str, List[Dict[str, float]]]]:
@@ -122,9 +138,11 @@ Réponse STRICTEMENT au format JSON suivant, sans texte additionnel :
 
             # Conversion en taux réels et tri
             out: Dict[str, List[Dict[str, float]]] = {}
-            mapping = [("metropole", "metropole"),
-                       ("grm", "guadeloupe_reunion_martinique"),
-                       ("gm", "guyane_mayotte")]
+            mapping = [
+                ("metropole", "metropole"),
+                ("grm", "guadeloupe_reunion_martinique"),
+                ("gm", "guyane_mayotte"),
+            ]
             for src, dst in mapping:
                 conv: List[Dict[str, float]] = []
                 for item in data[src]:
@@ -133,14 +151,25 @@ Réponse STRICTEMENT au format JSON suivant, sans texte additionnel :
                     if taux_pct is None:
                         conv = []
                         break
-                    conv.append({"plafond": plafond, "taux": round(taux_pct / 100.0, 5)})
+                    conv.append(
+                        {"plafond": plafond, "taux": round(taux_pct / 100.0, 5)}
+                    )
                 if not conv:
                     out = {}
                     break
-                conv.sort(key=lambda x: (float('inf') if x["plafond"] is None else x["plafond"]))
+                conv.sort(
+                    key=lambda x: float("inf") if x["plafond"] is None else x["plafond"]
+                )
                 out[dst] = conv
 
-            if out and all(k in out for k in ("metropole", "guadeloupe_reunion_martinique", "guyane_mayotte")):
+            if out and all(
+                k in out
+                for k in (
+                    "metropole",
+                    "guadeloupe_reunion_martinique",
+                    "guyane_mayotte",
+                )
+            ):
                 print(
                     f"✅ Barèmes AI: "
                     f"{len(out['metropole'])} métropole, "
@@ -156,7 +185,10 @@ Réponse STRICTEMENT au format JSON suivant, sans texte additionnel :
     print("\n❌ Aucun JSON valide obtenu via IA.")
     return None
 
-def update_config_with_pas(zones: Dict[str, List[Dict[str, float]]], fichier: str = FICHIER_TAUX) -> None:
+
+def update_config_with_pas(
+    zones: Dict[str, List[Dict[str, float]]], fichier: str = FICHIER_TAUX
+) -> None:
     path = Path(fichier)
     if not path.exists():
         raise FileNotFoundError(f"Fichier introuvable: {fichier}")
@@ -183,6 +215,7 @@ def update_config_with_pas(zones: Dict[str, List[Dict[str, float]]], fichier: st
     }
 
     print(json.dumps(config))
+
 
 # ---------- Main ----------
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ Requêtes Supabase pour le dashboard.
 Toute lecture DB du module : employees, absence_requests, expense_reports, payslips.
 Client Supabase via app.core.database (aucune dépendance legacy).
 """
+
 from __future__ import annotations
 
 from typing import List

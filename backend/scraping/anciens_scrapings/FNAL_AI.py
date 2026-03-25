@@ -7,12 +7,14 @@ from bs4 import BeautifulSoup
 from openai import OpenAI
 from googlesearch import search
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # --- Fichiers de configuration ---
-FICHIER_ENTREPRISE = 'config/parametres_entreprise.json'
-FICHIER_TAUX = 'config/taux_cotisations.json'
+FICHIER_ENTREPRISE = "config/parametres_entreprise.json"
+FICHIER_TAUX = "config/taux_cotisations.json"
 SEARCH_QUERY = "taux cotisation fnal urssaf 2025"
+
 
 def extract_value_with_gpt(page_text: str, prompt: str) -> str | None:
     """
@@ -27,11 +29,14 @@ def extract_value_with_gpt(page_text: str, prompt: str) -> str | None:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "Tu es un expert en extraction de données."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "Tu es un expert en extraction de données.",
+                },
+                {"role": "user", "content": prompt},
             ],
             temperature=0,
-            max_tokens=10
+            max_tokens=10,
         )
         extracted_text = response.choices[0].message.content.strip()
         print(f"   - Réponse brute de l'API : '{extracted_text}'")
@@ -39,6 +44,7 @@ def extract_value_with_gpt(page_text: str, prompt: str) -> str | None:
     except Exception as e:
         print(f"   - ERREUR : L'appel à l'API OpenAI a échoué. Raison : {e}")
         return None
+
 
 def get_taux_fnal_via_ai(is_effectif_inferieur_50: bool) -> float | None:
     """
@@ -73,9 +79,11 @@ def get_taux_fnal_via_ai(is_effectif_inferieur_50: bool) -> float | None:
         return None
 
     for i, page_url in enumerate(search_results):
-        print(f"\n--- Tentative {i+1}/3 sur la page : {page_url} ---")
+        print(f"\n--- Tentative {i + 1}/3 sur la page : {page_url} ---")
         try:
-            response = requests.get(page_url, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
+            response = requests.get(
+                page_url, timeout=20, headers={"User-Agent": "Mozilla/5.0"}
+            )
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
             page_text = soup.get_text(" ", strip=True)
@@ -83,37 +91,46 @@ def get_taux_fnal_via_ai(is_effectif_inferieur_50: bool) -> float | None:
             final_prompt = prompt_template + page_text[:12000]
             extracted_text = extract_value_with_gpt(page_text, final_prompt)
 
-            if extracted_text and extracted_text.lower() != 'none':
-                taux_percent = float(extracted_text.replace(',', '.'))
+            if extracted_text and extracted_text.lower() != "none":
+                taux_percent = float(extracted_text.replace(",", "."))
                 taux_final = round(taux_percent / 100.0, 5)
-                print(f"✅ Valeur trouvée et validée ! Taux : {taux_final*100:.2f}%")
+                print(f"✅ Valeur trouvée et validée ! Taux : {taux_final * 100:.2f}%")
                 return taux_final
             else:
-                print("   - Aucune valeur extraite de cette page, passage à la suivante.")
+                print(
+                    "   - Aucune valeur extraite de cette page, passage à la suivante."
+                )
 
         except Exception as e:
             print(f"   - ERREUR inattendue : {e}. Passage à la page suivante.")
 
-    print("\n❌ ERREUR FATALE : Aucune valeur n'a pu être extraite après avoir essayé toutes les pages.")
+    print(
+        "\n❌ ERREUR FATALE : Aucune valeur n'a pu être extraite après avoir essayé toutes les pages."
+    )
     return None
+
 
 if __name__ == "__main__":
     # La logique de départ est identique à celle du script original
     try:
-        with open(FICHIER_ENTREPRISE, 'r', encoding='utf-8') as f:
+        with open(FICHIER_ENTREPRISE, "r", encoding="utf-8") as f:
             config_entreprise = json.load(f)
-        
-        conditions = config_entreprise['PARAMETRES_ENTREPRISE']['conditions_cotisations']
-        effectif = conditions.get('effectif_total')
-        
-        if effectif is None:
-            raise KeyError("La clé 'effectif_total' est manquante dans parametres_entreprise.json")
 
-        est_inferieur_a_50 = (effectif < 50)
-        
+        conditions = config_entreprise["PARAMETRES_ENTREPRISE"][
+            "conditions_cotisations"
+        ]
+        effectif = conditions.get("effectif_total")
+
+        if effectif is None:
+            raise KeyError(
+                "La clé 'effectif_total' est manquante dans parametres_entreprise.json"
+            )
+
+        est_inferieur_a_50 = effectif < 50
+
         # On appelle notre nouvelle fonction IA
         taux = get_taux_fnal_via_ai(is_effectif_inferieur_50=est_inferieur_a_50)
-    
+
         if taux is not None:
             print(json.dumps(taux))
 

@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module payroll.
 Vérifient que l'injection des dépendances et le flux de bout en bout
 (entrée API -> module payslips -> module payroll) fonctionnent pour la paie.
 """
+
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -86,6 +87,7 @@ class TestPayrollForfaitPeriodWiring:
     def test_definir_periode_de_paie_forfait_flow(self, mock_definir, mock_ctx):
         """definir_periode_de_paie_forfait appelle le moteur et retourne des dates."""
         from datetime import date
+
         mock_ctx.return_value = MagicMock()
         mock_definir.return_value = (date(2024, 12, 23), date(2025, 1, 5))
         params = {"periode_de_paie": {"jour_de_fin": 4, "occurrence": -2}}
@@ -107,6 +109,7 @@ class TestPayrollExportServiceWiring:
     def test_export_service_module_imports(self):
         """export_service expose les exports paie (journal, virements, DSN, etc.)."""
         from app.modules.payroll.application import export_service
+
         assert hasattr(export_service, "get_journal_paie_data")
         assert hasattr(export_service, "preview_journal_paie")
         assert hasattr(export_service, "get_paiement_salaires_data")

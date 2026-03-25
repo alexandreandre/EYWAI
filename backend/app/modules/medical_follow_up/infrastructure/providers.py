@@ -7,7 +7,9 @@ Lit companies.settings.medical_follow_up_enabled (défaut True, comportement ide
 Aucune dépendance à services/*.
 """
 
-from app.modules.medical_follow_up.domain.interfaces import ICompanyMedicalSettingsProvider
+from app.modules.medical_follow_up.domain.interfaces import (
+    ICompanyMedicalSettingsProvider,
+)
 from app.modules.medical_follow_up.infrastructure.database import get_supabase
 
 

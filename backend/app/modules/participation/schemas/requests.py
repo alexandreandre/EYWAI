@@ -3,6 +3,7 @@ Schémas de requête API pour participation (Participation & Intéressement).
 
 Migrés depuis api/routers/participation.py — comportement identique (str + pattern).
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, Optional

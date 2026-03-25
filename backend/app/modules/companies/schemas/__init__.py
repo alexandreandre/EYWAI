@@ -1,4 +1,5 @@
 """Schémas API du module companies (requêtes et réponses)."""
+
 from app.modules.companies.schemas.requests import (
     CompanyCreate,
     CompanyCreateWithAdmin,

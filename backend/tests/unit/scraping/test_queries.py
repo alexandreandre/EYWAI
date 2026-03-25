@@ -4,6 +4,7 @@ Tests unitaires des queries scraping (application/queries.py).
 Repository mocké. Couvre get_scraping_dashboard, list_sources, get_source_details,
 list_jobs, get_job_details, get_job_logs, list_schedules, list_alerts.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -18,13 +19,21 @@ class TestGetScrapingDashboard:
 
     def test_returns_stats_recent_jobs_unread_alerts_critical_sources(self):
         mock_repo = MagicMock()
-        mock_repo.get_scraping_stats.return_value = {"total_jobs": 100, "success_rate": 0.95}
-        mock_repo.get_recent_jobs.return_value = [{"id": "job-1", "status": "completed"}]
+        mock_repo.get_scraping_stats.return_value = {
+            "total_jobs": 100,
+            "success_rate": 0.95,
+        }
+        mock_repo.get_recent_jobs.return_value = [
+            {"id": "job-1", "status": "completed"}
+        ]
         mock_repo.get_unread_alerts.return_value = [{"id": "alert-1", "is_read": False}]
         mock_repo.get_critical_sources.return_value = [
             {"id": "src-1", "source_name": "SMIC"},
         ]
-        mock_repo.get_last_job_for_source.return_value = {"id": "job-last", "success": True}
+        mock_repo.get_last_job_for_source.return_value = {
+            "id": "job-last",
+            "success": True,
+        }
 
         with patch(f"{QUERIES_MODULE}.ScrapingRepository", return_value=mock_repo):
             result = queries.get_scraping_dashboard()
@@ -35,7 +44,10 @@ class TestGetScrapingDashboard:
         assert len(result["unread_alerts"]) == 1
         assert result["unread_alerts"][0]["id"] == "alert-1"
         assert len(result["critical_sources"]) == 1
-        assert result["critical_sources"][0]["last_job"] == {"id": "job-last", "success": True}
+        assert result["critical_sources"][0]["last_job"] == {
+            "id": "job-last",
+            "success": True,
+        }
         mock_repo.get_recent_jobs.assert_called_once_with(limit=10)
         mock_repo.get_unread_alerts.assert_called_once_with(limit=5)
 
@@ -49,7 +61,10 @@ class TestListSources:
             {"id": "src-1", "source_key": "SMIC", "source_name": "Salaire minimum"},
         ]
         mock_repo.get_last_job_for_source.return_value = {"id": "job-1"}
-        mock_repo.get_jobs_for_source_30d.return_value = ([{"success": True}, {"success": False}], 2)
+        mock_repo.get_jobs_for_source_30d.return_value = (
+            [{"success": True}, {"success": False}],
+            2,
+        )
         mock_repo.get_unresolved_alerts_count.return_value = 0
 
         with patch(f"{QUERIES_MODULE}.ScrapingRepository", return_value=mock_repo):
@@ -97,7 +112,9 @@ class TestGetSourceDetails:
         mock_repo.get_source_by_id.assert_called_once_with("src-1")
         mock_repo.get_jobs_history_for_source.assert_called_once_with("src-1", limit=20)
         mock_repo.get_schedules_for_source.assert_called_once_with("src-1")
-        mock_repo.get_recent_alerts_for_source.assert_called_once_with("src-1", limit=10)
+        mock_repo.get_recent_alerts_for_source.assert_called_once_with(
+            "src-1", limit=10
+        )
 
     def test_raises_when_source_not_found(self):
         mock_repo = MagicMock()
@@ -148,7 +165,12 @@ class TestGetJobDetails:
 
     def test_returns_job_when_found(self):
         mock_repo = MagicMock()
-        job = {"id": "job-1", "source_id": "src-1", "status": "completed", "success": True}
+        job = {
+            "id": "job-1",
+            "source_id": "src-1",
+            "status": "completed",
+            "success": True,
+        }
         mock_repo.get_job.return_value = job
 
         with patch(f"{QUERIES_MODULE}.ScrapingRepository", return_value=mock_repo):

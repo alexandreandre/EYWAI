@@ -4,6 +4,7 @@ Entités du domaine participation (Participation & Intéressement).
 À migrer depuis la logique actuelle du routeur legacy.
 Une simulation est identifiée par id, company_id, year, simulation_name.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

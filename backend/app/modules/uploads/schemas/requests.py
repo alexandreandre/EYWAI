@@ -3,6 +3,7 @@ Schémas de requête pour le module uploads.
 
 Contrat API entrée (Form + query). Comportement identique à api/routers/uploads.py.
 """
+
 from typing import Literal
 
 from pydantic import BaseModel, Field

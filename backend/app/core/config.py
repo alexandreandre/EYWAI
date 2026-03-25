@@ -3,6 +3,7 @@ Configuration de l'app cible (app/) : Supabase, chemins.
 Comportement aligné sur l'ancien core.config ; les imports legacy restent sur backend_api/core/config.py.
 Clients Supabase et chemins moteur de paie sont centralisés dans app.core.database et app.core.paths.
 """
+
 from pathlib import Path
 
 

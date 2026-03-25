@@ -1,0 +1,15 @@
+{
+  "entreprise": {
+    "identification": {
+      "raison_sociale": "Test SARL",
+      "siren": "123456789"
+    },
+    "parametres_paie": {
+      "effectif": 10,
+      "periode_de_paie": {
+        "jour_de_fin": 4,
+        "occurrence": -2
+      }
+    }
+  }
+}

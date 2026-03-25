@@ -6,6 +6,7 @@ get_permission_categories, get_permission_actions, get_all_permissions,
 get_permissions_matrix, get_user_permissions_summary, get_role_templates,
 get_role_template_by_id.
 """
+
 from uuid import UUID
 
 from unittest.mock import MagicMock, patch
@@ -24,7 +25,9 @@ def _make_user(
 ) -> User:
     if accessible_companies is None:
         accessible_companies = [
-            CompanyAccess(company_id="company-1", company_name="C1", role="rh", is_primary=True),
+            CompanyAccess(
+                company_id="company-1", company_name="C1", role="rh", is_primary=True
+            ),
         ]
     return User(
         id=user_id,
@@ -44,9 +47,16 @@ class TestCheckHierarchy:
     def test_returns_result_from_service(self, mock_service: MagicMock):
         """Délègue au service et retourne RoleHierarchyCheckResult."""
         mock_service.check_role_hierarchy_access.return_value = True
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="company-1", company_name="C1", role="admin", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="company-1",
+                    company_name="C1",
+                    role="admin",
+                    is_primary=True,
+                ),
+            ]
+        )
 
         result = queries.check_hierarchy(user, "rh", "company-1")
 
@@ -201,7 +211,9 @@ class TestGetPermissionsMatrix:
 
     @patch("app.modules.access_control.application.queries.permission_catalog_reader")
     @patch("app.modules.access_control.application.queries.access_control_service")
-    def test_raises_403_when_no_rh_access(self, mock_service: MagicMock, mock_reader: MagicMock):
+    def test_raises_403_when_no_rh_access(
+        self, mock_service: MagicMock, mock_reader: MagicMock
+    ):
         """Lève 403 si l'utilisateur n'a pas accès RH à l'entreprise."""
         mock_service.can_access_company_as_rh.return_value = False
         user = _make_user()
@@ -255,7 +267,9 @@ class TestGetUserPermissionsSummary:
 
     @patch("app.modules.access_control.application.queries.permission_catalog_reader")
     @patch("app.modules.access_control.application.queries.access_control_service")
-    def test_raises_404_when_no_access(self, mock_service: MagicMock, mock_reader: MagicMock):
+    def test_raises_404_when_no_access(
+        self, mock_service: MagicMock, mock_reader: MagicMock
+    ):
         """Lève 404 si l'utilisateur cible n'a pas d'accès à l'entreprise."""
         mock_reader.get_user_company_access.return_value = None
         user = _make_user()
@@ -271,11 +285,26 @@ class TestGetUserPermissionsSummary:
         self, mock_service: MagicMock, mock_reader: MagicMock
     ):
         """Lève 403 si le créateur n'est pas autorisé à voir les perms de l'utilisateur cible."""
-        mock_reader.get_user_company_access.return_value = {"role": "admin", "role_templates": {}}
-        mock_service.get_viewable_roles.return_value = ["rh", "collaborateur_rh", "collaborateur", "custom"]
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="company-1", company_name="C1", role="rh", is_primary=True),
-        ])
+        mock_reader.get_user_company_access.return_value = {
+            "role": "admin",
+            "role_templates": {},
+        }
+        mock_service.get_viewable_roles.return_value = [
+            "rh",
+            "collaborateur_rh",
+            "collaborateur",
+            "custom",
+        ]
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="company-1",
+                    company_name="C1",
+                    role="rh",
+                    is_primary=True,
+                ),
+            ]
+        )
         # rh ne peut pas "voir" admin
         with pytest.raises(HTTPException) as exc_info:
             queries.get_user_permissions_summary(user, "target-user", "company-1")
@@ -297,15 +326,30 @@ class TestGetUserPermissionsSummary:
             "role_template_id": "50000000-0000-0000-0000-000000000001",
             "role_templates": {"name": "Template RH"},
         }
-        mock_service.get_viewable_roles.return_value = ["admin", "rh", "collaborateur_rh", "collaborateur", "custom"]
+        mock_service.get_viewable_roles.return_value = [
+            "admin",
+            "rh",
+            "collaborateur_rh",
+            "collaborateur",
+            "custom",
+        ]
         mock_reader.get_user_permission_ids.return_value = []
         mock_reader.get_permissions_details_by_ids.return_value = []
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id=target_company_id, company_name="C1", role="admin", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id=target_company_id,
+                    company_name="C1",
+                    role="admin",
+                    is_primary=True,
+                ),
+            ]
+        )
         user.active_company_id = target_company_id
 
-        result = queries.get_user_permissions_summary(user, target_user_id, target_company_id)
+        result = queries.get_user_permissions_summary(
+            user, target_user_id, target_company_id
+        )
 
         assert isinstance(result, UserPermissionsSummary)
         assert result.base_role == "rh"

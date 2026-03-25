@@ -4,6 +4,7 @@ Queries infrastructure payslips : lecture BDD + URLs signées.
 Logique alignée sur le router legacy (get_my_payslips, get_employee_payslips,
 get_payslip_details, get_payslip_history). Utilise app.core.database.supabase.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -79,14 +80,16 @@ def get_my_payslips(employee_id: str) -> list[dict[str, Any]]:
             val = payslip_json.get("net_a_payer")
             if isinstance(val, (int, float)):
                 net_amount = float(val)
-        result.append({
-            "id": p["id"],
-            "name": file_name,
-            "month": p["month"],
-            "year": p["year"],
-            "url": url_map[storage_path],
-            "net_a_payer": net_amount,
-        })
+        result.append(
+            {
+                "id": p["id"],
+                "name": file_name,
+                "month": p["month"],
+                "year": p["year"],
+                "url": url_map[storage_path],
+                "net_a_payer": net_amount,
+            }
+        )
     return result
 
 

@@ -5,6 +5,7 @@ Vérifient que l'injection des dépendances et le flux de bout en bout
 (router -> commands/queries -> service -> repositories / rules) fonctionnent
 pour ce module.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -69,7 +70,9 @@ class TestWiringGetSalarySeizuresWithAuth:
     -> service.get_salary_seizures -> list_seizures_with_employee (mockée).
     """
 
-    def test_get_salary_seizures_wiring_returns_what_service_returns(self, client: TestClient):
+    def test_get_salary_seizures_wiring_returns_what_service_returns(
+        self, client: TestClient
+    ):
         from app.core.security import get_current_user
         from datetime import datetime
 
@@ -95,7 +98,9 @@ class TestWiringGetSalarySeizuresWithAuth:
             "created_by": TEST_USER_ID,
             "employee_name": "Jean Dupont",
         }
-        with patch("app.modules.saisies_avances.application.service.list_seizures_with_employee") as list_fn:
+        with patch(
+            "app.modules.saisies_avances.application.service.list_seizures_with_employee"
+        ) as list_fn:
             list_fn.return_value = [full_row]
             app.dependency_overrides[get_current_user] = lambda: _make_user()
             try:
@@ -118,13 +123,20 @@ class TestWiringCreateSalarySeizureCommandFlow:
     -> employee_company_provider.get_company_id + seizure_repository.create (mockés).
     """
 
-    def test_create_salary_seizure_wiring_command_calls_service_and_returns_201(self, client: TestClient):
+    def test_create_salary_seizure_wiring_command_calls_service_and_returns_201(
+        self, client: TestClient
+    ):
         from app.core.security import get_current_user
 
-        with patch("app.modules.saisies_avances.application.service.employee_company_provider") as prov:
-            with patch("app.modules.saisies_avances.application.service.seizure_repository") as repo:
+        with patch(
+            "app.modules.saisies_avances.application.service.employee_company_provider"
+        ) as prov:
+            with patch(
+                "app.modules.saisies_avances.application.service.seizure_repository"
+            ) as repo:
                 prov.get_company_id.return_value = TEST_COMPANY_ID
                 from datetime import datetime
+
                 repo.create.return_value = {
                     "id": "s-new",
                     "company_id": TEST_COMPANY_ID,
@@ -172,11 +184,15 @@ class TestWiringErrorHandling:
         from app.core.security import get_current_user
         from app.modules.saisies_avances.application.dto import NotFoundError
 
-        with patch("app.modules.saisies_avances.application.queries.get_salary_seizure") as q:
+        with patch(
+            "app.modules.saisies_avances.application.queries.get_salary_seizure"
+        ) as q:
             q.side_effect = NotFoundError("Saisie non trouvée.")
             app.dependency_overrides[get_current_user] = lambda: _make_user()
             try:
-                response = client.get("/api/saisies-avances/salary-seizures/s-inexistant")
+                response = client.get(
+                    "/api/saisies-avances/salary-seizures/s-inexistant"
+                )
             finally:
                 app.dependency_overrides.pop(get_current_user, None)
 

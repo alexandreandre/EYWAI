@@ -3,6 +3,7 @@ Provider storage pour le bucket Supabase 'logos'.
 
 Implémente ILogoStorage (domain). Comportement identique à api/routers/uploads.py.
 """
+
 from __future__ import annotations
 
 from app.core.database import supabase
@@ -38,9 +39,7 @@ class LogoStorage:
         try:
             supabase.storage.from_(BUCKET_LOGOS).remove(paths)
         except Exception as e:
-            print(
-                f"Avertissement: impossible de supprimer le fichier du storage: {e}"
-            )
+            print(f"Avertissement: impossible de supprimer le fichier du storage: {e}")
 
 
 _default_storage: ILogoStorage = LogoStorage()

@@ -5,6 +5,7 @@ Définit les formes de données échangées dans la couche application (lecture 
 La réponse publique reste ResidencePermitListItem (schemas.responses).
 EnrichedResidencePermitRow / as_enriched_row : typage optionnel pour dict enrichi (non utilisé ailleurs pour l’instant).
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, Optional, TypedDict
@@ -15,6 +16,7 @@ class EnrichedResidencePermitRow(TypedDict, total=False):
     Ligne employé enrichie avec le statut titre de séjour calculé.
     Correspond au dict retourné par enrich_row_with_residence_permit_status.
     """
+
     id: str
     first_name: str
     last_name: str

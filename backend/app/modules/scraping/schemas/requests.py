@@ -4,6 +4,7 @@ Schémas requête API du module scraping.
 Définitions canoniques (migration depuis api/routers/scraping.py).
 Comportement identique : mêmes champs, mêmes types, mêmes valeurs par défaut.
 """
+
 from __future__ import annotations
 
 from typing import List, Optional

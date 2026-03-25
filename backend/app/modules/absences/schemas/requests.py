@@ -3,6 +3,7 @@ Schémas Pydantic entrée API du module absences.
 
 Migrés depuis schemas/absence.py — comportement identique.
 """
+
 from datetime import date
 from typing import List, Literal
 
@@ -33,7 +34,9 @@ class AbsenceRequestCreate(BaseModel):
     comment: str | None = None
     attachment_url: str | None = None
     filename: str | None = None
-    event_subtype: str | None = None  # Requis si type = evenement_familial (ex: mariage_salarie, deces_enfant)
+    event_subtype: str | None = (
+        None  # Requis si type = evenement_familial (ex: mariage_salarie, deces_enfant)
+    )
 
 
 class AbsenceRequestStatusUpdate(BaseModel):

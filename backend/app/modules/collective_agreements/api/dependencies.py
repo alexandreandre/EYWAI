@@ -3,6 +3,7 @@ Dépendances FastAPI du module collective_agreements.
 
 Contrat minimal du contexte utilisateur (Protocol) ; get_current_user fourni par app.core.security.
 """
+
 from __future__ import annotations
 
 from typing import Optional, Protocol
@@ -17,8 +18,7 @@ class CollectiveAgreementUserContext(Protocol):
     id: str
     role: str
 
-    def has_rh_access_in_company(self, company_id: str) -> bool:
-        ...
+    def has_rh_access_in_company(self, company_id: str) -> bool: ...
 
 
 __all__ = ["CollectiveAgreementUserContext", "get_current_user"]

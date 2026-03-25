@@ -48,7 +48,9 @@ async def preview_export(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/generate", response_model=Union[ExportGenerateResponse, DSNGenerateResponse])
+@router.post(
+    "/generate", response_model=Union[ExportGenerateResponse, DSNGenerateResponse]
+)
 async def generate_export(
     request: ExportGenerateRequest,
     current_user: User = Depends(get_current_user),

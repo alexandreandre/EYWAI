@@ -3,6 +3,7 @@ Tests unitaires des queries du module schedules (application/queries.py).
 
 Repositories et providers mockés. Pas de DB ni HTTP.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -22,11 +23,14 @@ class TestGetEmployeeCalendar:
         """Délègue au file_calendar_provider, retourne planned et actual."""
         planned = [{"day": 1, "type": "work", "hours": 8}]
         actual = [{"day": 1, "hours": 7.5}]
-        with patch(
-            "app.modules.schedules.application.queries.employee_company_reader",
-        ) as reader, patch(
-            "app.modules.schedules.application.queries.file_calendar_provider",
-        ) as file_provider:
+        with (
+            patch(
+                "app.modules.schedules.application.queries.employee_company_reader",
+            ) as reader,
+            patch(
+                "app.modules.schedules.application.queries.file_calendar_provider",
+            ) as file_provider,
+        ):
             reader.get_employee_folder_name.return_value = "Dupont_Jean"
             file_provider.read_planned_calendar.return_value = planned
             file_provider.read_actual_hours.return_value = actual
@@ -34,7 +38,9 @@ class TestGetEmployeeCalendar:
             result = queries.get_employee_calendar("emp-1", 2025, 3)
 
         assert result == {"planned": planned, "actual": actual}
-        file_provider.read_planned_calendar.assert_called_once_with("Dupont_Jean", 2025, 3)
+        file_provider.read_planned_calendar.assert_called_once_with(
+            "Dupont_Jean", 2025, 3
+        )
         file_provider.read_actual_hours.assert_called_once_with("Dupont_Jean", 2025, 3)
 
     def test_raises_schedule_app_error_when_employee_not_found(self):
@@ -43,7 +49,10 @@ class TestGetEmployeeCalendar:
             "app.modules.schedules.application.queries.employee_company_reader",
         ) as reader:
             from app.modules.schedules.domain.exceptions import ScheduleNotFoundError
-            reader.get_employee_folder_name.side_effect = ScheduleNotFoundError("Employé non trouvé")
+
+            reader.get_employee_folder_name.side_effect = ScheduleNotFoundError(
+                "Employé non trouvé"
+            )
 
             with pytest.raises(ScheduleAppError) as exc_info:
                 queries.get_employee_calendar("emp-unknown", 2025, 3)
@@ -59,7 +68,9 @@ class TestGetPlannedCalendar:
 
     def test_returns_year_month_and_calendrier_prevu(self):
         """Repository retourne planned_calendar → extraction et retour structuré."""
-        db_planned = {"calendrier_prevu": [{"jour": 1, "type": "work", "heures_prevues": 8}]}
+        db_planned = {
+            "calendrier_prevu": [{"jour": 1, "type": "work", "heures_prevues": 8}]
+        }
         with patch(
             "app.modules.schedules.application.queries.schedule_repository",
         ) as repo:
@@ -69,7 +80,9 @@ class TestGetPlannedCalendar:
 
         assert result["year"] == 2025
         assert result["month"] == 3
-        assert result["calendrier_prevu"] == [{"jour": 1, "type": "work", "heures_prevues": 8}]
+        assert result["calendrier_prevu"] == [
+            {"jour": 1, "type": "work", "heures_prevues": 8}
+        ]
         repo.get_planned_calendar.assert_called_once_with("emp-1", 2025, 3)
 
     def test_returns_empty_calendar_when_repository_returns_none(self):
@@ -136,11 +149,14 @@ class TestGetMyCurrentCumuls:
                 },
             }
         }
-        with patch(
-            "app.modules.schedules.application.queries.schedule_repository",
-        ) as repo, patch(
-            "app.modules.schedules.application.queries.row_to_cumuls",
-            return_value=row["cumuls"],
+        with (
+            patch(
+                "app.modules.schedules.application.queries.schedule_repository",
+            ) as repo,
+            patch(
+                "app.modules.schedules.application.queries.row_to_cumuls",
+                return_value=row["cumuls"],
+            ),
         ):
             repo.get_latest_cumuls_row.return_value = row
             result = queries.get_my_current_cumuls("emp-1")
@@ -153,11 +169,14 @@ class TestGetMyCurrentCumuls:
 
     def test_returns_empty_cumuls_when_no_row(self):
         """Aucune ligne cumuls → CumulsResponse(periode=None, cumuls=None)."""
-        with patch(
-            "app.modules.schedules.application.queries.schedule_repository",
-        ) as repo, patch(
-            "app.modules.schedules.application.queries.row_to_cumuls",
-            return_value=None,
+        with (
+            patch(
+                "app.modules.schedules.application.queries.schedule_repository",
+            ) as repo,
+            patch(
+                "app.modules.schedules.application.queries.row_to_cumuls",
+                return_value=None,
+            ),
         ):
             repo.get_latest_cumuls_row.return_value = None
             result = queries.get_my_current_cumuls("emp-1")
@@ -167,11 +186,14 @@ class TestGetMyCurrentCumuls:
 
     def test_returns_empty_cumuls_when_row_has_no_cumuls_dict(self):
         """Ligne sans cumuls dict valide → CumulsResponse(periode=None, cumuls=None)."""
-        with patch(
-            "app.modules.schedules.application.queries.schedule_repository",
-        ) as repo, patch(
-            "app.modules.schedules.application.queries.row_to_cumuls",
-            return_value="not_a_dict",
+        with (
+            patch(
+                "app.modules.schedules.application.queries.schedule_repository",
+            ) as repo,
+            patch(
+                "app.modules.schedules.application.queries.row_to_cumuls",
+                return_value="not_a_dict",
+            ),
         ):
             repo.get_latest_cumuls_row.return_value = {"cumuls": None}
             result = queries.get_my_current_cumuls("emp-1")

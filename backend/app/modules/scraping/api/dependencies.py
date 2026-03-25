@@ -4,6 +4,7 @@ Dépendances FastAPI du module scraping.
 Vérification super admin : à brancher sur access_control ou à garder ici
 lors de la migration (comportement identique au legacy).
 """
+
 from __future__ import annotations
 
 from fastapi import Depends, HTTPException, status

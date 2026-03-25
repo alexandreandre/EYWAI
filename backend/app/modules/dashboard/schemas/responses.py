@@ -4,6 +4,7 @@ Schémas de réponse du module dashboard.
 Source unique pour GET /api/dashboard/all et GET /api/dashboard/residence-permit-stats.
 Le router legacy api/routers/dashboard.py les importe ici (compatibilité).
 """
+
 from datetime import date
 from typing import Dict, List, Literal, Optional
 

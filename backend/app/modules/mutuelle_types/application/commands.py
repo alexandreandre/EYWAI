@@ -3,6 +3,7 @@ Commandes applicatives (write) pour mutuelle_types.
 
 Délèguent au service (repository injecté) ; gèrent APIError 23505 (contrainte unique).
 """
+
 from __future__ import annotations
 
 import traceback
@@ -72,9 +73,7 @@ def update_mutuelle_type(
     try:
         repo = SupabaseMutuelleTypeRepository(supabase)
         service = MutuelleTypesService(repo)
-        return service.update(
-            mutuelle_type_id, company_id, created_by, payload
-        )
+        return service.update(mutuelle_type_id, company_id, created_by, payload)
     except HTTPException:
         raise
     except APIError as e:

@@ -4,6 +4,7 @@ Ports (interfaces) pour le module mutuelle_types.
 L’infrastructure implémente ces interfaces ; l’application ne dépend que des abstractions.
 Tables : company_mutuelle_types, employee_mutuelle_types, employees.specificites_paie (mutuelle).
 """
+
 from __future__ import annotations
 
 from typing import Any, Protocol

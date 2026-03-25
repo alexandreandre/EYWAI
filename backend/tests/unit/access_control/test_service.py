@@ -5,12 +5,16 @@ AccessControlService avec IPermissionRepository mocké : hiérarchie des rôles,
 vérification des permissions, accès RH, require_rh_access, require_rh_access_for_company,
 can_access_company_as_rh, get_viewable_roles.
 """
+
 from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException
 
-from app.modules.access_control.application.service import AccessControlService, get_access_control_service
+from app.modules.access_control.application.service import (
+    AccessControlService,
+    get_access_control_service,
+)
 from app.modules.users.schemas.responses import CompanyAccess, User
 
 
@@ -21,7 +25,9 @@ def _make_user(
 ) -> User:
     if accessible_companies is None:
         accessible_companies = [
-            CompanyAccess(company_id="company-1", company_name="C1", role="rh", is_primary=True),
+            CompanyAccess(
+                company_id="company-1", company_name="C1", role="rh", is_primary=True
+            ),
         ]
     return User(
         id=user_id,
@@ -67,9 +73,16 @@ class TestCheckRoleHierarchyAccess:
         """Admin peut attribuer rh."""
         mock_repo = MagicMock()
         svc = AccessControlService(mock_repo)
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="company-1", company_name="C1", role="admin", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="company-1",
+                    company_name="C1",
+                    role="admin",
+                    is_primary=True,
+                ),
+            ]
+        )
 
         assert svc.check_role_hierarchy_access(user, "rh", "company-1") is True
 
@@ -77,9 +90,16 @@ class TestCheckRoleHierarchyAccess:
         """RH ne peut pas attribuer admin."""
         mock_repo = MagicMock()
         svc = AccessControlService(mock_repo)
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="company-1", company_name="C1", role="rh", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="company-1",
+                    company_name="C1",
+                    role="rh",
+                    is_primary=True,
+                ),
+            ]
+        )
 
         assert svc.check_role_hierarchy_access(user, "admin", "company-1") is False
 
@@ -87,9 +107,16 @@ class TestCheckRoleHierarchyAccess:
         """Utilisateur sans rôle dans l'entreprise → False."""
         mock_repo = MagicMock()
         svc = AccessControlService(mock_repo)
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="other-company", company_name="Other", role="admin", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="other-company",
+                    company_name="Other",
+                    role="admin",
+                    is_primary=True,
+                ),
+            ]
+        )
 
         assert svc.check_role_hierarchy_access(user, "rh", "company-1") is False
 
@@ -116,7 +143,10 @@ class TestCheckUserHasPermission:
         mock_repo.user_has_permission.return_value = False
         svc = AccessControlService(mock_repo)
 
-        assert svc.check_user_has_permission("user-1", "company-1", "payslips.delete") is False
+        assert (
+            svc.check_user_has_permission("user-1", "company-1", "payslips.delete")
+            is False
+        )
 
 
 class TestHasAnyRhPermission:
@@ -130,7 +160,9 @@ class TestHasAnyRhPermission:
 
         result = svc.has_any_rh_permission("user-1", "company-1")
 
-        mock_repo.user_has_any_rh_permission.assert_called_once_with("user-1", "company-1")
+        mock_repo.user_has_any_rh_permission.assert_called_once_with(
+            "user-1", "company-1"
+        )
         assert result is True
 
 
@@ -169,9 +201,13 @@ class TestRequireRhAccess:
         """Utilisateur avec accès RH dans au moins une entreprise ne lève pas."""
         mock_repo = MagicMock()
         svc = AccessControlService(mock_repo)
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="c1", company_name="C1", role="rh", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="c1", company_name="C1", role="rh", is_primary=True
+                ),
+            ]
+        )
 
         svc.require_rh_access(user)  # no raise
 
@@ -179,9 +215,16 @@ class TestRequireRhAccess:
         """Utilisateur sans aucun accès RH → 403."""
         mock_repo = MagicMock()
         svc = AccessControlService(mock_repo)
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="c1", company_name="C1", role="collaborateur", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="c1",
+                    company_name="C1",
+                    role="collaborateur",
+                    is_primary=True,
+                ),
+            ]
+        )
 
         with pytest.raises(HTTPException) as exc_info:
             svc.require_rh_access(user)
@@ -204,9 +247,16 @@ class TestRequireRhAccessForCompany:
         """Utilisateur avec accès RH pour cette entreprise ne lève pas."""
         mock_repo = MagicMock()
         svc = AccessControlService(mock_repo)
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="company-1", company_name="C1", role="rh", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="company-1",
+                    company_name="C1",
+                    role="rh",
+                    is_primary=True,
+                ),
+            ]
+        )
 
         svc.require_rh_access_for_company(user, "company-1")  # no raise
 
@@ -214,9 +264,16 @@ class TestRequireRhAccessForCompany:
         """Utilisateur sans accès RH pour cette entreprise → 403."""
         mock_repo = MagicMock()
         svc = AccessControlService(mock_repo)
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="company-1", company_name="C1", role="collaborateur", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="company-1",
+                    company_name="C1",
+                    role="collaborateur",
+                    is_primary=True,
+                ),
+            ]
+        )
 
         with pytest.raises(HTTPException) as exc_info:
             svc.require_rh_access_for_company(user, "company-1")
@@ -239,9 +296,16 @@ class TestCanAccessCompanyAsRh:
         """Rôle admin dans l'entreprise → True (règle pure)."""
         mock_repo = MagicMock()
         svc = AccessControlService(mock_repo)
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="company-1", company_name="C1", role="admin", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="company-1",
+                    company_name="C1",
+                    role="admin",
+                    is_primary=True,
+                ),
+            ]
+        )
 
         assert svc.can_access_company_as_rh(user, "company-1") is True
 
@@ -249,9 +313,16 @@ class TestCanAccessCompanyAsRh:
         """Rôle rh dans l'entreprise → True."""
         mock_repo = MagicMock()
         svc = AccessControlService(mock_repo)
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="company-1", company_name="C1", role="rh", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="company-1",
+                    company_name="C1",
+                    role="rh",
+                    is_primary=True,
+                ),
+            ]
+        )
 
         assert svc.can_access_company_as_rh(user, "company-1") is True
 
@@ -259,9 +330,16 @@ class TestCanAccessCompanyAsRh:
         """Rôle collaborateur (sans custom) → False."""
         mock_repo = MagicMock()
         svc = AccessControlService(mock_repo)
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="company-1", company_name="C1", role="collaborateur", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="company-1",
+                    company_name="C1",
+                    role="collaborateur",
+                    is_primary=True,
+                ),
+            ]
+        )
 
         assert svc.can_access_company_as_rh(user, "company-1") is False
 
@@ -270,20 +348,36 @@ class TestCanAccessCompanyAsRh:
         mock_repo = MagicMock()
         mock_repo.user_has_any_rh_permission.return_value = True
         svc = AccessControlService(mock_repo)
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="company-1", company_name="C1", role="custom", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="company-1",
+                    company_name="C1",
+                    role="custom",
+                    is_primary=True,
+                ),
+            ]
+        )
 
         assert svc.can_access_company_as_rh(user, "company-1") is True
-        mock_repo.user_has_any_rh_permission.assert_called_once_with("user-1", "company-1")
+        mock_repo.user_has_any_rh_permission.assert_called_once_with(
+            "user-1", "company-1"
+        )
 
     def test_custom_without_rh_permission_returns_false(self):
         """Rôle custom sans permission RH → False."""
         mock_repo = MagicMock()
         mock_repo.user_has_any_rh_permission.return_value = False
         svc = AccessControlService(mock_repo)
-        user = _make_user(accessible_companies=[
-            CompanyAccess(company_id="company-1", company_name="C1", role="custom", is_primary=True),
-        ])
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="company-1",
+                    company_name="C1",
+                    role="custom",
+                    is_primary=True,
+                ),
+            ]
+        )
 
         assert svc.can_access_company_as_rh(user, "company-1") is False

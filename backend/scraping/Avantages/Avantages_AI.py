@@ -14,6 +14,7 @@ load_dotenv()
 SEARCH_QUERY = "barème avantages en nature actuel"
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 
+
 def make_payload(repas, titre_restaurant, logement_bareme, source_url=None):
     return {
         "id": "avantages_en_nature",
@@ -24,10 +25,15 @@ def make_payload(repas, titre_restaurant, logement_bareme, source_url=None):
             {"key": "logement_bareme_forfaitaire", "value": logement_bareme},
         ],
         "meta": {
-            "source": ([{"url": source_url, "label": "Source détectée par IA", "date_doc": ""}] if source_url else []),
+            "source": (
+                [{"url": source_url, "label": "Source détectée par IA", "date_doc": ""}]
+                if source_url
+                else []
+            ),
             "generator": "scripts/Avantages/Avantages_AI.py",
         },
     }
+
 
 def extract_json_with_gpt(page_text: str, prompt: str):
     api_key = os.getenv("OPENAI_API_KEY")
@@ -39,8 +45,11 @@ def extract_json_with_gpt(page_text: str, prompt: str):
             model="gpt-4o-mini",
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "Tu es un expert en extraction de données qui répond en JSON strict."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "Tu es un expert en extraction de données qui répond en JSON strict.",
+                },
+                {"role": "user", "content": prompt},
             ],
             temperature=0,
         )
@@ -48,16 +57,24 @@ def extract_json_with_gpt(page_text: str, prompt: str):
     except Exception:
         return None
 
+
 def normalize_number(v):
     if v is None:
         return None
     try:
         # accepte "7,26" ou "7.26" ou nombres
         if isinstance(v, str):
-            v = v.replace("\u202f","").replace("\xa0","").replace("€","").replace(" ", "").replace(",", ".")
+            v = (
+                v.replace("\u202f", "")
+                .replace("\xa0", "")
+                .replace("€", "")
+                .replace(" ", "")
+                .replace(",", ".")
+            )
         return float(v)
     except Exception:
         return None
+
 
 def normalize_bareme(lst):
     out = []
@@ -71,12 +88,17 @@ def normalize_bareme(lst):
         vpp = normalize_number(obj.get("valeur_par_piece"))
         if v1 is None or vpp is None:
             continue
-        out.append({
-            "remuneration_max_eur": rem_max if rem_max is not None else 9_999_999.99,
-            "valeur_1_piece_eur": v1,
-            "valeur_par_piece_suppl_eur": vpp,
-        })
+        out.append(
+            {
+                "remuneration_max_eur": rem_max
+                if rem_max is not None
+                else 9_999_999.99,
+                "valeur_1_piece_eur": v1,
+                "valeur_par_piece_suppl_eur": vpp,
+            }
+        )
     return out
+
 
 def get_avantages_via_ai():
     prompt_template = """
@@ -111,17 +133,26 @@ Texte:
             titre = normalize_number(data.get("titre_restaurant"))
             logement = normalize_bareme(data.get("logement"))
 
-            if repas is not None and titre is not None and logement and len(logement) >= 3:
+            if (
+                repas is not None
+                and titre is not None
+                and logement
+                and len(logement) >= 3
+            ):
                 return repas, titre, logement, url
         except Exception:
             continue
     return None, None, [], None
 
+
 if __name__ == "__main__":
     repas, titre, logement, src = get_avantages_via_ai()
     payload = make_payload(repas, titre, logement, src)
-    ok = payload["items"][0]["value"] is not None \
-         and payload["items"][1]["value"] is not None \
-         and isinstance(payload["items"][2]["value"], list) and len(payload["items"][2]["value"]) > 0
+    ok = (
+        payload["items"][0]["value"] is not None
+        and payload["items"][1]["value"] is not None
+        and isinstance(payload["items"][2]["value"], list)
+        and len(payload["items"][2]["value"]) > 0
+    )
     print(json.dumps(payload, ensure_ascii=False))
     sys.exit(0 if ok else 2)

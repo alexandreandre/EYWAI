@@ -3,6 +3,7 @@ Pagination : paramètres et réponses génériques.
 
 Réutilisables par tout module qui expose des listes paginées.
 """
+
 from __future__ import annotations
 
 from typing import Generic, TypeVar

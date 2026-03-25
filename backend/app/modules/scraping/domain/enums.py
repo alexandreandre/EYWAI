@@ -3,6 +3,7 @@ Enums du domaine scraping.
 
 Alignés sur les tables scraping_sources, scraping_jobs, scraping_schedules, scraping_alerts.
 """
+
 from __future__ import annotations
 
 from enum import StrEnum

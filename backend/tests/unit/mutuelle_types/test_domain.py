@@ -3,6 +3,7 @@ Tests unitaires du domaine mutuelle_types : entités et règles métier.
 
 Sans DB, sans HTTP. Couvre MutuelleType et les règles du domain/rules.py.
 """
+
 from datetime import datetime
 from uuid import UUID, uuid4
 

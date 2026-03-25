@@ -1,4 +1,5 @@
 """Runtime paie : racine sous ``app/``, templates présents, pas de dossier legacy."""
+
 from __future__ import annotations
 
 from pathlib import Path

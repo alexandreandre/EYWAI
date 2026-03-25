@@ -6,6 +6,7 @@ Utilise : client (TestClient). Pour les tests avec utilisateur authentifié,
 dependency_overrides pour get_current_user et patch pour get_obligation_repository
 et get_settings_provider (pas de JWT ni DB réels).
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -104,7 +105,9 @@ class TestMedicalFollowUpUnauthenticated:
         )
         assert response.status_code == 401
 
-    def test_get_employee_obligations_returns_401_without_auth(self, client: TestClient):
+    def test_get_employee_obligations_returns_401_without_auth(
+        self, client: TestClient
+    ):
         """GET .../obligations/employee/{employee_id} sans auth → 401."""
         response = client.get("/api/medical-follow-up/obligations/employee/emp-1")
         assert response.status_code == 401
@@ -147,18 +150,23 @@ class TestMedicalFollowUpWithRhUser:
         from app.core.security import get_current_user
 
         app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
-        with patch(
-            "app.modules.medical_follow_up.application.queries.get_obligation_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.medical_follow_up.application.commands.get_obligation_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.medical_follow_up.application.queries.compute_obligations_for_employee",
-            return_value=[],
-        ), patch(
-            "app.modules.medical_follow_up.application.service.get_settings_provider",
-            return_value=MagicMock(is_enabled=MagicMock(return_value=True)),
+        with (
+            patch(
+                "app.modules.medical_follow_up.application.queries.get_obligation_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.medical_follow_up.application.commands.get_obligation_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.medical_follow_up.application.queries.compute_obligations_for_employee",
+                return_value=[],
+            ),
+            patch(
+                "app.modules.medical_follow_up.application.service.get_settings_provider",
+                return_value=MagicMock(is_enabled=MagicMock(return_value=True)),
+            ),
         ):
             yield client
         app.dependency_overrides.pop(get_current_user, None)
@@ -170,7 +178,9 @@ class TestMedicalFollowUpWithRhUser:
         data = response.json()
         assert isinstance(data, list)
 
-    def test_get_obligations_accepts_query_params(self, client_with_rh: TestClient, mock_repo):
+    def test_get_obligations_accepts_query_params(
+        self, client_with_rh: TestClient, mock_repo
+    ):
         """GET /api/medical-follow-up/obligations?employee_id=emp-1 transmet les filtres."""
         client_with_rh.get(
             "/api/medical-follow-up/obligations?employee_id=emp-1&visit_type=vip&status=a_faire"
@@ -217,7 +227,9 @@ class TestMedicalFollowUpWithRhUser:
             json={"planned_date": "2025-04-15"},
         )
         assert response.status_code == 404
-        assert "Obligation" in response.json().get("detail", "") or "trouvée" in response.json().get("detail", "")
+        assert "Obligation" in response.json().get(
+            "detail", ""
+        ) or "trouvée" in response.json().get("detail", "")
 
     def test_patch_completed_returns_200(self, client_with_rh: TestClient, mock_repo):
         """PATCH .../obligations/{id}/completed → 200."""
@@ -268,9 +280,13 @@ class TestMedicalFollowUpWithRhUser:
             },
         )
         assert response.status_code == 404
-        assert "Salarié" in response.json().get("detail", "") or "trouvé" in response.json().get("detail", "")
+        assert "Salarié" in response.json().get(
+            "detail", ""
+        ) or "trouvé" in response.json().get("detail", "")
 
-    def test_get_employee_obligations_returns_200(self, client_with_rh: TestClient, mock_repo):
+    def test_get_employee_obligations_returns_200(
+        self, client_with_rh: TestClient, mock_repo
+    ):
         """GET .../obligations/employee/{employee_id} → 200."""
         mock_repo.list_for_employee.return_value = [
             {
@@ -285,7 +301,9 @@ class TestMedicalFollowUpWithRhUser:
                 "rule_source": "legal",
             },
         ]
-        response = client_with_rh.get("/api/medical-follow-up/obligations/employee/emp-1")
+        response = client_with_rh.get(
+            "/api/medical-follow-up/obligations/employee/emp-1"
+        )
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
@@ -297,7 +315,9 @@ class TestMedicalFollowUpWithRhUser:
     ):
         """GET .../obligations/employee/{id} quand salarié inexistant → 404."""
         mock_repo.employee_exists.return_value = False
-        response = client_with_rh.get("/api/medical-follow-up/obligations/employee/emp-unknown")
+        response = client_with_rh.get(
+            "/api/medical-follow-up/obligations/employee/emp-unknown"
+        )
         assert response.status_code == 404
 
     def test_get_me_returns_200(self, client_with_rh: TestClient, mock_repo):
@@ -313,7 +333,9 @@ class TestMedicalFollowUpWithRhUser:
         mock_repo.get_employee_id_by_user_id.return_value = None
         response = client_with_rh.get("/api/medical-follow-up/me")
         assert response.status_code == 404
-        assert "Profil" in response.json().get("detail", "") or "trouvé" in response.json().get("detail", "")
+        assert "Profil" in response.json().get(
+            "detail", ""
+        ) or "trouvé" in response.json().get("detail", "")
 
     def test_get_settings_returns_200(self, client_with_rh: TestClient):
         """GET /api/medical-follow-up/settings → 200 et enabled."""
@@ -341,34 +363,47 @@ class TestMedicalFollowUpForbiddenNonRh:
         from app.core.security import get_current_user
 
         app.dependency_overrides[get_current_user] = lambda: _make_employee_user()
-        with patch(
-            "app.modules.medical_follow_up.application.queries.get_obligation_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.medical_follow_up.application.commands.get_obligation_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.medical_follow_up.application.queries.compute_obligations_for_employee",
-            return_value=[],
-        ), patch(
-            "app.modules.medical_follow_up.application.service.get_settings_provider",
-            return_value=MagicMock(is_enabled=MagicMock(return_value=True)),
+        with (
+            patch(
+                "app.modules.medical_follow_up.application.queries.get_obligation_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.medical_follow_up.application.commands.get_obligation_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.medical_follow_up.application.queries.compute_obligations_for_employee",
+                return_value=[],
+            ),
+            patch(
+                "app.modules.medical_follow_up.application.service.get_settings_provider",
+                return_value=MagicMock(is_enabled=MagicMock(return_value=True)),
+            ),
         ):
             yield client
         app.dependency_overrides.pop(get_current_user, None)
 
-    def test_get_obligations_returns_403_for_collaborator(self, client_with_employee: TestClient):
+    def test_get_obligations_returns_403_for_collaborator(
+        self, client_with_employee: TestClient
+    ):
         """GET /api/medical-follow-up/obligations en tant que collaborateur → 403."""
         response = client_with_employee.get("/api/medical-follow-up/obligations")
         assert response.status_code == 403
-        assert "Accès" in response.json().get("detail", "") or "autorisé" in response.json().get("detail", "")
+        assert "Accès" in response.json().get(
+            "detail", ""
+        ) or "autorisé" in response.json().get("detail", "")
 
-    def test_get_kpis_returns_403_for_collaborator(self, client_with_employee: TestClient):
+    def test_get_kpis_returns_403_for_collaborator(
+        self, client_with_employee: TestClient
+    ):
         """GET /api/medical-follow-up/kpis en tant que collaborateur → 403."""
         response = client_with_employee.get("/api/medical-follow-up/kpis")
         assert response.status_code == 403
 
-    def test_patch_planified_returns_403_for_collaborator(self, client_with_employee: TestClient):
+    def test_patch_planified_returns_403_for_collaborator(
+        self, client_with_employee: TestClient
+    ):
         """PATCH .../planified en tant que collaborateur → 403."""
         response = client_with_employee.patch(
             "/api/medical-follow-up/obligations/obl-1/planified",
@@ -376,7 +411,9 @@ class TestMedicalFollowUpForbiddenNonRh:
         )
         assert response.status_code == 403
 
-    def test_post_on_demand_returns_403_for_collaborator(self, client_with_employee: TestClient):
+    def test_post_on_demand_returns_403_for_collaborator(
+        self, client_with_employee: TestClient
+    ):
         """POST .../on-demand en tant que collaborateur → 403."""
         response = client_with_employee.post(
             "/api/medical-follow-up/obligations/on-demand",
@@ -392,5 +429,7 @@ class TestMedicalFollowUpForbiddenNonRh:
         self, client_with_employee: TestClient
     ):
         """GET .../obligations/employee/{id} en tant que collaborateur → 403."""
-        response = client_with_employee.get("/api/medical-follow-up/obligations/employee/emp-1")
+        response = client_with_employee.get(
+            "/api/medical-follow-up/obligations/employee/emp-1"
+        )
         assert response.status_code == 403

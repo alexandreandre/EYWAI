@@ -4,6 +4,7 @@ Commandes du module super_admin (couche application).
 Applique les règles métier (domain) puis délègue à l'infrastructure (DB).
 Comportement identique.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict
@@ -34,7 +35,9 @@ def update_company(company_id: str, update_data: Dict[str, Any]) -> Dict[str, An
     return infra_commands.update_company(company_id, update_data)
 
 
-def delete_company_soft(company_id: str, super_admin_row: Dict[str, Any]) -> Dict[str, Any]:
+def delete_company_soft(
+    company_id: str, super_admin_row: Dict[str, Any]
+) -> Dict[str, Any]:
     """Désactive une entreprise (is_active=False). Vérifie can_delete_companies."""
     try:
         super_admin = row_to_super_admin(super_admin_row)
@@ -44,7 +47,9 @@ def delete_company_soft(company_id: str, super_admin_row: Dict[str, Any]) -> Dic
     return infra_commands.delete_company_soft(company_id)
 
 
-def delete_company_permanent(company_id: str, super_admin_row: Dict[str, Any]) -> Dict[str, Any]:
+def delete_company_permanent(
+    company_id: str, super_admin_row: Dict[str, Any]
+) -> Dict[str, Any]:
     """Supprime définitivement une entreprise. Vérifie can_delete_companies."""
     try:
         super_admin = row_to_super_admin(super_admin_row)

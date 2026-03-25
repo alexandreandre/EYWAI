@@ -4,6 +4,7 @@ Requêtes applicatives (read) pour rates.
 Délèguent au reader (lignes brutes) puis au service (groupement + formatage).
 Aucune logique métier lourde ici : orchestration uniquement.
 """
+
 from __future__ import annotations
 
 from typing import Any

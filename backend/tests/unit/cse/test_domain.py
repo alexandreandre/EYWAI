@@ -3,6 +3,7 @@ Tests unitaires du domaine CSE : entités, value objects et règles.
 
 Aucune dépendance DB ni HTTP. Logique pure du domain/.
 """
+
 from datetime import date
 
 import pytest

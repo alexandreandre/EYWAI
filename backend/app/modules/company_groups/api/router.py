@@ -5,6 +5,7 @@ Délègue toute la logique à la couche application (queries, commands).
 Vérifications d'autorisation minimales (super_admin, admin de X) puis appel application.
 Comportement HTTP identique à api/routers/company_groups.py.
 """
+
 from __future__ import annotations
 
 import traceback
@@ -74,8 +75,11 @@ def _handle_application_errors(e: Exception, default_message: str) -> None:
 
 # ----- GET : lecture -----
 
+
 @router.get("/my-groups", response_model=List[GroupWithCompanies])
-def get_my_groups(current_user: CurrentUserForCompanyGroups = Depends(get_current_user)):
+def get_my_groups(
+    current_user: CurrentUserForCompanyGroups = Depends(get_current_user),
+):
     """Retourne tous les groupes d'entreprises auxquels l'utilisateur a accès."""
     try:
         dtos = queries.get_my_groups(current_user)
@@ -85,7 +89,9 @@ def get_my_groups(current_user: CurrentUserForCompanyGroups = Depends(get_curren
 
 
 @router.get("/", response_model=List[dict])
-def get_all_groups(current_user: CurrentUserForCompanyGroups = Depends(get_current_user)):
+def get_all_groups(
+    current_user: CurrentUserForCompanyGroups = Depends(get_current_user),
+):
     """Liste tous les groupes avec statistiques (Super Admin uniquement)."""
     try:
         dtos = queries.get_all_groups(current_user)
@@ -101,9 +107,7 @@ def get_all_groups(current_user: CurrentUserForCompanyGroups = Depends(get_curre
             for d in dtos
         ]
     except Exception as e:
-        _handle_application_errors(
-            e, "Erreur lors de la récupération des groupes"
-        )
+        _handle_application_errors(e, "Erreur lors de la récupération des groupes")
 
 
 @router.get("/{group_id}", response_model=GroupWithCompanies)
@@ -132,9 +136,7 @@ def get_group_consolidated_stats(
             group_id, current_user, year=year, month=month
         )
     except Exception as e:
-        _handle_application_errors(
-            e, "Erreur lors du calcul des statistiques"
-        )
+        _handle_application_errors(e, "Erreur lors du calcul des statistiques")
 
 
 @router.get("/{group_id}/employees-stats")
@@ -146,9 +148,7 @@ def get_group_employees_stats(
     try:
         return queries.get_group_employees_stats(group_id, current_user)
     except Exception as e:
-        _handle_application_errors(
-            e, "Erreur lors du calcul des statistiques employés"
-        )
+        _handle_application_errors(e, "Erreur lors du calcul des statistiques employés")
 
 
 @router.get("/{group_id}/payroll-evolution")
@@ -171,9 +171,7 @@ def get_group_payroll_evolution(
             end_month=end_month,
         )
     except Exception as e:
-        _handle_application_errors(
-            e, "Erreur lors du calcul de l'évolution"
-        )
+        _handle_application_errors(e, "Erreur lors du calcul de l'évolution")
 
 
 @router.get("/{group_id}/company-comparison")
@@ -190,9 +188,7 @@ def get_group_company_comparison(
             group_id, current_user, metric=metric, year=year, month=month
         )
     except Exception as e:
-        _handle_application_errors(
-            e, "Erreur lors de la comparaison"
-        )
+        _handle_application_errors(e, "Erreur lors de la comparaison")
 
 
 @router.get("/{group_id}/companies")
@@ -204,9 +200,7 @@ def get_group_companies(
     try:
         return queries.get_group_companies(group_id, current_user)
     except Exception as e:
-        _handle_application_errors(
-            e, "Erreur lors de la récupération des entreprises"
-        )
+        _handle_application_errors(e, "Erreur lors de la récupération des entreprises")
 
 
 @router.get("/{group_id}/available-companies")
@@ -218,9 +212,7 @@ def get_available_companies(
     try:
         return queries.get_available_companies(current_user)
     except Exception as e:
-        _handle_application_errors(
-            e, "Erreur lors de la récupération des entreprises"
-        )
+        _handle_application_errors(e, "Erreur lors de la récupération des entreprises")
 
 
 @router.get("/{group_id}/user-accesses")
@@ -232,9 +224,7 @@ def get_group_user_accesses(
     try:
         return queries.get_group_user_accesses(group_id, current_user)
     except Exception as e:
-        _handle_application_errors(
-            e, "Erreur lors de la récupération des accès"
-        )
+        _handle_application_errors(e, "Erreur lors de la récupération des accès")
 
 
 @router.get("/{group_id}/detailed-user-accesses")
@@ -253,6 +243,7 @@ def get_detailed_user_accesses(
 
 # ----- POST / PATCH : écriture -----
 
+
 @router.post("/", response_model=CompanyGroup, status_code=201)
 def create_group(
     group: CompanyGroupCreate,
@@ -261,8 +252,7 @@ def create_group(
     """Crée un nouveau groupe (super_admin ou admin d'au moins 2 entreprises)."""
     if not current_user.is_super_admin:
         admin_companies = [
-            acc for acc in current_user.accessible_companies
-            if acc.role == "admin"
+            acc for acc in current_user.accessible_companies if acc.role == "admin"
         ]
         if len(admin_companies) < 2:
             raise HTTPException(
@@ -330,9 +320,7 @@ def add_company_to_group(
                 detail="Vous devez être admin de l'entreprise",
             )
     try:
-        result = commands.add_company_to_group(
-            group_id, company_id, current_user
-        )
+        result = commands.add_company_to_group(group_id, company_id, current_user)
         return {
             "message": result.message,
             "group_id": result.group_id,
@@ -356,9 +344,7 @@ def remove_company_from_group(
                 detail="Vous devez être admin de l'entreprise",
             )
     try:
-        result = commands.remove_company_from_group(
-            group_id, company_id, current_user
-        )
+        result = commands.remove_company_from_group(group_id, company_id, current_user)
         return {
             "message": result.message,
             "company_id": result.company_id,
@@ -413,9 +399,7 @@ def manage_user_access_in_group(
             detail="Accès réservé aux super administrateurs",
         )
     try:
-        result = commands.manage_user_access_in_group(
-            group_id, request, current_user
-        )
+        result = commands.manage_user_access_in_group(group_id, request, current_user)
         return {
             "message": result.message,
             "user_id": result.user_id,
@@ -441,20 +425,17 @@ def remove_user_from_group(
             detail="Accès réservé aux super administrateurs",
         )
     try:
-        result = commands.remove_user_from_group(
-            group_id, user_id, current_user
-        )
+        result = commands.remove_user_from_group(group_id, user_id, current_user)
         return {
             "message": result.message,
             "removed_count": result.removed_count,
         }
     except Exception as e:
-        _handle_application_errors(
-            e, "Erreur lors de la suppression des accès"
-        )
+        _handle_application_errors(e, "Erreur lors de la suppression des accès")
 
 
 # ----- Alias RESTful -----
+
 
 @router.post("/{group_id}/companies/{company_id}")
 def add_company_to_group_alias(

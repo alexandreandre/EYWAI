@@ -2,6 +2,7 @@
 """
 Mappers CSE — ligne DB (dict) vers schémas de lecture.
 """
+
 from typing import Any, Dict
 
 from app.modules.cse.schemas import DelegationQuotaRead

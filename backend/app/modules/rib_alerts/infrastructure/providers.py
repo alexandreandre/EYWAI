@@ -5,13 +5,17 @@ Implémentation autonome dans le module : app.shared.utils.iban + repository + q
 Aucune dépendance vers app.shared.infrastructure.rib_alert ni services/*.
 Comportement strictement identique au legacy.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List
 
 from app.modules.rib_alerts.infrastructure.queries import get_duplicate_iban_employees
 from app.modules.rib_alerts.infrastructure.repository import get_rib_alert_repository
-from app.shared.utils.iban import mask_iban, normalize_iban  # normalize_iban exposé comme API du module
+from app.shared.utils.iban import (
+    mask_iban,
+    normalize_iban,
+)  # normalize_iban exposé comme API du module
 
 
 def on_rib_updated(
@@ -60,10 +64,15 @@ def on_rib_submitted(
     iban_n = normalize_iban(new_iban)
     if not iban_n:
         return []
-    duplicates = get_duplicate_iban_employees(company_id, iban_n, exclude_employee_id=employee_id)
+    duplicates = get_duplicate_iban_employees(
+        company_id, iban_n, exclude_employee_id=employee_id
+    )
     if not duplicates:
         return []
-    duplicate_names = [f"{d.get('first_name', '')} {d.get('last_name', '')}".strip() for d in duplicates]
+    duplicate_names = [
+        f"{d.get('first_name', '')} {d.get('last_name', '')}".strip()
+        for d in duplicates
+    ]
     payload = {
         "company_id": company_id,
         "alert_type": "rib_duplicate",

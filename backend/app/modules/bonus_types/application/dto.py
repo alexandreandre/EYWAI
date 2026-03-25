@@ -5,6 +5,7 @@ Entrées/sorties des cas d'usage (create, update, calculate).
 Conversion entité -> réponse API et construction des entrées depuis les schémas
 exposées ici pour que le router n'appelle que l'application.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -117,7 +118,11 @@ def build_update_input(payload: Any) -> BonusTypeUpdateInput:  # BonusTypeUpdate
 
     if not isinstance(payload, BonusTypeUpdate):
         raise TypeError("payload must be BonusTypeUpdate")
-    type_val = getattr(payload.type, "value", payload.type) if payload.type is not None else None
+    type_val = (
+        getattr(payload.type, "value", payload.type)
+        if payload.type is not None
+        else None
+    )
     return BonusTypeUpdateInput(
         libelle=payload.libelle,
         type=type_val,

@@ -4,6 +4,7 @@ Requêtes Supabase du module copilot.
 Accès DB : profiles (company_id), employees (recherche floue), company_collective_agreements,
 collective_agreement_texts. Comportement strictement identique au legacy.
 """
+
 from __future__ import annotations
 
 import logging
@@ -30,9 +31,11 @@ def get_company_id_for_user(user_id: str) -> str | None:
 def get_employees_for_fuzzy_search() -> list[dict[str, Any]]:
     """Retourne la liste minimale des employés (id, first_name, last_name, job_title) pour la recherche floue."""
     supabase = get_supabase_client()
-    response = supabase.table("employees").select(
-        "id, first_name, last_name, job_title"
-    ).execute()
+    response = (
+        supabase.table("employees")
+        .select("id, first_name, last_name, job_title")
+        .execute()
+    )
     return response.data or []
 
 
@@ -68,16 +71,20 @@ def get_company_collective_agreements(company_id: str) -> list[dict[str, Any]]:
             full_text = None
             if text_response.data and text_response.data.get("full_text"):
                 full_text = text_response.data["full_text"]
-            agreements.append({
-                "id": agreement_id,
-                "name": catalog_data.get("name"),
-                "idcc": catalog_data.get("idcc"),
-                "description": catalog_data.get("description"),
-                "sector": catalog_data.get("sector"),
-                "full_text": full_text,
-                "has_text_cached": full_text is not None,
-            })
+            agreements.append(
+                {
+                    "id": agreement_id,
+                    "name": catalog_data.get("name"),
+                    "idcc": catalog_data.get("idcc"),
+                    "description": catalog_data.get("description"),
+                    "sector": catalog_data.get("sector"),
+                    "full_text": full_text,
+                    "has_text_cached": full_text is not None,
+                }
+            )
         return agreements
     except Exception as e:
-        logging.error("Erreur lors de la récupération des conventions collectives: %s", e)
+        logging.error(
+            "Erreur lors de la récupération des conventions collectives: %s", e
+        )
         return []

@@ -3,6 +3,7 @@ Tests unitaires des commandes du module absences (application/commands.py).
 
 Repositories et providers (infrastructure) mockés. Pas de DB ni HTTP.
 """
+
 from datetime import date
 from unittest.mock import MagicMock, patch
 
@@ -206,9 +207,7 @@ class TestUpdateAbsenceRequestStatus:
         ) as repo:
             repo.get_by_id.return_value = None
             with pytest.raises(LookupError, match="non trouvée"):
-                commands.update_absence_request_status(
-                    "req-unknown", "validated"
-                )
+                commands.update_absence_request_status("req-unknown", "validated")
 
     def test_updates_status_and_returns_updated_data(self):
         """Demande trouvée → update avec le statut, retourne les données mises à jour."""
@@ -232,9 +231,7 @@ class TestUpdateAbsenceRequestStatus:
         ) as repo:
             repo.get_by_id.return_value = req_before
             repo.update.return_value = updated
-            result = commands.update_absence_request_status(
-                "req-1", "rejected"
-            )
+            result = commands.update_absence_request_status("req-1", "rejected")
 
         assert result == updated
         repo.update.assert_called_once_with("req-1", {"status": "rejected"})

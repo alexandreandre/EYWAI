@@ -3,6 +3,7 @@ Entité domaine : prime du catalogue entreprise (BonusType).
 
 Alignée sur la table company_bonus_types et le legacy schemas.bonus_type.BonusType.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

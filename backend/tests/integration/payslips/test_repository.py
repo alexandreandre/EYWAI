@@ -5,6 +5,7 @@ Vérifie que le repository délègue correctement à Supabase (table payslips, s
 Les appels DB/Storage sont mockés (pas de DB réelle). Pour des tests contre une DB de test,
 prévoir db_session et données dans payslips (fixture à documenter dans conftest.py).
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -35,9 +36,13 @@ class TestPayslipRepositoryGetById:
             "payslip_data": {"net_a_payer": 2500},
         }
         mock_chain = MagicMock()
-        mock_chain.eq.return_value.single.return_value.execute.return_value = MagicMock(data=row)
+        mock_chain.eq.return_value.single.return_value.execute.return_value = MagicMock(
+            data=row
+        )
 
-        with patch("app.modules.payslips.infrastructure.repository.supabase") as mock_sb:
+        with patch(
+            "app.modules.payslips.infrastructure.repository.supabase"
+        ) as mock_sb:
             mock_sb.table.return_value.select.return_value = mock_chain
             result = repo.get_by_id("ps-1")
 
@@ -48,9 +53,13 @@ class TestPayslipRepositoryGetById:
     def test_returns_none_when_not_found(self, repo: PayslipRepository):
         """Retourne None quand le bulletin n'existe pas."""
         mock_chain = MagicMock()
-        mock_chain.eq.return_value.single.return_value.execute.return_value = MagicMock(data=None)
+        mock_chain.eq.return_value.single.return_value.execute.return_value = MagicMock(
+            data=None
+        )
 
-        with patch("app.modules.payslips.infrastructure.repository.supabase") as mock_sb:
+        with patch(
+            "app.modules.payslips.infrastructure.repository.supabase"
+        ) as mock_sb:
             mock_sb.table.return_value.select.return_value = mock_chain
             result = repo.get_by_id("ps-unknown")
 
@@ -67,9 +76,13 @@ class TestPayslipRepositoryListByEmployee:
             {"id": "ps-1", "employee_id": "emp-1", "year": 2024, "month": 3},
         ]
         mock_chain = MagicMock()
-        mock_chain.eq.return_value.order.return_value.order.return_value.execute.return_value = MagicMock(data=data)
+        mock_chain.eq.return_value.order.return_value.order.return_value.execute.return_value = MagicMock(
+            data=data
+        )
 
-        with patch("app.modules.payslips.infrastructure.repository.supabase") as mock_sb:
+        with patch(
+            "app.modules.payslips.infrastructure.repository.supabase"
+        ) as mock_sb:
             mock_sb.table.return_value.select.return_value = mock_chain
             result = repo.list_by_employee("emp-1")
 
@@ -80,9 +93,13 @@ class TestPayslipRepositoryListByEmployee:
     def test_returns_empty_list_when_no_payslips(self, repo: PayslipRepository):
         """Retourne [] quand l'employé n'a pas de bulletins."""
         mock_chain = MagicMock()
-        mock_chain.eq.return_value.order.return_value.order.return_value.execute.return_value = MagicMock(data=None)
+        mock_chain.eq.return_value.order.return_value.order.return_value.execute.return_value = MagicMock(
+            data=None
+        )
 
-        with patch("app.modules.payslips.infrastructure.repository.supabase") as mock_sb:
+        with patch(
+            "app.modules.payslips.infrastructure.repository.supabase"
+        ) as mock_sb:
             mock_sb.table.return_value.select.return_value = mock_chain
             result = repo.list_by_employee("emp-unknown")
 
@@ -92,7 +109,9 @@ class TestPayslipRepositoryListByEmployee:
 class TestPayslipRepositoryDelete:
     """delete : BDD + storage + recalc COR."""
 
-    def test_delete_fetches_row_then_deletes_table_and_storage(self, repo: PayslipRepository):
+    def test_delete_fetches_row_then_deletes_table_and_storage(
+        self, repo: PayslipRepository
+    ):
         """delete récupère la ligne, supprime en BDD, appelle recalc COR et supprime le fichier storage."""
         row = {
             "pdf_storage_path": "co/emp/bulletins/Bulletin_03-2024.pdf",
@@ -102,7 +121,9 @@ class TestPayslipRepositoryDelete:
             "month": 3,
         }
         select_chain = MagicMock()
-        select_chain.eq.return_value.single.return_value.execute.return_value = MagicMock(data=row)
+        select_chain.eq.return_value.single.return_value.execute.return_value = (
+            MagicMock(data=row)
+        )
 
         delete_chain = MagicMock()
         storage_mock = MagicMock()
@@ -110,16 +131,21 @@ class TestPayslipRepositoryDelete:
         table_return.select.return_value = select_chain
         table_return.delete.return_value = delete_chain
 
-        with patch("app.modules.payslips.infrastructure.repository.supabase") as mock_sb, patch(
-            "app.modules.payslips.infrastructure.repository.recalculer_credits_repos_employe"
-        ) as mock_recalc:
+        with (
+            patch("app.modules.payslips.infrastructure.repository.supabase") as mock_sb,
+            patch(
+                "app.modules.payslips.infrastructure.repository.recalculer_credits_repos_employe"
+            ) as mock_recalc,
+        ):
             mock_sb.table.return_value = table_return
             mock_sb.storage.from_.return_value = storage_mock
 
             repo.delete("ps-1")
 
         # Vérification select (colonnes spécifiques)
-        table_return.select.assert_any_call("pdf_storage_path, employee_id, company_id, year, month")
+        table_return.select.assert_any_call(
+            "pdf_storage_path, employee_id, company_id, year, month"
+        )
         select_chain.eq.assert_called_with("id", "ps-1")
         # Vérification delete table
         delete_chain.eq.assert_called_once_with("id", "ps-1")
@@ -132,14 +158,19 @@ class TestPayslipRepositoryDelete:
     def test_delete_skips_recalc_and_storage_when_no_row(self, repo: PayslipRepository):
         """Si la ligne n'existe pas (data vide), pas d'appel recalc ni storage."""
         select_chain = MagicMock()
-        select_chain.eq.return_value.single.return_value.execute.return_value = MagicMock(data=None)
+        select_chain.eq.return_value.single.return_value.execute.return_value = (
+            MagicMock(data=None)
+        )
         table_return = MagicMock()
         table_return.select.return_value = select_chain
         table_return.delete.return_value = MagicMock()
 
-        with patch("app.modules.payslips.infrastructure.repository.supabase") as mock_sb, patch(
-            "app.modules.payslips.infrastructure.repository.recalculer_credits_repos_employe"
-        ) as mock_recalc:
+        with (
+            patch("app.modules.payslips.infrastructure.repository.supabase") as mock_sb,
+            patch(
+                "app.modules.payslips.infrastructure.repository.recalculer_credits_repos_employe"
+            ) as mock_recalc,
+        ):
             mock_sb.table.return_value = table_return
 
             repo.delete("ps-unknown")
@@ -157,13 +188,18 @@ class TestPayslipRepositoryDelete:
             "month": 3,
         }
         select_chain = MagicMock()
-        select_chain.eq.return_value.single.return_value.execute.return_value = MagicMock(data=row)
+        select_chain.eq.return_value.single.return_value.execute.return_value = (
+            MagicMock(data=row)
+        )
         table_return = MagicMock()
         table_return.select.return_value = select_chain
         table_return.delete.return_value = MagicMock()
 
-        with patch("app.modules.payslips.infrastructure.repository.supabase") as mock_sb, patch(
-            "app.modules.payslips.infrastructure.repository.recalculer_credits_repos_employe"
+        with (
+            patch("app.modules.payslips.infrastructure.repository.supabase") as mock_sb,
+            patch(
+                "app.modules.payslips.infrastructure.repository.recalculer_credits_repos_employe"
+            ),
         ):
             mock_sb.table.return_value = table_return
             storage_from = mock_sb.storage.from_.return_value

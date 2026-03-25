@@ -5,6 +5,7 @@ Rôle strict : validation des entrées (schémas), auth (get_current_user), appe
 construction de la réponse HTTP, mapping des exceptions. Aucune logique métier.
 Comportement HTTP identique à api/routers/copilot.py et api/routers/copilot_agent.py.
 """
+
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException

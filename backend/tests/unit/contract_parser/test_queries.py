@@ -5,6 +5,7 @@ Le module n'expose actuellement aucune query métier : les 3 endpoints sont
 des commandes (upload PDF → extraction). Ce fichier documente l'état et
 permet d'ajouter des tests dès qu'une query sera ajoutée (ex. historique d'extractions).
 """
+
 import pytest
 
 

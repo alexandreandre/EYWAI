@@ -3,6 +3,7 @@ Exécuteur SQL en lecture (RPC Supabase).
 
 Implémente ISqlExecutor. Comportement strictement identique au legacy.
 """
+
 from __future__ import annotations
 
 from typing import Any

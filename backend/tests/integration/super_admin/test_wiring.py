@@ -5,6 +5,7 @@ Vérifient que l'injection des dépendances et le flux de bout en bout
 (router -> verify_super_admin -> application commands/queries -> infrastructure)
 fonctionnent pour ce module.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -95,7 +96,10 @@ class TestSuperAdminWiringVerifyThenCommand:
         try:
             with patch(
                 "app.modules.super_admin.api.router.commands.create_company_with_admin",
-                return_value={"success": True, "company": {"id": "c1", "company_name": "Wired Co"}},
+                return_value={
+                    "success": True,
+                    "company": {"id": "c1", "company_name": "Wired Co"},
+                },
             ) as m_cmd:
                 response = client.post(
                     "/api/super-admin/companies",
@@ -118,7 +122,9 @@ class TestSuperAdminWiringServiceVerifyDependsOnRepository:
 
     def test_verify_super_admin_calls_repository_then_mapper(self):
         """En appelant le service, get_by_user_id est invoqué puis super_admin_to_row."""
-        from app.modules.super_admin.application.service import verify_super_admin_and_return_row
+        from app.modules.super_admin.application.service import (
+            verify_super_admin_and_return_row,
+        )
         from app.modules.super_admin.domain.entities import SuperAdmin
         from uuid import UUID
 

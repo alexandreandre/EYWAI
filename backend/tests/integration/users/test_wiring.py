@@ -4,6 +4,7 @@ Tests d'intégration du câblage (wiring) du module users.
 Vérifie que l'injection des dépendances et le flux de bout en bout fonctionnent :
 router monté, get_current_user → queries/commands → repositories.
 """
+
 from unittest.mock import patch
 
 import pytest

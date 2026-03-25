@@ -53,8 +53,8 @@ def definir_periode_de_paie(
     Détermine la période de paie en lisant les règles depuis la configuration de l'entreprise.
     La période de travail s'arrête le dimanche de la semaine du jour de référence.
     """
-    regles_paie = (
-        contexte.entreprise.get("parametres_paie", {}).get("periode_de_paie", {})
+    regles_paie = contexte.entreprise.get("parametres_paie", {}).get(
+        "periode_de_paie", {}
     )
     jour_reference = regles_paie.get("jour_de_fin", 4)  # Vendredi par défaut
     occurrence_reference = regles_paie.get("occurrence", -2)  # Avant-dernier par défaut
@@ -76,9 +76,7 @@ def definir_periode_de_paie(
         annee_precedente, mois_precedent, jour_reference, occurrence_reference
     )
 
-    decalage_vers_dimanche_precedent = (
-        6 - date_de_reference_precedente.weekday()
-    )
+    decalage_vers_dimanche_precedent = 6 - date_de_reference_precedente.weekday()
     date_fin_periode_precedente = date_de_reference_precedente + timedelta(
         days=decalage_vers_dimanche_precedent
     )

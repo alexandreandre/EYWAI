@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module participation : injection des dépendances 
 Vérifie que les commands/queries utilisent bien le service, que le service utilise
 le repository et les requêtes infra, et que le routeur appelle les bons cas d'usage.
 """
+
 from datetime import datetime
 from uuid import uuid4
 from unittest.mock import MagicMock, patch
@@ -111,9 +112,7 @@ class TestQueriesUseService:
         mock_svc = MagicMock()
         mock_svc.get_employee_participation_data.return_value = []
 
-        result = get_employee_participation_data(
-            COMPANY_ID, 2024, service=mock_svc
-        )
+        result = get_employee_participation_data(COMPANY_ID, 2024, service=mock_svc)
 
         mock_svc.get_employee_participation_data.assert_called_once_with(
             COMPANY_ID, 2024
@@ -135,9 +134,7 @@ class TestQueriesUseService:
         mock_svc = MagicMock()
         mock_svc.get_simulation.return_value = None
 
-        result = get_participation_simulation(
-            "sim-123", COMPANY_ID, service=mock_svc
-        )
+        result = get_participation_simulation("sim-123", COMPANY_ID, service=mock_svc)
 
         mock_svc.get_simulation.assert_called_once_with("sim-123", COMPANY_ID)
         assert result is None
@@ -196,9 +193,7 @@ class TestServiceUsesRepository:
         service = ParticipationService(simulation_repository=mock_repo)
         result = service.create_simulation(input_data)
 
-        mock_repo.exists_with_name.assert_called_once_with(
-            COMPANY_ID, 2024, "Flow"
-        )
+        mock_repo.exists_with_name.assert_called_once_with(COMPANY_ID, 2024, "Flow")
         mock_repo.create.assert_called_once()
         assert result is expected
 

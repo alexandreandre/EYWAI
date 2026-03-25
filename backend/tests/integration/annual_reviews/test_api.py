@@ -6,6 +6,7 @@ Utilise : client (TestClient). Pour les tests avec utilisateur authentifié,
 dependency_overrides pour get_current_user et patch pour service.get_repository
 (pas de JWT ni DB réels).
 """
+
 from datetime import date, datetime
 from unittest.mock import MagicMock, patch
 
@@ -171,7 +172,10 @@ class TestAnnualReviewsWithRhUser:
         from app.core.security import get_current_user
 
         app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
-        with patch("app.modules.annual_reviews.application.service.get_repository", return_value=mock_repo):
+        with patch(
+            "app.modules.annual_reviews.application.service.get_repository",
+            return_value=mock_repo,
+        ):
             yield client
         app.dependency_overrides.pop(get_current_user, None)
 
@@ -211,9 +215,14 @@ class TestAnnualReviewsWithRhUser:
         """GET /api/annual-reviews/{id} quand entretien inexistant → 404."""
         response = client_with_rh.get("/api/annual-reviews/rev-unknown")
         assert response.status_code == 404
-        assert "Entretien" in response.json().get("detail", "") or "trouvé" in response.json().get("detail", "").lower()
+        assert (
+            "Entretien" in response.json().get("detail", "")
+            or "trouvé" in response.json().get("detail", "").lower()
+        )
 
-    def test_get_by_id_returns_200_when_found(self, client_with_rh: TestClient, mock_repo):
+    def test_get_by_id_returns_200_when_found(
+        self, client_with_rh: TestClient, mock_repo
+    ):
         """GET /api/annual-reviews/{id} quand entretien trouvé → 200."""
         mock_repo.get_by_id.return_value = {
             "id": "rev-1",
@@ -246,7 +255,9 @@ class TestAnnualReviewsWithRhUser:
         assert data["status"] == "en_attente_acceptation"
         mock_repo.create.assert_called_once()
 
-    def test_post_create_without_employee_id_returns_400(self, client_with_rh: TestClient):
+    def test_post_create_without_employee_id_returns_400(
+        self, client_with_rh: TestClient
+    ):
         """POST /api/annual-reviews sans employee_id → 400 (validation ou métier)."""
         response = client_with_rh.post(
             "/api/annual-reviews",
@@ -262,7 +273,9 @@ class TestAnnualReviewsWithRhUser:
         )
         assert response.status_code == 404
 
-    def test_put_update_returns_200_when_found(self, client_with_rh: TestClient, mock_repo):
+    def test_put_update_returns_200_when_found(
+        self, client_with_rh: TestClient, mock_repo
+    ):
         """PUT /api/annual-reviews/{id} avec données valides → 200."""
         mock_repo.get_by_id.return_value = {
             "id": "rev-1",
@@ -277,12 +290,16 @@ class TestAnnualReviewsWithRhUser:
         assert response.status_code == 200
         mock_repo.update.assert_called_once()
 
-    def test_post_mark_completed_returns_404_when_not_found(self, client_with_rh: TestClient):
+    def test_post_mark_completed_returns_404_when_not_found(
+        self, client_with_rh: TestClient
+    ):
         """POST .../mark-completed quand entretien inexistant → 404."""
         response = client_with_rh.post("/api/annual-reviews/rev-unknown/mark-completed")
         assert response.status_code == 404
 
-    def test_post_mark_completed_returns_200_when_accepte(self, client_with_rh: TestClient, mock_repo):
+    def test_post_mark_completed_returns_200_when_accepte(
+        self, client_with_rh: TestClient, mock_repo
+    ):
         """POST .../mark-completed quand status=accepte → 200."""
         mock_repo.get_by_id.return_value = {
             "id": "rev-1",
@@ -311,7 +328,9 @@ class TestAnnualReviewsWithRhUser:
         response = client_with_rh.get("/api/annual-reviews/rev-unknown/pdf")
         assert response.status_code == 404
 
-    def test_get_pdf_returns_400_when_not_cloture(self, client_with_rh: TestClient, mock_repo):
+    def test_get_pdf_returns_400_when_not_cloture(
+        self, client_with_rh: TestClient, mock_repo
+    ):
         """GET .../pdf quand entretien non clôturé → 400."""
         mock_repo.get_by_id.return_value = {
             "id": "rev-1",
@@ -321,7 +340,9 @@ class TestAnnualReviewsWithRhUser:
         }
         response = client_with_rh.get("/api/annual-reviews/rev-1/pdf")
         assert response.status_code == 400
-        assert "clôturé" in response.json().get("detail", "") or "PDF" in response.json().get("detail", "")
+        assert "clôturé" in response.json().get(
+            "detail", ""
+        ) or "PDF" in response.json().get("detail", "")
 
     def test_delete_returns_404_when_not_found(self, client_with_rh: TestClient):
         """DELETE /api/annual-reviews/{id} quand entretien inexistant → 404."""
@@ -356,22 +377,33 @@ class TestAnnualReviewsForbiddenNonRh:
         from app.core.security import get_current_user
 
         app.dependency_overrides[get_current_user] = lambda: _make_employee_user()
-        with patch("app.modules.annual_reviews.application.service.get_repository", return_value=mock_repo):
+        with patch(
+            "app.modules.annual_reviews.application.service.get_repository",
+            return_value=mock_repo,
+        ):
             yield client
         app.dependency_overrides.pop(get_current_user, None)
 
-    def test_get_list_returns_403_for_collaborator(self, client_with_employee: TestClient):
+    def test_get_list_returns_403_for_collaborator(
+        self, client_with_employee: TestClient
+    ):
         """GET /api/annual-reviews en tant que collaborateur → 403."""
         response = client_with_employee.get("/api/annual-reviews")
         assert response.status_code == 403
-        assert "Accès réservé" in response.json().get("detail", "") or "RH" in response.json().get("detail", "")
+        assert "Accès réservé" in response.json().get(
+            "detail", ""
+        ) or "RH" in response.json().get("detail", "")
 
-    def test_get_by_employee_returns_403_for_collaborator(self, client_with_employee: TestClient):
+    def test_get_by_employee_returns_403_for_collaborator(
+        self, client_with_employee: TestClient
+    ):
         """GET /api/annual-reviews/by-employee/{id} en tant que collaborateur → 403."""
         response = client_with_employee.get("/api/annual-reviews/by-employee/emp-1")
         assert response.status_code == 403
 
-    def test_post_create_returns_403_for_collaborator(self, client_with_employee: TestClient):
+    def test_post_create_returns_403_for_collaborator(
+        self, client_with_employee: TestClient
+    ):
         """POST /api/annual-reviews en tant que collaborateur → 403."""
         response = client_with_employee.post(
             "/api/annual-reviews",
@@ -379,12 +411,16 @@ class TestAnnualReviewsForbiddenNonRh:
         )
         assert response.status_code == 403
 
-    def test_post_mark_completed_returns_403_for_collaborator(self, client_with_employee: TestClient):
+    def test_post_mark_completed_returns_403_for_collaborator(
+        self, client_with_employee: TestClient
+    ):
         """POST .../mark-completed en tant que collaborateur → 403."""
         response = client_with_employee.post("/api/annual-reviews/rev-1/mark-completed")
         assert response.status_code == 403
 
-    def test_delete_returns_403_for_collaborator(self, client_with_employee: TestClient):
+    def test_delete_returns_403_for_collaborator(
+        self, client_with_employee: TestClient
+    ):
         """DELETE /api/annual-reviews/{id} en tant que collaborateur → 403."""
         response = client_with_employee.delete("/api/annual-reviews/rev-1")
         assert response.status_code == 403

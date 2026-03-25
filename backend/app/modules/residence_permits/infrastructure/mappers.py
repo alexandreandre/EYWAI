@@ -3,6 +3,7 @@ Mappers residence_permits : dict enrichi -> forme pour ResidencePermitListItem.
 
 Pas de table dédiée ; mapping depuis les champs employé + résultat du calcul de statut.
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -30,9 +31,13 @@ def enriched_row_to_list_item(enriched: Dict[str, Any]) -> ResidencePermitListIt
         employee_id=str(enriched.get("id", "")),
         first_name=enriched.get("first_name", ""),
         last_name=enriched.get("last_name", ""),
-        is_subject_to_residence_permit=enriched.get("is_subject_to_residence_permit", True),
+        is_subject_to_residence_permit=enriched.get(
+            "is_subject_to_residence_permit", True
+        ),
         residence_permit_status=enriched.get("residence_permit_status"),
-        residence_permit_expiry_date=_normalize_expiry_date(enriched.get("residence_permit_expiry_date")),
+        residence_permit_expiry_date=_normalize_expiry_date(
+            enriched.get("residence_permit_expiry_date")
+        ),
         residence_permit_days_remaining=enriched.get("residence_permit_days_remaining"),
         residence_permit_data_complete=enriched.get("residence_permit_data_complete"),
         residence_permit_type=enriched.get("residence_permit_type"),

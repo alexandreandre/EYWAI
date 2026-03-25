@@ -4,6 +4,7 @@ Providers infrastructure du module super_admin.
 Auth admin Supabase : create_user, get_user_by_id, update_user, delete_user.
 Utilise app.core.database.get_supabase_admin_client().
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, Optional
@@ -19,19 +20,23 @@ def get_user_email(user_id: str) -> Optional[str]:
     """Récupère l'email d'un utilisateur depuis Auth (admin)."""
     try:
         auth_response = _admin_client().auth.admin.get_user_by_id(user_id)
-        return auth_response.user.email if auth_response and auth_response.user else None
+        return (
+            auth_response.user.email if auth_response and auth_response.user else None
+        )
     except Exception:
         return None
 
 
 def create_user(email: str, password: str, user_metadata: Dict[str, Any]) -> Any:
     """Crée un utilisateur dans Auth (admin). Retourne l'objet auth response (auth_response.user.id)."""
-    return _admin_client().auth.admin.create_user({
-        "email": email,
-        "password": password,
-        "email_confirm": True,
-        "user_metadata": user_metadata or {},
-    })
+    return _admin_client().auth.admin.create_user(
+        {
+            "email": email,
+            "password": password,
+            "email_confirm": True,
+            "user_metadata": user_metadata or {},
+        }
+    )
 
 
 def delete_user(user_id: str) -> None:

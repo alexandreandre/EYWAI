@@ -3,6 +3,7 @@ Tests unitaires des queries auth (application/queries.py).
 
 Repository mocké ; pas de DB.
 """
+
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 
@@ -19,7 +20,9 @@ class TestVerifyResetToken:
     def test_valid_token_returns_result_with_email(self):
         """Token valide et non expiré → VerifyResetTokenResult(valid=True, email)."""
         expires = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
-        with patch("app.modules.auth.application.queries.reset_token_repository") as repo:
+        with patch(
+            "app.modules.auth.application.queries.reset_token_repository"
+        ) as repo:
             repo.get_valid.return_value = {
                 "user_id": "user-123",
                 "email": "user@example.com",
@@ -34,7 +37,9 @@ class TestVerifyResetToken:
 
     def test_invalid_or_used_token_raises_400(self):
         """Token invalide ou déjà utilisé → HTTP 400."""
-        with patch("app.modules.auth.application.queries.reset_token_repository") as repo:
+        with patch(
+            "app.modules.auth.application.queries.reset_token_repository"
+        ) as repo:
             repo.get_valid.return_value = None
 
             with pytest.raises(HTTPException) as exc_info:
@@ -46,7 +51,9 @@ class TestVerifyResetToken:
     def test_expired_token_raises_400(self):
         """Token expiré → HTTP 400."""
         expired = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
-        with patch("app.modules.auth.application.queries.reset_token_repository") as repo:
+        with patch(
+            "app.modules.auth.application.queries.reset_token_repository"
+        ) as repo:
             repo.get_valid.return_value = {
                 "user_id": "user-123",
                 "email": "user@example.com",
@@ -73,6 +80,7 @@ class TestGetMe:
 
     def test_returns_user_object_with_attributes(self):
         """Fonctionne avec un objet ayant des attributs (ex. User Pydantic)."""
+
         class FakeUser:
             def __init__(self):
                 self.id = "user-123"

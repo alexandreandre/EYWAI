@@ -4,6 +4,7 @@ Schémas Pydantic sortie API du module schedules.
 Définitions canoniques : calendrier (planned/actual), cumuls.
 Comportement identique à l’ancien schemas/schedule.py.
 """
+
 from typing import List
 
 from pydantic import BaseModel

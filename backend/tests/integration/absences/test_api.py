@@ -61,11 +61,11 @@ class TestCreateAbsenceRequest:
         assert response.status_code == 400
         data = response.json()
         assert "detail" in data
-        assert "jour" in data["detail"].lower() or "sélectionner" in data["detail"].lower()
+        assert (
+            "jour" in data["detail"].lower() or "sélectionner" in data["detail"].lower()
+        )
 
-    def test_create_absence_request_valid_schema_calls_app(
-        self, client: TestClient
-    ):
+    def test_create_absence_request_valid_schema_calls_app(self, client: TestClient):
         """Body valide (schema) → 201 si employé/DB OK, 404 si employé inconnu, 500 si erreur."""
         response = client.post(
             "/api/absences/requests",
@@ -208,9 +208,7 @@ class TestGetMyMonthlyCalendar:
 
     def test_me_calendar_without_token_returns_401(self, client: TestClient):
         """Sans token → 401."""
-        response = client.get(
-            "/api/absences/employees/me/calendar?year=2025&month=6"
-        )
+        response = client.get("/api/absences/employees/me/calendar?year=2025&month=6")
         assert response.status_code == 401
 
     def test_me_calendar_with_auth_returns_200(
@@ -243,9 +241,7 @@ class TestGetMyAbsencesPageData:
 
     def test_me_page_data_without_token_returns_401(self, client: TestClient):
         """Sans token → 401."""
-        response = client.get(
-            "/api/absences/employees/me/page-data?year=2025&month=6"
-        )
+        response = client.get("/api/absences/employees/me/page-data?year=2025&month=6")
         assert response.status_code == 401
 
     def test_me_page_data_with_auth_returns_200_or_404(
@@ -272,9 +268,7 @@ class TestGetMyAbsencesPageData:
 class TestGenerateSalaryCertificate:
     """POST /api/absences/{absence_id}/generate-certificate."""
 
-    def test_generate_certificate_without_token_returns_401(
-        self, client: TestClient
-    ):
+    def test_generate_certificate_without_token_returns_401(self, client: TestClient):
         """Sans token → 401."""
         response = client.post(
             "/api/absences/00000000-0000-0000-0000-000000000001/generate-certificate"
@@ -285,9 +279,7 @@ class TestGenerateSalaryCertificate:
 class TestDownloadSalaryCertificate:
     """GET /api/absences/{absence_id}/certificate/download."""
 
-    def test_download_certificate_without_token_returns_401(
-        self, client: TestClient
-    ):
+    def test_download_certificate_without_token_returns_401(self, client: TestClient):
         """Sans token → 401."""
         response = client.get(
             "/api/absences/00000000-0000-0000-0000-000000000001/certificate/download"

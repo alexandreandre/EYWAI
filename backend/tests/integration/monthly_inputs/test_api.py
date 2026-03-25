@@ -9,6 +9,7 @@ Pour tests avec DB de test : fournir db_session (conftest) et retirer les patche
 Fixture optionnelle (conftest) si ajout d'auth plus tard :
   monthly_inputs_headers : en-têtes pour un utilisateur avec accès aux saisies mensuelles.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -209,9 +210,7 @@ class TestDeleteEmployeeMonthlyInput:
         with patch(
             "app.modules.monthly_inputs.api.router.commands.delete_employee_monthly_input"
         ):
-            response = client.delete(
-                "/api/employees/emp-1/monthly-inputs/input-id-456"
-            )
+            response = client.delete("/api/employees/emp-1/monthly-inputs/input-id-456")
         assert response.status_code == 200
         assert response.json().get("status") == "success"
 

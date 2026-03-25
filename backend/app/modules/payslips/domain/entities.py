@@ -4,6 +4,7 @@ Entités du domaine payslips.
 Placeholder pour agrégat Payslip. La migration pourra introduire une entité
 riche ; pour l'instant on travaille en dict/DTO pour compatibilité legacy.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -18,6 +19,7 @@ class Payslip:
     Lors de la migration complète, remplacer les dict par cette entité
     et faire mapper l'infrastructure vers elle.
     """
+
     id: str
     employee_id: str
     company_id: str

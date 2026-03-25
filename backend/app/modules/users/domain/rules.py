@@ -4,6 +4,7 @@ Règles métier pures du module users.
 Aucune dépendance à la DB, FastAPI ou infrastructure.
 Comportement aligné sur api/routers/users.py et user_creation.py.
 """
+
 from typing import Any, List
 
 # Hiérarchie des rôles : qui peut créer/modifier quel rôle (aligné legacy)
@@ -72,9 +73,7 @@ def validate_one_primary_access(primary_count: int) -> None:
         raise ValueError("Un seul accès peut être marqué comme primaire")
 
 
-def validate_cannot_revoke_last_admin(
-    is_revoking_self: bool, admin_count: int
-) -> None:
+def validate_cannot_revoke_last_admin(is_revoking_self: bool, admin_count: int) -> None:
     """Lève ValueError si l'utilisateur révoque son propre accès et est le dernier admin."""
     if is_revoking_self and admin_count <= 1:
         raise ValueError(

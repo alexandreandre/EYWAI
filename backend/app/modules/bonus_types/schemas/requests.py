@@ -3,6 +3,7 @@ Schémas de requête API pour bonus_types.
 
 Migrés depuis schemas.bonus_type ; comportement identique.
 """
+
 from __future__ import annotations
 
 from typing import Optional

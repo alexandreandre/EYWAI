@@ -4,6 +4,7 @@ Tests unitaires des commandes du module contract_parser.
 Chaque commande (extract_contract_from_pdf, extract_rib_from_pdf,
 extract_questionnaire_from_pdf) est testée avec extracteur PDF et LLM mockés.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -42,7 +43,11 @@ class TestExtractContractFromPdf:
             "pdfplumber",
         )
         mock_llm.extract_contract.return_value = _make_parsed(
-            extracted_data={"first_name": "Jean", "last_name": "Dupont", "hire_date": "2024-01-15"},
+            extracted_data={
+                "first_name": "Jean",
+                "last_name": "Dupont",
+                "hire_date": "2024-01-15",
+            },
             confidence="high",
             warnings=[],
         )
@@ -65,9 +70,7 @@ class TestExtractContractFromPdf:
         extract_contract_from_pdf(b"pdf bytes")
         mock_llm.extract_contract.assert_called_once_with(extracted_text)
 
-    def test_handles_llm_warnings(
-        self, mock_pdf: MagicMock, mock_llm: MagicMock
-    ):
+    def test_handles_llm_warnings(self, mock_pdf: MagicMock, mock_llm: MagicMock):
         """Les warnings du LLM sont renvoyés dans le DTO."""
         mock_pdf.extract_text.return_value = ("texte", "pdfplumber")
         mock_llm.extract_contract.return_value = _make_parsed(
@@ -85,9 +88,7 @@ class TestExtractContractFromPdf:
 class TestExtractRibFromPdf:
     """Commande extract_rib_from_pdf."""
 
-    def test_returns_dto_with_rib_data(
-        self, mock_pdf: MagicMock, mock_llm: MagicMock
-    ):
+    def test_returns_dto_with_rib_data(self, mock_pdf: MagicMock, mock_llm: MagicMock):
         """Extraction RIB : IBAN, BIC dans extracted_data."""
         mock_pdf.extract_text.return_value = (
             "IBAN FR76 1234 5678 9012 3456 7890 123\nBIC SOGEFRPP",

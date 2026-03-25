@@ -4,6 +4,7 @@ Tests unitaires du service applicatif du module absences (application/service.py
 Le service délègue à l'infrastructure (resolve_employee_id_for_user).
 Dépendances mockées.
 """
+
 from unittest.mock import patch
 
 
@@ -33,9 +34,7 @@ class TestResolveEmployeeIdForUser:
 
     def test_calls_infrastructure_with_user_id(self):
         """Vérifie que l'infrastructure est appelée avec le user_id passé."""
-        with patch(
-            "app.modules.absences.application.service._resolve"
-        ) as resolve_mock:
+        with patch("app.modules.absences.application.service._resolve") as resolve_mock:
             resolve_mock.return_value = "emp-1"
             service.resolve_employee_id_for_user("user-42")
             resolve_mock.assert_called_once_with("user-42")

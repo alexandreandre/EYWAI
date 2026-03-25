@@ -3,6 +3,7 @@ Génération PDF des identifiants de connexion (création de compte).
 
 Implémentation autonome dans app/* ; comportement identique à services.pdf_generator.generate_credentials_pdf.
 """
+
 import base64
 from pathlib import Path
 

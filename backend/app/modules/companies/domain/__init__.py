@@ -1,4 +1,5 @@
 """Domaine companies : entités, value objects, interfaces, règles, KPIs."""
+
 from app.modules.companies.domain.entities import Company
 from app.modules.companies.domain.interfaces import (
     ICompanyDetailsProvider,

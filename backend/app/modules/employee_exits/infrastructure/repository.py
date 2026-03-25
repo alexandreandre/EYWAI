@@ -4,6 +4,7 @@ Repositories du module employee_exits — implémentations des ports domain.
 Accès Supabase (tables employee_exits, exit_documents, exit_checklist_items).
 Comportement identique à api/routers/employee_exits.py.
 """
+
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
@@ -90,7 +91,9 @@ class EmployeeExitRepository(IEmployeeExitRepository):
         return resp.data[0] if isinstance(resp.data, list) else resp.data
 
     def delete(self, exit_id: str, company_id: str) -> bool:
-        self._sb.table("employee_exits").delete().eq("id", exit_id).eq("company_id", company_id).execute()
+        self._sb.table("employee_exits").delete().eq("id", exit_id).eq(
+            "company_id", company_id
+        ).execute()
         return True
 
 
@@ -147,7 +150,9 @@ class ExitDocumentRepository(IExitDocumentRepository):
         return resp.data[0] if isinstance(resp.data, list) else resp.data
 
     def delete(self, document_id: str, exit_id: str, company_id: str) -> bool:
-        self._sb.table("exit_documents").delete().eq("id", document_id).eq("exit_id", exit_id).eq("company_id", company_id).execute()
+        self._sb.table("exit_documents").delete().eq("id", document_id).eq(
+            "exit_id", exit_id
+        ).eq("company_id", company_id).execute()
         return True
 
 
@@ -208,5 +213,7 @@ class ExitChecklistRepository(IExitChecklistRepository):
         return resp.data[0] if isinstance(resp.data, list) else resp.data
 
     def delete_item(self, item_id: str, exit_id: str, company_id: str) -> bool:
-        self._sb.table("exit_checklist_items").delete().eq("id", item_id).eq("exit_id", exit_id).eq("company_id", company_id).execute()
+        self._sb.table("exit_checklist_items").delete().eq("id", item_id).eq(
+            "exit_id", exit_id
+        ).eq("company_id", company_id).execute()
         return True

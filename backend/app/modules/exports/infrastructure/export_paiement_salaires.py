@@ -38,8 +38,10 @@ def get_paiement_salaires_data(
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any], List[Dict[str, Any]], List[str]]:
     year, month = map(int, period.split("-"))
 
-    query = supabase.table("payslips").select(
-        """
+    query = (
+        supabase.table("payslips")
+        .select(
+            """
         id,
         employee_id,
         month,
@@ -55,7 +57,11 @@ def get_paiement_salaires_data(
             statut
         )
         """
-    ).eq("company_id", company_id).eq("year", year).eq("month", month)
+        )
+        .eq("company_id", company_id)
+        .eq("year", year)
+        .eq("month", month)
+    )
 
     if employee_ids:
         query = query.in_("employee_id", employee_ids)
@@ -63,9 +69,12 @@ def get_paiement_salaires_data(
     response = query.execute()
     payslips = response.data or []
 
-    exits_response = supabase.table("employee_exits").select(
-        "employee_id, exit_type, last_working_day, status"
-    ).eq("company_id", company_id).execute()
+    exits_response = (
+        supabase.table("employee_exits")
+        .select("employee_id, exit_type, last_working_day, status")
+        .eq("company_id", company_id)
+        .execute()
+    )
     exits = {e["employee_id"]: e for e in (exits_response.data or [])}
 
     paiement_data = []
@@ -79,13 +88,15 @@ def get_paiement_salaires_data(
         employee_id = employee.get("id")
 
         if employee_id in seen_employees:
-            anomalies.append({
-                "type": "error",
-                "message": f"Doublon détecté - {employee.get('first_name', '')} {employee.get('last_name', '')}",
-                "severity": "blocking",
-                "employee_id": employee_id,
-                "employee_name": f"{employee.get('first_name', '')} {employee.get('last_name', '')}",
-            })
+            anomalies.append(
+                {
+                    "type": "error",
+                    "message": f"Doublon détecté - {employee.get('first_name', '')} {employee.get('last_name', '')}",
+                    "severity": "blocking",
+                    "employee_id": employee_id,
+                    "employee_name": f"{employee.get('first_name', '')} {employee.get('last_name', '')}",
+                }
+            )
             continue
 
         seen_employees.add(employee_id)
@@ -95,25 +106,29 @@ def get_paiement_salaires_data(
 
         payslip_data = payslip.get("payslip_data", {})
         if not isinstance(payslip_data, dict):
-            anomalies.append({
-                "type": "error",
-                "message": f"Bulletin invalide - {employee.get('first_name', '')} {employee.get('last_name', '')}",
-                "severity": "blocking",
-                "employee_id": employee_id,
-                "employee_name": f"{employee.get('first_name', '')} {employee.get('last_name', '')}",
-            })
+            anomalies.append(
+                {
+                    "type": "error",
+                    "message": f"Bulletin invalide - {employee.get('first_name', '')} {employee.get('last_name', '')}",
+                    "severity": "blocking",
+                    "employee_id": employee_id,
+                    "employee_name": f"{employee.get('first_name', '')} {employee.get('last_name', '')}",
+                }
+            )
             continue
 
         net_a_payer = float(payslip_data.get("net_a_payer", 0) or 0)
 
         if net_a_payer <= 0:
-            anomalies.append({
-                "type": "error",
-                "message": f"Montant ≤ 0 - {employee.get('first_name', '')} {employee.get('last_name', '')}",
-                "severity": "blocking",
-                "employee_id": employee_id,
-                "employee_name": f"{employee.get('first_name', '')} {employee.get('last_name', '')}",
-            })
+            anomalies.append(
+                {
+                    "type": "error",
+                    "message": f"Montant ≤ 0 - {employee.get('first_name', '')} {employee.get('last_name', '')}",
+                    "severity": "blocking",
+                    "employee_id": employee_id,
+                    "employee_name": f"{employee.get('first_name', '')} {employee.get('last_name', '')}",
+                }
+            )
             continue
 
         coordonnees = employee.get("coordonnees_bancaires", {})
@@ -127,13 +142,15 @@ def get_paiement_salaires_data(
         bic = coordonnees.get("bic", "") if isinstance(coordonnees, dict) else ""
 
         if not iban or not validate_iban(iban):
-            anomalies.append({
-                "type": "error",
-                "message": f"IBAN manquant ou invalide - {employee.get('first_name', '')} {employee.get('last_name', '')}",
-                "severity": "blocking",
-                "employee_id": employee_id,
-                "employee_name": f"{employee.get('first_name', '')} {employee.get('last_name', '')}",
-            })
+            anomalies.append(
+                {
+                    "type": "error",
+                    "message": f"IBAN manquant ou invalide - {employee.get('first_name', '')} {employee.get('last_name', '')}",
+                    "severity": "blocking",
+                    "employee_id": employee_id,
+                    "employee_name": f"{employee.get('first_name', '')} {employee.get('last_name', '')}",
+                }
+            )
             continue
 
         iban_clean = iban.replace(" ", "").replace("-", "").upper()
@@ -205,7 +222,12 @@ def preview_paiement_salaires(
     payment_label: Optional[str] = None,
 ) -> Dict[str, Any]:
     data, totals, anomalies, warnings = get_paiement_salaires_data(
-        company_id, period, employee_ids, excluded_employee_ids, execution_date, payment_label
+        company_id,
+        period,
+        employee_ids,
+        excluded_employee_ids,
+        execution_date,
+        payment_label,
     )
     if totals["virements_count"] == 0:
         warnings.append("Aucun virement à générer pour cette période")
@@ -214,7 +236,8 @@ def preview_paiement_salaires(
         "totals": totals,
         "anomalies": anomalies,
         "warnings": warnings,
-        "can_generate": len([a for a in anomalies if a.get("severity") == "blocking"]) == 0
+        "can_generate": len([a for a in anomalies if a.get("severity") == "blocking"])
+        == 0
         and totals["virements_count"] > 0,
     }
 
@@ -229,7 +252,12 @@ def generate_paiement_salaires_export(
     format: str = "csv",
 ) -> bytes:
     data, totals, anomalies, warnings = get_paiement_salaires_data(
-        company_id, period, employee_ids, excluded_employee_ids, execution_date, payment_label
+        company_id,
+        period,
+        employee_ids,
+        excluded_employee_ids,
+        execution_date,
+        payment_label,
     )
     valid_data = [row for row in data if row.get("Statut_controle") != "Bloquant"]
 
@@ -259,7 +287,12 @@ def generate_bank_file(
     payment_label: Optional[str] = None,
 ) -> bytes:
     data, totals, anomalies, warnings = get_paiement_salaires_data(
-        company_id, period, employee_ids, excluded_employee_ids, execution_date, payment_label
+        company_id,
+        period,
+        employee_ids,
+        excluded_employee_ids,
+        execution_date,
+        payment_label,
     )
     valid_data = [row for row in data if row.get("Statut_controle") != "Bloquant"]
     bank_headers = [

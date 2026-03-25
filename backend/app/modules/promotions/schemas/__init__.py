@@ -3,6 +3,7 @@ Schémas API du module promotions.
 
 Définitions canoniques dans requests.py et responses.py.
 """
+
 from __future__ import annotations
 
 from app.modules.promotions.schemas.requests import (

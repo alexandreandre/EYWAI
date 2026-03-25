@@ -4,6 +4,7 @@ Requêtes métier complexes (lecture) companies.
 Implémentation de ICompanyDetailsProvider (DB Supabase).
 Pas de logique métier : uniquement accès données.
 """
+
 from typing import Any, Dict, Optional
 
 from app.core.database import supabase
@@ -67,9 +68,7 @@ _company_details_provider = SupabaseCompanyDetailsProvider()
 
 def fetch_company_with_employees_and_payslips(company_id: str) -> Dict[str, Any]:
     """Délègue à ICompanyDetailsProvider (compatibilité application)."""
-    return _company_details_provider.get_company_with_employees_and_payslips(
-        company_id
-    )
+    return _company_details_provider.get_company_with_employees_and_payslips(company_id)
 
 
 def get_company_id_from_profile(user_id: str) -> Optional[str]:

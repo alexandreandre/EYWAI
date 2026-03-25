@@ -3,6 +3,7 @@ Mappers entre données applicatives et format persistance (employees, profiles).
 
 Comportement identique au router legacy (dates en isoformat, défauts).
 """
+
 from datetime import date
 from typing import Any, Dict, List
 

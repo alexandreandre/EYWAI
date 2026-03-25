@@ -9,6 +9,7 @@ Aucune dépendance DB ni HTTP. Couvre :
 
 Le module n'a pas d'entités ni de value objects définis (placeholders vides).
 """
+
 from datetime import date
 
 
@@ -152,9 +153,7 @@ class TestBuildUpcomingEventsRaw:
                 "hire_date": None,
             },
         ]
-        events = build_upcoming_events_raw(
-            employees, date(2025, 3, 17), window_days=7
-        )
+        events = build_upcoming_events_raw(employees, date(2025, 3, 17), window_days=7)
         assert len(events) == 1
         assert events[0]["type"] == "birthday"
         assert events[0]["employee_name"] == "Jean Dupont"
@@ -172,9 +171,7 @@ class TestBuildUpcomingEventsRaw:
                 "hire_date": "2020-03-19",
             },
         ]
-        events = build_upcoming_events_raw(
-            employees, date(2025, 3, 17), window_days=7
-        )
+        events = build_upcoming_events_raw(employees, date(2025, 3, 17), window_days=7)
         assert len(events) >= 1
         work = next(e for e in events if e["type"] == "work_anniversary")
         assert work["employee_name"] == "Marie Martin"
@@ -184,8 +181,20 @@ class TestBuildUpcomingEventsRaw:
     def test_events_sorted_by_date(self):
         """Les événements sont triés par date."""
         employees = [
-            {"id": "e1", "first_name": "A", "last_name": "A", "date_naissance": "1990-03-22", "hire_date": None},
-            {"id": "e2", "first_name": "B", "last_name": "B", "date_naissance": "1985-03-18", "hire_date": None},
+            {
+                "id": "e1",
+                "first_name": "A",
+                "last_name": "A",
+                "date_naissance": "1990-03-22",
+                "hire_date": None,
+            },
+            {
+                "id": "e2",
+                "first_name": "B",
+                "last_name": "B",
+                "date_naissance": "1985-03-18",
+                "hire_date": None,
+            },
         ]
         events = build_upcoming_events_raw(employees, date(2025, 3, 17), 10)
         assert len(events) == 2
@@ -197,7 +206,12 @@ class TestBuildUpcomingEventsRaw:
         """Employé sans date_naissance ni hire_date ou données invalides ne fait pas planter."""
         employees = [
             {"id": "e1", "first_name": "X", "last_name": "Y"},  # pas de dates
-            {"id": "e2", "first_name": "Z", "last_name": "W", "date_naissance": "invalid"},
+            {
+                "id": "e2",
+                "first_name": "Z",
+                "last_name": "W",
+                "date_naissance": "invalid",
+            },
         ]
         events = build_upcoming_events_raw(employees, date(2025, 3, 17), 30)
         assert isinstance(events, list)
@@ -237,9 +251,10 @@ class TestCountAbsenceDaysInRange:
     """Tests du comptage de jours d'absence (ouvrés) dans [start, end] pour employee_ids."""
 
     def test_empty_absences_returns_zero(self):
-        assert count_absence_days_in_range(
-            [], {"e1"}, date(2025, 3, 1), date(2025, 3, 31)
-        ) == 0
+        assert (
+            count_absence_days_in_range([], {"e1"}, date(2025, 3, 1), date(2025, 3, 31))
+            == 0
+        )
 
     def test_filters_by_employee_id(self):
         """Seuls les employés dans employee_ids sont comptés."""
@@ -256,7 +271,10 @@ class TestCountAbsenceDaysInRange:
     def test_excludes_weekend_days(self):
         """Les jours weekend dans selected_days ne sont pas comptés."""
         absences = [
-            {"employee_id": "e1", "selected_days": ["2025-03-15", "2025-03-16"]},  # sam, dim
+            {
+                "employee_id": "e1",
+                "selected_days": ["2025-03-15", "2025-03-16"],
+            },  # sam, dim
         ]
         n = count_absence_days_in_range(
             absences, {"e1"}, date(2025, 3, 1), date(2025, 3, 31)
@@ -274,7 +292,10 @@ class TestCountAbsenceDaysInRange:
 
     def test_counts_only_weekdays_in_range(self):
         absences = [
-            {"employee_id": "e1", "selected_days": ["2025-03-17", "2025-03-18", "2025-03-19"]},
+            {
+                "employee_id": "e1",
+                "selected_days": ["2025-03-17", "2025-03-18", "2025-03-19"],
+            },
         ]
         n = count_absence_days_in_range(
             absences, {"e1"}, date(2025, 3, 17), date(2025, 3, 19)

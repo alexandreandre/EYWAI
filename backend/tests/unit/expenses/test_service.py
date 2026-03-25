@@ -4,6 +4,7 @@ Tests unitaires du service applicatif expenses (application/service.py).
 Le service orchestre les commands/queries ; on mocke les commandes et queries
 pour vérifier la délégation et les paramètres passés.
 """
+
 from datetime import date
 from unittest.mock import patch
 

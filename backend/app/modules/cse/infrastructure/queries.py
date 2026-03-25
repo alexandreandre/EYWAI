@@ -3,6 +3,7 @@
 Requêtes Supabase CSE — accès DB direct (tables cse_*).
 Comportement identique aux appels actuels dans le router / application.
 """
+
 from typing import Any, Dict, List, Optional
 
 
@@ -10,15 +11,20 @@ def fetch_delegation_quotas_for_company(company_id: str) -> List[Dict[str, Any]]
     """Liste brute des quotas de délégation (avec jointure convention collective)."""
     from app.core.database import supabase
 
-    response = supabase.table("cse_delegation_quotas").select(
-        """
+    response = (
+        supabase.table("cse_delegation_quotas")
+        .select(
+            """
         *,
         collective_agreements_catalog!inner(
             id,
             name
         )
         """
-    ).eq("company_id", company_id).execute()
+        )
+        .eq("company_id", company_id)
+        .execute()
+    )
     return response.data or []
 
 

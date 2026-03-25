@@ -3,6 +3,7 @@ Orchestration partagée du module promotions.
 
 Délègue à l'infrastructure (IEmployeeUpdater). Aucune logique DB ici.
 """
+
 from __future__ import annotations
 
 from app.modules.promotions.domain.enums import RhAccessRole

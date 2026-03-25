@@ -4,6 +4,7 @@ Tests unitaires des requêtes du module recruitment (application/queries.py).
 Service et infrastructure mockés via patch du module service appelé par les queries.
 Pas de DB ni HTTP.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -57,13 +58,25 @@ class TestGetPipelineStages:
 
     def test_returns_stages_from_service(self, _patch_service):
         _patch_service.service_get_pipeline_stages.return_value = [
-            {"id": "s1", "name": "Premier appel", "position": 0, "stage_type": "standard"},
-            {"id": "s2", "name": "Entretien RH", "position": 1, "stage_type": "standard"},
+            {
+                "id": "s1",
+                "name": "Premier appel",
+                "position": 0,
+                "stage_type": "standard",
+            },
+            {
+                "id": "s2",
+                "name": "Entretien RH",
+                "position": 1,
+                "stage_type": "standard",
+            },
         ]
         result = queries.get_pipeline_stages("co-1", "job-1")
         assert len(result) == 2
         assert result[0]["name"] == "Premier appel"
-        _patch_service.service_get_pipeline_stages.assert_called_once_with("co-1", "job-1")
+        _patch_service.service_get_pipeline_stages.assert_called_once_with(
+            "co-1", "job-1"
+        )
 
 
 class TestListCandidates:
@@ -71,7 +84,12 @@ class TestListCandidates:
 
     def test_returns_list_with_filters(self, _patch_service):
         _patch_service.service_list_candidates.return_value = [
-            {"id": "c1", "first_name": "Alice", "last_name": "Martin", "job_id": "job-1"},
+            {
+                "id": "c1",
+                "first_name": "Alice",
+                "last_name": "Martin",
+                "job_id": "job-1",
+            },
         ]
         result = queries.list_candidates(
             "co-1",
@@ -117,7 +135,11 @@ class TestListInterviews:
 
     def test_returns_list_from_service(self, _patch_service):
         _patch_service.service_list_interviews.return_value = [
-            {"id": "int-1", "candidate_id": "cand-1", "scheduled_at": "2025-03-20T10:00:00"},
+            {
+                "id": "int-1",
+                "candidate_id": "cand-1",
+                "scheduled_at": "2025-03-20T10:00:00",
+            },
         ]
         result = queries.list_interviews(
             "co-1",
@@ -163,7 +185,11 @@ class TestGetTimeline:
 
     def test_returns_timeline_events(self, _patch_service):
         _patch_service.service_get_timeline.return_value = [
-            {"id": "e1", "event_type": "candidate_created", "description": "Candidat créé"},
+            {
+                "id": "e1",
+                "event_type": "candidate_created",
+                "description": "Candidat créé",
+            },
         ]
         result = queries.get_timeline("co-1", "cand-1")
         assert len(result) == 1
@@ -191,7 +217,13 @@ class TestCheckDuplicate:
 
     def test_returns_warnings_dict(self, _patch_service):
         _patch_service.service_check_duplicate_warnings.return_value = [
-            {"type": "candidate", "existing_id": "cand-2", "first_name": "Bob", "last_name": "Dupont", "email": "bob@example.com"},
+            {
+                "type": "candidate",
+                "existing_id": "cand-2",
+                "first_name": "Bob",
+                "last_name": "Dupont",
+                "email": "bob@example.com",
+            },
         ]
         result = queries.check_duplicate("co-1", "cand-1")
         assert "warnings" in result

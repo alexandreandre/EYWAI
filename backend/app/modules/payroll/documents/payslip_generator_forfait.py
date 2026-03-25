@@ -40,7 +40,7 @@ def is_forfait_jour(statut: str | None) -> bool:
     """
     if not statut:
         return False
-    return 'forfait jour' in statut.lower()
+    return "forfait jour" in statut.lower()
 
 
 def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
@@ -54,37 +54,53 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
     dirs_to_cleanup = []
     try:
         # --- ÉTAPE 1 : RÉCUPÉRER TOUTES LES DONNÉES DEPUIS SUPABASE ---
-        employee_data = supabase.table('employees').select("*").eq('id', employee_id).single().execute().data
+        employee_data = (
+            supabase.table("employees")
+            .select("*")
+            .eq("id", employee_id)
+            .single()
+            .execute()
+            .data
+        )
         if not employee_data:
             raise HTTPException(status_code=404, detail="Employé non trouvé.")
 
-        company_id = employee_data.get('company_id')
+        company_id = employee_data.get("company_id")
         if not company_id:
             raise HTTPException(
                 status_code=400,
-                detail=f"L'employé {employee_id} n'est pas associé à une entreprise (company_id manquant)."
+                detail=f"L'employé {employee_id} n'est pas associé à une entreprise (company_id manquant).",
             )
 
-        employee_folder_name = employee_data['employee_folder_name']
-        statut = employee_data.get('statut')
+        employee_folder_name = employee_data["employee_folder_name"]
+        statut = employee_data.get("statut")
 
         if not is_forfait_jour(statut):
             raise HTTPException(
                 status_code=400,
                 detail=f"L'employé {employee_id} n'est pas en forfait jour (statut: {statut}). "
-                       f"Utilisez process_payslip_generation à la place."
+                f"Utilisez process_payslip_generation à la place.",
             )
 
-        company_data = supabase.table('companies').select("*").eq('id', company_id).single().execute().data
+        company_data = (
+            supabase.table("companies")
+            .select("*")
+            .eq("id", company_id)
+            .single()
+            .execute()
+            .data
+        )
         if not company_data:
             raise HTTPException(
                 status_code=404,
-                detail=f"Données de l'entreprise (ID: {company_id}) non trouvées."
+                detail=f"Données de l'entreprise (ID: {company_id}) non trouvées.",
             )
 
-        duree_hebdo = employee_data.get('duree_hebdomadaire')
+        duree_hebdo = employee_data.get("duree_hebdomadaire")
         if not duree_hebdo:
-            raise HTTPException(status_code=400, detail="Durée hebdomadaire non définie.")
+            raise HTTPException(
+                status_code=400, detail="Durée hebdomadaire non définie."
+            )
 
         dates_to_process = []
         for i in [-1, 0, 1]:
@@ -94,71 +110,79 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
                 m_offset, y_offset = (12, y_offset - 1)
             elif m_offset == 13:
                 m_offset, y_offset = (1, y_offset + 1)
-            dates_to_process.append({'year': y_offset, 'month': m_offset})
+            dates_to_process.append({"year": y_offset, "month": m_offset})
 
-        schedule_res = supabase.table('employee_schedules').select(
-            "year, month, planned_calendar, actual_hours"
-        ).eq('employee_id', employee_id).in_(
-            'year', [d['year'] for d in dates_to_process]
-        ).in_('month', [d['month'] for d in dates_to_process]).execute()
+        schedule_res = (
+            supabase.table("employee_schedules")
+            .select("year, month, planned_calendar, actual_hours")
+            .eq("employee_id", employee_id)
+            .in_("year", [d["year"] for d in dates_to_process])
+            .in_("month", [d["month"] for d in dates_to_process])
+            .execute()
+        )
 
         prev_month, prev_year = (month - 1, year) if month > 1 else (12, year - 1)
-        cumuls_res = supabase.table('employee_schedules').select("cumuls").match({
-            'employee_id': employee_id,
-            'year': prev_year,
-            'month': prev_month
-        }).maybe_single().execute()
+        cumuls_res = (
+            supabase.table("employee_schedules")
+            .select("cumuls")
+            .match({"employee_id": employee_id, "year": prev_year, "month": prev_month})
+            .maybe_single()
+            .execute()
+        )
 
-        saisies_res = supabase.table('monthly_inputs').select("*").match({
-            'employee_id': employee_id,
-            'year': year,
-            'month': month
-        }).execute()
+        saisies_res = (
+            supabase.table("monthly_inputs")
+            .select("*")
+            .match({"employee_id": employee_id, "year": year, "month": month})
+            .execute()
+        )
 
         # --- ÉTAPE 2 : PRÉPARATION DES DONNÉES ---
-        db_data_map = {(row['year'], row['month']): row for row in schedule_res.data}
+        db_data_map = {(row["year"], row["month"]): row for row in schedule_res.data}
         planned_data_all_months, actual_data_all_months = [], []
 
         for date_info in dates_to_process:
-            y, m = date_info['year'], date_info['month']
+            y, m = date_info["year"], date_info["month"]
             db_row = db_data_map.get((y, m))
             planned_list = (
-                (db_row.get('planned_calendar') or {}).get('calendrier_prevu', [])
-                if db_row else []
+                (db_row.get("planned_calendar") or {}).get("calendrier_prevu", [])
+                if db_row
+                else []
             )
             actual_list = (
-                (db_row.get('actual_hours') or {}).get('calendrier_reel', [])
-                if db_row else []
+                (db_row.get("actual_hours") or {}).get("calendrier_reel", [])
+                if db_row
+                else []
             )
 
             for entry in planned_list:
                 new_entry = entry.copy()
-                new_entry.update({'annee': y, 'mois': m})
+                new_entry.update({"annee": y, "mois": m})
                 planned_data_all_months.append(new_entry)
 
             for entry in actual_list:
                 new_entry = entry.copy()
-                new_entry.update({'annee': y, 'mois': m})
+                new_entry.update({"annee": y, "mois": m})
                 actual_data_all_months.append(new_entry)
 
         last_day = calendar.monthrange(year, month)[1]
-        expense_reports_res = supabase.table('expense_reports').select(
-            "type, amount, date"
-        ).match({
-            'employee_id': employee_id,
-            'status': 'validated'
-        }).gte('date', date(year, month, 1).isoformat()).lte(
-            'date', date(year, month, last_day).isoformat()
-        ).execute()
+        expense_reports_res = (
+            supabase.table("expense_reports")
+            .select("type, amount, date")
+            .match({"employee_id": employee_id, "status": "validated"})
+            .gte("date", date(year, month, 1).isoformat())
+            .lte("date", date(year, month, last_day).isoformat())
+            .execute()
+        )
 
         saisies_data = {"periode": {"mois": month, "annee": year}, "primes": []}
 
         for row in saisies_res.data:
             prime_entry = {
-                "prime_id": row['name'].replace(" ", "_"),
-                "montant": row['amount'],
-                "soumise_a_cotisations": row.get('is_socially_taxed', True),
-                "soumise_a_impot": row.get('is_taxable', True)
+                "prime_id": row["name"].replace(" ", "_"),
+                "montant": row["amount"],
+                "soumise_a_cotisations": row.get("is_socially_taxed", True),
+                "soumise_a_impot": row.get("is_taxable", True),
             }
             saisies_data["primes"].append(prime_entry)
 
@@ -167,9 +191,9 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
                 expense_prime_id = f"remb_{expense['type'].lower().replace(' ', '_')}_{expense['date']}"
                 expense_entry = {
                     "prime_id": expense_prime_id,
-                    "montant": expense['amount'],
+                    "montant": expense["amount"],
                     "soumise_a_cotisations": False,
-                    "soumise_a_impot": False
+                    "soumise_a_impot": False,
                 }
                 saisies_data["primes"].append(expense_entry)
 
@@ -183,11 +207,13 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
             total_advances_repayment = Decimal("0")
 
             for advance in advances_to_repay:
-                remaining = Decimal(str(advance.get('remaining_amount', 0)))
+                remaining = Decimal(str(advance.get("remaining_amount", 0)))
                 if remaining <= 0:
                     continue
 
-                monthly_repayment = Decimal(str(advance.get('monthly_repayment_amount', 0)))
+                monthly_repayment = Decimal(
+                    str(advance.get("monthly_repayment_amount", 0))
+                )
                 repayment_this_month = min(remaining, monthly_repayment)
                 total_advances_repayment += repayment_this_month
 
@@ -196,16 +222,25 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
                     "prime_id": "remboursement_avance_salaire",
                     "montant": -float(total_advances_repayment),
                     "soumise_a_cotisations": False,
-                    "soumise_a_impot": False
+                    "soumise_a_impot": False,
                 }
                 saisies_data["primes"].append(advance_entry)
         except Exception as e:
-            logging.warning("Erreur lors du calcul des avances à rembourser (forfait): %s", e)
+            logging.warning(
+                "Erreur lors du calcul des avances à rembourser (forfait): %s", e
+            )
 
         # --- ÉTAPE 3 : PRÉPARATION DES FICHIERS TEMPORAIRES ---
         employee_path = payroll_engine_employee_folder(employee_folder_name)
         employee_path.mkdir(parents=True, exist_ok=True)
-        sub_dirs = ["calendriers", "horaires", "evenements_paie", "saisies", "cumuls", "bulletins"]
+        sub_dirs = [
+            "calendriers",
+            "horaires",
+            "evenements_paie",
+            "saisies",
+            "cumuls",
+            "bulletins",
+        ]
         for sub_dir in sub_dirs:
             (employee_path / sub_dir).mkdir(parents=True, exist_ok=True)
             dirs_to_cleanup.append(employee_path / sub_dir)
@@ -213,27 +248,29 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
 
         def write_temp_json(file_path: Path, content: Dict[str, Any]):
             file_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(content, f, indent=2, ensure_ascii=False, default=str)
             files_to_cleanup.append(file_path)
 
         contrat_json_content = {
             "contrat": {
-                "date_entree": employee_data.get('hire_date'),
+                "date_entree": employee_data.get("hire_date"),
                 "statut": statut,
-                "temps_travail": {
-                    "duree_hebdomadaire": duree_hebdo
-                }
+                "temps_travail": {"duree_hebdomadaire": duree_hebdo},
             },
             "remuneration": {
                 "salaire_de_base": {
-                    "valeur": employee_data.get('salaire_de_base', {}).get('valeur', 0.0)
+                    "valeur": employee_data.get("salaire_de_base", {}).get(
+                        "valeur", 0.0
+                    )
                 },
-                "classification_conventionnelle": employee_data.get('classification_conventionnelle', {}),
-                "avantages_en_nature": employee_data.get('avantages_en_nature', {})
+                "classification_conventionnelle": employee_data.get(
+                    "classification_conventionnelle", {}
+                ),
+                "avantages_en_nature": employee_data.get("avantages_en_nature", {}),
             },
-            "specificites_paie": employee_data.get('specificites_paie', {}),
-            "saisie_du_mois": saisies_data
+            "specificites_paie": employee_data.get("specificites_paie", {}),
+            "saisie_du_mois": saisies_data,
         }
 
         write_temp_json(employee_path / "contrat.json", contrat_json_content)
@@ -243,7 +280,8 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
             "_commentaire": "Ce fichier est généré dynamiquement à chaque cycle de paie.",
             "entreprise": {
                 "identification": {
-                    "raison_sociale": company_data.get("raison_sociale") or company_data.get("company_name"),
+                    "raison_sociale": company_data.get("raison_sociale")
+                    or company_data.get("company_name"),
                     "siren": company_data.get("siren"),
                     "nic": company_data.get("nic"),
                     "siret": company_data.get("siret"),
@@ -252,8 +290,8 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
                     "adresse": {
                         "rue": company_data.get("adresse_rue"),
                         "code_postal": company_data.get("adresse_code_postal"),
-                        "ville": company_data.get("adresse_ville")
-                    }
+                        "ville": company_data.get("adresse_ville"),
+                    },
                 },
                 "parametres_paie": {
                     "idcc": company_data.get("idcc"),
@@ -261,58 +299,56 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
                     "taux_specifiques": {
                         "taux_at_mp": company_data.get("taux_at_mp"),
                         "taux_versement_mobilite": company_data.get("taux_vm"),
-                        "taux_fnal": company_data.get("taux_fnal")
-                    }
-                }
-            }
+                        "taux_fnal": company_data.get("taux_fnal"),
+                    },
+                },
+            },
         }
 
         write_temp_json(entreprise_json_path, entreprise_json_content)
 
         for date_info in dates_to_process:
-            y, m = date_info['year'], date_info['month']
+            y, m = date_info["year"], date_info["month"]
             db_row = db_data_map.get((y, m))
 
             planned_calendar_data = (
-                (db_row.get('planned_calendar') or {})
-                if db_row else {}
+                (db_row.get("planned_calendar") or {}) if db_row else {}
             )
             write_temp_json(
-                employee_path / "calendriers" / f"{m:02d}.json",
-                planned_calendar_data
+                employee_path / "calendriers" / f"{m:02d}.json", planned_calendar_data
             )
 
-            actual_hours_data = (
-                (db_row.get('actual_hours') or {})
-                if db_row else {}
-            )
+            actual_hours_data = (db_row.get("actual_hours") or {}) if db_row else {}
             write_temp_json(
-                employee_path / "horaires" / f"{m:02d}.json",
-                actual_hours_data
+                employee_path / "horaires" / f"{m:02d}.json", actual_hours_data
             )
 
-        if cumuls_res and cumuls_res.data and cumuls_res.data.get('cumuls'):
-            previous_cumuls_data = cumuls_res.data.get('cumuls', {})
+        if cumuls_res and cumuls_res.data and cumuls_res.data.get("cumuls"):
+            previous_cumuls_data = cumuls_res.data.get("cumuls", {})
             if not isinstance(previous_cumuls_data, dict):
                 previous_cumuls_data = {}
         else:
             previous_cumuls_data = {}
 
         cumuls_structure = {
-            "cumuls": previous_cumuls_data if isinstance(previous_cumuls_data, dict) else {},
-            "periode": {}
+            "cumuls": previous_cumuls_data
+            if isinstance(previous_cumuls_data, dict)
+            else {},
+            "periode": {},
         }
 
         write_temp_json(
-            employee_path / "cumuls" / f"{prev_month:02d}.json",
-            cumuls_structure
+            employee_path / "cumuls" / f"{prev_month:02d}.json", cumuls_structure
         )
 
         write_temp_json(employee_path / "saisies" / f"{month:02d}.json", saisies_data)
 
         # --- ÉTAPE 4 : GÉNÉRATION IN-PROCESS (app uniquement) ---
         engine_root = payroll_engine_root()
-        from app.modules.payroll.documents.payslip_run_forfait import run_payslip_generation_forfait
+        from app.modules.payroll.documents.payslip_run_forfait import (
+            run_payslip_generation_forfait,
+        )
+
         payslip_json_data = run_payslip_generation_forfait(
             employee_path, year, month, engine_root
         )
@@ -322,7 +358,8 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
         new_cumuls_path = employee_path / "cumuls" / f"{month:02d}.json"
         new_cumuls_json = (
             json.loads(new_cumuls_path.read_text(encoding="utf-8"))
-            if new_cumuls_path.exists() else {}
+            if new_cumuls_path.exists()
+            else {}
         )
         files_to_cleanup.append(new_cumuls_path)
 
@@ -332,36 +369,32 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
         files_to_cleanup.append(local_pdf_path)
 
         if local_pdf_path.exists():
-            with open(local_pdf_path, 'rb') as f:
+            with open(local_pdf_path, "rb") as f:
                 supabase.storage.from_("payslips").upload(
-                    path=storage_path,
-                    file=f.read(),
-                    file_options={"x-upsert": "true"}
+                    path=storage_path, file=f.read(), file_options={"x-upsert": "true"}
                 )
 
         signed_url_response = supabase.storage.from_("payslips").create_signed_url(
-            storage_path, 3600, options={'download': True}
+            storage_path, 3600, options={"download": True}
         )
-        pdf_url = signed_url_response['signedURL']
+        pdf_url = signed_url_response["signedURL"]
 
-        supabase.table('payslips').upsert({
-            'employee_id': employee_id,
-            'company_id': company_id,
-            'year': year,
-            'month': month,
-            'name': pdf_name,
-            'payslip_data': payslip_json_data,
-            'pdf_storage_path': storage_path,
-            'url': pdf_url
-        }).execute()
+        supabase.table("payslips").upsert(
+            {
+                "employee_id": employee_id,
+                "company_id": company_id,
+                "year": year,
+                "month": month,
+                "name": pdf_name,
+                "payslip_data": payslip_json_data,
+                "pdf_storage_path": storage_path,
+                "url": pdf_url,
+            }
+        ).execute()
 
-        supabase.table('employee_schedules').update({
-            'cumuls': new_cumuls_json
-        }).match({
-            'employee_id': employee_id,
-            'year': year,
-            'month': month
-        }).execute()
+        supabase.table("employee_schedules").update({"cumuls": new_cumuls_json}).match(
+            {"employee_id": employee_id, "year": year, "month": month}
+        ).execute()
 
         return {
             "status": "success",
@@ -376,7 +409,7 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
         traceback.print_exc()
         raise HTTPException(
             status_code=500,
-            detail=f"Erreur lors de la génération de paie forfait jour: {str(e)}"
+            detail=f"Erreur lors de la génération de paie forfait jour: {str(e)}",
         )
 
     finally:

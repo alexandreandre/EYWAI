@@ -21,7 +21,9 @@ def list_obligations_raw(
     with_employee_join: bool = True,
 ) -> List[Dict[str, Any]]:
     """Liste les obligations (hors annulées) avec filtres. Optionnel join employee(first_name, last_name)."""
-    select = "*, employee:employees(first_name, last_name)" if with_employee_join else "*"
+    select = (
+        "*, employee:employees(first_name, last_name)" if with_employee_join else "*"
+    )
     query = (
         supabase.table("medical_follow_up_obligations")
         .select(select)
@@ -45,7 +47,9 @@ def list_obligations_raw(
     return list(res.data or [])
 
 
-def get_obligations_rows_for_kpis(supabase: Any, company_id: str) -> List[Dict[str, Any]]:
+def get_obligations_rows_for_kpis(
+    supabase: Any, company_id: str
+) -> List[Dict[str, Any]]:
     """Retourne les lignes (due_date, status, completed_date) pour le calcul des KPIs."""
     res = (
         supabase.table("medical_follow_up_obligations")
@@ -57,7 +61,9 @@ def get_obligations_rows_for_kpis(supabase: Any, company_id: str) -> List[Dict[s
     return list(res.data or [])
 
 
-def get_obligation_by_id(supabase: Any, obligation_id: str, company_id: str) -> Optional[Dict[str, Any]]:
+def get_obligation_by_id(
+    supabase: Any, obligation_id: str, company_id: str
+) -> Optional[Dict[str, Any]]:
     """Retourne une obligation par id et company_id ou None."""
     res = (
         supabase.table("medical_follow_up_obligations")
@@ -78,7 +84,11 @@ def update_obligation_planified(
 ) -> None:
     """Met à jour une obligation : status planifiée, planned_date, justification."""
     supabase.table("medical_follow_up_obligations").update(
-        {"status": "planifiee", "planned_date": planned_date, "justification": justification}
+        {
+            "status": "planifiee",
+            "planned_date": planned_date,
+            "justification": justification,
+        }
     ).eq("id", obligation_id).execute()
 
 
@@ -90,7 +100,11 @@ def update_obligation_completed(
 ) -> None:
     """Met à jour une obligation : status réalisée, completed_date, justification."""
     supabase.table("medical_follow_up_obligations").update(
-        {"status": "realisee", "completed_date": completed_date, "justification": justification}
+        {
+            "status": "realisee",
+            "completed_date": completed_date,
+            "justification": justification,
+        }
     ).eq("id", obligation_id).execute()
 
 
@@ -99,7 +113,9 @@ def insert_obligation(supabase: Any, payload: Dict[str, Any]) -> None:
     supabase.table("medical_follow_up_obligations").insert(payload).execute()
 
 
-def get_employee_by_id(supabase: Any, employee_id: str, company_id: str) -> Optional[Dict[str, Any]]:
+def get_employee_by_id(
+    supabase: Any, employee_id: str, company_id: str
+) -> Optional[Dict[str, Any]]:
     """Retourne l’employé par id et company_id ou None."""
     res = (
         supabase.table("employees")
@@ -112,7 +128,9 @@ def get_employee_by_id(supabase: Any, employee_id: str, company_id: str) -> Opti
     return res.data if res and res.data else None
 
 
-def get_employee_id_by_user_id(supabase: Any, user_id: str, company_id: str) -> Optional[str]:
+def get_employee_id_by_user_id(
+    supabase: Any, user_id: str, company_id: str
+) -> Optional[str]:
     """Retourne l’id employé pour un user_id et company_id ou None."""
     res = (
         supabase.table("employees")

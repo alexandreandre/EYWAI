@@ -3,6 +3,7 @@ Schémas de réponse API pour participation (Participation & Intéressement).
 
 Migrés depuis api/routers/participation.py — comportement identique.
 """
+
 from __future__ import annotations
 
 from datetime import datetime

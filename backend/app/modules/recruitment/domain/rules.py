@@ -3,13 +3,16 @@
 Règles métier pures recruitment — sans dépendance DB ni FastAPI.
 Utilisées par la couche application avant d'appeler l'infrastructure.
 """
+
 from typing import Tuple
 
 # Valeurs autorisées pour l'avis candidat (contract API)
 VALID_OPINION_RATINGS: Tuple[str, ...] = ("favorable", "defavorable")
 
 
-def require_rejection_reason_for_rejected_stage(stage_type: str, rejection_reason: str | None) -> bool:
+def require_rejection_reason_for_rejected_stage(
+    stage_type: str, rejection_reason: str | None
+) -> bool:
     """Si l'étape est 'rejected', un motif de refus est obligatoire."""
     if stage_type != "rejected":
         return True

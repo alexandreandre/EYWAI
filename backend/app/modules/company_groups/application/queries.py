@@ -4,6 +4,7 @@ Requêtes (cas d'usage lecture) du module company_groups.
 Logique extraite de api/routers/company_groups.py ; comportement identique.
 Délégation à l'infrastructure (repository, providers, mappers).
 """
+
 from __future__ import annotations
 
 from typing import Any, List, Optional
@@ -62,7 +63,9 @@ def _to_group_list_summary_dto(g: dict) -> GroupListSummaryDto:
 def get_my_groups(current_user: Any) -> List[GroupWithCompaniesDto]:
     """Liste les groupes auxquels l'utilisateur a accès (via accessible_companies)."""
     accessible = get_accessible_company_ids(current_user)
-    company_ids = None if (getattr(current_user, "is_super_admin", False)) else accessible
+    company_ids = (
+        None if (getattr(current_user, "is_super_admin", False)) else accessible
+    )
     if company_ids is not None and len(company_ids) == 0:
         return []
     rows = company_group_repository.list_groups_with_companies(company_ids)
@@ -180,15 +183,17 @@ def get_group_user_accesses(group_id: str, current_user: Any) -> List[dict]:
     for access in accesses:
         profile = access.get("profiles") or {}
         company = access.get("companies") or {}
-        result.append({
-            "user_id": access["user_id"],
-            "email": user_emails.get(access["user_id"], access["user_id"]),
-            "first_name": profile.get("first_name"),
-            "last_name": profile.get("last_name"),
-            "company_id": access["company_id"],
-            "company_name": company.get("company_name"),
-            "role": access["role"],
-        })
+        result.append(
+            {
+                "user_id": access["user_id"],
+                "email": user_emails.get(access["user_id"], access["user_id"]),
+                "first_name": profile.get("first_name"),
+                "last_name": profile.get("last_name"),
+                "company_id": access["company_id"],
+                "company_name": company.get("company_name"),
+                "role": access["role"],
+            }
+        )
     return result
 
 

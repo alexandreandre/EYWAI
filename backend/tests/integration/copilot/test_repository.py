@@ -10,6 +10,7 @@ Pour des tests contre une DB de test réelle : ajouter une fixture db_session
 dans conftest.py fournissant un client Supabase de test et des données dans
 profiles (company_id), employees, company_collective_agreements, etc.
 """
+
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -75,10 +76,22 @@ class TestGetEmployeesForFuzzySearch:
         mock_sb = MagicMock()
         mock_response = MagicMock()
         mock_response.data = [
-            {"id": "e1", "first_name": "Jean", "last_name": "Dupont", "job_title": "Dev"},
-            {"id": "e2", "first_name": "Marie", "last_name": "Martin", "job_title": "RH"},
+            {
+                "id": "e1",
+                "first_name": "Jean",
+                "last_name": "Dupont",
+                "job_title": "Dev",
+            },
+            {
+                "id": "e2",
+                "first_name": "Marie",
+                "last_name": "Martin",
+                "job_title": "RH",
+            },
         ]
-        mock_sb.table.return_value.select.return_value.execute.return_value = mock_response
+        mock_sb.table.return_value.select.return_value.execute.return_value = (
+            mock_response
+        )
         mock_get_supabase.return_value = mock_sb
 
         result = get_employees_for_fuzzy_search()
@@ -93,7 +106,9 @@ class TestGetEmployeesForFuzzySearch:
         mock_sb = MagicMock()
         mock_response = MagicMock()
         mock_response.data = None
-        mock_sb.table.return_value.select.return_value.execute.return_value = mock_response
+        mock_sb.table.return_value.select.return_value.execute.return_value = (
+            mock_response
+        )
         mock_get_supabase.return_value = mock_sb
 
         result = get_employees_for_fuzzy_search()
@@ -123,7 +138,9 @@ class TestGetCompanyCollectiveAgreements:
         mock_text_response.data = {"full_text": "Article 1 - Champ d'application..."}
 
         mock_table_cca = MagicMock()
-        mock_table_cca.select.return_value.eq.return_value.execute.return_value = mock_assign_response
+        mock_table_cca.select.return_value.eq.return_value.execute.return_value = (
+            mock_assign_response
+        )
         mock_table_ct = MagicMock()
         mock_table_ct.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = mock_text_response
 

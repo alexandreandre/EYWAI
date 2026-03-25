@@ -3,6 +3,7 @@ Queries du module expenses (lectures).
 
 Logique migrée depuis api/routers/expenses.py — comportement identique.
 """
+
 import os
 from datetime import datetime
 from typing import List, Optional

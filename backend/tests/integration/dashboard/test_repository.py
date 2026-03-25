@@ -7,6 +7,7 @@ Pour tests contre une DB de test : utiliser la fixture db_session (à compléter
 dans conftest.py) et des données dans employees, absence_requests, payslips,
 expense_reports.
 """
+
 from datetime import date
 from unittest.mock import patch
 
@@ -120,7 +121,10 @@ class TestGetDashboardRepository:
 
     def test_returns_repository_instance(self):
         """get_dashboard_repository retourne un objet avec les méthodes du port."""
-        from app.modules.dashboard.infrastructure.repository import get_dashboard_repository
+        from app.modules.dashboard.infrastructure.repository import (
+            get_dashboard_repository,
+        )
+
         repo = get_dashboard_repository()
         assert hasattr(repo, "get_employees_for_dashboard")
         assert hasattr(repo, "get_absence_requests_validated_today")

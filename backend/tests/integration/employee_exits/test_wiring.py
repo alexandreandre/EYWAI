@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module employee_exits.
 Vérifient que l'injection des dépendances et le flux de bout en bout sont corrects :
 router monté, get_current_user utilisé, commands/queries appelés avec les bons paramètres.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -86,19 +87,27 @@ class TestEmployeeExitsFlowEndToEnd:
                 }
                 response = client.get(f"/api/employee-exits/{EXIT_ID}")
             assert response.status_code == 200
-            mock_queries.get_employee_exit.assert_called_once_with(EXIT_ID, TEST_COMPANY_ID)
+            mock_queries.get_employee_exit.assert_called_once_with(
+                EXIT_ID, TEST_COMPANY_ID
+            )
         finally:
             app.dependency_overrides.pop(get_current_user, None)
 
-    def test_delete_exit_calls_command_with_exit_id_and_company_id(self, client: TestClient):
+    def test_delete_exit_calls_command_with_exit_id_and_company_id(
+        self, client: TestClient
+    ):
         """DELETE /api/employee-exits/{id} appelle delete_employee_exit(exit_id, company_id)."""
         from app.core.security import get_current_user
 
         app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
         try:
-            with patch("app.modules.employee_exits.api.router.commands") as mock_commands:
+            with patch(
+                "app.modules.employee_exits.api.router.commands"
+            ) as mock_commands:
                 response = client.delete(f"/api/employee-exits/{EXIT_ID}")
             assert response.status_code == 204
-            mock_commands.delete_employee_exit.assert_called_once_with(EXIT_ID, TEST_COMPANY_ID)
+            mock_commands.delete_employee_exit.assert_called_once_with(
+                EXIT_ID, TEST_COMPANY_ID
+            )
         finally:
             app.dependency_overrides.pop(get_current_user, None)

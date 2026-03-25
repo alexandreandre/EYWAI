@@ -6,7 +6,7 @@ import re
 import requests
 from bs4 import BeautifulSoup
 
-FICHIER_ENTREPRISE = 'config/parametres_entreprise.json'
+FICHIER_ENTREPRISE = "config/parametres_entreprise.json"
 URL_URSSAF = "https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/taux-cotisations-secteur-prive.html"
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 
@@ -48,7 +48,12 @@ def _extract_rate_from_value_text(value_text: str, is_ett: bool) -> float | None
         return None
     else:
         # Retire les segments évoquant ETT pour éviter de capter le mauvais %
-        txt_no_ett = re.sub(r"\([^)]*(entreprises?\s+de\s+travail\s+temporaire|ETT)[^)]*\)", " ", txt, flags=re.IGNORECASE)
+        txt_no_ett = re.sub(
+            r"\([^)]*(entreprises?\s+de\s+travail\s+temporaire|ETT)[^)]*\)",
+            " ",
+            txt,
+            flags=re.IGNORECASE,
+        )
         m = re.search(r"([0-9]+(?:[.,][0-9]+)?)\s*%", txt_no_ett)
         if m:
             return round(float(m.group(1).replace(",", ".")) / 100.0, 6)
@@ -64,9 +69,12 @@ def get_taux_ags(is_ett: bool) -> float | None:
 
         # Section "Taux de cotisations employeur"
         employeur_section = None
-        for article in soup.find_all('article'):
-            h2 = article.find('h2', class_='h4-like')
-            if h2 and 'taux de cotisations employeur' in h2.get_text(strip=True).lower():
+        for article in soup.find_all("article"):
+            h2 = article.find("h2", class_="h4-like")
+            if (
+                h2
+                and "taux de cotisations employeur" in h2.get_text(strip=True).lower()
+            ):
                 employeur_section = article
                 break
         if not employeur_section:
@@ -74,10 +82,10 @@ def get_taux_ags(is_ett: bool) -> float | None:
 
         # Ligne "Cotisation AGS"
         value_text = ""
-        for row in employeur_section.find_all('tr', class_='table_custom__tbody'):
-            th = row.find('th')
-            if th and 'Cotisation AGS' in th.get_text(strip=True):
-                td = row.find('td')
+        for row in employeur_section.find_all("tr", class_="table_custom__tbody"):
+            th = row.find("th")
+            if th and "Cotisation AGS" in th.get_text(strip=True):
+                td = row.find("td")
                 if td:
                     value_text = td.get_text(" ", strip=True)
                 break
@@ -115,9 +123,9 @@ def _get_is_ett() -> bool:
         with open(FICHIER_ENTREPRISE, "r", encoding="utf-8") as f:
             cfg = json.load(f)
         return bool(
-            cfg.get("PARAMETRES_ENTREPRISE", {}).get("conditions_cotisations", {}).get(
-                "est_entreprise_travail_temporaire", False
-            )
+            cfg.get("PARAMETRES_ENTREPRISE", {})
+            .get("conditions_cotisations", {})
+            .get("est_entreprise_travail_temporaire", False)
         )
     except Exception:
         return False

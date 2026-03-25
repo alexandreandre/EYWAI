@@ -4,6 +4,7 @@ Règles métier du domaine expenses.
 Règles pures : pas de FastAPI, pas d'I/O, pas de dépendance infrastructure.
 Comportement aligné sur l'ancien router (statut initial, transitions autorisées).
 """
+
 from typing import Optional
 
 # Statut initial d'une nouvelle note de frais (comportement legacy)

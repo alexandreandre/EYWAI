@@ -4,6 +4,7 @@ Lecture employés / entreprises pour le module schedules (tables employees, comp
 Implémentation du port IEmployeeCompanyReader. Utilisé par l'application pour
 récupérer company_id, statut, employee_folder_name, parametres_paie, etc.
 """
+
 import sys
 import traceback
 from typing import Any, Dict, Optional, Tuple
@@ -21,9 +22,7 @@ from app.modules.schedules.domain.interfaces import IEmployeeCompanyReader
 class EmployeeCompanyReader(IEmployeeCompanyReader):
     """Lecture employees et companies via Supabase."""
 
-    def get_company_and_statut(
-        self, employee_id: str
-    ) -> Tuple[str, Optional[str]]:
+    def get_company_and_statut(self, employee_id: str) -> Tuple[str, Optional[str]]:
         try:
             employee_res = (
                 supabase.table("employees")
@@ -33,7 +32,9 @@ class EmployeeCompanyReader(IEmployeeCompanyReader):
                 .execute()
             )
         except Exception as e:
-            print(f"❌ Erreur lors de la récupération de l'employé: {e}", file=sys.stderr)
+            print(
+                f"❌ Erreur lors de la récupération de l'employé: {e}", file=sys.stderr
+            )
             traceback.print_exc(file=sys.stderr)
             try:
                 employee_res = (
@@ -51,7 +52,9 @@ class EmployeeCompanyReader(IEmployeeCompanyReader):
 
         employee_data = employee_res.data if hasattr(employee_res, "data") else None
         if not employee_data or not employee_data.get("company_id"):
-            raise ScheduleNotFoundError("Employé non trouvé ou sans entreprise associée")
+            raise ScheduleNotFoundError(
+                "Employé non trouvé ou sans entreprise associée"
+            )
         return employee_data["company_id"], employee_data.get("statut")
 
     def get_employee_folder_name(self, employee_id: str) -> str:

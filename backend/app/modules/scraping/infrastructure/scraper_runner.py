@@ -4,6 +4,7 @@ Exécution des scripts de scraping (subprocess).
 Contient le mapping source_key -> dossier, la résolution du chemin du script,
 et l'exécution avec capture des logs et mise à jour du job (comportement identique au legacy).
 """
+
 from __future__ import annotations
 
 import json
@@ -64,7 +65,9 @@ def resolve_script_path(
 
     if scraper_name:
         if scraper_name not in available:
-            raise ValueError(f"Scraper '{scraper_name}' non disponible pour cette source")
+            raise ValueError(
+                f"Scraper '{scraper_name}' non disponible pour cette source"
+            )
         folder = get_scraper_folder_name(source_data["source_key"])
         path = root / folder / scraper_name
         return (path.resolve(), "single_scraper")
@@ -74,7 +77,9 @@ def resolve_script_path(
         return (path.resolve(), "orchestrator")
 
     if not available:
-        raise ValueError(f"Aucun scraper disponible pour la source {source_data.get('source_key')}")
+        raise ValueError(
+            f"Aucun scraper disponible pour la source {source_data.get('source_key')}"
+        )
     folder = get_scraper_folder_name(source_data["source_key"])
     path = root / folder / available[0]
     return (path.resolve(), "single_scraper")
@@ -164,7 +169,9 @@ def run_scraper_script(
     )
 
     stdout_thread = threading.Thread(target=read_output, args=(process.stdout, ""))
-    stderr_thread = threading.Thread(target=read_output, args=(process.stderr, "[ERREUR] "))
+    stderr_thread = threading.Thread(
+        target=read_output, args=(process.stderr, "[ERREUR] ")
+    )
     stdout_thread.start()
     stderr_thread.start()
 
@@ -253,7 +260,9 @@ def run_scraper_script(
         }
         repo.create_alert(alert_data)
 
-    print(f"[SCRAPING] Job {job_id} terminé - Success: {success}, Duration: {duration_ms}ms")
+    print(
+        f"[SCRAPING] Job {job_id} terminé - Success: {success}, Duration: {duration_ms}ms"
+    )
 
     return {
         "job_id": job_id,
@@ -279,7 +288,12 @@ def run_scraper_script_background(
     repo = repository or ScrapingRepository()
     try:
         run_scraper_script(
-            source_data, scraper_name, use_orchestrator, triggered_by, job_id, repository=repo
+            source_data,
+            scraper_name,
+            use_orchestrator,
+            triggered_by,
+            job_id,
+            repository=repo,
         )
     except Exception as e:
         error_msg = f"Erreur lors de l'exécution : {str(e)}"

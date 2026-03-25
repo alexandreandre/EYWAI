@@ -5,14 +5,20 @@ Délègue à app.modules.payroll.documents pour payslip_generator, payslip_edito
 recalcul COR via app.modules.repos_compensateur.application.service.
 Import paresseux pour limiter le chargement.
 """
+
 from __future__ import annotations
 
 from typing import Any
 
 
-def process_payslip_generation(employee_id: str, year: int, month: int) -> dict[str, Any]:
+def process_payslip_generation(
+    employee_id: str, year: int, month: int
+) -> dict[str, Any]:
     """Délègue à app.modules.payroll.documents.payslip_generator (comportement identique)."""
-    from app.modules.payroll.documents.payslip_generator import process_payslip_generation as _impl
+    from app.modules.payroll.documents.payslip_generator import (
+        process_payslip_generation as _impl,
+    )
+
     return _impl(employee_id=employee_id, year=year, month=month)
 
 
@@ -20,7 +26,10 @@ def process_payslip_generation_forfait(
     employee_id: str, year: int, month: int
 ) -> dict[str, Any]:
     """Délègue à app.modules.payroll.documents.payslip_generator_forfait (comportement identique)."""
-    from app.modules.payroll.documents.payslip_generator_forfait import process_payslip_generation_forfait as _impl
+    from app.modules.payroll.documents.payslip_generator_forfait import (
+        process_payslip_generation_forfait as _impl,
+    )
+
     return _impl(employee_id=employee_id, year=year, month=month)
 
 
@@ -34,7 +43,10 @@ def save_edited_payslip(
     internal_note: str | None = None,
 ) -> dict[str, Any]:
     """Délègue à app.modules.payroll.documents.payslip_editor (comportement identique)."""
-    from app.modules.payroll.documents.payslip_editor import save_edited_payslip as _impl
+    from app.modules.payroll.documents.payslip_editor import (
+        save_edited_payslip as _impl,
+    )
+
     return _impl(
         payslip_id=payslip_id,
         new_payslip_data=new_payslip_data,
@@ -53,7 +65,10 @@ def restore_payslip_version(
     current_user_name: str,
 ) -> dict[str, Any]:
     """Délègue à app.modules.payroll.documents.payslip_editor (comportement identique)."""
-    from app.modules.payroll.documents.payslip_editor import restore_payslip_version as _impl
+    from app.modules.payroll.documents.payslip_editor import (
+        restore_payslip_version as _impl,
+    )
+
     return _impl(
         payslip_id=payslip_id,
         version=version,
@@ -69,4 +84,5 @@ def recalculer_credits_repos_employe(
     from app.modules.repos_compensateur.application.service import (
         recalculer_credits_repos_employe as _impl,
     )
+
     return _impl(employee_id=employee_id, company_id=company_id, year=year)

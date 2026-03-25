@@ -4,12 +4,16 @@ Router du module users.
 Délègue toute la logique à l'application (commands, queries, service).
 Contrat HTTP identique aux anciens api/routers/users.py et user_creation.py.
 """
+
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.modules.users.application import commands, queries
-from app.modules.users.application.service import check_role_hierarchy, has_any_rh_permission
+from app.modules.users.application.service import (
+    check_role_hierarchy,
+    has_any_rh_permission,
+)
 from app.modules.users.schemas.requests import (
     SetPrimaryCompanyRequest,
     UserCompanyAccessCreate,
@@ -34,7 +38,9 @@ def _handle_application_errors(e: Exception) -> None:
     if isinstance(e, ValueError):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     if isinstance(e, RuntimeError):
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )
     raise HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         detail=f"Erreur inattendue: {str(e)}",

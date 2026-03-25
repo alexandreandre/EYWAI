@@ -3,6 +3,7 @@ Cas d'usage lecture du module dashboard.
 
 Délègue au service applicatif ; pas de logique métier ici.
 """
+
 from __future__ import annotations
 
 from app.modules.dashboard.application.service import (

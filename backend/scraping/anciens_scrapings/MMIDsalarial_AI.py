@@ -7,12 +7,16 @@ from bs4 import BeautifulSoup
 from openai import OpenAI
 from googlesearch import search
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # --- Fichiers de configuration ---
-FICHIER_CONTRAT = 'config/parametres_contrat.json'
-FICHIER_TAUX = 'config/taux_cotisations.json'
-SEARCH_QUERY = "taux cotisation salariale maladie supplémentaire Alsace-Moselle URSSAF 2025"
+FICHIER_CONTRAT = "config/parametres_contrat.json"
+FICHIER_TAUX = "config/taux_cotisations.json"
+SEARCH_QUERY = (
+    "taux cotisation salariale maladie supplémentaire Alsace-Moselle URSSAF 2025"
+)
+
 
 def extract_value_with_gpt(page_text: str, prompt: str) -> str | None:
     """
@@ -27,11 +31,14 @@ def extract_value_with_gpt(page_text: str, prompt: str) -> str | None:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "Tu es un expert en extraction de données."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "Tu es un expert en extraction de données.",
+                },
+                {"role": "user", "content": prompt},
             ],
             temperature=0,
-            max_tokens=10
+            max_tokens=10,
         )
         extracted_text = response.choices[0].message.content.strip()
         print(f"   - Réponse brute de l'API : '{extracted_text}'")
@@ -39,6 +46,7 @@ def extract_value_with_gpt(page_text: str, prompt: str) -> str | None:
     except Exception as e:
         print(f"   - ERREUR : L'appel à l'API OpenAI a échoué. Raison : {e}")
         return None
+
 
 def get_taux_alsace_moselle_via_ai() -> float | None:
     """
@@ -66,9 +74,11 @@ def get_taux_alsace_moselle_via_ai() -> float | None:
         return None
 
     for i, page_url in enumerate(search_results):
-        print(f"\n--- Tentative {i+1}/3 sur la page : {page_url} ---")
+        print(f"\n--- Tentative {i + 1}/3 sur la page : {page_url} ---")
         try:
-            response = requests.get(page_url, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
+            response = requests.get(
+                page_url, timeout=20, headers={"User-Agent": "Mozilla/5.0"}
+            )
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
             page_text = soup.get_text(" ", strip=True)
@@ -76,52 +86,65 @@ def get_taux_alsace_moselle_via_ai() -> float | None:
             final_prompt = prompt_template + page_text[:12000]
             extracted_text = extract_value_with_gpt(page_text, final_prompt)
 
-            if extracted_text and extracted_text.lower() != 'none':
-                taux_percent = float(extracted_text.replace(',', '.'))
+            if extracted_text and extracted_text.lower() != "none":
+                taux_percent = float(extracted_text.replace(",", "."))
                 taux_final = round(taux_percent / 100.0, 5)
-                print(f"✅ Valeur trouvée et validée ! Taux : {taux_final*100:.2f}%")
+                print(f"✅ Valeur trouvée et validée ! Taux : {taux_final * 100:.2f}%")
                 return taux_final
             else:
-                print("   - Aucune valeur extraite de cette page, passage à la suivante.")
+                print(
+                    "   - Aucune valeur extraite de cette page, passage à la suivante."
+                )
         except Exception as e:
             print(f"   - ERREUR inattendue : {e}. Passage à la page suivante.")
 
-    print("\n❌ ERREUR FATALE : Aucune valeur n'a pu être extraite après avoir essayé toutes les pages.")
+    print(
+        "\n❌ ERREUR FATALE : Aucune valeur n'a pu être extraite après avoir essayé toutes les pages."
+    )
     return None
+
 
 def ajuster_taux_salarial_maladie_via_ai():
     """
     Lit le paramètre isAlsaceMoselle, utilise l'IA si nécessaire, et met à jour le fichier de cotisations.
     """
     try:
-        with open(FICHIER_CONTRAT, 'r', encoding='utf-8') as f:
+        with open(FICHIER_CONTRAT, "r", encoding="utf-8") as f:
             config_contrat = json.load(f)
-        
-        is_alsace_moselle = config_contrat['PARAMETRES_CONTRAT']['poste'].get('isAlsaceMoselle', False)
 
-        taux_correct = 0.0 # Valeur par défaut pour le régime général
+        is_alsace_moselle = config_contrat["PARAMETRES_CONTRAT"]["poste"].get(
+            "isAlsaceMoselle", False
+        )
+
+        taux_correct = 0.0  # Valeur par défaut pour le régime général
         if is_alsace_moselle:
-            print("Régime Alsace-Moselle détecté. Lancement de la recherche du taux spécifique...")
+            print(
+                "Régime Alsace-Moselle détecté. Lancement de la recherche du taux spécifique..."
+            )
             taux_specifique = get_taux_alsace_moselle_via_ai()
             if taux_specifique is None:
-                print("Arrêt du script car le taux spécifique n'a pas pu être récupéré.")
+                print(
+                    "Arrêt du script car le taux spécifique n'a pas pu être récupéré."
+                )
                 return
             taux_correct = taux_specifique
         else:
             print("Régime général détecté. Le taux salarial maladie est de 0%.")
 
-        with open(FICHIER_TAUX, 'r', encoding='utf-8') as f:
+        with open(FICHIER_TAUX, "r", encoding="utf-8") as f:
             config_taux = json.load(f)
 
-        cotisation_maladie = config_taux['TAUX_COTISATIONS']['securite_sociale_maladie']
-        taux_actuel = cotisation_maladie['salarial']
-        
+        cotisation_maladie = config_taux["TAUX_COTISATIONS"]["securite_sociale_maladie"]
+        taux_actuel = cotisation_maladie["salarial"]
+
         if taux_actuel == taux_correct:
-            print(f"Le taux salarial maladie dans '{FICHIER_TAUX}' est déjà correct ({taux_correct}).")
+            print(
+                f"Le taux salarial maladie dans '{FICHIER_TAUX}' est déjà correct ({taux_correct})."
+            )
             return
 
         print(f"Mise à jour du taux salarial maladie : {taux_actuel} -> {taux_correct}")
-        cotisation_maladie['salarial'] = taux_correct
+        cotisation_maladie["salarial"] = taux_correct
 
         print(json.dumps(config_taux))
 
@@ -129,6 +152,7 @@ def ajuster_taux_salarial_maladie_via_ai():
         print(f"ERREUR : Le fichier '{e.filename}' est introuvable.")
     except Exception as e:
         print(f"ERREUR : Une erreur inattendue est survenue : {e}")
+
 
 if __name__ == "__main__":
     ajuster_taux_salarial_maladie_via_ai()

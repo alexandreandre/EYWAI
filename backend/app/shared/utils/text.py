@@ -1,6 +1,7 @@
 """
 Utilitaires de chaînes de caractères partagés.
 """
+
 import unicodedata
 
 

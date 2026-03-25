@@ -3,6 +3,7 @@ Vérifications d'autorisation pour les uploads logos.
 
 Implémente ILogoPermissionChecker (domain). Comportement identique à api/routers/uploads.py.
 """
+
 from __future__ import annotations
 
 from app.core.database import supabase

@@ -3,6 +3,7 @@ DTOs applicatifs du module scraping.
 
 Objets de transfert entre api et application / application et infrastructure.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

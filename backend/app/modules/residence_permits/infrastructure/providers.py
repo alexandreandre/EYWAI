@@ -4,13 +4,18 @@ Providers residence_permits : implémentation des ports (calculateur de statut).
 Utilise les règles métier du domain (domain.rules.calculate_residence_permit_status).
 Adapte les entrées Any -> date pour le domain ; aucun appel au service legacy.
 """
+
 from __future__ import annotations
 
 from datetime import date
 from typing import Any, Dict, Optional
 
-from app.modules.residence_permits.domain.interfaces import IResidencePermitStatusCalculator
-from app.modules.residence_permits.domain.rules import calculate_residence_permit_status as domain_calculate
+from app.modules.residence_permits.domain.interfaces import (
+    IResidencePermitStatusCalculator,
+)
+from app.modules.residence_permits.domain.rules import (
+    calculate_residence_permit_status as domain_calculate,
+)
 
 
 def _to_optional_date(value: Any) -> Optional[date]:

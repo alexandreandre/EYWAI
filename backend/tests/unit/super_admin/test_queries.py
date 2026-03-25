@@ -3,6 +3,7 @@ Tests des queries applicatives du module super_admin (application/queries.py).
 
 Infrastructure (infra queries) mockée ; vérification des paramètres et du retour.
 """
+
 from unittest.mock import patch
 
 
@@ -65,7 +66,11 @@ class TestGetCompanyDetails:
 
     def test_delegates_and_returns_company(self):
         """Délègue et retourne les détails entreprise."""
-        infra_result = {"id": "c1", "company_name": "Test", "stats": {"employees_count": 5, "users_count": 2}}
+        infra_result = {
+            "id": "c1",
+            "company_name": "Test",
+            "stats": {"employees_count": 5, "users_count": 2},
+        }
         with patch(
             "app.modules.super_admin.application.queries.infra_queries.get_company_details",
             return_value=infra_result,
@@ -115,7 +120,10 @@ class TestListSuperAdmins:
 
     def test_delegates_and_returns_list(self):
         """Délègue et retourne { super_admins, total }."""
-        infra_result = {"super_admins": [{"id": "sa1", "email": "sa@test.com"}], "total": 1}
+        infra_result = {
+            "super_admins": [{"id": "sa1", "email": "sa@test.com"}],
+            "total": 1,
+        }
         with patch(
             "app.modules.super_admin.application.queries.infra_queries.list_super_admins",
             return_value=infra_result,
@@ -163,7 +171,9 @@ class TestCalculateReductionFillon:
 
     def test_delegates_with_employee_month_year(self):
         """Passe employee_id, month, year à l'infra."""
-        infra_result = {"result": {"libelle": "Réduction Fillon", "montant_patronal": -100}}
+        infra_result = {
+            "result": {"libelle": "Réduction Fillon", "montant_patronal": -100}
+        }
         with patch(
             "app.modules.super_admin.application.queries.infra_queries.calculate_reduction_fillon",
             return_value=infra_result,

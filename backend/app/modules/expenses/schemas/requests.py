@@ -3,6 +3,7 @@ Schémas Pydantic entrée API du module expenses.
 
 Migrés depuis schemas/expense.py — comportement identique.
 """
+
 from datetime import date
 from typing import Literal
 

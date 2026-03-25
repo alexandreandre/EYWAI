@@ -4,6 +4,7 @@ Value objects du domaine participation.
 Placeholder : paramètres de répartition (salaire/presence %), etc.
 À enrichir lors de la migration de la logique métier.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

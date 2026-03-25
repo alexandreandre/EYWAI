@@ -4,6 +4,7 @@ Mappers entre lignes Supabase et schémas du module promotions.
 Conversions row → PromotionRead, row (+ joins) → PromotionListItem.
 Aucune logique métier, uniquement transformation de données.
 """
+
 from __future__ import annotations
 
 from datetime import date, datetime

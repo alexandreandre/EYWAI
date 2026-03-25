@@ -3,6 +3,7 @@ Tests unitaires du domaine promotions : entités, value objects, règles, enums.
 
 Aucune dépendance DB ni HTTP. Logique pure du domain/.
 """
+
 from datetime import date, datetime
 
 
@@ -129,7 +130,9 @@ class TestValidateRhAccessTransition:
 
     def test_null_to_collaborateur_rh_allowed(self):
         """Aucun accès → collaborateur_rh autorisé."""
-        assert domain_rules.validate_rh_access_transition(None, "collaborateur_rh") is True
+        assert (
+            domain_rules.validate_rh_access_transition(None, "collaborateur_rh") is True
+        )
 
     def test_null_to_rh_allowed(self):
         """Aucun accès → rh autorisé."""
@@ -141,15 +144,25 @@ class TestValidateRhAccessTransition:
 
     def test_collaborateur_rh_to_rh_allowed(self):
         """collaborateur_rh → rh autorisé."""
-        assert domain_rules.validate_rh_access_transition("collaborateur_rh", "rh") is True
+        assert (
+            domain_rules.validate_rh_access_transition("collaborateur_rh", "rh") is True
+        )
 
     def test_collaborateur_rh_to_admin_allowed(self):
         """collaborateur_rh → admin autorisé."""
-        assert domain_rules.validate_rh_access_transition("collaborateur_rh", "admin") is True
+        assert (
+            domain_rules.validate_rh_access_transition("collaborateur_rh", "admin")
+            is True
+        )
 
     def test_collaborateur_rh_to_collaborateur_rh_not_allowed(self):
         """collaborateur_rh → collaborateur_rh (même rôle) non autorisé."""
-        assert domain_rules.validate_rh_access_transition("collaborateur_rh", "collaborateur_rh") is False
+        assert (
+            domain_rules.validate_rh_access_transition(
+                "collaborateur_rh", "collaborateur_rh"
+            )
+            is False
+        )
 
     def test_rh_to_admin_allowed(self):
         """rh → admin autorisé."""
@@ -157,17 +170,26 @@ class TestValidateRhAccessTransition:
 
     def test_rh_to_collaborateur_rh_not_allowed(self):
         """rh → collaborateur_rh (rétrogradation) non autorisé."""
-        assert domain_rules.validate_rh_access_transition("rh", "collaborateur_rh") is False
+        assert (
+            domain_rules.validate_rh_access_transition("rh", "collaborateur_rh")
+            is False
+        )
 
     def test_admin_no_transition(self):
         """admin → aucun autre rôle (déjà au maximum)."""
         assert domain_rules.validate_rh_access_transition("admin", "admin") is False
         assert domain_rules.validate_rh_access_transition("admin", "rh") is False
-        assert domain_rules.validate_rh_access_transition("admin", "collaborateur_rh") is False
+        assert (
+            domain_rules.validate_rh_access_transition("admin", "collaborateur_rh")
+            is False
+        )
 
     def test_unknown_current_role_treated_like_null(self):
         """Rôle actuel inconnu → traité comme aucun accès (collaborateur_rh, rh autorisés)."""
-        assert domain_rules.validate_rh_access_transition("unknown", "collaborateur_rh") is True
+        assert (
+            domain_rules.validate_rh_access_transition("unknown", "collaborateur_rh")
+            is True
+        )
         assert domain_rules.validate_rh_access_transition("unknown", "rh") is True
         assert domain_rules.validate_rh_access_transition("unknown", "admin") is False
 

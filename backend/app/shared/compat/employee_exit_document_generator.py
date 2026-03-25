@@ -5,6 +5,7 @@ Délègue à app.modules.payroll.solde_de_tout_compte (source de vérité).
 Utilisé par app.modules.employee_exits pour obtenir une implémentation de
 IExitDocumentGenerator.
 """
+
 from typing import Any, Dict
 
 from app.modules.employee_exits.domain.interfaces import IExitDocumentGenerator
@@ -16,6 +17,7 @@ def get_employee_exit_document_generator() -> IExitDocumentGenerator:
     Source : app.modules.payroll.solde_de_tout_compte.EmployeeExitDocumentGenerator.
     """
     from app.modules.payroll.solde_de_tout_compte import EmployeeExitDocumentGenerator
+
     return _ExitDocumentGeneratorAdapter(EmployeeExitDocumentGenerator())
 
 

@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module rib_alerts.
 Vérifient que l'injection des dépendances et le flux de bout en bout
 (router -> application commands/queries -> repository) fonctionnent pour ce module.
 """
+
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
@@ -49,9 +50,33 @@ class TestRibAlertsWiringList:
         from app.core.security import get_current_user
 
         # Mock au niveau application : get_rib_alerts retourne un résultat
-        mock_result = type("R", (), {"alerts": [{"id": "a1", "company_id": TEST_COMPANY_ID, "alert_type": "rib_modified", "severity": "warning", "title": "T", "message": "M", "details": {}, "is_read": False, "is_resolved": False, "resolved_at": None, "resolution_note": None, "created_at": "2024-01-01T00:00:00Z"}], "total": 1})()
+        mock_result = type(
+            "R",
+            (),
+            {
+                "alerts": [
+                    {
+                        "id": "a1",
+                        "company_id": TEST_COMPANY_ID,
+                        "alert_type": "rib_modified",
+                        "severity": "warning",
+                        "title": "T",
+                        "message": "M",
+                        "details": {},
+                        "is_read": False,
+                        "is_resolved": False,
+                        "resolved_at": None,
+                        "resolution_note": None,
+                        "created_at": "2024-01-01T00:00:00Z",
+                    }
+                ],
+                "total": 1,
+            },
+        )()
         app.dependency_overrides[get_current_user] = lambda: _rh_user()
-        with patch("app.modules.rib_alerts.api.router.get_rib_alerts", return_value=mock_result):
+        with patch(
+            "app.modules.rib_alerts.api.router.get_rib_alerts", return_value=mock_result
+        ):
             response = client.get("/api/rib-alerts")
         app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
@@ -82,7 +107,10 @@ class TestRibAlertsWiringList:
         )
         mock_repo.list.return_value = ([alert_entity], 1)
         app.dependency_overrides[get_current_user] = lambda: _rh_user()
-        with patch("app.modules.rib_alerts.application.queries.get_rib_alert_repository", return_value=mock_repo):
+        with patch(
+            "app.modules.rib_alerts.application.queries.get_rib_alert_repository",
+            return_value=mock_repo,
+        ):
             response = client.get("/api/rib-alerts?limit=10&offset=0")
         app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
@@ -103,7 +131,10 @@ class TestRibAlertsWiringMarkRead:
         mock_repo = MagicMock()
         mock_repo.mark_read.return_value = True
         app.dependency_overrides[get_current_user] = lambda: _rh_user()
-        with patch("app.modules.rib_alerts.application.commands.get_rib_alert_repository", return_value=mock_repo):
+        with patch(
+            "app.modules.rib_alerts.application.commands.get_rib_alert_repository",
+            return_value=mock_repo,
+        ):
             response = client.patch("/api/rib-alerts/alert-1/read")
         app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
@@ -121,7 +152,10 @@ class TestRibAlertsWiringResolve:
         mock_repo = MagicMock()
         mock_repo.resolve.return_value = True
         app.dependency_overrides[get_current_user] = lambda: _rh_user()
-        with patch("app.modules.rib_alerts.application.commands.get_rib_alert_repository", return_value=mock_repo):
+        with patch(
+            "app.modules.rib_alerts.application.commands.get_rib_alert_repository",
+            return_value=mock_repo,
+        ):
             response = client.patch(
                 "/api/rib-alerts/alert-1/resolve",
                 json={"resolution_note": "Résolu"},
@@ -129,4 +163,6 @@ class TestRibAlertsWiringResolve:
         app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
         assert response.json().get("success") is True
-        mock_repo.resolve.assert_called_once_with("alert-1", TEST_COMPANY_ID, TEST_USER_ID, "Résolu")
+        mock_repo.resolve.assert_called_once_with(
+            "alert-1", TEST_COMPANY_ID, TEST_USER_ID, "Résolu"
+        )

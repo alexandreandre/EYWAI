@@ -2,6 +2,7 @@
 Calcul du statut des titres de séjour.
 Point d'entrée partagé : délègue aux règles domaine (residence_permits), sans services legacy.
 """
+
 from __future__ import annotations
 
 from datetime import date, datetime

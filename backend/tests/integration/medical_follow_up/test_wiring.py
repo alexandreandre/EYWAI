@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module medical_follow_up.
 Vérifient que l'injection des dépendances et le flux de bout en bout
 (router -> application -> repository / provider) fonctionnent.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -63,15 +64,19 @@ class TestMedicalFollowUpWiring:
         ]
 
         app.dependency_overrides[get_current_user] = lambda: _rh_user()
-        with patch(
-            "app.modules.medical_follow_up.application.queries.get_obligation_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.medical_follow_up.application.commands.get_obligation_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.medical_follow_up.application.service.get_settings_provider",
-            return_value=MagicMock(is_enabled=MagicMock(return_value=True)),
+        with (
+            patch(
+                "app.modules.medical_follow_up.application.queries.get_obligation_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.medical_follow_up.application.commands.get_obligation_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.medical_follow_up.application.service.get_settings_provider",
+                return_value=MagicMock(is_enabled=MagicMock(return_value=True)),
+            ),
         ):
             response = client.get("/api/medical-follow-up/obligations")
 
@@ -99,15 +104,19 @@ class TestMedicalFollowUpWiring:
         }
 
         app.dependency_overrides[get_current_user] = lambda: _rh_user()
-        with patch(
-            "app.modules.medical_follow_up.application.queries.get_obligation_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.medical_follow_up.application.commands.get_obligation_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.medical_follow_up.application.service.get_settings_provider",
-            return_value=MagicMock(is_enabled=MagicMock(return_value=True)),
+        with (
+            patch(
+                "app.modules.medical_follow_up.application.queries.get_obligation_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.medical_follow_up.application.commands.get_obligation_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.medical_follow_up.application.service.get_settings_provider",
+                return_value=MagicMock(is_enabled=MagicMock(return_value=True)),
+            ),
         ):
             response = client.get("/api/medical-follow-up/kpis")
 
@@ -128,15 +137,19 @@ class TestMedicalFollowUpWiring:
         mock_repo.obligation_exists.return_value = True
 
         app.dependency_overrides[get_current_user] = lambda: _rh_user()
-        with patch(
-            "app.modules.medical_follow_up.application.queries.get_obligation_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.medical_follow_up.application.commands.get_obligation_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.medical_follow_up.application.service.get_settings_provider",
-            return_value=MagicMock(is_enabled=MagicMock(return_value=True)),
+        with (
+            patch(
+                "app.modules.medical_follow_up.application.queries.get_obligation_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.medical_follow_up.application.commands.get_obligation_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.medical_follow_up.application.service.get_settings_provider",
+                return_value=MagicMock(is_enabled=MagicMock(return_value=True)),
+            ),
         ):
             response = client.patch(
                 "/api/medical-follow-up/obligations/obl-1/planified",
@@ -160,15 +173,19 @@ class TestMedicalFollowUpWiring:
         mock_repo.employee_exists.return_value = True
 
         app.dependency_overrides[get_current_user] = lambda: _rh_user()
-        with patch(
-            "app.modules.medical_follow_up.application.queries.get_obligation_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.medical_follow_up.application.commands.get_obligation_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.medical_follow_up.application.service.get_settings_provider",
-            return_value=MagicMock(is_enabled=MagicMock(return_value=True)),
+        with (
+            patch(
+                "app.modules.medical_follow_up.application.queries.get_obligation_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.medical_follow_up.application.commands.get_obligation_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.medical_follow_up.application.service.get_settings_provider",
+                return_value=MagicMock(is_enabled=MagicMock(return_value=True)),
+            ),
         ):
             response = client.post(
                 "/api/medical-follow-up/obligations/on-demand",
@@ -209,18 +226,23 @@ class TestMedicalFollowUpWiring:
         ]
 
         app.dependency_overrides[get_current_user] = lambda: _rh_user()
-        with patch(
-            "app.modules.medical_follow_up.application.queries.get_obligation_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.medical_follow_up.application.commands.get_obligation_repository",
-            return_value=mock_repo,
-        ), patch(
-            "app.modules.medical_follow_up.application.service.get_settings_provider",
-            return_value=MagicMock(is_enabled=MagicMock(return_value=True)),
-        ), patch(
-            "app.modules.medical_follow_up.application.queries.compute_obligations_for_employee",
-            return_value=[],
+        with (
+            patch(
+                "app.modules.medical_follow_up.application.queries.get_obligation_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.medical_follow_up.application.commands.get_obligation_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.medical_follow_up.application.service.get_settings_provider",
+                return_value=MagicMock(is_enabled=MagicMock(return_value=True)),
+            ),
+            patch(
+                "app.modules.medical_follow_up.application.queries.compute_obligations_for_employee",
+                return_value=[],
+            ),
         ):
             response = client.get("/api/medical-follow-up/me")
 
@@ -234,4 +256,6 @@ class TestMedicalFollowUpWiring:
         mock_repo.get_employee_id_by_user_id.assert_called_once_with(
             str(TEST_USER_ID), TEST_COMPANY_ID
         )
-        mock_repo.list_for_employee_no_join.assert_called_once_with(TEST_COMPANY_ID, "emp-1")
+        mock_repo.list_for_employee_no_join.assert_called_once_with(
+            TEST_COMPANY_ID, "emp-1"
+        )

@@ -3,6 +3,7 @@ Exceptions métier du module collective_agreements.
 
 Sans dépendance à FastAPI. L'application (service) les convertit en HTTPException.
 """
+
 from __future__ import annotations
 
 

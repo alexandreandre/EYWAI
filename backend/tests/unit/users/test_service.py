@@ -4,6 +4,7 @@ Tests unitaires du service applicatif users.
 Délégation aux règles du domain et aux repositories/providers.
 Dépendances mockées.
 """
+
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 

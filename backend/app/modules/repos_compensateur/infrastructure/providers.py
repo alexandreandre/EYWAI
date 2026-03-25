@@ -4,6 +4,7 @@ Providers infrastructure : données bulletins pour le calcul HS/COR.
 Implémente IPayslipDataProvider. Lecture table payslips (payslip_data).
 Comportement identique au service actuel (groupement par employé puis par mois).
 """
+
 from __future__ import annotations
 
 from typing import Any

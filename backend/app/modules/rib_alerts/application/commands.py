@@ -3,6 +3,7 @@ Commandes applicatives rib_alerts.
 
 Logique déplacée depuis api/routers/rib_alerts (PATCH read, PATCH resolve). Comportement identique.
 """
+
 from __future__ import annotations
 
 from typing import Optional

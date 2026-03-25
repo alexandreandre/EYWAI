@@ -9,11 +9,11 @@ au module payroll répondent correctement (auth, validation, délégation).
 Fixtures utilisées : client (TestClient), auth_headers / payroll_headers (conftest).
 Si payroll_headers n'existe pas encore : utiliser auth_headers ou dependency_overrides.
 """
+
 from unittest.mock import patch, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
-
 
 
 pytestmark = pytest.mark.integration
@@ -25,6 +25,7 @@ class TestPayrollRouterModule:
     def test_payroll_router_importable(self):
         """Le router du module payroll peut être importé et inclus."""
         from app.modules.payroll.api.router import router as payroll_router
+
         assert payroll_router is not None
         # Le router actuel n'a pas de routes ; il peut être monté sous un préfixe plus tard
         routes = [r for r in payroll_router.routes if hasattr(r, "path")]

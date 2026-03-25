@@ -3,6 +3,7 @@ Tests unitaires du service applicatif employees (enrichissements).
 
 Enrichissement titre de séjour et entretien annuel avec dépendances mockées.
 """
+
 from datetime import date
 from unittest.mock import MagicMock, patch
 

@@ -4,6 +4,7 @@ Tests du domain du module copilot : règles métier, enums.
 Sans DB, sans HTTP. Couvre les règles (only_select_allowed) et les enums (MessageRole).
 Les entités et value_objects sont des placeholders vides, donc non testés.
 """
+
 import pytest
 
 from app.modules.copilot.domain.rules import only_select_allowed
@@ -27,7 +28,10 @@ class TestOnlySelectAllowed:
 
     def test_select_with_comments_or_multiline_returns_true(self):
         assert only_select_allowed("SELECT 1") is True
-        assert only_select_allowed("SELECT id FROM employees WHERE company_id = 'x'") is True
+        assert (
+            only_select_allowed("SELECT id FROM employees WHERE company_id = 'x'")
+            is True
+        )
 
     def test_insert_returns_false(self):
         assert only_select_allowed("INSERT INTO employees (id) VALUES ('x')") is False
@@ -49,7 +53,10 @@ class TestOnlySelectAllowed:
         assert only_select_allowed("   \n\t  ") is False
 
     def test_non_select_sql_returns_false(self):
-        assert only_select_allowed("WITH x AS (SELECT 1) INSERT INTO t SELECT * FROM x") is False
+        assert (
+            only_select_allowed("WITH x AS (SELECT 1) INSERT INTO t SELECT * FROM x")
+            is False
+        )
 
 
 class TestMessageRole:
@@ -65,7 +72,11 @@ class TestMessageRole:
         assert MessageRole.SYSTEM == "system"
 
     def test_all_members_exist(self):
-        assert set(MessageRole) == {MessageRole.USER, MessageRole.ASSISTANT, MessageRole.SYSTEM}
+        assert set(MessageRole) == {
+            MessageRole.USER,
+            MessageRole.ASSISTANT,
+            MessageRole.SYSTEM,
+        }
 
     def test_string_usage(self):
         """Les valeurs sont des str, utilisables directement dans l'API."""

@@ -3,6 +3,7 @@ Règles métier pures — migrées depuis api/routers/absences.py.
 
 Aucun accès DB : toutes les données passent en paramètres.
 """
+
 import math
 from datetime import date
 

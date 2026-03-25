@@ -3,6 +3,7 @@ Tests unitaires du service applicatif companies (application/service.py).
 
 Dépendances mockées : get_company_id_from_profile, pas d'accès DB.
 """
+
 from unittest.mock import MagicMock, patch
 
 

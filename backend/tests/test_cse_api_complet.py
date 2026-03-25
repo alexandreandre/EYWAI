@@ -22,6 +22,7 @@ sys.path.insert(0, str(_here))
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv(_here / ".env")
 except ImportError:
     pass
@@ -95,11 +96,19 @@ class CSETester:
         self.results: List[TestResult] = []
 
     def log(self, message: str, level: str = "INFO"):
-        prefix = {"INFO": "ℹ️", "SUCCESS": "✅", "ERROR": "❌", "WARNING": "⚠️", "TEST": "🧪"}.get(level, "ℹ️")
+        prefix = {
+            "INFO": "ℹ️",
+            "SUCCESS": "✅",
+            "ERROR": "❌",
+            "WARNING": "⚠️",
+            "TEST": "🧪",
+        }.get(level, "ℹ️")
         print(f"{prefix} {message}")
 
     def add(self, name: str, success: bool, message: str, data: Any = None):
-        self.results.append(TestResult(name=name, success=success, message=message, data=data))
+        self.results.append(
+            TestResult(name=name, success=success, message=message, data=data)
+        )
         self.log(f"{name}: {message}", "SUCCESS" if success else "ERROR")
 
     def setup_context(self) -> bool:
@@ -112,7 +121,13 @@ class CSETester:
                 return False
             self.company_id = r.data[0]["id"]
 
-            r = supabase.table("employees").select("id").eq("company_id", self.company_id).limit(1).execute()
+            r = (
+                supabase.table("employees")
+                .select("id")
+                .eq("company_id", self.company_id)
+                .limit(1)
+                .execute()
+            )
             if not r.data or len(r.data) == 0:
                 self.add("Setup", False, "Aucun employé pour cette company")
                 return False
@@ -124,7 +139,11 @@ class CSETester:
                 return False
             self.profile_id = r.data[0]["id"]
 
-            self.add("Setup", True, f"company={self.company_id[:8]}..., employee={self.employee_id[:8]}..., profile={self.profile_id[:8]}...")
+            self.add(
+                "Setup",
+                True,
+                f"company={self.company_id[:8]}..., employee={self.employee_id[:8]}..., profile={self.profile_id[:8]}...",
+            )
             return True
         except Exception as e:
             self.add("Setup", False, str(e))
@@ -166,8 +185,12 @@ class CSETester:
             return
 
         try:
-            meetings_filt = get_meetings(self.company_id, status="a_venir", meeting_type="ordinaire")
-            self.add("Liste réunions (filtres)", True, f"{len(meetings_filt)} réunion(s)")
+            meetings_filt = get_meetings(
+                self.company_id, status="a_venir", meeting_type="ordinaire"
+            )
+            self.add(
+                "Liste réunions (filtres)", True, f"{len(meetings_filt)} réunion(s)"
+            )
         except Exception as e:
             self.add("Liste réunions (filtres)", False, str(e))
 
@@ -177,7 +200,9 @@ class CSETester:
                 meeting = get_meeting_by_id(meeting_id, self.company_id)
                 self.add("Détail réunion", True, meeting_id[:8])
                 # Test mise à jour statut (sans changer vraiment)
-                update_meeting(meeting_id, self.company_id, MeetingUpdate(status=meeting.status))
+                update_meeting(
+                    meeting_id, self.company_id, MeetingUpdate(status=meeting.status)
+                )
                 self.add("PUT statut réunion", True, "ok")
             except Exception as e:
                 self.add("Détail réunion / PUT statut", False, str(e))
@@ -185,7 +210,9 @@ class CSETester:
         self.log("\n--- CSE RH : Onglet Délégation ---", "TEST")
         now = date.today()
         period_start = now.replace(day=1)
-        period_end = (now.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+        period_end = (now.replace(day=28) + timedelta(days=4)).replace(
+            day=1
+        ) - timedelta(days=1)
         try:
             summary = get_delegation_summary(self.company_id, period_start, period_end)
             self.add("Récap délégation", True, f"{len(summary)} ligne(s)")
@@ -193,9 +220,12 @@ class CSETester:
             self.add("Récap délégation", False, str(e))
 
         try:
-            resp = supabase.table("cse_delegation_quotas").select(
-                "*, collective_agreements_catalog!inner(id, name)"
-            ).eq("company_id", self.company_id).execute()
+            resp = (
+                supabase.table("cse_delegation_quotas")
+                .select("*, collective_agreements_catalog!inner(id, name)")
+                .eq("company_id", self.company_id)
+                .execute()
+            )
             quotas = resp.data or []
             self.add("Liste quotas délégation", True, f"{len(quotas)} quota(s)")
         except Exception as e:
@@ -244,7 +274,9 @@ class CSETester:
             members = get_elected_members(self.company_id, active_only=True)
             all_hours = []
             for m in members:
-                h = get_delegation_hours(self.company_id, m.employee_id, period_start, period_end)
+                h = get_delegation_hours(
+                    self.company_id, m.employee_id, period_start, period_end
+                )
                 all_hours.extend([_to_dict(x) for x in h])
             summary = get_delegation_summary(self.company_id, period_start, period_end)
             summary_dict = [_to_dict(s) for s in summary]
@@ -269,7 +301,9 @@ class CSETester:
                 buf = generate_minutes_pdf(meeting_dict)
                 self.add("Export PV annuel (PDF)", True, f"{len(buf)} octets")
             else:
-                self.add("Export PV annuel (PDF)", True, "aucune réunion terminée (skip)")
+                self.add(
+                    "Export PV annuel (PDF)", True, "aucune réunion terminée (skip)"
+                )
         except Exception as e:
             self.add("Export PV annuel (PDF)", False, str(e))
 
@@ -277,11 +311,15 @@ class CSETester:
             if cycles:
                 cycle = get_election_cycle_by_id(cycles[0].id, self.company_id)
                 cycle_dict = _to_dict(cycle)
-                timeline = [ _to_dict(s) for s in (cycle.timeline or []) ]
+                timeline = [_to_dict(s) for s in (cycle.timeline or [])]
                 buf = generate_election_calendar_pdf(cycle_dict, timeline)
-                self.add("Export calendrier électoral (PDF)", True, f"{len(buf)} octets")
+                self.add(
+                    "Export calendrier électoral (PDF)", True, f"{len(buf)} octets"
+                )
             else:
-                self.add("Export calendrier électoral (PDF)", True, "aucun cycle (skip)")
+                self.add(
+                    "Export calendrier électoral (PDF)", True, "aucun cycle (skip)"
+                )
         except Exception as e:
             self.add("Export calendrier électoral (PDF)", False, str(e))
 
@@ -300,7 +338,10 @@ class CSETester:
             return
 
         if not is_elected:
-            self.log("  (Utilisateur non élu : tests lecture quota/heures/réunions/BDES limités ou vides)", "WARNING")
+            self.log(
+                "  (Utilisateur non élu : tests lecture quota/heures/réunions/BDES limités ou vides)",
+                "WARNING",
+            )
             # On teste quand même les endpoints qui peuvent répondre (quota peut être null)
             try:
                 quota = get_delegation_quota(self.company_id, self.employee_id)
@@ -312,15 +353,23 @@ class CSETester:
         self.log("\n--- CSE Collaborateur : Quota et heures ---", "TEST")
         try:
             quota = get_delegation_quota(self.company_id, self.employee_id)
-            self.add("Quota délégation", True, f"quota_hours={quota.quota_hours_per_month if quota else None}")
+            self.add(
+                "Quota délégation",
+                True,
+                f"quota_hours={quota.quota_hours_per_month if quota else None}",
+            )
         except Exception as e:
             self.add("Quota délégation", False, str(e))
 
         now = date.today()
         month_start = now.replace(day=1)
-        month_end = (now.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+        month_end = (now.replace(day=28) + timedelta(days=4)).replace(
+            day=1
+        ) - timedelta(days=1)
         try:
-            hours = get_delegation_hours(self.company_id, self.employee_id, month_start, month_end)
+            hours = get_delegation_hours(
+                self.company_id, self.employee_id, month_start, month_end
+            )
             self.add("Heures délégation (mois)", True, f"{len(hours)} heure(s)")
         except Exception as e:
             self.add("Heures délégation (mois)", False, str(e))
@@ -362,7 +411,10 @@ class CSETester:
         if not self.company_id or not self.employee_id or not self.profile_id:
             return
 
-        self.log("\n--- CSE CRUD : Élu + Réunion + Cycle (création puis suppression) ---", "TEST")
+        self.log(
+            "\n--- CSE CRUD : Élu + Réunion + Cycle (création puis suppression) ---",
+            "TEST",
+        )
 
         # Créer un élu (mandat futur)
         start = date.today()
@@ -375,7 +427,9 @@ class CSETester:
                 start_date=start,
                 end_date=end,
             )
-            member = create_elected_member(self.company_id, data, created_by=self.profile_id)
+            member = create_elected_member(
+                self.company_id, data, created_by=self.profile_id
+            )
             self.created_member_ids.append(member.id)
             self.add("Création élu CSE", True, member.id[:8])
         except Exception as e:
@@ -414,22 +468,30 @@ class CSETester:
 
         for mid in self.created_member_ids:
             try:
-                supabase.table("cse_elected_members").delete().eq("id", mid).eq("company_id", self.company_id).execute()
+                supabase.table("cse_elected_members").delete().eq("id", mid).eq(
+                    "company_id", self.company_id
+                ).execute()
                 self.add("Suppression élu créé", True, mid[:8])
             except Exception as e:
                 self.add("Suppression élu créé", False, str(e))
 
         for meeting_id in self.created_meeting_ids:
             try:
-                supabase.table("cse_meetings").delete().eq("id", meeting_id).eq("company_id", self.company_id).execute()
+                supabase.table("cse_meetings").delete().eq("id", meeting_id).eq(
+                    "company_id", self.company_id
+                ).execute()
                 self.add("Suppression réunion créée", True, meeting_id[:8])
             except Exception as e:
                 self.add("Suppression réunion créée", False, str(e))
 
         for cycle_id in self.created_cycle_ids:
             try:
-                supabase.table("cse_election_timeline").delete().eq("election_cycle_id", cycle_id).execute()
-                supabase.table("cse_election_cycles").delete().eq("id", cycle_id).eq("company_id", self.company_id).execute()
+                supabase.table("cse_election_timeline").delete().eq(
+                    "election_cycle_id", cycle_id
+                ).execute()
+                supabase.table("cse_election_cycles").delete().eq("id", cycle_id).eq(
+                    "company_id", self.company_id
+                ).execute()
                 self.add("Suppression cycle créé", True, cycle_id[:8])
             except Exception as e:
                 self.add("Suppression cycle créé", False, str(e))

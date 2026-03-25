@@ -8,8 +8,10 @@ from bs4 import BeautifulSoup
 
 URL_AMELI = "https://www.ameli.fr/entreprise/vos-salaries/montants-reference/indemnites-journalieres-montants-maximum"
 
+
 def iso_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
 
 def _to_float_eur(text: str) -> float | None:
     if not text:
@@ -24,6 +26,7 @@ def _to_float_eur(text: str) -> float | None:
     except Exception:
         return None
 
+
 def _fetch_page(url: str) -> BeautifulSoup:
     r = requests.get(
         url,
@@ -37,8 +40,10 @@ def _fetch_page(url: str) -> BeautifulSoup:
     r.raise_for_status()
     return BeautifulSoup(r.text, "html.parser")
 
+
 def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", s.lower().strip()) if s else ""
+
 
 def scrape_ij_plafonds() -> dict[str, float | None]:
     """
@@ -49,7 +54,12 @@ def scrape_ij_plafonds() -> dict[str, float | None]:
       - at_mp_majoree  (à compter du 29e jour)
     """
     soup = _fetch_page(URL_AMELI)
-    vals = {"maladie": None, "maternite_paternite": None, "at_mp": None, "at_mp_majoree": None}
+    vals = {
+        "maladie": None,
+        "maternite_paternite": None,
+        "at_mp": None,
+        "at_mp_majoree": None,
+    }
 
     # Parcours de tous les tableaux et lignes
     for table in soup.find_all("table"):
@@ -64,17 +74,31 @@ def scrape_ij_plafonds() -> dict[str, float | None]:
                 continue
 
             # Règles de mapping robustes
-            if ("maternité" in label) or ("paternité" in label) or ("adoption" in label):
+            if (
+                ("maternité" in label)
+                or ("paternité" in label)
+                or ("adoption" in label)
+            ):
                 vals["maternite_paternite"] = val
-            elif ("accident du travail" in label) or ("maladie professionnelle" in label) or ("at/mp" in label) or ("at mp" in label):
+            elif (
+                ("accident du travail" in label)
+                or ("maladie professionnelle" in label)
+                or ("at/mp" in label)
+                or ("at mp" in label)
+            ):
                 if ("29" in label) or ("à compter du 29" in label) or ("maj" in label):
                     vals["at_mp_majoree"] = val
                 else:
                     vals["at_mp"] = val
-            elif ("arrêt maladie" in label) or (("maladie" in label) and ("accident" not in label) and ("professionnelle" not in label)):
+            elif ("arrêt maladie" in label) or (
+                ("maladie" in label)
+                and ("accident" not in label)
+                and ("professionnelle" not in label)
+            ):
                 vals["maladie"] = val
 
     return vals
+
 
 def build_payload(vals: dict[str, float | None]) -> dict:
     return {
@@ -90,18 +114,26 @@ def build_payload(vals: dict[str, float | None]) -> dict:
             "unite": "EUR/jour",
         },
         "meta": {
-            "source": [{"url": URL_AMELI, "label": "ameli.fr — IJ montants maximum", "date_doc": ""}],
+            "source": [
+                {
+                    "url": URL_AMELI,
+                    "label": "ameli.fr — IJ montants maximum",
+                    "date_doc": "",
+                }
+            ],
             "scraped_at": iso_now(),
             "generator": "scripts/IJmaladie/IJmaladie.py",
             "method": "primary",
         },
     }
 
+
 def main() -> None:
     vals = scrape_ij_plafonds()
     payload = build_payload(vals)
     # Sortie JSON stricte, aucun autre print
     print(json.dumps(payload, ensure_ascii=False))
+
 
 if __name__ == "__main__":
     main()

@@ -4,6 +4,7 @@ Repository rib_alerts : orchestration des requêtes et mappers.
 Délègue les accès DB à infrastructure/queries.py ; utilise les mappers pour entités.
 Comportement strictement identique au legacy.
 """
+
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -59,7 +60,9 @@ class SupabaseRibAlertRepository:
         resolved_by: str,
         resolution_note: Optional[str] = None,
     ) -> bool:
-        return update_rib_alert_resolve(alert_id, company_id, resolved_by, resolution_note)
+        return update_rib_alert_resolve(
+            alert_id, company_id, resolved_by, resolution_note
+        )
 
     def create(self, payload: dict[str, Any]) -> Optional[RibAlert]:
         row = insert_rib_alert(payload)

@@ -3,6 +3,7 @@ Requêtes applicatives (read) pour bonus_types.
 
 Délèguent au BonusTypesService ; logique métier dans le service.
 """
+
 from __future__ import annotations
 
 from app.modules.bonus_types.application.dto import BonusCalculationResult
@@ -42,6 +43,4 @@ def calculate_bonus_amount(
 ) -> BonusCalculationResult:
     """Calcule le montant d'une prime (montant_fixe ou selon_heures)."""
     svc = service or get_bonus_types_service()
-    return svc.calculate_amount(
-        bonus_type_id, company_id, employee_id, year, month
-    )
+    return svc.calculate_amount(bonus_type_id, company_id, employee_id, year, month)

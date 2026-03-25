@@ -3,11 +3,17 @@ Tests unitaires du service applicatif payslips (application/service.py).
 
 Dépendances mockées : commands, queries, readers (payslip_meta_reader, debug_storage_info_provider).
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.modules.payslips.application.dto import UserContext, PayslipNotFoundError, PayslipForbiddenError, PayslipBadRequestError
+from app.modules.payslips.application.dto import (
+    UserContext,
+    PayslipNotFoundError,
+    PayslipForbiddenError,
+    PayslipBadRequestError,
+)
 from app.modules.payslips.application.service import (
     generate_payslip_use_case,
     delete_payslip_use_case,
@@ -65,7 +71,9 @@ class TestGeneratePayslipUseCase:
         with patch(
             "app.modules.payslips.application.service.generate_payslip"
         ) as mock_cmd:
-            mock_cmd.return_value = MagicMock(status="ok", message="OK", download_url="https://u.fr")
+            mock_cmd.return_value = MagicMock(
+                status="ok", message="OK", download_url="https://u.fr"
+            )
             result = generate_payslip_use_case("emp-1", 2024, 3)
         mock_cmd.assert_called_once()
         call_arg = mock_cmd.call_args[0][0]
@@ -107,7 +115,9 @@ class TestGetDebugStorageInfo:
         with patch(
             "app.modules.payslips.application.service.debug_storage_info_provider"
         ) as mock_provider:
-            mock_provider.get_debug_storage_info.side_effect = ValueError("Employé non trouvé.")
+            mock_provider.get_debug_storage_info.side_effect = ValueError(
+                "Employé non trouvé."
+            )
             with pytest.raises(PayslipNotFoundError) as exc_info:
                 get_debug_storage_info("emp-unknown", 2024, 1)
             assert "Employé non trouvé" in str(exc_info.value)
@@ -117,7 +127,9 @@ class TestGetDebugStorageInfo:
         with patch(
             "app.modules.payslips.application.service.debug_storage_info_provider"
         ) as mock_provider:
-            mock_provider.get_debug_storage_info.side_effect = ValueError("Autre erreur")
+            mock_provider.get_debug_storage_info.side_effect = ValueError(
+                "Autre erreur"
+            )
             with pytest.raises(ValueError):
                 get_debug_storage_info("emp-1", 2024, 1)
 
@@ -127,7 +139,12 @@ class TestGetPayslipDetailsForUser:
 
     def test_returns_detail_when_employee_views_own(self):
         """L'employé peut voir son propre bulletin."""
-        detail = {"id": "ps-1", "employee_id": "emp-1", "company_id": "co-1", "url": "https://u.fr"}
+        detail = {
+            "id": "ps-1",
+            "employee_id": "emp-1",
+            "company_id": "co-1",
+            "url": "https://u.fr",
+        }
         ctx = _ctx_employee("emp-1")
         with patch(
             "app.modules.payslips.application.service.get_payslip_details",
@@ -188,11 +205,14 @@ class TestGetPayslipHistoryForUser:
         meta = {"employee_id": "emp-1", "company_id": "co-1"}
         history = [{"version": 1, "edited_by": "user-1"}]
         ctx = _ctx_employee("emp-1")
-        with patch(
-            "app.modules.payslips.application.service.payslip_meta_reader"
-        ) as mock_reader, patch(
-            "app.modules.payslips.application.service.get_payslip_history",
-            return_value=history,
+        with (
+            patch(
+                "app.modules.payslips.application.service.payslip_meta_reader"
+            ) as mock_reader,
+            patch(
+                "app.modules.payslips.application.service.get_payslip_history",
+                return_value=history,
+            ),
         ):
             mock_reader.get_payslip_meta.return_value = meta
             result = get_payslip_history_for_user("ps-1", ctx)
@@ -228,11 +248,14 @@ class TestEditPayslipForUser:
         meta = {"employee_id": "emp-1", "company_id": "co-1"}
         ctx = _ctx_rh("co-1")
         expected = {"payslip": {"id": "ps-1"}, "new_pdf_url": "https://new.pdf"}
-        with patch(
-            "app.modules.payslips.application.service.payslip_meta_reader"
-        ) as mock_reader, patch(
-            "app.modules.payslips.application.service.edit_payslip",
-            return_value=expected,
+        with (
+            patch(
+                "app.modules.payslips.application.service.payslip_meta_reader"
+            ) as mock_reader,
+            patch(
+                "app.modules.payslips.application.service.edit_payslip",
+                return_value=expected,
+            ),
         ):
             mock_reader.get_payslip_meta.return_value = meta
             result = edit_payslip_for_user(
@@ -281,11 +304,14 @@ class TestRestorePayslipForUser:
         meta = {"employee_id": "emp-1", "company_id": "co-1"}
         ctx = _ctx_rh("co-1")
         expected = {"payslip": {"id": "ps-1"}, "restored_version": 2}
-        with patch(
-            "app.modules.payslips.application.service.payslip_meta_reader"
-        ) as mock_reader, patch(
-            "app.modules.payslips.application.service.restore_payslip_version",
-            return_value=expected,
+        with (
+            patch(
+                "app.modules.payslips.application.service.payslip_meta_reader"
+            ) as mock_reader,
+            patch(
+                "app.modules.payslips.application.service.restore_payslip_version",
+                return_value=expected,
+            ),
         ):
             mock_reader.get_payslip_meta.return_value = meta
             result = restore_payslip_for_user("ps-1", 2, ctx)

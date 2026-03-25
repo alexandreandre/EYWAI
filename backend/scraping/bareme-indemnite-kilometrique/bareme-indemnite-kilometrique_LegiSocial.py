@@ -21,7 +21,13 @@ def iso_now() -> str:
 
 
 def _clean_number(s: str) -> float:
-    s = s.strip().replace(NBSP, "").replace(NNBSP, "").replace(THIN, "").replace(" ", "")
+    s = (
+        s.strip()
+        .replace(NBSP, "")
+        .replace(NNBSP, "")
+        .replace(THIN, "")
+        .replace(" ", "")
+    )
     # LégiSocial : décimales avec virgule, milliers avec point
     s = s.replace(".", "").replace(",", ".")
     m = re.search(r"-?\d+(?:\.\d+)?", s)
@@ -48,7 +54,10 @@ def parse_formula(txt: str) -> Tuple[float, float]:
     if a is not None:
         return round(a, 3), round(b, 3)
 
-    nums = [_clean_number(x) for x in re.findall(r"[-+]?\d+(?:[ \u00A0\u202F\u2009\.,]\d+)*", s)]
+    nums = [
+        _clean_number(x)
+        for x in re.findall(r"[-+]?\d+(?:[ \u00A0\u202F\u2009\.,]\d+)*", s)
+    ]
     if not nums:
         return 0.0, 0.0
     if len(nums) == 1:

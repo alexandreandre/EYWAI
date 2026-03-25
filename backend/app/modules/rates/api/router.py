@@ -4,6 +4,7 @@ Router API rates : appelle uniquement l'application du module.
 Aucune logique métier : validation éventuelle, appel application, retour réponse.
 Comportement HTTP identique au legacy (GET /all, 404 si vide, 500 sur erreur).
 """
+
 from __future__ import annotations
 
 import logging

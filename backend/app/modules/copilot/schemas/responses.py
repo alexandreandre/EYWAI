@@ -3,6 +3,7 @@ Schémas Pydantic sortie API pour le module copilot.
 
 Contrats alignés sur api/routers/copilot.py et api/routers/copilot_agent.py.
 """
+
 from typing import Any, List, Optional
 
 from pydantic import BaseModel

@@ -3,6 +3,7 @@ Schémas Pydantic sortie API du module repos_compensateur.
 
 Migré depuis api/routers/repos_compensateur.py — comportement identique.
 """
+
 from __future__ import annotations
 
 from pydantic import BaseModel

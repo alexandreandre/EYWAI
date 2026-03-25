@@ -28,6 +28,7 @@ def run_reverse_calculation(
         CalculInverseError,
         NonConvergenceError,
     )
+
     try:
         return calculer_brut_depuis_net(
             net_cible=net_target,
@@ -56,6 +57,7 @@ def creer_simulation_bulletin(
 ) -> Dict[str, Any]:
     """Crée un bulletin simulé. Délègue à engine.simulation."""
     from app.modules.payroll.engine.simulation import creer_simulation_bulletin as _impl
+
     return _impl(
         employee_data=employee_data,
         company_data=company_data,
@@ -75,6 +77,7 @@ def comparer_simulation_reel(
 ) -> Dict[str, Any]:
     """Compare simulation et bulletin réel. Délègue à engine.simulation."""
     from app.modules.payroll.engine.simulation import comparer_simulation_reel as _impl
+
     return _impl(
         bulletin_simule=bulletin_simule,
         bulletin_reel=bulletin_reel,
@@ -86,6 +89,7 @@ def generer_scenarios_predefinis(employee_data: Dict[str, Any]) -> List[Dict[str
     from app.modules.payroll.engine.simulation import (
         generer_scenarios_predefinis as _impl,
     )
+
     return _impl(employee_data=employee_data)
 
 
@@ -94,4 +98,5 @@ def get_simulated_payslip_generator() -> Any:
     from app.modules.payroll.documents.simulated_payslip_generator import (
         SimulatedPayslipGenerator,
     )
+
     return SimulatedPayslipGenerator

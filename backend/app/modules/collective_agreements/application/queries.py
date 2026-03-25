@@ -3,11 +3,15 @@ Requêtes applicatives (read) pour collective_agreements.
 
 Délèguent au CollectiveAgreementsService (logique extraite des routers legacy).
 """
+
 from __future__ import annotations
 
 from typing import Any, List, Optional
 
-from app.modules.collective_agreements.application.dto import QuestionOutput, UploadUrlOutput
+from app.modules.collective_agreements.application.dto import (
+    QuestionOutput,
+    UploadUrlOutput,
+)
 from app.modules.collective_agreements.application.service import (
     CollectiveAgreementsService,
     get_collective_agreements_service,
@@ -80,6 +84,4 @@ def ask_question_query(
 ) -> QuestionOutput:
     """Chat : pose une question sur une convention."""
     svc = service or get_collective_agreements_service()
-    return svc.ask_question(
-        agreement_id, question, company_id, has_rh_access
-    )
+    return svc.ask_question(agreement_id, question, company_id, has_rh_access)

@@ -3,6 +3,7 @@ Tests unitaires des queries du module repos_compensateur (application/queries.py
 
 Repository (infrastructure get_jours_by_employee_year) mocké. Pas de DB ni HTTP.
 """
+
 from unittest.mock import patch
 
 from app.modules.repos_compensateur.application import queries

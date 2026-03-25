@@ -3,6 +3,7 @@ Tests unitaires du domaine expenses : entités, value objects, enums et règles.
 
 Sans DB, sans HTTP. Couvre toutes les entités et règles du domain/.
 """
+
 from datetime import date, datetime
 
 import pytest

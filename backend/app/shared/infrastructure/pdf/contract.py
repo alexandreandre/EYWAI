@@ -3,6 +3,7 @@ Génération PDF de contrat de travail.
 
 Implémentation autonome dans app/* (pas de dépendance à services/).
 """
+
 import base64
 from datetime import date
 from pathlib import Path
@@ -121,23 +122,23 @@ def generate_contract_pdf(
             {"<img src='data:image/png;base64," + logo_base64 + "' class='logo' />" if logo_base64 else ""}
         </div>
 
-        <div class="title">Contrat de Travail {employee_data.get('contract_type', 'CDI')}</div>
+        <div class="title">Contrat de Travail {employee_data.get("contract_type", "CDI")}</div>
 
         <div class="section">
             <strong>Entre les soussignés :</strong>
             <div style="margin: 15px 0 15px 30px;">
-                <p><strong>{company_data.get('company_name', 'MAJI')}</strong></p>
-                <p>SIRET : {company_data.get('siret', 'N/A')}</p>
-                <p>Adresse : {company_data.get('email', 'N/A')}</p>
+                <p><strong>{company_data.get("company_name", "MAJI")}</strong></p>
+                <p>SIRET : {company_data.get("siret", "N/A")}</p>
+                <p>Adresse : {company_data.get("email", "N/A")}</p>
             </div>
             <p>Ci-après dénommée « l'Employeur »,</p>
             <p style="text-align: center; margin: 20px 0;"><strong>ET</strong></p>
-            <p><strong>{employee_data.get('first_name', '')} {employee_data.get('last_name', '')}</strong></p>
-            <p>Né(e) le : {employee_data.get('date_naissance', 'N/A')}</p>
-            <p>À : {employee_data.get('lieu_naissance', 'N/A')}</p>
-            <p>Nationalité : {employee_data.get('nationalite', 'Française')}</p>
-            <p>Domicilié(e) : {employee_data.get('adresse', {}).get('rue', '')}, {employee_data.get('adresse', {}).get('code_postal', '')} {employee_data.get('adresse', {}).get('ville', '')}</p>
-            <p>N° Sécurité Sociale : {employee_data.get('nir', 'N/A')}</p>
+            <p><strong>{employee_data.get("first_name", "")} {employee_data.get("last_name", "")}</strong></p>
+            <p>Né(e) le : {employee_data.get("date_naissance", "N/A")}</p>
+            <p>À : {employee_data.get("lieu_naissance", "N/A")}</p>
+            <p>Nationalité : {employee_data.get("nationalite", "Française")}</p>
+            <p>Domicilié(e) : {employee_data.get("adresse", {}).get("rue", "")}, {employee_data.get("adresse", {}).get("code_postal", "")} {employee_data.get("adresse", {}).get("ville", "")}</p>
+            <p>N° Sécurité Sociale : {employee_data.get("nir", "N/A")}</p>
             <p>Ci-après dénommé(e) « le Salarié »,</p>
         </div>
 
@@ -145,18 +146,18 @@ def generate_contract_pdf(
 
         <div class="article">
             <div class="article-title">ARTICLE 1 - ENGAGEMENT</div>
-            <p>L'Employeur engage le Salarié qui accepte, à compter du <strong>{hire_date_formatted}</strong>, en qualité de <strong>{employee_data.get('job_title', '')}</strong>.</p>
+            <p>L'Employeur engage le Salarié qui accepte, à compter du <strong>{hire_date_formatted}</strong>, en qualité de <strong>{employee_data.get("job_title", "")}</strong>.</p>
         </div>
 
         <div class="article">
             <div class="article-title">ARTICLE 2 - FONCTIONS</div>
-            <p>Le Salarié exercera les fonctions de <strong>{employee_data.get('job_title', '')}</strong>.</p>
+            <p>Le Salarié exercera les fonctions de <strong>{employee_data.get("job_title", "")}</strong>.</p>
             <p>Le Salarié s'engage à consacrer toute son activité professionnelle à l'entreprise et à se conformer aux instructions qui lui seront données par sa hiérarchie.</p>
         </div>
 
         <div class="article">
             <div class="article-title">ARTICLE 3 - DURÉE DU TRAVAIL</div>
-            <p>Le Salarié est employé à temps {"partiel" if employee_data.get('is_temps_partiel') else "complet"}.</p>
+            <p>Le Salarié est employé à temps {"partiel" if employee_data.get("is_temps_partiel") else "complet"}.</p>
             <p>La durée hebdomadaire de travail est fixée à <strong>{duree_hebdo} heures</strong>.</p>
         </div>
 
@@ -165,16 +166,16 @@ def generate_contract_pdf(
             <p>En contrepartie de son travail, le Salarié percevra une rémunération mensuelle brute de <strong>{salaire:.2f} €</strong>.</p>
             <div class="info-box">
                 <p><strong>Classification conventionnelle :</strong></p>
-                <p>Groupe : {employee_data.get('classification_conventionnelle', {}).get('groupe_emploi', 'N/A')}</p>
-                <p>Classe : {employee_data.get('classification_conventionnelle', {}).get('classe_emploi', 'N/A')}</p>
-                <p>Coefficient : {employee_data.get('classification_conventionnelle', {}).get('coefficient', 'N/A')}</p>
+                <p>Groupe : {employee_data.get("classification_conventionnelle", {}).get("groupe_emploi", "N/A")}</p>
+                <p>Classe : {employee_data.get("classification_conventionnelle", {}).get("classe_emploi", "N/A")}</p>
+                <p>Coefficient : {employee_data.get("classification_conventionnelle", {}).get("coefficient", "N/A")}</p>
             </div>
             <p>Le salaire sera versé mensuellement par virement bancaire.</p>
         </div>
 
         <div class="article">
             <div class="article-title">ARTICLE 5 - STATUT</div>
-            <p>Le Salarié relève du statut <strong>{employee_data.get('statut', 'Non-Cadre')}</strong>.</p>
+            <p>Le Salarié relève du statut <strong>{employee_data.get("statut", "Non-Cadre")}</strong>.</p>
         </div>
 
         <div class="article">

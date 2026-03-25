@@ -4,6 +4,7 @@ Tests des commandes applicatives collective_agreements.
 Chaque commande est testée avec un service mocké ; on vérifie que la commande
 délègue au service et retourne le résultat attendu.
 """
+
 from unittest.mock import MagicMock
 
 
@@ -80,9 +81,7 @@ class TestUpdateCatalogItem:
         )
 
         assert result == expected
-        mock_svc.update_catalog_item.assert_called_once_with(
-            "agr-1", update_dict, True
-        )
+        mock_svc.update_catalog_item.assert_called_once_with("agr-1", update_dict, True)
 
     def test_returns_none_when_service_returns_none(self):
         mock_svc = MagicMock(spec=CollectiveAgreementsService)
@@ -119,7 +118,11 @@ class TestAssignAgreementToCompany:
 
     def test_returns_assignment_from_service(self):
         mock_svc = MagicMock(spec=CollectiveAgreementsService)
-        expected = {"id": "assign-1", "company_id": "c1", "collective_agreement_id": "agr-1"}
+        expected = {
+            "id": "assign-1",
+            "company_id": "c1",
+            "collective_agreement_id": "agr-1",
+        }
         mock_svc.assign_to_company.return_value = expected
 
         result = assign_agreement_to_company(
@@ -154,9 +157,7 @@ class TestUnassignAgreementFromCompany:
         )
 
         assert result is True
-        mock_svc.unassign_from_company.assert_called_once_with(
-            "assign-1", "c1", True
-        )
+        mock_svc.unassign_from_company.assert_called_once_with("assign-1", "c1", True)
 
 
 # --- refresh_text_cache ---

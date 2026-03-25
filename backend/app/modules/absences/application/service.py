@@ -3,9 +3,12 @@ Orchestration partagée du module absences.
 
 Délégation vers infrastructure et domain. Aucune logique DB ni FastAPI ici.
 """
+
 from __future__ import annotations
 
-from app.modules.absences.infrastructure.queries import resolve_employee_id_for_user as _resolve
+from app.modules.absences.infrastructure.queries import (
+    resolve_employee_id_for_user as _resolve,
+)
 
 
 def resolve_employee_id_for_user(user_id: str) -> str | None:

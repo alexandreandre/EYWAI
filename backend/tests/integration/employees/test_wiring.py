@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module employees : injection et flux bout en bout.
 Vérifie que les dépendances sont correctement résolues et que le flux
 application -> repository / providers fonctionne pour ce module.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -67,9 +68,7 @@ class TestEmployeesModuleWiring:
 
     @patch("app.modules.employees.application.commands._employee_repository")
     @patch("app.modules.employees.application.commands.get_auth_provider")
-    def test_update_employee_flow_uses_repository(
-        self, mock_get_auth, mock_repo
-    ):
+    def test_update_employee_flow_uses_repository(self, mock_get_auth, mock_repo):
         """update_employee délègue au repository et retourne les données mises à jour."""
         mock_repo.get_by_id_only.return_value = {
             "id": "e1",

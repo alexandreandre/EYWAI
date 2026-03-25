@@ -6,6 +6,7 @@ Définitions canoniques pour les routes super_admin.
   (contrat identique à POST/PATCH companies, module autonome).
 - UserCreate, ReductionFillonRequest : spécifiques super_admin.
 """
+
 from __future__ import annotations
 
 from typing import Dict, Optional
@@ -27,6 +28,7 @@ __all__ = [
 
 class CompanyCreate(BaseModel):
     """Création d'une entreprise (sans admin)."""
+
     company_name: str
     siret: Optional[str] = None
     siren: Optional[str] = None
@@ -39,6 +41,7 @@ class CompanyCreate(BaseModel):
 
 class CompanyCreateWithAdmin(BaseModel):
     """Création d'une entreprise avec un admin associé."""
+
     company_name: str
     siret: Optional[str] = None
     email: Optional[EmailStr] = None
@@ -53,6 +56,7 @@ class CompanyCreateWithAdmin(BaseModel):
 
 class CompanyUpdate(BaseModel):
     """Mise à jour partielle d'une entreprise."""
+
     company_name: Optional[str] = None
     siret: Optional[str] = None
     siren: Optional[str] = None
@@ -69,6 +73,7 @@ class CompanyUpdate(BaseModel):
 
 class UserCreate(BaseModel):
     """Body POST /companies/{company_id}/users — création utilisateur par super admin."""
+
     email: EmailStr
     password: str
     first_name: str
@@ -78,6 +83,7 @@ class UserCreate(BaseModel):
 
 class ReductionFillonRequest(BaseModel):
     """Body POST /reduction-fillon/calculate."""
+
     employee_id: str
     month: int
     year: int
@@ -85,4 +91,5 @@ class ReductionFillonRequest(BaseModel):
 
 class RunTestsRequest(BaseModel):
     """Body POST /tests/run — cibles pytest (relatif à backend_api) ou Playwright (préfixe ``pw:``)."""
+
     targets: list[str]

@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 # Ajouter le répertoire parent au path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+
 def test_imports():
     """Teste que tous les imports nécessaires fonctionnent"""
     print("🧪 Test 1 : Vérification des imports...")
@@ -21,11 +22,13 @@ def test_imports():
         print(f"❌ Erreur d'import: {e}\n")
         return False
 
+
 def test_token_generation():
     """Teste la génération de tokens sécurisés"""
     print("🧪 Test 2 : Génération de tokens...")
     try:
         import secrets
+
         token = secrets.token_urlsafe(32)
         assert len(token) > 0
         assert isinstance(token, str)
@@ -35,6 +38,7 @@ def test_token_generation():
         print(f"❌ Erreur de génération: {e}\n")
         return False
 
+
 def test_datetime_generation():
     """Teste la génération de dates d'expiration"""
     print("🧪 Test 3 : Génération de dates d'expiration...")
@@ -43,11 +47,14 @@ def test_datetime_generation():
         now = datetime.now(timezone.utc)
         assert expires_at > now
         print(f"✅ Date d'expiration générée: {expires_at}")
-        print(f"   Temps restant: {(expires_at - now).total_seconds() / 60:.1f} minutes\n")
+        print(
+            f"   Temps restant: {(expires_at - now).total_seconds() / 60:.1f} minutes\n"
+        )
         return True
     except Exception as e:
         print(f"❌ Erreur de génération de date: {e}\n")
         return False
+
 
 def test_smtp_sender_config():
     """Teste la configuration SMTP (reset password, app.shared)."""
@@ -73,6 +80,7 @@ def test_smtp_sender_config():
         print(f"❌ Erreur de configuration: {e}\n")
         return False
 
+
 def test_pydantic_models():
     """Teste les modèles Pydantic"""
     print("🧪 Test 5 : Validation des modèles Pydantic...")
@@ -95,10 +103,12 @@ def test_pydantic_models():
         print(f"❌ Erreur de validation: {e}\n")
         return False
 
+
 def test_environment_variables():
     """Teste les variables d'environnement"""
     print("🧪 Test 6 : Vérification des variables d'environnement...")
     from dotenv import load_dotenv
+
     load_dotenv()
 
     required = ["SUPABASE_URL", "SUPABASE_KEY"]
@@ -109,7 +119,11 @@ def test_environment_variables():
     for var in required:
         value = os.getenv(var)
         if value:
-            print(f"   ✅ {var}: {value[:30]}..." if len(value) > 30 else f"   ✅ {var}: {value}")
+            print(
+                f"   ✅ {var}: {value[:30]}..."
+                if len(value) > 30
+                else f"   ✅ {var}: {value}"
+            )
         else:
             print(f"   ❌ {var}: Non définie")
             all_present = False
@@ -124,6 +138,7 @@ def test_environment_variables():
 
     print()
     return all_present
+
 
 def main():
     """Exécute tous les tests"""
@@ -160,7 +175,9 @@ def main():
     if passed == total:
         print("\n🎉 Tous les tests sont passés ! La fonctionnalité est prête.")
         print("\n📝 Prochaines étapes:")
-        print("   1. Exécutez le script SQL dans Supabase (create_password_reset_table.sql)")
+        print(
+            "   1. Exécutez le script SQL dans Supabase (create_password_reset_table.sql)"
+        )
         print("   2. Configurez les variables SMTP dans .env (optionnel)")
         print("   3. Lancez le backend: python main.py")
         print("   4. Testez via le frontend: http://localhost:8080/forgot-password")
@@ -169,6 +186,7 @@ def main():
     print("=" * 80)
 
     return passed == total
+
 
 if __name__ == "__main__":
     success = main()

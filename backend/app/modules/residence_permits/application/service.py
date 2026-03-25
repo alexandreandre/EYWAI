@@ -4,12 +4,15 @@ Orchestration residence_permits : enrichissement des lignes avec le statut calcu
 Logique applicative déplacée depuis api/routers/residence_permits ( _enrich_with_residence_permit_status ).
 Parsing des dates et mise à jour du dict ; le calcul du statut est délégué au port IResidencePermitStatusCalculator.
 """
+
 from __future__ import annotations
 
 from datetime import date
 from typing import Any, Dict, Optional
 
-from app.modules.residence_permits.domain.interfaces import IResidencePermitStatusCalculator
+from app.modules.residence_permits.domain.interfaces import (
+    IResidencePermitStatusCalculator,
+)
 
 
 def _parse_expiry_date(expiry_date_value: Any) -> Optional[date]:

@@ -3,6 +3,7 @@ Value objects du domaine companies.
 
 Placeholder : structure cible pour settings et KPIs.
 """
+
 from dataclasses import dataclass
 from typing import Any, Dict
 
@@ -10,6 +11,7 @@ from typing import Any, Dict
 @dataclass
 class CompanySettings:
     """Settings entreprise (ex. medical_follow_up_enabled)."""
+
     raw: Dict[str, Any]
 
     @property

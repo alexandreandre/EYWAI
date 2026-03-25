@@ -4,6 +4,7 @@ Commandes (cas d'usage en écriture) pour le module uploads.
 Logique migrée depuis api/routers/uploads.py. Comportement exact conservé.
 Les commandes lèvent HTTPException (mêmes codes et messages que le legacy).
 """
+
 from __future__ import annotations
 
 import uuid

@@ -3,6 +3,7 @@ Tests unitaires des commandes du module companies (application/commands.py).
 
 Repository mocké : pas d'accès DB.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest

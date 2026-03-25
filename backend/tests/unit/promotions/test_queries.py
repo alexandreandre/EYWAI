@@ -3,6 +3,7 @@ Tests unitaires des queries promotions (application/queries.py).
 
 Repositories et providers mockés ; pas de DB ni HTTP.
 """
+
 from datetime import date, datetime
 from io import BytesIO
 from unittest.mock import MagicMock, patch
@@ -198,7 +199,9 @@ class TestGetEmployeeRhAccessQuery:
 class TestGetPromotionDocumentStreamQuery:
     """get_promotion_document_stream_query."""
 
-    @patch("app.modules.promotions.infrastructure.providers.get_promotion_document_provider")
+    @patch(
+        "app.modules.promotions.infrastructure.providers.get_promotion_document_provider"
+    )
     def test_returns_stream_from_provider(self, mock_get_provider):
         """Délègue au provider et retourne le stream PDF."""
         mock_provider = MagicMock()

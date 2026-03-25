@@ -5,6 +5,7 @@ Sans DB réelle : mock de Supabase pour valider la logique et les appels.
 Avec DB de test : prévoir la fixture db_session (conftest) et des données
 dans la table monthly_inputs pour des tests CRUD réels.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -45,8 +46,8 @@ class TestSupabaseMonthlyInputsRepositoryListByPeriod:
         ) as supabase:
             table = MagicMock()
             chain = MagicMock()
-            chain.match.return_value.order.return_value.execute.return_value = MagicMock(
-                data=[_row(), _row(id="mi-2", name="Acompte", amount=50.0)]
+            chain.match.return_value.order.return_value.execute.return_value = (
+                MagicMock(data=[_row(), _row(id="mi-2", name="Acompte", amount=50.0)])
             )
             table.select.return_value = chain
             supabase.table.return_value = table
@@ -70,8 +71,8 @@ class TestSupabaseMonthlyInputsRepositoryListByPeriod:
         ) as supabase:
             table = MagicMock()
             chain = MagicMock()
-            chain.match.return_value.order.return_value.execute.return_value = MagicMock(
-                data=[]
+            chain.match.return_value.order.return_value.execute.return_value = (
+                MagicMock(data=[])
             )
             table.select.return_value = chain
             supabase.table.return_value = table
@@ -92,8 +93,8 @@ class TestSupabaseMonthlyInputsRepositoryListByEmployeePeriod:
         ) as supabase:
             table = MagicMock()
             chain = MagicMock()
-            chain.match.return_value.order.return_value.execute.return_value = MagicMock(
-                data=[_row(employee_id="emp-1")]
+            chain.match.return_value.order.return_value.execute.return_value = (
+                MagicMock(data=[_row(employee_id="emp-1")])
             )
             table.select.return_value = chain
             supabase.table.return_value = table
@@ -114,8 +115,20 @@ class TestSupabaseMonthlyInputsRepositoryInsertBatch:
     def test_insert_batch_calls_insert_execute(self):
         """insert(rows).execute() → retourne response.data."""
         rows = [
-            {"employee_id": "emp-1", "year": 2025, "month": 3, "name": "P1", "amount": 10.0},
-            {"employee_id": "emp-1", "year": 2025, "month": 3, "name": "P2", "amount": 20.0},
+            {
+                "employee_id": "emp-1",
+                "year": 2025,
+                "month": 3,
+                "name": "P1",
+                "amount": 10.0,
+            },
+            {
+                "employee_id": "emp-1",
+                "year": 2025,
+                "month": 3,
+                "name": "P2",
+                "amount": 20.0,
+            },
         ]
         inserted = [_row(id="new-1", name="P1"), _row(id="new-2", name="P2")]
 
@@ -154,16 +167,20 @@ class TestSupabaseMonthlyInputsRepositoryInsertOne:
 
     def test_insert_one_returns_first_row(self):
         """insert(row).execute() → data[0]."""
-        row = {"employee_id": "emp-1", "year": 2025, "month": 4, "name": "Prime", "amount": 100.0}
+        row = {
+            "employee_id": "emp-1",
+            "year": 2025,
+            "month": 4,
+            "name": "Prime",
+            "amount": 100.0,
+        }
         inserted = _row(id="new-one", **row)
 
         with patch(
             "app.modules.monthly_inputs.infrastructure.repository.supabase"
         ) as supabase:
             table = MagicMock()
-            table.insert.return_value.execute.return_value = MagicMock(
-                data=[inserted]
-            )
+            table.insert.return_value.execute.return_value = MagicMock(data=[inserted])
             supabase.table.return_value = table
 
             repo = SupabaseMonthlyInputsRepository()
@@ -183,7 +200,9 @@ class TestSupabaseMonthlyInputsRepositoryInsertOne:
             supabase.table.return_value = table
 
             repo = SupabaseMonthlyInputsRepository()
-            result = repo.insert_one({"employee_id": "e", "year": 2025, "month": 1, "name": "X", "amount": 0})
+            result = repo.insert_one(
+                {"employee_id": "e", "year": 2025, "month": 1, "name": "X", "amount": 0}
+            )
 
             assert result == {}
 

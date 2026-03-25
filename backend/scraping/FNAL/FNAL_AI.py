@@ -23,9 +23,7 @@ from openai import OpenAI
 
 load_dotenv()
 
-SEARCH_QUERY_TEMPLATE = (
-    "taux cotisation FNAL URSSAF {year}"
-)
+SEARCH_QUERY_TEMPLATE = "taux cotisation FNAL URSSAF {year}"
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
@@ -33,6 +31,7 @@ USER_AGENT = (
 
 
 # --- UTILITAIRES ---
+
 
 def iso_now() -> str:
     """Retourne la date et l'heure actuelles au format ISO 8601 UTC."""
@@ -73,14 +72,13 @@ def _extract_rates_with_gpt(page_text: str) -> dict[str, float | None]:
         "Ignore les valeurs historiques, exceptions, ou cas particuliers.\n\n"
         "Renvoie uniquement un JSON strict au format suivant :\n"
         "{\n"
-        '  \"taux_moins_50\": <float|null>,\n'
-        '  \"taux_50_et_plus\": <float|null>\n'
+        '  "taux_moins_50": <float|null>,\n'
+        '  "taux_50_et_plus": <float|null>\n'
         "}\n"
         "- Les valeurs doivent être en pourcentage (ex: 0.10 pour 0,10%).\n"
         "- Si tu ne trouves pas une valeur actuelle, mets null.\n"
         "- Ne renvoie que du JSON pur sans texte additionnel.\n\n"
-        "Texte à analyser (max 15000 caractères) :\n---\n"
-        + page_text[:15000]
+        "Texte à analyser (max 15000 caractères) :\n---\n" + page_text[:15000]
     )
 
     try:
@@ -89,7 +87,10 @@ def _extract_rates_with_gpt(page_text: str) -> dict[str, float | None]:
             response_format={"type": "json_object"},
             temperature=0,
             messages=[
-                {"role": "system", "content": "Assistant d'extraction JSON pur, expert en législation sociale française."},
+                {
+                    "role": "system",
+                    "content": "Assistant d'extraction JSON pur, expert en législation sociale française.",
+                },
                 {"role": "user", "content": prompt},
             ],
         )
@@ -142,7 +143,9 @@ def main() -> None:
     """Orchestre la recherche et l'extraction des taux FNAL."""
     current_year = datetime.now().year
     SEARCH_QUERY = SEARCH_QUERY_TEMPLATE.format(year=current_year)
-    print(f"INFO (FNAL_AI): Démarrage. Recherche DDGS: '{SEARCH_QUERY}'", file=sys.stderr)
+    print(
+        f"INFO (FNAL_AI): Démarrage. Recherche DDGS: '{SEARCH_QUERY}'", file=sys.stderr
+    )
 
     results = []
     try:
@@ -150,7 +153,9 @@ def main() -> None:
         if search_results:
             results = [r["href"] for r in search_results]
         if not results:
-            print("ERREUR (FNAL_AI): DDGS n'a retourné aucun résultat.", file=sys.stderr)
+            print(
+                "ERREUR (FNAL_AI): DDGS n'a retourné aucun résultat.", file=sys.stderr
+            )
     except Exception as e:
         print(f"ERREUR (FNAL_AI): Échec de la recherche DDGS: {e}", file=sys.stderr)
 
@@ -164,7 +169,10 @@ def main() -> None:
             continue
 
         rates = _extract_rates_with_gpt(txt)
-        if rates.get("patronal_moins_50") is not None and rates.get("patronal_50_et_plus") is not None:
+        if (
+            rates.get("patronal_moins_50") is not None
+            and rates.get("patronal_50_et_plus") is not None
+        ):
             print(f"INFO (FNAL_AI): Taux trouvés sur {url}", file=sys.stderr)
             final_rates = rates
             successful_url = url

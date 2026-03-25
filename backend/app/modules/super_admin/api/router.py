@@ -5,6 +5,7 @@ Délègue toute la logique à la couche application (queries, commands, service)
 Aucune logique métier dans le router ; comportement HTTP identique au legacy.
 Module autonome : ne dépend pas de app.modules.users ni app.modules.companies.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, Optional, Protocol
@@ -35,6 +36,7 @@ router = APIRouter(prefix="/api/super-admin", tags=["Super Admin"])
 
 class _CurrentUserProtocol(Protocol):
     """Contrat minimal pour l'utilisateur courant (évite dépendance à app.modules.users)."""
+
     id: Any  # str ou UUID selon get_current_user
 
 
@@ -128,9 +130,7 @@ async def create_company(
 ):
     """Crée une nouvelle entreprise avec son administrateur."""
     try:
-        return commands.create_company_with_admin(
-            company.model_dump(), super_admin
-        )
+        return commands.create_company_with_admin(company.model_dump(), super_admin)
     except Exception as e:
         raise _map_exceptions(e)
 
@@ -144,9 +144,7 @@ async def update_company(
     """Met à jour une entreprise."""
     try:
         update_data = {
-            k: v
-            for k, v in company_update.model_dump().items()
-            if v is not None
+            k: v for k, v in company_update.model_dump().items() if v is not None
         }
         return commands.update_company(company_id, update_data)
     except Exception as e:
@@ -226,9 +224,7 @@ async def create_company_user(
 ):
     """Crée un nouvel utilisateur pour une entreprise."""
     try:
-        return commands.create_company_user(
-            company_id, user_data.model_dump()
-        )
+        return commands.create_company_user(company_id, user_data.model_dump())
     except Exception as e:
         raise _map_exceptions(e)
 
@@ -242,9 +238,7 @@ async def update_company_user(
 ):
     """Met à jour les informations d'un utilisateur."""
     try:
-        return commands.update_company_user(
-            company_id, user_id, update_data
-        )
+        return commands.update_company_user(company_id, user_id, update_data)
     except Exception as e:
         raise _map_exceptions(e)
 

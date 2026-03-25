@@ -51,9 +51,21 @@ class TestGroupAndSelectBest:
     def test_same_config_key_higher_version_wins(self):
         """Pour une même config_key, la ligne avec la version la plus haute est retenue."""
         rows = [
-            {"config_key": "taux_cse", "version": 1, "created_at": "2025-01-01T00:00:00Z"},
-            {"config_key": "taux_cse", "version": 3, "created_at": "2025-01-01T00:00:00Z"},
-            {"config_key": "taux_cse", "version": 2, "created_at": "2025-01-01T00:00:00Z"},
+            {
+                "config_key": "taux_cse",
+                "version": 1,
+                "created_at": "2025-01-01T00:00:00Z",
+            },
+            {
+                "config_key": "taux_cse",
+                "version": 3,
+                "created_at": "2025-01-01T00:00:00Z",
+            },
+            {
+                "config_key": "taux_cse",
+                "version": 2,
+                "created_at": "2025-01-01T00:00:00Z",
+            },
         ]
         result = group_and_select_best(rows)
         assert result["taux_cse"]["version"] == 3
@@ -61,9 +73,21 @@ class TestGroupAndSelectBest:
     def test_same_config_key_same_version_most_recent_created_at_wins(self):
         """À version égale, la ligne avec created_at la plus récente est retenue."""
         rows = [
-            {"config_key": "minimal_legal", "version": 2, "created_at": "2025-01-10T12:00:00Z"},
-            {"config_key": "minimal_legal", "version": 2, "created_at": "2025-01-15T12:00:00Z"},
-            {"config_key": "minimal_legal", "version": 2, "created_at": "2025-01-05T12:00:00Z"},
+            {
+                "config_key": "minimal_legal",
+                "version": 2,
+                "created_at": "2025-01-10T12:00:00Z",
+            },
+            {
+                "config_key": "minimal_legal",
+                "version": 2,
+                "created_at": "2025-01-15T12:00:00Z",
+            },
+            {
+                "config_key": "minimal_legal",
+                "version": 2,
+                "created_at": "2025-01-05T12:00:00Z",
+            },
         ]
         result = group_and_select_best(rows)
         assert result["minimal_legal"]["created_at"] == "2025-01-15T12:00:00Z"

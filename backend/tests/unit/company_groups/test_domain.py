@@ -4,6 +4,7 @@ Tests unitaires du domaine company_groups : entités, value objects, règles pur
 Sans DB, sans HTTP. Couvre CompanyGroup, CompanyInGroupRef et les règles
 (validate_group_name, validate_siren, validate_group_create_data, validate_metric_for_comparison).
 """
+
 from datetime import datetime
 
 import pytest
@@ -170,7 +171,9 @@ class TestValidateGroupCreateData:
             validate_group_create_data({"group_name": "   "})
 
     def test_invalid_siren_raises(self):
-        with pytest.raises(ValueError, match="siren doit contenir exactement 9 chiffres"):
+        with pytest.raises(
+            ValueError, match="siren doit contenir exactement 9 chiffres"
+        ):
             validate_group_create_data({"group_name": "Groupe", "siren": "12345"})
 
 

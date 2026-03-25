@@ -3,6 +3,7 @@ Repository logos : accès aux tables companies et company_groups (logo_url, logo
 
 Implémente ILogoRepository (domain). Comportement identique à api/routers/uploads.py.
 """
+
 from __future__ import annotations
 
 from app.core.database import supabase
@@ -27,9 +28,7 @@ class LogoRepository:
     def get_logo_url(self, entity_type: str, entity_id: str) -> str | None:
         """Retourne l'URL du logo ou None (None si entité absente ou logo_url null)."""
         table = _table_name(entity_type)
-        result = (
-            supabase.table(table).select("logo_url").eq("id", entity_id).execute()
-        )
+        result = supabase.table(table).select("logo_url").eq("id", entity_id).execute()
         if not result.data or len(result.data) == 0:
             return None
         return result.data[0].get("logo_url")
@@ -47,9 +46,7 @@ class LogoRepository:
         )
         return bool(result.data and len(result.data) > 0)
 
-    def update_logo_scale(
-        self, entity_type: str, entity_id: str, scale: float
-    ) -> bool:
+    def update_logo_scale(self, entity_type: str, entity_id: str, scale: float) -> bool:
         """Met à jour logo_scale. Retourne True si au moins une ligne mise à jour."""
         table = _table_name(entity_type)
         result = (
@@ -74,17 +71,11 @@ def get_logo_url(entity_type: str, entity_id: str) -> str | None:
     return _default_repository.get_logo_url(entity_type, entity_id)
 
 
-def update_logo_url(
-    entity_type: str, entity_id: str, logo_url: str | None
-) -> bool:
+def update_logo_url(entity_type: str, entity_id: str, logo_url: str | None) -> bool:
     """Met à jour logo_url. Retourne True si au moins une ligne mise à jour."""
-    return _default_repository.update_logo_url(
-        entity_type, entity_id, logo_url
-    )
+    return _default_repository.update_logo_url(entity_type, entity_id, logo_url)
 
 
 def update_logo_scale(entity_type: str, entity_id: str, scale: float) -> bool:
     """Met à jour logo_scale. Retourne True si au moins une ligne mise à jour."""
-    return _default_repository.update_logo_scale(
-        entity_type, entity_id, scale
-    )
+    return _default_repository.update_logo_scale(entity_type, entity_id, scale)

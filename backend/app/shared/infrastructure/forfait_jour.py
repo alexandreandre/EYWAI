@@ -5,6 +5,7 @@ Seul point d'appel du forfait jour depuis app/*. Les modules (ex. schedules) pas
 par ce wrapper sans importer le moteur payroll directement.
 Délègue à app.modules.payroll.application.forfait_commands et engine.
 """
+
 from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 

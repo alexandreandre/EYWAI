@@ -7,6 +7,7 @@ Avec DB de test : prévoir la fixture db_session (conftest) et des données dans
 (is_subject_to_residence_permit=True, employment_status in ('actif','en_sortie'))
 pour des tests contre une vraie base.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -43,9 +44,7 @@ class TestResidencePermitListRepositoryGetEmployeesSubject:
         "app.modules.residence_permits.infrastructure.repository."
         "fetch_employees_for_residence_permits_list"
     )
-    def test_delegates_to_fetch_and_returns_list(
-        self, mock_fetch: MagicMock
-    ):
+    def test_delegates_to_fetch_and_returns_list(self, mock_fetch: MagicMock):
         """Le repository appelle fetch_employees_for_residence_permits_list et retourne la liste."""
         mock_fetch.return_value = [
             _row("emp-1"),

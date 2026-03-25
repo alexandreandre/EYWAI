@@ -8,6 +8,7 @@ Aucune dépendance DB ni HTTP. Couvre :
 - DayType (domain/enums.py)
 - ScheduleNotFoundError, ScheduleValidationError, ScheduleDatabaseError (domain/exceptions.py)
 """
+
 import pytest
 
 from app.modules.schedules.domain.entities import EmployeeScheduleMonth
@@ -50,7 +51,9 @@ class TestEmployeeScheduleMonth:
 
     def test_entity_creation_with_calendars(self):
         """Création avec calendriers et cumuls."""
-        planned = {"calendrier_prevu": [{"jour": 1, "type": "work", "heures_prevues": 8}]}
+        planned = {
+            "calendrier_prevu": [{"jour": 1, "type": "work", "heures_prevues": 8}]
+        }
         actual = {"calendrier_reel": [{"jour": 1, "heures_faites": 7.5}]}
         cumuls = {"heures_remunerees": 160}
         entity = EmployeeScheduleMonth(

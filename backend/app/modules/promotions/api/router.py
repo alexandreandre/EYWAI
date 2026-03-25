@@ -5,6 +5,7 @@ Appelle uniquement la couche application du module. Aucune logique métier :
 validation des entrées (schémas), garde-fous d'accès (dependencies), délégation à l'application.
 Comportement HTTP identique au router legacy (préfixe, routes, codes, modèles de réponse).
 """
+
 from __future__ import annotations
 
 from typing import List, Optional

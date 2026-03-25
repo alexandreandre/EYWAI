@@ -3,6 +3,7 @@ Providers infrastructure : heures réalisées employé (pour calcul prime selon_
 
 Source : table employee_schedules, champ actual_hours.calendrier_reel.
 """
+
 from __future__ import annotations
 
 from app.core.database import supabase

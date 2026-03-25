@@ -7,6 +7,7 @@ Aucune dépendance DB ni HTTP. Couvre :
 
 Le module n'a pas d'entités ni de value objects persistés (fichiers réservés).
 """
+
 from datetime import date, timedelta
 
 
@@ -96,7 +97,9 @@ class TestCalculateResidencePermitStatusNoExpiryDate:
             employment_status="actif",
         )
         assert result["is_subject_to_residence_permit"] is True
-        assert result["residence_permit_status"] == ResidencePermitStatus.TO_COMPLETE.value
+        assert (
+            result["residence_permit_status"] == ResidencePermitStatus.TO_COMPLETE.value
+        )
         assert result["residence_permit_expiry_date"] is None
         assert result["residence_permit_days_remaining"] is None
         assert result["residence_permit_data_complete"] is False
@@ -107,7 +110,9 @@ class TestCalculateResidencePermitStatusNoExpiryDate:
             residence_permit_expiry_date=None,
             employment_status="en_sortie",
         )
-        assert result["residence_permit_status"] == ResidencePermitStatus.TO_COMPLETE.value
+        assert (
+            result["residence_permit_status"] == ResidencePermitStatus.TO_COMPLETE.value
+        )
 
 
 class TestCalculateResidencePermitStatusWithExpiryDate:
@@ -125,7 +130,10 @@ class TestCalculateResidencePermitStatusWithExpiryDate:
         )
         assert result["residence_permit_status"] == ResidencePermitStatus.VALID.value
         assert result["residence_permit_data_complete"] is True
-        assert result["residence_permit_days_remaining"] == ANTICIPATION_THRESHOLD_DAYS + 10
+        assert (
+            result["residence_permit_days_remaining"]
+            == ANTICIPATION_THRESHOLD_DAYS + 10
+        )
         assert result["residence_permit_expiry_date"] == expiry.isoformat()
 
     def test_to_renew_expiry_equals_reference(self):

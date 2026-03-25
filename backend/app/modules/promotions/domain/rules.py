@@ -4,6 +4,7 @@ Règles métier pures du domaine promotions.
 Logique extraite du legacy (services.promotion_service) pour préparer la migration.
 Pas de dépendance à l'infrastructure.
 """
+
 from __future__ import annotations
 
 from typing import List, Optional

@@ -6,6 +6,7 @@ Préfixe attendu à l’inclusion : /api/medical-follow-up.
 Appelle uniquement la couche application (queries, commands, service).
 Aucune logique métier ni accès DB. Comportement HTTP identique au legacy.
 """
+
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -74,11 +75,19 @@ def list_obligations(
     company_id: str = Depends(_company_id_rh),
 ):
     """Liste des obligations avec filtres. Réservé RH."""
-    return [_to_list_item(d) for d in queries.list_obligations(
-        company_id, current_user,
-        employee_id=employee_id, visit_type=visit_type, status=status,
-        priority=priority, due_from=due_from, due_to=due_to,
-    )]
+    return [
+        _to_list_item(d)
+        for d in queries.list_obligations(
+            company_id,
+            current_user,
+            employee_id=employee_id,
+            visit_type=visit_type,
+            status=status,
+            priority=priority,
+            due_from=due_from,
+            due_to=due_to,
+        )
+    ]
 
 
 # --- GET /kpis (RH)
@@ -133,23 +142,32 @@ def create_on_demand(
 
 
 # --- GET /obligations/employee/{employee_id} (RH)
-@router.get("/obligations/employee/{employee_id}", response_model=List[ObligationListItem])
+@router.get(
+    "/obligations/employee/{employee_id}", response_model=List[ObligationListItem]
+)
 def list_obligations_for_employee(
     employee_id: str,
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(_company_id_rh),
 ):
     """Obligations d'un collaborateur (fiche collaborateur). Réservé RH."""
-    return [_to_list_item(d) for d in queries.list_obligations_for_employee(
-        company_id, employee_id, current_user,
-    )]
+    return [
+        _to_list_item(d)
+        for d in queries.list_obligations_for_employee(
+            company_id,
+            employee_id,
+            current_user,
+        )
+    ]
 
 
 # --- GET /me (obligations du collaborateur connecté)
 @router.get("/me", response_model=List[ObligationListItem])
 def my_obligations(current_user: User = Depends(get_current_user)):
     """Obligations du collaborateur connecté (espace « Mon suivi médical »)."""
-    return [_to_list_item(d) for d in queries.get_my_obligations_with_guards(current_user)]
+    return [
+        _to_list_item(d) for d in queries.get_my_obligations_with_guards(current_user)
+    ]
 
 
 # --- GET /settings

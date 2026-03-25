@@ -4,6 +4,7 @@ Commandes applicatives (write) pour repos_compensateur.
 Délèguent au ReposCompensateurService. Logique métier dans le service.
 Comportement identique aux anciens routeurs / services.
 """
+
 from __future__ import annotations
 
 from app.modules.repos_compensateur.application.dto import CalculerCreditsResult

@@ -19,7 +19,7 @@ def generate_licenciement_solde(
     company_data: Dict[str, Any],
     exit_data: Dict[str, Any],
     indemnities: Dict[str, Any],
-    supabase_client=None
+    supabase_client=None,
 ) -> bytes:
     """
     Génère le PDF pour un licenciement (hors faute grave/lourde)
@@ -28,7 +28,7 @@ def generate_licenciement_solde(
         bytes: PDF content
     """
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm)
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2 * cm, bottomMargin=2 * cm)
     story = []
 
     # En-tête entreprise
@@ -38,45 +38,55 @@ def generate_licenciement_solde(
     pdf_helpers.build_title_header(story, styles)
 
     # Informations salarié et date de sortie
-    nom_complet = f"{employee_data.get('first_name', '')} {employee_data.get('last_name', '')}"
-    date_sortie = pdf_helpers.format_date(exit_data.get('last_working_day', ''))
-    is_gross_misconduct = exit_data.get('is_gross_misconduct', False)
+    nom_complet = (
+        f"{employee_data.get('first_name', '')} {employee_data.get('last_name', '')}"
+    )
+    date_sortie = pdf_helpers.format_date(exit_data.get("last_working_day", ""))
+    is_gross_misconduct = exit_data.get("is_gross_misconduct", False)
 
     motif_text = "LICENCIEMENT (hors faute grave/lourde)"
     if is_gross_misconduct:
         motif_text = "LICENCIEMENT (faute grave/lourde)"
 
-    story.append(Paragraph(
-        f"Je soussigné(e) <b>{nom_complet}</b>, ayant quitté l'entreprise le {date_sortie} par <b>{motif_text}</b>, "
-        f"reconnais avoir reçu les sommes suivantes :",
-        styles['CorpsTexte']
-    ))
-    story.append(Spacer(1, 0.8*cm))
+    story.append(
+        Paragraph(
+            f"Je soussigné(e) <b>{nom_complet}</b>, ayant quitté l'entreprise le {date_sortie} par <b>{motif_text}</b>, "
+            f"reconnais avoir reçu les sommes suivantes :",
+            styles["CorpsTexte"],
+        )
+    )
+    story.append(Spacer(1, 0.8 * cm))
 
     # === SECTION 1 : RÉMUNÉRATIONS ACQUISES (SOCLE COMMUN) ===
-    total_brut_remun, total_cotisations_remun, total_net_remun = socle_commun.build_remunerations_section(
-        story, styles, employee_data, exit_data, section_number=1
+    total_brut_remun, total_cotisations_remun, total_net_remun = (
+        socle_commun.build_remunerations_section(
+            story, styles, employee_data, exit_data, section_number=1
+        )
     )
 
     # === SECTION 2 : INDEMNITÉ DE LICENCIEMENT ===
-    story.append(Paragraph("<b>2. INDEMNITÉ DE LICENCIEMENT</b>", styles['Important']))
-    story.append(Spacer(1, 0.3*cm))
+    story.append(Paragraph("<b>2. INDEMNITÉ DE LICENCIEMENT</b>", styles["Important"]))
+    story.append(Spacer(1, 0.3 * cm))
 
-    indemnite_licenciement = indemnities.get('indemnite_licenciement', {})
-    montant_licenciement = pdf_helpers.safe_float(indemnite_licenciement.get('montant', 0))
-    anciennete = pdf_helpers.safe_float(indemnities.get('anciennete_annees', 0))
-    salaire_ref = pdf_helpers.safe_float(indemnities.get('salaire_reference', 0))
+    indemnite_licenciement = indemnities.get("indemnite_licenciement", {})
+    montant_licenciement = pdf_helpers.safe_float(
+        indemnite_licenciement.get("montant", 0)
+    )
+    anciennete = pdf_helpers.safe_float(indemnities.get("anciennete_annees", 0))
+    salaire_ref = pdf_helpers.safe_float(indemnities.get("salaire_reference", 0))
 
     # Déterminer la base (légale, conventionnelle, manuel)
     base_retenue = "Non déterminée"
-    if indemnite_licenciement.get('tranche1_annees'):
+    if indemnite_licenciement.get("tranche1_annees"):
         base_retenue = "Légale (Article L1234-9)"
-    elif indemnite_licenciement.get('motif') == 'Ancienneté < 8 mois':
+    elif indemnite_licenciement.get("motif") == "Ancienneté < 8 mois":
         base_retenue = "Non applicable (ancienneté insuffisante)"
 
     detail_licenciement = f"Ancienneté : {anciennete:.2f} ans"
     if salaire_ref > 0:
-        detail_licenciement += f" | Salaire de référence : {pdf_helpers.format_currency(salaire_ref)}"
+        detail_licenciement += (
+            f" | Salaire de référence : {pdf_helpers.format_currency(salaire_ref)}"
+        )
     detail_licenciement += f" | Base : {base_retenue}"
 
     if is_gross_misconduct:
@@ -86,39 +96,47 @@ def generate_licenciement_solde(
         detail_licenciement = "Non applicable ou non renseigné"
 
     data_licenciement = [
-        [Paragraph('<b>Libellé</b>', styles['Normal']),
-         Paragraph('<b>Détails</b>', styles['Normal']),
-         Paragraph('<b>Montant</b>', styles['Normal'])],
         [
-            'Indemnité de licenciement (légale / conventionnelle)',
+            Paragraph("<b>Libellé</b>", styles["Normal"]),
+            Paragraph("<b>Détails</b>", styles["Normal"]),
+            Paragraph("<b>Montant</b>", styles["Normal"]),
+        ],
+        [
+            "Indemnité de licenciement (légale / conventionnelle)",
             detail_licenciement,
-            pdf_helpers.format_currency(montant_licenciement) if montant_licenciement > 0 else ''
-        ]
+            pdf_helpers.format_currency(montant_licenciement)
+            if montant_licenciement > 0
+            else "",
+        ],
     ]
 
-    table_licenciement = Table(data_licenciement, colWidths=[6*cm, 7*cm, 3*cm])
-    table_licenciement.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e5e7eb')),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('ALIGN', (2, 1), (2, -1), 'RIGHT'),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#d1d5db')),
-        ('LEFTPADDING', (0, 0), (-1, -1), 5),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-    ]))
+    table_licenciement = Table(data_licenciement, colWidths=[6 * cm, 7 * cm, 3 * cm])
+    table_licenciement.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e5e7eb")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("ALIGN", (2, 1), (2, -1), "RIGHT"),
+                ("GRID", (0, 0), (-1, -1), 1, colors.HexColor("#d1d5db")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
     story.append(table_licenciement)
-    story.append(Spacer(1, 0.6*cm))
+    story.append(Spacer(1, 0.6 * cm))
 
     # === SECTION 3 : PRÉAVIS ===
-    story.append(Paragraph("<b>3. PRÉAVIS</b>", styles['Important']))
-    story.append(Spacer(1, 0.3*cm))
+    story.append(Paragraph("<b>3. PRÉAVIS</b>", styles["Important"]))
+    story.append(Spacer(1, 0.3 * cm))
 
-    notice_period = exit_data.get('notice_period_days', 0)
-    notice_indemnity_type = exit_data.get('notice_indemnity_type', 'not_applicable')
-    indemnite_preavis = indemnities.get('indemnite_preavis', {})
-    montant_preavis = pdf_helpers.safe_float(indemnite_preavis.get('montant', 0))
+    notice_period = exit_data.get("notice_period_days", 0)
+    notice_indemnity_type = exit_data.get("notice_indemnity_type", "not_applicable")
+    indemnite_preavis = indemnities.get("indemnite_preavis", {})
+    montant_preavis = pdf_helpers.safe_float(indemnite_preavis.get("montant", 0))
 
     # Déterminer si préavis exécuté ou dispensé
     preavis_waived = False
@@ -127,10 +145,12 @@ def generate_licenciement_solde(
         preavis_text = "Aucun préavis (faute grave/lourde)"
     elif notice_period == 0:
         preavis_text = "Aucun préavis prévu"
-    elif notice_indemnity_type == 'waived' or (notice_indemnity_type != 'paid' and montant_preavis == 0):
+    elif notice_indemnity_type == "waived" or (
+        notice_indemnity_type != "paid" and montant_preavis == 0
+    ):
         # Préavis exécuté (pas d'indemnité compensatrice)
         preavis_text = f"Préavis de {notice_period} jours exécuté - Salaire inclus dans rémunérations"
-    elif notice_indemnity_type == 'paid' and montant_preavis > 0:
+    elif notice_indemnity_type == "paid" and montant_preavis > 0:
         # Préavis non exécuté, dispense employeur
         preavis_waived = True
         preavis_text = f"Préavis de {notice_period} jours - Dispense d'exécution"
@@ -138,42 +158,56 @@ def generate_licenciement_solde(
         preavis_text = f"Préavis de {notice_period} jours - Statut non déterminé"
 
     data_preavis = [
-        [Paragraph('<b>Libellé</b>', styles['Normal']),
-         Paragraph('<b>Détails</b>', styles['Normal']),
-         Paragraph('<b>Montant</b>', styles['Normal'])],
-        ['Préavis exécuté', preavis_text, ''],
-        ['Indemnité compensatrice de préavis',
-         "Dispense d'exécution - Indemnité compensatrice" if preavis_waived else "Non applicable (préavis exécuté ou non prévu)",
-         pdf_helpers.format_currency(montant_preavis) if montant_preavis > 0 else '']
+        [
+            Paragraph("<b>Libellé</b>", styles["Normal"]),
+            Paragraph("<b>Détails</b>", styles["Normal"]),
+            Paragraph("<b>Montant</b>", styles["Normal"]),
+        ],
+        ["Préavis exécuté", preavis_text, ""],
+        [
+            "Indemnité compensatrice de préavis",
+            "Dispense d'exécution - Indemnité compensatrice"
+            if preavis_waived
+            else "Non applicable (préavis exécuté ou non prévu)",
+            pdf_helpers.format_currency(montant_preavis) if montant_preavis > 0 else "",
+        ],
     ]
 
-    table_preavis = Table(data_preavis, colWidths=[6*cm, 7*cm, 3*cm])
-    table_preavis.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e5e7eb')),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('ALIGN', (2, 1), (2, -1), 'RIGHT'),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#d1d5db')),
-        ('LEFTPADDING', (0, 0), (-1, -1), 5),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-    ]))
+    table_preavis = Table(data_preavis, colWidths=[6 * cm, 7 * cm, 3 * cm])
+    table_preavis.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e5e7eb")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("ALIGN", (2, 1), (2, -1), "RIGHT"),
+                ("GRID", (0, 0), (-1, -1), 1, colors.HexColor("#d1d5db")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
     story.append(table_preavis)
-    story.append(Spacer(1, 0.6*cm))
+    story.append(Spacer(1, 0.6 * cm))
 
     # === SECTION 4 : CONGÉS PAYÉS (SOCLE COMMUN avec CP préavis) ===
     # Construire la section congés avec ligne CP préavis
-    story.append(Paragraph("<b>4. CONGÉS PAYÉS</b>", styles['Important']))
-    story.append(Spacer(1, 0.3*cm))
+    story.append(Paragraph("<b>4. CONGÉS PAYÉS</b>", styles["Important"]))
+    story.append(Spacer(1, 0.3 * cm))
 
-    indemnite_conges = indemnities.get('indemnite_conges', {})
-    jours_restants = pdf_helpers.safe_float(indemnite_conges.get('jours_restants', 0))
-    montant_conges = pdf_helpers.safe_float(indemnite_conges.get('montant', 0))
-    details_conges = indemnite_conges.get('details', {})
-    methode = details_conges.get('methode_retenue', 'maintien') if details_conges else 'maintien'
-    cp_acquis = details_conges.get('conges_acquis') if details_conges else None
-    cp_pris = details_conges.get('conges_pris') if details_conges else None
+    indemnite_conges = indemnities.get("indemnite_conges", {})
+    jours_restants = pdf_helpers.safe_float(indemnite_conges.get("jours_restants", 0))
+    montant_conges = pdf_helpers.safe_float(indemnite_conges.get("montant", 0))
+    details_conges = indemnite_conges.get("details", {})
+    methode = (
+        details_conges.get("methode_retenue", "maintien")
+        if details_conges
+        else "maintien"
+    )
+    cp_acquis = details_conges.get("conges_acquis") if details_conges else None
+    cp_pris = details_conges.get("conges_pris") if details_conges else None
 
     detail_conges_text = f"{jours_restants:.2f} jours restants"
     if cp_acquis is not None and cp_pris is not None:
@@ -190,35 +224,43 @@ def generate_licenciement_solde(
         cp_preavis_text = "Congés payés afférents au préavis non exécuté"
 
     data_conges = [
-        [Paragraph('<b>Libellé</b>', styles['Normal']),
-         Paragraph('<b>Détails</b>', styles['Normal']),
-         Paragraph('<b>Montant</b>', styles['Normal'])],
         [
-            'Indemnité compensatrice de congés payés',
-            detail_conges_text,
-            pdf_helpers.format_currency(montant_conges) if montant_conges > 0 else ''
+            Paragraph("<b>Libellé</b>", styles["Normal"]),
+            Paragraph("<b>Détails</b>", styles["Normal"]),
+            Paragraph("<b>Montant</b>", styles["Normal"]),
         ],
         [
-            'Congés payés afférents au préavis',
+            "Indemnité compensatrice de congés payés",
+            detail_conges_text,
+            pdf_helpers.format_currency(montant_conges) if montant_conges > 0 else "",
+        ],
+        [
+            "Congés payés afférents au préavis",
             cp_preavis_text,
-            pdf_helpers.format_currency(montant_cp_preavis) if montant_cp_preavis > 0 else ''
-        ]
+            pdf_helpers.format_currency(montant_cp_preavis)
+            if montant_cp_preavis > 0
+            else "",
+        ],
     ]
 
-    table_conges = Table(data_conges, colWidths=[6*cm, 7*cm, 3*cm])
-    table_conges.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e5e7eb')),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('ALIGN', (2, 1), (2, -1), 'RIGHT'),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#d1d5db')),
-        ('LEFTPADDING', (0, 0), (-1, -1), 5),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-    ]))
+    table_conges = Table(data_conges, colWidths=[6 * cm, 7 * cm, 3 * cm])
+    table_conges.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e5e7eb")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("ALIGN", (2, 1), (2, -1), "RIGHT"),
+                ("GRID", (0, 0), (-1, -1), 1, colors.HexColor("#d1d5db")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
     story.append(table_conges)
-    story.append(Spacer(1, 0.6*cm))
+    story.append(Spacer(1, 0.6 * cm))
 
     # === SECTION 5 : AUTRES RÉGULARISATIONS (SOCLE COMMUN) ===
     socle_commun.build_autres_regularisations_section(story, styles, section_number=5)
@@ -227,18 +269,38 @@ def generate_licenciement_solde(
     socle_commun.build_retenues_section(story, styles, section_number=6)
 
     # === TOTAL GÉNÉRAL ===
-    total_brut_final = total_brut_remun + montant_licenciement + montant_preavis + montant_conges + montant_cp_preavis
+    total_brut_final = (
+        total_brut_remun
+        + montant_licenciement
+        + montant_preavis
+        + montant_conges
+        + montant_cp_preavis
+    )
     total_cotisations_final = total_cotisations_remun
-    total_net_final = total_net_remun + montant_licenciement + montant_preavis + montant_conges + montant_cp_preavis
+    total_net_final = (
+        total_net_remun
+        + montant_licenciement
+        + montant_preavis
+        + montant_conges
+        + montant_cp_preavis
+    )
 
-    socle_commun.build_total_section(story, styles, total_brut_final, total_cotisations_final, total_net_final)
+    socle_commun.build_total_section(
+        story, styles, total_brut_final, total_cotisations_final, total_net_final
+    )
 
     # Mentions légales
-    mention_licenciement = "Rupture du contrat par licenciement (hors faute grave/lourde)."
+    mention_licenciement = (
+        "Rupture du contrat par licenciement (hors faute grave/lourde)."
+    )
     if is_gross_misconduct:
-        mention_licenciement = "Rupture du contrat par licenciement pour faute grave/lourde."
+        mention_licenciement = (
+            "Rupture du contrat par licenciement pour faute grave/lourde."
+        )
 
-    pdf_helpers.build_legal_mentions(story, styles, specific_mention=mention_licenciement)
+    pdf_helpers.build_legal_mentions(
+        story, styles, specific_mention=mention_licenciement
+    )
 
     # Signatures
     pdf_helpers.build_signatures(story, styles, company_data)

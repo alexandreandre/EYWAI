@@ -4,6 +4,7 @@ Tests unitaires des commandes uploads (application/commands.py).
 Repositories et storage mockés. Service (ensure_can_edit_entity_logo, validate_logo_file)
 mocké pour isoler la logique des commandes.
 """
+
 import asyncio
 from unittest.mock import MagicMock, patch
 
@@ -51,17 +52,21 @@ class TestUploadLogo:
     ):
         mock_ensure.return_value = None
         mock_validate.return_value = None
-        mock_storage.get_logo_public_url.return_value = "https://storage/logos/companies/company_1_uuid.png"
+        mock_storage.get_logo_public_url.return_value = (
+            "https://storage/logos/companies/company_1_uuid.png"
+        )
         mock_repo.update_logo_url.return_value = True
 
-        result = asyncio.run(commands.upload_logo(
-            file_content=b"\x89PNG\r\n",
-            content_type="image/png",
-            filename="logo.png",
-            entity_type="company",
-            entity_id="company-1",
-            current_user=_make_user(),
-        ))
+        result = asyncio.run(
+            commands.upload_logo(
+                file_content=b"\x89PNG\r\n",
+                content_type="image/png",
+                filename="logo.png",
+                entity_type="company",
+                entity_id="company-1",
+                current_user=_make_user(),
+            )
+        )
 
         assert isinstance(result, UploadLogoResult)
         assert result.logo_url == "https://storage/logos/companies/company_1_uuid.png"
@@ -83,14 +88,16 @@ class TestUploadLogo:
         mock_storage.upload_logo_file.side_effect = Exception("Storage error")
 
         with pytest.raises(HTTPException) as exc_info:
-            asyncio.run(commands.upload_logo(
-                file_content=b"x",
-                content_type="image/png",
-                filename="logo.png",
-                entity_type="company",
-                entity_id="company-1",
-                current_user=_make_user(),
-            ))
+            asyncio.run(
+                commands.upload_logo(
+                    file_content=b"x",
+                    content_type="image/png",
+                    filename="logo.png",
+                    entity_type="company",
+                    entity_id="company-1",
+                    current_user=_make_user(),
+                )
+            )
         assert exc_info.value.status_code == 500
         assert "upload" in str(exc_info.value.detail).lower()
 
@@ -107,14 +114,16 @@ class TestUploadLogo:
         mock_repo.update_logo_url.return_value = False
 
         with pytest.raises(HTTPException) as exc_info:
-            asyncio.run(commands.upload_logo(
-                file_content=b"x",
-                content_type="image/png",
-                filename="logo.png",
-                entity_type="company",
-                entity_id="company-1",
-                current_user=_make_user(),
-            ))
+            asyncio.run(
+                commands.upload_logo(
+                    file_content=b"x",
+                    content_type="image/png",
+                    filename="logo.png",
+                    entity_type="company",
+                    entity_id="company-1",
+                    current_user=_make_user(),
+                )
+            )
         assert exc_info.value.status_code == 404
         assert "trouvé" in str(exc_info.value.detail).lower()
         mock_storage.remove_logo_files.assert_called_once()
@@ -176,7 +185,9 @@ class TestDeleteLogo:
     ):
         mock_ensure.return_value = None
         mock_repo.entity_exists.return_value = True
-        mock_repo.get_logo_url.return_value = "https://example.com/logos/logos/companies/logo.png"
+        mock_repo.get_logo_url.return_value = (
+            "https://example.com/logos/logos/companies/logo.png"
+        )
         mock_path_from_url.return_value = "logos/companies/logo.png"
 
         result = commands.delete_logo(
@@ -190,7 +201,9 @@ class TestDeleteLogo:
         mock_path_from_url.assert_called_once_with(
             "https://example.com/logos/logos/companies/logo.png"
         )
-        mock_storage.remove_logo_files.assert_called_once_with(["logos/companies/logo.png"])
+        mock_storage.remove_logo_files.assert_called_once_with(
+            ["logos/companies/logo.png"]
+        )
         mock_repo.update_logo_url.assert_called_once_with("company", "company-1", None)
 
 
@@ -212,7 +225,9 @@ class TestUpdateLogoScale:
                 current_user=_make_user(),
             )
         assert exc_info.value.status_code == 400
-        assert "zoom" in str(exc_info.value.detail).lower() or "0.5" in str(exc_info.value.detail)
+        assert "zoom" in str(exc_info.value.detail).lower() or "0.5" in str(
+            exc_info.value.detail
+        )
         mock_ensure.assert_not_called()
 
     def test_update_logo_scale_entity_not_found_raises_404(
@@ -250,4 +265,6 @@ class TestUpdateLogoScale:
 
         assert isinstance(result, LogoScaleResult)
         assert result.logo_scale == 1.5
-        assert "zoom" in result.message.lower() or "mis à jour" in result.message.lower()
+        assert (
+            "zoom" in result.message.lower() or "mis à jour" in result.message.lower()
+        )

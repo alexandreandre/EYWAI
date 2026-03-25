@@ -3,6 +3,7 @@ Types et statuts d'absence (domain).
 
 Alignés avec les schémas API (schemas/requests.py) et l'enum PostgreSQL absence_type (migrations 50, 55).
 """
+
 from typing import Literal
 
 AbsenceType = Literal[

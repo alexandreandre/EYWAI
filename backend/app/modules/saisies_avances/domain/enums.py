@@ -4,6 +4,7 @@ Types et énumérations du domaine saisies et avances.
 Alignés sur les schémas legacy (schemas.saisies_avances).
 À migrer ici en propre lors du basculement.
 """
+
 from typing import Literal
 
 # Saisies sur salaire

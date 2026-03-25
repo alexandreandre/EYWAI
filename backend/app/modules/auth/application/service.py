@@ -39,16 +39,22 @@ def login(username_or_email: str, password: str) -> dict:
             print(f"📧 [LOGIN DEBUG] Détecté comme EMAIL: '{email_to_use}'")
         else:
             print(f"👤 [LOGIN DEBUG] Détecté comme USERNAME: '{login_input}'")
-            print(f"🔍 [LOGIN DEBUG] Recherche dans la table 'employees' pour username='{login_input}'")
+            print(
+                f"🔍 [LOGIN DEBUG] Recherche dans la table 'employees' pour username='{login_input}'"
+            )
             email_to_use = user_resolver.resolve_email(login_input)
             if not email_to_use:
                 _log_employees_debug()
-                raise HTTPException(status_code=400, detail="Identifiant ou mot de passe incorrect")
+                raise HTTPException(
+                    status_code=400, detail="Identifiant ou mot de passe incorrect"
+                )
             print(f"✅ [LOGIN DEBUG] EMPLOYÉ TROUVÉ - Email: '{email_to_use}'")
 
         if not email_to_use:
             print("❌ [LOGIN DEBUG] email_to_use est vide ou None!")
-            raise HTTPException(status_code=400, detail="Identifiant ou mot de passe incorrect")
+            raise HTTPException(
+                status_code=400, detail="Identifiant ou mot de passe incorrect"
+            )
 
         print("🔑 [LOGIN DEBUG] Tentative de connexion Supabase Auth avec:")
         print(f"   - Email: '{email_to_use}'")
@@ -64,7 +70,9 @@ def login(username_or_email: str, password: str) -> dict:
         print("🔍 [LOGIN DEBUG] Récupération des informations utilisateur...")
 
         user_info = user_from_token.get_user(access_token)
-        print(f"✅ [LOGIN DEBUG] Utilisateur complet récupéré - Super admin: {user_info.is_super_admin}")
+        print(
+            f"✅ [LOGIN DEBUG] Utilisateur complet récupéré - Super admin: {user_info.is_super_admin}"
+        )
         print("=" * 80 + "\n")
 
         return {
@@ -83,7 +91,9 @@ def login(username_or_email: str, password: str) -> dict:
         print(f"   - Message: {str(e)}")
         print(f"   - Traceback:\n{traceback.format_exc()}")
         print("=" * 80 + "\n")
-        raise HTTPException(status_code=400, detail="Identifiant ou mot de passe incorrect")
+        raise HTTPException(
+            status_code=400, detail="Identifiant ou mot de passe incorrect"
+        )
 
 
 def _log_employees_debug() -> None:

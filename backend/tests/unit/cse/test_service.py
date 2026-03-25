@@ -4,6 +4,7 @@ Tests unitaires du service applicatif CSE (application/service.py).
 Export fichiers, _parse_date, get_meeting_minutes_path_or_raise.
 On mocke queries et providers (cse_export_provider, cse_pdf_provider).
 """
+
 from datetime import date
 from unittest.mock import patch, MagicMock
 
@@ -32,12 +33,15 @@ class TestExportElectedMembersFile:
         members = [MagicMock()]
         members[0].model_dump = lambda: {"id": "mem-1", "role": "titulaire"}
         content = b"xlsx-bytes"
-        with patch(
-            "app.modules.cse.application.service.queries.get_elected_members",
-            return_value=members,
-        ), patch(
-            "app.modules.cse.application.service.cse_export_provider.export_elected_members",
-            return_value=content,
+        with (
+            patch(
+                "app.modules.cse.application.service.queries.get_elected_members",
+                return_value=members,
+            ),
+            patch(
+                "app.modules.cse.application.service.cse_export_provider.export_elected_members",
+                return_value=content,
+            ),
         ):
             result = export_elected_members_file("co-1")
         assert isinstance(result, ExportFile)
@@ -47,12 +51,15 @@ class TestExportElectedMembersFile:
 
     def test_calls_queries_with_active_only_false(self):
         """Demande tous les élus (active_only=False) pour l'export."""
-        with patch(
-            "app.modules.cse.application.service.queries.get_elected_members",
-            return_value=[],
-        ) as mock_get, patch(
-            "app.modules.cse.application.service.cse_export_provider.export_elected_members",
-            return_value=b"",
+        with (
+            patch(
+                "app.modules.cse.application.service.queries.get_elected_members",
+                return_value=[],
+            ) as mock_get,
+            patch(
+                "app.modules.cse.application.service.cse_export_provider.export_elected_members",
+                return_value=b"",
+            ),
         ):
             export_elected_members_file("co-1")
         mock_get.assert_called_once_with("co-1", active_only=False)
@@ -66,15 +73,19 @@ class TestExportDelegationHoursFile:
 
     def test_uses_current_month_when_no_dates(self):
         """Sans period_start/end, utilise le mois en cours."""
-        with patch(
-            "app.modules.cse.application.service.queries.get_elected_members",
-            return_value=[],
-        ), patch(
-            "app.modules.cse.application.service.queries.get_delegation_summary",
-            return_value=[],
-        ), patch(
-            "app.modules.cse.application.service.cse_export_provider.export_delegation_hours",
-            return_value=b"xlsx",
+        with (
+            patch(
+                "app.modules.cse.application.service.queries.get_elected_members",
+                return_value=[],
+            ),
+            patch(
+                "app.modules.cse.application.service.queries.get_delegation_summary",
+                return_value=[],
+            ),
+            patch(
+                "app.modules.cse.application.service.cse_export_provider.export_delegation_hours",
+                return_value=b"xlsx",
+            ),
         ):
             result = export_delegation_hours_file("co-1")
         assert isinstance(result, ExportFile)
@@ -85,18 +96,23 @@ class TestExportDelegationHoursFile:
         start = date(2024, 2, 1)
         end = date(2024, 2, 29)
         mock_summary = MagicMock()
-        with patch(
-            "app.modules.cse.application.service.queries.get_elected_members",
-            return_value=[],
-        ), patch(
-            "app.modules.cse.application.service.queries.get_delegation_hours",
-            return_value=[],
-        ), patch(
-            "app.modules.cse.application.service.queries.get_delegation_summary",
-            mock_summary,
-        ), patch(
-            "app.modules.cse.application.service.cse_export_provider.export_delegation_hours",
-            return_value=b"xlsx",
+        with (
+            patch(
+                "app.modules.cse.application.service.queries.get_elected_members",
+                return_value=[],
+            ),
+            patch(
+                "app.modules.cse.application.service.queries.get_delegation_hours",
+                return_value=[],
+            ),
+            patch(
+                "app.modules.cse.application.service.queries.get_delegation_summary",
+                mock_summary,
+            ),
+            patch(
+                "app.modules.cse.application.service.cse_export_provider.export_delegation_hours",
+                return_value=b"xlsx",
+            ),
         ):
             result = export_delegation_hours_file(
                 "co-1", period_start=start, period_end=end
@@ -115,12 +131,15 @@ class TestExportMeetingsHistoryFile:
         """Appelle get_meetings, export_provider, retourne ExportFile."""
         meetings = [MagicMock()]
         meetings[0].model_dump = lambda: {"id": "mtg-1", "title": "CSE"}
-        with patch(
-            "app.modules.cse.application.service.queries.get_meetings",
-            return_value=meetings,
-        ), patch(
-            "app.modules.cse.application.service.cse_export_provider.export_meetings_history",
-            return_value=b"xlsx",
+        with (
+            patch(
+                "app.modules.cse.application.service.queries.get_meetings",
+                return_value=meetings,
+            ),
+            patch(
+                "app.modules.cse.application.service.cse_export_provider.export_meetings_history",
+                return_value=b"xlsx",
+            ),
         ):
             result = export_meetings_history_file("co-1")
         assert isinstance(result, ExportFile)
@@ -150,12 +169,15 @@ class TestExportMinutesAnnualFile:
         meeting = MagicMock()
         meeting.meeting_date = "2024-03-15"
         meeting.id = "mtg-1"
-        with patch(
-            "app.modules.cse.application.service.queries.get_meetings",
-            return_value=[meeting],
-        ), patch(
-            "app.modules.cse.application.service.queries.get_meeting_minutes_path",
-            return_value=None,
+        with (
+            patch(
+                "app.modules.cse.application.service.queries.get_meetings",
+                return_value=[meeting],
+            ),
+            patch(
+                "app.modules.cse.application.service.queries.get_meeting_minutes_path",
+                return_value=None,
+            ),
         ):
             with pytest.raises(HTTPException) as exc_info:
                 export_minutes_annual_file("co-1", 2024)
@@ -167,18 +189,23 @@ class TestExportMinutesAnnualFile:
         meeting.meeting_date = "2024-03-15"
         meeting.id = "mtg-1"
         meeting.model_dump = lambda: {"id": "mtg-1", "meeting_date": "2024-03-15"}
-        with patch(
-            "app.modules.cse.application.service.queries.get_meetings",
-            return_value=[meeting],
-        ), patch(
-            "app.modules.cse.application.service.queries.get_meeting_minutes_path",
-            return_value="/path/to/pv.pdf",
-        ), patch(
-            "app.modules.cse.application.service.queries.get_meeting_by_id",
-            return_value=meeting,
-        ), patch(
-            "app.modules.cse.application.service.cse_pdf_provider.generate_minutes",
-            return_value=b"%PDF-1.4",
+        with (
+            patch(
+                "app.modules.cse.application.service.queries.get_meetings",
+                return_value=[meeting],
+            ),
+            patch(
+                "app.modules.cse.application.service.queries.get_meeting_minutes_path",
+                return_value="/path/to/pv.pdf",
+            ),
+            patch(
+                "app.modules.cse.application.service.queries.get_meeting_by_id",
+                return_value=meeting,
+            ),
+            patch(
+                "app.modules.cse.application.service.cse_pdf_provider.generate_minutes",
+                return_value=b"%PDF-1.4",
+            ),
         ):
             result = export_minutes_annual_file("co-1", 2024)
         assert isinstance(result, ExportFile)
@@ -209,12 +236,15 @@ class TestExportElectionCalendarFile:
         cycle = MagicMock()
         cycle.cycle_name = "2024-2026"
         cycle.model_dump = lambda: {"cycle_name": "2024-2026", "timeline": []}
-        with patch(
-            "app.modules.cse.application.service.queries.get_election_cycles",
-            return_value=[cycle],
-        ), patch(
-            "app.modules.cse.application.service.cse_pdf_provider.generate_election_calendar",
-            return_value=b"%PDF",
+        with (
+            patch(
+                "app.modules.cse.application.service.queries.get_election_cycles",
+                return_value=[cycle],
+            ),
+            patch(
+                "app.modules.cse.application.service.cse_pdf_provider.generate_election_calendar",
+                return_value=b"%PDF",
+            ),
         ):
             result = export_election_calendar_file("co-1")
         assert result.content == b"%PDF"
@@ -225,12 +255,15 @@ class TestExportElectionCalendarFile:
         cycle = MagicMock()
         cycle.cycle_name = "Custom"
         cycle.model_dump = lambda: {"cycle_name": "Custom", "timeline": []}
-        with patch(
-            "app.modules.cse.application.service.queries.get_election_cycle_by_id",
-            return_value=cycle,
-        ), patch(
-            "app.modules.cse.application.service.cse_pdf_provider.generate_election_calendar",
-            return_value=b"%PDF",
+        with (
+            patch(
+                "app.modules.cse.application.service.queries.get_election_cycle_by_id",
+                return_value=cycle,
+            ),
+            patch(
+                "app.modules.cse.application.service.cse_pdf_provider.generate_election_calendar",
+                return_value=b"%PDF",
+            ),
         ):
             result = export_election_calendar_file("co-1", cycle_id="cycle-1")
         assert result.content == b"%PDF"

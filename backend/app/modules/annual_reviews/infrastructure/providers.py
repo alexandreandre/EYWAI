@@ -4,10 +4,13 @@ Providers annual_reviews : PDF generator.
 Implémentation autonome (app/modules/annual_reviews/infrastructure/pdf_generator).
 Plus de dépendance à services/*.
 """
+
 from typing import Any, Dict
 
 from app.modules.annual_reviews.domain.interfaces import IAnnualReviewPdfGenerator
-from app.modules.annual_reviews.infrastructure.pdf_generator import generate_annual_review_pdf
+from app.modules.annual_reviews.infrastructure.pdf_generator import (
+    generate_annual_review_pdf,
+)
 
 
 class AnnualReviewPdfGenerator(IAnnualReviewPdfGenerator):

@@ -3,6 +3,7 @@ Tests unitaires des commandes du module monthly_inputs (application/commands.py)
 
 Repository mocké. Pas de DB ni HTTP.
 """
+
 from unittest.mock import patch
 
 
@@ -32,8 +33,22 @@ class TestCreateMonthlyInputsBatch:
             ),
         ]
         inserted_rows = [
-            {"id": "id-1", "employee_id": "550e8400-e29b-41d4-a716-446655440000", "year": 2025, "month": 3, "name": "Prime", "amount": 100.0},
-            {"id": "id-2", "employee_id": "550e8400-e29b-41d4-a716-446655440000", "year": 2025, "month": 3, "name": "Acompte", "amount": 50.0},
+            {
+                "id": "id-1",
+                "employee_id": "550e8400-e29b-41d4-a716-446655440000",
+                "year": 2025,
+                "month": 3,
+                "name": "Prime",
+                "amount": 100.0,
+            },
+            {
+                "id": "id-2",
+                "employee_id": "550e8400-e29b-41d4-a716-446655440000",
+                "year": 2025,
+                "month": 3,
+                "name": "Acompte",
+                "amount": 50.0,
+            },
         ]
 
         with patch(

@@ -25,15 +25,14 @@ from openai import OpenAI
 # --- Configuration ---
 load_dotenv()
 
-SEARCH_QUERY_TEMPLATE = (
-    "site:urssaf.fr taux cotisation allocations familiales employeur {year} taux plein et réduit"
-)
+SEARCH_QUERY_TEMPLATE = "site:urssaf.fr taux cotisation allocations familiales employeur {year} taux plein et réduit"
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
 )
 
 # --- Fonctions utilitaires ---
+
 
 def iso_now() -> str:
     """Retourne l'heure actuelle au format ISO UTC."""
@@ -48,7 +47,9 @@ def _fetch_text_with_requests(url: str) -> str | None:
         soup = BeautifulSoup(r.text, "html.parser")
         return soup.get_text(" ", strip=True)
     except Exception as e:
-        print(f"ERREUR (ALLOC_AI): Échec fetch Requests sur {url}: {e}", file=sys.stderr)
+        print(
+            f"ERREUR (ALLOC_AI): Échec fetch Requests sur {url}: {e}", file=sys.stderr
+        )
         return None
 
 
@@ -77,8 +78,7 @@ def _extract_rates_with_gpt(page_text: str) -> dict[str, float | None] | None:
         "- Vérifie que les taux semblent cohérents (entre 2 et 5%).\n"
         "Ne te fie pas à n'importe quel site, ait du recul sur les résultats que tu donnes.\n"
         "Renvoie"
-        "Texte à analyser (max 15000 caractères):\n---\n"
-        + page_text[:15000]
+        "Texte à analyser (max 15000 caractères):\n---\n" + page_text[:15000]
     )
 
     try:
@@ -87,7 +87,10 @@ def _extract_rates_with_gpt(page_text: str) -> dict[str, float | None] | None:
             response_format={"type": "json_object"},
             temperature=0.1,
             messages=[
-                {"role": "system", "content": "Assistant d'extraction JSON pur, spécialisé URSSAF et cotisations sociales."},
+                {
+                    "role": "system",
+                    "content": "Assistant d'extraction JSON pur, spécialisé URSSAF et cotisations sociales.",
+                },
                 {"role": "user", "content": prompt},
             ],
         )
@@ -112,7 +115,10 @@ def _extract_rates_with_gpt(page_text: str) -> dict[str, float | None] | None:
 
 def build_payload(rates: dict[str, float | None] | None, found_url: str | None) -> dict:
     """Construit le JSON final strict demandé."""
-    source_url = found_url or "https://www.urssaf.fr/accueil/employeur/cotisations/liste-cotisations/allocations-familiales.html"
+    source_url = (
+        found_url
+        or "https://www.urssaf.fr/accueil/employeur/cotisations/liste-cotisations/allocations-familiales.html"
+    )
     source_label = "URSSAF - Allocations familiales"
 
     plein = rates.get("plein") if rates else None
@@ -139,6 +145,7 @@ def build_payload(rates: dict[str, float | None] | None, found_url: str | None) 
 
 # --- Fonction principale ---
 
+
 def main() -> None:
     """Orchestre la recherche IA et construit la sortie JSON."""
     current_year = datetime.now().year
@@ -149,9 +156,16 @@ def main() -> None:
     try:
         search_results = DDGS().text(SEARCH_QUERY, region="fr-fr", max_results=10)
         if search_results:
-            results = [r["href"] for r in search_results if "urssaf.fr" in r["href"] or "service-public.fr" in r["href"]]
+            results = [
+                r["href"]
+                for r in search_results
+                if "urssaf.fr" in r["href"] or "service-public.fr" in r["href"]
+            ]
         if not results:
-            print("ERREUR (ALLOC_AI): Aucun résultat URSSAF trouvé, fallback vers tous domaines.", file=sys.stderr)
+            print(
+                "ERREUR (ALLOC_AI): Aucun résultat URSSAF trouvé, fallback vers tous domaines.",
+                file=sys.stderr,
+            )
             search_results = DDGS().text(SEARCH_QUERY, region="fr-fr", max_results=10)
             results = [r["href"] for r in search_results]
     except Exception as e:
@@ -167,12 +181,19 @@ def main() -> None:
             continue
 
         rates = _extract_rates_with_gpt(txt)
-        if rates and (rates.get("plein") is not None or rates.get("reduit") is not None):
-            print(f"✅ Taux trouvés: plein={rates.get('plein')} reduit={rates.get('reduit')}", file=sys.stderr)
+        if rates and (
+            rates.get("plein") is not None or rates.get("reduit") is not None
+        ):
+            print(
+                f"✅ Taux trouvés: plein={rates.get('plein')} reduit={rates.get('reduit')}",
+                file=sys.stderr,
+            )
             successful_url = url
             break
         else:
-            print("INFO (ALLOC_AI): Données non valides, URL suivante.", file=sys.stderr)
+            print(
+                "INFO (ALLOC_AI): Données non valides, URL suivante.", file=sys.stderr
+            )
         time.sleep(1)
 
     if rates is None:

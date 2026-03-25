@@ -50,11 +50,19 @@ def _extract_ags_rate_from_cell(cell_text: str, est_ett: bool) -> float | None:
     # Chercher un taux explicitement associé aux ETT
     if est_ett:
         # 1) motif « <n>% ... travail temporaire|ETT »
-        m1 = re.search(r"(\d+(?:[.,]\d+)?)\s*%[^%]{0,80}\b(travail\s+temporaire|ETT)\b", txt, flags=re.I)
+        m1 = re.search(
+            r"(\d+(?:[.,]\d+)?)\s*%[^%]{0,80}\b(travail\s+temporaire|ETT)\b",
+            txt,
+            flags=re.I,
+        )
         if m1:
             return round(float(m1.group(1).replace(",", ".")) / 100.0, 6)
         # 2) motif « travail temporaire|ETT ... <n>% »
-        m2 = re.search(r"\b(travail\s+temporaire|ETT)\b[^%]{0,80}(\d+(?:[.,]\d+)?)\s*%", txt, flags=re.I)
+        m2 = re.search(
+            r"\b(travail\s+temporaire|ETT)\b[^%]{0,80}(\d+(?:[.,]\d+)?)\s*%",
+            txt,
+            flags=re.I,
+        )
         if m2:
             return round(float(m2.group(2).replace(",", ".")) / 100.0, 6)
         # fallback : premier pourcentage
@@ -62,14 +70,20 @@ def _extract_ags_rate_from_cell(cell_text: str, est_ett: bool) -> float | None:
 
     # Cas général (hors ETT) : si deux taux existent, on prend le premier non ETT si possible
     # On récupère toutes les occurrences avec leur position
-    percents = [(m.start(), m.group(1)) for m in re.finditer(r"(\d+(?:[.,]\d+)?)\s*%", txt)]
+    percents = [
+        (m.start(), m.group(1)) for m in re.finditer(r"(\d+(?:[.,]\d+)?)\s*%", txt)
+    ]
     if not percents:
         return None
 
     # Si une mention ETT est proche d'une occurrence, on l'écarte pour choisir l'autre
-    ett_spans = [m.span() for m in re.finditer(r"\b(travail\s+temporaire|ETT)\b", txt, flags=re.I)]
+    ett_spans = [
+        m.span()
+        for m in re.finditer(r"\b(travail\s+temporaire|ETT)\b", txt, flags=re.I)
+    ]
+
     def is_near_ett(pos: int, radius: int = 90) -> bool:
-        return any(abs((pos - (s+e)/2)) <= radius for (s, e) in ett_spans)
+        return any(abs((pos - (s + e) / 2)) <= radius for (s, e) in ett_spans)
 
     for pos, val in percents:
         if not is_near_ett(pos):
@@ -93,7 +107,9 @@ def get_ags_payload_from_legisocial(est_ett: bool) -> dict:
     """
     taux = None
     try:
-        resp = requests.get(URL_LEGISOCIAL, timeout=25, headers={"User-Agent": USER_AGENT})
+        resp = requests.get(
+            URL_LEGISOCIAL, timeout=25, headers={"User-Agent": USER_AGENT}
+        )
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
 
@@ -119,7 +135,9 @@ def get_ags_payload_from_legisocial(est_ett: bool) -> dict:
                     break
 
         if not table:
-            raise RuntimeError("Table des cotisations chômage/AGS introuvable sur LegiSocial.")
+            raise RuntimeError(
+                "Table des cotisations chômage/AGS introuvable sur LegiSocial."
+            )
 
         # Parcourir les lignes pour trouver celle de l'AGS
         for tr in table.find_all("tr"):

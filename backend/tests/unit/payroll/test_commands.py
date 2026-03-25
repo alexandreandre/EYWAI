@@ -4,6 +4,7 @@ Tests unitaires des commandes du module payroll (application/).
 Couverture : payslip_commands, forfait_commands, simulation_commands,
 indemnites_commands, exit_document_commands. Repositories et sous-modules mockés.
 """
+
 from datetime import date
 from unittest.mock import MagicMock, patch
 
@@ -27,8 +28,12 @@ from app.modules.payroll.application.simulation_commands import (
     generer_scenarios_predefinis,
     get_simulated_payslip_generator,
 )
-from app.modules.payroll.application.indemnites_commands import calculer_indemnites_sortie
-from app.modules.payroll.application.exit_document_commands import get_exit_document_generator
+from app.modules.payroll.application.indemnites_commands import (
+    calculer_indemnites_sortie,
+)
+from app.modules.payroll.application.exit_document_commands import (
+    get_exit_document_generator,
+)
 
 
 pytestmark = pytest.mark.unit
@@ -52,15 +57,25 @@ class TestPayslipCommandsProcessGeneration:
 
     @patch("app.modules.payroll.documents.payslip_generator.process_payslip_generation")
     def test_process_payslip_generation_delegates_to_documents(self, mock_impl):
-        mock_impl.return_value = {"status": "ok", "message": "OK", "download_url": "/f.pdf"}
+        mock_impl.return_value = {
+            "status": "ok",
+            "message": "OK",
+            "download_url": "/f.pdf",
+        }
         result = process_payslip_generation("emp-1", 2025, 3)
         mock_impl.assert_called_once_with(employee_id="emp-1", year=2025, month=3)
         assert result["status"] == "ok"
         assert result["download_url"] == "/f.pdf"
 
-    @patch("app.modules.payroll.documents.payslip_generator_forfait.process_payslip_generation_forfait")
+    @patch(
+        "app.modules.payroll.documents.payslip_generator_forfait.process_payslip_generation_forfait"
+    )
     def test_process_payslip_generation_forfait_delegates(self, mock_impl):
-        mock_impl.return_value = {"status": "ok", "message": "Forfait", "download_url": None}
+        mock_impl.return_value = {
+            "status": "ok",
+            "message": "Forfait",
+            "download_url": None,
+        }
         result = process_payslip_generation_forfait("emp-2", 2025, 4)
         mock_impl.assert_called_once_with(employee_id="emp-2", year=2025, month=4)
         assert result["status"] == "ok"
@@ -135,7 +150,15 @@ class TestForfaitCommandsAnalyserJours:
         return_value=[{"jour": 1, "type": "travail", "heures_prevues": 1}],
     )
     def test_analyser_jours_forfait_du_mois_delegates(self, mock_impl):
-        planned = [{"annee": 2025, "mois": 1, "jour": 1, "type": "travail", "heures_prevues": 1}]
+        planned = [
+            {
+                "annee": 2025,
+                "mois": 1,
+                "jour": 1,
+                "type": "travail",
+                "heures_prevues": 1,
+            }
+        ]
         actual = [{"annee": 2025, "mois": 1, "jour": 1, "heures_faites": 1}]
         result = analyser_jours_forfait_du_mois(
             planned_data_all_months=planned,
@@ -158,9 +181,12 @@ class TestSimulationCommandsReverseCalculation:
     def test_run_reverse_calculation_invalid_net_raises(self):
         """CalculInverseError est convertie en ValueError par la commande."""
         from app.modules.payroll.engine.calcul_inverse import CalculInverseError
+
         with patch(
             "app.modules.payroll.engine.calcul_inverse.calculer_brut_depuis_net",
-            side_effect=CalculInverseError("Le net cible doit être strictement positif"),
+            side_effect=CalculInverseError(
+                "Le net cible doit être strictement positif"
+            ),
         ):
             with pytest.raises(ValueError, match="net cible"):
                 run_reverse_calculation(
@@ -258,7 +284,10 @@ class TestIndemnitesCommands:
 
     @patch("app.modules.payroll.engine.calculer_indemnites_sortie")
     def test_calculer_indemnites_sortie_delegates(self, mock_impl):
-        mock_impl.return_value = {"indemnite_legale": 1000.0, "indemnite_conventionnelle": 500.0}
+        mock_impl.return_value = {
+            "indemnite_legale": 1000.0,
+            "indemnite_conventionnelle": 500.0,
+        }
         result = calculer_indemnites_sortie(
             employee_data={"salaire": 2500, "anciennete_annees": 2},
             exit_data={"type_sortie": "licenciement"},

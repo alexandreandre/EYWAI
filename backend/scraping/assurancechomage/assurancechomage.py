@@ -12,11 +12,14 @@ UA = (
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 )
 
+
 def _txt(el) -> str:
     return el.get_text(" ", strip=True) if el else ""
 
+
 def _to_rate(num_str: str) -> float:
     return round(float(num_str.replace(",", ".").replace(" ", "")) / 100.0, 6)
+
 
 def scrape_assurance_chomage() -> float | None:
     try:
@@ -50,10 +53,14 @@ def scrape_assurance_chomage() -> float | None:
         txt = row_txt.replace("\u00a0", " ").replace("\u202f", " ")
 
         # Deux cas datés : "Jusqu’au dd/mm/yyyy : X %" et "À partir du dd/mm/yyyy : Y %"
-        re_avant = re.compile(r"jusqu[’']?au\s*(\d{1,2}\s*/\s*\d{1,2}\s*/\s*\d{4}).*?(\d+(?:,\d+)?)\s*%",
-                              flags=re.IGNORECASE | re.DOTALL)
-        re_apres = re.compile(r"(?:à|a)\s*partir\s*du\s*(\d{1,2}\s*/\s*\d{1,2}\s*/\s*\d{4}).*?(\d+(?:,\d+)?)\s*%",
-                              flags=re.IGNORECASE | re.DOTALL)
+        re_avant = re.compile(
+            r"jusqu[’']?au\s*(\d{1,2}\s*/\s*\d{1,2}\s*/\s*\d{4}).*?(\d+(?:,\d+)?)\s*%",
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        re_apres = re.compile(
+            r"(?:à|a)\s*partir\s*du\s*(\d{1,2}\s*/\s*\d{1,2}\s*/\s*\d{4}).*?(\d+(?:,\d+)?)\s*%",
+            flags=re.IGNORECASE | re.DOTALL,
+        )
 
         m1 = re_avant.search(txt)
         m2 = re_apres.search(txt)
@@ -61,7 +68,9 @@ def scrape_assurance_chomage() -> float | None:
         if m1 and m2:
             datetime.strptime(m1.group(1).replace(" ", ""), "%d/%m/%Y").date()
             taux_avant = _to_rate(m1.group(2))
-            date_apres = datetime.strptime(m2.group(1).replace(" ", ""), "%d/%m/%Y").date()
+            date_apres = datetime.strptime(
+                m2.group(1).replace(" ", ""), "%d/%m/%Y"
+            ).date()
             taux_apres = _to_rate(m2.group(2))
 
             today = datetime.now().date()
@@ -77,6 +86,7 @@ def scrape_assurance_chomage() -> float | None:
     except Exception:
         return None
 
+
 def make_payload(rate: float | None) -> dict:
     return {
         "id": "assurance_chomage",
@@ -85,10 +95,17 @@ def make_payload(rate: float | None) -> dict:
         "base": "brut",
         "valeurs": {"salarial": None, "patronal": rate},
         "meta": {
-            "source": [{"url": URL_URSSAF, "label": "URSSAF – Taux employeur (secteur privé)", "date_doc": ""}],
+            "source": [
+                {
+                    "url": URL_URSSAF,
+                    "label": "URSSAF – Taux employeur (secteur privé)",
+                    "date_doc": "",
+                }
+            ],
             "generator": "scripts/assurancechomage/assurancechomage.py",
         },
     }
+
 
 if __name__ == "__main__":
     taux = scrape_assurance_chomage()

@@ -4,6 +4,7 @@ Tests des requêtes applicatives collective_agreements.
 Chaque query est testée avec un service mocké ; on vérifie que la query
 délègue au service et retourne le résultat attendu.
 """
+
 from unittest.mock import MagicMock
 
 
@@ -16,7 +17,10 @@ from app.modules.collective_agreements.application.queries import (
     get_all_assignments_query,
     ask_question_query,
 )
-from app.modules.collective_agreements.application.dto import QuestionOutput, UploadUrlOutput
+from app.modules.collective_agreements.application.dto import (
+    QuestionOutput,
+    UploadUrlOutput,
+)
 from app.modules.collective_agreements.application.service import (
     CollectiveAgreementsService,
 )

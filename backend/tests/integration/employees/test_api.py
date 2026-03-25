@@ -9,6 +9,7 @@ Fixture à prévoir dans conftest.py si absente :
     ayant une company (active_company_id) et les droits RH si nécessaire.
   - Si seul auth_headers existe, les tests authentifiés l'utilisent (401 si token vide).
 """
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -83,9 +84,7 @@ class TestGetMyPublishedExitDocuments:
         response = client.get("/api/employees/me/published-exit-documents")
         assert response.status_code == 401
 
-    def test_with_auth_returns_list(
-        self, client: TestClient, auth_headers: dict
-    ):
+    def test_with_auth_returns_list(self, client: TestClient, auth_headers: dict):
         if not auth_headers:
             pytest.skip("auth_headers non configuré")
         response = client.get(
@@ -107,7 +106,9 @@ class TestCreateEmployee:
         )
         assert response.status_code == 401
 
-    def test_create_employee_invalid_json_returns_422(self, client: TestClient, auth_headers: dict):
+    def test_create_employee_invalid_json_returns_422(
+        self, client: TestClient, auth_headers: dict
+    ):
         """Données JSON invalides → 422 ou 401 si pas d'auth."""
         if not auth_headers:
             pytest.skip("auth_headers non configuré")

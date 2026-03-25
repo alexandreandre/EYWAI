@@ -29,7 +29,9 @@ def _parse_rate(txt: str) -> float | None:
 
 def _is_table_retraite(tbl) -> bool:
     t = _txt(tbl)
-    return ("taux de calcul des points" in t) and ("tranche 1" in t) and ("tranche 2" in t)
+    return (
+        ("taux de calcul des points" in t) and ("tranche 1" in t) and ("tranche 2" in t)
+    )
 
 
 def _is_table_ceg(tbl) -> bool:
@@ -47,8 +49,13 @@ def _is_table_cet(tbl) -> bool:
 def _is_table_apec(tbl) -> bool:
     head = _txt(tbl.find("thead"))
     body = _txt(tbl.find("tbody"))
-    if ("assiette" in head and "tranche 1" in head and "tranche 2" in head and
-            "part salariale" in body and "part patronale" in body):
+    if (
+        "assiette" in head
+        and "tranche 1" in head
+        and "tranche 2" in head
+        and "part salariale" in body
+        and "part patronale" in body
+    ):
         return True
     prev = tbl.find_previous(string=True)
     if prev and "apec" in (prev or "").strip().lower():
@@ -91,16 +98,32 @@ def scrape_agirc_arrco() -> dict | None:
                 for idx, tr in enumerate(rows):
                     row_txt = _txt(tr)
                     if "tranche 1" in row_txt:
-                        target = rows[idx + 1] if (idx + 1 < len(rows) and not _has_pct(row_txt)) else tr
+                        target = (
+                            rows[idx + 1]
+                            if (idx + 1 < len(rows) and not _has_pct(row_txt))
+                            else tr
+                        )
                         cells = target.find_all(["td", "th"])
-                        rates = [_parse_rate(c.get_text()) for c in cells if _has_pct(_txt(c))]
+                        rates = [
+                            _parse_rate(c.get_text())
+                            for c in cells
+                            if _has_pct(_txt(c))
+                        ]
                         if len(rates) >= 2:
                             results["retraite_comp_t1_salarial"] = rates[0]
                             results["retraite_comp_t1_patronal"] = rates[1]
                     if "tranche 2" in row_txt:
-                        target = rows[idx + 1] if (idx + 1 < len(rows) and not _has_pct(row_txt)) else tr
+                        target = (
+                            rows[idx + 1]
+                            if (idx + 1 < len(rows) and not _has_pct(row_txt))
+                            else tr
+                        )
                         cells = target.find_all(["td", "th"])
-                        rates = [_parse_rate(c.get_text()) for c in cells if _has_pct(_txt(c))]
+                        rates = [
+                            _parse_rate(c.get_text())
+                            for c in cells
+                            if _has_pct(_txt(c))
+                        ]
                         if len(rates) >= 2:
                             results["retraite_comp_t2_salarial"] = rates[0]
                             results["retraite_comp_t2_patronal"] = rates[1]
@@ -111,16 +134,32 @@ def scrape_agirc_arrco() -> dict | None:
                 for idx, tr in enumerate(rows):
                     row_txt = _txt(tr)
                     if "tranche 1" in row_txt:
-                        target = rows[idx + 1] if (idx + 1 < len(rows) and not _has_pct(row_txt)) else tr
+                        target = (
+                            rows[idx + 1]
+                            if (idx + 1 < len(rows) and not _has_pct(row_txt))
+                            else tr
+                        )
                         cells = target.find_all(["td", "th"])
-                        rates = [_parse_rate(c.get_text()) for c in cells if _has_pct(_txt(c))]
+                        rates = [
+                            _parse_rate(c.get_text())
+                            for c in cells
+                            if _has_pct(_txt(c))
+                        ]
                         if len(rates) >= 2:
                             results["ceg_t1_salarial"] = rates[0]
                             results["ceg_t1_patronal"] = rates[1]
                     if "tranche 2" in row_txt:
-                        target = rows[idx + 1] if (idx + 1 < len(rows) and not _has_pct(row_txt)) else tr
+                        target = (
+                            rows[idx + 1]
+                            if (idx + 1 < len(rows) and not _has_pct(row_txt))
+                            else tr
+                        )
                         cells = target.find_all(["td", "th"])
-                        rates = [_parse_rate(c.get_text()) for c in cells if _has_pct(_txt(c))]
+                        rates = [
+                            _parse_rate(c.get_text())
+                            for c in cells
+                            if _has_pct(_txt(c))
+                        ]
                         if len(rates) >= 2:
                             results["ceg_t2_salarial"] = rates[0]
                             results["ceg_t2_patronal"] = rates[1]
@@ -136,7 +175,9 @@ def scrape_agirc_arrco() -> dict | None:
                             chosen = tds
                             break
                 if chosen:
-                    rates = [_parse_rate(c.get_text()) for c in chosen if _has_pct(_txt(c))]
+                    rates = [
+                        _parse_rate(c.get_text()) for c in chosen if _has_pct(_txt(c))
+                    ]
                     if len(rates) >= 2:
                         results["cet_salarial"] = rates[0]
                         results["cet_patronal"] = rates[1]
@@ -152,7 +193,9 @@ def scrape_agirc_arrco() -> dict | None:
                             chosen = tds
                             break
                 if chosen:
-                    rates = [_parse_rate(c.get_text()) for c in chosen if _has_pct(_txt(c))]
+                    rates = [
+                        _parse_rate(c.get_text()) for c in chosen if _has_pct(_txt(c))
+                    ]
                     if len(rates) >= 2:
                         results["apec_salarial"] = rates[0]
                         results["apec_patronal"] = rates[1]
@@ -235,7 +278,9 @@ def make_payload(bundle: dict | None) -> dict:
         "type": "cotisation_bundle",
         "items": items,
         "meta": {
-            "source": [{"url": URL_AGIRC_ARRCO, "label": "Agirc-Arrco", "date_doc": ""}],
+            "source": [
+                {"url": URL_AGIRC_ARRCO, "label": "Agirc-Arrco", "date_doc": ""}
+            ],
             "generator": "scripts/AGIRC-ARRCO/AGIRC-ARRCO.py",
         },
     }

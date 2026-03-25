@@ -4,6 +4,7 @@ Règles métier pures pour le module rates.
 Sélection de la ligne retenue par config_key (version puis created_at) et
 forme de sortie (clés exposées). Aucune I/O, aucun FastAPI.
 """
+
 from __future__ import annotations
 
 from datetime import datetime

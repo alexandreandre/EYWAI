@@ -20,7 +20,13 @@ def iso_now() -> str:
 
 
 def _clean_number(s: str) -> float:
-    s = s.strip().replace(NBSP, "").replace(NNBSP, "").replace(THIN, "").replace(" ", "")
+    s = (
+        s.strip()
+        .replace(NBSP, "")
+        .replace(NNBSP, "")
+        .replace(THIN, "")
+        .replace(" ", "")
+    )
     s = s.replace(",", ".")
     m = re.search(r"-?\d+(?:\.\d+)?", s)
     return float(m.group(0)) if m else 0.0
@@ -66,7 +72,9 @@ def parse_cv_label_moto(label: str) -> Tuple[Optional[int], Optional[int]]:
     return None, None
 
 
-def find_table_by_caption(soup: BeautifulSoup, contains: str) -> Optional[BeautifulSoup]:
+def find_table_by_caption(
+    soup: BeautifulSoup, contains: str
+) -> Optional[BeautifulSoup]:
     key = contains.lower()
     for tbl in soup.find_all("table"):
         cap = tbl.find("caption")

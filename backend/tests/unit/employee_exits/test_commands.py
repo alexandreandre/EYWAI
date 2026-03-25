@@ -3,6 +3,7 @@ Tests unitaires des commandes employee_exits (application/commands.py).
 
 Repositories et providers mockés ; pas de DB ni HTTP.
 """
+
 from datetime import date, datetime, timezone
 from unittest.mock import MagicMock, patch
 
@@ -61,9 +62,13 @@ def _make_exit_record(exit_id=EXIT_ID, status="demission_recue", exit_type="demi
 @patch("app.modules.employee_exits.application.commands.get_employee_by_id")
 @patch("app.modules.employee_exits.application.commands.get_initial_status")
 @patch("app.modules.employee_exits.application.commands.EmployeeExitRepository")
-@patch("app.modules.employee_exits.application.commands.update_employee_employment_status")
+@patch(
+    "app.modules.employee_exits.application.commands.update_employee_employment_status"
+)
 @patch("app.modules.employee_exits.application.commands.create_default_checklist_sync")
-@patch("app.modules.employee_exits.application.commands._run_post_create_indemnities_and_docs")
+@patch(
+    "app.modules.employee_exits.application.commands._run_post_create_indemnities_and_docs"
+)
 class TestCreateEmployeeExit:
     """Commande create_employee_exit."""
 
@@ -92,7 +97,9 @@ class TestCreateEmployeeExit:
             "notice_period_days": 60,
             "is_gross_misconduct": False,
         }
-        result = create_employee_exit(exit_data, COMPANY_ID, USER_ID, supabase_client=MagicMock())
+        result = create_employee_exit(
+            exit_data, COMPANY_ID, USER_ID, supabase_client=MagicMock()
+        )
 
         assert result["id"] == EXIT_ID
         mock_repo.create.assert_called_once()
@@ -104,13 +111,24 @@ class TestCreateEmployeeExit:
         mock_post_create.assert_called_once()
 
     def test_raises_404_when_employee_not_found(
-        self, mock_post_create, mock_checklist, mock_update_status, mock_repo_class, mock_initial_status, mock_get_employee
+        self,
+        mock_post_create,
+        mock_checklist,
+        mock_update_status,
+        mock_repo_class,
+        mock_initial_status,
+        mock_get_employee,
     ):
         mock_get_employee.return_value = None
 
         with pytest.raises(EmployeeExitApplicationError) as exc_info:
             create_employee_exit(
-                {"employee_id": EMPLOYEE_ID, "exit_type": "demission", "exit_request_date": "2025-01-15", "last_working_day": "2025-03-15"},
+                {
+                    "employee_id": EMPLOYEE_ID,
+                    "exit_type": "demission",
+                    "exit_request_date": "2025-01-15",
+                    "last_working_day": "2025-03-15",
+                },
                 COMPANY_ID,
                 USER_ID,
                 supabase_client=MagicMock(),
@@ -119,13 +137,24 @@ class TestCreateEmployeeExit:
         assert "Employé non trouvé" in exc_info.value.detail
 
     def test_raises_400_when_employee_already_en_sortie(
-        self, mock_post_create, mock_checklist, mock_update_status, mock_repo_class, mock_initial_status, mock_get_employee
+        self,
+        mock_post_create,
+        mock_checklist,
+        mock_update_status,
+        mock_repo_class,
+        mock_initial_status,
+        mock_get_employee,
     ):
         mock_get_employee.return_value = _make_employee(employment_status="en_sortie")
 
         with pytest.raises(EmployeeExitApplicationError) as exc_info:
             create_employee_exit(
-                {"employee_id": EMPLOYEE_ID, "exit_type": "demission", "exit_request_date": "2025-01-15", "last_working_day": "2025-03-15"},
+                {
+                    "employee_id": EMPLOYEE_ID,
+                    "exit_type": "demission",
+                    "exit_request_date": "2025-01-15",
+                    "last_working_day": "2025-03-15",
+                },
                 COMPANY_ID,
                 USER_ID,
                 supabase_client=MagicMock(),
@@ -134,13 +163,24 @@ class TestCreateEmployeeExit:
         assert "processus de sortie actif" in exc_info.value.detail
 
     def test_raises_404_when_employee_other_company(
-        self, mock_post_create, mock_checklist, mock_update_status, mock_repo_class, mock_initial_status, mock_get_employee
+        self,
+        mock_post_create,
+        mock_checklist,
+        mock_update_status,
+        mock_repo_class,
+        mock_initial_status,
+        mock_get_employee,
     ):
         mock_get_employee.return_value = _make_employee(company_id="other-company")
 
         with pytest.raises(EmployeeExitApplicationError) as exc_info:
             create_employee_exit(
-                {"employee_id": EMPLOYEE_ID, "exit_type": "demission", "exit_request_date": "2025-01-15", "last_working_day": "2025-03-15"},
+                {
+                    "employee_id": EMPLOYEE_ID,
+                    "exit_type": "demission",
+                    "exit_request_date": "2025-01-15",
+                    "last_working_day": "2025-03-15",
+                },
                 COMPANY_ID,
                 USER_ID,
                 supabase_client=MagicMock(),
@@ -161,7 +201,9 @@ class TestUpdateEmployeeExit:
         mock_repo_class.return_value = mock_repo
         sb = MagicMock()
 
-        result = update_employee_exit(EXIT_ID, COMPANY_ID, {"exit_reason": "Nouvelle raison"}, supabase_client=sb)
+        result = update_employee_exit(
+            EXIT_ID, COMPANY_ID, {"exit_reason": "Nouvelle raison"}, supabase_client=sb
+        )
         assert result["exit_reason"] == "Nouvelle raison"
 
     def test_raises_404_when_exit_not_found(self, mock_repo_class):
@@ -170,7 +212,9 @@ class TestUpdateEmployeeExit:
         mock_repo_class.return_value = mock_repo
 
         with pytest.raises(EmployeeExitApplicationError) as exc_info:
-            update_employee_exit(EXIT_ID, COMPANY_ID, {"exit_reason": "x"}, supabase_client=MagicMock())
+            update_employee_exit(
+                EXIT_ID, COMPANY_ID, {"exit_reason": "x"}, supabase_client=MagicMock()
+            )
         assert exc_info.value.status_code == 404
         assert "Sortie non trouvée" in exc_info.value.detail
 
@@ -180,12 +224,16 @@ class TestUpdateEmployeeExit:
         mock_repo.get_by_id.return_value = existing
         mock_repo_class.return_value = mock_repo
 
-        result = update_employee_exit(EXIT_ID, COMPANY_ID, {}, supabase_client=MagicMock())
+        result = update_employee_exit(
+            EXIT_ID, COMPANY_ID, {}, supabase_client=MagicMock()
+        )
         assert result == existing
         mock_repo.update.assert_not_called()
 
 
-@patch("app.modules.employee_exits.application.commands.update_employee_employment_status")
+@patch(
+    "app.modules.employee_exits.application.commands.update_employee_employment_status"
+)
 @patch("app.modules.employee_exits.application.commands.EmployeeExitRepository")
 class TestUpdateExitStatus:
     """Commande update_exit_status."""
@@ -196,16 +244,32 @@ class TestUpdateExitStatus:
         mock_repo_class.return_value = mock_repo
 
         with pytest.raises(EmployeeExitApplicationError) as exc_info:
-            update_exit_status(EXIT_ID, COMPANY_ID, "demission_effective", None, USER_ID, supabase_client=MagicMock())
+            update_exit_status(
+                EXIT_ID,
+                COMPANY_ID,
+                "demission_effective",
+                None,
+                USER_ID,
+                supabase_client=MagicMock(),
+            )
         assert exc_info.value.status_code == 404
 
     def test_raises_400_on_invalid_transition(self, mock_repo_class, mock_update_emp):
         mock_repo = MagicMock()
-        mock_repo.get_by_id.return_value = _make_exit_record(status="demission_recue", exit_type="demission")
+        mock_repo.get_by_id.return_value = _make_exit_record(
+            status="demission_recue", exit_type="demission"
+        )
         mock_repo_class.return_value = mock_repo
 
         with pytest.raises(EmployeeExitApplicationError) as exc_info:
-            update_exit_status(EXIT_ID, COMPANY_ID, "archivee", None, USER_ID, supabase_client=MagicMock())
+            update_exit_status(
+                EXIT_ID,
+                COMPANY_ID,
+                "archivee",
+                None,
+                USER_ID,
+                supabase_client=MagicMock(),
+            )
         assert exc_info.value.status_code == 400
         assert "Transition invalide" in exc_info.value.detail
 
@@ -218,15 +282,24 @@ class TestUpdateExitStatus:
         mock_repo_class.return_value = mock_repo
 
         result = update_exit_status(
-            EXIT_ID, COMPANY_ID, "demission_preavis_en_cours", None, USER_ID, supabase_client=MagicMock()
+            EXIT_ID,
+            COMPANY_ID,
+            "demission_preavis_en_cours",
+            None,
+            USER_ID,
+            supabase_client=MagicMock(),
         )
         assert result["status"] == "demission_preavis_en_cours"
         mock_repo.update.assert_called_once()
 
 
-@patch("app.modules.employee_exits.application.commands.get_exit_documents_storage_paths")
+@patch(
+    "app.modules.employee_exits.application.commands.get_exit_documents_storage_paths"
+)
 @patch("app.modules.employee_exits.application.commands.get_exit_storage_provider")
-@patch("app.modules.employee_exits.application.commands.update_employee_employment_status")
+@patch(
+    "app.modules.employee_exits.application.commands.update_employee_employment_status"
+)
 @patch("app.modules.employee_exits.application.commands.EmployeeExitRepository")
 class TestDeleteEmployeeExit:
     """Commande delete_employee_exit."""
@@ -265,7 +338,9 @@ class TestDeleteEmployeeExit:
 class TestCreateExitDocument:
     """Commande create_exit_document."""
 
-    def test_creates_document_when_exit_exists(self, mock_exit_repo_class, mock_doc_repo_class):
+    def test_creates_document_when_exit_exists(
+        self, mock_exit_repo_class, mock_doc_repo_class
+    ):
         mock_exit_repo = MagicMock()
         mock_exit_repo.get_by_id.return_value = _make_exit_record()
         mock_exit_repo_class.return_value = mock_exit_repo
@@ -288,14 +363,24 @@ class TestCreateExitDocument:
         assert result["id"] == "doc-1"
         mock_doc_repo.create.assert_called_once()
 
-    def test_raises_404_when_exit_not_found(self, mock_exit_repo_class, mock_doc_repo_class):
+    def test_raises_404_when_exit_not_found(
+        self, mock_exit_repo_class, mock_doc_repo_class
+    ):
         mock_exit_repo = MagicMock()
         mock_exit_repo.get_by_id.return_value = None
         mock_exit_repo_class.return_value = mock_exit_repo
 
         with pytest.raises(EmployeeExitApplicationError) as exc_info:
             create_exit_document(
-                EXIT_ID, COMPANY_ID, {"document_type": "lettre_demission", "storage_path": "x", "filename": "x"}, USER_ID, supabase_client=MagicMock()
+                EXIT_ID,
+                COMPANY_ID,
+                {
+                    "document_type": "lettre_demission",
+                    "storage_path": "x",
+                    "filename": "x",
+                },
+                USER_ID,
+                supabase_client=MagicMock(),
             )
         assert exc_info.value.status_code == 404
 
@@ -309,26 +394,53 @@ class TestGenerateExitDocument:
     """Commande generate_exit_document."""
 
     def test_raises_400_for_unknown_document_type(
-        self, mock_exit_repo_class, mock_doc_repo_class, mock_company, mock_storage, mock_generator
+        self,
+        mock_exit_repo_class,
+        mock_doc_repo_class,
+        mock_company,
+        mock_storage,
+        mock_generator,
     ):
         with pytest.raises(EmployeeExitApplicationError) as exc_info:
-            generate_exit_document(EXIT_ID, COMPANY_ID, "unknown_type", USER_ID, supabase_client=MagicMock())
+            generate_exit_document(
+                EXIT_ID,
+                COMPANY_ID,
+                "unknown_type",
+                USER_ID,
+                supabase_client=MagicMock(),
+            )
         assert exc_info.value.status_code == 400
         assert "non générable" in exc_info.value.detail
 
     def test_raises_404_when_exit_not_found(
-        self, mock_exit_repo_class, mock_doc_repo_class, mock_company, mock_storage, mock_generator
+        self,
+        mock_exit_repo_class,
+        mock_doc_repo_class,
+        mock_company,
+        mock_storage,
+        mock_generator,
     ):
         mock_exit_repo = MagicMock()
         mock_exit_repo.get_with_employee.return_value = None
         mock_exit_repo_class.return_value = mock_exit_repo
 
         with pytest.raises(EmployeeExitApplicationError) as exc_info:
-            generate_exit_document(EXIT_ID, COMPANY_ID, "certificat_travail", USER_ID, supabase_client=MagicMock())
+            generate_exit_document(
+                EXIT_ID,
+                COMPANY_ID,
+                "certificat_travail",
+                USER_ID,
+                supabase_client=MagicMock(),
+            )
         assert exc_info.value.status_code == 404
 
     def test_generates_certificat_travail(
-        self, mock_exit_repo_class, mock_doc_repo_class, mock_company, mock_storage, mock_generator
+        self,
+        mock_exit_repo_class,
+        mock_doc_repo_class,
+        mock_company,
+        mock_storage,
+        mock_generator,
     ):
         exit_data = _make_exit_record()
         exit_data["employees"] = {"first_name": "Jean", "last_name": "Dupont"}
@@ -345,7 +457,13 @@ class TestGenerateExitDocument:
         storage = MagicMock()
         mock_storage.return_value = storage
 
-        result = generate_exit_document(EXIT_ID, COMPANY_ID, "certificat_travail", USER_ID, supabase_client=MagicMock())
+        result = generate_exit_document(
+            EXIT_ID,
+            COMPANY_ID,
+            "certificat_travail",
+            USER_ID,
+            supabase_client=MagicMock(),
+        )
         assert result["success"] is True
         assert result["document_type"] == "certificat_travail"
         gen.generate_certificat_travail.assert_called_once()
@@ -359,7 +477,10 @@ class TestDeleteExitDocument:
 
     def test_deletes_document(self, mock_doc_repo_class, mock_storage_provider):
         mock_doc_repo = MagicMock()
-        mock_doc_repo.get_by_id.return_value = {"id": "doc-1", "storage_path": "exits/1/doc.pdf"}
+        mock_doc_repo.get_by_id.return_value = {
+            "id": "doc-1",
+            "storage_path": "exits/1/doc.pdf",
+        }
         mock_doc_repo_class.return_value = mock_doc_repo
         storage = MagicMock()
         mock_storage_provider.return_value = storage
@@ -369,13 +490,17 @@ class TestDeleteExitDocument:
         storage.remove.assert_called_once_with(["exits/1/doc.pdf"])
         mock_doc_repo.delete.assert_called_once_with("doc-1", EXIT_ID, COMPANY_ID)
 
-    def test_raises_404_when_document_not_found(self, mock_doc_repo_class, mock_storage_provider):
+    def test_raises_404_when_document_not_found(
+        self, mock_doc_repo_class, mock_storage_provider
+    ):
         mock_doc_repo = MagicMock()
         mock_doc_repo.get_by_id.return_value = None
         mock_doc_repo_class.return_value = mock_doc_repo
 
         with pytest.raises(EmployeeExitApplicationError) as exc_info:
-            delete_exit_document(EXIT_ID, "doc-unknown", COMPANY_ID, supabase_client=MagicMock())
+            delete_exit_document(
+                EXIT_ID, "doc-unknown", COMPANY_ID, supabase_client=MagicMock()
+            )
         assert exc_info.value.status_code == 404
 
 
@@ -384,30 +509,47 @@ class TestDeleteExitDocument:
 class TestAddChecklistItem:
     """Commande add_checklist_item."""
 
-    def test_adds_item_when_exit_exists(self, mock_exit_repo_class, mock_checklist_repo_class):
+    def test_adds_item_when_exit_exists(
+        self, mock_exit_repo_class, mock_checklist_repo_class
+    ):
         mock_exit_repo = MagicMock()
         mock_exit_repo.get_by_id.return_value = _make_exit_record()
         mock_exit_repo_class.return_value = mock_exit_repo
         mock_checklist = MagicMock()
-        item_created = {"id": "item-1", "item_code": "custom", "item_label": "Custom item"}
+        item_created = {
+            "id": "item-1",
+            "item_code": "custom",
+            "item_label": "Custom item",
+        }
         mock_checklist.add_item.return_value = item_created
         mock_checklist_repo_class.return_value = mock_checklist
 
         result = add_checklist_item(
             EXIT_ID,
             COMPANY_ID,
-            {"item_code": "custom", "item_label": "Custom item", "item_category": "autre"},
+            {
+                "item_code": "custom",
+                "item_label": "Custom item",
+                "item_category": "autre",
+            },
             supabase_client=MagicMock(),
         )
         assert result["id"] == "item-1"
 
-    def test_raises_404_when_exit_not_found(self, mock_exit_repo_class, mock_checklist_repo_class):
+    def test_raises_404_when_exit_not_found(
+        self, mock_exit_repo_class, mock_checklist_repo_class
+    ):
         mock_exit_repo = MagicMock()
         mock_exit_repo.get_by_id.return_value = None
         mock_exit_repo_class.return_value = mock_exit_repo
 
         with pytest.raises(EmployeeExitApplicationError) as exc_info:
-            add_checklist_item(EXIT_ID, COMPANY_ID, {"item_code": "x", "item_label": "x"}, supabase_client=MagicMock())
+            add_checklist_item(
+                EXIT_ID,
+                COMPANY_ID,
+                {"item_code": "x", "item_label": "x"},
+                supabase_client=MagicMock(),
+            )
         assert exc_info.value.status_code == 404
 
 
@@ -422,7 +564,12 @@ class TestMarkChecklistItemComplete:
 
         with pytest.raises(EmployeeExitApplicationError) as exc_info:
             mark_checklist_item_complete(
-                EXIT_ID, "item-1", COMPANY_ID, {"is_completed": True}, USER_ID, supabase_client=MagicMock()
+                EXIT_ID,
+                "item-1",
+                COMPANY_ID,
+                {"is_completed": True},
+                USER_ID,
+                supabase_client=MagicMock(),
             )
         assert exc_info.value.status_code == 404
 
@@ -435,7 +582,12 @@ class TestMarkChecklistItemComplete:
         mock_checklist_repo_class.return_value = mock_checklist
 
         result = mark_checklist_item_complete(
-            EXIT_ID, "item-1", COMPANY_ID, {"is_completed": True}, USER_ID, supabase_client=MagicMock()
+            EXIT_ID,
+            "item-1",
+            COMPANY_ID,
+            {"is_completed": True},
+            USER_ID,
+            supabase_client=MagicMock(),
         )
         assert result["is_completed"] is True
         call_args = mock_checklist.update_item.call_args[0]
@@ -454,7 +606,9 @@ class TestDeleteChecklistItem:
         mock_checklist_repo_class.return_value = mock_checklist
 
         with pytest.raises(EmployeeExitApplicationError) as exc_info:
-            delete_checklist_item(EXIT_ID, "item-1", COMPANY_ID, supabase_client=MagicMock())
+            delete_checklist_item(
+                EXIT_ID, "item-1", COMPANY_ID, supabase_client=MagicMock()
+            )
         assert exc_info.value.status_code == 404
 
     def test_raises_400_when_item_required(self, mock_checklist_repo_class):
@@ -463,7 +617,9 @@ class TestDeleteChecklistItem:
         mock_checklist_repo_class.return_value = mock_checklist
 
         with pytest.raises(EmployeeExitApplicationError) as exc_info:
-            delete_checklist_item(EXIT_ID, "item-1", COMPANY_ID, supabase_client=MagicMock())
+            delete_checklist_item(
+                EXIT_ID, "item-1", COMPANY_ID, supabase_client=MagicMock()
+            )
         assert exc_info.value.status_code == 400
         assert "obligatoire" in exc_info.value.detail
 
@@ -472,8 +628,12 @@ class TestDeleteChecklistItem:
         mock_checklist.get_item.return_value = {"id": "item-1", "is_required": False}
         mock_checklist_repo_class.return_value = mock_checklist
 
-        delete_checklist_item(EXIT_ID, "item-1", COMPANY_ID, supabase_client=MagicMock())
-        mock_checklist.delete_item.assert_called_once_with("item-1", EXIT_ID, COMPANY_ID)
+        delete_checklist_item(
+            EXIT_ID, "item-1", COMPANY_ID, supabase_client=MagicMock()
+        )
+        mock_checklist.delete_item.assert_called_once_with(
+            "item-1", EXIT_ID, COMPANY_ID
+        )
 
 
 @patch("app.modules.employee_exits.application.commands.ExitDocumentRepository")
@@ -486,7 +646,9 @@ class TestUnpublishExitDocument:
         mock_doc_repo_class.return_value = mock_doc_repo
 
         with pytest.raises(EmployeeExitApplicationError) as exc_info:
-            unpublish_exit_document(EXIT_ID, "doc-1", COMPANY_ID, supabase_client=MagicMock())
+            unpublish_exit_document(
+                EXIT_ID, "doc-1", COMPANY_ID, supabase_client=MagicMock()
+            )
         assert exc_info.value.status_code == 404
 
     def test_updates_published_to_employee_false(self, mock_doc_repo_class):
@@ -497,5 +659,7 @@ class TestUnpublishExitDocument:
         mock_doc_repo.update.return_value = updated
         mock_doc_repo_class.return_value = mock_doc_repo
 
-        result = unpublish_exit_document(EXIT_ID, "doc-1", COMPANY_ID, supabase_client=MagicMock())
+        result = unpublish_exit_document(
+            EXIT_ID, "doc-1", COMPANY_ID, supabase_client=MagicMock()
+        )
         assert result["published_to_employee"] is False

@@ -4,6 +4,7 @@ Tests du service applicatif du module copilot (application/service.py).
 Dépendances mockées : OpenAI provider, SQL executor, user company resolver,
 employee search, collective agreement provider. Pas d'appel réel à OpenAI ni DB.
 """
+
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -43,7 +44,9 @@ class TestGenerateSqlFromPrompt:
 
 class TestFormatAnswerFromData:
     @patch("app.modules.copilot.application.service.get_openai_provider")
-    def test_delegates_to_provider_and_returns_formatted_answer(self, mock_get_provider):
+    def test_delegates_to_provider_and_returns_formatted_answer(
+        self, mock_get_provider
+    ):
         mock_provider = MagicMock()
         mock_provider.format_answer_from_data.return_value = "Il y a 5 employés."
         mock_get_provider.return_value = mock_provider
@@ -68,7 +71,9 @@ class TestExecuteSqlQuery:
         result = execute_sql_query("SELECT * FROM employees LIMIT 1")
 
         assert result == [{"id": "1", "name": "Test"}]
-        mock_executor.execute_read_only.assert_called_once_with("SELECT * FROM employees LIMIT 1")
+        mock_executor.execute_read_only.assert_called_once_with(
+            "SELECT * FROM employees LIMIT 1"
+        )
 
 
 class TestGetCompanyIdForUser:
@@ -89,7 +94,10 @@ class TestFuzzySearchEmployee:
     def test_delegates_to_provider_and_returns_matches(self, mock_get_provider):
         mock_provider = MagicMock()
         mock_provider.fuzzy_search_by_name.return_value = [
-            {"employee": {"id": "e1", "first_name": "Jean", "last_name": "Dupont"}, "similarity": 0.9}
+            {
+                "employee": {"id": "e1", "first_name": "Jean", "last_name": "Dupont"},
+                "similarity": 0.9,
+            }
         ]
         mock_get_provider.return_value = mock_provider
 
@@ -142,9 +150,13 @@ class TestAnalyzeIntentAndPlan:
 class TestExecuteRetrievalStep:
     @patch("app.modules.copilot.application.service.get_sql_executor")
     @patch("app.modules.copilot.application.service.get_openai_provider")
-    def test_select_query_executes_and_returns_data(self, mock_get_openai, mock_get_executor):
+    def test_select_query_executes_and_returns_data(
+        self, mock_get_openai, mock_get_executor
+    ):
         mock_openai = MagicMock()
-        mock_openai.generate_sql_for_step.return_value = "SELECT COUNT(*) FROM employees"
+        mock_openai.generate_sql_for_step.return_value = (
+            "SELECT COUNT(*) FROM employees"
+        )
         mock_get_openai.return_value = mock_openai
         mock_executor = MagicMock()
         mock_executor.execute_read_only.return_value = [{"count": 10}]
@@ -172,7 +184,9 @@ class TestAnswerCollectiveAgreementQuestion:
     @patch("app.modules.copilot.application.service.get_openai_provider")
     def test_delegates_to_provider_and_returns_answer(self, mock_get_provider):
         mock_provider = MagicMock()
-        mock_provider.answer_collective_agreement_question.return_value = "25 jours ouvrés."
+        mock_provider.answer_collective_agreement_question.return_value = (
+            "25 jours ouvrés."
+        )
         mock_get_provider.return_value = mock_provider
         agreement = {"name": "SYNTEC", "idcc": "1486", "full_text": "Article 1..."}
         plan = {"intent": "conges"}
@@ -189,12 +203,18 @@ class TestSynthesizeFinalAnswer:
     @patch("app.modules.copilot.application.service.get_openai_provider")
     def test_delegates_to_provider_and_returns_synthesis(self, mock_get_provider):
         mock_provider = MagicMock()
-        mock_provider.synthesize_final_answer.return_value = "Votre entreprise compte 10 employés."
+        mock_provider.synthesize_final_answer.return_value = (
+            "Votre entreprise compte 10 employés."
+        )
         mock_get_provider.return_value = mock_provider
         plan = {"intent": "count"}
-        retrieval_results = [{"success": True, "sql": "SELECT COUNT(*)", "data": [{"count": 10}]}]
+        retrieval_results = [
+            {"success": True, "sql": "SELECT COUNT(*)", "data": [{"count": 10}]}
+        ]
 
-        result = synthesize_final_answer("Combien d'employés ?", plan, retrieval_results)
+        result = synthesize_final_answer(
+            "Combien d'employés ?", plan, retrieval_results
+        )
 
         assert result == "Votre entreprise compte 10 employés."
         mock_provider.synthesize_final_answer.assert_called_once()

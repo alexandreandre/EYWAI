@@ -3,6 +3,7 @@ Service applicatif rates : orchestration entre reader, domain et sortie.
 
 Délègue au domain pour les règles métier (sélection, format). Aucun accès DB direct.
 """
+
 from __future__ import annotations
 
 import logging
@@ -24,9 +25,8 @@ def group_payroll_configs_by_key(
     Comportement strictement identique au legacy.
     """
     grouped = group_and_select_best(rows)
-    result = {
-        k: build_rate_category_output(row)
-        for k, row in grouped.items()
-    }
-    logging.info("✅ %s catégories de taux retournées : %s", len(result), list(result.keys()))
+    result = {k: build_rate_category_output(row) for k, row in grouped.items()}
+    logging.info(
+        "✅ %s catégories de taux retournées : %s", len(result), list(result.keys())
+    )
     return result

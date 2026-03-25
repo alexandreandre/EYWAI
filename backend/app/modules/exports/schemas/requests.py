@@ -30,8 +30,11 @@ ExportType = Literal[
 
 class ExportPreviewRequest(BaseModel):
     """Requête pour prévisualiser un export"""
+
     export_type: ExportType
-    period: str = Field(..., pattern=r"^\d{4}-\d{2}$", description="Période au format YYYY-MM")
+    period: str = Field(
+        ..., pattern=r"^\d{4}-\d{2}$", description="Période au format YYYY-MM"
+    )
     company_id: Optional[str] = None
     employee_ids: Optional[List[str]] = None
     filters: Optional[Dict[str, Any]] = Field(default_factory=dict)
@@ -42,8 +45,11 @@ class ExportPreviewRequest(BaseModel):
 
 class ExportGenerateRequest(BaseModel):
     """Requête pour générer un export"""
+
     export_type: ExportType
-    period: str = Field(..., pattern=r"^\d{4}-\d{2}$", description="Période au format YYYY-MM")
+    period: str = Field(
+        ..., pattern=r"^\d{4}-\d{2}$", description="Période au format YYYY-MM"
+    )
     company_id: Optional[str] = None
     employee_ids: Optional[List[str]] = None
     filters: Optional[Dict[str, Any]] = Field(default_factory=dict)
@@ -60,6 +66,7 @@ class ExportGenerateRequest(BaseModel):
 
 class ChargesSocialesExportRequest(BaseModel):
     """Requête spécifique pour l'export charges sociales"""
+
     period: str = Field(..., pattern=r"^\d{4}-\d{2}$")
     company_id: Optional[str] = None
     caisses: Optional[List[str]] = None
@@ -68,20 +75,26 @@ class ChargesSocialesExportRequest(BaseModel):
 
 class CongesAbsencesExportRequest(BaseModel):
     """Requête spécifique pour l'export congés/absences"""
+
     period: str = Field(..., pattern=r"^\d{4}-\d{2}$")
     company_id: Optional[str] = None
     employee_ids: Optional[List[str]] = None
-    absence_types: Optional[List[Literal["conge_paye", "rtt", "maladie", "sans_solde"]]] = None
+    absence_types: Optional[
+        List[Literal["conge_paye", "rtt", "maladie", "sans_solde"]]
+    ] = None
     status: Literal["validated"] = "validated"
 
 
 class NotesFraisExportRequest(BaseModel):
     """Requête spécifique pour l'export notes de frais"""
+
     period: str = Field(..., pattern=r"^\d{4}-\d{2}$")
     company_id: Optional[str] = None
     employee_ids: Optional[List[str]] = None
     status: Optional[List[Literal["validated", "paid"]]] = None
-    expense_types: Optional[List[Literal["Transport", "Restaurant", "Hôtel", "Fournitures", "Autre"]]] = None
+    expense_types: Optional[
+        List[Literal["Transport", "Restaurant", "Hôtel", "Fournitures", "Autre"]]
+    ] = None
 
 
 # ============================================================================
@@ -91,6 +104,7 @@ class NotesFraisExportRequest(BaseModel):
 
 class ODExportRequest(BaseModel):
     """Requête pour générer une OD comptable"""
+
     od_type: Literal["od_salaires", "od_charges_sociales", "od_pas", "od_globale"]
     period: str = Field(..., pattern=r"^\d{4}-\d{2}$")
     company_id: Optional[str] = None
@@ -107,6 +121,7 @@ class ODExportRequest(BaseModel):
 
 class DSNPreviewRequest(BaseModel):
     """Requête pour prévisualiser une DSN"""
+
     period: str = Field(..., pattern=r"^\d{4}-\d{2}$")
     company_id: Optional[str] = None
     establishment_id: Optional[str] = None
@@ -116,6 +131,7 @@ class DSNPreviewRequest(BaseModel):
 
 class DSNGenerateRequest(BaseModel):
     """Requête pour générer une DSN"""
+
     period: str = Field(..., pattern=r"^\d{4}-\d{2}$")
     company_id: Optional[str] = None
     establishment_id: Optional[str] = None

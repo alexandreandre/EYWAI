@@ -7,28 +7,34 @@ import requests
 from bs4 import BeautifulSoup
 from typing import Optional, Dict, List
 
-URL_REPAS = "https://www.legisocial.fr/reperes-sociaux/avantage-en-nature-repas-2025.html"
-URL_LOGEMENT = "https://www.legisocial.fr/reperes-sociaux/avantage-en-nature-logement-2025.html"
+URL_REPAS = (
+    "https://www.legisocial.fr/reperes-sociaux/avantage-en-nature-repas-2025.html"
+)
+URL_LOGEMENT = (
+    "https://www.legisocial.fr/reperes-sociaux/avantage-en-nature-logement-2025.html"
+)
 UA = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 )
 
+
 # ---------- helpers ----------
 def _txt(el) -> str:
     return el.get_text(" ", strip=True) if el else ""
+
 
 def parse_number(text: str) -> Optional[float]:
     if not text:
         return None
     cleaned = (
         text.replace("\u202f", "")
-            .replace("\xa0", "")
-            .replace("€", "")
-            .replace(" ", "")
-            .replace(".", "")      # retire séparateurs de milliers type 1.234,56
-            .replace(",", ".")
-            .strip()
+        .replace("\xa0", "")
+        .replace("€", "")
+        .replace(" ", "")
+        .replace(".", "")  # retire séparateurs de milliers type 1.234,56
+        .replace(",", ".")
+        .strip()
     )
     m = re.search(r"(-?\d+(?:\.\d+)?)", cleaned)
     try:
@@ -36,9 +42,12 @@ def parse_number(text: str) -> Optional[float]:
     except Exception:
         return None
 
-def make_payload(repas: Optional[float],
-                 titre_restaurant: Optional[float],
-                 logement_bareme: List[Dict]) -> dict:
+
+def make_payload(
+    repas: Optional[float],
+    titre_restaurant: Optional[float],
+    logement_bareme: List[Dict],
+) -> dict:
     return {
         "id": "avantages_en_nature",
         "type": "param_bundle",
@@ -55,6 +64,7 @@ def make_payload(repas: Optional[float],
             "generator": "scripts/Avantages/Avantages_LegiSocial.py",
         },
     }
+
 
 # ---------- scrapers ----------
 def scrape_repas() -> Dict[str, Optional[float]]:
@@ -87,6 +97,7 @@ def scrape_repas() -> Dict[str, Optional[float]]:
 
     return {"repas": repas_val, "titre": titre_exo}
 
+
 def scrape_logement() -> List[Dict]:
     r = requests.get(URL_LOGEMENT, timeout=25, headers={"User-Agent": UA})
     r.raise_for_status()
@@ -94,9 +105,11 @@ def scrape_logement() -> List[Dict]:
 
     header = None
     for h3 in soup.find_all("h3"):
-        if "méthode de l’évaluation forfaitaire" in _txt(h3).lower() or \
-           "methode de l’evaluation forfaitaire" in _txt(h3).lower() or \
-           "méthode de l'evaluation forfaitaire" in _txt(h3).lower():
+        if (
+            "méthode de l’évaluation forfaitaire" in _txt(h3).lower()
+            or "methode de l’evaluation forfaitaire" in _txt(h3).lower()
+            or "méthode de l'evaluation forfaitaire" in _txt(h3).lower()
+        ):
             header = h3
             break
     if not header:
@@ -122,18 +135,25 @@ def scrape_logement() -> List[Dict]:
         # dernière valeur numérique de la tranche = plafond (sinon inf)
         nums = re.findall(r"(\d[\d\s\u202f\u00a0\.,]*)", tranche_txt)
         rem_max = parse_number(nums[-1]) if nums else None
-        out.append({
-            "remuneration_max_eur": rem_max if rem_max is not None else float("inf"),
-            "valeur_1_piece_eur": parse_number(_txt(v1[i])),
-            "valeur_par_piece_suppl_eur": parse_number(_txt(vpp[i])),
-        })
+        out.append(
+            {
+                "remuneration_max_eur": rem_max
+                if rem_max is not None
+                else float("inf"),
+                "valeur_1_piece_eur": parse_number(_txt(v1[i])),
+                "valeur_par_piece_suppl_eur": parse_number(_txt(vpp[i])),
+            }
+        )
 
     # filtre les lignes incomplètes
     out = [
-        b for b in out
-        if b["valeur_1_piece_eur"] is not None and b["valeur_par_piece_suppl_eur"] is not None
+        b
+        for b in out
+        if b["valeur_1_piece_eur"] is not None
+        and b["valeur_par_piece_suppl_eur"] is not None
     ]
     return out
+
 
 # ---------- main ----------
 if __name__ == "__main__":
@@ -148,10 +168,12 @@ if __name__ == "__main__":
         )
 
         # succès si on a au moins repas ET titre_restaurant ET >=1 tranche logement
-        ok = payload["items"][0]["value"] is not None \
-             and payload["items"][1]["value"] is not None \
-             and isinstance(payload["items"][2]["value"], list) \
-             and len(payload["items"][2]["value"]) > 0
+        ok = (
+            payload["items"][0]["value"] is not None
+            and payload["items"][1]["value"] is not None
+            and isinstance(payload["items"][2]["value"], list)
+            and len(payload["items"][2]["value"]) > 0
+        )
 
         print(json.dumps(payload, ensure_ascii=False))
         sys.exit(0 if ok else 2)

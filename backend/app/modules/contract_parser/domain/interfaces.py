@@ -3,6 +3,7 @@ Ports (interfaces) du domaine contract_parser.
 
 Implémentations dans infrastructure/. Aucune dépendance FastAPI ni détail technique ici.
 """
+
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Tuple
 

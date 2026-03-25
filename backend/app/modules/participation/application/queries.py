@@ -4,6 +4,7 @@ Queries applicatives (read) pour participation.
 Délèguent au ParticipationService. Comportement identique au routeur legacy.
 Le routeur fournira company_id depuis le contexte utilisateur (profiles).
 """
+
 from __future__ import annotations
 
 from typing import List, Optional

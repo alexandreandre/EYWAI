@@ -30,6 +30,7 @@ sys.path.insert(0, str(_here))
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv(_here / ".env")
 except ImportError:
     pass
@@ -83,24 +84,26 @@ def _list_obligations(
     result = []
     for r in rows:
         emp = r.get("employee") or {}
-        result.append({
-            "id": r["id"],
-            "company_id": r["company_id"],
-            "employee_id": r["employee_id"],
-            "visit_type": r["visit_type"],
-            "trigger_type": r["trigger_type"],
-            "due_date": r["due_date"],
-            "priority": r["priority"],
-            "status": r["status"],
-            "justification": r.get("justification"),
-            "planned_date": r.get("planned_date"),
-            "completed_date": r.get("completed_date"),
-            "rule_source": r.get("rule_source") or "legal",
-            "request_motif": r.get("request_motif"),
-            "request_date": r.get("request_date"),
-            "employee_first_name": emp.get("first_name"),
-            "employee_last_name": emp.get("last_name"),
-        })
+        result.append(
+            {
+                "id": r["id"],
+                "company_id": r["company_id"],
+                "employee_id": r["employee_id"],
+                "visit_type": r["visit_type"],
+                "trigger_type": r["trigger_type"],
+                "due_date": r["due_date"],
+                "priority": r["priority"],
+                "status": r["status"],
+                "justification": r.get("justification"),
+                "planned_date": r.get("planned_date"),
+                "completed_date": r.get("completed_date"),
+                "rule_source": r.get("rule_source") or "legal",
+                "request_motif": r.get("request_motif"),
+                "request_date": r.get("request_date"),
+                "employee_first_name": emp.get("first_name"),
+                "employee_last_name": emp.get("last_name"),
+            }
+        )
     return result
 
 
@@ -161,11 +164,19 @@ class MedicalFollowUpTester:
         self._original_completed: Optional[Dict] = None
 
     def log(self, message: str, level: str = "INFO"):
-        prefix = {"INFO": "ℹ️", "SUCCESS": "✅", "ERROR": "❌", "WARNING": "⚠️", "TEST": "🧪"}.get(level, "ℹ️")
+        prefix = {
+            "INFO": "ℹ️",
+            "SUCCESS": "✅",
+            "ERROR": "❌",
+            "WARNING": "⚠️",
+            "TEST": "🧪",
+        }.get(level, "ℹ️")
         print(f"{prefix} {message}")
 
     def add(self, name: str, success: bool, message: str, data: Any = None):
-        self.results.append(TestResult(name=name, success=success, message=message, data=data))
+        self.results.append(
+            TestResult(name=name, success=success, message=message, data=data)
+        )
         self.log(f"{name}: {message}", "SUCCESS" if success else "ERROR")
 
     def setup_context(self) -> bool:
@@ -178,13 +189,23 @@ class MedicalFollowUpTester:
                 return False
             self.company_id = r.data[0]["id"]
 
-            r = supabase.table("employees").select("id").eq("company_id", self.company_id).limit(1).execute()
+            r = (
+                supabase.table("employees")
+                .select("id")
+                .eq("company_id", self.company_id)
+                .limit(1)
+                .execute()
+            )
             if not r.data or len(r.data) == 0:
                 self.add("Setup", False, "Aucun employé pour cette company")
                 return False
             self.employee_id = r.data[0]["id"]
 
-            self.add("Setup", True, f"company={self.company_id[:8]}..., employee={self.employee_id[:8]}...")
+            self.add(
+                "Setup",
+                True,
+                f"company={self.company_id[:8]}..., employee={self.employee_id[:8]}...",
+            )
             return True
         except Exception as e:
             self.add("Setup", False, str(e))
@@ -204,22 +225,38 @@ class MedicalFollowUpTester:
 
         self.log("\n--- Suivi médical : Calcul des obligations (employé) ---", "TEST")
         try:
-            computed = compute_obligations_for_employee(str(self.company_id), str(self.employee_id))
-            self.add("Compute obligations (employé)", True, f"{len(computed)} obligation(s)", computed)
+            computed = compute_obligations_for_employee(
+                str(self.company_id), str(self.employee_id)
+            )
+            self.add(
+                "Compute obligations (employé)",
+                True,
+                f"{len(computed)} obligation(s)",
+                computed,
+            )
         except Exception as e:
             self.add("Compute obligations (employé)", False, str(e))
 
-        self.log("\n--- Suivi médical : Liste des obligations (sans filtre) ---", "TEST")
+        self.log(
+            "\n--- Suivi médical : Liste des obligations (sans filtre) ---", "TEST"
+        )
         try:
             obligations = _list_obligations(self.company_id)
-            self.add("Liste obligations (tous)", True, f"{len(obligations)} obligation(s)", obligations)
+            self.add(
+                "Liste obligations (tous)",
+                True,
+                f"{len(obligations)} obligation(s)",
+                obligations,
+            )
         except Exception as e:
             self.add("Liste obligations (tous)", False, str(e))
             return
 
         self.log("\n--- Suivi médical : Filtres (salarié, type, statut) ---", "TEST")
         try:
-            by_employee = _list_obligations(self.company_id, employee_id=self.employee_id)
+            by_employee = _list_obligations(
+                self.company_id, employee_id=self.employee_id
+            )
             self.add("Filtre par salarié", True, f"{len(by_employee)} obligation(s)")
         except Exception as e:
             self.add("Filtre par salarié", False, str(e))
@@ -230,7 +267,9 @@ class MedicalFollowUpTester:
             self.add("Filtre par type (vip)", False, str(e))
         try:
             by_status = _list_obligations(self.company_id, status="a_faire")
-            self.add("Filtre par statut (à faire)", True, f"{len(by_status)} obligation(s)")
+            self.add(
+                "Filtre par statut (à faire)", True, f"{len(by_status)} obligation(s)"
+            )
         except Exception as e:
             self.add("Filtre par statut (à faire)", False, str(e))
 
@@ -263,21 +302,37 @@ class MedicalFollowUpTester:
             justification = "Test automatique planifiée"
             try:
                 supabase.table("medical_follow_up_obligations").update(
-                    {"status": "planifiee", "planned_date": planned_date, "justification": justification}
+                    {
+                        "status": "planifiee",
+                        "planned_date": planned_date,
+                        "justification": justification,
+                    }
                 ).eq("id", ob["id"]).execute()
                 updated = _list_obligations(self.company_id)
                 found = next((x for x in updated if x["id"] == ob["id"]), None)
-                ok = found and found.get("status") == "planifiee" and found.get("planned_date") == planned_date
-                self.add("Marquer comme planifiée", ok, f"id={ob['id'][:8]}..." if ok else "mise à jour non reflétée")
+                ok = (
+                    found
+                    and found.get("status") == "planifiee"
+                    and found.get("planned_date") == planned_date
+                )
+                self.add(
+                    "Marquer comme planifiée",
+                    ok,
+                    f"id={ob['id'][:8]}..." if ok else "mise à jour non reflétée",
+                )
             except Exception as e:
                 self.add("Marquer comme planifiée", False, str(e))
         else:
-            self.add("Marquer comme planifiée", True, "Aucune obligation à faire, skip (OK)")
+            self.add(
+                "Marquer comme planifiée", True, "Aucune obligation à faire, skip (OK)"
+            )
 
         self.log("\n--- Suivi médical : Marquer comme réalisée ---", "TEST")
         # Utiliser une obligation planifiée ou à faire (éventuellement celle qu’on vient de planifier)
         obls_now = _list_obligations(self.company_id)
-        obls_for_completed = [o for o in obls_now if o.get("status") in ("a_faire", "planifiee")]
+        obls_for_completed = [
+            o for o in obls_now if o.get("status") in ("a_faire", "planifiee")
+        ]
         if obls_for_completed:
             ob = obls_for_completed[0]
             self._obligation_id_completed = ob["id"]
@@ -290,16 +345,32 @@ class MedicalFollowUpTester:
             justification = "Test automatique réalisée"
             try:
                 supabase.table("medical_follow_up_obligations").update(
-                    {"status": "realisee", "completed_date": completed_date, "justification": justification}
+                    {
+                        "status": "realisee",
+                        "completed_date": completed_date,
+                        "justification": justification,
+                    }
                 ).eq("id", ob["id"]).execute()
                 updated = _list_obligations(self.company_id)
                 found = next((x for x in updated if x["id"] == ob["id"]), None)
-                ok = found and found.get("status") == "realisee" and found.get("completed_date") == completed_date
-                self.add("Marquer comme réalisée", ok, f"id={ob['id'][:8]}..." if ok else "mise à jour non reflétée")
+                ok = (
+                    found
+                    and found.get("status") == "realisee"
+                    and found.get("completed_date") == completed_date
+                )
+                self.add(
+                    "Marquer comme réalisée",
+                    ok,
+                    f"id={ob['id'][:8]}..." if ok else "mise à jour non reflétée",
+                )
             except Exception as e:
                 self.add("Marquer comme réalisée", False, str(e))
         else:
-            self.add("Marquer comme réalisée", True, "Aucune obligation à planifier/réaliser, skip (OK)")
+            self.add(
+                "Marquer comme réalisée",
+                True,
+                "Aucune obligation à planifier/réaliser, skip (OK)",
+            )
 
         self.log("\n--- Suivi médical : Créer visite à la demande ---", "TEST")
         request_date = date.today().isoformat()
@@ -334,8 +405,17 @@ class MedicalFollowUpTester:
         self.log("\n--- Suivi médical : Liste après créations ---", "TEST")
         try:
             after = _list_obligations(self.company_id)
-            on_demand = [o for o in after if o.get("visit_type") == "demande" and o.get("request_motif") == request_motif]
-            self.add("Liste après création à la demande", len(on_demand) >= 1, f"{len(on_demand)} visite(s) à la demande trouvée(s)")
+            on_demand = [
+                o
+                for o in after
+                if o.get("visit_type") == "demande"
+                and o.get("request_motif") == request_motif
+            ]
+            self.add(
+                "Liste après création à la demande",
+                len(on_demand) >= 1,
+                f"{len(on_demand)} visite(s) à la demande trouvée(s)",
+            )
         except Exception as e:
             self.add("Liste après création à la demande", False, str(e))
 
@@ -343,18 +423,37 @@ class MedicalFollowUpTester:
         try:
             obligations_export = _list_obligations(self.company_id)
             headers = [
-                "Salarié", "Type de visite", "Déclencheur", "Date limite", "Priorité",
-                "Statut", "Justification", "Date planifiée", "Date réalisée",
+                "Salarié",
+                "Type de visite",
+                "Déclencheur",
+                "Date limite",
+                "Priorité",
+                "Statut",
+                "Justification",
+                "Date planifiée",
+                "Date réalisée",
             ]
             rows = []
             for o in obligations_export:
                 name = f"{o.get('employee_first_name') or ''} {o.get('employee_last_name') or ''}".strip()
-                rows.append([
-                    name, o.get("visit_type"), o.get("trigger_type"), o.get("due_date"),
-                    str(o.get("priority")), o.get("status"), o.get("justification") or "",
-                    o.get("planned_date") or "", o.get("completed_date") or "",
-                ])
-            self.add("Export CSV (structure)", len(headers) == 9 and (len(rows) >= 0), f"{len(rows)} ligne(s)")
+                rows.append(
+                    [
+                        name,
+                        o.get("visit_type"),
+                        o.get("trigger_type"),
+                        o.get("due_date"),
+                        str(o.get("priority")),
+                        o.get("status"),
+                        o.get("justification") or "",
+                        o.get("planned_date") or "",
+                        o.get("completed_date") or "",
+                    ]
+                )
+            self.add(
+                "Export CSV (structure)",
+                len(headers) == 9 and (len(rows) >= 0),
+                f"{len(rows)} ligne(s)",
+            )
         except Exception as e:
             self.add("Export CSV (structure)", False, str(e))
 
@@ -365,7 +464,10 @@ class MedicalFollowUpTester:
         self.log("\n--- Nettoyage ---", "TEST")
 
         # Si la même obligation a été planifiée puis réalisée, on ne restaure qu'une fois (état initial)
-        if self._obligation_id_planified == self._obligation_id_completed and self._original_planified:
+        if (
+            self._obligation_id_planified == self._obligation_id_completed
+            and self._original_planified
+        ):
             try:
                 payload = {
                     "status": self._original_planified["status"],
@@ -373,11 +475,19 @@ class MedicalFollowUpTester:
                     "justification": self._original_planified["justification"],
                 }
                 if self._original_planified.get("status") == "realisee":
-                    payload["completed_date"] = self._original_planified.get("completed_date")
+                    payload["completed_date"] = self._original_planified.get(
+                        "completed_date"
+                    )
                 else:
                     payload["completed_date"] = None
-                supabase.table("medical_follow_up_obligations").update(payload).eq("id", self._obligation_id_planified).execute()
-                self.add("Restauration obligation (planifiée+réalisée)", True, self._obligation_id_planified[:8])
+                supabase.table("medical_follow_up_obligations").update(payload).eq(
+                    "id", self._obligation_id_planified
+                ).execute()
+                self.add(
+                    "Restauration obligation (planifiée+réalisée)",
+                    True,
+                    self._obligation_id_planified[:8],
+                )
             except Exception as e:
                 self.add("Restauration obligation (planifiée+réalisée)", False, str(e))
         else:
@@ -387,11 +497,17 @@ class MedicalFollowUpTester:
                     supabase.table("medical_follow_up_obligations").update(
                         {
                             "status": self._original_completed["status"],
-                            "completed_date": self._original_completed["completed_date"],
+                            "completed_date": self._original_completed[
+                                "completed_date"
+                            ],
                             "justification": self._original_completed["justification"],
                         }
                     ).eq("id", self._obligation_id_completed).execute()
-                    self.add("Restauration obligation réalisée", True, self._obligation_id_completed[:8])
+                    self.add(
+                        "Restauration obligation réalisée",
+                        True,
+                        self._obligation_id_completed[:8],
+                    )
                 except Exception as e:
                     self.add("Restauration obligation réalisée", False, str(e))
             if self._obligation_id_planified and self._original_planified:
@@ -403,14 +519,20 @@ class MedicalFollowUpTester:
                             "justification": self._original_planified["justification"],
                         }
                     ).eq("id", self._obligation_id_planified).execute()
-                    self.add("Restauration obligation planifiée", True, self._obligation_id_planified[:8])
+                    self.add(
+                        "Restauration obligation planifiée",
+                        True,
+                        self._obligation_id_planified[:8],
+                    )
                 except Exception as e:
                     self.add("Restauration obligation planifiée", False, str(e))
 
         # Supprimer les visites à la demande créées par le test
         for oid in self.created_obligation_ids:
             try:
-                supabase.table("medical_follow_up_obligations").delete().eq("id", oid).execute()
+                supabase.table("medical_follow_up_obligations").delete().eq(
+                    "id", oid
+                ).execute()
                 self.add("Suppression visite à la demande créée", True, oid[:8])
             except Exception as e:
                 self.add("Suppression visite à la demande créée", False, str(e))

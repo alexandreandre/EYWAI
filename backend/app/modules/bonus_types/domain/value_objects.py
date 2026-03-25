@@ -3,6 +3,7 @@ Value objects pour le module bonus_types.
 
 Résultat pur du calcul de montant (sans dépendance HTTP/API).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

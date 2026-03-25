@@ -3,6 +3,7 @@ DTOs applicatifs pour rib_alerts.
 
 Structures pour liste paginée et filtres ; alignées sur l’API et le router legacy.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -3,6 +3,7 @@
 Requêtes (lectures) recruitment — délégation au service applicatif.
 Comportement identique au legacy. Les routers appellent ces requêtes.
 """
+
 from typing import Any, Optional
 
 from . import service as svc
@@ -13,9 +14,7 @@ def get_recruitment_settings(company_id: str) -> dict[str, Any]:
     return {"enabled": svc.get_recruitment_setting(company_id)}
 
 
-def list_jobs(
-    company_id: str, status: Optional[str] = None
-) -> list[dict[str, Any]]:
+def list_jobs(company_id: str, status: Optional[str] = None) -> list[dict[str, Any]]:
     """Liste des postes avec candidate_count. Liste de dicts compatibles JobOut."""
     return svc.service_list_jobs(company_id, status)
 
@@ -42,9 +41,7 @@ def list_candidates(
     )
 
 
-def get_candidate(
-    company_id: str, candidate_id: str
-) -> Optional[dict[str, Any]]:
+def get_candidate(company_id: str, candidate_id: str) -> Optional[dict[str, Any]]:
     """Détail d'un candidat. Dict compatible CandidateOut ou None si non trouvé."""
     return svc.service_get_candidate(company_id, candidate_id)
 

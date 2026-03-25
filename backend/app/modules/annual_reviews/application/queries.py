@@ -4,6 +4,7 @@ Queries applicatives annual_reviews.
 Orchestration : repository (infrastructure) + règles métier (domain) + mappers.
 Comportement strictement identique au legacy.
 """
+
 from typing import List, Optional
 
 from app.modules.annual_reviews.domain.interfaces import IAnnualReviewRepository
@@ -12,7 +13,10 @@ from app.modules.annual_reviews.infrastructure.mappers import (
     row_to_annual_review_read,
     row_to_list_item,
 )
-from app.modules.annual_reviews.schemas.responses import AnnualReviewListItem, AnnualReviewRead
+from app.modules.annual_reviews.schemas.responses import (
+    AnnualReviewListItem,
+    AnnualReviewRead,
+)
 
 
 def list_all_annual_reviews(

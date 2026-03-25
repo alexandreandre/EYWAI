@@ -4,6 +4,7 @@ Router API du module expenses.
 Appelle uniquement la couche application (ExpenseApplicationService).
 Aucune logique métier ni accès DB/storage ici. Comportement HTTP identique au legacy.
 """
+
 import traceback
 from typing import Annotated, List
 
@@ -44,9 +45,7 @@ async def get_upload_url(
         return _expense_service.get_signed_upload_url(current_user.id, filename)
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"Erreur de stockage Supabase: {e}"
-        )
+        raise HTTPException(status_code=500, detail=f"Erreur de stockage Supabase: {e}")
 
 
 @router.post("/", response_model=Expense, status_code=201)
@@ -103,14 +102,10 @@ async def update_expense_status(
     """(Pour les RH) Valide ou rejette une note de frais."""
     try:
         result = _expense_service.update_expense_status(
-            UpdateExpenseStatusInput(
-                expense_id=expense_id, status=status_update.status
-            )
+            UpdateExpenseStatusInput(expense_id=expense_id, status=status_update.status)
         )
         if result is None:
-            raise HTTPException(
-                status_code=404, detail="Note de frais non trouvée."
-            )
+            raise HTTPException(status_code=404, detail="Note de frais non trouvée.")
         return result
     except HTTPException:
         raise

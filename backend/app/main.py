@@ -1,6 +1,7 @@
 """
 Point d'entrée de l'application cible (modular monolith).
 """
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -45,6 +46,7 @@ app.add_middleware(
 # Routes
 # ---------------------------------------------------------------------------
 app.include_router(api_router)
+
 
 @app.get("/health")
 def healthcheck():

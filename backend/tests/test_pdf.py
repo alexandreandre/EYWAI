@@ -17,7 +17,7 @@ try:
         last_name="User",
         username="test.user",
         password="TestPass123!",
-        logo_path=str(logo_path)
+        logo_path=str(logo_path),
     )
 
     print(f"✅ PDF généré avec succès! Taille: {len(pdf_content)} bytes")
@@ -30,4 +30,5 @@ try:
 except Exception as e:
     print(f"❌ Erreur lors de la génération du PDF: {e}")
     import traceback
+
     traceback.print_exc()

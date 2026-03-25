@@ -4,6 +4,7 @@ Smoke tests par module : un appel HTTP minimal par module exposé dans app.api.r
 Vérifient que chaque module répond sans 500 (accepter 200, 401, 403, 404, 422 selon le cas).
 Utilise client et auth_headers depuis conftest.
 """
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -42,9 +43,13 @@ def test_smoke_employees_list(client: TestClient, auth_headers: dict):
     _assert_not_500(response, "employees")
 
 
-def test_smoke_access_control_permission_categories(client: TestClient, auth_headers: dict):
+def test_smoke_access_control_permission_categories(
+    client: TestClient, auth_headers: dict
+):
     """GET /api/access-control/permission-categories."""
-    response = client.get("/api/access-control/permission-categories", headers=auth_headers)
+    response = client.get(
+        "/api/access-control/permission-categories", headers=auth_headers
+    )
     _assert_not_500(response, "access_control")
 
 

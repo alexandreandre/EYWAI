@@ -4,6 +4,7 @@ Commandes (use cases en écriture) du module payslips.
 Logique applicative : décision forfait jour vs heures, délégation aux providers
 (services legacy). Les routers n'appellent que ces commandes.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -54,6 +55,7 @@ def delete_payslip(payslip_id: str) -> None:
     Délègue au repository (wrapper legacy ou implémentation future).
     """
     from app.modules.payslips.infrastructure.repository import payslip_repository
+
     payslip_repository.delete(payslip_id)
 
 

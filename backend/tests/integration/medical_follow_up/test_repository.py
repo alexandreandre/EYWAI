@@ -6,11 +6,14 @@ et retourne les données attendues. Les requêtes DB sont mockées (pas de DB r�
 Pour des tests contre une DB de test, prévoir db_session et données dans
 medical_follow_up_obligations, employees, companies.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.modules.medical_follow_up.infrastructure.repository import MedicalObligationRepository
+from app.modules.medical_follow_up.infrastructure.repository import (
+    MedicalObligationRepository,
+)
 
 
 pytestmark = pytest.mark.integration
@@ -85,13 +88,19 @@ class TestMedicalObligationRepositoryListForCompany:
 class TestMedicalObligationRepositoryGetKpis:
     """get_kpis."""
 
-    def test_calls_get_obligations_rows_and_compute_kpis(self, repo: MedicalObligationRepository):
+    def test_calls_get_obligations_rows_and_compute_kpis(
+        self, repo: MedicalObligationRepository
+    ):
         """Délègue à get_obligations_rows_for_kpis puis compute_kpis_from_rows."""
         with patch(
             "app.modules.medical_follow_up.infrastructure.repository.infra_queries.get_obligations_rows_for_kpis",
             return_value=[
                 {"due_date": "2025-03-01", "status": "a_faire", "completed_date": None},
-                {"due_date": "2025-04-01", "status": "realisee", "completed_date": "2025-03-10"},
+                {
+                    "due_date": "2025-04-01",
+                    "status": "realisee",
+                    "completed_date": "2025-03-10",
+                },
             ],
         ) as mock_get_rows:
             result = repo.get_kpis("co-1")
@@ -158,7 +167,9 @@ class TestMedicalObligationRepositoryObligationExists:
 class TestMedicalObligationRepositoryCreateOnDemand:
     """create_on_demand."""
 
-    def test_calls_insert_obligation_with_payload(self, repo: MedicalObligationRepository):
+    def test_calls_insert_obligation_with_payload(
+        self, repo: MedicalObligationRepository
+    ):
         """Délègue à insert_obligation avec le payload attendu (visit_type=demande, etc.)."""
         with patch(
             "app.modules.medical_follow_up.infrastructure.repository.infra_queries.insert_obligation",
@@ -181,7 +192,9 @@ class TestMedicalObligationRepositoryCreateOnDemand:
 class TestMedicalObligationRepositoryListForEmployee:
     """list_for_employee."""
 
-    def test_calls_list_obligations_raw_with_employee_join(self, repo: MedicalObligationRepository):
+    def test_calls_list_obligations_raw_with_employee_join(
+        self, repo: MedicalObligationRepository
+    ):
         """Délègue à list_obligations_raw avec employee_id et with_employee_join=True."""
         with patch(
             "app.modules.medical_follow_up.infrastructure.repository.infra_queries.list_obligations_raw",

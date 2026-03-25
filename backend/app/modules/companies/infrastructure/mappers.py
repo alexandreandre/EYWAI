@@ -3,6 +3,7 @@ Mappers DB <-> domain / DTOs.
 
 row companies -> Company ; raw settings -> CompanySettingsResultDto.
 """
+
 from typing import Any, Dict
 
 from app.modules.companies.domain.entities import Company

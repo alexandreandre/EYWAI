@@ -14,10 +14,12 @@ NBSP = "\xa0"
 NNBSP = "\u202f"
 THIN = "\u2009"
 
+
 # -------- Helpers --------
 def iso_now() -> str:
     """Retourne la date et l'heure actuelles au format ISO 8601 UTC."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
 
 def _clean_amount(txt: str) -> float:
     s = txt.strip().replace(NBSP, "").replace(NNBSP, "").replace(THIN, "")
@@ -25,11 +27,19 @@ def _clean_amount(txt: str) -> float:
     m = re.search(r"(\d+(?:\.\d+)?)", s)
     return float(m.group(1)) if m else 0.0
 
+
 def _clean_percent(txt: str) -> float:
-    s = txt.strip().replace(NBSP, "").replace(NNBSP, "").replace(THIN, "").replace(" ", "")
+    s = (
+        txt.strip()
+        .replace(NBSP, "")
+        .replace(NNBSP, "")
+        .replace(THIN, "")
+        .replace(" ", "")
+    )
     s = s.replace("%", "").replace(",", ".")
     m = re.search(r"(\d+(?:\.\d+)?)", s)
     return round(float(m.group(1)) / 100.0, 5) if m else 0.0
+
 
 def _upper_bound_from_label(label: str) -> float | None:
     low = label.lower()
@@ -42,8 +52,9 @@ def _upper_bound_from_label(label: str) -> float | None:
     if "supérieure ou égale" in low and "inférieure à" in low and len(nums) >= 2:
         return _clean_amount(nums[1])
     if "supérieure ou égale" in low and "inférieure à" not in low:
-        return None # C'est la dernière tranche, sans plafond supérieur
+        return None  # C'est la dernière tranche, sans plafond supérieur
     return _clean_amount(nums[-1])
+
 
 def _extract_tranches_from_table(table: BeautifulSoup) -> list[dict]:
     tranches = []
@@ -60,10 +71,15 @@ def _extract_tranches_from_table(table: BeautifulSoup) -> list[dict]:
         tranches.append({"plafond": plafond, "taux": taux})
     return tranches
 
+
 # -------- Scraper --------
 def scrape_bofip(url: str = URL_BOFIP) -> dict:
     print(f"Scraping de l'URL du BOFIP : {url}", file=sys.stderr)
-    r = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0", "Accept-Language": "fr,en;q=0.8"})
+    r = requests.get(
+        url,
+        timeout=30,
+        headers={"User-Agent": "Mozilla/5.0", "Accept-Language": "fr,en;q=0.8"},
+    )
     r.raise_for_status()
     soup = BeautifulSoup(r.text, "lxml")
 
@@ -74,10 +90,16 @@ def scrape_bofip(url: str = URL_BOFIP) -> dict:
     }
 
     for tbl in soup.find_all("table"):
-        caption = (tbl.find("caption").get_text(" ", strip=True).lower() if tbl.find("caption") else "")
+        caption = (
+            tbl.find("caption").get_text(" ", strip=True).lower()
+            if tbl.find("caption")
+            else ""
+        )
         if any(k in caption for k in ["métropole", "metropole", "hors de france"]):
             zones["metropole"] = _extract_tranches_from_table(tbl)
-        elif any(k in caption for k in ["guadeloupe", "réunion", "reunion", "martinique"]):
+        elif any(
+            k in caption for k in ["guadeloupe", "réunion", "reunion", "martinique"]
+        ):
             zones["guadeloupe_reunion_martinique"] = _extract_tranches_from_table(tbl)
         elif any(k in caption for k in ["guyane", "mayotte"]):
             zones["guyane_mayotte"] = _extract_tranches_from_table(tbl)
@@ -85,7 +107,9 @@ def scrape_bofip(url: str = URL_BOFIP) -> dict:
     if not zones["metropole"]:
         raise ValueError("Table pour la métropole non trouvée ou vide.")
     if not zones["guadeloupe_reunion_martinique"]:
-        raise ValueError("Table pour Guadeloupe/Réunion/Martinique non trouvée ou vide.")
+        raise ValueError(
+            "Table pour Guadeloupe/Réunion/Martinique non trouvée ou vide."
+        )
     if not zones["guyane_mayotte"]:
         raise ValueError("Table pour Guyane/Mayotte non trouvée ou vide.")
 
@@ -93,9 +117,10 @@ def scrape_bofip(url: str = URL_BOFIP) -> dict:
         f"  - Données extraites : {len(zones['metropole'])} tranches (métropole), "
         f"{len(zones['guadeloupe_reunion_martinique'])} (GRM), "
         f"{len(zones['guyane_mayotte'])} (GM).",
-        file=sys.stderr
+        file=sys.stderr,
     )
     return zones
+
 
 # -------- Main --------
 def main():
@@ -103,7 +128,10 @@ def main():
     try:
         zones_data = scrape_bofip()
     except Exception as e:
-        print(f"ERREUR CRITIQUE: Le scraping du PAS a échoué. Raison : {e}", file=sys.stderr)
+        print(
+            f"ERREUR CRITIQUE: Le scraping du PAS a échoué. Raison : {e}",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     payload = {
@@ -112,15 +140,17 @@ def main():
         "libelle": "Prélèvement à la Source (PAS) - Grille de taux par défaut",
         "sections": zones_data,
         "meta": {
-            "source": [{
-                "url": URL_BOFIP,
-                "label": "BOFIP - Barème du prélèvement à la source",
-                "date_doc": ""
-            }],
+            "source": [
+                {
+                    "url": URL_BOFIP,
+                    "label": "BOFIP - Barème du prélèvement à la source",
+                    "date_doc": "",
+                }
+            ],
             "scraped_at": iso_now(),
             "generator": "scripts/PAS/PAS.py",
-            "method": "primary"
-        }
+            "method": "primary",
+        },
     }
 
     # Impression du JSON final sur la sortie standard

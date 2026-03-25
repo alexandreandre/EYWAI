@@ -3,6 +3,7 @@ Ports (interfaces) pour le module repos_compensateur.
 
 L’infrastructure implémente ces interfaces ; l’application ne dépend que des abstractions.
 """
+
 from __future__ import annotations
 
 from typing import Any, Protocol

@@ -3,6 +3,7 @@ Mappers : données brutes (DB / domain) -> schémas de réponse dashboard.
 
 Aucune logique métier pure : uniquement conversion de forme.
 """
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -62,7 +63,9 @@ def to_team_pulse_events(events_raw: List[Dict[str, Any]]) -> List[TeamPulseEven
     return out
 
 
-def aggregate_payslip_costs_and_net(payslips: List[dict]) -> tuple[Dict[int, float], Dict[int, float]]:
+def aggregate_payslip_costs_and_net(
+    payslips: List[dict],
+) -> tuple[Dict[int, float], Dict[int, float]]:
     """
     Agrège payslip_data (pied_de_page.cout_total_employeur, net_a_payer) par month.
     Retourne (costs_by_month, net_by_month).

@@ -4,14 +4,23 @@ Cas d'usage en lecture du module residence_permits.
 Logique applicative déplacée depuis api/routers/residence_permits (liste titres de séjour).
 Pas d'accès DB direct : list reader + calculator + enrichissement + mapping vers schéma réponse.
 """
+
 from __future__ import annotations
 
 from typing import List
 
-from app.modules.residence_permits.application.service import enrich_row_with_residence_permit_status
-from app.modules.residence_permits.infrastructure.mappers import enriched_row_to_list_item
-from app.modules.residence_permits.infrastructure.providers import get_residence_permit_status_calculator
-from app.modules.residence_permits.infrastructure.repository import ResidencePermitListRepository
+from app.modules.residence_permits.application.service import (
+    enrich_row_with_residence_permit_status,
+)
+from app.modules.residence_permits.infrastructure.mappers import (
+    enriched_row_to_list_item,
+)
+from app.modules.residence_permits.infrastructure.providers import (
+    get_residence_permit_status_calculator,
+)
+from app.modules.residence_permits.infrastructure.repository import (
+    ResidencePermitListRepository,
+)
 from app.modules.residence_permits.schemas.responses import ResidencePermitListItem
 
 _repo = ResidencePermitListRepository()

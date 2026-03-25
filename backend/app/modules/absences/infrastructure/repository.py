@@ -3,6 +3,7 @@ Repository absences — implémentation IAbsenceRepository.
 
 Accès table absence_requests via Supabase. Comportement identique à l'ancien routeur.
 """
+
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
@@ -29,9 +30,7 @@ class SupabaseAbsenceRepository(IAbsenceRepository):
         )
         return r.data if r.data else None
 
-    def update(
-        self, request_id: str, data: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+    def update(self, request_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         update_resp = (
             supabase.table("absence_requests")
             .update(data)

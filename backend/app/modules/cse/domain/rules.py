@@ -2,6 +2,7 @@
 """
 Règles métier CSE pures — sans I/O, sans FastAPI.
 """
+
 from datetime import date
 from typing import Literal, Optional
 
@@ -12,7 +13,9 @@ def validate_mandate_dates(start_date: date, end_date: date) -> None:
         raise ValueError("La date de fin doit être après la date de début")
 
 
-def election_alert_level(days_remaining: int) -> Optional[Literal["info", "warning", "critical"]]:
+def election_alert_level(
+    days_remaining: int,
+) -> Optional[Literal["info", "warning", "critical"]]:
     """
     Niveau d'alerte électorale selon les jours restants avant fin de mandat.
     Comportement identique au calcul actuel (J-180, J-90, J-30).

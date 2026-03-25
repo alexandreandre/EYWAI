@@ -3,6 +3,7 @@ Tests unitaires du domaine companies : entités, value objects, règles pures (K
 
 Sans DB, sans HTTP. Couvre Company, CompanySettings et compute_company_kpis.
 """
+
 from datetime import date, timedelta
 
 
@@ -61,7 +62,12 @@ class TestCompanySettingsValueObject:
     def test_medical_follow_up_enabled_false(self):
         """medical_follow_up_enabled False quand clé absente ou False."""
         assert CompanySettings(raw={}).medical_follow_up_enabled is False
-        assert CompanySettings(raw={"medical_follow_up_enabled": False}).medical_follow_up_enabled is False
+        assert (
+            CompanySettings(
+                raw={"medical_follow_up_enabled": False}
+            ).medical_follow_up_enabled
+            is False
+        )
 
     def test_medical_follow_up_enabled_truthy_value(self):
         """Valeur truthy (ex. 1) est considérée comme True."""
@@ -236,8 +242,16 @@ class TestComputeCompanyKpis:
     def test_payslip_without_month_year_ignored(self):
         """Bulletins sans month/year valides ne sont pas agrégés."""
         payslips = [
-            {"month": None, "year": 2024, "payslip_data": {"remuneration": {"brut": 9999}}},
-            {"month": 1, "year": None, "payslip_data": {"remuneration": {"brut": 9999}}},
+            {
+                "month": None,
+                "year": 2024,
+                "payslip_data": {"remuneration": {"brut": 9999}},
+            },
+            {
+                "month": 1,
+                "year": None,
+                "payslip_data": {"remuneration": {"brut": 9999}},
+            },
         ]
         kpis = compute_company_kpis([], payslips)
         assert kpis["last_month_gross_salary"] == 0

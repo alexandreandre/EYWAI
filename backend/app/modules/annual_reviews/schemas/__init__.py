@@ -1,4 +1,5 @@
 """Schémas du module annual_reviews (requêtes et réponses)."""
+
 from .requests import (
     AnnualReviewBase,
     AnnualReviewCreate,

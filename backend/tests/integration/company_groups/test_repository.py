@@ -5,6 +5,7 @@ Sans DB de test : mocks Supabase pour valider la logique et les appels.
 Avec DB de test : prévoir la fixture db_session (conftest) et des données
 dans company_groups, companies (group_id), user_company_accesses pour des tests CRUD réels.
 """
+
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
@@ -47,13 +48,15 @@ class TestCompanyGroupRepositoryCreate:
             supabase.table.return_value = table
 
             repo = CompanyGroupRepository()
-            result = repo.create({
-                "group_name": "Nouveau Groupe",
-                "siren": "123456789",
-                "description": None,
-                "logo_url": None,
-                "is_active": True,
-            })
+            result = repo.create(
+                {
+                    "group_name": "Nouveau Groupe",
+                    "siren": "123456789",
+                    "description": None,
+                    "logo_url": None,
+                    "is_active": True,
+                }
+            )
 
             table.insert.assert_called_once()
             call_data = table.insert.call_args[0][0]
@@ -126,7 +129,9 @@ class TestCompanyGroupRepositoryExists:
         ) as supabase:
             table = MagicMock()
             chain = MagicMock()
-            chain.eq.return_value.execute.return_value = MagicMock(data=[{"id": TEST_GROUP_ID}])
+            chain.eq.return_value.execute.return_value = MagicMock(
+                data=[{"id": TEST_GROUP_ID}]
+            )
             table.select.return_value = chain
             supabase.table.return_value = table
 
@@ -158,7 +163,9 @@ class TestCompanyGroupRepositorySetCompanyGroup:
         ) as supabase:
             table = MagicMock()
             chain = MagicMock()
-            chain.eq.return_value.execute.return_value = MagicMock(data=[{"id": TEST_COMPANY_ID}])
+            chain.eq.return_value.execute.return_value = MagicMock(
+                data=[{"id": TEST_COMPANY_ID}]
+            )
             table.update.return_value = chain
             supabase.table.return_value = table
 
@@ -290,8 +297,18 @@ class TestRepositoryGetGroupsWithCompanyAndEffectif:
             ]
             repo = CompanyGroupRepository()
             groups = [
-                {"id": "g1", "group_name": "G1", "description": None, "created_at": None},
-                {"id": "g2", "group_name": "G2", "description": None, "created_at": None},
+                {
+                    "id": "g1",
+                    "group_name": "G1",
+                    "description": None,
+                    "created_at": None,
+                },
+                {
+                    "id": "g2",
+                    "group_name": "G2",
+                    "description": None,
+                    "created_at": None,
+                },
             ]
             result = repo.get_groups_with_company_and_effectif(groups)
 

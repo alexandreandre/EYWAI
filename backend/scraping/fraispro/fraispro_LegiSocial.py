@@ -85,7 +85,9 @@ def scrape_repas_legisocial(soup: BeautifulSoup) -> Dict[str, float]:
     return data
 
 
-def _collect_amounts_by_marker(soup: BeautifulSoup, marker: str, limit: int) -> List[float]:
+def _collect_amounts_by_marker(
+    soup: BeautifulSoup, marker: str, limit: int
+) -> List[float]:
     """
     Trouve 'limit' montants en balayant toutes les tables et lignes contenant le marqueur.
     Renvoie les montants dans l'ordre d'apparition.
@@ -100,7 +102,9 @@ def _collect_amounts_by_marker(soup: BeautifulSoup, marker: str, limit: int) -> 
                 tds = tr.find_all("td")
                 if not tds:
                     continue
-                nums = [parse_valeur_numerique(td.get_text(" ", strip=True)) for td in tds]
+                nums = [
+                    parse_valeur_numerique(td.get_text(" ", strip=True)) for td in tds
+                ]
                 nums = [x for x in nums if x > 0]
                 if nums:
                     vals.append(nums[-1])
@@ -116,11 +120,17 @@ def scrape_grand_deplacement_legisocial(soup: BeautifulSoup) -> Dict[str, Any]:
     On ne dépend pas d'un H2/Tableau unique.
     """
     data: Dict[str, Any] = {"metropole": []}
-    periods = ["Pour les 3 premiers mois", "Au-delà du 3 ème mois", "Au-delà du 24 ème mois"]
+    periods = [
+        "Pour les 3 premiers mois",
+        "Au-delà du 3 ème mois",
+        "Au-delà du 24 ème mois",
+    ]
 
     repas_vals = _collect_amounts_by_marker(soup, "par repas", 3)
     paris_vals = _collect_amounts_by_marker(
-        soup, "paris et les departements des haut-de-seine, seine-saint-denis et val-de-marne", 3
+        soup,
+        "paris et les departements des haut-de-seine, seine-saint-denis et val-de-marne",
+        3,
     )
     province_vals = _collect_amounts_by_marker(soup, "autres departements", 3)
 
@@ -152,14 +162,27 @@ def scrape_mutation_legisocial(soup: BeautifulSoup) -> Dict[str, Any]:
             val_cell = tds[1]
             valtxt = val_cell.get_text(" ", strip=True)
 
-            if "hebergement provisoire" in lib and "montant_par_jour" not in out["hebergement_provisoire"]:
-                out["hebergement_provisoire"]["montant_par_jour"] = parse_valeur_numerique(valtxt)
+            if (
+                "hebergement provisoire" in lib
+                and "montant_par_jour" not in out["hebergement_provisoire"]
+            ):
+                out["hebergement_provisoire"]["montant_par_jour"] = (
+                    parse_valeur_numerique(valtxt)
+                )
 
-            elif "installation dans le nouveau logement" in lib and "frais_installation" not in out["hebergement_definitif"]:
-                out["hebergement_definitif"]["frais_installation"] = parse_valeur_numerique(valtxt)
+            elif (
+                "installation dans le nouveau logement" in lib
+                and "frais_installation" not in out["hebergement_definitif"]
+            ):
+                out["hebergement_definitif"]["frais_installation"] = (
+                    parse_valeur_numerique(valtxt)
+                )
 
             elif "majore de par enfant" in lib:
-                vals = [parse_valeur_numerique(p.get_text(" ", strip=True)) for p in val_cell.find_all(["p", "span"])]
+                vals = [
+                    parse_valeur_numerique(p.get_text(" ", strip=True))
+                    for p in val_cell.find_all(["p", "span"])
+                ]
                 vals = [v for v in vals if v > 0]
                 if len(vals) >= 2:
                     out["hebergement_definitif"]["majoration_par_enfant"] = vals[0]
@@ -167,7 +190,10 @@ def scrape_mutation_legisocial(soup: BeautifulSoup) -> Dict[str, Any]:
                 else:
                     # fallback si un seul nombre visible
                     v = parse_valeur_numerique(valtxt)
-                    if v and "majoration_par_enfant" not in out["hebergement_definitif"]:
+                    if (
+                        v
+                        and "majoration_par_enfant" not in out["hebergement_definitif"]
+                    ):
                         out["hebergement_definitif"]["majoration_par_enfant"] = v
 
     return out
@@ -218,7 +244,10 @@ if __name__ == "__main__":
             "petit_deplacement": [],  # non présent sur cette page
             "grand_deplacement": grand_deplacement_data,
             "mutation_professionnelle": mutation_data,
-            "mobilite_durable": {"employeurs_prives": {}, "employeurs_publics": []},  # non présent
+            "mobilite_durable": {
+                "employeurs_prives": {},
+                "employeurs_publics": [],
+            },  # non présent
             "teletravail": {
                 "indemnite_sans_accord": {},
                 "indemnite_avec_accord": {},
@@ -234,8 +263,15 @@ if __name__ == "__main__":
             "repas": {},
             "petit_deplacement": [],
             "grand_deplacement": {"metropole": []},
-            "mutation_professionnelle": {"hebergement_provisoire": {}, "hebergement_definitif": {}},
+            "mutation_professionnelle": {
+                "hebergement_provisoire": {},
+                "hebergement_definitif": {},
+            },
             "mobilite_durable": {"employeurs_prives": {}, "employeurs_publics": []},
-            "teletravail": {"indemnite_sans_accord": {}, "indemnite_avec_accord": {}, "materiel_informatique_perso": {}},
+            "teletravail": {
+                "indemnite_sans_accord": {},
+                "indemnite_avec_accord": {},
+                "materiel_informatique_perso": {},
+            },
         }
         print(json.dumps(build_payload(empty_sections), ensure_ascii=False))

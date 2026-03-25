@@ -4,6 +4,7 @@ Schémas de requête API pour mutuelle_types.
 Alignés sur le legacy schemas.mutuelle_type (MutuelleTypeCreate, MutuelleTypeUpdate).
 Comportement identique à conserver lors de la migration.
 """
+
 from __future__ import annotations
 
 from typing import List

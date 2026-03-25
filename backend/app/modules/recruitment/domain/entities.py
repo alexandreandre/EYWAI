@@ -3,6 +3,7 @@
 Entités du domaine recruitment — placeholders.
 À enrichir lors de la migration (Job, Candidate, PipelineStage, Interview, Note, Opinion, TimelineEvent).
 """
+
 from dataclasses import dataclass
 from typing import Optional
 
@@ -10,6 +11,7 @@ from typing import Optional
 @dataclass
 class Job:
     """Offre / poste à pourvoir."""
+
     id: str
     company_id: str
     title: str
@@ -26,6 +28,7 @@ class Job:
 @dataclass
 class Candidate:
     """Candidat à un poste."""
+
     id: str
     company_id: str
     job_id: str
@@ -46,6 +49,7 @@ class Candidate:
 @dataclass
 class PipelineStage:
     """Étape du pipeline (ex. Premier appel, Entretien RH, Refusé, Recruté)."""
+
     id: str
     job_id: str
     company_id: str
@@ -58,6 +62,7 @@ class PipelineStage:
 @dataclass
 class Interview:
     """Entretien planifié pour un candidat."""
+
     id: str
     company_id: str
     candidate_id: str

@@ -4,6 +4,7 @@ Tests de câblage (wiring) du module schedules.
 Vérifient que l'injection des dépendances et le flux de bout en bout
 (router -> application commands/queries -> repository / providers) fonctionnent.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -87,20 +88,21 @@ class TestSchedulesWiringPlannedCalendar:
         assert data["month"] == 3
         assert len(data["calendrier_prevu"]) == 1
         assert data["calendrier_prevu"][0]["jour"] == 1
-        repo.get_planned_calendar.assert_called_once_with(
-            TEST_EMPLOYEE_ID, 2025, 3
-        )
+        repo.get_planned_calendar.assert_called_once_with(TEST_EMPLOYEE_ID, 2025, 3)
 
     def test_post_planned_calendar_flow_uses_commands_and_repository(
         self, client: TestClient
     ):
         """POST /api/employees/{id}/planned-calendar appelle commands.update_planned_calendar -> repo.upsert_schedule."""
-        with patch(
-            "app.modules.schedules.application.commands.get_employee_company_and_statut",
-            return_value=(TEST_COMPANY_ID, "employé"),
-        ), patch(
-            "app.modules.schedules.application.commands.schedule_repository",
-        ) as repo:
+        with (
+            patch(
+                "app.modules.schedules.application.commands.get_employee_company_and_statut",
+                return_value=(TEST_COMPANY_ID, "employé"),
+            ),
+            patch(
+                "app.modules.schedules.application.commands.schedule_repository",
+            ) as repo,
+        ):
             response = client.post(
                 f"/api/employees/{TEST_EMPLOYEE_ID}/planned-calendar",
                 json={
@@ -184,9 +186,7 @@ class TestSchedulesWiringMeCumuls:
 class TestSchedulesWiringApplyModel:
     """Flux POST /api/schedules/apply-model."""
 
-    def test_apply_model_flow_uses_commands_and_repository(
-        self, client: TestClient
-    ):
+    def test_apply_model_flow_uses_commands_and_repository(self, client: TestClient):
         """POST /api/schedules/apply-model : get_current_user -> commands.apply_schedule_model -> employee_company_reader + repo."""
         from app.core.security import get_current_user
 
@@ -207,11 +207,14 @@ class TestSchedulesWiringApplyModel:
             "week_configs": {1: week, 2: week, 3: week, 4: week, 5: week},
         }
 
-        with patch(
-            "app.modules.schedules.application.commands.employee_company_reader",
-        ) as reader, patch(
-            "app.modules.schedules.application.commands.schedule_repository",
-        ) as repo:
+        with (
+            patch(
+                "app.modules.schedules.application.commands.employee_company_reader",
+            ) as reader,
+            patch(
+                "app.modules.schedules.application.commands.schedule_repository",
+            ) as repo,
+        ):
             reader.get_company_and_statut.return_value = (TEST_COMPANY_ID, "employé")
             repo.exists_schedule.return_value = False
             app.dependency_overrides[get_current_user] = lambda: _rh_user()

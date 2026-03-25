@@ -3,6 +3,7 @@ Tests unitaires des queries du module companies (application/queries.py).
 
 Repositories et providers mockés : pas d'accès DB.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -52,7 +53,9 @@ class TestGetCompanyDetailsAndKpis:
             f"{MODULE_QUERIES}.fetch_company_with_employees_and_payslips",
             return_value={"company_data": None, "employees": [], "payslips": []},
         ):
-            with pytest.raises(LookupError, match="Données de l'entreprise non trouvées"):
+            with pytest.raises(
+                LookupError, match="Données de l'entreprise non trouvées"
+            ):
                 queries.get_company_details_and_kpis(
                     company_id="unknown",
                     current_user=MagicMock(),
@@ -78,7 +81,10 @@ class TestGetCompanySettings:
 
         assert isinstance(result, CompanySettingsResultDto)
         assert result.medical_follow_up_enabled is True
-        assert result.settings == {"medical_follow_up_enabled": True, "custom_key": "value"}
+        assert result.settings == {
+            "medical_follow_up_enabled": True,
+            "custom_key": "value",
+        }
         mock_repo.get_settings.assert_called_once_with("company-1")
 
     def test_raises_lookup_error_when_company_not_found(self):

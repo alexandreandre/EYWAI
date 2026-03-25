@@ -4,6 +4,7 @@ Requêtes Supabase pour le module residence_permits.
 Lecture des employés soumis au titre de séjour (liste page RH).
 Client via app.core.database uniquement (aucun import legacy).
 """
+
 from __future__ import annotations
 
 from typing import List

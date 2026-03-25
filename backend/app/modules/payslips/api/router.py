@@ -5,6 +5,7 @@ Appelle uniquement l'application du module. Aucune logique métier :
 validation des entrées (schémas), construction du contexte utilisateur,
 appel du use case, mapping des exceptions applicatives vers HTTP.
 """
+
 from __future__ import annotations
 
 import traceback
@@ -44,7 +45,11 @@ from app.modules.users.schemas.responses import User
 router = APIRouter(tags=["Payslips"])
 
 # Exceptions applicatives à mapper vers HTTP (404, 403, 400)
-_PAYSLIP_APP_ERRORS = (PayslipNotFoundError, PayslipForbiddenError, PayslipBadRequestError)
+_PAYSLIP_APP_ERRORS = (
+    PayslipNotFoundError,
+    PayslipForbiddenError,
+    PayslipBadRequestError,
+)
 
 
 def _to_user_context(user: User) -> UserContext:
@@ -74,11 +79,13 @@ def _map_app_errors(exc: Exception) -> None:
 def generate_payslip_route(request: PayslipRequest):
     """Génération d'un bulletin (forfait jour ou heures selon statut employé)."""
     try:
-        result = generate_payslip(GeneratePayslipInput(
-            employee_id=request.employee_id,
-            year=request.year,
-            month=request.month,
-        ))
+        result = generate_payslip(
+            GeneratePayslipInput(
+                employee_id=request.employee_id,
+                year=request.year,
+                month=request.month,
+            )
+        )
         return {
             "status": result.status,
             "message": result.message,
@@ -195,7 +202,9 @@ def get_payslip_history_route(
 
 
 # --- Restauration ---
-@router.post("/api/payslips/{payslip_id}/restore", response_model=PayslipRestoreResponse)
+@router.post(
+    "/api/payslips/{payslip_id}/restore", response_model=PayslipRestoreResponse
+)
 def restore_payslip_route(
     payslip_id: str,
     restore_request: PayslipRestoreRequest,

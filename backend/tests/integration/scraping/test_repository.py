@@ -8,6 +8,7 @@ mark_alert_read, resolve_alert). Avec DB de test réelle : utiliser la fixture
 db_session (conftest) et des données dans scraping_sources, scraping_jobs,
 scraping_schedules, scraping_alerts.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -81,7 +82,11 @@ class TestScrapingRepositoryGetSourceByKey:
         with patch(REPO_SUPABASE_PATH) as mock_sb:
             # .single().execute() retourne .data = un seul dict en Supabase
             res = MagicMock()
-            res.data = {"id": "src-1", "source_key": "SMIC", "source_name": "Salaire minimum"}
+            res.data = {
+                "id": "src-1",
+                "source_key": "SMIC",
+                "source_name": "Salaire minimum",
+            }
             mock_sb.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = res
             repo = ScrapingRepository()
             result = repo.get_source_by_key("SMIC")
@@ -116,7 +121,9 @@ class TestScrapingRepositoryListSources:
         assert len(result) == 1
         assert result[0]["id"] == "src-1"
         assert mock_sb.table.called
-        assert select.eq.called  # au moins un filtre (source_type, is_critical, is_active)
+        assert (
+            select.eq.called
+        )  # au moins un filtre (source_type, is_critical, is_active)
 
 
 @pytest.mark.integration
@@ -125,8 +132,10 @@ class TestScrapingRepositoryCreateJob:
 
     def test_inserts_and_returns_created_row(self):
         with patch(REPO_SUPABASE_PATH) as mock_sb:
-            mock_sb.table.return_value.insert.return_value.execute.return_value = _make_execute_result(
-                [{"id": "job-new", "source_id": "src-1", "status": "pending"}]
+            mock_sb.table.return_value.insert.return_value.execute.return_value = (
+                _make_execute_result(
+                    [{"id": "job-new", "source_id": "src-1", "status": "pending"}]
+                )
             )
             repo = ScrapingRepository()
             result = repo.create_job(
@@ -147,8 +156,12 @@ class TestScrapingRepositoryUpdateJob:
             chain.execute.return_value = _make_execute_result([])
             repo = ScrapingRepository()
             repo.update_job("job-1", {"status": "completed", "success": True})
-        mock_sb.table.return_value.update.assert_called_once_with({"status": "completed", "success": True})
-        mock_sb.table.return_value.update.return_value.eq.assert_called_once_with("id", "job-1")
+        mock_sb.table.return_value.update.assert_called_once_with(
+            {"status": "completed", "success": True}
+        )
+        mock_sb.table.return_value.update.return_value.eq.assert_called_once_with(
+            "id", "job-1"
+        )
 
 
 @pytest.mark.integration
@@ -157,12 +170,18 @@ class TestScrapingRepositorySchedules:
 
     def test_create_schedule_returns_created_row(self):
         with patch(REPO_SUPABASE_PATH) as mock_sb:
-            mock_sb.table.return_value.insert.return_value.execute.return_value = _make_execute_result(
-                [{"id": "sched-1", "source_id": "src-1", "schedule_type": "cron"}]
+            mock_sb.table.return_value.insert.return_value.execute.return_value = (
+                _make_execute_result(
+                    [{"id": "sched-1", "source_id": "src-1", "schedule_type": "cron"}]
+                )
             )
             repo = ScrapingRepository()
             result = repo.create_schedule(
-                {"source_id": "src-1", "schedule_type": "cron", "cron_expression": "0 0 * * *"}
+                {
+                    "source_id": "src-1",
+                    "schedule_type": "cron",
+                    "cron_expression": "0 0 * * *",
+                }
             )
         assert result["id"] == "sched-1"
         assert result["schedule_type"] == "cron"

@@ -3,6 +3,7 @@ Tests unitaires du service applicatif company_groups (application/service.py).
 
 Dépendances mockées : company_group_repository, pas d'accès DB.
 """
+
 from unittest.mock import MagicMock, patch
 
 

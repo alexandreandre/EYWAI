@@ -6,12 +6,13 @@ import requests
 from bs4 import BeautifulSoup
 from pathlib import Path
 
-FICHIER_TAUX = 'config/taux_cotisations.json'
+FICHIER_TAUX = "config/taux_cotisations.json"
 URL_BOFIP = "https://bofip.impots.gouv.fr/bofip/11255-PGP.html/identifiant%3DBOI-BAREME-000037-20250410"
 
 NBSP = "\xa0"
 NNBSP = "\u202f"
 THIN = "\u2009"
+
 
 # -------- Helpers --------
 def _clean_amount(txt: str) -> float:
@@ -20,11 +21,19 @@ def _clean_amount(txt: str) -> float:
     m = re.search(r"(\d+(?:\.\d+)?)", s)
     return float(m.group(1)) if m else 0.0
 
+
 def _clean_percent(txt: str) -> float:
-    s = txt.strip().replace(NBSP, "").replace(NNBSP, "").replace(THIN, "").replace(" ", "")
+    s = (
+        txt.strip()
+        .replace(NBSP, "")
+        .replace(NNBSP, "")
+        .replace(THIN, "")
+        .replace(" ", "")
+    )
     s = s.replace("%", "").replace(",", ".")
     m = re.search(r"(\d+(?:\.\d+)?)", s)
     return round(float(m.group(1)) / 100.0, 5) if m else 0.0
+
 
 def _upper_bound_from_label(label: str) -> float | None:
     low = label.lower()
@@ -38,6 +47,7 @@ def _upper_bound_from_label(label: str) -> float | None:
     if "supérieure ou égale" in low and "inférieure à" not in low:
         return None
     return _clean_amount(nums[-1])
+
 
 def _extract_tranches_from_table(table: BeautifulSoup) -> list[dict]:
     tranches = []
@@ -54,10 +64,15 @@ def _extract_tranches_from_table(table: BeautifulSoup) -> list[dict]:
         tranches.append({"plafond": plafond, "taux": taux})
     return tranches  # pas de décalage
 
+
 # -------- Scraper --------
 def scrape_bofip(url: str = URL_BOFIP) -> dict:
     print(f"Scraping: {url}")
-    r = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0", "Accept-Language": "fr,en;q=0.8"})
+    r = requests.get(
+        url,
+        timeout=30,
+        headers={"User-Agent": "Mozilla/5.0", "Accept-Language": "fr,en;q=0.8"},
+    )
     r.raise_for_status()
     soup = BeautifulSoup(r.text, "lxml")
 
@@ -68,10 +83,16 @@ def scrape_bofip(url: str = URL_BOFIP) -> dict:
     }
 
     for tbl in soup.find_all("table"):
-        caption = (tbl.find("caption").get_text(" ", strip=True).lower() if tbl.find("caption") else "")
+        caption = (
+            tbl.find("caption").get_text(" ", strip=True).lower()
+            if tbl.find("caption")
+            else ""
+        )
         if any(k in caption for k in ["métropole", "metropole", "hors de france"]):
             zones["metropole"] = _extract_tranches_from_table(tbl)
-        elif any(k in caption for k in ["guadeloupe", "réunion", "reunion", "martinique"]):
+        elif any(
+            k in caption for k in ["guadeloupe", "réunion", "reunion", "martinique"]
+        ):
             zones["guadeloupe_reunion_martinique"] = _extract_tranches_from_table(tbl)
         elif any(k in caption for k in ["guyane", "mayotte"]):
             zones["guyane_mayotte"] = _extract_tranches_from_table(tbl)
@@ -89,6 +110,7 @@ def scrape_bofip(url: str = URL_BOFIP) -> dict:
         f"{len(zones['guyane_mayotte'])} GM."
     )
     return zones
+
 
 # -------- Update JSON --------
 def update_config_with_pas(zones: dict, fichier: str = FICHIER_TAUX) -> None:
@@ -118,6 +140,7 @@ def update_config_with_pas(zones: dict, fichier: str = FICHIER_TAUX) -> None:
     }
 
     print(json.dumps(config))
+
 
 # -------- Main --------
 if __name__ == "__main__":

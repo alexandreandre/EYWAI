@@ -3,6 +3,7 @@ Service d'orchestration partagé pour le module uploads.
 
 Factorise la vérification des droits et la validation entity_type (comportement legacy).
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

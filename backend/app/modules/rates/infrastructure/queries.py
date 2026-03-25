@@ -3,6 +3,7 @@ Constantes et paramètres de requêtes pour payroll_config (module rates).
 
 Centralise le nom de table et les colonnes lues pour la lecture des configs actives.
 """
+
 from __future__ import annotations
 
 # Table Supabase

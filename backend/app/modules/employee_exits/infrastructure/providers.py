@@ -5,6 +5,7 @@ Implémentations des ports domain : générateur de documents, calcul d'indemnit
 Le générateur de documents est fourni via app.shared.compat (sans import legacy direct).
 Aucune dépendance FastAPI.
 """
+
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
@@ -47,6 +48,7 @@ class _IndemnityCalculatorAdapter(IIndemnityCalculator):
         from app.modules.payroll.application.indemnites_commands import (
             calculer_indemnites_sortie,
         )
+
         return calculer_indemnites_sortie(
             employee_data=employee_data,
             exit_data=exit_data,
@@ -84,7 +86,11 @@ class _SupabaseExitStorageProvider(IExitStorageProvider):
         try:
             options = {"download": True} if download else {}
             resp = self._bucket().create_signed_url(path, expiry_seconds, options)
-            return resp.get("signedURL") or resp.get("url") if isinstance(resp, dict) else str(resp)
+            return (
+                resp.get("signedURL") or resp.get("url")
+                if isinstance(resp, dict)
+                else str(resp)
+            )
         except Exception:
             return None
 

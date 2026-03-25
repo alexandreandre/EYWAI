@@ -5,6 +5,7 @@ Sans DB de test : mocks Supabase pour valider la logique et les appels.
 Avec DB de test : utiliser la fixture db_session (conftest) pour des tests CRUD réels
 contre la table companies.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -76,8 +77,8 @@ class TestSupabaseCompanyRepositoryGetSettings:
         ) as supabase:
             table = MagicMock()
             chain = MagicMock()
-            chain.eq.return_value.maybe_single.return_value.execute.return_value = MagicMock(
-                data={"settings": {"medical_follow_up_enabled": True}}
+            chain.eq.return_value.maybe_single.return_value.execute.return_value = (
+                MagicMock(data={"settings": {"medical_follow_up_enabled": True}})
             )
             table.select.return_value = chain
             supabase.table.return_value = table
@@ -96,8 +97,8 @@ class TestSupabaseCompanyRepositoryGetSettings:
         ) as supabase:
             table = MagicMock()
             chain = MagicMock()
-            chain.eq.return_value.maybe_single.return_value.execute.return_value = MagicMock(
-                data={"settings": None}
+            chain.eq.return_value.maybe_single.return_value.execute.return_value = (
+                MagicMock(data={"settings": None})
             )
             table.select.return_value = chain
             supabase.table.return_value = table
@@ -114,8 +115,8 @@ class TestSupabaseCompanyRepositoryGetSettings:
         ) as supabase:
             table = MagicMock()
             chain = MagicMock()
-            chain.eq.return_value.maybe_single.return_value.execute.return_value = MagicMock(
-                data=None
+            chain.eq.return_value.maybe_single.return_value.execute.return_value = (
+                MagicMock(data=None)
             )
             table.select.return_value = chain
             supabase.table.return_value = table

@@ -4,6 +4,7 @@ Tests unitaires des queries du module rates (application/queries.py).
 get_all_rates(reader) : récupère les lignes via le reader, applique le service (groupement + formatage).
 Reader mocké, pas de DB.
 """
+
 from unittest.mock import MagicMock
 
 
@@ -51,8 +52,24 @@ class TestGetAllRates:
         """Plusieurs lignes pour une même config_key : la meilleure (version puis created_at) est retenue."""
         reader = MagicMock()
         reader.get_all_active_rows.return_value = [
-            {"config_key": "taux_cse", "version": 1, "config_data": {}, "last_checked_at": None, "comment": None, "source_links": None, "created_at": "2025-01-01T00:00:00Z"},
-            {"config_key": "taux_cse", "version": 2, "config_data": {"seuil": 20}, "last_checked_at": None, "comment": None, "source_links": None, "created_at": "2025-01-15T00:00:00Z"},
+            {
+                "config_key": "taux_cse",
+                "version": 1,
+                "config_data": {},
+                "last_checked_at": None,
+                "comment": None,
+                "source_links": None,
+                "created_at": "2025-01-01T00:00:00Z",
+            },
+            {
+                "config_key": "taux_cse",
+                "version": 2,
+                "config_data": {"seuil": 20},
+                "last_checked_at": None,
+                "comment": None,
+                "source_links": None,
+                "created_at": "2025-01-15T00:00:00Z",
+            },
         ]
         result = get_all_rates(reader)
         assert list(result.keys()) == ["taux_cse"]
@@ -63,8 +80,22 @@ class TestGetAllRates:
         """Plusieurs config_key → toutes présentes en sortie."""
         reader = MagicMock()
         reader.get_all_active_rows.return_value = [
-            {"config_key": "A", "config_data": {}, "version": 1, "last_checked_at": None, "comment": None, "source_links": None},
-            {"config_key": "B", "config_data": {}, "version": 1, "last_checked_at": None, "comment": None, "source_links": None},
+            {
+                "config_key": "A",
+                "config_data": {},
+                "version": 1,
+                "last_checked_at": None,
+                "comment": None,
+                "source_links": None,
+            },
+            {
+                "config_key": "B",
+                "config_data": {},
+                "version": 1,
+                "last_checked_at": None,
+                "comment": None,
+                "source_links": None,
+            },
         ]
         result = get_all_rates(reader)
         assert set(result.keys()) == {"A", "B"}

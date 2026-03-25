@@ -100,12 +100,18 @@ def validate_payload(data: dict) -> bool:
             for f in tr["formules"]:
                 if not all(k in f for k in ("segment", "a", "b")):
                     return False
-        if not isinstance(data.get("motocyclettes"), list) or len(data["motocyclettes"]) != 3:
+        if (
+            not isinstance(data.get("motocyclettes"), list)
+            or len(data["motocyclettes"]) != 3
+        ):
             return False
         for tr in data["motocyclettes"]:
             if len(tr.get("formules", [])) != 3:
                 return False
-        if not isinstance(data.get("cyclomoteurs"), list) or len(data["cyclomoteurs"]) != 1:
+        if (
+            not isinstance(data.get("cyclomoteurs"), list)
+            or len(data["cyclomoteurs"]) != 1
+        ):
             return False
         if len(data["cyclomoteurs"][0].get("formules", [])) != 3:
             return False
@@ -126,7 +132,10 @@ def get_baremes_via_ai() -> dict | None:
             model="gpt-4.1",
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "Tu es un extracteur de données. Réponds en JSON STRICT valide uniquement."},
+                {
+                    "role": "system",
+                    "content": "Tu es un extracteur de données. Réponds en JSON STRICT valide uniquement.",
+                },
                 {"role": "user", "content": prompt},
             ],
             temperature=0,
@@ -184,7 +193,13 @@ def build_payload(ai_data: dict | None) -> dict:
         "annee": 2025,
         "vehicules": veh,
         "meta": {
-            "source": [{"url": "", "label": "OpenAI (réponse modèle, sans navigation)", "date_doc": ""}],
+            "source": [
+                {
+                    "url": "",
+                    "label": "OpenAI (réponse modèle, sans navigation)",
+                    "date_doc": "",
+                }
+            ],
             "scraped_at": iso_now(),
             "generator": "scripts/bareme-indemnite-kilometrique/bareme-indemnite-kilometrique_AI.py",
             "method": "ai",

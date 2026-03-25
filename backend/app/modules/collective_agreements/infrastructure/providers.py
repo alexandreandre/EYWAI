@@ -3,6 +3,7 @@ Providers infrastructure : storage, cache texte, extraction PDF, chat LLM.
 
 Implémentations réelles (Supabase storage, table collective_agreement_texts, OpenAI).
 """
+
 from __future__ import annotations
 
 import os
@@ -30,14 +31,18 @@ class AgreementStorageProvider:
 
     def create_signed_url(self, path: str, ttl_seconds: int = 3600) -> Optional[str]:
         try:
-            signed = self._supabase.storage.from_(BUCKET_NAME).create_signed_url(path, ttl_seconds)
+            signed = self._supabase.storage.from_(BUCKET_NAME).create_signed_url(
+                path, ttl_seconds
+            )
             return signed.get("signedURL") if signed else None
         except Exception as e:
             print(f"[WARNING] Erreur lors de la génération de l'URL signée: {e}")
             return None
 
     def create_signed_upload_url(self, path: str) -> dict[str, str]:
-        signed = self._supabase.storage.from_(BUCKET_NAME).create_signed_upload_url(path)
+        signed = self._supabase.storage.from_(BUCKET_NAME).create_signed_upload_url(
+            path
+        )
         if "signedUrl" not in signed:
             raise ValidationError(
                 f"Erreur de stockage Supabase: clé 'signedUrl' non trouvée: {signed}"
@@ -90,11 +95,13 @@ class AgreementTextCacheProvider:
                 .execute()
             )
             if existing and existing.data:
-                self._supabase.table("collective_agreement_texts").update(cache_data).eq(
-                    "agreement_id", agreement_id
-                ).execute()
+                self._supabase.table("collective_agreement_texts").update(
+                    cache_data
+                ).eq("agreement_id", agreement_id).execute()
             else:
-                self._supabase.table("collective_agreement_texts").insert(cache_data).execute()
+                self._supabase.table("collective_agreement_texts").insert(
+                    cache_data
+                ).execute()
         except Exception as e:
             print(f"[WARNING] Impossible de sauvegarder le cache: {e}")
 

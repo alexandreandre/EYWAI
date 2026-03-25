@@ -3,6 +3,7 @@ Tests unitaires des commandes medical_follow_up (application/commands.py).
 
 Repository mocké via get_obligation_repository ; pas de DB ni HTTP.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -52,9 +53,13 @@ class TestMarkPlanified:
         mock_get_repo.return_value = repo
         body = MarkPlanifiedBody(planned_date="2025-04-15")
         with pytest.raises(HTTPException) as exc_info:
-            commands.mark_planified("obl-unknown", body, "co-1", current_user=MagicMock())
+            commands.mark_planified(
+                "obl-unknown", body, "co-1", current_user=MagicMock()
+            )
         assert exc_info.value.status_code == 404
-        assert "Obligation" in exc_info.value.detail or "trouvée" in exc_info.value.detail
+        assert (
+            "Obligation" in exc_info.value.detail or "trouvée" in exc_info.value.detail
+        )
         repo.mark_planified.assert_not_called()
 
     def test_justification_optional(self, mock_get_repo):
@@ -74,7 +79,9 @@ class TestMarkCompleted:
         """Obligation trouvée → appelle mark_completed et retourne {"ok": True}."""
         repo = _mock_repo()
         mock_get_repo.return_value = repo
-        body = MarkCompletedBody(completed_date="2025-04-20", justification="Visite effectuée")
+        body = MarkCompletedBody(
+            completed_date="2025-04-20", justification="Visite effectuée"
+        )
         result = commands.mark_completed(
             "obl-1", body, "co-1", current_user=MagicMock()
         )
@@ -91,7 +98,9 @@ class TestMarkCompleted:
         mock_get_repo.return_value = repo
         body = MarkCompletedBody(completed_date="2025-04-20")
         with pytest.raises(HTTPException) as exc_info:
-            commands.mark_completed("obl-unknown", body, "co-1", current_user=MagicMock())
+            commands.mark_completed(
+                "obl-unknown", body, "co-1", current_user=MagicMock()
+            )
         assert exc_info.value.status_code == 404
         repo.mark_completed.assert_not_called()
 

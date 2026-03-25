@@ -8,6 +8,7 @@ Documentation fixture : pour des tests avec utilisateur authentifié ayant accè
 ajouter dans conftest.py une fixture access_control_headers (ou utiliser auth_headers
 avec un token valide pour un utilisateur ayant au moins un accès RH à une entreprise).
 """
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -23,9 +24,7 @@ class TestAccessControlPermissionCategories:
         response = client.get("/api/access-control/permission-categories")
         assert response.status_code == 401
 
-    def test_with_auth_returns_200_or_403(
-        self, client: TestClient, auth_headers: dict
-    ):
+    def test_with_auth_returns_200_or_403(self, client: TestClient, auth_headers: dict):
         """Avec auth_headers : 200 si token valide et accès RH, 403 sinon."""
         response = client.get(
             "/api/access-control/permission-categories",
@@ -47,9 +46,7 @@ class TestAccessControlPermissionActions:
         response = client.get("/api/access-control/permission-actions")
         assert response.status_code == 401
 
-    def test_with_auth_returns_200_or_403(
-        self, client: TestClient, auth_headers: dict
-    ):
+    def test_with_auth_returns_200_or_403(self, client: TestClient, auth_headers: dict):
         """Avec auth_headers : 200 ou 403 selon droits."""
         response = client.get(
             "/api/access-control/permission-actions",
@@ -156,13 +153,14 @@ class TestAccessControlRoleTemplates:
         response = client.get("/api/access-control/role-templates")
         assert response.status_code == 401
 
-    def test_with_auth_and_filters(
-        self, client: TestClient, auth_headers: dict
-    ):
+    def test_with_auth_and_filters(self, client: TestClient, auth_headers: dict):
         """Avec auth ; query params : company_id, base_role, include_system."""
         response = client.get(
             "/api/access-control/role-templates",
-            params={"company_id": "00000000-0000-0000-0000-000000000001", "include_system": "true"},
+            params={
+                "company_id": "00000000-0000-0000-0000-000000000001",
+                "include_system": "true",
+            },
             headers=auth_headers,
         )
         if auth_headers:
@@ -215,7 +213,9 @@ class TestAccessControlRoleTemplateQuickCreate:
         else:
             assert response.status_code == 401
 
-    def test_without_required_fields_returns_422(self, client: TestClient, auth_headers: dict):
+    def test_without_required_fields_returns_422(
+        self, client: TestClient, auth_headers: dict
+    ):
         """Body sans name ou company_id → 422."""
         if not auth_headers:
             pytest.skip("Need auth to hit validation")
@@ -263,7 +263,10 @@ class TestAccessControlCheckHierarchy:
         """Sans token → 401."""
         response = client.get(
             "/api/access-control/check-hierarchy",
-            params={"target_role": "rh", "company_id": "00000000-0000-0000-0000-000000000001"},
+            params={
+                "target_role": "rh",
+                "company_id": "00000000-0000-0000-0000-000000000001",
+            },
         )
         assert response.status_code == 401
 
@@ -273,7 +276,10 @@ class TestAccessControlCheckHierarchy:
         """Avec auth : 200 et is_allowed, creator_role, target_role, message."""
         response = client.get(
             "/api/access-control/check-hierarchy",
-            params={"target_role": "rh", "company_id": "00000000-0000-0000-0000-000000000001"},
+            params={
+                "target_role": "rh",
+                "company_id": "00000000-0000-0000-0000-000000000001",
+            },
             headers=auth_headers,
         )
         if auth_headers:
@@ -302,9 +308,7 @@ class TestAccessControlCheckPermission:
         )
         assert response.status_code == 401
 
-    def test_with_auth_returns_200_or_403(
-        self, client: TestClient, auth_headers: dict
-    ):
+    def test_with_auth_returns_200_or_403(self, client: TestClient, auth_headers: dict):
         """Avec auth : 200 (has_permission, permission_code, user_id, company_id) ou 403."""
         response = client.get(
             "/api/access-control/check-permission",

@@ -5,6 +5,7 @@ Implémentation autonome sous app/* : utilise app.core.database et
 app.shared.infrastructure.pdf.helpers. Aucune dépendance legacy (services/*, core/* racine).
 Comportement identique au legacy services.promotion_document_service.
 """
+
 from __future__ import annotations
 
 import io
@@ -98,22 +99,29 @@ def generate_promotion_letter(
         company_postal_code = ""
         if address_data:
             if isinstance(address_data, dict):
-                company_street = address_data.get("street", "") or address_data.get("rue", "")
-                company_city = address_data.get("city", "") or address_data.get("ville", "")
-                company_postal_code = (
-                    address_data.get("postal_code", "") or address_data.get("code_postal", "")
+                company_street = address_data.get("street", "") or address_data.get(
+                    "rue", ""
                 )
+                company_city = address_data.get("city", "") or address_data.get(
+                    "ville", ""
+                )
+                company_postal_code = address_data.get(
+                    "postal_code", ""
+                ) or address_data.get("code_postal", "")
             elif isinstance(address_data, str):
                 company_street = address_data
         if not company_street:
-            company_street = company_data.get("adresse_rue", "") or company_data.get("street", "")
-        if not company_city:
-            company_city = company_data.get("adresse_ville", "") or company_data.get("city", "")
-        if not company_postal_code:
-            company_postal_code = (
-                company_data.get("adresse_code_postal", "")
-                or company_data.get("postal_code", "")
+            company_street = company_data.get("adresse_rue", "") or company_data.get(
+                "street", ""
             )
+        if not company_city:
+            company_city = company_data.get("adresse_ville", "") or company_data.get(
+                "city", ""
+            )
+        if not company_postal_code:
+            company_postal_code = company_data.get(
+                "adresse_code_postal", ""
+            ) or company_data.get("postal_code", "")
         company_info = company_name
         if company_street:
             company_info += f"\n{company_street}"
@@ -126,9 +134,7 @@ def generate_promotion_letter(
     story.append(Spacer(1, 0.5 * cm))
 
     today = datetime.now().date()
-    employee_name = (
-        f"{employee_data.get('first_name', '')} {employee_data.get('last_name', '')}".strip()
-    )
+    employee_name = f"{employee_data.get('first_name', '')} {employee_data.get('last_name', '')}".strip()
     date_and_recipient = f"""
     <b>Date :</b> {format_date_fr(today)}<br/>
     <b>À l'attention de :</b> {employee_name}
@@ -139,7 +145,7 @@ def generate_promotion_letter(
     intro_text = f"""
     <b>Objet : Promotion et évolution de carrière</b><br/><br/>
 
-    Madame, Monsieur {employee_data.get('last_name', '')},<br/><br/>
+    Madame, Monsieur {employee_data.get("last_name", "")},<br/><br/>
 
     Nous avons le plaisir de vous informer de votre promotion au sein de notre entreprise.
     """
@@ -152,51 +158,77 @@ def generate_promotion_letter(
     if promotion_data.get("new_job_title") or promotion_data.get("previous_job_title"):
         previous_job = promotion_data.get("previous_job_title") or "Non renseigné"
         new_job = promotion_data.get("new_job_title") or "Non renseigné"
-        comparison_data.append([
-            Paragraph("<b>Poste</b>", styles["ComparisonLabel"]),
-            Paragraph(safe_str(previous_job), styles["ComparisonValue"]),
-            Paragraph("→", styles["ComparisonValue"]),
-            Paragraph(safe_str(new_job), styles["ComparisonValue"]),
-        ])
+        comparison_data.append(
+            [
+                Paragraph("<b>Poste</b>", styles["ComparisonLabel"]),
+                Paragraph(safe_str(previous_job), styles["ComparisonValue"]),
+                Paragraph("→", styles["ComparisonValue"]),
+                Paragraph(safe_str(new_job), styles["ComparisonValue"]),
+            ]
+        )
 
     if promotion_data.get("new_salary") or promotion_data.get("previous_salary"):
         previous_salary = promotion_data.get("previous_salary", {})
         new_salary = promotion_data.get("new_salary", {})
-        prev_value = previous_salary.get("valeur") if isinstance(previous_salary, dict) else None
+        prev_value = (
+            previous_salary.get("valeur") if isinstance(previous_salary, dict) else None
+        )
         new_value = new_salary.get("valeur") if isinstance(new_salary, dict) else None
         if prev_value or new_value:
             prev_str = (
-                format_currency(safe_float(prev_value)) if prev_value else "Non renseigné"
+                format_currency(safe_float(prev_value))
+                if prev_value
+                else "Non renseigné"
             )
-            new_str = format_currency(safe_float(new_value)) if new_value else "Non renseigné"
+            new_str = (
+                format_currency(safe_float(new_value)) if new_value else "Non renseigné"
+            )
             increase_pct = ""
             if prev_value and new_value and prev_value > 0:
                 pct = ((new_value - prev_value) / prev_value) * 100
                 increase_pct = f" (+{pct:.1f}%)"
-            comparison_data.append([
-                Paragraph("<b>Salaire mensuel brut</b>", styles["ComparisonLabel"]),
-                Paragraph(prev_str, styles["ComparisonValue"]),
-                Paragraph("→", styles["ComparisonValue"]),
-                Paragraph(f"{new_str}{increase_pct}", styles["ComparisonValue"]),
-            ])
+            comparison_data.append(
+                [
+                    Paragraph("<b>Salaire mensuel brut</b>", styles["ComparisonLabel"]),
+                    Paragraph(prev_str, styles["ComparisonValue"]),
+                    Paragraph("→", styles["ComparisonValue"]),
+                    Paragraph(f"{new_str}{increase_pct}", styles["ComparisonValue"]),
+                ]
+            )
 
     if promotion_data.get("new_statut") or promotion_data.get("previous_statut"):
         previous_statut = promotion_data.get("previous_statut") or "Non renseigné"
         new_statut = promotion_data.get("new_statut") or "Non renseigné"
-        comparison_data.append([
-            Paragraph("<b>Statut</b>", styles["ComparisonLabel"]),
-            Paragraph(safe_str(previous_statut), styles["ComparisonValue"]),
-            Paragraph("→", styles["ComparisonValue"]),
-            Paragraph(safe_str(new_statut), styles["ComparisonValue"]),
-        ])
+        comparison_data.append(
+            [
+                Paragraph("<b>Statut</b>", styles["ComparisonLabel"]),
+                Paragraph(safe_str(previous_statut), styles["ComparisonValue"]),
+                Paragraph("→", styles["ComparisonValue"]),
+                Paragraph(safe_str(new_statut), styles["ComparisonValue"]),
+            ]
+        )
 
-    if promotion_data.get("new_classification") or promotion_data.get("previous_classification"):
+    if promotion_data.get("new_classification") or promotion_data.get(
+        "previous_classification"
+    ):
         previous_class = promotion_data.get("previous_classification", {})
         new_class = promotion_data.get("new_classification", {})
-        prev_coeff = previous_class.get("coefficient") if isinstance(previous_class, dict) else None
-        new_coeff = new_class.get("coefficient") if isinstance(new_class, dict) else None
-        prev_classe = previous_class.get("classe_emploi") if isinstance(previous_class, dict) else None
-        new_classe = new_class.get("classe_emploi") if isinstance(new_class, dict) else None
+        prev_coeff = (
+            previous_class.get("coefficient")
+            if isinstance(previous_class, dict)
+            else None
+        )
+        new_coeff = (
+            new_class.get("coefficient") if isinstance(new_class, dict) else None
+        )
+        prev_classe = (
+            previous_class.get("classe_emploi")
+            if isinstance(previous_class, dict)
+            else None
+        )
+        new_classe = (
+            new_class.get("classe_emploi") if isinstance(new_class, dict) else None
+        )
         if prev_coeff or new_coeff or prev_classe or new_classe:
             prev_str = f"Coeff. {prev_coeff}" if prev_coeff else "Non renseigné"
             if prev_classe:
@@ -204,15 +236,17 @@ def generate_promotion_letter(
             new_str = f"Coeff. {new_coeff}" if new_coeff else "Non renseigné"
             if new_classe:
                 new_str += f", Classe {new_classe}"
-            comparison_data.append([
-                Paragraph(
-                    "<b>Classification conventionnelle</b>",
-                    styles["ComparisonLabel"],
-                ),
-                Paragraph(safe_str(prev_str), styles["ComparisonValue"]),
-                Paragraph("→", styles["ComparisonValue"]),
-                Paragraph(safe_str(new_str), styles["ComparisonValue"]),
-            ])
+            comparison_data.append(
+                [
+                    Paragraph(
+                        "<b>Classification conventionnelle</b>",
+                        styles["ComparisonLabel"],
+                    ),
+                    Paragraph(safe_str(prev_str), styles["ComparisonValue"]),
+                    Paragraph("→", styles["ComparisonValue"]),
+                    Paragraph(safe_str(new_str), styles["ComparisonValue"]),
+                ]
+            )
 
     if promotion_data.get("grant_rh_access") and promotion_data.get("new_rh_access"):
         previous_rh = promotion_data.get("previous_rh_access") or "Aucun accès RH"
@@ -224,33 +258,39 @@ def generate_promotion_letter(
             "collaborateur": "Collaborateur",
         }
         previous_rh_label = (
-            role_labels.get(previous_rh, previous_rh) if previous_rh else "Aucun accès RH"
+            role_labels.get(previous_rh, previous_rh)
+            if previous_rh
+            else "Aucun accès RH"
         )
         new_rh_label = role_labels.get(new_rh, new_rh) if new_rh else "Non renseigné"
-        comparison_data.append([
-            Paragraph("<b>Accès RH</b>", styles["ComparisonLabel"]),
-            Paragraph(safe_str(previous_rh_label), styles["ComparisonValue"]),
-            Paragraph("→", styles["ComparisonValue"]),
-            Paragraph(safe_str(new_rh_label), styles["ComparisonValue"]),
-        ])
+        comparison_data.append(
+            [
+                Paragraph("<b>Accès RH</b>", styles["ComparisonLabel"]),
+                Paragraph(safe_str(previous_rh_label), styles["ComparisonValue"]),
+                Paragraph("→", styles["ComparisonValue"]),
+                Paragraph(safe_str(new_rh_label), styles["ComparisonValue"]),
+            ]
+        )
 
     if comparison_data:
         comparison_table = Table(
             comparison_data, colWidths=[5 * cm, 4 * cm, 1 * cm, 4 * cm]
         )
         comparison_table.setStyle(
-            TableStyle([
-                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f3f4f6")),
-                ("BACKGROUND", (2, 0), (2, -1), colors.white),
-                ("TEXTCOLOR", (0, 0), (-1, -1), colors.black),
-                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-                ("ALIGN", (2, 0), (2, -1), "CENTER"),
-                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 10),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                ("TOPPADDING", (0, 0), (-1, -1), 8),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
-            ])
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f3f4f6")),
+                    ("BACKGROUND", (2, 0), (2, -1), colors.white),
+                    ("TEXTCOLOR", (0, 0), (-1, -1), colors.black),
+                    ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                    ("ALIGN", (2, 0), (2, -1), "CENTER"),
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 10),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                    ("TOPPADDING", (0, 0), (-1, -1), 8),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
+                ]
+            )
         )
         story.append(Paragraph("<b>Détails de la promotion :</b>", styles["Important"]))
         story.append(Spacer(1, 0.3 * cm))
@@ -273,14 +313,14 @@ def generate_promotion_letter(
 
     if promotion_data.get("reason"):
         reason_text = f"""
-        <b>Raison de la promotion :</b> {safe_str(promotion_data.get('reason'))}
+        <b>Raison de la promotion :</b> {safe_str(promotion_data.get("reason"))}
         """
         story.append(Paragraph(reason_text, styles["CorpsTexte"]))
         story.append(Spacer(1, 0.3 * cm))
 
     if promotion_data.get("justification"):
         justification_text = f"""
-        {safe_str(promotion_data.get('justification'))}
+        {safe_str(promotion_data.get("justification"))}
         """
         story.append(Paragraph(justification_text, styles["CorpsTexte"]))
         story.append(Spacer(1, 0.5 * cm))
@@ -311,13 +351,15 @@ def generate_promotion_letter(
     ]
     signature_table = Table(signature_table_data, colWidths=[8 * cm, 8 * cm])
     signature_table.setStyle(
-        TableStyle([
-            ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-            ("VALIGN", (0, 2), (-1, -1), "TOP"),
-            ("FONTSIZE", (0, 0), (-1, -1), 10),
-            ("TOPPADDING", (0, 2), (-1, 2), 20),
-            ("BOTTOMPADDING", (0, 3), (-1, 3), 40),
-        ])
+        TableStyle(
+            [
+                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                ("VALIGN", (0, 2), (-1, -1), "TOP"),
+                ("FONTSIZE", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 2), (-1, 2), 20),
+                ("BOTTOMPADDING", (0, 3), (-1, 3), 40),
+            ]
+        )
     )
     story.append(signature_table)
     story.append(Spacer(1, 0.5 * cm))
@@ -364,7 +406,9 @@ def save_promotion_document(
         file_options={"content-type": "application/pdf", "x-upsert": "true"},
     )
 
-    signed_url_response = supabase.storage.from_("promotion_documents").create_signed_url(
+    signed_url_response = supabase.storage.from_(
+        "promotion_documents"
+    ).create_signed_url(
         storage_path,
         31536000,
         options={"download": True},
@@ -378,9 +422,9 @@ def save_promotion_document(
     if not pdf_url:
         raise Exception("Impossible de générer l'URL signée")
 
-    supabase.table("promotions").update(
-        {"promotion_letter_url": pdf_url}
-    ).eq("id", promotion_id).execute()
+    supabase.table("promotions").update({"promotion_letter_url": pdf_url}).eq(
+        "id", promotion_id
+    ).execute()
 
     return pdf_url
 

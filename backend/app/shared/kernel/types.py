@@ -4,6 +4,7 @@ Types et alias communs pour les modules.
 Pas de logique métier ; uniquement des définitions réutilisables
 (alias, TypeVar) pour garder la cohérence.
 """
+
 from __future__ import annotations
 
 from typing import TypeVar

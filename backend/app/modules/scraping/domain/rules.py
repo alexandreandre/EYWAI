@@ -3,6 +3,7 @@ Règles métier du domaine scraping.
 
 Logique pure sans dépendance à l'infrastructure ni à FastAPI.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, Optional

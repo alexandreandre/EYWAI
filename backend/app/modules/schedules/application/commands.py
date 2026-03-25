@@ -4,6 +4,7 @@ Commandes (cas d'usage écriture) du module schedules.
 Délèguent au repository et aux providers (infrastructure), règles du domain.
 Comportement identique à l'ancien router. Lève ScheduleAppError.
 """
+
 import calendar as cal_mod
 import json
 import sys
@@ -37,9 +38,9 @@ def update_planned_calendar(employee_id: str, payload: Any) -> Dict[str, str]:
     payload : objet avec .year, .month, .calendrier_prevu (liste d'entrées Pydantic).
     """
     try:
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print("🔵 POST /planned-calendar - DEBUT")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
         print(f"Employee ID: {employee_id}")
         print(f"Year: {payload.year}, Month: {payload.month}")
         print(f"Nombre d'entrées calendrier: {len(payload.calendrier_prevu)}")
@@ -48,7 +49,9 @@ def update_planned_calendar(employee_id: str, payload: Any) -> Dict[str, str]:
         print(f"Company ID récupéré: {company_id}")
         print(f"Statut employé: {employee_statut}")
 
-        calendrier_prevu_raw = [entry.model_dump() for entry in payload.calendrier_prevu]
+        calendrier_prevu_raw = [
+            entry.model_dump() for entry in payload.calendrier_prevu
+        ]
         calendrier_prevu_normalized = normalize_planned_calendar_for_employee(
             calendrier_prevu_raw, employee_statut
         )
@@ -66,7 +69,9 @@ def update_planned_calendar(employee_id: str, payload: Any) -> Dict[str, str]:
         print(f"   - calendrier_prevu: {len(json_content['calendrier_prevu'])} entrées")
 
         print("\n🔄 Tentative d'upsert avec on_conflict='employee_id,year,month'")
-        print("   Données upsert: employee_id, company_id, year, month, planned_calendar")
+        print(
+            "   Données upsert: employee_id, company_id, year, month, planned_calendar"
+        )
         print(f"   Taille du calendrier: {len(calendrier_prevu_normalized)} entrées")
 
         schedule_repository.upsert_schedule(
@@ -78,7 +83,7 @@ def update_planned_calendar(employee_id: str, payload: Any) -> Dict[str, str]:
         )
 
         print("\n✅ Upsert réussi!")
-        print(f"{'='*70}\n")
+        print(f"{'=' * 70}\n")
         return {"status": "success", "message": "Planning prévisionnel enregistré."}
 
     except ScheduleAppError:
@@ -88,7 +93,7 @@ def update_planned_calendar(employee_id: str, payload: Any) -> Dict[str, str]:
         print(f"   Type: {type(e).__name__}")
         print(f"   Message: {str(e)}")
         traceback.print_exc()
-        print(f"{'='*70}\n")
+        print(f"{'=' * 70}\n")
         raise ScheduleAppError("error", str(e), status_code=500) from e
 
 
@@ -98,9 +103,9 @@ def update_actual_hours(employee_id: str, payload: Any) -> Dict[str, str]:
     payload : objet avec .year, .month, .calendrier_reel.
     """
     try:
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print("🟢 POST /actual-hours - DEBUT")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
         print(f"Employee ID: {employee_id}")
         print(f"Year: {payload.year}, Month: {payload.month}")
         print(f"Nombre d'entrées calendrier réel: {len(payload.calendrier_reel)}")
@@ -128,7 +133,9 @@ def update_actual_hours(employee_id: str, payload: Any) -> Dict[str, str]:
 
         print("\n🔄 Tentative d'upsert avec on_conflict='employee_id,year,month'")
         print("   Données upsert: employee_id, company_id, year, month, actual_hours")
-        print(f"   Taille du calendrier réel: {len(calendrier_reel_normalized)} entrées")
+        print(
+            f"   Taille du calendrier réel: {len(calendrier_reel_normalized)} entrées"
+        )
 
         schedule_repository.upsert_schedule(
             employee_id,
@@ -139,7 +146,7 @@ def update_actual_hours(employee_id: str, payload: Any) -> Dict[str, str]:
         )
 
         print("\n✅ Upsert réussi!")
-        print(f"{'='*70}\n")
+        print(f"{'=' * 70}\n")
         return {"status": "success", "message": "Heures réelles enregistrées."}
 
     except ScheduleAppError:
@@ -149,7 +156,7 @@ def update_actual_hours(employee_id: str, payload: Any) -> Dict[str, str]:
         print(f"   Type: {type(e).__name__}")
         print(f"   Message: {str(e)}")
         traceback.print_exc()
-        print(f"{'='*70}\n")
+        print(f"{'=' * 70}\n")
         raise ScheduleAppError("error", str(e), status_code=500) from e
 
 
@@ -256,9 +263,7 @@ def calculate_payroll_events(employee_id: str, year: int, month: int) -> Dict[st
 
         dates_to_process = _dates_to_process(year, month)
         year_months = [(d["year"], d["month"]) for d in dates_to_process]
-        rows = schedule_repository.get_schedules_for_months(
-            employee_id, year_months
-        )
+        rows = schedule_repository.get_schedules_for_months(employee_id, year_months)
 
         print("\n" + "=" * 20 + " ESPION 1 : DONNÉES BRUTES DE SUPABASE " + "=" * 20)
         try:
@@ -271,15 +276,12 @@ def calculate_payroll_events(employee_id: str, year: int, month: int) -> Dict[st
             file=sys.stderr,
         )
 
-        planned_data_all_months, actual_data_all_months = _build_planned_actual_from_rows(
-            rows, dates_to_process
+        planned_data_all_months, actual_data_all_months = (
+            _build_planned_actual_from_rows(rows, dates_to_process)
         )
 
         print(
-            "\n"
-            + "=" * 20
-            + " ESPION 2 : DONNÉES PRÊTES POUR L'ANALYSEUR "
-            + "=" * 20
+            "\n" + "=" * 20 + " ESPION 2 : DONNÉES PRÊTES POUR L'ANALYSEUR " + "=" * 20
         )
         print("Contenu de la variable 'planned_data_all_months' :")
         print(json.dumps(planned_data_all_months, indent=2))
@@ -324,9 +326,7 @@ def calculate_payroll_events(employee_id: str, year: int, month: int) -> Dict[st
             "periode": {"annee": year, "mois": month},
             "calendrier_analyse": payroll_events_list,
         }
-        schedule_repository.update_payroll_events(
-            employee_id, year, month, result_json
-        )
+        schedule_repository.update_payroll_events(employee_id, year, month, result_json)
         print("-> Résultat sauvegardé avec succès.", file=sys.stderr)
 
         return {
@@ -355,9 +355,7 @@ def apply_schedule_model(request: Any, current_user: Any) -> Dict[str, Any]:
             "validation", "Aucune entreprise active", status_code=400
         )
     if not current_user.has_rh_access_in_company(company_id):
-        raise ScheduleAppError(
-            "forbidden", "Accès réservé aux RH", status_code=403
-        )
+        raise ScheduleAppError("forbidden", "Accès réservé aux RH", status_code=403)
     if not request.employee_ids:
         raise ScheduleAppError(
             "validation", "Aucun employé sélectionné", status_code=400
@@ -391,17 +389,13 @@ def apply_schedule_model(request: Any, current_user: Any) -> Dict[str, Any]:
                     f"Employé {employee_id} non trouvé ou sans entreprise associée",
                     status_code=404,
                 )
-            is_employee_forfait_jour = domain_rules.is_forfait_jour(
-                employee_statut
-            )
+            is_employee_forfait_jour = domain_rules.is_forfait_jour(employee_statut)
 
             calendrier_prevu = []
             for day in range(1, num_days_in_month + 1):
                 current_date = date(request.year, request.month, day)
                 day_of_week = current_date.weekday()
-                week_of_month = (
-                    (day + first_day_of_month.weekday() - 1) // 7
-                ) + 1
+                week_of_month = ((day + first_day_of_month.weekday() - 1) // 7) + 1
                 week_number = min(week_of_month, 5)
 
                 week_config = request.week_configs.get(week_number)

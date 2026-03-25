@@ -3,6 +3,7 @@ Queries (cas d'usage lecture) du module promotions.
 
 Délègue au repository et à IPromotionQueries. Aucune logique DB directe.
 """
+
 from __future__ import annotations
 
 from typing import List, Optional
@@ -77,6 +78,7 @@ def get_promotion_document_stream_query(promotion_id: str, company_id: str):
     from app.modules.promotions.infrastructure.providers import (
         get_promotion_document_provider,
     )
+
     return get_promotion_document_provider().get_pdf_stream(
         promotion_id=promotion_id,
         company_id=company_id,

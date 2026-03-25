@@ -3,6 +3,7 @@ Tests unitaires des queries du module monthly_inputs (application/queries.py).
 
 Repository et provider catalogue mockés. Pas de DB ni HTTP.
 """
+
 from unittest.mock import patch
 
 
@@ -64,9 +65,7 @@ class TestListMonthlyInputsByEmployeePeriod:
             "app.modules.monthly_inputs.application.queries.monthly_inputs_repository"
         ) as repo:
             repo.list_by_employee_period.return_value = repo_items
-            result = queries.list_monthly_inputs_by_employee_period(
-                "emp-abc", 2025, 6
-            )
+            result = queries.list_monthly_inputs_by_employee_period("emp-abc", 2025, 6)
 
         assert result.items == repo_items
         repo.list_by_employee_period.assert_called_once_with("emp-abc", 2025, 6)

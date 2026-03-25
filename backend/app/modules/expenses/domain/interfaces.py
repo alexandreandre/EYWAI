@@ -4,6 +4,7 @@ Ports (interfaces) du domaine expenses.
 Implémentations dans infrastructure/. Aucune dépendance FastAPI ni DB ici.
 Source : comportement actuel de api/routers/expenses.py (table expense_reports, bucket expense_receipts).
 """
+
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
@@ -32,9 +33,7 @@ class IExpenseRepository(ABC):
         ...
 
     @abstractmethod
-    def list_all(
-        self, status: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    def list_all(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
         """Liste les notes avec join employee (RH), optionnellement filtré par status."""
         ...
 

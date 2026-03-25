@@ -2,6 +2,7 @@
 Recherche utilisateur par email et récupération des emails (auth.admin).
 Implémente IUserLookupProvider. Comportement identique aux usages dans les routeurs.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional

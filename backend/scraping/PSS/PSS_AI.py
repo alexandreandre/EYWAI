@@ -32,6 +32,7 @@ USER_AGENT = (
 
 # --- UTILITAIRES ---
 
+
 def iso_now() -> str:
     """Retourne la date et l'heure actuelles au format ISO 8601 UTC."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -70,7 +71,10 @@ Texte :
             response_format={"type": "json_object"},
             temperature=0,
             messages=[
-                {"role": "system", "content": "Assistant d'extraction JSON strict pour les barèmes URSSAF."},
+                {
+                    "role": "system",
+                    "content": "Assistant d'extraction JSON strict pour les barèmes URSSAF.",
+                },
                 {"role": "user", "content": prompt},
             ],
         )
@@ -82,6 +86,7 @@ Texte :
 
 
 # --- SCRAPER IA ---
+
 
 def get_plafonds_ss_via_ai() -> dict | None:
     """Recherche et extraction IA des plafonds de la Sécurité Sociale."""
@@ -112,7 +117,15 @@ def get_plafonds_ss_via_ai() -> dict | None:
             text = soup.get_text(" ", strip=True)
 
             data = extract_json_with_gpt(text)
-            expected_keys = {"annuel", "trimestriel", "mensuel", "quinzaine", "hebdomadaire", "journalier", "horaire"}
+            expected_keys = {
+                "annuel",
+                "trimestriel",
+                "mensuel",
+                "quinzaine",
+                "hebdomadaire",
+                "journalier",
+                "horaire",
+            }
 
             if data and expected_keys.issubset(data.keys()):
                 print("✅ Extraction réussie et complète.", file=sys.stderr)
@@ -123,11 +136,15 @@ def get_plafonds_ss_via_ai() -> dict | None:
             print(f"   - ERREUR lors du traitement de {url}: {e}", file=sys.stderr)
             time.sleep(1)
 
-    print("\n❌ Aucune donnée valide extraite après toutes les tentatives.", file=sys.stderr)
+    print(
+        "\n❌ Aucune donnée valide extraite après toutes les tentatives.",
+        file=sys.stderr,
+    )
     return None
 
 
 # --- MAIN ---
+
 
 def main():
     """Orchestre l'extraction et produit la sortie JSON finale."""
@@ -142,15 +159,17 @@ def main():
         "libelle": "Plafonds de la Sécurité Sociale",
         "sections": plafonds,
         "meta": {
-            "source": [{
-                "url": "https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/plafonds-securite-sociale.html",
-                "label": "URSSAF - Plafonds de la Sécurité Sociale",
-                "date_doc": ""
-            }],
+            "source": [
+                {
+                    "url": "https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/plafonds-securite-sociale.html",
+                    "label": "URSSAF - Plafonds de la Sécurité Sociale",
+                    "date_doc": "",
+                }
+            ],
             "scraped_at": iso_now(),
             "generator": "scripts/PSS/PSS_AI.py",
-            "method": "ai"
-        }
+            "method": "ai",
+        },
     }
 
     print(json.dumps(payload, ensure_ascii=False))

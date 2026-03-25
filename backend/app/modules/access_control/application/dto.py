@@ -8,6 +8,7 @@ Les cas d'usage listes / matrice / templates retournent directement les schémas
 schemas.permissions (PermissionCategory, PermissionMatrix, UserPermissionsSummary, etc.)
 pour conserver le comportement exact des routers legacy.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -16,6 +17,7 @@ from dataclasses import dataclass
 @dataclass
 class PermissionCheckResult:
     """Résultat d'une vérification de permission."""
+
     has_permission: bool
     permission_code: str
     user_id: str
@@ -25,6 +27,7 @@ class PermissionCheckResult:
 @dataclass
 class RoleHierarchyCheckResult:
     """Résultat d'une vérification hiérarchie (création/modification de rôle)."""
+
     is_allowed: bool
     creator_role: str
     target_role: str

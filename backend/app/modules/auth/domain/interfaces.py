@@ -68,7 +68,9 @@ class IEmailSender(ABC):
     """Envoi d'emails (ex. réinitialisation mot de passe)."""
 
     @abstractmethod
-    def send_password_reset(self, to_email: str, reset_token: str, user_name: str | None = None) -> bool:
+    def send_password_reset(
+        self, to_email: str, reset_token: str, user_name: str | None = None
+    ) -> bool:
         """Envoie l'email de reset. Retourne True si succès."""
         ...
 

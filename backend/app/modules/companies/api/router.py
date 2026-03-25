@@ -5,6 +5,7 @@ Délègue toute la logique à la couche application (queries, commands, service)
 Aucune logique métier ni accès DB : validation, résolution contexte, appel application, retour HTTP.
 Comportement HTTP identique à api/routers/company.py.
 """
+
 import traceback
 
 from fastapi import APIRouter, Depends, HTTPException

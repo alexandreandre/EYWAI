@@ -6,6 +6,7 @@ les données attendues. Les appels DB sont mockés (pas de DB réelle).
 Pour des tests contre une DB de test, prévoir db_session et données dans
 employee_schedules, employees, companies.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -25,9 +26,13 @@ def repo():
 class TestScheduleRepositoryGetPlannedCalendar:
     """get_planned_calendar."""
 
-    def test_calls_supabase_and_returns_planned_calendar(self, repo: ScheduleRepository):
+    def test_calls_supabase_and_returns_planned_calendar(
+        self, repo: ScheduleRepository
+    ):
         """Délègue à Supabase match employee_id, year, month ; retourne planned_calendar."""
-        mock_data = {"planned_calendar": {"calendrier_prevu": [{"jour": 1, "type": "work"}]}}
+        mock_data = {
+            "planned_calendar": {"calendrier_prevu": [{"jour": 1, "type": "work"}]}
+        }
         mock_response = MagicMock()
         mock_response.data = mock_data
 
@@ -46,7 +51,9 @@ class TestScheduleRepositoryGetPlannedCalendar:
         assert result.get("calendrier_prevu") == [{"jour": 1, "type": "work"}]
         supabase.table.assert_called_once_with("employee_schedules")
         chain.select.assert_called_once_with("planned_calendar")
-        chain.match.assert_called_once_with({"employee_id": "emp-1", "year": 2025, "month": 3})
+        chain.match.assert_called_once_with(
+            {"employee_id": "emp-1", "year": 2025, "month": 3}
+        )
 
     def test_returns_none_when_no_row(self, repo: ScheduleRepository):
         """Pas de ligne → None (maybe_single retourne None)."""
@@ -69,7 +76,9 @@ class TestScheduleRepositoryGetActualHours:
 
     def test_returns_actual_hours_from_row(self, repo: ScheduleRepository):
         """Retourne actual_hours extrait de la ligne."""
-        mock_data = {"actual_hours": {"calendrier_reel": [{"jour": 1, "heures_faites": 7.5}]}}
+        mock_data = {
+            "actual_hours": {"calendrier_reel": [{"jour": 1, "heures_faites": 7.5}]}
+        }
         mock_response = MagicMock()
         mock_response.data = mock_data
 
@@ -248,7 +257,9 @@ class TestScheduleRepositoryInsertSchedule:
         assert payload["company_id"] == "comp-1"
         assert payload["year"] == 2025
         assert payload["month"] == 3
-        assert payload["planned_calendar"] == {"calendrier_prevu": [{"jour": 1, "type": "work"}]}
+        assert payload["planned_calendar"] == {
+            "calendrier_prevu": [{"jour": 1, "type": "work"}]
+        }
         assert payload["actual_hours"] == {}
         assert payload["payroll_events"] == {}
         assert payload["cumuls"] == {}
@@ -275,7 +286,9 @@ class TestScheduleRepositoryUpdatePlannedCalendarOnly:
                 {"calendrier_prevu": []},
             )
 
-        chain.update.assert_called_once_with({"planned_calendar": {"calendrier_prevu": []}})
+        chain.update.assert_called_once_with(
+            {"planned_calendar": {"calendrier_prevu": []}}
+        )
         chain.match.assert_called_once_with(
             {"employee_id": "emp-1", "year": 2025, "month": 3}
         )

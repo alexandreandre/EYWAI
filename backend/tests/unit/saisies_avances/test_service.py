@@ -4,6 +4,7 @@ Tests du service applicatif saisies_avances (application/service.py).
 Service orchestrant domain + infrastructure. Les dépendances (repositories,
 queries, storage) sont mockées.
 """
+
 from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
@@ -62,7 +63,10 @@ class TestGetEmployeeSalaryAdvances:
     def test_me_raises_not_found(self):
         with pytest.raises(service.NotFoundError) as exc_info:
             service.get_employee_salary_advances("me")
-        assert "me" in str(exc_info.value).lower() or "salary-advances" in str(exc_info.value).lower()
+        assert (
+            "me" in str(exc_info.value).lower()
+            or "salary-advances" in str(exc_info.value).lower()
+        )
 
 
 class TestCalculateSeizable:
@@ -72,13 +76,18 @@ class TestCalculateSeizable:
         with patch(f"{SERVICE_MODULE}.domain_rules") as rules:
             with patch(f"{SERVICE_MODULE}.infra_mappers") as mappers:
                 rules.calculate_seizable_amount.return_value = Decimal("250")
-                from app.modules.saisies_avances.schemas import SeizableAmountCalculation
-                mappers.to_seizable_amount_calculation.return_value = SeizableAmountCalculation(
-                    net_salary=Decimal("2000"),
-                    dependents_count=0,
-                    adjusted_salary=Decimal("2000"),
-                    seizable_amount=Decimal("250"),
-                    minimum_untouchable=Decimal("100"),
+                from app.modules.saisies_avances.schemas import (
+                    SeizableAmountCalculation,
+                )
+
+                mappers.to_seizable_amount_calculation.return_value = (
+                    SeizableAmountCalculation(
+                        net_salary=Decimal("2000"),
+                        dependents_count=0,
+                        adjusted_salary=Decimal("2000"),
+                        seizable_amount=Decimal("250"),
+                        minimum_untouchable=Decimal("100"),
+                    )
                 )
                 result = service.calculate_seizable(Decimal("2000"), dependents_count=0)
         assert result.seizable_amount == Decimal("250")
@@ -90,6 +99,7 @@ class TestCreateSalaryAdvanceForbidden:
 
     def test_collaborator_creating_for_other_raises_forbidden(self):
         from app.modules.saisies_avances.schemas import SalaryAdvanceCreate
+
         advance_data = SalaryAdvanceCreate(
             employee_id="other-id",
             requested_amount=Decimal("100"),
@@ -106,6 +116,7 @@ class TestCreateSalaryAdvanceNotFound:
 
     def test_employee_not_found_raises_not_found(self):
         from app.modules.saisies_avances.schemas import SalaryAdvanceCreate
+
         advance_data = SalaryAdvanceCreate(
             employee_id=EMPLOYEE_ID,
             requested_amount=Decimal("100"),
@@ -124,7 +135,11 @@ class TestApproveSalaryAdvanceValidation:
 
     def test_advance_not_pending_raises_validation(self):
         with patch(f"{SERVICE_MODULE}.advance_repository") as repo:
-            repo.get_by_id.return_value = {"id": "a1", "status": "approved", "requested_amount": 100}
+            repo.get_by_id.return_value = {
+                "id": "a1",
+                "status": "approved",
+                "requested_amount": 100,
+            }
             with pytest.raises(service.ValidationError) as exc_info:
                 service.approve_salary_advance("a1", USER_ID)
             assert "approuvée" in str(exc_info.value).lower()

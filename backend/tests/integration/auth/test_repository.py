@@ -5,6 +5,7 @@ Vérifie les opérations CRUD / métier sur les tokens de réinitialisation.
 Avec une DB de test (fixture db_session) : tests réels contre la table password_resets.
 Sans DB de test : mocks Supabase pour valider la logique et les appels.
 """
+
 from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -48,8 +49,8 @@ class TestPasswordResetTokenRepository:
         with patch("app.modules.auth.infrastructure.repository.supabase") as supabase:
             table = MagicMock()
             select_chain = MagicMock()
-            select_chain.eq.return_value.eq.return_value.execute.return_value = MagicMock(
-                data=[]
+            select_chain.eq.return_value.eq.return_value.execute.return_value = (
+                MagicMock(data=[])
             )
             table.select.return_value = select_chain
             supabase.table.return_value = table
@@ -71,8 +72,8 @@ class TestPasswordResetTokenRepository:
         with patch("app.modules.auth.infrastructure.repository.supabase") as supabase:
             table = MagicMock()
             select_chain = MagicMock()
-            select_chain.eq.return_value.eq.return_value.execute.return_value = MagicMock(
-                data=[row]
+            select_chain.eq.return_value.eq.return_value.execute.return_value = (
+                MagicMock(data=[row])
             )
             table.select.return_value = select_chain
             supabase.table.return_value = table

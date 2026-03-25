@@ -5,6 +5,7 @@ Appelle uniquement l'application du module. Aucune logique métier : validation 
 résolution du contexte (company_id), appel commands/queries, format réponse.
 Comportement HTTP identique au legacy.
 """
+
 from __future__ import annotations
 
 import traceback
@@ -147,9 +148,7 @@ def list_participation_simulations_route(
         company_id = _require_company_id(user)
         entities = list_participation_simulations(company_id, year)
         return [
-            ParticipationSimulationListItem(
-                **entity_to_simulation_list_item_dict(e)
-            )
+            ParticipationSimulationListItem(**entity_to_simulation_list_item_dict(e))
             for e in entities
         ]
     except HTTPException:
