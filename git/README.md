@@ -1,6 +1,10 @@
 ## GRAND I : Travailler sur une branche feature
 
 
+git add .
+git commit -m "test"
+git push origin main
+
 # 0) Voir ce que la feature apporte à main (à faire AVANT merge, idéalement)
 
 git status
