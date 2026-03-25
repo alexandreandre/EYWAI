@@ -36,7 +36,13 @@ class TestAllowedLogoMimetypes:
     """Constante ALLOWED_LOGO_MIMETYPES."""
 
     def test_contains_expected_types(self):
-        expected = {"image/png", "image/jpeg", "image/jpg", "image/svg+xml", "image/webp"}
+        expected = {
+            "image/png",
+            "image/jpeg",
+            "image/jpg",
+            "image/svg+xml",
+            "image/webp",
+        }
         assert ALLOWED_LOGO_MIMETYPES == expected
 
     def test_is_frozenset(self):

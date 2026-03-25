@@ -4,6 +4,7 @@ Tests de wiring (injection de dépendances et flux bout en bout) pour le module 
 Vérifie que le router appelle bien les commandes, que les commandes utilisent
 storage/repository/service, et que les réponses HTTP correspondent aux DTOs.
 """
+
 import asyncio
 from unittest.mock import patch
 
@@ -43,8 +44,9 @@ class TestWiringRouterToCommands:
     def test_delete_logo_flow_returns_delete_response(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.uploads.application.commands.repo") as mock_repo, patch(
-            "app.modules.uploads.application.commands.storage"
+        with (
+            patch("app.modules.uploads.application.commands.repo") as mock_repo,
+            patch("app.modules.uploads.application.commands.storage"),
         ):
             mock_repo.entity_exists.return_value = True
             mock_repo.get_logo_url.return_value = None
@@ -83,9 +85,12 @@ class TestWiringCommandsReturnDtos:
     """Les commandes retournent bien les DTOs attendus (utilisés par le router)."""
 
     def test_delete_logo_returns_delete_result(self):
-        with patch(
-            "app.modules.uploads.application.commands.ensure_can_edit_entity_logo"
-        ), patch("app.modules.uploads.application.commands.repo") as mock_repo:
+        with (
+            patch(
+                "app.modules.uploads.application.commands.ensure_can_edit_entity_logo"
+            ),
+            patch("app.modules.uploads.application.commands.repo") as mock_repo,
+        ):
             mock_repo.entity_exists.return_value = True
             mock_repo.get_logo_url.return_value = None
 
@@ -98,9 +103,12 @@ class TestWiringCommandsReturnDtos:
             assert hasattr(result, "message")
 
     def test_update_logo_scale_returns_scale_result(self):
-        with patch(
-            "app.modules.uploads.application.commands.ensure_can_edit_entity_logo"
-        ), patch("app.modules.uploads.application.commands.repo") as mock_repo:
+        with (
+            patch(
+                "app.modules.uploads.application.commands.ensure_can_edit_entity_logo"
+            ),
+            patch("app.modules.uploads.application.commands.repo") as mock_repo,
+        ):
             mock_repo.update_logo_scale.return_value = True
 
             result = update_logo_scale(
@@ -119,26 +127,27 @@ class TestWiringInfrastructureInjected:
     def test_upload_logo_calls_storage_and_repo(self):
         from app.modules.uploads.application import commands
 
-        with patch(
-            "app.modules.uploads.application.commands.ensure_can_edit_entity_logo"
-        ), patch(
-            "app.modules.uploads.application.commands.validate_logo_file"
-        ), patch(
-            "app.modules.uploads.application.commands.storage"
-        ) as mock_storage, patch(
-            "app.modules.uploads.application.commands.repo"
-        ) as mock_repo:
+        with (
+            patch(
+                "app.modules.uploads.application.commands.ensure_can_edit_entity_logo"
+            ),
+            patch("app.modules.uploads.application.commands.validate_logo_file"),
+            patch("app.modules.uploads.application.commands.storage") as mock_storage,
+            patch("app.modules.uploads.application.commands.repo") as mock_repo,
+        ):
             mock_storage.get_logo_public_url.return_value = "https://url/logo.png"
             mock_repo.update_logo_url.return_value = True
 
-            result = asyncio.run(commands.upload_logo(
-                file_content=b"\x89PNG",
-                content_type="image/png",
-                filename="logo.png",
-                entity_type="company",
-                entity_id=TEST_COMPANY_ID,
-                current_user=_make_user(),
-            ))
+            result = asyncio.run(
+                commands.upload_logo(
+                    file_content=b"\x89PNG",
+                    content_type="image/png",
+                    filename="logo.png",
+                    entity_type="company",
+                    entity_id=TEST_COMPANY_ID,
+                    current_user=_make_user(),
+                )
+            )
             mock_storage.upload_logo_file.assert_called_once()
             mock_repo.update_logo_url.assert_called_once()
             assert result.logo_url == "https://url/logo.png"

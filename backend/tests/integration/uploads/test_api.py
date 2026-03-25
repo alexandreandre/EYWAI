@@ -10,6 +10,7 @@ Fixture optionnelle : uploads_headers (conftest.py) — en-têtes pour un utilis
 authentifié avec droits sur une company/group pour les uploads. Si absente, les tests
 utilisent dependency_overrides pour injecter un User de test.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -86,11 +87,13 @@ class TestUploadLogoRoute:
     def test_upload_logo_with_auth_and_mocks_returns_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.uploads.application.commands.storage") as mock_storage, patch(
-            "app.modules.uploads.application.commands.repo"
-        ) as mock_repo, patch(
-            "app.modules.uploads.application.service.infra_queries.can_edit_entity_logo",
-            return_value=True,
+        with (
+            patch("app.modules.uploads.application.commands.storage") as mock_storage,
+            patch("app.modules.uploads.application.commands.repo") as mock_repo,
+            patch(
+                "app.modules.uploads.application.service.infra_queries.can_edit_entity_logo",
+                return_value=True,
+            ),
         ):
             mock_storage.get_logo_public_url.return_value = (
                 "https://storage.example.com/logos/companies/logo.png"
@@ -112,7 +115,9 @@ class TestUploadLogoRoute:
         data = response.json()
         assert data.get("success") is True
         assert "logo_url" in data
-        assert data["logo_url"] == "https://storage.example.com/logos/companies/logo.png"
+        assert (
+            data["logo_url"] == "https://storage.example.com/logos/companies/logo.png"
+        )
 
     def test_upload_logo_forbidden_without_rights_returns_403(self, client: TestClient):
         from app.core.security import get_current_user
@@ -140,11 +145,13 @@ class TestDeleteLogoRoute:
     def test_delete_logo_with_auth_and_mocks_returns_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.uploads.application.commands.repo") as mock_repo, patch(
-            "app.modules.uploads.application.commands.storage"
-        ), patch(
-            "app.modules.uploads.application.service.infra_queries.can_edit_entity_logo",
-            return_value=True,
+        with (
+            patch("app.modules.uploads.application.commands.repo") as mock_repo,
+            patch("app.modules.uploads.application.commands.storage"),
+            patch(
+                "app.modules.uploads.application.service.infra_queries.can_edit_entity_logo",
+                return_value=True,
+            ),
         ):
             mock_repo.entity_exists.return_value = True
             mock_repo.get_logo_url.return_value = (
@@ -169,9 +176,12 @@ class TestDeleteLogoRoute:
     def test_delete_logo_entity_not_found_returns_404(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.uploads.application.commands.repo") as mock_repo, patch(
-            "app.modules.uploads.application.service.infra_queries.can_edit_entity_logo",
-            return_value=True,
+        with (
+            patch("app.modules.uploads.application.commands.repo") as mock_repo,
+            patch(
+                "app.modules.uploads.application.service.infra_queries.can_edit_entity_logo",
+                return_value=True,
+            ),
         ):
             mock_repo.entity_exists.return_value = False
 
@@ -192,9 +202,12 @@ class TestPatchLogoScaleRoute:
     def test_patch_logo_scale_with_auth_and_mocks_returns_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        with patch("app.modules.uploads.application.commands.repo") as mock_repo, patch(
-            "app.modules.uploads.application.service.infra_queries.can_edit_entity_logo",
-            return_value=True,
+        with (
+            patch("app.modules.uploads.application.commands.repo") as mock_repo,
+            patch(
+                "app.modules.uploads.application.service.infra_queries.can_edit_entity_logo",
+                return_value=True,
+            ),
         ):
             mock_repo.update_logo_scale.return_value = True
 
