@@ -30,6 +30,7 @@ Ce texte explique **ce qui tourne tout seul** quand tu travailles sur le projet 
 
 | Fichier | Quand ça s’exécute | Ce que ça fait |
 |---------|-------------------|----------------|
+| `pre-commit` | Avant chaque `git commit` (fichiers **déjà** dans l’index) | **lint-staged** : `ruff check --fix` + `ruff format` sur les `.py` stagés du backend, `eslint --fix` sur les `.ts`/`.tsx` stagés du frontend. Corrige le code quand c’est possible ; si une règle est insatisfaite, le commit est bloqué. |
 | `commit-msg` | À chaque `git commit` | Vérifie que le **message** de commit respecte le format (ex. `feat(frontend): …`). Si ce n’est pas bon, Git refuse le commit et affiche une erreur claire. |
 | `pre-push` | À **chaque** `git push` (toutes branches distantes) | Enchaîne les vérifs **alignées sur `ci.yml`** : **`ruff check`** (backend), **gitleaks** si le binaire est présent, **pytest** hors e2e, puis **`npm ci`** + lint + build (frontend). Le formatage global (`ruff format`) n’est pas exigé ; tu peux le lancer à part sur `backend/`. |
 
@@ -38,6 +39,8 @@ Ce texte explique **ce qui tourne tout seul** quand tu travailles sur le projet 
 **Commande utile sans push**
 
 - À la racine : `npm run test:prepush` — lance la même suite que le hook (pratique avant d’ouvrir une PR).
+- **Message guidé** (menus interactifs, scopes alignés sur commitlint) : `npm run commit` au lieu de `git commit -m "..."`.
+- **Découpage en plusieurs commits** (proposition par dossier / module ; rien n’est commité tout seul) : `npm run git:atomic` ou `npm run git:atomic:staged`.
 
 **Si les hooks ne partent pas**
 
