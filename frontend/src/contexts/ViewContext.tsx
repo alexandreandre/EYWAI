@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 // Types
 type ViewMode = 'rh' | 'collaborateur';
 
-interface ViewContextType {
+export interface ViewContextType {
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
   isCollaborateurRh: boolean;
@@ -54,4 +54,9 @@ export function useView() {
     throw new Error('useView must be used within a ViewProvider');
   }
   return context;
+}
+
+/** Hors ViewProvider : undefined (pas d’exception), pour composants montés sans provider. */
+export function useViewOptional(): ViewContextType | undefined {
+  return useContext(ViewContext);
 }

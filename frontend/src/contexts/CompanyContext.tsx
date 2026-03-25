@@ -28,7 +28,7 @@ export interface CompanyAccess {
   group_logo_scale?: number;
 }
 
-interface CompanyContextType {
+export interface CompanyContextType {
   accessibleCompanies: CompanyAccess[];
   activeCompany: CompanyAccess | null;
   setActiveCompany: (companyId: string) => void;
@@ -256,6 +256,29 @@ export const useCompany = () => {
   return context;
 };
 
+/** Hors CompanyProvider : null (pas d’exception), pour sidebar / switcher défensifs. */
+export const useCompanyOptional = (): CompanyContextType | null => {
+  return useContext(CompanyContext);
+};
+
+/** Groupements multi-entreprise (même logique que useAccessibleGroups, sans hook). */
+export function computeAccessibleGroups(
+  accessibleCompanies: CompanyAccess[],
+): { groupId: string; groupCompanies: CompanyAccess[] }[] {
+  const groupsMap = new Map<string, CompanyAccess[]>();
+
+  accessibleCompanies.forEach((company) => {
+    if (company.group_id) {
+      const existing = groupsMap.get(company.group_id) || [];
+      groupsMap.set(company.group_id, [...existing, company]);
+    }
+  });
+
+  return Array.from(groupsMap.entries())
+    .filter(([, companies]) => companies.length > 1)
+    .map(([groupId, groupCompanies]) => ({ groupId, groupCompanies }));
+}
+
 // ===== Utilitaires =====
 
 /**
@@ -296,21 +319,7 @@ export const useHasActiveCompanyRhAccess = (): boolean => {
  */
 export const useAccessibleGroups = (): { groupId: string; groupCompanies: CompanyAccess[] }[] => {
   const { accessibleCompanies } = useCompany();
-
-  // Grouper les entreprises par group_id
-  const groupsMap = new Map<string, CompanyAccess[]>();
-
-  accessibleCompanies.forEach(company => {
-    if (company.group_id) {
-      const existing = groupsMap.get(company.group_id) || [];
-      groupsMap.set(company.group_id, [...existing, company]);
-    }
-  });
-
-  // Retourner uniquement les groupes avec au moins 2 entreprises
-  return Array.from(groupsMap.entries())
-    .filter(([, companies]) => companies.length > 1)
-    .map(([groupId, groupCompanies]) => ({ groupId, groupCompanies }));
+  return computeAccessibleGroups(accessibleCompanies);
 };
 
 /**

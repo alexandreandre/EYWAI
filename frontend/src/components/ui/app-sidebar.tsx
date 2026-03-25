@@ -36,8 +36,12 @@ import {
 } from "lucide-react";
 import { getMedicalSettings } from "@/api/medicalFollowUp";
 import { useAuth } from "@/contexts/AuthContext"; // <-- IMPORTATION
-import { useAccessibleGroups, useCompany } from "@/contexts/CompanyContext"; // <-- IMPORTATION
-import { useView } from "@/contexts/ViewContext"; // NOUVEAU - Gestion de la vue pour collaborateur_rh
+import {
+  computeAccessibleGroups,
+  useCompanyOptional,
+  type CompanyAccess,
+} from "@/contexts/CompanyContext"; // <-- IMPORTATION
+import { useViewOptional } from "@/contexts/ViewContext"; // NOUVEAU - Gestion de la vue pour collaborateur_rh
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { ChangePasswordModal } from "@/components/ChangePasswordModal";
 import { CompanySwitcher } from "@/components/CompanySwitcher";
@@ -115,13 +119,8 @@ export function AppSidebar() {
   const currentPath = location.pathname;
   const [showChangePassword, setShowChangePassword] = useState(false);
   
-  // Récupérer la vue pour collaborateur_rh
-  let viewContext: { viewMode: 'rh' | 'collaborateur'; setViewMode: (mode: 'rh' | 'collaborateur') => void; isCollaborateurRh: boolean } | null = null;
-  try {
-    viewContext = useView();
-  } catch (e) {
-    // ViewContext n'est pas disponible (pas dans ViewProvider)
-  }
+  // Récupérer la vue pour collaborateur_rh (hors ViewProvider : undefined)
+  const viewContext = useViewOptional();
   const isCollaborateurRh = viewContext?.isCollaborateurRh || false;
   const viewMode = viewContext?.viewMode || 'rh';
   const setViewMode = viewContext?.setViewMode || (() => {});
@@ -130,17 +129,15 @@ export function AppSidebar() {
   const [displayedLogo, setDisplayedLogo] = useState<{ url: string; scale: number } | null>(null);
 
   // Récupérer l'entreprise active et les groupes multi-entreprises accessibles
-  let activeCompany: any = null;
-  let accessibleGroups: { groupId: string; groupCompanies: any[] }[] = [];
-  let accessibleCompanies: any[] = [];
+  const companyContext = useCompanyOptional();
+  const activeCompany: CompanyAccess | null = companyContext?.activeCompany ?? null;
+  const accessibleCompanies: CompanyAccess[] = companyContext?.accessibleCompanies ?? [];
+  const accessibleGroups =
+    companyContext != null
+      ? computeAccessibleGroups(companyContext.accessibleCompanies)
+      : [];
 
-  try {
-    const companyContext = useCompany();
-    activeCompany = companyContext.activeCompany;
-    accessibleCompanies = companyContext.accessibleCompanies;
-    accessibleGroups = useAccessibleGroups();
-  } catch (e) {
-    // Si l'utilisateur n'est pas dans un CompanyProvider, ignorer
+  if (!companyContext) {
     console.log('%c[AppSidebar] Pas de CompanyContext disponible', 'color: orange');
   }
 

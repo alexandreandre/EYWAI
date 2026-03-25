@@ -265,7 +265,7 @@ export function GroupDashboard() {
   const filteredAndSortedCompanies = useMemo(() => {
     if (!stats?.by_company) return [];
 
-    let filtered = stats.by_company.filter(company =>
+    const filtered = stats.by_company.filter(company =>
       selectedCompanyIds.has(company.company_id) &&
       (company.company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
        company.siret?.includes(searchTerm))

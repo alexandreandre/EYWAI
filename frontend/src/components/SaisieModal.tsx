@@ -147,7 +147,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
     const currentMonth = month || new Date().getMonth() + 1;
 
     // Si une prime "selon_heures" a été créée à la volée, calculer le montant pour chaque employé
-    let amountsByEmployee: Record<string, number> = {};
+    const amountsByEmployee: Record<string, number> = {};
     if (showCreatePrimeForm && primeForm.type === "selon_heures") {
       setIsCalculating(true);
       try {

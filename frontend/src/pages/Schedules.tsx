@@ -423,7 +423,11 @@ export default function Schedules() {
 
   const toggleEmployee = (id: string) => {
     const newSet = new Set(selectedEmployeeIds);
-    newSet.has(id) ? newSet.delete(id) : newSet.add(id);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
     setSelectedEmployeeIds(newSet);
   };
 

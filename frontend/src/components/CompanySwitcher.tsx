@@ -6,7 +6,7 @@
  * - Un dropdown si l'utilisateur a accès à plusieurs entreprises
  */
 
-import { useCompany } from '@/contexts/CompanyContext';
+import { useCompany, type CompanyAccess } from '@/contexts/CompanyContext';
 import { Building2, ChevronDown, Check } from 'lucide-react';
 import {
   DropdownMenu,
@@ -20,19 +20,18 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
 export function CompanySwitcher() {
+  const { accessibleCompanies, activeCompany, setActiveCompany, isLoading, error } = useCompany();
+
   console.log('%c[CompanySwitcher] 🔨 Rendu du composant CompanySwitcher', 'background: orange; color: white; font-weight: bold');
 
   // Log localStorage pour debug
   const localStorageCompanyId = localStorage.getItem('activeCompanyId');
   console.log('%c[CompanySwitcher] 📂 localStorage activeCompanyId:', 'background: blue; color: white; font-weight: bold', localStorageCompanyId);
 
-  // Gestion d'erreur pour éviter de bloquer la sidebar
   try {
-    const { accessibleCompanies, activeCompany, setActiveCompany, isLoading, error } = useCompany();
-
     // Déterminer si l'utilisateur a accès à plusieurs entreprises d'un même groupe
-    const groupedCompanies: Record<string, any[]> = {};
-    accessibleCompanies.forEach((company: any) => {
+    const groupedCompanies: Record<string, CompanyAccess[]> = {};
+    accessibleCompanies.forEach((company) => {
       if (company.group_id) {
         if (!groupedCompanies[company.group_id]) {
           groupedCompanies[company.group_id] = [];
@@ -157,9 +156,9 @@ export function CompanySwitcher() {
       </DropdownMenu>
       </div>
     );
-  } catch (error) {
-    // En cas d'erreur, ne rien afficher pour ne pas bloquer la sidebar
-    console.error('%c[CompanySwitcher] 💥 ERREUR CRITIQUE:', 'background: red; color: white; font-weight: bold', error);
+  } catch (err) {
+    // Erreur inattendue pendant le rendu (logs / dérivations) — ne pas bloquer la sidebar
+    console.error('%c[CompanySwitcher] 💥 ERREUR CRITIQUE:', 'background: red; color: white; font-weight: bold', err);
     return null;
   }
 }
