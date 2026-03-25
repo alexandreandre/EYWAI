@@ -348,8 +348,8 @@ sa-key.json
 config.local.json
 settings.local.json
 
-# Uploads et médias générés
-uploads/
+# Uploads et médias générés (racine uniquement — ne pas masquer backend/app/modules/uploads/)
+/uploads/
 media/
 static/uploads/
 
