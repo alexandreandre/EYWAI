@@ -77,15 +77,34 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
       - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      # Le backend importe Supabase au chargement ; sans ces variables le conteneur ne bind jamais le PORT.
+      - name: Secrets Supabase requis pour le backend
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_KEY" ]; then
+            echo "::error::Ajoute les secrets SUPABASE_URL et SUPABASE_KEY (Settings → Secrets and variables → Actions). Même valeur que sur Cloud Run / ton .env backend."
+            exit 1
+          fi
 
       - uses: google-github-actions/deploy-cloudrun@v2
         with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
           service: ${{ env.BACKEND_SERVICE_NAME }}
           region: ${{ env.GCP_REGION }}
           image: ${{ needs.build-and-push.outputs.backend_image }}
+          env_vars: |-
+            SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+            SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
+          env_vars_update_strategy: merge
 
       - uses: google-github-actions/deploy-cloudrun@v2
         with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
           service: ${{ env.FRONTEND_SERVICE_NAME }}
           region: ${{ env.GCP_REGION }}
           image: ${{ needs.build-and-push.outputs.frontend_image }}
@@ -106,15 +125,33 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
       - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Secrets Supabase requis pour le backend
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_KEY" ]; then
+            echo "::error::Ajoute SUPABASE_URL et SUPABASE_KEY aux secrets de l'environnement « production » ou du dépôt."
+            exit 1
+          fi
 
       - uses: google-github-actions/deploy-cloudrun@v2
         with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
           service: ${{ vars.BACKEND_SERVICE_NAME_PROD || env.BACKEND_SERVICE_NAME }}
           region: ${{ vars.GCP_REGION_PROD || env.GCP_REGION }}
           image: ${{ needs.build-and-push.outputs.backend_image }}
+          env_vars: |-
+            SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+            SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
+          env_vars_update_strategy: merge
 
       - uses: google-github-actions/deploy-cloudrun@v2
         with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
           service: ${{ vars.FRONTEND_SERVICE_NAME_PROD || env.FRONTEND_SERVICE_NAME }}
           region: ${{ vars.GCP_REGION_PROD || env.GCP_REGION }}
           image: ${{ needs.build-and-push.outputs.frontend_image }}
