@@ -1,10 +1,12 @@
-# Push sur main (ou bouton « Run workflow ») : images Docker → Cloud Run (staging puis prod).
+# Déploiement après une CI verte sur main, ou déclenchement manuel.
+# Le push seul sur main ne déploie plus : il faut que le workflow « CI » ait réussi (push → CI → ce workflow).
 # Variables / secrets : voir .github/workflows/GUIDE_SIMPLE.md
 name: Deploy
 
 on:
-  push:
-    branches: [main]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
   workflow_dispatch:
 
 concurrency:
@@ -24,11 +26,22 @@ jobs:
   build-and-push:
     name: Docker build + push GCR
     runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
     outputs:
       backend_image: ${{ steps.meta-backend.outputs.image }}
       frontend_image: ${{ steps.meta-frontend.outputs.image }}
+    env:
+      # workflow_run : même commit que la CI qui vient de réussir (pas github.sha du run Deploy)
+      DEPLOY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: GCP_PROJECT_ID requis
         run: |
@@ -47,7 +60,7 @@ jobs:
       - id: meta-backend
         run: |
           P="${{ vars.GCP_PROJECT_ID }}"
-          echo "image=gcr.io/${P}/sirh-backend:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "image=gcr.io/${P}/sirh-backend:${DEPLOY_SHA}" >> "$GITHUB_OUTPUT"
 
       - uses: docker/build-push-action@v6
         with:
@@ -58,7 +71,7 @@ jobs:
       - id: meta-frontend
         run: |
           P="${{ vars.GCP_PROJECT_ID }}"
-          echo "image=gcr.io/${P}/sirh-frontend:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "image=gcr.io/${P}/sirh-frontend:${DEPLOY_SHA}" >> "$GITHUB_OUTPUT"
 
       - uses: docker/build-push-action@v6
         with:
@@ -71,6 +84,7 @@ jobs:
   staging:
     name: Cloud Run staging
     needs: [build-and-push]
+    if: needs.build-and-push.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: google-github-actions/auth@v2
@@ -118,6 +132,7 @@ jobs:
   production:
     name: Cloud Run production
     needs: [staging, build-and-push]
+    if: needs.build-and-push.result == 'success' && needs.staging.result == 'success'
     runs-on: ubuntu-latest
     environment: production
     steps:

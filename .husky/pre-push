@@ -1,2 +1,2 @@
 #!/usr/bin/env sh
-cd "$(dirname "$0")/.." && sh scripts/pre-push-main-tests.sh
+cd "$(dirname "$0")/.." && sh scripts/pre-push-run.sh

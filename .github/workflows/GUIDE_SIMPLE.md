@@ -23,17 +23,21 @@ Ce texte explique **ce qui tourne tout seul** quand tu travailles sur le projet 
    npm install
    ```
 2. Ça active Husky : Git saura qu’il doit lire les fichiers dans `.husky/`.
+3. **Backend** : un venv avec les deps du dossier `backend` (dont **ruff**) pour que le pre-push puisse lancer `ruff` et `pytest` comme en CI.
+4. **Gitleaks** (recommandé) : installe le CLI [gitleaks](https://github.com/gitleaks/gitleaks) pour le même scan qu’en CI ; sinon le script affiche un rappel ou tu peux faire `SKIP_GITLEAKS=1 git push`.
 
 **Ce qui existe chez nous**
 
 | Fichier | Quand ça s’exécute | Ce que ça fait |
 |---------|-------------------|----------------|
 | `commit-msg` | À chaque `git commit` | Vérifie que le **message** de commit respecte le format (ex. `feat(frontend): …`). Si ce n’est pas bon, Git refuse le commit et affiche une erreur claire. |
-| `pre-push` | À chaque `git push` **vers la branche `main`** | Te demande si tu veux lancer **les mêmes vérifs que la CI** (tests backend + lint/build frontend). Tu peux répondre non, mais c’est là pour t’éviter une mauvaise surprise. |
+| `pre-push` | À **chaque** `git push` (toutes branches distantes) | Enchaîne les vérifs **alignées sur `ci.yml`** : `ruff check` + `ruff format --check` (backend), **gitleaks** si le binaire est présent, **pytest** hors e2e, puis **`npm ci`** + lint + build (frontend). |
+
+**Contournement ponctuel** (dépannage uniquement) : `SKIP_PREPUSH=1 git push` ou `HUSKY=0 git push`.
 
 **Commande utile sans push**
 
-- À la racine : `npm run test:prepush` — lance la même suite de tests que le hook (pratique avant d’ouvrir une PR).
+- À la racine : `npm run test:prepush` — lance la même suite que le hook (pratique avant d’ouvrir une PR).
 
 **Si les hooks ne partent pas**
 
@@ -51,7 +55,7 @@ Là il n’y a plus que **3 fichiers** :
 |---------|-------------------------------------|---------------|
 | `ci.yml` | **CI** | Chaque **pull request** + chaque **push sur `main`** |
 | `pull-request.yml` | **Pull requests** | **(A)** chaque PR — zip de contexte ; **(B)** seulement si **tu cliques** *Run workflow* |
-| `deploy.yml` | **Deploy** | Chaque **push sur `main`** + option *Run workflow* |
+| `deploy.yml` | **Deploy** | Après une **CI verte** sur un **push** vers `main`, ou *Run workflow* (manuel) |
 
 ### 3.1 CI (`ci.yml`)
 
@@ -81,6 +85,8 @@ Deux comportements dans **le même fichier**, selon l’événement :
 
 **But :** construire les images Docker et les pousser sur Google Cloud Run (staging puis production).
 
+**Enchaînement avec la CI :** le workflow **Deploy** ne part plus directement sur un push vers `main`. Il se déclenche quand le workflow **CI** se termine **avec succès** après un **push** sur **`main`** (les PR seules ne déploient pas, même si la CI est verte). Le checkout et les tags d’images utilisent le **même SHA** que le run CI qui vient de réussir. Tu peux toujours lancer un déploiement à la main via *Run workflow* (`workflow_dispatch`).
+
 **À configurer sur le dépôt GitHub** (une fois, avec quelqu’un qui connaît GCP) :
 
 - **Secret** : `GCP_SA_KEY` (JSON du compte de service).
@@ -100,7 +106,7 @@ Plus de détail infra : voir **`DEPLOIEMENT.md`** à la racine du dépôt.
 | Coder tranquille sur une branche | Rien de spécial ; les hooks ne gênent que le commit (message) et le push vers `main`. |
 | Vérifier comme la CI avant une PR | `npm run test:prepush` à la racine. |
 | Voir si ta PR est OK | Ouvre la PR sur GitHub et attends le workflow **CI** au vert. |
-| Déployer | Merge sur `main` (ou *Run workflow* sur **Deploy** si tu sais ce que tu fais). |
+| Déployer | Merge sur `main` puis attendre **CI** au vert (Deploy part juste après) ; ou *Run workflow* sur **Deploy** si tu sais ce que tu fais. |
 | Aide rédactionnelle sur une PR | *Actions* → **Pull requests** → *Run workflow* + numéro de PR (clé Anthropic requise). |
 
 ---
@@ -109,7 +115,7 @@ Plus de détail infra : voir **`DEPLOIEMENT.md`** à la racine du dépôt.
 
 1. **`npm install` à la racine** → les **hooks** locaux s’activent.  
 2. **GitHub** lance **CI** tout seul sur les PR et sur `main`.  
-3. **Deploy** part quand le code arrive sur **`main`** (si GCP est bien configuré).  
+3. **Deploy** part quand **CI** est verte sur un **push** vers **`main`** (si GCP est bien configuré), ou au *Run workflow* manuel.  
 4. Le reste (**artifact** de PR, **commentaire Claude**) est optionnel et documenté ci-dessus.
 
 En cas de doute sur une erreur précise, ouvre le run rouge dans **Actions** et lis la dernière étape en rouge : le message indique souvent exactement quoi corriger.

@@ -1,4 +1,5 @@
 # Installation : pip install pre-commit && pre-commit install
+# Pre-push « complet » (pytest, npm ci, etc.) : Husky à la racine → npm install puis hook .husky/pre-push
 # Optionnel typage statique : voir CONTRIBUTING.md (mypy).
 
 repos:
