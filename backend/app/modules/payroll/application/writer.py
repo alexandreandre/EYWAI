@@ -8,13 +8,11 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
-from supabase import create_client
-import os
 
+from app.core.database import get_supabase_admin_client
 from app.modules.payroll.application.analyzer import analyser_horaires_du_mois
 
 load_dotenv()
-supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_KEY"))
 
 
 def generer_et_enregistrer_evenements(
@@ -28,6 +26,7 @@ def generer_et_enregistrer_evenements(
     Analyse les horaires et enregistre directement les événements de paie dans Supabase.
     """
     try:
+        supabase = get_supabase_admin_client()
         print(f"🧮 [PayrollWriter] Début génération événements {employee_name} ({month}/{year})", file=sys.stderr)
 
         res = supabase.table("employee_schedules").select("planned_calendar, actual_hours") \
