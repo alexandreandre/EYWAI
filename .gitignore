@@ -323,6 +323,9 @@ temp/
 # Credentials
 credentials.json
 secrets.json
+# Clés JSON compte de service GCP (ex. gcloud iam service-accounts keys create)
+sa-key.json
+*-sa-key.json
 *.pem
 *.key
 *.crt
