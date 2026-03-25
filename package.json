@@ -1,0 +1,13 @@
+{
+  "name": "eywai",
+  "private": true,
+  "scripts": {
+    "prepare": "husky",
+    "test:prepush": "sh scripts/run-local-ci-suite.sh"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.8.1",
+    "@commitlint/config-conventional": "^19.8.1",
+    "husky": "^9.1.7"
+  }
+}

@@ -1,5 +1,6 @@
 ## GRAND I : Travailler sur une branche feature
 
+
 # 0) Voir ce que la feature apporte à main (à faire AVANT merge, idéalement)
 
 git status
@@ -66,12 +67,18 @@ git add .
 # (aucune sortie)
 
 
-# 5) Créer le commit (snapshot) avec un message clair
+# 5) Créer le commit (snapshot) avec un message au format Conventional Commits
+#    Types : feat, fix, chore, docs, … — Scopes : payroll, auth, frontend, infra, api, ci
+#    (voir CONTRIBUTING.md et commitlint à la racine ; un commit = une intention)
 
-git commit -m "Commentaire"
+git commit -m "feat(frontend): description courte du changement"
+
+# Variantes :
+# git commit -m "fix(api): corriger la validation du bulletin"
+# git commit -m "docs: mettre à jour le guide de déploiement"
 
 # Réponse OK (exemple) :
-# [feature/ma-fonctionnalite 1a2b3c4] Commentaire
+# [feature/ma-fonctionnalite 1a2b3c4] feat(frontend): description courte du changement
 #  5 files changed, 42 insertions(+), 6 deletions(-)
 #  create mode 100644 path/to/new_file.py
 

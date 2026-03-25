@@ -1,0 +1,14 @@
+---
+description: Conventions Python/FastAPI pour backend/ (app modulaire)
+globs: backend/**
+alwaysApply: false
+---
+
+# Backend (`backend/`)
+
+- **Point d’entrée** : `app.main:app` ; code applicatif sous `backend/app/` (voir `backend/app/README.md`).
+- **Imports** : respecter les couches (API → application → domain / infrastructure). Pas d’import de détail croisé entre modules métier ; utiliser ports / schémas partagés. Pour les tests, mêmes conventions d’import que la doc `app/`.
+- **Style** : suivre le code existant (nommage, structure des modules, logging via `app.core.logging`, pas de `print` en logique durable).
+- **Portée** : ne pas faire de refactors « drive-by » hors demande ; chaque ligne du diff doit servir la tâche.
+- **Messages utilisateur** : si des chaînes sont exposées au front ou à l’utilisateur final, privilégier le **français** (cohérent avec le produit).
+- **Base de données** : pas de migration SQL improvisée sans process (revue + alignement Supabase / RLS). Voir `AGENTS.md` à la racine.

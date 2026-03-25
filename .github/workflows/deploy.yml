@@ -1,0 +1,127 @@
+# Push sur main (ou bouton « Run workflow ») : images Docker → Cloud Run (staging puis prod).
+# Variables / secrets : voir .github/workflows/GUIDE_SIMPLE.md
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_REGION: ${{ vars.GCP_REGION || 'europe-west1' }}
+  BACKEND_SERVICE_NAME: ${{ vars.BACKEND_SERVICE_NAME || 'sirh-backend' }}
+  FRONTEND_SERVICE_NAME: ${{ vars.FRONTEND_SERVICE_NAME || 'sirh-frontend-app' }}
+
+jobs:
+  build-and-push:
+    name: Docker build + push GCR
+    runs-on: ubuntu-latest
+    outputs:
+      backend_image: ${{ steps.meta-backend.outputs.image }}
+      frontend_image: ${{ steps.meta-frontend.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: GCP_PROJECT_ID requis
+        run: |
+          if [ -z "${{ vars.GCP_PROJECT_ID }}" ]; then
+            echo "::error::Variable dépôt GCP_PROJECT_ID manquante."
+            exit 1
+          fi
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker --quiet
+
+      - id: meta-backend
+        run: |
+          P="${{ vars.GCP_PROJECT_ID }}"
+          echo "image=gcr.io/${P}/sirh-backend:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ steps.meta-backend.outputs.image }}
+
+      - id: meta-frontend
+        run: |
+          P="${{ vars.GCP_PROJECT_ID }}"
+          echo "image=gcr.io/${P}/sirh-frontend:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          build-args: |
+            VITE_API_URL=${{ vars.VITE_API_URL }}
+          tags: ${{ steps.meta-frontend.outputs.image }}
+
+  staging:
+    name: Cloud Run staging
+    needs: [build-and-push]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.BACKEND_SERVICE_NAME }}
+          region: ${{ env.GCP_REGION }}
+          image: ${{ needs.build-and-push.outputs.backend_image }}
+
+      - uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.FRONTEND_SERVICE_NAME }}
+          region: ${{ env.GCP_REGION }}
+          image: ${{ needs.build-and-push.outputs.frontend_image }}
+
+      - name: Santé backend /health
+        run: |
+          URL=$(gcloud run services describe "${BACKEND_SERVICE_NAME}" \
+            --region "${GCP_REGION}" --format 'value(status.url)')
+          curl -fsS --retry 5 --retry-delay 5 --retry-all-errors "${URL}/health"
+
+  production:
+    name: Cloud Run production
+    needs: [staging, build-and-push]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ vars.BACKEND_SERVICE_NAME_PROD || env.BACKEND_SERVICE_NAME }}
+          region: ${{ vars.GCP_REGION_PROD || env.GCP_REGION }}
+          image: ${{ needs.build-and-push.outputs.backend_image }}
+
+      - uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ vars.FRONTEND_SERVICE_NAME_PROD || env.FRONTEND_SERVICE_NAME }}
+          region: ${{ vars.GCP_REGION_PROD || env.GCP_REGION }}
+          image: ${{ needs.build-and-push.outputs.frontend_image }}
+
+      - name: Santé backend /health
+        run: |
+          SVC="${{ vars.BACKEND_SERVICE_NAME_PROD || env.BACKEND_SERVICE_NAME }}"
+          REG="${{ vars.GCP_REGION_PROD || env.GCP_REGION }}"
+          URL=$(gcloud run services describe "${SVC}" --region "${REG}" --format 'value(status.url)')
+          curl -fsS --retry 5 --retry-delay 5 --retry-all-errors "${URL}/health"

@@ -19,7 +19,7 @@ Ce répertoire est le **nouveau point d'entrée** de l'API backend du SIRH. Il m
 
 ### Objectif
 
-- **Point d'entrée unique** : l'application FastAPI est exposée via `app.main:app`. Le `main.py` à la racine de `backend_api/` est conservé pendant la migration, puis sera retiré une fois la bascule validée.
+- **Point d'entrée unique** : l'application FastAPI est exposée via **`app.main:app`** (`backend/app/main.py`). C’est le point d’entrée supporté en production et en développement.
 - **Modularité** : chaque domaine métier (auth, employés, paie, absences, etc.) vit dans un **module** (`app/modules/<nom>/`) avec ses propres couches (api, application, domain, infrastructure, schemas).
 - **Pas de couplage direct entre modules** : la communication se fait via interfaces, schémas partagés ou (à terme) événements. Les imports croisés de détail entre modules sont évités.
 
@@ -143,7 +143,7 @@ modules/<module>/
 
 ### Démarrage de l'application
 
-Depuis la racine de `backend_api/` (pour que le package `app` soit importable) :
+Depuis la racine de **`backend/`** (répertoire courant = racine du package `app`) :
 
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -181,7 +181,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 
 ### Imports
 
-- **Préfixe `app.`** : tous les imports internes à l’application utilisent le package `app` (ex. `from app.core.security import get_current_user`, `from app.modules.absences.application import commands`). Cela permet d’exécuter depuis `backend_api/` avec le bon PYTHONPATH.
+- **Préfixe `app.`** : tous les imports internes à l’application utilisent le package `app` (ex. `from app.core.security import get_current_user`, `from app.modules.absences.application import commands`). Exécuter uvicorn et pytest avec `backend/` comme répertoire de travail (voir `pytest.ini` : `pythonpath = .`).
 - **Éviter les imports circulaires** : les routers n’importent que application + schemas + core ; l’application n’importe pas les routers.
 
 ### Nommage
@@ -233,7 +233,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 
 ### Lancer l’API
 
-À la racine de `backend_api/` :
+À la racine de `backend/` :
 
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -244,11 +244,11 @@ Vérifier : `GET http://localhost:8000/health` → `{"status":"ok"}`.
 ### Tests
 
 - Les tests d’intégration et E2E utilisent `from app.main import app` et le `TestClient` FastAPI sur `app`.
-- Le répertoire de tests est à la racine de `backend_api/` (`tests/`), pas dans `app/`. Les conventions de nommage et d’import ci-dessus s’appliquent aussi aux tests qui ciblent les modules de `app`.
-- Vérification d’architecture (imports) :
+- Le répertoire de tests est à la racine de `backend/` (`tests/`), pas dans `app/`. Les conventions de nommage et d’import ci-dessus s’appliquent aussi aux tests qui ciblent les modules de `app`.
+- Vérification d’architecture (imports), si configuré :
 
 ```bash
-cd backend_api
+cd backend
 lint-imports --config .importlinter
 ```
 
@@ -258,6 +258,5 @@ Cette commande échoue si un module enfreint les contrats de couches (API/Applic
 
 ## Références
 
-- **Architecture cible** : `backend_api/docs/architecture/target-architecture.md`
-- **Cartographie des routes et services** : `backend_api/CARTOGRAPHIE_BACKEND.md`
-- **Documentation générale du backend** : `backend_api/README.md`
+- **Documentation générale du backend** : [README.md](../README.md) (dossier `backend/`)
+- **Tests** : [tests/README.md](../tests/README.md)

@@ -53,9 +53,10 @@ Le fichier **`tests/conftest.py`** est chargé par pytest et fournit :
 
 ### 2.1 Markers
 
-- **`e2e`** : tests end-to-end / smoke (ex. `pytest -m "not e2e"` pour les exclure).
+Déclarés dans **`pytest.ini`** (`e2e`, `integration`, `unit`, `asyncio`, …) pour éviter les avertissements et filtrer (`pytest -m "not e2e"`, `-m unit`, etc.).
 
-Les markers `unit` et `integration` sont utilisés dans les fichiers de test pour catégoriser ; on peut les enregistrer dans `pytest_configure` si besoin de filtrage (`-m unit`, `-m integration`).
+- **`e2e`** : smoke / bout-en-bout (ex. `pytest -m "not e2e"` pour la CI).
+- **`unit`** / **`integration`** : catégories utilisées dans les modules de tests.
 
 ### 2.2 Client HTTP
 

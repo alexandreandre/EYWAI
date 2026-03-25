@@ -11,14 +11,6 @@ collect_ignore = [
 ]
 
 
-def pytest_configure(config):
-    """Enregistre les markers personnalisés (e2e, etc.)."""
-    config.addinivalue_line(
-        "markers",
-        "e2e: smoke / end-to-end tests (désélection: pytest -m 'not e2e')",
-    )
-
-
 from fastapi.testclient import TestClient
 
 from app.main import app

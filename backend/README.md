@@ -478,16 +478,15 @@ Les **préfixes de route** exacts et les schémas de requête/réponse sont la *
 
 ### Prérequis
 
-- Python 3.10+
-- PostgreSQL (via Supabase)
-- Redis (optionnel, pour Dramatiq)
+- Python 3.11+
+- Projet **Supabase** (PostgreSQL + Auth + Storage selon les besoins)
+- **Redis** si vous exécutez des workers **Dramatiq** (`dramatiq[redis]` dans `requirements.txt`)
 
 ### Installation
 
-1. **Cloner le dépôt**
+1. **Se placer dans le dossier backend**
 ```bash
-git clone <repository-url>
-cd backend_api
+cd backend
 ```
 
 2. **Créer un environnement virtuel**
@@ -505,46 +504,39 @@ pip install -r requirements.txt
 
 4. **Configurer les variables d'environnement**
 
-Créer un fichier `.env` à la racine de `backend_api/` :
+Créer un fichier `.env` à la racine de `backend/` (les noms exacts sont centralisés dans `app/core` — reprendre ceux utilisés en production / Cloud Run).
+
+Exemples courants :
 
 ```env
-# Supabase
 SUPABASE_URL=https://votre-projet.supabase.co
-SUPABASE_KEY=votre-clé-anon
-
-# OpenAI (pour copilot et parsing)
-OPENAI_API_KEY=votre-clé-openai
-
-# SMTP (pour emails)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=votre-email@gmail.com
-SMTP_PASSWORD=votre-mot-de-passe
-SMTP_FROM=noreply@sirh.com
-
-# Redis (optionnel, pour Dramatiq)
-REDIS_URL=redis://localhost:6379/0
+SUPABASE_KEY=votre-clé
+OPENAI_API_KEY=...          # optionnel (copilot, parsing)
+REDIS_URL=redis://localhost:6379/0   # si Dramatiq
+# SMTP, clés de test, etc. — voir conftest / DEPLOIEMENT
 ```
 
 5. **Lancer l'application**
 
-```bash
-# Mode développement
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+Depuis le répertoire `backend/` (le répertoire courant doit permettre d’importer le package `app`) :
 
-# Mode production
-uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
+```bash
+# Développement
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# Production (exemple)
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
 ### Docker
 
 ```bash
-# Construire l'image
+cd backend
 docker build -t sirh-backend .
-
-# Lancer le conteneur
-docker run -p 8000:8000 --env-file .env sirh-backend
+docker run -p 8080:8080 --env-file .env sirh-backend
 ```
+
+Le `Dockerfile` utilise **`app.main:app`** et le port **`${PORT:-8080}`** (typique Cloud Run).
 
 ---
 
@@ -618,17 +610,7 @@ companies (entreprises)
 
 ### Migrations
 
-Les migrations SQL sont dans le dossier `migrations/`. L'ordre d'exécution est documenté dans `migrations/README_PRINCIPAL.md`.
-
-**Exécuter les migrations :**
-
-```bash
-# Via psql
-psql -U postgres -d votre_base -f migrations/run_all_migrations.sql
-
-# Ou via Supabase CLI
-supabase db push
-```
+Le schéma relationnel, les politiques **RLS** et les évolutions SQL sont appliqués sur le projet **Supabase** (hors de ce dépôt ou via procédure interne). Il n’y a pas de dossier `migrations/` versionné ici.
 
 ---
 
@@ -712,11 +694,9 @@ gcloud run services update sirh-backend \
 
 ### Health Check
 
-L'endpoint `/` retourne un statut de santé :
-
 ```bash
-curl https://votre-api.run.app/
-# {"message": "API du SaaS RH fonctionnelle !"}
+curl http://localhost:8000/health
+# {"status":"ok"}
 ```
 
 ---
@@ -740,8 +720,10 @@ Les logs sont écrits dans la console avec différents niveaux :
 ### Tests
 
 ```bash
-# Lancer les tests (à implémenter)
-pytest tests/
+cd backend
+source venv/bin/activate
+pytest
+# Voir tests/README.md (marqueurs e2e, variables TEST_USER_*, SUPABASE_TEST_*)
 ```
 
 ---
@@ -750,8 +732,8 @@ pytest tests/
 
 - [Documentation FastAPI](https://fastapi.tiangolo.com/)
 - [Documentation Supabase](https://supabase.com/docs)
-- [Migrations README](migrations/README_PRINCIPAL.md)
-- [Moteur de calcul README](backend_calculs/README.md)
+- [Architecture applicative `app/`](app/README.md)
+- [Moteur de paie (décisions / moteur)](app/modules/payroll/engine/README.md)
 
 ---
 
@@ -772,5 +754,5 @@ Pour contribuer au projet :
 
 ---
 
-**Dernière mise à jour** : Février 2026
+**Dernière mise à jour** : mars 2025
 

@@ -1,0 +1,13 @@
+# Installation : pip install pre-commit && pre-commit install
+# Optionnel typage statique : voir CONTRIBUTING.md (mypy).
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.9
+    hooks:
+      - id: ruff
+        name: ruff (backend)
+        files: ^backend/.*\.py$
+      - id: ruff-format
+        name: ruff format (backend)
+        files: ^backend/.*\.py$

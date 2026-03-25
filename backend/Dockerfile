@@ -1,4 +1,4 @@
-# Fichier: backend_api/Dockerfile
+# Image API SIRH — répertoire de build : backend/
 
 FROM python:3.11-slim
 
@@ -37,4 +37,4 @@ COPY . .
 # Lit le port depuis la variable $PORT fournie par Cloud Run.
 # --forwarded-allow-ips='*' : fait respecter X-Forwarded-Proto pour que les redirections
 # (ex. slash final) utilisent https:// au lieu de http:// (évite Mixed Content).
-CMD sh -c "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --forwarded-allow-ips='*'"
+CMD sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} --forwarded-allow-ips='*'"

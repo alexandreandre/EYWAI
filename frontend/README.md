@@ -23,8 +23,8 @@ Le frontend du SIRH est une **application web moderne** construite avec **React 
 
 ### Caractéristiques principales
 
-- ✅ **Multi-entreprises** : Sélecteur d'entreprise avec contexte global
-- ✅ **Multi-rôles** : Interfaces adaptées selon le rôle (RH, Salarié, Manager, Admin, Super Admin)
+- ✅ **Multi-entreprises** : Sélecteur d'entreprise avec contexte global (`CompanyContext`)
+- ✅ **Multi-rôles** : Interfaces adaptées selon le rôle (RH, collaborateur, `collaborateur_rh` avec **bascule de vue** via `ViewContext`, admin, Super Admin)
 - ✅ **Forfait jour** : Interface adaptée avec cases à cocher pour les jours travaillés
 - ✅ **Responsive Design** : Compatible mobile, tablette et desktop
 - ✅ **Dark Mode** : Support du thème sombre (via next-themes)
@@ -44,7 +44,8 @@ Le frontend du SIRH est une **application web moderne** construite avec **React 
 │                    Application React                        │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
 │  │   Contexts   │  │   Hooks      │  │  Components  │     │
-│  │  (Auth, Co.) │  │  (Custom)    │  │  (UI, Pages) │     │
+│  │(Auth, Co.,  │  │  (Custom)    │  │  (UI, Pages) │     │
+│  │   View)      │  │              │  │              │     │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘     │
 │         │                 │                  │             │
 │         └─────────────────┼──────────────────┘             │
@@ -120,10 +121,16 @@ Le frontend du SIRH est une **application web moderne** construite avec **React 
 ### Autres bibliothèques
 
 - **Axios 1.12+** : Client HTTP
+- **@supabase/supabase-js** : Client Supabase (auth / données côté client si nécessaire)
 - **date-fns 3.6+** : Manipulation de dates
 - **react-pdf** : Affichage de PDF
 - **Sonner** : Notifications toast
 - **cmdk** : Command palette
+
+### Outils de développement
+
+- **lovable-tagger** (plugin Vite, mode `development` uniquement) : taggage de composants en dev
+- **ESLint 9** + **typescript-eslint** : lint (`npm run lint`)
 
 ---
 
@@ -152,16 +159,27 @@ frontend/
 │   │
 │   ├── api/                        # Clients API
 │   │   ├── apiClient.ts           # Client Axios configuré
-│   │   ├── absences.ts            # API absences
-│   │   ├── calendar.ts            # API calendrier
-│   │   ├── collectiveAgreements.ts # API conventions collectives
-│   │   ├── employeeExits.ts       # API sorties salariés
-│   │   ├── expenses.ts            # API notes de frais
-│   │   ├── payslips.ts            # API bulletins de paie
-│   │   ├── permissions.ts         # API permissions
-│   │   ├── saisies.ts             # API saisies mensuelles
-│   │   ├── scraping.ts            # API scraping (Super Admin)
-│   │   └── simulation.ts          # API simulation de paie
+│   │   ├── absences.ts
+│   │   ├── annualReviews.ts
+│   │   ├── bonusTypes.ts
+│   │   ├── calendar.ts
+│   │   ├── collectiveAgreements.ts
+│   │   ├── cse.ts
+│   │   ├── employeeExits.ts
+│   │   ├── expenses.ts
+│   │   ├── exports.ts
+│   │   ├── medicalFollowUp.ts
+│   │   ├── mutuelleTypes.ts
+│   │   ├── payslips.ts
+│   │   ├── permissions.ts
+│   │   ├── promotions.ts
+│   │   ├── recruitment.ts
+│   │   ├── residencePermits.ts
+│   │   ├── ribAlerts.ts
+│   │   ├── saisies.ts
+│   │   ├── saisiesAvances.ts
+│   │   ├── scraping.ts
+│   │   └── simulation.ts
 │   │
 │   ├── components/                 # Composants React
 │   │   ├── ui/                    # Composants UI de base (Shadcn)
@@ -225,8 +243,9 @@ frontend/
 │   │   └── ScheduleModal.tsx
 │   │
 │   ├── contexts/                  # Contextes React
-│   │   ├── AuthContext.tsx       # Contexte authentification
-│   │   └── CompanyContext.tsx    # Contexte multi-entreprises
+│   │   ├── AuthContext.tsx       # Authentification
+│   │   ├── CompanyContext.tsx    # Multi-entreprises
+│   │   └── ViewContext.tsx       # Vue RH vs collaborateur (rôle collaborateur_rh)
 │   │
 │   ├── hooks/                     # Hooks personnalisés
 │   │   ├── use-mobile.tsx        # Détection mobile
@@ -263,28 +282,38 @@ frontend/
 │   │   ├── GroupDashboard.tsx  # Tableau de bord groupe
 │   │   ├── Exports.tsx         # Exports (RH/Paie)
 │   │   ├── ResidencePermits.tsx # Titres de séjour
+│   │   ├── MedicalFollowUp.tsx  # Suivi médical (RH)
 │   │   ├── AnnualReviews.tsx   # Entretiens annuels
 │   │   ├── AnnualReviewDetail.tsx # Détails entretien
+│   │   ├── Promotions.tsx
+│   │   ├── PromotionDetail.tsx
+│   │   ├── CSE.tsx              # CSE (RH)
+│   │   ├── Recruitment.tsx
 │   │   ├── SalarySeizures.tsx   # Saisies sur salaire
-│   │   └── SalaryAdvances.tsx   # Avances sur salaire
+│   │   ├── SalaryAdvances.tsx   # Avances sur salaire
+│   │   └── UserProfile.tsx      # Fiche utilisateur (/users/:userId)
 │   │   │
-│   │   ├── employee/            # Pages espace salarié
-│   │   │   ├── Dashboard.tsx   # Tableau de bord salarié
-│   │   │   ├── Profile.tsx     # Profil salarié
-│   │   │   ├── Payslips.tsx    # Mes bulletins
-│   │   │   ├── Absences.tsx    # Mes absences
-│   │   │   ├── Calendar.tsx    # Mon calendrier
-│   │   │   ├── Expenses.tsx    # Mes notes de frais
-│   │   │   ├── Documents.tsx  # Mes documents
-│   │   │   └── AnnualReviews.tsx # Mes entretiens annuels
+│   │   ├── employee/            # Pages collaborateur (routes à la racine pour ce rôle)
+│   │   │   ├── Dashboard.tsx
+│   │   │   ├── Profile.tsx
+│   │   │   ├── Payslips.tsx
+│   │   │   ├── Absences.tsx
+│   │   │   ├── Calendar.tsx
+│   │   │   ├── Expenses.tsx
+│   │   │   ├── Documents.tsx
+│   │   │   ├── AnnualReviews.tsx
+│   │   │   ├── AnnualReviewDetail.tsx
+│   │   │   ├── CSE.tsx
+│   │   │   └── MedicalFollowUp.tsx
 │   │   │
-│   │   └── super-admin/         # Pages Super Admin
+│   │   └── super-admin/         # Préfixe URL /super-admin/...
 │   │       ├── SuperAdminLayout.tsx
 │   │       ├── SuperAdminDashboard.tsx
 │   │       ├── Companies.tsx
 │   │       ├── CompanyDetails.tsx
 │   │       ├── Users.tsx
 │   │       ├── Monitoring.tsx
+│   │       ├── Tests.tsx        # Outils / tests Super Admin
 │   │       ├── ReductionFillon.tsx
 │   │       ├── Scraping.tsx
 │   │       ├── CollectiveAgreementsCatalog.tsx
@@ -339,9 +368,8 @@ frontend/
 - **Alertes** : Notifications importantes
 
 **Pages :**
-- `/` - Tableau de bord RH
-- `/employee/` - Tableau de bord salarié
-- `/super-admin` - Tableau de bord Super Admin
+- `/` — Tableau de bord **RH** (rôles avec accès RH) ou **collaborateur** (rôle `collaborateur` : layout dédié, mêmes URLs racine mais composants différents)
+- `/super-admin` — Espace Super Admin (layout séparé)
 
 ### 4. Gestion des employés
 
@@ -406,8 +434,8 @@ frontend/
 - **Types** : Congés payés, RTT, maladie, etc.
 
 **Pages :**
-- `/leaves` - Gestion des absences (RH)
-- `/employee/absences` - Mes absences (salarié)
+- `/leaves` — Gestion des absences (RH)
+- `/absences` — Mes absences (rôle **collaborateur** ; pas de préfixe `/employee`)
 
 ### 8. Notes de frais
 
@@ -418,8 +446,7 @@ frontend/
 - **Historique** : Suivi des notes
 
 **Pages :**
-- `/expenses` - Notes de frais (RH)
-- `/employee/expenses` - Mes notes de frais (salarié)
+- `/expenses` — Notes de frais (RH **ou** collaborateur selon le rôle ; en RH les notes équipe sont sur cette route, le collaborateur voit les siennes)
 
 ### 9. Calendriers et plannings
 
@@ -430,8 +457,8 @@ frontend/
 - **Vue salarié** : Consultation de son planning
 
 **Pages :**
-- `/schedules` - Gestion des plannings (RH)
-- `/employee/calendar` - Mon calendrier (salarié)
+- `/schedules` — Gestion des plannings (RH)
+- `/calendar` — Calendrier collaborateur (rôle **collaborateur**)
 
 ### 10. Sorties de salariés
 
@@ -488,12 +515,13 @@ frontend/
 - **Groupes d'entreprises** : Gestion des groupes
 
 **Pages :**
-- `/super-admin` - Tableau de bord
-- `/super-admin/companies` - Liste des entreprises
-- `/super-admin/users` - Liste des utilisateurs
-- `/super-admin/scraping` - Gestion scraping
-- `/super-admin/monitoring` - Monitoring
-- `/super-admin/groups` - Groupes d'entreprises
+- `/super-admin` — Tableau de bord
+- `/super-admin/companies` — Entreprises
+- `/super-admin/users` — Utilisateurs
+- `/super-admin/scraping` — Scraping
+- `/super-admin/monitoring` — Monitoring
+- `/super-admin/groups` — Groupes d’entreprises
+- `/super-admin/tests` — Page outils / tests (Super Admin)
 
 ### 15. Gestion des utilisateurs
 
@@ -534,9 +562,8 @@ frontend/
 - **Espace salarié** : Consultation par le salarié
 
 **Pages :**
-- `/annual-reviews` - Liste des entretiens (RH)
-- `/annual-reviews/:reviewId` - Détails d'un entretien
-- `/employee/annual-reviews` - Mes entretiens (salarié)
+- `/annual-reviews` — Liste ou « mes entretiens » selon le rôle
+- `/annual-reviews/:reviewId` — Détail d’un entretien
 
 ### 19. Saisies et avances
 
@@ -547,6 +574,13 @@ frontend/
 **Pages :**
 - `/salary-seizures` - Saisies sur salaire
 - `/salary-advances` - Avances sur salaire
+
+### 20. Suivi médical, CSE, recrutement et promotions
+
+- **Suivi médical** : Visites et suivi (RH + espace collaborateur `/medical-follow-up`)
+- **CSE** : `/cse` (RH) ; `employee/CSE.tsx` pour les élus en vue collaborateur / `collaborateur_rh`
+- **Recrutement** : `/recruitment`
+- **Promotions** : `/promotions`, `/promotions/:promotionId`
 
 ---
 
@@ -622,10 +656,10 @@ pnpm preview
 ### Configuration Vite
 
 Le fichier `vite.config.ts` configure :
-- Port : 8080
+- Port : **8080**
 - Host : `::` (toutes les interfaces)
-- Alias `@` : Pointe vers `./src`
-- Plugin React SWC : Compilation rapide
+- Alias `@` : `./src`
+- Plugins : `@vitejs/plugin-react-swc` ; en `development`, **lovable-tagger** peut être activé
 
 ### Configuration TypeScript
 
@@ -701,6 +735,10 @@ Les composants métier encapsulent la logique spécifique à l'application.
 - `activeCompany` - Entreprise active
 - `accessibleCompanies` - Liste des entreprises accessibles
 - `setActiveCompany(id)` - Changer d'entreprise
+
+**ViewContext** : Rôle `collaborateur_rh`
+- Bascule entre vue **RH** (sidebar complète) et vue **collaborateur** (routes type `/`, `/calendar`, etc.)
+- Utilisé avec `AppSidebar` / la navigation conditionnelle dans `App.tsx`
 
 ### React Query
 
@@ -977,10 +1015,7 @@ En production, configurer `VITE_API_URL` pour pointer vers l'API backend.
 
 ### Tests
 
-```bash
-# À implémenter
-npm run test
-```
+Aucun script `test` n’est défini dans `package.json`. Utiliser `npm run lint` pour la qualité statique.
 
 ### Linting
 
@@ -1018,4 +1053,4 @@ Pour contribuer au projet :
 
 ---
 
-**Dernière mise à jour** : Février 2026
+**Dernière mise à jour** : mars 2025

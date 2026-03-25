@@ -468,6 +468,7 @@ Dans la console Cloud Run, configurer les variables d'environnement pour chaque 
 
 ### Documentation principale
 
+- **[GUIDE_UTILISATION.md](GUIDE_UTILISATION.md)** : Guide pas à pas pour débutants (installation locale, Git, PR, IA).
 - **[backend/README.md](backend/README.md)** : Vue d’ensemble du backend, domaines couverts, configuration.
 - **[backend/app/README.md](backend/app/README.md)** : Architecture **modular monolith** (couches, conventions, démarrage).
 - **[backend/tests/README.md](backend/tests/README.md)** : Organisation des tests Pytest.
@@ -535,19 +536,21 @@ Aucun script `npm run test` n’est défini dans `frontend/package.json` pour l�
 
 ## 🤝 Contribution
 
+**Nouveau sur le dépôt ?** Commence par **[GUIDE_UTILISATION.md](GUIDE_UTILISATION.md)** (installation, Git, messages de commit, hooks).
+
 ### Processus de contribution
 
-1. **Fork** le projet
+1. **Fork** le projet (ou clone selon les droits de l’équipe)
 2. **Créer une branche** pour votre fonctionnalité (`git checkout -b feature/ma-fonctionnalite`)
-3. **Commit** vos changements (`git commit -m 'Ajout de ma fonctionnalité'`)
-4. **Push** vers la branche (`git push origin feature/ma-fonctionnalite`)
+3. **Commit** vos changements au format **Conventional Commits**, par ex. `git commit -m "feat(frontend): ajouter l’export CSV"` — détail dans [CONTRIBUTING.md](CONTRIBUTING.md)
+4. **Push** vers la branche (`git push -u origin feature/ma-fonctionnalite`)
 5. **Créer une Pull Request**
 
 ### Standards de code
 
-- **Backend** : Suivre PEP 8 (Python)
+- **Backend** : Suivre PEP 8 (Python) ; Ruff via pre-commit sur les fichiers modifiés
 - **Frontend** : Suivre les conventions ESLint configurées
-- **Commits** : Messages clairs et descriptifs
+- **Commits** : Format contrôlé par **commitlint** (voir [CONTRIBUTING.md](CONTRIBUTING.md))
 - **Documentation** : Mettre à jour la documentation si nécessaire
 
 ---
