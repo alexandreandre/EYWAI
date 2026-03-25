@@ -46,12 +46,14 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
 
       - name: pip install
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements.txt -r requirements-dev.txt
           pip install ruff pip-audit
 
       - name: Ruff (info seulement)
@@ -63,7 +65,7 @@ jobs:
         run: pip-audit -r requirements.txt --desc on
 
       - name: Pytest (hors e2e)
-        run: pytest tests/ -m "not e2e" -v --tb=short
+        run: python -m pytest tests/ -m "not e2e" -v --tb=short
 
       - name: Fichier OpenAPI
         run: |

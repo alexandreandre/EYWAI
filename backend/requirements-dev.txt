@@ -1,0 +1,5 @@
+# Tests / CI uniquement (non installé dans l’image Docker prod)
+pytest
+pytest-asyncio
+pytest-anyio
+httpx
