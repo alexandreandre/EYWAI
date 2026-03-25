@@ -1,6 +1,6 @@
 ## GRAND I : Travailler sur une branche feature
 
-# A copier :
+# A copier 
 git add .
 git commit -m "test"
 git push origin main
