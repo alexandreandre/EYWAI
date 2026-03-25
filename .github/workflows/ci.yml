@@ -28,6 +28,11 @@ jobs:
   backend:
     name: Backend (tests + OpenAPI)
     runs-on: ubuntu-latest
+    # L’app crée le client Supabase à l’import ; des valeurs factices suffisent pour pytest / OpenAPI en CI.
+    env:
+      SUPABASE_URL: https://ci-placeholder.supabase.co
+      SUPABASE_KEY: ci-placeholder-anon-key
+      SUPABASE_SERVICE_KEY: ci-placeholder-service-role-key
     defaults:
       run:
         working-directory: backend
@@ -62,7 +67,8 @@ jobs:
 
       - name: pip-audit (info seulement)
         continue-on-error: true
-        run: pip-audit -r requirements.txt --desc on
+        # CVE-2026-4539 (pygments) : pas de version corrigée listée par pip-audit au 2026-03 ; ignorer jusqu’au correctif amont.
+        run: pip-audit -r requirements.txt --desc on --ignore-vuln CVE-2026-4539
 
       - name: Pytest (hors e2e)
         run: python -m pytest tests/ -m "not e2e" -v --tb=short

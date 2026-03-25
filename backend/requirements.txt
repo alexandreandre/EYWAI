@@ -14,7 +14,7 @@ dramatiq[redis]
 redis
 
 # --- Templating / PDF (moteur paie, bulletins, solde de tout compte : app.modules.payroll) ---
-Jinja2==3.1.4
+Jinja2>=3.1.6
 weasyprint==68.1
 reportlab
 
