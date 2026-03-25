@@ -5,7 +5,6 @@ Sans DB, sans HTTP. Couvre EntityType (enum) et toutes les règles du domain/rul
 Les fichiers domain/entities.py et domain/value_objects.py sont des placeholders vides :
 aucun test pour entités ou value objects.
 """
-import pytest
 
 from app.modules.uploads.domain.enums import EntityType
 from app.modules.uploads.domain.rules import (

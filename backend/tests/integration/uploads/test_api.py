@@ -10,7 +10,7 @@ Fixture optionnelle : uploads_headers (conftest.py) — en-têtes pour un utilis
 authentifié avec droits sur une company/group pour les uploads. Si absente, les tests
 utilisent dependency_overrides pour injecter un User de test.
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -142,7 +142,7 @@ class TestDeleteLogoRoute:
 
         with patch("app.modules.uploads.application.commands.repo") as mock_repo, patch(
             "app.modules.uploads.application.commands.storage"
-        ) as mock_storage, patch(
+        ), patch(
             "app.modules.uploads.application.service.infra_queries.can_edit_entity_logo",
             return_value=True,
         ):

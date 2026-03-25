@@ -5,7 +5,7 @@ Vérifie que le router appelle bien les commandes, que les commandes utilisent
 storage/repository/service, et que les réponses HTTP correspondent aux DTOs.
 """
 import asyncio
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -45,7 +45,7 @@ class TestWiringRouterToCommands:
 
         with patch("app.modules.uploads.application.commands.repo") as mock_repo, patch(
             "app.modules.uploads.application.commands.storage"
-        ) as mock_storage:
+        ):
             mock_repo.entity_exists.return_value = True
             mock_repo.get_logo_url.return_value = None
             app.dependency_overrides[get_current_user] = _make_user
