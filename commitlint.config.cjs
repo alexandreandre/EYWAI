@@ -22,7 +22,7 @@ module.exports = {
     'scope-enum': [
       2,
       'always',
-      ['payroll', 'auth', 'frontend', 'infra', 'api', 'ci'],
+      ['payroll', 'auth', 'frontend', 'infra', 'api', 'ci', 'scripts'],
     ],
   },
 };

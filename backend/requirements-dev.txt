@@ -1,4 +1,5 @@
 # Tests / CI uniquement (non installé dans l’image Docker prod)
+ruff>=0.9.0
 pytest
 pytest-asyncio
 pytest-anyio

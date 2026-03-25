@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "prepare": "husky",
+    "hooks:install": "husky",
     "test:prepush": "sh scripts/run-local-ci-suite.sh"
   },
   "devDependencies": {

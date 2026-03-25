@@ -1,6 +1,9 @@
 ## GRAND I : Travailler sur une branche feature
 
-# A copier 
+# Une fois par clone (racine du dépôt, pour activer Husky : pre-push + CI locale)
+# npm install
+
+# A copier
 git add .
 git commit -m "test"
 git push origin main

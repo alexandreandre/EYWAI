@@ -25,7 +25,7 @@ Des commandes pas à pas (branches, `git add`, push) sont aussi décrites dans *
 Format : `<type>(<scope>): <description courte>`
 
 - **Types** courants : `feat`, `fix`, `chore`, `docs`, et aussi `refactor`, `perf`, `test`, `build`, `ci`, `revert` (voir `commitlint.config.cjs` à la racine).
-- **Scopes** autorisés : `payroll`, `auth`, `frontend`, `infra`, plus `api` (API backend), `ci` (pipelines / outillage CI).
+- **Scopes** autorisés : `payroll`, `auth`, `frontend`, `infra`, `api`, `ci`, `scripts` (hooks, scripts shell à la racine).
 - Le **scope est optionnel** ; s’il est présent, il doit être dans la liste ci-dessus (ex. `docs:` sans scope reste valide).
 - **Style** : impératif, souvent en français ; corps du message après une ligne vide si le contexte est utile.
 

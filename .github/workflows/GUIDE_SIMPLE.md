@@ -41,9 +41,11 @@ Ce texte explique **ce qui tourne tout seul** quand tu travailles sur le projet 
 
 **Si les hooks ne partent pas**
 
-- Refaire `npm install` à la racine.
+- **Cause la plus fréquente :** Husky installe les hooks Git dans `.husky/_` (généré au `npm install`, non versionné). Sans **`npm install` à la racine du dépôt** au moins une fois après un clone, `git push` ne lance **pas** le pre-push — aucune erreur, Git ignore simplement le hook manquant.
+- Vérifier : `test -f .husky/_/pre-push && echo OK` — si « non », lance `npm install` ou `npm run hooks:install` **depuis la racine** (pas seulement `frontend/`).
 - Vérifier que `.husky/pre-push` et `.husky/commit-msg` sont **exécutables** :  
   `chmod +x .husky/pre-push .husky/commit-msg`
+- Vérifier `git config core.hooksPath` → doit être `.husky/_`.
 
 ---
 

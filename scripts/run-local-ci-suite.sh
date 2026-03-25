@@ -7,19 +7,29 @@ set -eu
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$REPO_ROOT"
 
-# Détecter l’interpréteur Python du backend (venv habituel du projet)
+# Détecter l’interpréteur Python du backend (chemins absolus : après `cd backend`,
+# un chemin relatif « backend/venv/... » serait résolu sous backend/backend/...).
 py=""
-if [ -x backend/.venv/bin/python ]; then
-  py="backend/.venv/bin/python"
-elif [ -x backend/venv/bin/python ]; then
-  py="backend/venv/bin/python"
+if [ -x "$REPO_ROOT/backend/.venv/bin/python" ]; then
+  py="$REPO_ROOT/backend/.venv/bin/python"
+elif [ -x "$REPO_ROOT/backend/venv/bin/python" ]; then
+  py="$REPO_ROOT/backend/venv/bin/python"
 else
   py="python3"
 fi
 
 echo "=== Backend : ruff check + format (--check) ==="
-(cd backend && "$py" -m ruff check .)
-(cd backend && "$py" -m ruff format --check .)
+if (cd "$REPO_ROOT/backend" && "$py" -m ruff --version >/dev/null 2>&1); then
+  (cd "$REPO_ROOT/backend" && "$py" -m ruff check .)
+  (cd "$REPO_ROOT/backend" && "$py" -m ruff format --check .)
+elif command -v ruff >/dev/null 2>&1; then
+  (cd "$REPO_ROOT/backend" && ruff check .)
+  (cd "$REPO_ROOT/backend" && ruff format --check .)
+else
+  echo "ruff introuvable (venv sans ruff, pas de binaire sur le PATH)." >&2
+  echo "Installe les deps dev : cd backend && pip install -r requirements-dev.txt" >&2
+  exit 1
+fi
 
 if [ "${SKIP_GITLEAKS:-}" != "1" ] && command -v gitleaks >/dev/null 2>&1; then
   echo ""
