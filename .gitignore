@@ -189,7 +189,8 @@ dist
 
 # Gatsby files
 .cache/
-public
+# Uniquement à la racine (évite d’ignorer frontend/public/ pour Vite)
+/public
 
 # vuepress build output
 .vuepress/dist
