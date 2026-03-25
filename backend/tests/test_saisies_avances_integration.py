@@ -15,6 +15,9 @@ Ce script vérifie :
 import sys
 from decimal import Decimal
 
+import pytest
+from _pytest.outcomes import Skipped
+
 from app.core.database import supabase
 from app.modules.saisies_avances.application.service import enrich_payslip
 from app.modules.saisies_avances.domain.rules import calculate_seizable_amount
@@ -34,8 +37,8 @@ def test_advances_retrieval():
     employees = supabase.table('employees').select('id, first_name, last_name').limit(1).execute()
     if not employees.data:
         print("⚠ Aucun employé trouvé dans la base de données")
-        return False
-    
+        pytest.skip("Aucun employé trouvé dans la base de données")
+
     employee_id = employees.data[0]['id']
     employee_name = f"{employees.data[0].get('first_name', '')} {employees.data[0].get('last_name', '')}"
     
@@ -71,8 +74,6 @@ def test_advances_retrieval():
         print(f"\n✓ Total à rembourser en février 2026 : {float(total_repayment)}€")
     else:
         print("\n⚠ Aucune avance à rembourser pour cet employé en février 2026")
-    
-    return True
 
 
 def test_seizures_retrieval():
@@ -85,8 +86,8 @@ def test_seizures_retrieval():
     employees = supabase.table('employees').select('id, first_name, last_name').limit(1).execute()
     if not employees.data:
         print("⚠ Aucun employé trouvé dans la base de données")
-        return False
-    
+        pytest.skip("Aucun employé trouvé dans la base de données")
+
     employee_id = employees.data[0]['id']
     employee_name = f"{employees.data[0].get('first_name', '')} {employees.data[0].get('last_name', '')}"
     
@@ -131,8 +132,6 @@ def test_seizures_retrieval():
         print(f"\n✓ Total à prélever en février 2026 : {float(total_deduction)}€")
     else:
         print("\n⚠ Aucune saisie active pour cet employé en février 2026")
-    
-    return True
 
 
 def test_payslip_enrichment():
@@ -146,8 +145,8 @@ def test_payslip_enrichment():
     
     if not payslips.data:
         print("⚠ Aucun bulletin trouvé dans la base de données")
-        return False
-    
+        pytest.skip("Aucun bulletin trouvé dans la base de données")
+
     payslip = payslips.data[0]
     payslip_id = payslip['id']
     employee_id = payslip['employee_id']
@@ -201,14 +200,12 @@ def test_payslip_enrichment():
             print("\n✓ Le net à payer a bien été réduit par les saisies/avances")
         elif net_final == net_initial:
             print("\n⚠ Le net à payer n'a pas été modifié (pas de saisies/avances à appliquer)")
-        
-        return True
-        
+
     except Exception as e:
         print(f"\n✗ Erreur lors de l'enrichissement : {e}")
         import traceback
         traceback.print_exc()
-        return False
+        pytest.fail(str(e))
 
 
 def test_database_integration():
@@ -233,8 +230,8 @@ def test_database_integration():
             print(f"  ✓ Table '{table}' accessible")
         except Exception as e:
             print(f"  ✗ Table '{table}' non accessible : {e}")
-            return False
-    
+            pytest.fail(f"Table '{table}' non accessible : {e}")
+
     # Vérifier les données
     print("\nVérification des données...")
     
@@ -249,8 +246,6 @@ def test_database_integration():
     
     deductions_count = supabase.table('salary_seizure_deductions').select('id', count='exact').execute()
     print(f"  ✓ {deductions_count.count} déduction(s) de saisies enregistrée(s)")
-    
-    return True
 
 
 def main():
@@ -269,8 +264,11 @@ def main():
     results = []
     for name, test_func in tests:
         try:
-            result = test_func()
-            results.append((name, result))
+            test_func()
+            results.append((name, True))
+        except Skipped as exc:
+            print(f"\n○ Test ignoré '{name}' : {exc}")
+            results.append((name, True))
         except Exception as e:
             print(f"\n✗ Erreur dans le test '{name}' : {e}")
             import traceback

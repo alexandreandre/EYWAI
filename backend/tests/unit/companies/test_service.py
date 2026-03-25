@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 from app.modules.companies.application import service
 
 
-MODULE_SERVICE = "app.modules.companies.application.service"
+QUERIES_INFRA = "app.modules.companies.infrastructure.queries"
 
 
 class TestResolveCompanyIdForUser:
@@ -60,7 +60,7 @@ class TestResolveCompanyIdForDetails:
     def test_returns_company_id_from_profile(self):
         """Délègue à get_company_id_from_profile et retourne le résultat."""
         with patch(
-            f"{MODULE_SERVICE}.get_company_id_from_profile",
+            f"{QUERIES_INFRA}.get_company_id_from_profile",
             return_value="profile-company-id",
         ) as get_profile:
             user = MagicMock()
@@ -73,7 +73,7 @@ class TestResolveCompanyIdForDetails:
     def test_returns_none_when_profile_has_no_company(self):
         """Retourne None si get_company_id_from_profile retourne None."""
         with patch(
-            f"{MODULE_SERVICE}.get_company_id_from_profile",
+            f"{QUERIES_INFRA}.get_company_id_from_profile",
             return_value=None,
         ):
             user = MagicMock()

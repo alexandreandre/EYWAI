@@ -31,4 +31,7 @@ def resolve_company_id_for_details(current_user: Any) -> Optional[str]:
     Retourne le company_id du profil utilisateur (contexte GET /details).
     Comportement identique au routeur legacy (profiles.company_id).
     """
-    return get_company_id_from_profile(str(current_user.id))
+    # Appel via companies_queries pour que les patch unittest sur
+    # app.modules.companies.infrastructure.queries.get_company_id_from_profile
+    # s’appliquent (évite une référence figée sur l’alias get_company_id_from_profile).
+    return companies_queries.get_company_id_from_profile(str(current_user.id))
