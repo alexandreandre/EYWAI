@@ -4,22 +4,11 @@
   "scripts": {
     "prepare": "husky",
     "hooks:install": "husky",
-    "test:prepush": "sh scripts/run-local-ci-suite.sh",
-    "commit": "cz",
-    "git:atomic": "sh scripts/git-suggest-atomic-commits.sh",
-    "git:atomic:staged": "sh scripts/git-suggest-atomic-commits.sh --staged"
-  },
-  "config": {
-    "commitizen": {
-      "path": "@commitlint/cz-commitlint"
-    }
+    "test:prepush": "sh scripts/run-local-ci-suite.sh"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.8.1",
     "@commitlint/config-conventional": "^19.8.1",
-    "@commitlint/cz-commitlint": "^19.8.1",
-    "commitizen": "^4.3.1",
-    "husky": "^9.1.7",
-    "lint-staged": "^15.5.1"
+    "husky": "^9.1.7"
   }
 }

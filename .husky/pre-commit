@@ -1,4 +1,0 @@
-#!/usr/bin/env sh
-# Revue auto : lint + format sur les fichiers stagés (lint-staged).
-cd "$(dirname "$0")/.." || exit 1
-npx --no lint-staged
