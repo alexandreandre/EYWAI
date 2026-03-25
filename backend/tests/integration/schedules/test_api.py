@@ -81,14 +81,21 @@ class TestGetEmployeeCalendarData:
 
     def test_get_calendar_data_returns_200_with_mock(self, client: TestClient):
         """Avec query mockée → 200 et structure planned/actual."""
+        from app.core.security import get_current_user
+
         with patch(
             "app.modules.schedules.api.router.queries.get_employee_calendar",
             return_value={"planned": [], "actual": []},
         ):
-            response = client.get(
-                f"/api/employees/{TEST_EMPLOYEE_ID}/calendar-data",
-                params={"year": 2025, "month": 3},
-            )
+            app.dependency_overrides[get_current_user] = _make_rh_user
+            try:
+                response = client.get(
+                    f"/api/employees/{TEST_EMPLOYEE_ID}/calendar-data",
+                    params={"year": 2025, "month": 3},
+                    headers={"Authorization": "Bearer test-token"},
+                )
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
         data = response.json()
         assert "planned" in data

@@ -33,6 +33,8 @@ jobs:
       SUPABASE_URL: https://ci-placeholder.supabase.co
       SUPABASE_KEY: ci-placeholder-anon-key
       SUPABASE_SERVICE_KEY: ci-placeholder-service-role-key
+      # Client OpenAI instancié à l’import (collective_agreements) ; clé factice si les tests mockent les appels.
+      OPENAI_API_KEY: sk-ci-placeholder-not-used-when-mocked
     defaults:
       run:
         working-directory: backend

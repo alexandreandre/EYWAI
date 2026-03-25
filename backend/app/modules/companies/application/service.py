@@ -8,6 +8,9 @@ from typing import Any, Optional
 
 from app.modules.companies.infrastructure import queries as companies_queries
 
+# Réexport pour les tests (patch sur ce symbole) et rétrocompat.
+get_company_id_from_profile = companies_queries.get_company_id_from_profile
+
 
 def resolve_company_id_for_user(current_user: Any) -> Optional[str]:
     """
@@ -28,4 +31,4 @@ def resolve_company_id_for_details(current_user: Any) -> Optional[str]:
     Retourne le company_id du profil utilisateur (contexte GET /details).
     Comportement identique au routeur legacy (profiles.company_id).
     """
-    return companies_queries.get_company_id_from_profile(str(current_user.id))
+    return get_company_id_from_profile(str(current_user.id))

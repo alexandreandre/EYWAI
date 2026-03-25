@@ -25,6 +25,7 @@ from app.modules.uploads.domain.rules import (
     LOGO_SCALE_MIN,
     is_logo_scale_valid,
 )
+from app.modules.uploads.infrastructure import bdes_storage
 from app.modules.uploads.infrastructure import providers as storage
 from app.modules.uploads.infrastructure import repository as repo
 from app.modules.uploads.infrastructure.mappers import storage_path_from_logo_url
@@ -137,4 +138,21 @@ def update_logo_scale(
     return LogoScaleResult(
         logo_scale=scale,
         message="Facteur de zoom mis à jour avec succès",
+    )
+
+
+def upload_bdes_storage_file(
+    file_content: bytes,
+    content_type: str | None,
+    filename: str,
+    company_id: str,
+) -> str:
+    """Enregistre le fichier BDES dans le bucket configuré ; retourne le chemin storage."""
+    if not file_content:
+        raise HTTPException(status_code=400, detail="Fichier vide.")
+    return bdes_storage.upload_bdes_file(
+        content=file_content,
+        content_type=content_type,
+        filename=filename,
+        company_id=company_id,
     )

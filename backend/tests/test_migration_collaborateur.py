@@ -6,9 +6,20 @@ Usage: python test_migration_collaborateur.py
 
 import os
 import sys
-from dotenv import load_dotenv
-from supabase import create_client, Client
 from typing import Dict, List
+
+import pytest
+from dotenv import load_dotenv
+from supabase import Client, create_client
+
+# Ces fonctions `test_*` attendent une fixture `supabase: Client` absente du runner pytest
+# standard et un projet Supabase réel. Exécuter ce fichier en script : __main__ ci-dessous.
+pytestmark = pytest.mark.skip(
+    reason=(
+        "Tests DB migration collaborateur : lancer "
+        "`python tests/test_migration_collaborateur.py` avec .env Supabase."
+    )
+)
 
 # Charger les variables d'environnement
 load_dotenv()
