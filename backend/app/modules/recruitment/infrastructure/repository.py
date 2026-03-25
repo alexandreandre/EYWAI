@@ -1,13 +1,13 @@
 # app/modules/recruitment/infrastructure/repository.py
 """
 Implémentations des interfaces domain (IJobRepository, etc.) avec Supabase.
-Comportement identique au legacy. Accès DB via core.config.supabase.
+Comportement identique au legacy. Accès DB via app.core.database.supabase.
 """
 import unicodedata
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from app.core.config import supabase
+from app.core.database import supabase
 
 from app.modules.recruitment.domain.interfaces import (
     ICandidateRepository,

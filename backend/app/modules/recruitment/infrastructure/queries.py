@@ -1,11 +1,11 @@
 # app/modules/recruitment/infrastructure/queries.py
 """
 Requêtes Supabase recruitment (lectures). Comportement identique au legacy.
-Utilise core.config.supabase et les mappers pour retourner des dicts compatibles *Out.
+Utilise app.core.database.supabase et les mappers pour retourner des dicts compatibles *Out.
 """
 from typing import Any, Optional
 
-from app.core.config import supabase
+from app.core.database import supabase
 
 from app.modules.recruitment.infrastructure.mappers import (
     candidate_row_to_out,
