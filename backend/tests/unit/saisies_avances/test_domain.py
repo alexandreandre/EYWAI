@@ -7,7 +7,6 @@ Les entités et value_objects sont des placeholders (pas de logique à tester).
 from datetime import date
 from decimal import Decimal
 
-import pytest
 
 from app.modules.saisies_avances.domain import rules
 from app.modules.saisies_avances.domain.enums import (

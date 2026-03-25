@@ -13,7 +13,7 @@ Prérequis : .env avec SUPABASE_URL et SUPABASE_KEY (service role).
 import sys
 import os
 from pathlib import Path
-from datetime import date, datetime, timedelta, time
+from datetime import date, timedelta, time
 from typing import List, Optional, Any, Dict
 from dataclasses import dataclass
 
@@ -38,7 +38,6 @@ from app.modules.cse.infrastructure.cse_pdf_impl import (
 )
 from app.modules.cse.infrastructure.cse_service_impl import (
     _check_module_active,
-    add_participants,
     create_delegation_hour,
     create_elected_member,
     create_election_cycle,
@@ -49,7 +48,6 @@ from app.modules.cse.infrastructure.cse_service_impl import (
     get_delegation_quota,
     get_delegation_summary,
     get_elected_member_by_employee,
-    get_elected_member_by_id,
     get_elected_members,
     get_election_alerts,
     get_election_cycle_by_id,
@@ -57,18 +55,11 @@ from app.modules.cse.infrastructure.cse_service_impl import (
     get_mandate_alerts,
     get_meeting_by_id,
     get_meetings,
-    get_meeting_participants,
-    remove_participant,
-    start_recording,
-    stop_recording,
-    update_elected_member,
     update_meeting,
-    upload_bdes_document,
 )
 from app.modules.cse.schemas import (
     DelegationHourCreate,
     ElectedMemberCreate,
-    ElectedMemberUpdate,
     ElectionCycleCreate,
     MeetingCreate,
     MeetingUpdate,
@@ -270,7 +261,6 @@ class CSETester:
         except Exception as e:
             self.add("Export historique réunions (Excel)", False, str(e))
 
-        year = now.year
         try:
             meetings_done = get_meetings(self.company_id, status="terminee")
             if meetings_done:

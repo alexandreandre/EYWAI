@@ -8,7 +8,7 @@ Pour des tests contre une DB de test, prévoir db_session et données dans
 cse_elected_members, cse_meetings, cse_meeting_recordings, cse_delegation_quotas, etc.
 """
 from datetime import date
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 

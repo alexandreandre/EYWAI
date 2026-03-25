@@ -101,7 +101,7 @@ class TestCreateMutuelleType:
             "app.modules.mutuelle_types.application.commands.SupabaseMutuelleTypeRepository",
             return_value=mock_repo,
         ):
-            result = create_mutuelle_type(COMPANY_ID, USER_ID, payload)
+            create_mutuelle_type(COMPANY_ID, USER_ID, payload)
 
         mock_repo.validate_employee_ids_belong_to_company.assert_called_once_with(
             COMPANY_ID, ["emp-1", "emp-2"]

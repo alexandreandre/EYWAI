@@ -41,7 +41,6 @@ from app.modules.promotions.application.queries import (
 from app.modules.promotions.schemas import (
     PromotionCreate,
     PromotionListItem,
-    PromotionStats,
     PromotionUpdate,
 )
 
@@ -300,7 +299,7 @@ class PromotionTester:
         # Nettoyer d'abord les promotions draft pour libérer la contrainte
         self._cleanup_draft_promotions()
         self.log("\n--- Création directe effective ---", "TEST")
-        id_effective = self.test_create_promotion(
+        self.test_create_promotion(
             "poste",
             effective_date=self._effective_date_today(),
             new_job_title="Poste effective test",

@@ -11,7 +11,6 @@ import logging
 import os
 
 from app.modules.copilot.application.dto import (
-    AgentMessageDto,
     AgentQueryInput,
     AgentQueryResult,
     TextToSqlInput,

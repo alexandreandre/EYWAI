@@ -4,7 +4,7 @@ Tests de câblage (wiring) du module employees : injection et flux bout en bout.
 Vérifie que les dépendances sont correctement résolues et que le flux
 application -> repository / providers fonctionne pour ce module.
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

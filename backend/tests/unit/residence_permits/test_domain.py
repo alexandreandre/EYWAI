@@ -9,7 +9,6 @@ Le module n'a pas d'entités ni de value objects persistés (fichiers réservés
 """
 from datetime import date, timedelta
 
-import pytest
 
 from app.modules.residence_permits.domain.enums import ResidencePermitStatus
 from app.modules.residence_permits.domain.rules import (

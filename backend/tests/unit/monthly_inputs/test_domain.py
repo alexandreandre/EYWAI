@@ -7,7 +7,7 @@ Aucune dépendance DB ni HTTP. Couvre :
 - is_valid_period (domain/rules.py)
 """
 from datetime import datetime
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 

@@ -1,8 +1,6 @@
 # scripts/AGS_AI.py
 
 import json
-import os
-import requests
 import re
 import time
 from bs4 import BeautifulSoup

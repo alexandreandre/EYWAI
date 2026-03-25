@@ -248,7 +248,7 @@ class MedicalFollowUpTester:
 
         # Choisir une obligation "à faire" pour planifiée, une pour réalisée (ou réutiliser)
         obls_a_faire = [o for o in obligations if o.get("status") == "a_faire"]
-        obls_planifiees = [o for o in obligations if o.get("status") == "planifiee"]
+        [o for o in obligations if o.get("status") == "planifiee"]
 
         self.log("\n--- Suivi médical : Marquer comme planifiée ---", "TEST")
         if obls_a_faire:

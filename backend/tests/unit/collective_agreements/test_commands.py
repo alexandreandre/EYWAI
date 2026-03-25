@@ -6,7 +6,6 @@ délègue au service et retourne le résultat attendu.
 """
 from unittest.mock import MagicMock
 
-import pytest
 
 from app.modules.collective_agreements.application.commands import (
     create_catalog_item,

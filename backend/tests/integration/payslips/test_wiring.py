@@ -4,7 +4,7 @@ Tests de câblage (wiring) du module payslips.
 Vérifient que l'injection des dépendances et le flux de bout en bout
 (router -> application -> commands/queries -> infrastructure) fonctionnent.
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient

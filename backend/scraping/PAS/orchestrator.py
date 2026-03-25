@@ -302,7 +302,7 @@ def update_config_in_supabase(
 
 def main() -> None:
     """Orchestre l'ensemble du processus de mise à jour du barème PAS."""
-    logging.info(f"--- DÉBUT Orchestrateur PAS ---")
+    logging.info("--- DÉBUT Orchestrateur PAS ---")
     
     try:
         # 1. Lancer tous les scrapers
@@ -356,7 +356,7 @@ def main() -> None:
             source_links
         )
         
-        logging.info(f"--- FIN Orchestrateur PAS ---")
+        logging.info("--- FIN Orchestrateur PAS ---")
         
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")

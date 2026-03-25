@@ -3,8 +3,8 @@ Tests unitaires des queries du module absences (application/queries.py).
 
 Repository et providers mockés. Pas de DB ni HTTP.
 """
-from datetime import date, datetime
-from unittest.mock import MagicMock, patch
+from datetime import date
+from unittest.mock import patch
 
 import pytest
 

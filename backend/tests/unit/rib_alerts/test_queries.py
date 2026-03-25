@@ -52,8 +52,6 @@ class TestGetRibAlerts:
         alert2 = _make_alert("a2", is_read=True)
         mock_repo = MagicMock()
         mock_repo.list.return_value = ([alert1, alert2], 2)
-        dict1 = {"id": "a1", "company_id": "company-1", "alert_type": "rib_modified", "total": 2}
-        dict2 = {"id": "a2", "company_id": "company-1", "alert_type": "rib_modified", "total": 2}
 
         def fake_mapper(a: RibAlert) -> dict:
             return {"id": a.id, "company_id": a.company_id, "alert_type": a.alert_type, "total": 2}

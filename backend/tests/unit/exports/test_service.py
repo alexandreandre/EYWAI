@@ -4,8 +4,7 @@ Tests unitaires du service applicatif exports.
 Le service orchestre preview, history, download et generate ; les dépendances (queries, commands,
 providers, storage) sont mockées.
 """
-from datetime import datetime
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
@@ -16,8 +15,6 @@ from app.modules.exports.schemas import (
     ExportGenerateRequest,
     ExportHistoryResponse,
     ExportTotals,
-    ExportFileInfo,
-    ExportReport,
 )
 
 

@@ -6,7 +6,6 @@ Sans DB, sans HTTP. Couvre MutuelleType et les règles du domain/rules.py.
 from datetime import datetime
 from uuid import UUID, uuid4
 
-import pytest
 
 from app.modules.mutuelle_types.domain.entities import MutuelleType
 from app.modules.mutuelle_types.domain.rules import (

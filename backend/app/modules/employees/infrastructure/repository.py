@@ -73,7 +73,7 @@ class EmployeeRepository(IEmployeeRepository):
         return dict(response.data[0])
 
     def delete(self, employee_id: str) -> bool:
-        response = supabase.table("employees").delete().eq("id", employee_id).execute()
+        supabase.table("employees").delete().eq("id", employee_id).execute()
         return True
 
 

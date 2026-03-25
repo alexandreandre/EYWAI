@@ -1,6 +1,6 @@
 # DTOs internes du module exports.
 # Structures pour l'enregistrement en base et données intermédiaires (sans dépendance aux schémas API).
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 # Enregistrement inséré dans exports_history (structure attendue par repository.insert_export_record).
 # Clés : company_id, export_type, period, parameters, file_paths, report, status, generated_by

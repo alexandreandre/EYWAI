@@ -6,7 +6,6 @@ Source : table employee_schedules, champ actual_hours.calendrier_reel.
 from __future__ import annotations
 
 from app.core.database import supabase
-from app.modules.bonus_types.domain.interfaces import IEmployeeHoursProvider
 from app.modules.bonus_types.infrastructure.queries import TABLE_EMPLOYEE_SCHEDULES
 
 

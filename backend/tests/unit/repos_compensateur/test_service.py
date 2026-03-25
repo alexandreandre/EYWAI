@@ -6,7 +6,6 @@ get_bulletins_par_mois_par_employe, upsert_credit) mockées.
 """
 from unittest.mock import patch
 
-import pytest
 
 from app.modules.repos_compensateur.application.dto import CalculerCreditsResult
 from app.modules.repos_compensateur.application.service import (

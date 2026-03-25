@@ -3,7 +3,7 @@ Tests unitaires des commandes du module employees (create, update, delete).
 
 Repositories et providers mockés. Pas d'accès DB ni HTTP.
 """
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -13,7 +13,6 @@ from app.modules.employees.application.commands import (
     delete_employee,
     update_employee,
 )
-from app.modules.employees.application.dto import EmployeeCreateValidationError
 
 
 pytestmark = pytest.mark.unit

@@ -50,7 +50,7 @@ def get_taux_fnal(is_effectif_inferieur_50: bool) -> float | None:
             if header_cell and re.search(motif_recherche, header_cell.get_text(strip=True, separator=" "), flags=re.IGNORECASE):
                 value_cell = row.find('td')
                 if not value_cell:
-                    raise ValueError(f"Ligne FNAL trouvée, mais cellule de valeur manquante.")
+                    raise ValueError("Ligne FNAL trouvée, mais cellule de valeur manquante.")
                 
                 value_text = value_cell.get_text(strip=True)
                 m = re.search(r"([0-9,]+)\s*%", value_text)

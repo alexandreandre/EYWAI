@@ -9,7 +9,6 @@ from unittest.mock import patch, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
 from app.modules.payroll.application import (
     is_forfait_jour,
     process_payslip_generation,

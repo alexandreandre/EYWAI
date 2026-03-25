@@ -4,7 +4,7 @@ PDF formatting helpers and style setup for Solde de Tout Compte documents
 
 from datetime import datetime, date
 from typing import Any
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
 from reportlab.lib import colors
 
@@ -79,10 +79,10 @@ def format_date(date_value: Any) -> str:
     if isinstance(date_value, str):
         try:
             date_value = datetime.fromisoformat(date_value.replace('Z', '+00:00')).date()
-        except:
+        except (ValueError, TypeError):
             try:
                 date_value = datetime.strptime(date_value, '%Y-%m-%d').date()
-            except:
+            except (ValueError, TypeError):
                 return date_value
 
     if isinstance(date_value, (datetime, date)):
@@ -116,7 +116,7 @@ def safe_str(value: Any, default: str = "") -> str:
         return default
     try:
         return str(value)
-    except:
+    except Exception:
         return default
 
 
@@ -150,7 +150,7 @@ def build_legal_mentions(story, styles, specific_mention: str = None):
     """Construit les mentions légales"""
     from reportlab.platypus import Paragraph, Spacer
     from reportlab.lib.styles import ParagraphStyle
-    from reportlab.lib.enums import TA_LEFT, TA_CENTER
+    from reportlab.lib.enums import TA_LEFT
     from reportlab.lib import colors
     from reportlab.lib.units import cm
 

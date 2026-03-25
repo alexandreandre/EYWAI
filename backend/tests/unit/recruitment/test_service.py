@@ -4,7 +4,7 @@ Tests unitaires du service applicatif recruitment (application/service.py).
 Dépendances (repositories, providers, infra queries) mockées. Pas de DB ni HTTP.
 Vérifie l'orchestration : règles domaine + appels infrastructure.
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

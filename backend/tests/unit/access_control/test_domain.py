@@ -4,7 +4,6 @@ Tests unitaires du domain access_control : règles métier, enums.
 Sans DB, sans HTTP. Couvre rules (can_assign_role, get_viewable_roles, role_has_rh_level),
 ROLE_HIERARCHY et RoleKind.
 """
-import pytest
 
 from app.modules.access_control.domain.enums import RoleKind
 from app.modules.access_control.domain.rules import (

@@ -316,7 +316,7 @@ def update_config_in_supabase(
 
 def main() -> None:
     """Orchestre l'ensemble du processus de mise à jour de la CFP."""
-    logging.info(f"--- DÉBUT Orchestrateur CFP ---")
+    logging.info("--- DÉBUT Orchestrateur CFP ---")
     
     try:
         # 1. Lancer tous les scrapers
@@ -376,7 +376,7 @@ def main() -> None:
             supabase, current_row, new_config_data_blob, source_links
         )
         
-        logging.info(f"--- FIN Orchestrateur CFP ---")
+        logging.info("--- FIN Orchestrateur CFP ---")
         
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")

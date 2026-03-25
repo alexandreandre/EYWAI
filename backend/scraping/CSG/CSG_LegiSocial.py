@@ -80,12 +80,12 @@ def get_taux_csg_legisocial() -> dict | None:
         if rate is None:
             continue
 
-        l = label.lower()
-        if "csg déductible" in l or "csg deductible" in l:
+        label_lower = label.lower()
+        if "csg déductible" in label_lower or "csg deductible" in label_lower:
             vals["deductible"] = rate
-        elif "csg non déductible" in l or "csg non deductible" in l:
+        elif "csg non déductible" in label_lower or "csg non deductible" in label_lower:
             vals["non_deductible_csg"] = rate
-        elif "crds non déductible" in l or "crds non deductible" in l:
+        elif "crds non déductible" in label_lower or "crds non deductible" in label_lower:
             vals["non_deductible_crds"] = rate
 
         if all(v is not None for v in vals.values()):

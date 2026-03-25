@@ -31,7 +31,7 @@ except Exception as e:
 folder_name = "TEST_Upload"
 storage_path = f"{folder_name}/creation_compte.pdf"
 
-print(f"2. Upload vers bucket 'creation_compte'...")
+print("2. Upload vers bucket 'creation_compte'...")
 print(f"   Chemin: {storage_path}")
 
 try:
@@ -40,7 +40,7 @@ try:
         file=pdf_content,
         file_options={"x-upsert": "true", "content-type": "application/pdf"}
     )
-    print(f"✅ Upload réussi!")
+    print("✅ Upload réussi!")
     print(f"   Résultat: {result}")
 except Exception as e:
     print(f"❌ Erreur upload: {e}")

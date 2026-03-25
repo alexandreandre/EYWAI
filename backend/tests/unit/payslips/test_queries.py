@@ -5,7 +5,6 @@ Chaque query est testée avec l'infrastructure mockée (pas de DB, pas de HTTP).
 """
 from unittest.mock import patch
 
-import pytest
 
 from app.modules.payslips.application.queries import (
     get_my_payslips,

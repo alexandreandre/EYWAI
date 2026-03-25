@@ -8,7 +8,6 @@ mocks des commandes/queries pour éviter la DB réelle.
 Fixture documentée : cse_headers — en-têtes pour un utilisateur RH avec active_company_id.
 À ajouter dans conftest.py si besoin de tests E2E avec JWT réel.
 """
-from datetime import date
 from unittest.mock import patch, MagicMock
 
 import pytest

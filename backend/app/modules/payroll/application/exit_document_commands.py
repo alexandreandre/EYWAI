@@ -5,7 +5,7 @@ employee_exits et compat appellent ce module ; le générateur concret est dans 
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 from app.modules.payroll.solde_de_tout_compte import EmployeeExitDocumentGenerator
 

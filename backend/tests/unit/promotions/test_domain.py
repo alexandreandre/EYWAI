@@ -5,14 +5,8 @@ Aucune dépendance DB ni HTTP. Logique pure du domain/.
 """
 from datetime import date, datetime
 
-import pytest
 
 from app.modules.promotions.domain.entities import Promotion
-from app.modules.promotions.domain.enums import (
-    PromotionStatus,
-    PromotionType,
-    RhAccessRole,
-)
 from app.modules.promotions.domain import rules as domain_rules
 
 

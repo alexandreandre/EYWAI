@@ -3,7 +3,6 @@ Tests unitaires du BonusTypesService (application/service.py).
 
 Service testé avec repository et (optionnel) IEmployeeHoursProvider mockés.
 """
-from datetime import datetime
 from uuid import uuid4
 
 import pytest

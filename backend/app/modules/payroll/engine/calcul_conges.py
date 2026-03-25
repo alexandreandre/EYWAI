@@ -48,7 +48,7 @@ def calculer_indemnite_conges(
     print("\n--- Arbitrage Indemnité Congés Payés ---", file=sys.stderr)
     print(f"\tMéthode 'Maintien de salaire'  : {indemnite_maintien_total:10.2f} €", file=sys.stderr)
     print(f"\tMéthode 'Règle du 1/10ème'     : {indemnite_10eme:10.2f} €", file=sys.stderr)
-    print(f"\t--------------------------------------------", file=sys.stderr)
+    print("\t--------------------------------------------", file=sys.stderr)
     print(f"\tMontant retenu (plus avantageux) : {indemnite_finale:10.2f} € (Méthode: {methode_retenue})", file=sys.stderr)
     print("----------------------------------------\n", file=sys.stderr)
     

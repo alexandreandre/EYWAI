@@ -107,7 +107,7 @@ def get_my_current_cumuls(employee_id: str) -> CumulsResponse:
         cumuls_data = row_to_cumuls(row)
 
         if row and cumuls_data is not None:
-            print(f"DEBUG [get_my_current_cumuls]: Cumuls trouvés.")
+            print("DEBUG [get_my_current_cumuls]: Cumuls trouvés.")
             if isinstance(cumuls_data, dict):
                 return CumulsResponse(**cumuls_data)
             print(

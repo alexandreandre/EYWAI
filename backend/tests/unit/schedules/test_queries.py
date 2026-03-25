@@ -3,7 +3,7 @@ Tests unitaires des queries du module schedules (application/queries.py).
 
 Repositories et providers mockés. Pas de DB ni HTTP.
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

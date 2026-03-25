@@ -58,7 +58,7 @@ def _extract_json_with_gpt(page_text: str) -> dict | None:
         return None
 
     client = OpenAI(api_key=api_key)
-    current_year = datetime.now().year
+    datetime.now().year
     today_str = datetime.now().strftime("%A %d %B %Y")
 
     prompt = (

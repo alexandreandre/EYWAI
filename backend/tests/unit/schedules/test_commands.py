@@ -161,7 +161,7 @@ class TestCalculatePayrollEvents:
 
 def _make_week_config(work_hours=8.0, rest_hours=0.0):
     """Helper : une semaine avec lun-ven travail, sam-dim repos."""
-    DayConfig = MagicMock()
+    MagicMock()
     work = MagicMock(type="work", hours=work_hours)
     rest = MagicMock(type="rest", hours=rest_hours)
     return MagicMock(

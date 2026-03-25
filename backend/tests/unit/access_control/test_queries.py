@@ -134,7 +134,6 @@ class TestGetPermissionActions:
     @patch("app.modules.access_control.application.queries.permission_catalog_reader")
     def test_returns_list_of_permission_action(self, mock_reader: MagicMock):
         """Retourne liste de PermissionAction."""
-        from app.modules.access_control.schemas import PermissionAction
 
         mock_reader.get_permission_actions_active.return_value = [
             {
@@ -162,7 +161,6 @@ class TestGetAllPermissions:
     @patch("app.modules.access_control.application.queries.permission_catalog_reader")
     def test_returns_permissions_with_filters(self, mock_reader: MagicMock):
         """Passe les filtres au reader et retourne liste de Permission."""
-        from app.modules.access_control.schemas import Permission
 
         mock_reader.get_permissions_active.return_value = []
         user = _make_user()
@@ -176,7 +174,6 @@ class TestGetAllPermissions:
     @patch("app.modules.access_control.application.queries.permission_catalog_reader")
     def test_returns_mapped_permissions(self, mock_reader: MagicMock):
         """Retourne des Permission construites depuis les rows."""
-        from app.modules.access_control.schemas import Permission
 
         mock_reader.get_permissions_active.return_value = [
             {
@@ -323,7 +320,6 @@ class TestGetRoleTemplates:
     @patch("app.modules.access_control.application.queries.role_template_repository")
     def test_returns_list_with_permissions_count(self, mock_repo: MagicMock):
         """Appelle le repo et enrichit chaque template avec permissions_count."""
-        from app.modules.access_control.schemas import RoleTemplateDetail
 
         mock_repo.get_role_templates_list.return_value = [
             {

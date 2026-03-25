@@ -5,7 +5,6 @@ Cible : CalendrierPrevu, CalendrierReel, Periode (year, month), types de jour.
 Placeholder minimal.
 """
 from dataclasses import dataclass
-from typing import Any, Dict, List
 
 
 @dataclass

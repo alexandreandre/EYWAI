@@ -3,9 +3,8 @@ Tests unitaires des commandes du module monthly_inputs (application/commands.py)
 
 Repository mocké. Pas de DB ni HTTP.
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 
 from app.modules.monthly_inputs.application import commands
 from app.modules.monthly_inputs.schemas.requests import MonthlyInput, MonthlyInputCreate

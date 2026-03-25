@@ -5,7 +5,6 @@ Dépendances (IEmployeeUpdater) mockées ; pas de DB.
 """
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from app.modules.promotions.application import service
 

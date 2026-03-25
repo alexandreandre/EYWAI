@@ -4,7 +4,7 @@ Tests unitaires du service applicatif CSE (application/service.py).
 Export fichiers, _parse_date, get_meeting_minutes_path_or_raise.
 On mocke queries et providers (cse_export_provider, cse_pdf_provider).
 """
-from datetime import date, datetime
+from datetime import date
 from unittest.mock import patch, MagicMock
 
 import pytest

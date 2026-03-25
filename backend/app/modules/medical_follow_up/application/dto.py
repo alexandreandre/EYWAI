@@ -2,7 +2,7 @@
 """DTOs du module suivi médical (structure cible pour la couche application)."""
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 
 @dataclass

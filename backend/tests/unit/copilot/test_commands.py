@@ -4,7 +4,7 @@ Tests des commandes du module copilot (application/commands.py).
 Repositories et service mockés : pas d'appel réel à OpenAI ni à la DB.
 """
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
@@ -13,7 +13,6 @@ from app.modules.copilot.application.commands import (
     handle_agent_query,
 )
 from app.modules.copilot.application.dto import (
-    AgentMessageDto,
     AgentQueryInput,
     TextToSqlInput,
     TextToSqlResult,

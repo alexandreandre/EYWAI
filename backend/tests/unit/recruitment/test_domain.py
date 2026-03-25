@@ -4,7 +4,6 @@ Tests unitaires du domaine recruitment : entités, value objects, règles, enums
 Sans DB, sans HTTP. Couvre domain/entities.py, domain/value_objects.py,
 domain/rules.py, domain/enums.py.
 """
-import pytest
 
 from app.modules.recruitment.domain.entities import Job, Candidate, PipelineStage, Interview
 from app.modules.recruitment.domain.rules import (

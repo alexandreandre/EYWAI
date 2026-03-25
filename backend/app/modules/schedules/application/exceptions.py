@@ -3,7 +3,6 @@ Exceptions applicatives du module schedules.
 
 Utilisées par commands/queries ; le router (lors de la migration) les convertira en HTTPException.
 """
-from typing import Optional
 
 
 class ScheduleAppError(Exception):

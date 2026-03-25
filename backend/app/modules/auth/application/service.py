@@ -50,7 +50,7 @@ def login(username_or_email: str, password: str) -> dict:
             print("❌ [LOGIN DEBUG] email_to_use est vide ou None!")
             raise HTTPException(status_code=400, detail="Identifiant ou mot de passe incorrect")
 
-        print(f"🔑 [LOGIN DEBUG] Tentative de connexion Supabase Auth avec:")
+        print("🔑 [LOGIN DEBUG] Tentative de connexion Supabase Auth avec:")
         print(f"   - Email: '{email_to_use}'")
         print(f"   - Password longueur: {len(password)}")
         print("🔧 [LOGIN DEBUG] Création d'un client Supabase frais pour l'auth...")

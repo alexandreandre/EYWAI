@@ -7,7 +7,6 @@ import os
 import sys
 import subprocess
 import logging
-import math
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple, Optional
 from supabase import create_client, Client, PostgrestAPIResponse
@@ -364,7 +363,7 @@ def update_config_in_supabase(
 
 def main() -> None:
     """Orchestre l'ensemble du processus de mise à jour de la CSG/CRDS."""
-    logging.info(f"--- DÉBUT Orchestrateur CSG/CRDS ---")
+    logging.info("--- DÉBUT Orchestrateur CSG/CRDS ---")
     
     try:
         # 1. Lancer tous les scrapers
@@ -419,7 +418,7 @@ def main() -> None:
             supabase, current_row, new_config_data_blob, source_links
         )
         
-        logging.info(f"--- FIN Orchestrateur CSG/CRDS ---")
+        logging.info("--- FIN Orchestrateur CSG/CRDS ---")
         
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")

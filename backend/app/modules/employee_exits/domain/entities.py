@@ -7,7 +7,7 @@ seront extraites lors de la migration.
 """
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 from uuid import UUID
 
 

@@ -5,7 +5,7 @@ Le service orchestre les commands/queries ; on mocke les commandes et queries
 pour vérifier la délégation et les paramètres passés.
 """
 from datetime import date
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from app.modules.expenses.application.service import ExpenseApplicationService
 from app.modules.expenses.application.dto import (

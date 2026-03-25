@@ -414,7 +414,7 @@ class RecruitmentTester:
 
             add_timeline_event(
                 self.company_id, cid, "candidate_created",
-                f"Candidat créé : Jean Test-Recrut", self.actor_id,
+                "Candidat créé : Jean Test-Recrut", self.actor_id,
             )
 
             ok = c.get("first_name") == "Jean" and c.get("current_stage_id") == first_stage["id"]

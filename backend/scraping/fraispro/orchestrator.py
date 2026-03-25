@@ -5,7 +5,6 @@ import os
 import sys
 import subprocess
 import logging
-import math
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple, Optional
 from supabase import create_client, Client, PostgrestAPIResponse
@@ -428,7 +427,7 @@ def update_config_in_supabase(
 
 def main() -> None:
     """Orchestre l'ensemble du processus de mise à jour des Frais Professionnels."""
-    logging.info(f"--- DÉBUT Orchestrateur Frais Professionnels ---")
+    logging.info("--- DÉBUT Orchestrateur Frais Professionnels ---")
     
     try:
         # 1. Lancer tous les scrapers
@@ -490,7 +489,7 @@ def main() -> None:
             source_links
         )
         
-        logging.info(f"--- FIN Orchestrateur Frais Professionnels ---")
+        logging.info("--- FIN Orchestrateur Frais Professionnels ---")
         
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")

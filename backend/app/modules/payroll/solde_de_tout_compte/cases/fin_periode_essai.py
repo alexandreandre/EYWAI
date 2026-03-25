@@ -7,8 +7,6 @@ from typing import Dict, Any
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.enums import TA_LEFT
 from reportlab.lib import colors
 
 from app.modules.payroll.solde_de_tout_compte.common import pdf_helpers

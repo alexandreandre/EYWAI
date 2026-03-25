@@ -252,7 +252,7 @@ class TestRecruitmentCandidates:
         assert response.status_code == 200
 
     def test_delete_candidate_returns_200(self, recruitment_client: TestClient):
-        with patch("app.modules.recruitment.api.router.commands.delete_candidate") as m:
+        with patch("app.modules.recruitment.api.router.commands.delete_candidate"):
             response = recruitment_client.delete("/api/recruitment/candidates/cand-1")
         assert response.status_code == 200
         assert response.json() == {"ok": True}
@@ -324,7 +324,7 @@ class TestRecruitmentInterviews:
         assert response.json()["interview_type"] == "Entretien RH"
 
     def test_update_interview_returns_200(self, recruitment_client: TestClient):
-        with patch("app.modules.recruitment.api.router.commands.update_interview") as m:
+        with patch("app.modules.recruitment.api.router.commands.update_interview"):
             response = recruitment_client.patch(
                 "/api/recruitment/interviews/int-1",
                 json={"summary": "Très bien"},

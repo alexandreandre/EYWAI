@@ -4,7 +4,6 @@ Tests du service applicatif du module scraping.
 Le module application/service.py est un placeholder (orchestration déléguée aux
 commands et queries). On vérifie l'import et l'absence de logique exposée à tester.
 """
-import pytest
 
 
 class TestScrapingServiceModule:

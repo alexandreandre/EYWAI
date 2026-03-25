@@ -121,7 +121,7 @@ def get_fraispro_via_ai() -> dict | None:
 
             # Validation simple pour s'assurer que la clé racine est présente
             if data and "FRAIS_PROFESSIONNELS_2025" in data:
-                print(f"✅ JSON avec la structure racine correcte extrait de la page !")
+                print("✅ JSON avec la structure racine correcte extrait de la page !")
                 return data["FRAIS_PROFESSIONNELS_2025"]
             else:
                 print("   - Le JSON extrait n'a pas la bonne structure racine, passage à la page suivante.")

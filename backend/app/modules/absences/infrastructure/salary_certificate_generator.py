@@ -7,7 +7,7 @@ Utilise app.core.database et app.shared.infrastructure.pdf.helpers (aucun import
 import io
 from calendar import monthrange
 from datetime import date, datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY

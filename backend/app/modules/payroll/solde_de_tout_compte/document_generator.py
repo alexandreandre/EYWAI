@@ -4,13 +4,13 @@ Génère : certificat de travail, attestation Pôle Emploi, solde de tout compte
 """
 
 import io
-from datetime import datetime, date
-from typing import Dict, Any, Optional
+from datetime import datetime
+from typing import Dict, Any
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.lib.enums import TA_CENTER
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib import colors
 
 # Import shared helpers

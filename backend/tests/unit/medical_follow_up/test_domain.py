@@ -5,7 +5,6 @@ Aucune dépendance DB ni HTTP. Logique pure du domain/.
 """
 from datetime import date
 
-import pytest
 
 from app.modules.medical_follow_up.domain.entities import MedicalObligation
 from app.modules.medical_follow_up.domain.enums import (
@@ -92,7 +91,7 @@ class TestComputeKpisFromRows:
     def test_overdue_count_excludes_realisee(self):
         """En retard : due_date < today et status != realisee."""
         today = date(2025, 3, 17)
-        today_iso = today.isoformat()
+        today.isoformat()
         rows = [
             {"due_date": "2025-03-01", "status": "a_faire", "completed_date": None},
             {"due_date": "2025-03-10", "status": "planifiee", "completed_date": None},
@@ -126,7 +125,6 @@ class TestComputeKpisFromRows:
     def test_completed_this_month(self):
         """Réalisées ce mois : status == realisee et completed_date >= début du mois."""
         today = date(2025, 3, 17)
-        month_start = "2025-03-01"
         rows = [
             {"due_date": "2025-02-01", "status": "realisee", "completed_date": "2025-03-05"},
             {"due_date": "2025-02-15", "status": "realisee", "completed_date": "2025-02-20"},

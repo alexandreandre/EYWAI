@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import inspect
 
-import pytest
 
 
 # --- Helpers communs (payslip_run_common) ---

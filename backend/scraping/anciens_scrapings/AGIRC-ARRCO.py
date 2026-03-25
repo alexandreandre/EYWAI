@@ -78,7 +78,7 @@ def get_all_taux_agirc_arrco() -> dict | None:
 
         for i, table in enumerate(all_tables, start=1):
             print(f"\n--- Analyse de la table n°{i} ---")
-            table_text = _txt(table)
+            _txt(table)
 
             # --- Table des Taux de Retraite T1 et T2 ---
             if _is_table_retraite(table):

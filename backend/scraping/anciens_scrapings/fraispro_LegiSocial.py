@@ -79,7 +79,7 @@ def scrape_grand_deplacement_legisocial(soup: BeautifulSoup) -> dict:
         data['metropole'][i]['logement_paris_banlieue'] = logement_paris[i]
         data['metropole'][i]['logement_province'] = logement_province[i]
 
-    print(f"  - Barème Grand Déplacement trouvé.")
+    print("  - Barème Grand Déplacement trouvé.")
     return data
 
 
@@ -109,7 +109,7 @@ def scrape_mutation_legisocial(soup: BeautifulSoup) -> dict:
                     data["hebergement_definitif"]["majoration_par_enfant"] = valeurs[0]
                     data["hebergement_definitif"]["plafond_total"] = valeurs[1]
 
-    print(f"  - Barème Mutation Professionnelle trouvé.")
+    print("  - Barème Mutation Professionnelle trouvé.")
     return data
 
 def get_and_update_baremes_legisocial():

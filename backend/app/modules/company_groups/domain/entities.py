@@ -6,7 +6,7 @@ et les réponses API (api/routers/company_groups.py).
 """
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 
 @dataclass

@@ -7,7 +7,6 @@ import os
 import sys
 import subprocess
 import logging
-import math
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple, Optional
 from supabase import create_client, Client, PostgrestAPIResponse
@@ -276,7 +275,7 @@ def update_config_in_supabase(
 
 def main() -> None:
     """Orchestre l'ensemble du processus de mise à jour du PSS."""
-    logging.info(f"--- DÉBUT Orchestrateur PSS ---")
+    logging.info("--- DÉBUT Orchestrateur PSS ---")
     
     try:
         # 1. Lancer tous les scrapers
@@ -331,7 +330,7 @@ def main() -> None:
             source_links
         )
         
-        logging.info(f"--- FIN Orchestrateur PSS ---")
+        logging.info("--- FIN Orchestrateur PSS ---")
         
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")

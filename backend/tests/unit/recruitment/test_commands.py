@@ -4,7 +4,7 @@ Tests unitaires des commandes du module recruitment (application/commands.py).
 Repositories et service mockés via patch du module service appelé par les commandes.
 Pas de DB ni HTTP.
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

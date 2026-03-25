@@ -2,7 +2,6 @@
 # Test de connexion avec username et email
 
 import requests
-import json
 
 print("=== Test Connexion avec Username et Email ===\n")
 
@@ -20,7 +19,7 @@ email_data = {
 try:
     response = requests.post(f"{BASE_URL}/login", data=email_data)
     if response.status_code == 200:
-        print(f"   ✅ Connexion réussie avec EMAIL")
+        print("   ✅ Connexion réussie avec EMAIL")
         token = response.json().get("access_token")
         print(f"   Token: {token[:30]}...")
     else:
@@ -42,12 +41,12 @@ username_data = {
 try:
     response = requests.post(f"{BASE_URL}/login", data=username_data)
     if response.status_code == 200:
-        print(f"   ✅ Connexion réussie avec USERNAME")
+        print("   ✅ Connexion réussie avec USERNAME")
         token = response.json().get("access_token")
         print(f"   Token: {token[:30]}...")
 
         # Tester /me avec ce token
-        print(f"\n   Test /me avec le token...")
+        print("\n   Test /me avec le token...")
         me_response = requests.get(
             f"{BASE_URL}/me",
             headers={"Authorization": f"Bearer {token}"}

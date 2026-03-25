@@ -2,7 +2,6 @@
 # Test création d'employé avec génération PDF
 
 import sys
-import json
 from pathlib import Path
 from datetime import date
 
@@ -99,7 +98,7 @@ except Exception as e:
 folder_name = f"{remove_accents(test_employee['last_name']).upper()}_{remove_accents(test_employee['first_name']).capitalize()}"
 storage_path = f"{folder_name}/creation_compte.pdf"
 
-print(f"2. Test upload vers bucket 'creation_compte'...")
+print("2. Test upload vers bucket 'creation_compte'...")
 print(f"   Dossier: {folder_name}")
 print(f"   Chemin: {storage_path}")
 
@@ -109,7 +108,7 @@ try:
         file=pdf_content,
         file_options={"x-upsert": "true", "content-type": "application/pdf"}
     )
-    print(f"✅ Upload réussi!\n")
+    print("✅ Upload réussi!\n")
 except Exception as e:
     print(f"❌ Erreur: {e}\n")
     import traceback
@@ -134,9 +133,9 @@ try:
         if url:
             print(f"✅ URL signée générée: {url[:80]}...\n")
         else:
-            print(f"❌ Pas d'URL générée\n")
+            print("❌ Pas d'URL générée\n")
     else:
-        print(f"❌ Fichier non trouvé\n")
+        print("❌ Fichier non trouvé\n")
 
 except Exception as e:
     print(f"❌ Erreur: {e}\n")

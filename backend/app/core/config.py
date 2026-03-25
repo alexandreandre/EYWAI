@@ -5,8 +5,6 @@ Clients Supabase et chemins moteur de paie sont centralisés dans app.core.datab
 """
 from pathlib import Path
 
-from app.core.database import supabase, supabase_key, supabase_url
-from app.core.paths import PATH_TO_PAYROLL_ENGINE
 
 # Réexport pour les usages qui font "from app.core.config import ..."
 # (et pour le wrapper backend_api/core/config.py)

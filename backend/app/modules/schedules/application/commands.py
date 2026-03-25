@@ -38,7 +38,7 @@ def update_planned_calendar(employee_id: str, payload: Any) -> Dict[str, str]:
     """
     try:
         print(f"\n{'='*70}")
-        print(f"🔵 POST /planned-calendar - DEBUT")
+        print("🔵 POST /planned-calendar - DEBUT")
         print(f"{'='*70}")
         print(f"Employee ID: {employee_id}")
         print(f"Year: {payload.year}, Month: {payload.month}")
@@ -61,12 +61,12 @@ def update_planned_calendar(employee_id: str, payload: Any) -> Dict[str, str]:
             "periode": {"mois": payload.month, "annee": payload.year},
             "calendrier_prevu": calendrier_prevu_normalized,
         }
-        print(f"\n📦 JSON Content créé:")
+        print("\n📦 JSON Content créé:")
         print(f"   - periode: {json_content['periode']}")
         print(f"   - calendrier_prevu: {len(json_content['calendrier_prevu'])} entrées")
 
-        print(f"\n🔄 Tentative d'upsert avec on_conflict='employee_id,year,month'")
-        print(f"   Données upsert: employee_id, company_id, year, month, planned_calendar")
+        print("\n🔄 Tentative d'upsert avec on_conflict='employee_id,year,month'")
+        print("   Données upsert: employee_id, company_id, year, month, planned_calendar")
         print(f"   Taille du calendrier: {len(calendrier_prevu_normalized)} entrées")
 
         schedule_repository.upsert_schedule(
@@ -77,14 +77,14 @@ def update_planned_calendar(employee_id: str, payload: Any) -> Dict[str, str]:
             planned_calendar=json_content,
         )
 
-        print(f"\n✅ Upsert réussi!")
+        print("\n✅ Upsert réussi!")
         print(f"{'='*70}\n")
         return {"status": "success", "message": "Planning prévisionnel enregistré."}
 
     except ScheduleAppError:
         raise
     except Exception as e:
-        print(f"\n❌ ERREUR dans update_planned_calendar:")
+        print("\n❌ ERREUR dans update_planned_calendar:")
         print(f"   Type: {type(e).__name__}")
         print(f"   Message: {str(e)}")
         traceback.print_exc()
@@ -99,7 +99,7 @@ def update_actual_hours(employee_id: str, payload: Any) -> Dict[str, str]:
     """
     try:
         print(f"\n{'='*70}")
-        print(f"🟢 POST /actual-hours - DEBUT")
+        print("🟢 POST /actual-hours - DEBUT")
         print(f"{'='*70}")
         print(f"Employee ID: {employee_id}")
         print(f"Year: {payload.year}, Month: {payload.month}")
@@ -122,12 +122,12 @@ def update_actual_hours(employee_id: str, payload: Any) -> Dict[str, str]:
             "periode": {"mois": payload.month, "annee": payload.year},
             "calendrier_reel": calendrier_reel_normalized,
         }
-        print(f"\n📦 JSON Content créé:")
+        print("\n📦 JSON Content créé:")
         print(f"   - periode: {json_content['periode']}")
         print(f"   - calendrier_reel: {len(json_content['calendrier_reel'])} entrées")
 
-        print(f"\n🔄 Tentative d'upsert avec on_conflict='employee_id,year,month'")
-        print(f"   Données upsert: employee_id, company_id, year, month, actual_hours")
+        print("\n🔄 Tentative d'upsert avec on_conflict='employee_id,year,month'")
+        print("   Données upsert: employee_id, company_id, year, month, actual_hours")
         print(f"   Taille du calendrier réel: {len(calendrier_reel_normalized)} entrées")
 
         schedule_repository.upsert_schedule(
@@ -138,14 +138,14 @@ def update_actual_hours(employee_id: str, payload: Any) -> Dict[str, str]:
             actual_hours=json_content,
         )
 
-        print(f"\n✅ Upsert réussi!")
+        print("\n✅ Upsert réussi!")
         print(f"{'='*70}\n")
         return {"status": "success", "message": "Heures réelles enregistrées."}
 
     except ScheduleAppError:
         raise
     except Exception as e:
-        print(f"\n❌ ERREUR dans update_actual_hours:")
+        print("\n❌ ERREUR dans update_actual_hours:")
         print(f"   Type: {type(e).__name__}")
         print(f"   Message: {str(e)}")
         traceback.print_exc()
@@ -297,12 +297,12 @@ def calculate_payroll_events(employee_id: str, year: int, month: int) -> Dict[st
             )
             if date_debut_periode and date_fin_periode:
                 print(
-                    f"✅ Analyseur forfait jour utilisé avec période de paie",
+                    "✅ Analyseur forfait jour utilisé avec période de paie",
                     file=sys.stderr,
                 )
             else:
                 print(
-                    f"✅ Analyseur forfait jour utilisé (filtrage par mois)",
+                    "✅ Analyseur forfait jour utilisé (filtrage par mois)",
                     file=sys.stderr,
                 )
         else:
@@ -314,7 +314,7 @@ def calculate_payroll_events(employee_id: str, year: int, month: int) -> Dict[st
                 mois=month,
                 employee_name=employee_name,
             )
-            print(f"✅ Analyseur normal (heures) utilisé", file=sys.stderr)
+            print("✅ Analyseur normal (heures) utilisé", file=sys.stderr)
         print(
             f"-> Analyse terminée : {len(payroll_events_list)} événements de paie générés.",
             file=sys.stderr,
@@ -327,7 +327,7 @@ def calculate_payroll_events(employee_id: str, year: int, month: int) -> Dict[st
         schedule_repository.update_payroll_events(
             employee_id, year, month, result_json
         )
-        print(f"-> Résultat sauvegardé avec succès.", file=sys.stderr)
+        print("-> Résultat sauvegardé avec succès.", file=sys.stderr)
 
         return {
             "status": "success",

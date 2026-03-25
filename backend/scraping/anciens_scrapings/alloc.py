@@ -2,6 +2,7 @@
 
 import json
 import re
+import sys
 import requests
 from bs4 import BeautifulSoup
 
@@ -61,9 +62,13 @@ def get_taux_allocations(is_taux_reduit: bool) -> float | None:
         return None
 
 if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python alloc.py <fichier_entreprise.json>")
+        sys.exit(1)
+    fichier_entreprise = sys.argv[1]
     try:
         # Lire le paramètre de l'entreprise pour savoir quel taux chercher
-        with open(FICHIER_ENTREPRISE, 'r', encoding='utf-8') as f:
+        with open(fichier_entreprise, encoding="utf-8") as f:
             config_entreprise = json.load(f)
         
         # --- LOGIQUE CORRIGÉE ICI ---
@@ -76,6 +81,8 @@ if __name__ == "__main__":
             print(json.dumps(taux))
 
     except FileNotFoundError:
-        print(f"ERREUR : Le fichier '{FICHIER_ENTREPRISE}' est introuvable.")
+        print(f"ERREUR : Le fichier '{fichier_entreprise}' est introuvable.")
     except KeyError as e:
-        print(f"ERREUR : La structure du fichier '{FICHIER_ENTREPRISE}' est incorrecte ou une clé est manquante : {e}")
+        print(
+            f"ERREUR : La structure du fichier '{fichier_entreprise}' est incorrecte ou une clé est manquante : {e}"
+        )

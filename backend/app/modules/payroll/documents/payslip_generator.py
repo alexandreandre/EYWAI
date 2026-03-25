@@ -70,8 +70,10 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
         for i in [-1, 0, 1]:
             d = date(year, month, 15)
             m_offset, y_offset = (d.month + i, d.year)
-            if m_offset == 0: m_offset, y_offset = (12, y_offset - 1)
-            elif m_offset == 13: m_offset, y_offset = (1, y_offset + 1)
+            if m_offset == 0:
+                m_offset, y_offset = (12, y_offset - 1)
+            elif m_offset == 13:
+                m_offset, y_offset = (1, y_offset + 1)
             dates_to_process.append({'year': y_offset, 'month': m_offset})
 
         schedule_res = supabase.table('employee_schedules').select("year, month, planned_calendar, actual_hours") \
@@ -94,9 +96,13 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
             planned_list = (db_row.get('planned_calendar') or {}).get('calendrier_prevu', []) if db_row else []
             actual_list = (db_row.get('actual_hours') or {}).get('calendrier_reel', []) if db_row else []
             for entry in planned_list:
-                new_entry = entry.copy(); new_entry.update({'annee': y, 'mois': m}); planned_data_all_months.append(new_entry)
+                new_entry = entry.copy()
+                new_entry.update({"annee": y, "mois": m})
+                planned_data_all_months.append(new_entry)
             for entry in actual_list:
-                new_entry = entry.copy(); new_entry.update({'annee': y, 'mois': m}); actual_data_all_months.append(new_entry)
+                new_entry = entry.copy()
+                new_entry.update({"annee": y, "mois": m})
+                actual_data_all_months.append(new_entry)
 
         payroll_events_list = payroll_analyzer_analyser(planned_data_all_months, actual_data_all_months, duree_hebdo, year, month, employee_folder_name)
         payroll_events_json = { "periode": {"annee": year, "mois": month}, "calendrier_analyse": payroll_events_list }
@@ -199,7 +205,7 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
             specificites = contrat_json_content.get('specificites_paie')
             print(f"DEBUG [Generator]: Type de 'specificites_paie' après parsing: {type(specificites)}", file=sys.stderr)
             print(f"DEBUG [Generator]: Clé 'specificites_paie' (brut): {specificites}", file=sys.stderr)
-            print(f"DEBUG [Generator]: Contenu FINAL qui sera écrit dans contrat.json:", file=sys.stderr)
+            print("DEBUG [Generator]: Contenu FINAL qui sera écrit dans contrat.json:", file=sys.stderr)
             print(json.dumps(contrat_json_content, indent=2, ensure_ascii=False, default=str), file=sys.stderr)
         except Exception as e:
             print(f"DEBUG [Generator]: ERREUR LORS DU DEBUG PRINT: {e}", file=sys.stderr)
@@ -337,7 +343,8 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
     finally:
         for path in files_to_cleanup:
             try:
-                if path.exists(): path.unlink()
+                if path.exists():
+                    path.unlink()
             except Exception as e:
                 print(f"Erreur lors du nettoyage du fichier {path}: {e}", file=sys.stderr)
         for _ in range(2):

@@ -20,7 +20,6 @@ from app.modules.recruitment.infrastructure.repository import (
     CandidateRepository,
     PipelineStageRepository,
     TimelineEventWriter,
-    TimelineEventReader,
     DuplicateChecker,
     InterviewRepository,
     NoteRepository,

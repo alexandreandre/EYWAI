@@ -334,7 +334,7 @@ def update_config_in_supabase(
 
 def main() -> None:
     """Orchestre l'ensemble du processus de mise à jour du Dialogue Social."""
-    logging.info(f"--- DÉBUT Orchestrateur Dialogue Social ---")
+    logging.info("--- DÉBUT Orchestrateur Dialogue Social ---")
     
     try:
         # 1. Lancer tous les scrapers
@@ -385,7 +385,7 @@ def main() -> None:
             supabase, current_row, new_config_data_blob, source_links
         )
         
-        logging.info(f"--- FIN Orchestrateur Dialogue Social ---")
+        logging.info("--- FIN Orchestrateur Dialogue Social ---")
         
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")

@@ -428,7 +428,7 @@ def update_config_in_supabase(
 
 def main() -> None:
     """Orchestre l'ensemble du processus de mise à jour AGIRC-ARRCO."""
-    logging.info(f"--- DÉBUT Orchestrateur AGIRC-ARRCO ---")
+    logging.info("--- DÉBUT Orchestrateur AGIRC-ARRCO ---")
     
     try:
         # 1. Lancer tous les scrapers
@@ -476,7 +476,7 @@ def main() -> None:
             supabase, current_row, new_config_data_blob, source_links, comment
         )
         
-        logging.info(f"--- FIN Orchestrateur AGIRC-ARRCO ---")
+        logging.info("--- FIN Orchestrateur AGIRC-ARRCO ---")
         
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")

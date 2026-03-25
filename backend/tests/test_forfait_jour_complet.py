@@ -10,7 +10,6 @@ Ce script teste :
 """
 
 import sys
-import json
 from datetime import date, timedelta
 from typing import Dict, Any, List
 
@@ -292,16 +291,16 @@ def test_analyseur_avec_periode_paie():
             jours_ouvres_periode += 1
         current_date += timedelta(days=1)
     
-    print(f"\n📈 Résultats attendus :")
+    print("\n📈 Résultats attendus :")
     print(f"   - Jours ouvrés dans la période : {jours_ouvres_periode}")
     print(f"   - Absences attendues (si absence totale) : ~{jours_ouvres_periode}")
     
     # Vérification
     if len(absences_avec_periode) > len(absences_sans_periode):
-        print(f"\n✅ SUCCÈS : Le filtrage par période fonctionne !")
+        print("\n✅ SUCCÈS : Le filtrage par période fonctionne !")
         print(f"   Les absences du mois précédent ({len(absences_avec_periode) - len(absences_sans_periode)} jours) sont maintenant comptées.")
     else:
-        print(f"\n⚠️  ATTENTION : Le filtrage par période ne semble pas fonctionner correctement.")
+        print("\n⚠️  ATTENTION : Le filtrage par période ne semble pas fonctionner correctement.")
     
     return evenements_avec_periode, date_debut, date_fin
 
@@ -346,7 +345,7 @@ def test_calcul_brut_avec_absences():
         primes_saisies=[]
     )
     
-    print(f"\n💰 Résultats du calcul :")
+    print("\n💰 Résultats du calcul :")
     print(f"   - Salaire de base : {resultat_brut.get('salaire_base', 0):.2f} €")
     print(f"   - Brut total : {resultat_brut.get('brut_total', 0):.2f} €")
     print(f"   - Nombre de jours d'absence : {resultat_brut.get('nombre_jours_absence_injustifiee', 0)}")
@@ -361,7 +360,11 @@ def test_calcul_brut_avec_absences():
     
     # Vérifier les lignes de déduction
     lignes_composants = resultat_brut.get('lignes_composants_brut', [])
-    lignes_absences = [l for l in lignes_composants if "absence" in l.get('libelle', '').lower()]
+    lignes_absences = [
+        comp
+        for comp in lignes_composants
+        if "absence" in comp.get("libelle", "").lower()
+    ]
     print(f"\n📋 Lignes de déduction d'absence : {len(lignes_absences)}")
     for ligne in lignes_absences[:3]:  # Afficher les 3 premières
         print(f"   - {ligne.get('libelle', '')} : -{ligne.get('perte', 0):.2f} €")
@@ -507,7 +510,7 @@ def test_scenario_complet():
                 print(f"⚠️  Erreur lors de la création de la date pour l'événement {ev}: {e}", file=sys.stderr)
     
     absences = [e for e in evenements if "absence" in e.get('type', '')]
-    print(f"\n📊 Événements générés :")
+    print("\n📊 Événements générés :")
     print(f"   - Total : {len(evenements)}")
     print(f"   - Absences injustifiées : {len(absences)}")
     
@@ -523,7 +526,7 @@ def test_scenario_complet():
     brut_total = resultat_brut.get('brut_total', 0)
     salaire_base = resultat_brut.get('salaire_base', 0)
     
-    print(f"\n💰 Résultats finaux :")
+    print("\n💰 Résultats finaux :")
     print(f"   - Salaire de base : {salaire_base:.2f} €")
     print(f"   - Brut total : {brut_total:.2f} €")
     print(f"   - Déduction totale : {salaire_base - brut_total:.2f} €")
@@ -532,16 +535,16 @@ def test_scenario_complet():
     succes = True
     
     if len(absences) == 0:
-        print(f"\n❌ ERREUR : Aucune absence détectée alors que l'employé est absent toute la période")
+        print("\n❌ ERREUR : Aucune absence détectée alors que l'employé est absent toute la période")
         succes = False
     else:
         print(f"\n✅ SUCCÈS : {len(absences)} absences détectées sur toute la période")
     
     if brut_total < 0:
-        print(f"\n❌ ERREUR : Le brut total est négatif")
+        print("\n❌ ERREUR : Le brut total est négatif")
         succes = False
     else:
-        print(f"\n✅ SUCCÈS : Le brut total est valide (protection activée)")
+        print("\n✅ SUCCÈS : Le brut total est valide (protection activée)")
     
     return succes
 

@@ -5,7 +5,6 @@ Dépendances mockées : company_group_repository, pas d'accès DB.
 """
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from app.modules.company_groups.application import service
 

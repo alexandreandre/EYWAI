@@ -5,7 +5,6 @@ Sans DB, sans HTTP. Couvre Company, CompanySettings et compute_company_kpis.
 """
 from datetime import date, timedelta
 
-import pytest
 
 from app.modules.companies.domain.entities import Company
 from app.modules.companies.domain.value_objects import CompanySettings

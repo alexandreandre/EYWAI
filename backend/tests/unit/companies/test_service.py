@@ -5,7 +5,6 @@ Dépendances mockées : get_company_id_from_profile, pas d'accès DB.
 """
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from app.modules.companies.application import service
 

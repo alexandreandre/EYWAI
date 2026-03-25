@@ -1,7 +1,7 @@
 """
 DTOs et exceptions applicatives du module employees.
 """
-from typing import Any, Dict, List
+from typing import Dict, List
 
 
 class EmployeeCreateValidationError(Exception):

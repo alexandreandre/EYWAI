@@ -76,7 +76,7 @@ def get_tests_tree() -> Dict[str, Any]:
                 rel = f"tests/e2e/{item.name}"
                 e2e_children.append({"id": rel, "label": item.name, "path": rel, "is_full_level": False})
             elif item.is_dir() and item.name == "cross_module":
-                rel = f"tests/e2e/cross_module"
+                rel = "tests/e2e/cross_module"
                 e2e_children.append({"id": rel, "label": "cross_module", "path": rel, "is_full_level": False})
         levels.append({
             "id": "e2e",

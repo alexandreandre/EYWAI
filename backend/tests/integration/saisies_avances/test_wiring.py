@@ -5,7 +5,6 @@ Vérifient que l'injection des dépendances et le flux de bout en bout
 (router -> commands/queries -> service -> repositories / rules) fonctionnent
 pour ce module.
 """
-from decimal import Decimal
 from unittest.mock import patch
 
 import pytest

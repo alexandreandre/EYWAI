@@ -78,7 +78,7 @@ def get_taux_vieillesse_salarial_via_ai() -> dict | None:
             data = extract_json_with_gpt(page_text, final_prompt)
 
             if data and all(key in data for key in ["deplafond", "plafond"]):
-                print(f"✅ JSON valide et complet extrait de la page !")
+                print("✅ JSON valide et complet extrait de la page !")
                 # On convertit les pourcentages en taux utilisables
                 taux_deplafond = round(data["deplafond"] / 100.0, 5)
                 taux_plafond = round(data["plafond"] / 100.0, 5)

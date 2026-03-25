@@ -189,7 +189,7 @@ def get_events_disponibles(employee_id: str) -> List[Dict[str, Any]]:
         .order("ordre_affichage")
         .execute()
     )
-    ref_map = {r["code"]: r for r in (refs.data if refs else []) or []}
+    {r["code"]: r for r in (refs.data if refs else []) or []}
     override_map = {
         o["event_code"]: o for o in (overrides.data if overrides else []) or []
     }

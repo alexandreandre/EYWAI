@@ -4,7 +4,7 @@ Tests unitaires du domaine bonus_types : entités, value objects, enums et règl
 Sans DB, sans HTTP. Couvre toutes les entités et règles du domain/.
 """
 from datetime import datetime
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 

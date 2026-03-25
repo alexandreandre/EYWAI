@@ -25,8 +25,6 @@ from app.modules.payslips.application.dto import (
     UserContext,
 )
 from app.modules.payslips.application.queries import (
-    get_employee_payslips,
-    get_my_payslips,
     get_payslip_details,
     get_payslip_history,
 )

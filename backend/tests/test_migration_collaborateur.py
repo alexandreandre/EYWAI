@@ -6,11 +6,9 @@ Usage: python test_migration_collaborateur.py
 
 import os
 import sys
-from pathlib import Path
 from dotenv import load_dotenv
 from supabase import create_client, Client
-from typing import Dict, List, Optional
-from uuid import UUID, uuid4
+from typing import Dict, List
 
 # Charger les variables d'environnement
 load_dotenv()

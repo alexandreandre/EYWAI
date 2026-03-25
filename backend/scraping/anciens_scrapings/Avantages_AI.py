@@ -82,7 +82,7 @@ def get_avantages_via_ai() -> dict | None:
             data = extract_json_with_gpt(page_text, final_prompt)
 
             if data and all(key in data for key in ["repas", "titre_restaurant", "logement"]) and isinstance(data["logement"], list) and len(data["logement"]) > 1:
-                print(f"✅ JSON valide et complet extrait de la page !")
+                print("✅ JSON valide et complet extrait de la page !")
                 return data
             else:
                 print("   - Le JSON extrait est incomplet ou invalide, passage à la page suivante.")

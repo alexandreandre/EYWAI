@@ -6,7 +6,6 @@ que les queries appellent le bon cas d'usage et retournent le résultat.
 """
 from unittest.mock import patch
 
-import pytest
 
 from app.modules.dashboard.application import queries
 from app.modules.dashboard.schemas.responses import DashboardData, ResidencePermitStats

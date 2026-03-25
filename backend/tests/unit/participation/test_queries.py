@@ -7,7 +7,6 @@ from datetime import datetime
 from uuid import uuid4
 from unittest.mock import MagicMock
 
-import pytest
 
 from app.modules.participation.application.dto import EmployeeParticipationRow
 from app.modules.participation.application.queries import (

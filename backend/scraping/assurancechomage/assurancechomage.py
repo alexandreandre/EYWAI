@@ -59,7 +59,7 @@ def scrape_assurance_chomage() -> float | None:
         m2 = re_apres.search(txt)
 
         if m1 and m2:
-            date_avant = datetime.strptime(m1.group(1).replace(" ", ""), "%d/%m/%Y").date()
+            datetime.strptime(m1.group(1).replace(" ", ""), "%d/%m/%Y").date()
             taux_avant = _to_rate(m1.group(2))
             date_apres = datetime.strptime(m2.group(1).replace(" ", ""), "%d/%m/%Y").date()
             taux_apres = _to_rate(m2.group(2))

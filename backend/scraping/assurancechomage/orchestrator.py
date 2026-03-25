@@ -327,7 +327,7 @@ def update_config_in_supabase(
 
 def main() -> None:
     """Orchestre l'ensemble du processus de mise à jour de l'Assurance Chômage."""
-    logging.info(f"--- DÉBUT Orchestrateur Assurance Chômage ---")
+    logging.info("--- DÉBUT Orchestrateur Assurance Chômage ---")
     
     try:
         # 1. Lancer tous les scrapers
@@ -379,7 +379,7 @@ def main() -> None:
             supabase, current_row, new_config_data_blob, source_links
         )
         
-        logging.info(f"--- FIN Orchestrateur Assurance Chômage ---")
+        logging.info("--- FIN Orchestrateur Assurance Chômage ---")
         
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")

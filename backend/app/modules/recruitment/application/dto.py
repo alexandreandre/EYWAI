@@ -6,7 +6,7 @@ responses (JobOut, CandidateOut, etc.) ; ces DTOs servent de référence pour
 la structure des données en couche application.
 """
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Optional
 
 
 @dataclass

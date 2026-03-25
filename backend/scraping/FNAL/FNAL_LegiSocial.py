@@ -1,6 +1,5 @@
 # scripts/FNAL/FNAL_LegiSocial.py
 import json
-import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -145,7 +144,7 @@ def scrape_fnal_rates_legisocial() -> dict[str, float | None]:
             
             rate = _parse_percent_to_rate(last_cell_text)
             if rate is None:
-                print(f"[DEBUG]     → ✗ Aucun pourcentage trouvé dans la dernière cellule", file=sys.stderr)
+                print("[DEBUG]     → ✗ Aucun pourcentage trouvé dans la dernière cellule", file=sys.stderr)
                 continue
 
             print(f"[DEBUG]     → ✓ Taux extrait: {rate} ({rate*100}%)", file=sys.stderr)
@@ -153,10 +152,10 @@ def scrape_fnal_rates_legisocial() -> dict[str, float | None]:
             # Méthode 1: Identifier par le texte du label (si mentionné)
             if pat_moins_50.search(label):
                 taux_moins_50 = rate
-                print(f"[DEBUG]     → → Assigné à 'moins_50' (détection par texte)", file=sys.stderr)
+                print("[DEBUG]     → → Assigné à 'moins_50' (détection par texte)", file=sys.stderr)
             elif pat_50_et_plus.search(label):
                 taux_50_et_plus = rate
-                print(f"[DEBUG]     → → Assigné à '50_et_plus' (détection par texte)", file=sys.stderr)
+                print("[DEBUG]     → → Assigné à '50_et_plus' (détection par texte)", file=sys.stderr)
             # Méthode 2: Identifier par la valeur du taux (fallback)
             elif abs(rate - FNAL_MOINS_50_RATE) < 0.0001:  # Tolérance pour arrondis
                 taux_moins_50 = rate
@@ -167,7 +166,7 @@ def scrape_fnal_rates_legisocial() -> dict[str, float | None]:
             else:
                 print(f"[DEBUG]     → → ⚠ Taux trouvé ({rate*100}%) mais ne correspond à aucun pattern (moins_50/50_et_plus)", file=sys.stderr)
         
-        print(f"[DEBUG] === Résumé du parsing ===", file=sys.stderr)
+        print("[DEBUG] === Résumé du parsing ===", file=sys.stderr)
         print(f"[DEBUG]   Lignes traitées: {rows_processed}", file=sys.stderr)
         print(f"[DEBUG]   Lignes avec 'FNAL': {rows_with_fnal}", file=sys.stderr)
         print(f"[DEBUG]   Taux FNAL (< 50 salariés) trouvé : {taux_moins_50}", file=sys.stderr)
@@ -194,7 +193,7 @@ def scrape_fnal_rates_legisocial() -> dict[str, float | None]:
         import traceback
         print(f"[ERROR] ERREUR INATTENDUE lors du scraping : {type(e).__name__}: {e}", file=sys.stderr)
         print(f"[ERROR] URL: {URL_LEGISOCIAL}", file=sys.stderr)
-        print(f"[ERROR] Traceback complet:", file=sys.stderr)
+        print("[ERROR] Traceback complet:", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
         return {"patronal_moins_50": None, "patronal_50_et_plus": None}
 

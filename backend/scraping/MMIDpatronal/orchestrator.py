@@ -352,7 +352,7 @@ def update_config_in_supabase(
 
 def main() -> None:
     """Orchestre l'ensemble du processus de mise à jour des taux MMID."""
-    logging.info(f"--- DÉBUT Orchestrateur MMID Patronal ---")
+    logging.info("--- DÉBUT Orchestrateur MMID Patronal ---")
     
     try:
         # 1. Lancer tous les scrapers
@@ -403,7 +403,7 @@ def main() -> None:
             supabase, current_row, new_config_data_blob, source_links
         )
         
-        logging.info(f"--- FIN Orchestrateur MMID Patronal ---")
+        logging.info("--- FIN Orchestrateur MMID Patronal ---")
         
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")

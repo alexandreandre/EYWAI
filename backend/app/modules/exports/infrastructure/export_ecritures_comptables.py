@@ -3,7 +3,7 @@ from calendar import monthrange
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.database import supabase
-from app.shared.utils.export import format_currency, format_period, generate_csv, generate_xlsx
+from app.shared.utils.export import format_period, generate_csv, generate_xlsx
 
 DEFAULT_MAPPINGS = {
     "salaire_brut": {
@@ -118,7 +118,7 @@ def get_payslip_data_for_od(
         brut = float(payslip_data.get("salaire_brut", 0) or 0)
         net_a_payer = float(payslip_data.get("net_a_payer", 0) or 0)
         synthese_net = payslip_data.get("synthese_net", {})
-        net_imposable = float(
+        float(
             synthese_net.get("net_imposable", 0) if isinstance(synthese_net, dict) else 0
         )
         pas = float(

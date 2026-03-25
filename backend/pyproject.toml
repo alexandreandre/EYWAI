@@ -1,0 +1,14 @@
+[project]
+name = "eywai-backend"
+version = "0"
+requires-python = ">=3.11"
+readme = "README.md"
+
+[tool.ruff.lint.per-file-ignores]
+# Scripts de scraping historiques : une seule ligne par branche (if/else compact).
+"scraping/**" = ["E701", "E702"]
+# Exécution en script avec insertion de sys.path avant les imports applicatifs.
+"tests/test_cse_api_complet.py" = ["E402"]
+"tests/test_medical_follow_up_complet.py" = ["E402"]
+"tests/test_promotions_complet.py" = ["E402"]
+"tests/test_recruitment_complet.py" = ["E402"]

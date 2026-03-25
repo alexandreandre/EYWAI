@@ -3,7 +3,7 @@
 import sys
 import os
 from .contexte import ContextePaie
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Tuple
 import json
 from supabase import create_client, Client
 
@@ -100,10 +100,12 @@ def _calculer_assiettes(contexte: ContextePaie, salaire_brut: float, remuneratio
     }
 
 def _calculer_une_ligne(libelle: str, assiette: float, taux_salarial: float, taux_patronal: float) -> Dict[str, Any] | None:
-    if assiette <= 0 and not (taux_salarial is None and taux_patronal is None): return None
+    if assiette <= 0 and not (taux_salarial is None and taux_patronal is None):
+        return None
     montant_salarial = round(assiette * (taux_salarial or 0.0), 2)
     montant_patronal = round(assiette * (taux_patronal or 0.0), 2)
-    if montant_salarial == 0 and montant_patronal == 0: return None
+    if montant_salarial == 0 and montant_patronal == 0:
+        return None
     return {
         "libelle": libelle, "base": assiette, "taux_salarial": taux_salarial, 
         "montant_salarial": montant_salarial, "taux_patronal": taux_patronal, "montant_patronal": montant_patronal
@@ -135,9 +137,14 @@ def calculer_cotisations(
         # --- FIN DU BLOC ---
 
         # Filtres d'application
-        if (coti_id == 'prevoyance_cadre' or coti_id == 'apec') and contexte.statut_salarie != 'Cadre': continue
-        if coti_id == 'prevoyance_non_cadre' and contexte.statut_salarie != 'Non-Cadre': continue
-        if coti_id == 'mutuelle': continue # Géré manuellement plus bas
+        if (
+            coti_id == "prevoyance_cadre" or coti_id == "apec"
+        ) and contexte.statut_salarie != "Cadre":
+            continue
+        if coti_id == "prevoyance_non_cadre" and contexte.statut_salarie != "Non-Cadre":
+            continue
+        if coti_id == "mutuelle":
+            continue  # Géré manuellement plus bas
 
         libelle = coti_data.get('libelle', '')
         base_id = coti_data.get('base', 'brut')
@@ -179,7 +186,8 @@ def calculer_cotisations(
                  _calculer_une_ligne("CSG/CRDS non déductible", assiettes['csg_crds_base_normale'], taux_csg_non_deductible, None),
                  _calculer_une_ligne("CSG/CRDS sur HS non déductible", assiettes['csg_crds_base_hs'], taux_csg_total, None)
              ]:
-                 if ligne: bulletin_cotisations.append(ligne)
+                 if ligne:
+                     bulletin_cotisations.append(ligne)
              continue
 
         if isinstance(taux_patronal_final, str):

@@ -7,7 +7,6 @@ Teste les endpoints backend et vérifie l'intégration complète
 import sys
 
 from app.core.database import supabase
-import json
 from datetime import datetime
 
 def print_header(text):
@@ -23,7 +22,7 @@ def test_table_exists():
     """Test 1: Vérifier que la table company_bonus_types existe"""
     print_header("TEST 1: Vérification de la table company_bonus_types")
     try:
-        result = supabase.table('company_bonus_types').select('id').limit(1).execute()
+        supabase.table('company_bonus_types').select('id').limit(1).execute()
         print_test("Table company_bonus_types existe", True)
         return True
     except Exception as e:
@@ -33,15 +32,10 @@ def test_table_exists():
 def test_table_structure():
     """Test 2: Vérifier la structure de la table"""
     print_header("TEST 2: Structure de la table")
-    required_columns = [
-        'id', 'company_id', 'libelle', 'type', 'montant', 
-        'seuil_heures', 'soumise_a_cotisations', 'soumise_a_impot',
-        'prompt_ia', 'created_at', 'updated_at'
-    ]
     
     try:
         # Essayer de récupérer une ligne vide pour voir la structure
-        result = supabase.table('company_bonus_types').select('*').limit(0).execute()
+        supabase.table('company_bonus_types').select('*').limit(0).execute()
         print_test("Structure de la table accessible", True)
         
         # Vérifier les colonnes en essayant d'insérer une ligne de test (qu'on supprimera)
@@ -114,7 +108,7 @@ def test_schema_validation():
         from app.modules.bonus_types.schemas import BonusTypeCreate, BonusTypeEnum
         
         # Test création prime montant_fixe
-        prime_fixe = BonusTypeCreate(
+        BonusTypeCreate(
             libelle="Test Prime Fixe",
             type=BonusTypeEnum.MONTANT_FIXE,
             montant=100.0,
@@ -124,7 +118,7 @@ def test_schema_validation():
         print_test("Schéma BonusTypeCreate (montant_fixe) valide", True)
         
         # Test création prime selon_heures
-        prime_heures = BonusTypeCreate(
+        BonusTypeCreate(
             libelle="Test Prime Heures",
             type=BonusTypeEnum.SELON_HEURES,
             montant=50.0,
@@ -136,7 +130,7 @@ def test_schema_validation():
         
         # Test validation: seuil_heures requis pour selon_heures
         try:
-            prime_invalide = BonusTypeCreate(
+            BonusTypeCreate(
                 libelle="Test Prime Invalide",
                 type=BonusTypeEnum.SELON_HEURES,
                 montant=50.0,

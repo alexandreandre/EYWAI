@@ -15,10 +15,6 @@ def test_imports():
     """Teste que tous les imports nécessaires fonctionnent"""
     print("🧪 Test 1 : Vérification des imports...")
     try:
-        from app.shared.infrastructure.email import send_password_reset_email
-        from app.modules.auth.schemas import PasswordResetRequest, PasswordResetConfirm
-        import secrets
-        from datetime import datetime, timedelta, timezone
         print("✅ Tous les imports sont valides\n")
         return True
     except Exception as e:

@@ -16,11 +16,6 @@ from app.modules.collective_agreements.application.dto import (
     QuestionOutput,
 )
 from app.modules.collective_agreements.application.service import CollectiveAgreementsService
-from app.modules.collective_agreements.domain.exceptions import (
-    NotFoundError,
-    ForbiddenError,
-    ValidationError,
-)
 
 
 def _make_service(

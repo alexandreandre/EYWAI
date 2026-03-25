@@ -5,7 +5,7 @@ Mappers : ligne DB ↔ entités / DTOs (optionnel).
 - soldes bruts → AbsenceBalanceDto
 - planned_calendar entries → CalendarDayDto
 """
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from app.modules.absences.application.dto import (
     AbsenceBalanceDto,

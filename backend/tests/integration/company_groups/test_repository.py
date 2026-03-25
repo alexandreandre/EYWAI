@@ -16,13 +16,7 @@ from app.modules.company_groups.infrastructure.repository import (
 from app.modules.company_groups.infrastructure.queries import (
     fetch_group_by_id_with_companies,
     fetch_groups_with_companies,
-    fetch_all_active_groups_ordered,
     fetch_company_ids_by_group_id,
-    fetch_companies_by_group_id,
-    fetch_companies_without_group,
-    fetch_companies_for_group_stats,
-    fetch_group_company_ids_for_permission_check,
-    fetch_company_effectif_by_group_id,
 )
 
 pytestmark = pytest.mark.integration

@@ -352,7 +352,7 @@ def update_config_in_supabase(
 
 def main() -> None:
     """Orchestre l'ensemble du processus de mise à jour des Allocations Familiales."""
-    logging.info(f"--- DÉBUT Orchestrateur Allocations Familiales ---")
+    logging.info("--- DÉBUT Orchestrateur Allocations Familiales ---")
     
     try:
         # 1. Lancer tous les scrapers
@@ -410,7 +410,7 @@ def main() -> None:
             supabase, current_row, new_config_data_blob, source_links
         )
         
-        logging.info(f"--- FIN Orchestrateur Allocations Familiales ---")
+        logging.info("--- FIN Orchestrateur Allocations Familiales ---")
         
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")

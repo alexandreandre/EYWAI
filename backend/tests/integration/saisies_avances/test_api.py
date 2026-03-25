@@ -12,9 +12,8 @@ Fixture à ajouter dans conftest.py si besoin de tests E2E avec token réel :
   et droits RH (ou collaborateur pour /me). Format :
   {"Authorization": "Bearer <jwt>", "X-Active-Company": "<company_id>"}.
 """
-from datetime import date
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient

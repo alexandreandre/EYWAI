@@ -52,7 +52,7 @@ def get_salary_prorata(employee_data: Dict[str, Any], exit_data: Dict[str, Any])
             'cotisations': 0.0,  # À calculer si nécessaire
             'net': salaire_prorata  # Approximation
         }
-    except Exception as e:
+    except Exception:
         return {
             'base_mensuelle': 0.0,
             'jours_dans_mois': 0,

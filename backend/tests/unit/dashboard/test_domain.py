@@ -11,7 +11,6 @@ Le module n'a pas d'entités ni de value objects définis (placeholders vides).
 """
 from datetime import date
 
-import pytest
 
 from app.modules.dashboard.domain.enums import TeamPulseEventType
 from app.modules.dashboard.domain.rules import (

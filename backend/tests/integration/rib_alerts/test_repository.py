@@ -5,8 +5,7 @@ SupabaseRibAlertRepository : list, get_by_id, mark_read, resolve, create.
 Les requêtes DB (infrastructure/queries) sont mockées pour valider la logique et les appels.
 Avec DB de test réelle : utiliser la fixture db_session (conftest) et des données dans rib_alerts.
 """
-from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

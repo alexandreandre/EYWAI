@@ -1,8 +1,7 @@
 # moteur_paie/calcul_brut.py
 
-import sys
 from .contexte import ContextePaie
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 from typing import Dict, Any, List
 from .calcul_conges import calculer_indemnite_conges
 
@@ -37,7 +36,8 @@ def _construire_ligne_avantages_en_nature(contexte: ContextePaie) -> Dict[str, A
         for tranche in bareme_logement:
             if salaire_mensuel <= tranche.get('remuneration_max', float('inf')):
                 valeur = tranche['valeur_1_piece']
-                if nb_pieces > 1: valeur += tranche['valeur_par_piece'] * (nb_pieces - 1)
+                if nb_pieces > 1:
+                    valeur += tranche['valeur_par_piece'] * (nb_pieces - 1)
                 total_avantages += valeur
                 break
     if total_avantages > 0:
@@ -47,18 +47,21 @@ def _construire_ligne_avantages_en_nature(contexte: ContextePaie) -> Dict[str, A
 def _calculer_prime_anciennete(contexte: ContextePaie) -> Dict[str, Any] | None:
     # Cette fonction reste inchangée
     date_entree_str = contexte.contrat.get('contrat', {}).get('date_entree')
-    if not date_entree_str: return None
+    if not date_entree_str:
+        return None
     date_entree = datetime.strptime(date_entree_str, "%Y-%m-%d")
     anciennete_annees = (datetime.now() - date_entree).days / 365.25
     idcc = contexte.contrat.get('remuneration', {}).get('convention_collective', {}).get('idcc')
-    if not idcc: return None
+    if not idcc:
+        return None
     regles_cc = contexte.baremes.get('conventions_collectives', {}).get(f"idcc_{idcc}", {})
     regles_prime = regles_cc.get('prime_anciennete', {})
     taux_applicable = 0.0
     for palier in regles_prime.get('bareme', []):
         if palier['annees_min'] <= anciennete_annees:
             taux_applicable = palier.get('taux', 0.0)
-    if taux_applicable == 0.0: return None
+    if taux_applicable == 0.0:
+        return None
     base_de_calcul = 0.0
     regle_base = regles_prime.get('base_de_calcul', {})
     methode = regle_base.get('methode')
@@ -73,7 +76,8 @@ def _calculer_prime_anciennete(contexte: ContextePaie) -> Dict[str, Any] | None:
         base_de_calcul = contexte.salaire_base_mensuel * pourcentage
     else:
         base_de_calcul = contexte.salaire_base_mensuel
-    if base_de_calcul == 0.0: return None
+    if base_de_calcul == 0.0:
+        return None
     montant_prime = base_de_calcul * taux_applicable
     return {"libelle": f"Prime d'ancienneté ({anciennete_annees:.0f} ans, {taux_applicable * 100:.0f}%)","quantite": base_de_calcul,"taux": taux_applicable,"gain": round(montant_prime, 2),"perte": None}
 
@@ -240,29 +244,43 @@ def calculer_salaire_brut(
 
     # 6. Ajout des primes, avantages et calcul des totaux
     ligne_prime_anciennete = _calculer_prime_anciennete(contexte)
-    if ligne_prime_anciennete: lignes_composants_brut.append(ligne_prime_anciennete)
+    if ligne_prime_anciennete:
+        lignes_composants_brut.append(ligne_prime_anciennete)
     if primes_saisies:
         for prime in primes_saisies:
             lignes_composants_brut.append({"libelle": prime.get('libelle', 'Prime'), "quantite": None, "taux": None, "gain": prime.get('montant', 0.0), "perte": None})
     ligne_aen = _construire_ligne_avantages_en_nature(contexte)
-    if ligne_aen: lignes_composants_brut.append(ligne_aen)
-    
+    if ligne_aen:
+        lignes_composants_brut.append(ligne_aen)
+
     # Le calcul du brut total reste inchangé
-    total_gains = sum(l.get('gain', 0.0) or 0.0 for l in lignes_composants_brut if not l.get('is_sous_total'))
-    total_pertes = sum(l.get('perte', 0.0) or 0.0 for l in lignes_composants_brut)
+    total_gains = sum(
+        ligne.get("gain", 0.0) or 0.0
+        for ligne in lignes_composants_brut
+        if not ligne.get("is_sous_total")
+    )
+    total_pertes = sum(
+        ligne.get("perte", 0.0) or 0.0 for ligne in lignes_composants_brut
+    )
     total_brut = total_gains - total_pertes
     
     # Étape 1 : Isoler les gains liés aux HS (structurelles et conjoncturelles)
     # Note: La rémunération des HS structurelles est déjà calculée plus haut.
     remuneration_hs_conjoncturelles = sum(
-        l.get('gain', 0.0) for l in lignes_composants_brut 
-        if l.get('libelle', '').startswith('Heures suppl. majorées')
+        ligne.get("gain", 0.0)
+        for ligne in lignes_composants_brut
+        if ligne.get("libelle", "").startswith("Heures suppl. majorées")
     )
-    
+
     # Étape 2 (NOUVEAU) : Isoler les pertes liées aux HS
     pertes_heures_supp = sum(
-        l.get('perte', 0.0) for l in lignes_composants_brut 
-        if 'absence' in l.get('libelle', '').lower() and ('hs25' in l.get('libelle', '').lower() or 'hs50' in l.get('libelle', '').lower())
+        ligne.get("perte", 0.0)
+        for ligne in lignes_composants_brut
+        if "absence" in ligne.get("libelle", "").lower()
+        and (
+            "hs25" in ligne.get("libelle", "").lower()
+            or "hs50" in ligne.get("libelle", "").lower()
+        )
     )
 
     # Étape 3 : Calculer la rémunération NETTE des heures supplémentaires

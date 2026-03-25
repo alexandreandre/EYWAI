@@ -11,10 +11,10 @@ Ces tests vérifient :
 4. Déduction du net à payer
 """
 
-import pytest
+import sys
+from datetime import date
 from decimal import Decimal
-from datetime import date, datetime
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 from app.modules.saisies_avances.application.service import enrich_payslip
 from app.modules.saisies_avances.domain.rules import (

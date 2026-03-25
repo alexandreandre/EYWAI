@@ -4,7 +4,7 @@ Value objects du domaine companies.
 Placeholder : structure cible pour settings et KPIs.
 """
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 
 @dataclass

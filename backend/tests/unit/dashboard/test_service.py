@@ -4,10 +4,8 @@ Tests unitaires du service applicatif dashboard.
 build_full_dashboard et get_residence_permit_stats avec repository et
 calculator mockés. Aucune DB ni appel externe.
 """
-from datetime import date
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from app.modules.dashboard.application.service import (
     build_full_dashboard,

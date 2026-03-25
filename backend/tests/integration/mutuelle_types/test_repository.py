@@ -7,7 +7,7 @@ dans company_mutuelle_types, employee_mutuelle_types pour des tests CRUD réels.
 """
 from datetime import datetime
 from uuid import uuid4
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -187,7 +187,6 @@ class TestSupabaseMutuelleTypeRepositoryCreate:
 
     def test_create_calls_insert_with_entity_data(self):
         mock_supabase = MagicMock()
-        from uuid import UUID
 
         company_id = uuid4()
         entity = MutuelleType(

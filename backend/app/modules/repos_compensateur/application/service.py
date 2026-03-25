@@ -21,7 +21,6 @@ from app.modules.repos_compensateur.infrastructure import (
     get_bulletins_par_mois_par_employe,
     get_company_effectif,
     get_employees_for_company,
-    get_jours_by_employee_year,
     upsert_credit,
 )
 

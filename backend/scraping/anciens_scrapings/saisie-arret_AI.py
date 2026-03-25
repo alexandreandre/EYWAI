@@ -79,7 +79,7 @@ def get_bareme_saisie_via_ai() -> dict | None:
             data = extract_json_with_gpt(page_text, final_prompt)
 
             if data and all(key in data for key in ["sbi", "bareme"]) and isinstance(data["bareme"], list) and len(data["bareme"]) > 1:
-                print(f"✅ JSON valide et complet extrait de la page !")
+                print("✅ JSON valide et complet extrait de la page !")
                 return data
             else:
                 print("   - Le JSON extrait est incomplet ou invalide, passage à la page suivante.")

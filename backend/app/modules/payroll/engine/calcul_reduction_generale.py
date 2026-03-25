@@ -1,12 +1,16 @@
 # moteur_paie/calcul_reduction_generale.py
 
+from __future__ import annotations
+
 import sys
-from typing import Dict, Any, List
+from typing import Any
+
+from app.modules.payroll.engine.contexte import ContextePaie
 
 # Note: Ce module suppose l'existence d'un objet "contexte" qui contient
 # les informations de l'employé, de l'entreprise et les barèmes/taux.
 
-def _calculer_parametre_T(contexte: 'ContextePaie') -> float:
+def _calculer_parametre_T(contexte: ContextePaie) -> float:
     """
     Calcule dynamiquement le paramètre T en additionnant les taux de cotisations
     patronales concernées par la réduction générale.
@@ -57,7 +61,9 @@ def _calculer_parametre_T(contexte: 'ContextePaie') -> float:
 
 # Dans moteur_paie/calcul_reduction_generale.py
 
-def _calculer_smic_de_reference_cumule(contexte: 'ContextePaie', heures_remunerees_cumulees: float) -> float:
+def _calculer_smic_de_reference_cumule(
+    contexte: ContextePaie, heures_remunerees_cumulees: float
+) -> float:
     """
     Calcule le SMIC de référence CUMULÉ depuis le début de l'année en utilisant la structure
     telle que chargée par la classe ContextePaie.
@@ -76,10 +82,10 @@ def _calculer_smic_de_reference_cumule(contexte: 'ContextePaie', heures_remunere
     return smic_reference_cumule
 
 def calculer_reduction_generale(
-    contexte: 'ContextePaie',
+    contexte: ContextePaie,
     salaire_brut_mois: float,
     heures_remunerees_mois: float,
-) -> dict[str, any] | None:
+) -> dict[str, Any] | None:
     """
     Calcule le montant de la Réduction Générale avec régularisation progressive.
     C'est la méthode officielle et obligatoire.

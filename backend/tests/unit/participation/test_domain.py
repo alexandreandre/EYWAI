@@ -6,7 +6,6 @@ Aucune dépendance DB ni HTTP. Logique pure du domain/.
 from datetime import date, datetime
 from uuid import uuid4
 
-import pytest
 
 from app.modules.participation.domain.entities import ParticipationSimulation
 from app.modules.participation.domain.value_objects import ParticipationDistributionParams

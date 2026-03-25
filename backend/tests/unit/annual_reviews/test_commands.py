@@ -3,7 +3,7 @@ Tests unitaires des commandes annual_reviews (application/commands.py).
 
 Repository mocké ; pas de DB ni HTTP.
 """
-from datetime import date, datetime
+from datetime import date
 from unittest.mock import MagicMock
 
 import pytest

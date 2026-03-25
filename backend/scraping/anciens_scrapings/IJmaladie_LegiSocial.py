@@ -4,7 +4,6 @@ import json
 import re
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime
 
 # --- Fichiers et URL cibles ---
 FICHIER_BAREMES = 'config/baremes.json'

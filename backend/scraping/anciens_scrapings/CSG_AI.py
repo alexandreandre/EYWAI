@@ -80,7 +80,7 @@ def get_taux_csg_crds_via_ai() -> dict | None:
             data = extract_json_with_gpt(page_text, final_prompt)
 
             if data and all(key in data for key in ["csg_imposable", "csg_non_imposable", "crds"]):
-                print(f"✅ JSON valide et complet extrait de la page !")
+                print("✅ JSON valide et complet extrait de la page !")
                 taux_bruts = data
                 break # On a trouvé, on sort de la boucle
             else:
@@ -94,7 +94,7 @@ def get_taux_csg_crds_via_ai() -> dict | None:
         taux_non_deductible_brut = taux_bruts["csg_imposable"] + taux_bruts["crds"]
         taux_non_deductible_final = round(taux_non_deductible_brut / 100.0, 5)
 
-        print(f"\nCalcul final des taux :")
+        print("\nCalcul final des taux :")
         print(f"  - Taux déductible : {taux_deductible*100:.2f}%")
         print(f"  - Taux non déductible : {taux_non_deductible_final*100:.2f}% (calculé depuis {taux_bruts['csg_imposable']}% + {taux_bruts['crds']}%)")
 

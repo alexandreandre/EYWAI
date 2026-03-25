@@ -63,7 +63,7 @@ def test_enrich_employee_with_residence_permit_status_uses_default_employment_st
         "is_subject_to_residence_permit": False,
         "residence_permit_expiry_date": None,
     }
-    result = enrich_employee_with_residence_permit_status(employee_data)
+    enrich_employee_with_residence_permit_status(employee_data)
     call_kw = calculator.calculate.call_args[1]
     assert call_kw["employment_status"] == "actif"
 

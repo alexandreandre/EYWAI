@@ -5,8 +5,7 @@ Utilise app.core.database et app.modules.cse.schemas uniquement.
 """
 
 from datetime import date, datetime, timedelta, time
-from typing import Any, Dict, List, Optional, Tuple
-from decimal import Decimal
+from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
 
@@ -16,31 +15,24 @@ from app.modules.cse.schemas import (
     ElectedMemberUpdate,
     ElectedMemberRead,
     ElectedMemberListItem,
-    ElectedMemberStatus,
     MeetingCreate,
     MeetingUpdate,
     MeetingRead,
     MeetingListItem,
-    MeetingParticipantAdd,
     MeetingParticipantRead,
-    RecordingStart,
     RecordingStatusRead,
     DelegationHourCreate,
     DelegationHourRead,
     DelegationQuotaRead,
-    DelegationQuotaCreate,
     DelegationSummary,
     BDESDocumentCreate,
-    BDESDocumentUpdate,
     BDESDocumentRead,
     ElectionCycleCreate,
     ElectionCycleRead,
-    ElectionTimelineStepCreate,
     ElectionTimelineStepRead,
     ElectionAlert,
     MandateAlert,
     MeetingStatus,
-    RecordingStatus,
 )
 
 
@@ -664,7 +656,7 @@ def remove_participant(
     _check_module_active(company_id)
     
     # Supprimer le participant
-    response = supabase.table('cse_meeting_participants') \
+    supabase.table('cse_meeting_participants') \
         .delete() \
         .eq('meeting_id', meeting_id) \
         .eq('employee_id', employee_id) \
@@ -1292,7 +1284,7 @@ def get_election_alerts(company_id: str) -> List[ElectionAlert]:
         
         if days_remaining <= 0:
             alert_level = "critical"
-            message = f"Le mandat se termine aujourd'hui ou est déjà terminé"
+            message = "Le mandat se termine aujourd'hui ou est déjà terminé"
         elif days_remaining <= 30:
             alert_level = "critical"
             message = f"Le mandat se termine dans {days_remaining} jours"

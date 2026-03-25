@@ -5,12 +5,12 @@ Implémentation autonome ex-services.cse_pdf_service.
 """
 
 import io
-from datetime import datetime, date
+from datetime import datetime
 from typing import Dict, Any, Optional, List
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
+from reportlab.lib.enums import TA_CENTER
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib import colors
 

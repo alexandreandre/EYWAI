@@ -36,7 +36,7 @@ def get_all_plafonds_ij() -> dict | None:
         chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36")
         driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=chrome_options)
         
-        print(f"Navigation vers l'URL et attente de 5 secondes...")
+        print("Navigation vers l'URL et attente de 5 secondes...")
         driver.get(URL_AMELI)
         time.sleep(5) 
 

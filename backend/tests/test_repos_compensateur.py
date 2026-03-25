@@ -73,7 +73,6 @@ def test_cumuler_heures_hs_annee():
 def test_calcul_cor():
     """Calcul des heures COR"""
     from app.modules.repos_compensateur.domain.rules import (
-        CONTINGENT_DEFAUT,
         calculer_heures_cor_mois,
         get_taux_cor_par_effectif,
         heures_vers_jours,
@@ -103,7 +102,6 @@ def test_calcul_cor():
 def test_integration_logique_complete():
     """Chaîne complète : bulletins → cumuls → COR → jours"""
     from app.modules.repos_compensateur.domain.rules import (
-        CONTINGENT_DEFAUT,
         HEURES_PAR_JOUR_REPOS,
         calculer_heures_cor_mois,
         cumuler_heures_hs_annee,
@@ -150,7 +148,7 @@ def test_recalc_service_and_api():
 
     # Vérifier que la table existe
     try:
-        r = supabase.table("repos_compensateur_credits").select("id").limit(1).execute()
+        supabase.table("repos_compensateur_credits").select("id").limit(1).execute()
         print("  ✓ Table repos_compensateur_credits accessible")
     except Exception as e:
         print(f"  ✗ Table repos_compensateur_credits: {e}")
@@ -171,18 +169,11 @@ def test_recalc_service_and_api():
 
     n = recalculer_credits_repos_employe(emp_id, company_id, 2025)
     assert n == 12, f"Recalc devrait upsert 12 mois, a fait {n}"
-    print(f"  ✓ recalculer_credits_repos_employe OK (12 mois upsertés)")
+    print("  ✓ recalculer_credits_repos_employe OK (12 mois upsertés)")
 
 
 def test_imports_and_structure():
     """Vérifier que tous les modules s'importent correctement"""
-    from app.modules.repos_compensateur.domain.rules import (
-        calculer_heures_cor_mois,
-        cumuler_heures_hs_annee,
-        extraire_heures_hs_du_bulletin,
-        get_taux_cor_par_effectif,
-        heures_vers_jours,
-    )
 
     # recalc + router nécessitent Supabase
     if not os.getenv("SUPABASE_URL"):
@@ -190,9 +181,6 @@ def test_imports_and_structure():
         return
 
     from app.modules.repos_compensateur.api import router as repos_router
-    from app.modules.repos_compensateur.application.service import (
-        recalculer_credits_repos_employe,
-    )
 
     assert hasattr(repos_router, "routes")
     routes = [r.path for r in repos_router.routes if hasattr(r, "path")]

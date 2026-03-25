@@ -336,7 +336,7 @@ def update_config_in_supabase(
 
 def main() -> None:
     """Orchestre l'ensemble du processus de mise à jour du FNAL."""
-    logging.info(f"--- DÉBUT Orchestrateur FNAL ---")
+    logging.info("--- DÉBUT Orchestrateur FNAL ---")
     sys.stderr.flush()  # Forcer l'affichage immédiat
     
     try:
@@ -356,7 +356,7 @@ def main() -> None:
             sys.stderr.flush()
 
         # 2. Normaliser les signatures
-        logging.info(f"Étape 2/8: Normalisation des signatures...")
+        logging.info("Étape 2/8: Normalisation des signatures...")
         sys.stderr.flush()
         
         sigs: List[Dict[str, Any]] = []
@@ -369,13 +369,13 @@ def main() -> None:
                 sys.exit(2)
         
         # 3. Afficher la comparaison
-        logging.info(f"Étape 3/8: Comparaison des valeurs scrapées...")
+        logging.info("Étape 3/8: Comparaison des valeurs scrapées...")
         sys.stderr.flush()
         debug_comparison(payloads, sigs)
         sys.stderr.flush()
 
         # 4. Valider la concordance
-        logging.info(f"Étape 4/8: Validation de la concordance entre sources...")
+        logging.info("Étape 4/8: Validation de la concordance entre sources...")
         sys.stderr.flush()
         
         all_equal = True
@@ -400,23 +400,23 @@ def main() -> None:
         source_links = merge_sources(payloads)
 
         # 5. Initialiser la BDD
-        logging.info(f"Étape 5/8: Connexion à la base de données Supabase...")
+        logging.info("Étape 5/8: Connexion à la base de données Supabase...")
         sys.stderr.flush()
         supabase = init_supabase_client()
         sys.stderr.flush()
         
         # 6. Lire l'état actuel (peut être None)
-        logging.info(f"Étape 6/8: Lecture de la configuration actuelle...")
+        logging.info("Étape 6/8: Lecture de la configuration actuelle...")
         sys.stderr.flush()
         current_row = fetch_active_config(supabase, CONFIG_KEY_TO_UPDATE)
         if current_row:
             logging.info(f"  ✅ Configuration existante trouvée (version {current_row.get('version', '?')})")
         else:
-            logging.info(f"  ℹ️  Aucune configuration existante (création initiale)")
+            logging.info("  ℹ️  Aucune configuration existante (création initiale)")
         sys.stderr.flush()
         
         # 7. Appliquer le patch en mémoire
-        logging.info(f"Étape 7/8: Application du patch en mémoire...")
+        logging.info("Étape 7/8: Application du patch en mémoire...")
         sys.stderr.flush()
         new_config_data_blob = apply_patch_in_memory(
             current_row["config_data"] if current_row else None, 
@@ -425,15 +425,15 @@ def main() -> None:
         sys.stderr.flush()
         
         # 8. Comparer et écrire dans Supabase
-        logging.info(f"Étape 8/8: Mise à jour de la base de données...")
+        logging.info("Étape 8/8: Mise à jour de la base de données...")
         sys.stderr.flush()
         update_config_in_supabase(
             supabase, current_row, new_config_data_blob, source_links
         )
         sys.stderr.flush()
         
-        logging.info(f"--- FIN Orchestrateur FNAL ---")
-        logging.info(f"✅ Succès: FNAL mis à jour avec succès dans la base de données")
+        logging.info("--- FIN Orchestrateur FNAL ---")
+        logging.info("✅ Succès: FNAL mis à jour avec succès dans la base de données")
         
         # Forcer le flush de tous les logs avant de terminer
         sys.stderr.flush()

@@ -2,18 +2,17 @@
 # Utilisables par tests/unit/<module>/ et tests/integration/<module>/.
 
 import os
+
 import pytest
+from fastapi.testclient import TestClient
+
+from app.main import app
 
 # Scripts manuels nommés test_*.py mais non destinés à pytest (code au niveau module).
 collect_ignore = [
     "test_login.py",
     "test_absenteeism.py",
 ]
-
-
-from fastapi.testclient import TestClient
-
-from app.main import app
 
 
 # ---------------------------------------------------------------------------
@@ -32,7 +31,6 @@ def async_client():
     """Client HTTP async (httpx.AsyncClient) pour tests async. Optionnel : requiert httpx et pytest-asyncio.
     Usage : dans un test marqué @pytest.mark.asyncio, injecter async_client et l'utiliser pour des requêtes async."""
     try:
-        import httpx
         from httpx import ASGITransport
     except ImportError:
         pytest.skip("httpx requis pour async_client (pip install httpx)")

@@ -2,12 +2,11 @@
 # Migré depuis services/payslip_editor.py. Comportement identique.
 # Templates et chemins : app.core.paths ; BDD : app.core.database.
 
-import json
 import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import HTTPException
 from jinja2 import Environment, FileSystemLoader

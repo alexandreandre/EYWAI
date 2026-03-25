@@ -2,7 +2,6 @@
 
 import json
 import os
-import sys
 from datetime import datetime, timezone
 
 import requests
@@ -37,7 +36,7 @@ def extract_json_with_gpt(page_text: str, prompt: str) -> dict | None:
         )
         extracted_text = response.choices[0].message.content.strip()
         return json.loads(extracted_text)
-    except Exception as e:
+    except Exception:
         return None
 
 
@@ -198,7 +197,7 @@ Structure attendue :
     results = []
     try:
         results = list(search(SEARCH_QUERY, num_results=5, lang="fr"))
-    except Exception as e:
+    except Exception:
         pass # ERREUR recherche Google
 
     if not results:
@@ -214,7 +213,7 @@ Structure attendue :
             data = extract_json_with_gpt(page_text, prompt_template + page_text)
             if data and "FRAIS_PROFESSIONNELS_2025" in data:
                 return normalize_sections(data["FRAIS_PROFESSIONNELS_2025"])
-        except Exception as e:
+        except Exception:
             pass # ERREUR page
 
     return None

@@ -12,7 +12,7 @@ from datetime import date, datetime
 from typing import Any, Dict, Optional
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
@@ -146,7 +146,7 @@ def generate_promotion_letter(
     story.append(Paragraph(intro_text, styles["CorpsTexte"]))
     story.append(Spacer(1, 0.5 * cm))
 
-    promotion_type = promotion_data.get("promotion_type", "mixte")
+    promotion_data.get("promotion_type", "mixte")
     comparison_data = []
 
     if promotion_data.get("new_job_title") or promotion_data.get("previous_job_title"):
@@ -358,7 +358,7 @@ def save_promotion_document(
     pdf_name = f"Promotion_{employee_folder_name}_{today.strftime('%Y%m%d')}.pdf"
     storage_path = f"{company_id}/{employee_id}/promotions/{pdf_name}"
 
-    upload_response = supabase.storage.from_("promotion_documents").upload(
+    supabase.storage.from_("promotion_documents").upload(
         path=storage_path,
         file=pdf_bytes,
         file_options={"content-type": "application/pdf", "x-upsert": "true"},

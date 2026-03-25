@@ -5,7 +5,7 @@ Implémentation autonome ex-services.cse_ai_service.
 """
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from fastapi import HTTPException
 
 from app.core.database import supabase

@@ -7,7 +7,6 @@ Pour des tests contre une DB de test, prévoir db_session et données dans
 promotions, employees, profiles ; documenter la fixture promotions_db_session
 dans conftest.py.
 """
-from datetime import date, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest

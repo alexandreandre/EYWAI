@@ -8,7 +8,7 @@ Fixture documentée : exports_headers — si conftest fournit des en-têtes (Aut
 les tests peuvent les utiliser pour des appels E2E avec token réel.
 """
 from datetime import datetime
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -79,7 +79,6 @@ class TestExportsActiveCompanyRequired:
     def test_preview_without_x_active_company_returns_400(self, client: TestClient):
         """Avec auth mais sans X-Active-Company → 400 (get_active_company_id lève HTTPException)."""
         from app.core.security import get_current_user
-        from app.modules.exports.api.dependencies import get_active_company_id
 
         app.dependency_overrides[get_current_user] = _make_rh_user
         # Ne pas override get_active_company_id : il attend le header

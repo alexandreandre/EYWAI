@@ -276,7 +276,7 @@ def update_config_in_supabase(
 
 def main() -> None:
     """Orchestre l'ensemble du processus de mise à jour des plafonds IJ."""
-    logging.info(f"--- DÉBUT Orchestrateur Plafonds IJ ---")
+    logging.info("--- DÉBUT Orchestrateur Plafonds IJ ---")
     
     try:
         # 1. Lancer tous les scrapers
@@ -326,7 +326,7 @@ def main() -> None:
             source_links
         )
         
-        logging.info(f"--- FIN Orchestrateur Plafonds IJ ---")
+        logging.info("--- FIN Orchestrateur Plafonds IJ ---")
         
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")

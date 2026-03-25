@@ -3,9 +3,8 @@ Tests unitaires des commandes du module payslips (application/commands.py).
 
 Chaque commande est testée avec repositories et providers mockés (pas de DB, pas de HTTP).
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 
 from app.modules.payslips.application.commands import (
     generate_payslip,

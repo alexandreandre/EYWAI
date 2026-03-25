@@ -7,7 +7,6 @@ Pour les routes protégées (me/*, get-upload-url, PATCH status, certificate) :
   - Avec auth_headers valide (fixture à compléter en 8.2) → 200/201 selon cas.
 Préfixe des routes : /api/absences.
 """
-from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient

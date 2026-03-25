@@ -93,7 +93,7 @@ def get_all_plafonds_ij_via_ai() -> dict | None:
             # Validation pour s'assurer que le JSON est complet
             expected_keys = ["maladie", "maternite_paternite", "at_mp", "at_mp_majoree"]
             if data and all(key in data for key in expected_keys):
-                print(f"✅ JSON valide et complet extrait de la page !")
+                print("✅ JSON valide et complet extrait de la page !")
                 return data
             else:
                 print("   - Le JSON extrait est incomplet ou invalide, passage à la page suivante.")

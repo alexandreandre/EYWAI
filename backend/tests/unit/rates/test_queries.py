@@ -6,7 +6,6 @@ Reader mocké, pas de DB.
 """
 from unittest.mock import MagicMock
 
-import pytest
 
 from app.modules.rates.application.queries import get_all_rates
 

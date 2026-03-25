@@ -4,7 +4,7 @@ import os
 import tempfile
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 from supabase import create_client, Client
 
 
@@ -86,7 +86,7 @@ class ContextePaie:
         
         print("\n--- 🔍 DEBUG CONTEXTE: Chargement des fichiers initiaux ---", file=sys.stderr)
         print(f"  -> Chemin contrat: {chemin_contrat}", file=sys.stderr)
-        data_dir = Path(chemin_data_dir)
+        Path(chemin_data_dir)
 
         # --- ÉTAPE 1 : Chargement des fichiers locaux (Contrat, Cumuls, Fichier Entreprise) ---
         entreprise_data = self._load_json(chemin_entreprise)
@@ -337,7 +337,7 @@ class ContextePaie:
                  cotisations_list = cotisations_data
              else:
                 # ✅ CORRECTION: Redirigé vers sys.stderr
-                 print(f"WARN: Structure 'cotisations' non reconnue dans self.baremes pour get_cotisation_by_id.", file=sys.stderr)
+                 print("WARN: Structure 'cotisations' non reconnue dans self.baremes pour get_cotisation_by_id.", file=sys.stderr)
                  return None
         else:
             cotisations_list = cotisations_data.get(root_key, [])

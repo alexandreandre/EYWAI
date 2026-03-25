@@ -3,12 +3,12 @@ Tests unitaires des queries applicatives exports.
 
 Chaque query est testée avec providers, infrastructure queries et storage mockés.
 """
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
 from app.modules.exports.application import queries
-from app.modules.exports.schemas import ExportPreviewRequest, ExportTotals, ExportAnomaly
+from app.modules.exports.schemas import ExportPreviewRequest
 
 
 pytestmark = pytest.mark.unit

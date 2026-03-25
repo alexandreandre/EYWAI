@@ -14,7 +14,6 @@ from unittest.mock import patch, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
 
 
 pytestmark = pytest.mark.integration

@@ -4,9 +4,7 @@ Tests du domain collective_agreements : entités, value objects, règles, except
 Sans DB, sans HTTP. Comportement pur du domaine.
 """
 from datetime import date, datetime
-from unittest.mock import patch
 
-import pytest
 
 from app.modules.collective_agreements.domain.entities import (
     CollectiveAgreementCatalogEntity,

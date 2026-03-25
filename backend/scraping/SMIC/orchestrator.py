@@ -7,7 +7,6 @@ import os
 import sys
 import subprocess
 import logging
-import math
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple, Optional
 from supabase import create_client, Client, PostgrestAPIResponse
@@ -274,7 +273,7 @@ def update_config_in_supabase(
 
 def main() -> None:
     """Orchestre l'ensemble du processus de mise à jour du SMIC."""
-    logging.info(f"--- DÉBUT Orchestrateur SMIC ---")
+    logging.info("--- DÉBUT Orchestrateur SMIC ---")
     
     try:
         # 1. Lancer tous les scrapers
@@ -328,7 +327,7 @@ def main() -> None:
             source_links
         )
         
-        logging.info(f"--- FIN Orchestrateur SMIC ---")
+        logging.info("--- FIN Orchestrateur SMIC ---")
         
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")

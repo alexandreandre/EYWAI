@@ -112,7 +112,6 @@ class TestForfaitCommandsDefinirPeriode:
     @patch("app.modules.payroll.application.forfait_commands.definir_periode_de_paie")
     def test_definir_periode_forfait_returns_two_dates(self, mock_definir, mock_ctx):
         """Retourne (date_debut, date_fin) en déléguant au moteur (mocks pour éviter Supabase)."""
-        from datetime import date
         mock_ctx.return_value = MagicMock()
         mock_definir.return_value = (date(2024, 12, 23), date(2025, 1, 5))
         params = {"periode_de_paie": {"jour_de_fin": 4, "occurrence": -2}}

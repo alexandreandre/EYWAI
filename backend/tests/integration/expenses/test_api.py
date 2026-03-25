@@ -10,7 +10,7 @@ Fixture optionnelle (conftest.py) : expenses_headers — en-têtes avec token Be
 pour un utilisateur authentifié (employee_id = user.id). Si non définie, les tests
 utilisent dependency_overrides[get_current_user] avec un User de test.
 """
-from datetime import date, datetime
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest

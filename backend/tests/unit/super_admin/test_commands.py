@@ -3,7 +3,7 @@ Tests des commandes applicatives du module super_admin (application/commands.py)
 
 Repositories et couche infrastructure mockés ; vérification des règles métier et du délégation.
 """
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 

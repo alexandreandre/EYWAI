@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from xml.dom import minidom
 
 from app.core.database import supabase
-from app.shared.utils.export import format_period
 
 
 def validate_nir(nir: Optional[str]) -> Tuple[bool, Optional[str]]:
@@ -438,7 +437,7 @@ def generate_dsn_xml(
     salaries = ET.SubElement(root, "Salaries")
     for emp_data in employees_data:
         employee = emp_data["employee"]
-        payslip_data = emp_data["payslip"].get("payslip_data", {})
+        emp_data["payslip"].get("payslip_data", {})
 
         salarie = ET.SubElement(salaries, "Salarie")
         identite = ET.SubElement(salarie, "Identite")

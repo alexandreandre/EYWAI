@@ -5,7 +5,6 @@ Le module rates n'a pas d'entités ni de value objects (placeholders).
 On teste : RATE_CATEGORY_OUTPUT_KEYS, group_and_select_best, build_rate_category_output.
 Aucune I/O, aucune DB, aucun HTTP.
 """
-import pytest
 
 from app.modules.rates.domain.rules import (
     RATE_CATEGORY_OUTPUT_KEYS,

@@ -5,7 +5,7 @@ Vérifie que le repository délègue correctement aux requêtes infrastructure
 et retourne les données attendues. Les requêtes DB sont mockées (pas de DB réelle).
 Pour des tests contre une DB de test, prévoir db_session et données dans annual_reviews/employees/companies.
 """
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 

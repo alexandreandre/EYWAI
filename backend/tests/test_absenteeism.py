@@ -68,22 +68,22 @@ for absence in absences:
         except (ValueError, TypeError):
             continue
 
-print(f"4. Jours d'absence sur la période:")
+print("4. Jours d'absence sur la période:")
 print(f"   Total jours d'absence: {total_absence_days}")
 if absence_by_employee:
-    print(f"\n   Détails par employé:")
+    print("\n   Détails par employé:")
     for emp_name, data in sorted(absence_by_employee.items()):
         types = ', '.join(data['types'])
         print(f"   - {emp_name}: {data['count']} jour(s) ({types})")
 else:
-    print(f"   Aucune absence dans cette période")
+    print("   Aucune absence dans cette période")
 print()
 
 # 5. Calculer le taux
 theoretical_working_days = total_working_days * len(employees)
 if theoretical_working_days > 0:
     absenteeism_rate = (total_absence_days / theoretical_working_days) * 100
-    print(f"5. Calcul du taux:")
+    print("5. Calcul du taux:")
     print(f"   Formule: ({total_absence_days} / {theoretical_working_days}) * 100")
     print(f"   Taux d'absentéisme: {absenteeism_rate:.1f}%")
 else:

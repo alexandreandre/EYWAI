@@ -349,7 +349,7 @@ def _build_run_env(supabase: Client) -> Dict[str, str]:
 
 def main() -> None:
     """Orchestre l'ensemble du processus de mise à jour de l'AGS."""
-    logging.info(f"--- DÉBUT Orchestrateur AGS ---")
+    logging.info("--- DÉBUT Orchestrateur AGS ---")
     
     try:
         supabase = init_supabase_client()
@@ -403,7 +403,7 @@ def main() -> None:
             supabase, current_row, new_config_data_blob, source_links
         )
         
-        logging.info(f"--- FIN Orchestrateur AGS ---")
+        logging.info("--- FIN Orchestrateur AGS ---")
         
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")

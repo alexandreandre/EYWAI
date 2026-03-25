@@ -13,7 +13,6 @@ et utilise l’IA (GPT) pour extraire le taux officiel applicable.
 import json
 import os
 import sys
-import time
 from datetime import datetime, timezone
 
 import requests

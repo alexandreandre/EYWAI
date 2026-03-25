@@ -15,7 +15,7 @@ Fixture à ajouter dans tests/conftest.py si besoin de tests E2E avec token rée
       présent dans super_admins avec is_active=True.\"\"\"
       return auth_headers
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient

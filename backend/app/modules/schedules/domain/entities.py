@@ -5,7 +5,7 @@ Cible de migration : agrégat « planning employé / mois » (employee_id, year,
 planned_calendar, actual_hours, cumuls, payroll_events). Pour l’instant placeholder.
 """
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 
 @dataclass

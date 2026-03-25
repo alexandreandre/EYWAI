@@ -12,7 +12,6 @@ et utilise le générateur approprié.
 
 import json
 import logging
-import sys
 import traceback
 import calendar
 from datetime import date

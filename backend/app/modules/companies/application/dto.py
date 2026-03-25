@@ -4,7 +4,7 @@ DTOs applicatifs du module companies.
 Structure cible pour les retours des queries/commands (details+kpis, settings).
 """
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 
 @dataclass

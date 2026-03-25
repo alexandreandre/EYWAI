@@ -3,10 +3,8 @@ Module de calcul inverse : détermination du brut nécessaire pour un net cible
 Utilise une recherche dichotomique pour converger vers le brut exact
 """
 
-from typing import Dict, Any, Tuple, Optional, Literal
-from decimal import Decimal
+from typing import Dict, Any, Optional, Literal
 import logging
-import sys
 
 logger = logging.getLogger(__name__)
 

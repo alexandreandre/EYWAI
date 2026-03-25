@@ -6,7 +6,8 @@ from typing import Dict, Any, List
 from supabase import create_client, Client
 
 def _get_safe_float(value: Any, default: float = 0.0) -> float:
-    if value is None: return default
+    if value is None:
+        return default
     return float(value)
 
 # Dans le fichier moteur_paie/calcul_net.py
@@ -89,12 +90,12 @@ def _calculer_net_imposable(
     print(f"\t  Net Social (Net à payer av. impôt) : {salaire_brut_safe - total_cotisations_safe:10.2f} €", file=sys.stderr)
     print(f"\t+ CSG/CRDS non déductible          : {montant_csg_non_deductible:10.2f} €", file=sys.stderr)
     print(f"\t+ Part Patronale Mutuelle          : {part_patronale_mutuelle:10.2f} €", file=sys.stderr)
-    print(f"\t--------------------------------------------", file=sys.stderr)
+    print("\t--------------------------------------------", file=sys.stderr)
     print(f"\t= Imposable avant défiscalisation  : {net_imposable_avant_defiscalisation:10.2f} €", file=sys.stderr)
     print(f"\t- Exonération Heures Supp.         : {remuneration_heures_supp:10.2f} €", file=sys.stderr)
     if montant_primes_soumises_impot > 0:
         print(f"\t+ Primes soumises à l'impôt        : {montant_primes_soumises_impot:10.2f} €", file=sys.stderr)
-    print(f"\t--------------------------------------------", file=sys.stderr)
+    print("\t--------------------------------------------", file=sys.stderr)
     print(f"\t= NET IMPOSABLE                    : {round(net_imposable_final, 2):10.2f} €", file=sys.stderr)
     print("---------------------------------\n", file=sys.stderr)
     
@@ -116,7 +117,7 @@ def _calculer_net_a_payer(net_social: float, montant_pas: float, contexte: Conte
     print(f"\t- Impôt sur le revenu              : {montant_pas:10.2f} €", file=sys.stderr)
     
     net_apres_impot = _get_safe_float(net_social) - _get_safe_float(montant_pas)
-    print(f"\t--------------------------------------------", file=sys.stderr)
+    print("\t--------------------------------------------", file=sys.stderr)
     print(f"\t= Net après impôt                  : {net_apres_impot:10.2f} €", file=sys.stderr)
 
     # Initialisation du net à payer
@@ -168,7 +169,7 @@ def _calculer_net_a_payer(net_social: float, montant_pas: float, contexte: Conte
     if montant_acompte > 0:
         print(f"\t- Acompte versé                    : {montant_acompte:10.2f} €", file=sys.stderr)
         net_a_payer -= montant_acompte
-    print(f"\t--------------------------------------------", file=sys.stderr)
+    print("\t--------------------------------------------", file=sys.stderr)
     print(f"\t= NET À PAYER                      : {round(net_a_payer, 2):10.2f} €", file=sys.stderr)
     print("-----------------------------\n", file=sys.stderr)
 

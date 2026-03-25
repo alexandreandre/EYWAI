@@ -230,7 +230,7 @@ def calculer_salaire_brut_forfait(
         
         # Calcul d'un taux horaire équivalent pour la compatibilité avec calcul_conges
         # On utilise une base de 7 heures par jour pour le calcul
-        heures_equivalentes_conges = nombre_jours_conges * 7.0
+        nombre_jours_conges * 7.0
         taux_horaire_equivalent = salaire_journalier / 7.0
         
         resultat_conges = calculer_indemnite_conges(
@@ -291,11 +291,13 @@ def calculer_salaire_brut_forfait(
     
     # Calcul du brut total
     total_gains = sum(
-        l.get('gain', 0.0) or 0.0 
-        for l in lignes_composants_brut 
-        if not l.get('is_sous_total')
+        ligne.get("gain", 0.0) or 0.0
+        for ligne in lignes_composants_brut
+        if not ligne.get("is_sous_total")
     )
-    total_pertes = sum(l.get('perte', 0.0) or 0.0 for l in lignes_composants_brut)
+    total_pertes = sum(
+        ligne.get("perte", 0.0) or 0.0 for ligne in lignes_composants_brut
+    )
     
     # Protection : Les déductions d'absence ne peuvent pas dépasser le salaire de base
     # (sauf si des primes/avantages sont ajoutés)

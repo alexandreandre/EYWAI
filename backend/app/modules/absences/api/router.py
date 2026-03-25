@@ -182,7 +182,7 @@ async def get_my_absence_balances(
         return AbsenceBalancesResponse(balances=balances)
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
+    except Exception:
         traceback.print_exc()
         raise HTTPException(
             status_code=500, detail="Erreur lors du calcul des soldes."
@@ -203,7 +203,7 @@ async def get_my_monthly_calendar(
             str(current_user.id), year, month
         )
         return MonthlyCalendarResponse(days=days)
-    except Exception as e:
+    except Exception:
         traceback.print_exc()
         raise HTTPException(
             status_code=500,
@@ -242,7 +242,7 @@ async def get_my_absences_page_data(
         return AbsencePageData(**data)
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
+    except Exception:
         traceback.print_exc()
         raise HTTPException(
             status_code=500, detail="Erreur de récupération des données."

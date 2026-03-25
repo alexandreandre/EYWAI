@@ -4,9 +4,8 @@ Tests unitaires des commandes scraping (application/commands.py).
 Repository et scraper_runner mockés. Couvre execute_scraper, create_schedule,
 update_schedule, delete_schedule, mark_alert_as_read, resolve_alert.
 """
-from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 

@@ -13,9 +13,8 @@ Fixture optionnelle à ajouter dans conftest.py si besoin de tests E2E avec toke
       Format : {\"Authorization\": \"Bearer <jwt>\", \"X-Active-Company\": \"<company_id>\"}.\"\"\"
       return auth_headers  # ou return {**auth_headers, "X-Active-Company": "<company_uuid>"}
 """
-from datetime import date, datetime, timezone
-from unittest.mock import MagicMock, patch
-from uuid import uuid4
+from datetime import datetime, timezone
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient

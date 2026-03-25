@@ -6,7 +6,7 @@ Agrégation et enrichissement via le repository ; pas de logique métier pure
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from app.modules.scraping.infrastructure.repository import ScrapingRepository
 

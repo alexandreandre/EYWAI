@@ -4,9 +4,9 @@ Tests des commandes du module saisies_avances (application/commands.py).
 Chaque commande est testée avec repositories et providers mockés (patch au niveau
 du module service).
 """
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -15,7 +15,6 @@ from app.modules.saisies_avances.application.dto import UserContext
 from app.modules.saisies_avances.schemas import (
     SalaryAdvanceCreate,
     SalaryAdvancePaymentCreate,
-    SalaryAdvanceReject,
     SalarySeizureCreate,
     SalarySeizureUpdate,
 )
@@ -270,7 +269,7 @@ class TestDeleteAdvancePayment:
         }
         with patch(f"{SERVICE_MODULE}.get_payment_with_advance", return_value=payment_with_advance):
             with patch(f"{SERVICE_MODULE}.advance_payment_repository") as pay_repo:
-                with patch(f"{SERVICE_MODULE}.advance_repository") as adv_repo:
+                with patch(f"{SERVICE_MODULE}.advance_repository"):
                     pay_repo.get_total_paid_by_advance_id.return_value = Decimal("0")
                     result = commands.delete_advance_payment("pay-1")
         assert result == {"success": True}

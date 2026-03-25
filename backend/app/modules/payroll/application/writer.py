@@ -3,10 +3,9 @@ Génération et enregistrement des événements de paie dans Supabase.
 
 Migré depuis backend_api/payroll_writer.py.
 """
-import json
 import sys
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
 from supabase import create_client

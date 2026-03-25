@@ -8,7 +8,6 @@ role_templates, etc. peut transiter par ce repository ou des queries dédiées.
 from __future__ import annotations
 
 from app.core.database import supabase
-from app.modules.access_control.domain.interfaces import IPermissionRepository
 
 
 class SupabasePermissionRepository:

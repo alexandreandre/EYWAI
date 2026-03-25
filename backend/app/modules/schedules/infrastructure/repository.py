@@ -12,7 +12,6 @@ from app.modules.schedules.domain.interfaces import IScheduleRepository
 from app.modules.schedules.infrastructure.mappers import (
     row_to_planned_calendar,
     row_to_actual_hours,
-    row_to_cumuls,
 )
 
 

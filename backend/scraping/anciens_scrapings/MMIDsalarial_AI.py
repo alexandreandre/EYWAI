@@ -101,7 +101,7 @@ def ajuster_taux_salarial_maladie_via_ai():
 
         taux_correct = 0.0 # Valeur par défaut pour le régime général
         if is_alsace_moselle:
-            print(f"Régime Alsace-Moselle détecté. Lancement de la recherche du taux spécifique...")
+            print("Régime Alsace-Moselle détecté. Lancement de la recherche du taux spécifique...")
             taux_specifique = get_taux_alsace_moselle_via_ai()
             if taux_specifique is None:
                 print("Arrêt du script car le taux spécifique n'a pas pu être récupéré.")

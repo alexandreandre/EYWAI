@@ -3,9 +3,8 @@ Tests unitaires des commandes employee_exits (application/commands.py).
 
 Repositories et providers mockés ; pas de DB ni HTTP.
 """
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from unittest.mock import MagicMock, patch
-from uuid import uuid4
 
 import pytest
 
@@ -16,10 +15,8 @@ from app.modules.employee_exits.application.commands import (
     delete_checklist_item,
     delete_employee_exit,
     delete_exit_document,
-    edit_exit_document,
     generate_exit_document,
     mark_checklist_item_complete,
-    publish_exit_documents,
     unpublish_exit_document,
     update_employee_exit,
     update_exit_status,

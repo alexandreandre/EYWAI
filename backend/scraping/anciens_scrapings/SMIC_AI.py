@@ -81,7 +81,7 @@ def get_smic_via_ai() -> dict | None:
 
             expected_keys = ["cas_general", "entre_17_et_18_ans", "moins_de_17_ans"]
             if data and all(key in data for key in expected_keys):
-                print(f"✅ JSON valide et complet extrait de la page !")
+                print("✅ JSON valide et complet extrait de la page !")
                 return data
             else:
                 print("   - Le JSON extrait est incomplet ou invalide, passage à la page suivante.")

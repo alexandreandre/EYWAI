@@ -4,7 +4,6 @@ Tests unitaires du domaine auth : règles métier et constantes.
 Pas d'entités ni de value objects dans ce module (placeholders vides).
 On teste uniquement domain/rules.py (règles pures, sans DB ni HTTP).
 """
-import pytest
 
 from app.modules.auth.domain.rules import RESET_TOKEN_VALIDITY_HOURS, is_email_like
 

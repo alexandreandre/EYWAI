@@ -4,7 +4,7 @@ Tests unitaires du service applicatif rib_alerts (application/service.py).
 Dépendances mockées : commandes et queries (get_rib_alerts, mark_rib_alert_read, resolve_rib_alert).
 Couvre list_rib_alerts, mark_read, resolve.
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from app.modules.rib_alerts.application.dto import RibAlertListFilters, RibAlertListResult
 from app.modules.rib_alerts.application.service import list_rib_alerts, mark_read, resolve

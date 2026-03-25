@@ -7,7 +7,6 @@ from typing import Any
 
 from app.core.database import supabase
 from app.modules.bonus_types.domain.entities import BonusType
-from app.modules.bonus_types.domain.interfaces import IBonusTypeRepository
 from app.modules.bonus_types.infrastructure.mappers import (
     bonus_type_to_row,
     row_to_bonus_type,

@@ -38,6 +38,6 @@ else:
     print("Impossible de calculer le taux")
 
 print("\n=== Exemples ===")
-print(f"- Si 0 jours d'absence: 0.0%")
+print("- Si 0 jours d'absence: 0.0%")
 print(f"- Si {total_working_days // 10} jours d'absence (~10%): {((total_working_days // 10) / theoretical_working_days) * 100:.1f}%")
 print(f"- Si {total_working_days // 5} jours d'absence (~20%): {((total_working_days // 5) / theoretical_working_days) * 100:.1f}%")

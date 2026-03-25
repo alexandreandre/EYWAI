@@ -2,7 +2,6 @@
 
 import sys
 from .contexte import ContextePaie
-from typing import Dict, Any
 
 def calculer_parametre_T(contexte: ContextePaie) -> float:
     """
@@ -61,7 +60,7 @@ def calculer_parametre_T(contexte: ContextePaie) -> float:
     print(f"  + {'Cotisation Accidents du travail (part pour T)':<45} : {taux_at_pour_T:.4f} (Taux réel: {taux_at_reel})", file=sys.stderr)
     
     valeur_T = round(valeur_T, 4)
-    print(f"-------------------------------------------------------", file=sys.stderr)
+    print("-------------------------------------------------------", file=sys.stderr)
     print(f"VALEUR TOTALE DE T CALCULÉE : {valeur_T}", file=sys.stderr)
     
     return valeur_T

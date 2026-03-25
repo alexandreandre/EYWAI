@@ -7,7 +7,6 @@ import os
 import sys
 import subprocess
 import logging
-import math
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple, Optional
 from supabase import create_client, Client, PostgrestAPIResponse
@@ -279,7 +278,7 @@ def update_config_in_supabase(
     
     # --- SCÉNARIO 1 : IDENTIQUE ---
     if current_config_data == new_config_data:
-        logging.info(f"Les données Vieillesse Patronale sont inchangées. Mise à jour de 'last_checked_at'.")
+        logging.info("Les données Vieillesse Patronale sont inchangées. Mise à jour de 'last_checked_at'.")
         try:
             supabase.table("payroll_config").update(
                 {
@@ -333,7 +332,7 @@ def update_config_in_supabase(
 
 def main() -> None:
     """Orchestre l'ensemble du processus de mise à jour des taux de vieillesse patronaux."""
-    logging.info(f"--- DÉBUT Orchestrateur Vieillesse Patronale ---")
+    logging.info("--- DÉBUT Orchestrateur Vieillesse Patronale ---")
     
     try:
         # 1. Lancer tous les scrapers
@@ -389,7 +388,7 @@ def main() -> None:
             supabase, current_row, new_config_data_blob, source_links
         )
         
-        logging.info(f"--- FIN Orchestrateur Vieillesse Patronale ---")
+        logging.info("--- FIN Orchestrateur Vieillesse Patronale ---")
         
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")

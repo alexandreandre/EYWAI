@@ -7,7 +7,6 @@ On mocke ces appels pour vérifier les paramètres et retours.
 from datetime import date
 from unittest.mock import patch, MagicMock
 
-import pytest
 
 from app.modules.cse.application import commands
 from app.modules.cse.schemas import ElectedMemberCreate, MeetingCreate, MeetingUpdate

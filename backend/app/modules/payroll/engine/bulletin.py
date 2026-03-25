@@ -1,7 +1,6 @@
 # moteur_paie/bulletin.py
 
 import sys
-from datetime import datetime
 from .contexte import ContextePaie
 from typing import Dict, Any, List
 
@@ -71,18 +70,26 @@ def creer_bulletin_final(
             bloc_principales.append(ligne)
             
     # Calcul des totaux
-    total_autres_contributions = sum(l.get('montant_patronal', 0.0) or 0.0 for l in bloc_autres_contributions)
-    total_cotisations_salariales = sum(l.get('montant_salarial', 0.0) or 0.0 for l in lignes_cotisations)
-    total_cotisations_patronales = sum(l.get('montant_patronal', 0.0) or 0.0 for l in lignes_cotisations)
-    
-    total_retenues_avant_csg_nd = sum(l.get('montant_salarial', 0.0) or 0.0 for l in bloc_principales + bloc_allegements)
-    total_patronal_avant_csg_nd = sum(l.get('montant_patronal', 0.0) or 0.0 for l in bloc_principales + bloc_allegements)
+    total_autres_contributions = sum(
+        row.get("montant_patronal", 0.0) or 0.0 for row in bloc_autres_contributions
+    )
+    total_cotisations_salariales = sum(
+        row.get("montant_salarial", 0.0) or 0.0 for row in lignes_cotisations
+    )
+    total_cotisations_patronales = sum(
+        row.get("montant_patronal", 0.0) or 0.0 for row in lignes_cotisations
+    )
+
+    total_retenues_avant_csg_nd = sum(
+        row.get("montant_salarial", 0.0) or 0.0 for row in bloc_principales + bloc_allegements
+    )
+    total_patronal_avant_csg_nd = sum(
+        row.get("montant_patronal", 0.0) or 0.0 for row in bloc_principales + bloc_allegements
+    )
     
     total_primes_non_soumises = sum(p.get('montant', 0.0) or 0.0 for p in primes_non_soumises)
 
     # Assemblage du dictionnaire final
-    # Créer la date pour le mois et l'année demandés
-    date_periode = datetime(annee, mois, 1)
     mois_nom_francais = [
         "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
         "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
@@ -282,7 +289,9 @@ def creer_bulletin_sortie(
 
     # Recalculer le coût total employeur
     total_primes_non_soumises = sum(p.get('montant', 0.0) or 0.0 for p in primes_non_soumises)
-    total_cotisations_patronales = sum(l.get('montant_patronal', 0.0) or 0.0 for l in lignes_cotisations)
+    total_cotisations_patronales = sum(
+        row.get("montant_patronal", 0.0) or 0.0 for row in lignes_cotisations
+    )
 
     bulletin_base['pied_de_page']['cout_total_employeur'] = round(
         brut_total_avec_indemnites + total_cotisations_patronales +

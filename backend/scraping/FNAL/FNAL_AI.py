@@ -13,7 +13,6 @@ via DDGS, puis extraction IA (GPT) à la date du jour.
 import json
 import os
 import sys
-import time
 from datetime import datetime, timezone
 
 import requests
@@ -60,7 +59,7 @@ def _extract_rates_with_gpt(page_text: str) -> dict[str, float | None]:
         return {"patronal_moins_50": None, "patronal_50_et_plus": None}
 
     client = OpenAI(api_key=api_key)
-    current_year = datetime.now().year
+    datetime.now().year
     today_str = datetime.now().strftime("%A %d %B %Y")
 
     prompt = (

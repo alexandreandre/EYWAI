@@ -79,7 +79,7 @@ def generate_demission_solde(
 
     # Indemnité compensatrice de préavis (si dispense employeur)
     if notice_indemnity_type == 'paid' and montant_preavis > 0:
-        preavis_text_comp = f"Dispense d'exécution - Indemnité compensatrice"
+        preavis_text_comp = "Dispense d'exécution - Indemnité compensatrice"
     else:
         preavis_text_comp = "Non applicable (préavis exécuté ou non prévu)"
 

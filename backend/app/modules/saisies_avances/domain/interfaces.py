@@ -4,7 +4,6 @@ Ports (interfaces) du domaine saisies et avances.
 Implémentations dans infrastructure/. Aucune dépendance FastAPI ni DB ici.
 """
 from abc import ABC, abstractmethod
-from datetime import date
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 

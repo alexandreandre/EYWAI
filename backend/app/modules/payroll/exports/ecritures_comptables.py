@@ -127,7 +127,7 @@ def get_payslip_data_for_od(
         net_a_payer = float(payslip_data.get('net_a_payer', 0) or 0)
 
         synthese_net = payslip_data.get('synthese_net', {})
-        net_imposable = float(synthese_net.get('net_imposable', 0) if isinstance(synthese_net, dict) else 0)
+        float(synthese_net.get('net_imposable', 0) if isinstance(synthese_net, dict) else 0)
         pas = float(synthese_net.get('impot_preleve_a_la_source', 0) if isinstance(synthese_net, dict) else 0)
 
         cotisations = payslip_data.get('structure_cotisations', {})

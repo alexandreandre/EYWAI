@@ -229,7 +229,7 @@ def test_database_integration():
     for table in tables_to_check:
         try:
             # Essayer de faire une requête simple
-            result = supabase.table(table).select('id').limit(1).execute()
+            supabase.table(table).select('id').limit(1).execute()
             print(f"  ✓ Table '{table}' accessible")
         except Exception as e:
             print(f"  ✗ Table '{table}' non accessible : {e}")

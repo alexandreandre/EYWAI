@@ -371,7 +371,7 @@ def update_config_in_supabase(
 
 def main() -> None:
     """Orchestre l'ensemble du processus de mise à jour des Avantages en Nature."""
-    logging.info(f"--- DÉBUT Orchestrateur Avantages en Nature ---")
+    logging.info("--- DÉBUT Orchestrateur Avantages en Nature ---")
     
     try:
         # 1. Lancer tous les scrapers
@@ -423,7 +423,7 @@ def main() -> None:
             supabase, current_row, final_core_data, source_links
         )
         
-        logging.info(f"--- FIN Orchestrateur Avantages en Nature ---")
+        logging.info("--- FIN Orchestrateur Avantages en Nature ---")
         
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")

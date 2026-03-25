@@ -8,7 +8,7 @@ dans conftest.py) et des données dans employees, absence_requests, payslips,
 expense_reports.
 """
 from datetime import date
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

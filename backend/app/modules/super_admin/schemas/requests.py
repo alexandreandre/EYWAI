@@ -8,7 +8,7 @@ Définitions canoniques pour les routes super_admin.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 from pydantic import BaseModel, EmailStr
 

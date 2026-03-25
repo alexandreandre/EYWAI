@@ -352,7 +352,7 @@ def update_config_in_supabase(
 
 def main() -> None:
     """Orchestre l'ensemble du processus de mise à jour du taux MMID Salarial Alsace."""
-    logging.info(f"--- DÉBUT Orchestrateur MMID Salarial Alsace ---")
+    logging.info("--- DÉBUT Orchestrateur MMID Salarial Alsace ---")
     
     try:
         # 1. Lancer tous les scrapers
@@ -403,7 +403,7 @@ def main() -> None:
             supabase, current_row, new_config_data_blob, source_links
         )
         
-        logging.info(f"--- FIN Orchestrateur MMID Salarial Alsace ---")
+        logging.info("--- FIN Orchestrateur MMID Salarial Alsace ---")
         
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")

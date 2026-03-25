@@ -9,7 +9,7 @@ pour éviter la DB réelle.
 """
 from datetime import datetime
 from uuid import uuid4
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient

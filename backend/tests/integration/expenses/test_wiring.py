@@ -4,7 +4,7 @@ Tests de câblage (wiring) du module expenses.
 Vérifient que l'injection des dépendances et le flux de bout en bout
 (router -> service -> commands/queries -> repository / storage) fonctionnent.
 """
-from datetime import date, datetime
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest

@@ -20,6 +20,12 @@ from app.modules.bonus_types.domain.interfaces import (
     IEmployeeHoursProvider,
 )
 from app.modules.bonus_types.domain.rules import compute_bonus_amount
+from app.modules.bonus_types.infrastructure.providers import (
+    SupabaseEmployeeHoursProvider,
+)
+from app.modules.bonus_types.infrastructure.repository import (
+    SupabaseBonusTypeRepository,
+)
 
 
 class BonusTypesService:
@@ -203,13 +209,6 @@ class BonusTypesService:
 
 
 # Instance par défaut (pour usage depuis les routers / commands / queries).
-from app.modules.bonus_types.infrastructure.providers import (
-    SupabaseEmployeeHoursProvider,
-)
-from app.modules.bonus_types.infrastructure.repository import (
-    SupabaseBonusTypeRepository,
-)
-
 _default_repo = SupabaseBonusTypeRepository()
 _default_provider = SupabaseEmployeeHoursProvider()
 

@@ -9,7 +9,7 @@ Calcule:
 """
 
 import sys
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
 
@@ -106,7 +106,7 @@ def calculer_indemnite_preavis(
     Returns:
         Dict contenant le montant et les détails du calcul
     """
-    print(f"\n  [PRÉAVIS]", file=sys.stderr)
+    print("\n  [PRÉAVIS]", file=sys.stderr)
     print(f"    Salaire mensuel: {salaire_mensuel_brut:.2f} €", file=sys.stderr)
     print(f"    Jours de préavis: {notice_period_days}", file=sys.stderr)
     print(f"    Type: {notice_indemnity_type}", file=sys.stderr)
@@ -162,7 +162,7 @@ def calculer_indemnite_licenciement(
     Returns:
         Dict contenant le montant et les détails du calcul
     """
-    print(f"\n  [LICENCIEMENT]", file=sys.stderr)
+    print("\n  [LICENCIEMENT]", file=sys.stderr)
     print(f"    Ancienneté: {anciennete_annees:.2f} ans", file=sys.stderr)
     print(f"    Salaire référence: {salaire_reference:.2f} €", file=sys.stderr)
     print(f"    Faute grave: {is_gross_misconduct}", file=sys.stderr)
@@ -239,7 +239,7 @@ def calculer_indemnite_rupture_conventionnelle(
     Returns:
         Dict contenant le montant minimum et les détails
     """
-    print(f"\n  [RUPTURE CONVENTIONNELLE]", file=sys.stderr)
+    print("\n  [RUPTURE CONVENTIONNELLE]", file=sys.stderr)
 
     # Minimum légal = indemnité de licenciement
     indemnite_licenciement = calculer_indemnite_licenciement(
@@ -280,7 +280,7 @@ def calculer_indemnite_conges_restants(
     - Le solde restant
     - L'indemnité selon la méthode la plus avantageuse (1/10ème ou maintien de salaire)
     """
-    print(f"\n  [CONGÉS PAYÉS]", file=sys.stderr)
+    print("\n  [CONGÉS PAYÉS]", file=sys.stderr)
 
     salaire_base_obj = employee_data.get('salaire_de_base', {})
     if isinstance(salaire_base_obj, dict):
@@ -291,7 +291,7 @@ def calculer_indemnite_conges_restants(
     # Récupérer la date d'embauche
     hire_date_str = employee_data.get('hire_date')
     if not hire_date_str:
-        print(f"    ⚠ Date d'embauche non trouvée, calcul simplifié", file=sys.stderr)
+        print("    ⚠ Date d'embauche non trouvée, calcul simplifié", file=sys.stderr)
         return {
             'montant': 0.0,
             'jours_restants': 0.0,
@@ -322,7 +322,6 @@ def calculer_indemnite_conges_restants(
     if supabase_client:
         try:
             import math
-            from dateutil.relativedelta import relativedelta
 
             # Calculer les congés acquis selon la logique du système
             # Période de référence: 1er juin N-1 -> 31 mai N
@@ -510,7 +509,7 @@ def calculer_indemnites_sortie(
     total_net = total_brut  # Temporaire
 
     print(f"\n{'='*70}", file=sys.stderr)
-    print(f"RÉSUMÉ DES INDEMNITÉS:", file=sys.stderr)
+    print("RÉSUMÉ DES INDEMNITÉS:", file=sys.stderr)
     print(f"  - Préavis: {indemnite_preavis['montant']:.2f} €", file=sys.stderr)
     print(f"  - Congés payés: {indemnite_conges['montant']:.2f} €", file=sys.stderr)
 

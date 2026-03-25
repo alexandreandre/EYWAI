@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import json
 import logging
-import sys
-from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -93,7 +91,7 @@ def run_payslip_generation_heures(
     montant_acompte = saisie_du_mois.get("acompte", 0.0)
 
     prev_month = month - 1 if month > 1 else 12
-    prev_year = year if month > 1 else year - 1
+    year if month > 1 else year - 1
     chemin_cumuls = employee_path / "cumuls" / f"{prev_month:02d}.json"
 
     contexte = ContextePaie(

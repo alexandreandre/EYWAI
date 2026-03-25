@@ -7,7 +7,6 @@ pour vérifier les appels et retours sans DB.
 from datetime import date, datetime
 from unittest.mock import patch, MagicMock
 
-import pytest
 
 from app.modules.cse.application import queries
 from app.modules.cse.schemas import ElectedMemberRead, ElectedMemberStatus, DelegationQuotaRead

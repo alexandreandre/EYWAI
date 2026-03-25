@@ -13,7 +13,7 @@ Utilise : client (TestClient), dependency_overrides pour get_current_user,
 patch des commands/queries pour éviter DB réelle. Pour tests E2E avec token réel,
 ajouter la fixture schedules_headers dans conftest.py (voir doc en fin de conftest).
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient

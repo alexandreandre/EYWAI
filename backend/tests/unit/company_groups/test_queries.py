@@ -3,7 +3,6 @@ Tests unitaires des queries du module company_groups (application/queries.py).
 
 Repository, service et providers mockés : pas d'accès DB ni RPC.
 """
-from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest

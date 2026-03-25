@@ -1,7 +1,6 @@
 # app/modules/payroll/exports/dsn.py
 # Migré depuis services/exports/dsn.py. Export DSN mensuelle.
 
-from calendar import monthrange
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 import xml.etree.ElementTree as ET
@@ -456,7 +455,7 @@ def generate_dsn_xml(
     salaries = ET.SubElement(root, "Salaries")
     for emp_data in employees_data:
         employee = emp_data['employee']
-        payslip_data = emp_data['payslip'].get('payslip_data', {})
+        emp_data['payslip'].get('payslip_data', {})
 
         salarie = ET.SubElement(salaries, "Salarie")
 

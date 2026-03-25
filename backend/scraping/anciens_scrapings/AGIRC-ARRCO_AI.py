@@ -98,7 +98,7 @@ def get_all_taux_agirc_arrco_via_ai() -> dict | None:
                 'ceg_t2_patronal', 'cet_salarial', 'cet_patronal', 'apec_salarial', 'apec_patronal'
             ]
             if data and all(key in data for key in expected_keys):
-                print(f"✅ JSON valide et complet extrait de la page !")
+                print("✅ JSON valide et complet extrait de la page !")
                 # On convertit tous les pourcentages en taux réels
                 taux_reels = {key: round(value / 100.0, 5) for key, value in data.items()}
                 return taux_reels
@@ -108,7 +108,7 @@ def get_all_taux_agirc_arrco_via_ai() -> dict | None:
         except Exception as e:
             print(f"   - ERREUR inattendue : {e}. Passage à la page suivante.")
 
-    print(f"\n❌ ERREUR FATALE : Aucune donnée valide n'a pu être extraite.")
+    print("\n❌ ERREUR FATALE : Aucune donnée valide n'a pu être extraite.")
     return None
 
 if __name__ == "__main__":

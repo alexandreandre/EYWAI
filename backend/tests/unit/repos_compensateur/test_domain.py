@@ -8,7 +8,6 @@ Aucune dépendance DB ni HTTP. Couvre :
 - SourceCredit (domain/enums.py)
 """
 from app.modules.repos_compensateur.domain.entities import ReposCredit
-from app.modules.repos_compensateur.domain.enums import SourceCredit
 from app.modules.repos_compensateur.domain.rules import (
     CONTINGENT_DEFAUT,
     HEURES_PAR_JOUR_REPOS,

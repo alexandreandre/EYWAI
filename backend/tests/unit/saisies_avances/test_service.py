@@ -6,7 +6,7 @@ queries, storage) sont mockées.
 """
 from datetime import date
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

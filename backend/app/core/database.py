@@ -28,8 +28,6 @@ from __future__ import annotations
 from supabase import Client, create_client
 
 from app.core.settings import (
-    SUPABASE_KEY,
-    SUPABASE_URL,
     get_supabase_admin_env,
     require_supabase_env,
 )
