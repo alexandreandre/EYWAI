@@ -18,7 +18,7 @@ permissions:
 env:
   GCP_REGION: ${{ vars.GCP_REGION || 'europe-west1' }}
   BACKEND_SERVICE_NAME: ${{ vars.BACKEND_SERVICE_NAME || 'sirh-backend' }}
-  FRONTEND_SERVICE_NAME: ${{ vars.FRONTEND_SERVICE_NAME || 'sirh-frontend-app' }}
+  FRONTEND_SERVICE_NAME: ${{ vars.FRONTEND_SERVICE_NAME || 'sirh-frontend' }}
 
 jobs:
   build-and-push:
