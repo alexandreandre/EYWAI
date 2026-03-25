@@ -3,7 +3,7 @@
 # Une fois par clone (racine du dépôt, pour activer Husky : pre-push + CI locale)
 # npm install
 
-# A copier
+# A copier :
 git add .
 git commit -m "test"
 git push origin main
