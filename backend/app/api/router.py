@@ -39,6 +39,10 @@ from app.modules.saisies_avances.api.router import router as saisies_avances_rou
 from app.modules.scraping.api.router import router as scraping_router
 from app.modules.residence_permits.api.router import router as residence_permits_router
 from app.modules.rib_alerts.api.router import router as rib_alerts_router
+from app.modules.badgeuse.api.router import (
+    router_me as badgeuse_router_me,
+    router_rh as badgeuse_router_rh,
+)
 from app.modules.schedules.api.router import (
     router as schedules_router,
     router_me as schedules_router_me,
@@ -87,3 +91,5 @@ router.include_router(schedules_router_rh)
 router.include_router(super_admin_router)
 router.include_router(users_router)
 router.include_router(uploads_router)
+router.include_router(badgeuse_router_me)
+router.include_router(badgeuse_router_rh)

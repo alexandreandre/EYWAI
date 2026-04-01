@@ -36,6 +36,7 @@ const baseNavItems = [
   { to: "/expenses", label: "Notes de Frais", icon: Notebook },
   { to: "/salary-advances", label: "Avances sur salaire", icon: Wallet },
   { to: "/documents", label: "Mes Documents", icon: FolderKanban },
+  { to: "/badgeuse", label: "Ma badgeuse", icon: Calendar },
   { to: "/profile", label: "Profil", icon: User },
 ];
 
