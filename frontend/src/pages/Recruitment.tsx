@@ -7,9 +7,9 @@ import {
   getJobs, createJob, getPipelineStages, getCandidates, createCandidate,
   moveCandidate, getCandidate, getNotes, createNote, getOpinions, createOpinion,
   getInterviews, createInterview, getTimeline, hireCandidate, getRejectionReasons,
-  deleteCandidate,
+  deleteCandidate, archiveCandidate, checkDuplicate,
   type Job, type PipelineStage, type Candidate, type Note, type Opinion,
-  type Interview, type TimelineEvent,
+  type Interview, type TimelineEvent, type HireResult,
 } from "@/api/recruitment";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -134,14 +134,20 @@ function CandidateSlideOver({
   stages,
   onMove,
   onHire,
+  onRequestReject,
+  onRequestArchive,
+  onScheduleInterview,
 }: {
   candidate: Candidate | null;
   open: boolean;
   onClose: () => void;
   isRh: boolean;
   stages: PipelineStage[];
-  onMove: (candidateId: string, stageId: string, reason?: string) => void;
+  onMove: (candidateId: string, stageId: string) => void;
   onHire: (candidateId: string) => void;
+  onRequestReject: (candidateId: string) => void;
+  onRequestArchive: (candidateId: string) => void;
+  onScheduleInterview: () => void;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -234,7 +240,7 @@ function CandidateSlideOver({
 
           {/* Actions RH */}
           {isRh && currentStage?.stage_type !== "rejected" && currentStage?.stage_type !== "hired" && (
-            <div className="flex gap-2 mt-3">
+            <div className="flex flex-wrap gap-2 mt-3">
               <Select
                 onValueChange={(stageId) => onMove(candidate.id, stageId)}
               >
@@ -253,10 +259,7 @@ function CandidateSlideOver({
                 size="sm"
                 variant="destructive"
                 className="h-8 text-xs"
-                onClick={() => {
-                  const rejectedStage = stages.find((s) => s.stage_type === "rejected");
-                  if (rejectedStage) onMove(candidate.id, rejectedStage.id, "Profil non adapté");
-                }}
+                onClick={() => onRequestReject(candidate.id)}
               >
                 Refuser
               </Button>
@@ -266,6 +269,14 @@ function CandidateSlideOver({
                 onClick={() => onHire(candidate.id)}
               >
                 Recruter
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                onClick={() => onRequestArchive(candidate.id)}
+              >
+                Archiver
               </Button>
             </div>
           )}
@@ -418,6 +429,11 @@ function CandidateSlideOver({
 
           {/* Tab Entretiens */}
           <TabsContent value="interviews" className="space-y-4 mt-4">
+            {isRh && (
+              <Button size="sm" className="h-8 text-xs w-full" onClick={onScheduleInterview}>
+                <Plus className="h-3 w-3 mr-1" /> Planifier un entretien
+              </Button>
+            )}
             {loadingInterviews ? (
               <div className="space-y-2">{[1, 2].map((i) => <Skeleton key={i} className="h-20" />)}</div>
             ) : interviews.length === 0 ? (
@@ -514,14 +530,18 @@ export default function Recruitment() {
   const [showHireModal, setShowHireModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showInterviewModal, setShowInterviewModal] = useState(false);
+  const [showDuplicateEmployeeModal, setShowDuplicateEmployeeModal] = useState(false);
   const [hireCandidateId, setHireCandidateId] = useState<string | null>(null);
   const [rejectCandidateId, setRejectCandidateId] = useState<string | null>(null);
   const [rejectStageId, setRejectStageId] = useState<string | null>(null);
+  const [duplicateEmployeeInfo, setDuplicateEmployeeInfo] = useState<{
+    id: string; first_name: string; last_name: string; email: string;
+  } | null>(null);
 
   // Forms state
   const [newJob, setNewJob] = useState({ title: "", description: "", location: "", contract_type: "CDI", status: "active" });
   const [newCandidate, setNewCandidate] = useState({ first_name: "", last_name: "", email: "", phone: "", source: "" });
-  const [hireData, setHireData] = useState({ hire_date: "", job_title: "", contract_type: "CDI" });
+  const [hireData, setHireData] = useState({ hire_date: "", job_title: "", contract_type: "CDI", site: "", service: "" });
   const [rejectReason, setRejectReason] = useState("");
   const [rejectDetail, setRejectDetail] = useState("");
   const [interviewData, setInterviewData] = useState({ interview_type: "Entretien RH", scheduled_at: "", duration_minutes: 60, location: "", meeting_link: "" });
@@ -570,11 +590,24 @@ export default function Recruitment() {
 
   const createCandidateMutation = useMutation({
     mutationFn: () => createCandidate({ job_id: effectiveJobId!, ...newCandidate }),
-    onSuccess: () => {
+    onSuccess: async (newCand) => {
       queryClient.invalidateQueries({ queryKey: ["recruitment", "candidates"] });
       setShowCreateCandidate(false);
       setNewCandidate({ first_name: "", last_name: "", email: "", phone: "", source: "" });
       toast({ title: "Candidat ajouté" });
+      // Vérification doublon non-bloquante
+      try {
+        const { warnings } = await checkDuplicate(newCand.id);
+        if (warnings.length > 0) {
+          const w = warnings[0];
+          toast({
+            title: "Profil similaire détecté",
+            description: `Un profil similaire existe déjà : ${w.first_name} ${w.last_name}${w.email ? ` (${w.email})` : ""}.`,
+          });
+        }
+      } catch {
+        // Ignorer les erreurs de check doublon
+      }
     },
     onError: () => toast({ title: "Erreur", description: "Impossible de créer le candidat.", variant: "destructive" }),
   });
@@ -593,18 +626,40 @@ export default function Recruitment() {
   });
 
   const hireMutation = useMutation({
-    mutationFn: ({ candidateId, data }: { candidateId: string; data: typeof hireData }) =>
-      hireCandidate(candidateId, data),
-    onSuccess: (res) => {
+    mutationFn: ({ candidateId, data, linkToEmployeeId, skipDuplicateCheck }: { candidateId: string; data: typeof hireData; linkToEmployeeId?: string; skipDuplicateCheck?: boolean }) =>
+      hireCandidate(candidateId, { ...data, link_to_employee_id: linkToEmployeeId, skip_duplicate_check: skipDuplicateCheck }),
+    onSuccess: (res: HireResult) => {
+      if (res.requires_confirmation) {
+        setDuplicateEmployeeInfo({
+          id: res.existing_employee_id!,
+          first_name: res.existing_employee_first_name!,
+          last_name: res.existing_employee_last_name!,
+          email: res.existing_employee_email!,
+        });
+        setShowHireModal(false);
+        setShowDuplicateEmployeeModal(true);
+        return;
+      }
       queryClient.invalidateQueries({ queryKey: ["recruitment"] });
       setShowHireModal(false);
       setHireCandidateId(null);
-      setHireData({ hire_date: "", job_title: "", contract_type: "CDI" });
+      setHireData({ hire_date: "", job_title: "", contract_type: "CDI", site: "", service: "" });
       toast({ title: "Embauche finalisée", description: res.message });
     },
     onError: (err: any) => {
       toast({ title: "Erreur", description: err?.response?.data?.detail || "Impossible de finaliser l'embauche.", variant: "destructive" });
     },
+  });
+
+  const archiveMutation = useMutation({
+    mutationFn: (candidateId: string) => archiveCandidate(candidateId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recruitment", "candidates"] });
+      setSlideOverOpen(false);
+      setSelectedCandidate(null);
+      toast({ title: "Candidat archivé" });
+    },
+    onError: () => toast({ title: "Erreur", description: "Impossible d'archiver le candidat.", variant: "destructive" }),
   });
 
   const createInterviewMutation = useMutation({
@@ -661,7 +716,7 @@ export default function Recruitment() {
     moveCandidateMutation.mutate({ candidateId, stageId });
   };
 
-  const handleMoveFromSlideOver = (candidateId: string, stageId: string, reason?: string) => {
+  const handleMoveFromSlideOver = (candidateId: string, stageId: string) => {
     const stage = stages.find((s) => s.id === stageId);
     if (!stage) return;
     if (stage.stage_type === "rejected") {
@@ -674,12 +729,21 @@ export default function Recruitment() {
   };
 
   const handleHireFromSlideOver = (candidateId: string) => {
-    const hiredStage = stages.find((s) => s.stage_type === "hired");
-    if (hiredStage) {
-      moveCandidateMutation.mutate({ candidateId, stageId: hiredStage.id });
-    }
     setHireCandidateId(candidateId);
     setShowHireModal(true);
+  };
+
+  const handleRequestReject = (candidateId: string) => {
+    const rejectedStage = stages.find((s) => s.stage_type === "rejected");
+    if (rejectedStage) {
+      setRejectCandidateId(candidateId);
+      setRejectStageId(rejectedStage.id);
+      setShowRejectModal(true);
+    }
+  };
+
+  const handleRequestArchive = (candidateId: string) => {
+    archiveMutation.mutate(candidateId);
   };
 
   const selectedJobData = jobs.find((j) => j.id === effectiveJobId);
@@ -903,6 +967,9 @@ export default function Recruitment() {
         stages={stages}
         onMove={handleMoveFromSlideOver}
         onHire={handleHireFromSlideOver}
+        onRequestReject={handleRequestReject}
+        onRequestArchive={handleRequestArchive}
+        onScheduleInterview={() => setShowInterviewModal(true)}
       />
 
       {/* Dialog : Créer un poste */}
@@ -1067,16 +1134,26 @@ export default function Recruitment() {
               <Label>Intitulé du poste</Label>
               <Input value={hireData.job_title} onChange={(e) => setHireData({ ...hireData, job_title: e.target.value })} placeholder={selectedJobData?.title} />
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Type de contrat</Label>
+                <Select value={hireData.contract_type} onValueChange={(v) => setHireData({ ...hireData, contract_type: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {["CDI", "CDD", "Alternance", "Stage", "Intérim"].map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Établissement / Site</Label>
+                <Input value={hireData.site} onChange={(e) => setHireData({ ...hireData, site: e.target.value })} placeholder="Siège, Paris..." />
+              </div>
+            </div>
             <div>
-              <Label>Type de contrat</Label>
-              <Select value={hireData.contract_type} onValueChange={(v) => setHireData({ ...hireData, contract_type: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {["CDI", "CDD", "Alternance", "Stage", "Intérim"].map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Service / Département</Label>
+              <Input value={hireData.service} onChange={(e) => setHireData({ ...hireData, service: e.target.value })} placeholder="RH, Technique, Commercial..." />
             </div>
           </div>
           <DialogFooter>
@@ -1092,6 +1169,69 @@ export default function Recruitment() {
             >
               {hireMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Créer le salarié
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog : Doublon salarié lors de l'embauche */}
+      <Dialog open={showDuplicateEmployeeModal} onOpenChange={setShowDuplicateEmployeeModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Salarié existant détecté
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Un salarié avec cet email existe déjà dans votre entreprise :
+            </p>
+            {duplicateEmployeeInfo && (
+              <div className="border rounded-lg p-3 bg-muted/50">
+                <p className="text-sm font-medium">{duplicateEmployeeInfo.first_name} {duplicateEmployeeInfo.last_name}</p>
+                <p className="text-xs text-muted-foreground">{duplicateEmployeeInfo.email}</p>
+              </div>
+            )}
+            <p className="text-sm">Que souhaitez-vous faire ?</p>
+          </div>
+          <DialogFooter className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              variant="outline"
+              className="flex-1"
+              disabled={hireMutation.isPending}
+              onClick={() => {
+                if (hireCandidateId) {
+                  hireMutation.mutate({
+                    candidateId: hireCandidateId,
+                    data: hireData,
+                    skipDuplicateCheck: true,
+                  });
+                  setShowDuplicateEmployeeModal(false);
+                  setDuplicateEmployeeInfo(null);
+                }
+              }}
+            >
+              {hireMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Créer une nouvelle fiche
+            </Button>
+            <Button
+              className="flex-1 bg-green-600 hover:bg-green-700"
+              disabled={hireMutation.isPending}
+              onClick={() => {
+                if (hireCandidateId && duplicateEmployeeInfo) {
+                  hireMutation.mutate({
+                    candidateId: hireCandidateId,
+                    data: hireData,
+                    linkToEmployeeId: duplicateEmployeeInfo.id,
+                  });
+                  setShowDuplicateEmployeeModal(false);
+                  setDuplicateEmployeeInfo(null);
+                }
+              }}
+            >
+              {hireMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Lier au salarié existant
             </Button>
           </DialogFooter>
         </DialogContent>

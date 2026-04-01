@@ -72,6 +72,10 @@ class ICandidateRepository(ABC):
     def delete(self, candidate_id: str, company_id: str) -> None:
         pass
 
+    @abstractmethod
+    def archive(self, candidate_id: str, company_id: str) -> None:
+        pass
+
 
 class IPipelineStageRepository(ABC):
     """Accès aux étapes du pipeline."""
@@ -117,6 +121,8 @@ class IEmployeeCreator(ABC):
         job_title: Optional[str] = None,
         contract_type: Optional[str] = None,
         actor_id: Optional[str] = None,
+        link_to_employee_id: Optional[str] = None,
+        skip_duplicate_check: bool = False,
     ) -> dict[str, Any]:
         pass
 

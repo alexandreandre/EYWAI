@@ -97,7 +97,30 @@ def service_create_candidate(
 def service_update_candidate(
     candidate_id: str, company_id: str, data: dict[str, Any]
 ) -> dict[str, Any]:
+    locked_fields = {"first_name", "last_name", "email"}
+    if locked_fields.intersection(data.keys()):
+        cand = _candidate_repo.get_by_id(company_id, candidate_id)
+        if cand and cand.get("hired_at"):
+            raise ValueError(
+                "Ce candidat a été recruté. Les champs identitaires ne peuvent plus être modifiés."
+            )
     return _candidate_repo.update(candidate_id, company_id, data)
+
+
+def service_archive_candidate(
+    candidate_id: str, company_id: str, actor_id: Optional[str] = None
+) -> None:
+    cand = _candidate_repo.get_by_id(company_id, candidate_id)
+    if not cand:
+        raise ValueError("Candidat non trouvé")
+    _candidate_repo.archive(candidate_id, company_id)
+    _timeline_writer.add(
+        company_id=company_id,
+        candidate_id=candidate_id,
+        event_type="archived",
+        description=f"{cand['first_name']} {cand['last_name']} archivé",
+        actor_id=actor_id,
+    )
 
 
 def service_delete_candidate(candidate_id: str, company_id: str) -> None:
@@ -217,8 +240,10 @@ def service_hire_candidate(
     job_title: Optional[str] = None,
     contract_type: Optional[str] = None,
     actor_id: Optional[str] = None,
+    link_to_employee_id: Optional[str] = None,
+    skip_duplicate_check: bool = False,
 ) -> dict[str, Any]:
-    return _employee_creator.create_from_candidate(
+    result = _employee_creator.create_from_candidate(
         company_id=company_id,
         candidate_id=candidate_id,
         hire_date=hire_date,
@@ -227,7 +252,22 @@ def service_hire_candidate(
         job_title=job_title,
         contract_type=contract_type,
         actor_id=actor_id,
+        link_to_employee_id=link_to_employee_id,
+        skip_duplicate_check=skip_duplicate_check,
     )
+    # Si un doublon salarié a été détecté, on retourne le signal sans déplacer l'étape
+    if result.get("requires_confirmation"):
+        return result
+    # Déplacement atomique vers l'étape "hired" du pipeline
+    cand = _candidate_repo.get_by_id(company_id, candidate_id)
+    if cand:
+        stages = _pipeline_stage_repo.list_by_job(company_id, cand["job_id"])
+        hired_stage = next((s for s in stages if s["stage_type"] == "hired"), None)
+        if hired_stage and cand.get("current_stage_id") != hired_stage["id"]:
+            _candidate_repo.update(
+                candidate_id, company_id, {"current_stage_id": hired_stage["id"]}
+            )
+    return result
 
 
 # ─── Queries (lectures via infrastructure) ─────────────────────────────

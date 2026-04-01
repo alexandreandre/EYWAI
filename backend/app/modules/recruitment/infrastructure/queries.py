@@ -63,6 +63,7 @@ def list_candidates(
     stage_id: Optional[str] = None,
     search: Optional[str] = None,
     participant_user_id: Optional[str] = None,
+    include_archived: bool = False,
 ) -> list[dict[str, Any]]:
     """Liste des candidats avec filtres et filtre participant (collab)."""
     q = (
@@ -70,6 +71,8 @@ def list_candidates(
         .select("*, stage:recruitment_pipeline_stages(name, stage_type)")
         .eq("company_id", company_id)
     )
+    if not include_archived:
+        q = q.eq("is_archived", False)
     if job_id:
         q = q.eq("job_id", job_id)
     if stage_id:

@@ -187,6 +187,11 @@ class CandidateRepository(ICandidateRepository):
             "id", candidate_id
         ).execute()
 
+    def archive(self, candidate_id: str, company_id: str) -> None:
+        supabase.table("recruitment_candidates").update(
+            {"is_archived": True}
+        ).eq("id", candidate_id).eq("company_id", company_id).execute()
+
 
 # ─── Duplicate checker ────────────────────────────────────────────────
 
@@ -279,6 +284,8 @@ class EmployeeCreator(IEmployeeCreator):
         job_title: Optional[str] = None,
         contract_type: Optional[str] = None,
         actor_id: Optional[str] = None,
+        link_to_employee_id: Optional[str] = None,
+        skip_duplicate_check: bool = False,
     ) -> dict[str, Any]:
         cand = (
             supabase.table("recruitment_candidates")
@@ -292,6 +299,58 @@ class EmployeeCreator(IEmployeeCreator):
             raise ValueError("Candidat non trouvé")
         c = cand.data
         job = c.get("job") or {}
+
+        # Cas : lier à un salarié existant sans en créer un nouveau
+        if link_to_employee_id:
+            existing = (
+                supabase.table("employees")
+                .select("id, first_name, last_name")
+                .eq("id", link_to_employee_id)
+                .eq("company_id", company_id)
+                .maybe_single()
+                .execute()
+            )
+            if not existing.data:
+                raise ValueError("Salarié existant non trouvé")
+            employee = existing.data
+            supabase.table("recruitment_candidates").update(
+                {
+                    "employee_id": employee["id"],
+                    "hired_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ).eq("id", candidate_id).execute()
+            self._timeline.add(
+                company_id=company_id,
+                candidate_id=candidate_id,
+                event_type="employee_created",
+                description=f"Candidat lié au salarié existant : {employee['first_name']} {employee['last_name']}",
+                actor_id=actor_id,
+                metadata={"employee_id": employee["id"], "linked": True},
+            )
+            return employee
+
+        # Vérifier si un salarié avec le même email existe déjà (sauf si bypass explicite)
+        candidate_email = c.get("email")
+        if candidate_email and not skip_duplicate_check:
+            dup = (
+                supabase.table("employees")
+                .select("id, first_name, last_name, email")
+                .eq("company_id", company_id)
+                .eq("email", candidate_email)
+                .limit(1)
+                .execute()
+            )
+            if dup.data:
+                existing_emp = dup.data[0]
+                # Retourner un signal de confirmation requis
+                return {
+                    "requires_confirmation": True,
+                    "existing_employee_id": existing_emp["id"],
+                    "existing_employee_first_name": existing_emp["first_name"],
+                    "existing_employee_last_name": existing_emp["last_name"],
+                    "existing_employee_email": existing_emp["email"],
+                }
+
         normalized_last = _remove_accents(c["last_name"]).upper()
         normalized_first = _remove_accents(c["first_name"]).capitalize()
         folder_name = f"{normalized_last}_{normalized_first}"
@@ -304,7 +363,7 @@ class EmployeeCreator(IEmployeeCreator):
             "company_id": company_id,
             "first_name": c["first_name"],
             "last_name": c["last_name"],
-            "email": c.get("email"),
+            "email": candidate_email,
             "hire_date": hire_date,
             "job_title": job_title or job.get("title"),
             "contract_type": contract_type or job.get("contract_type") or "CDI",

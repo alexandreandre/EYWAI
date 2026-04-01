@@ -97,8 +97,10 @@ def hire_candidate(
     job_title: str | None = None,
     contract_type: str | None = None,
     actor_id: str | None = None,
+    link_to_employee_id: str | None = None,
+    skip_duplicate_check: bool = False,
 ) -> dict[str, Any]:
-    """Créer le salarié depuis le candidat + mise à jour candidat + timeline. Lève ValueError si candidat introuvable."""
+    """Créer le salarié depuis le candidat + déplacement vers étape Recruté + timeline. Lève ValueError si candidat introuvable."""
     return svc.service_hire_candidate(
         candidate_id,
         company_id,
@@ -108,4 +110,13 @@ def hire_candidate(
         job_title=job_title,
         contract_type=contract_type,
         actor_id=actor_id,
+        link_to_employee_id=link_to_employee_id,
+        skip_duplicate_check=skip_duplicate_check,
     )
+
+
+def archive_candidate(
+    candidate_id: str, company_id: str, actor_id: str | None = None
+) -> None:
+    """Archiver un candidat (disparaît du pipeline actif). Lève ValueError si candidat introuvable."""
+    svc.service_archive_candidate(candidate_id, company_id, actor_id=actor_id)
