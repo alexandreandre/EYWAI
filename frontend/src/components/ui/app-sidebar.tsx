@@ -84,6 +84,7 @@ const menuItems = {
     { title: "Simulation", url: "/simulation", icon: FlaskConical },
     { title: "Calendriers", url: "/schedules", icon: Calendar },
     { title: "Congés & Absences", url: "/leaves", icon: Plane },
+    { title: "Badgeuse", url: "/badgeuse-rh", icon: Calendar },
     { title: "Notes de frais", url: "/expenses", icon: Notebook },
     { title: "Sortie du collaborateur", url: "/employee-exits", icon: UserMinus },
     { title: "Suivi des Taux", url: "/rates", icon: TrendingUp },

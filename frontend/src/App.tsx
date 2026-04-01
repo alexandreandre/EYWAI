@@ -45,6 +45,7 @@ import Promotions from './pages/Promotions';
 import PromotionDetail from './pages/PromotionDetail';
 import CSE from './pages/CSE';
 import Recruitment from './pages/Recruitment';
+import BadgeuseRhPage from './pages/BadgeuseRh';
 // --- Pages Collaborateur (NOUVEAU) ---
 import { EmployeeSidebar } from '@/components/ui/employee-sidebar'; // NOUVEAU
 import EmployeeDashboard from './pages/employee/Dashboard';
@@ -52,6 +53,7 @@ import ProfilePage from './pages/employee/Profile';
 import PayslipsPage from './pages/employee/Payslips';
 import EmployeeAbsencesPage from './pages/employee/Absences'; // Renommé pour plus de clarté
 import EmployeeCalendarPage from './pages/employee/Calendar';
+import EmployeeBadgeusePage from './pages/employee/Badgeuse';
 import ExpensesPage from './pages/employee/Expenses';
 import SalaryAdvancesPage from './pages/employee/SalaryAdvances';
 import DocumentsPage from './pages/employee/Documents';
@@ -169,6 +171,7 @@ function ProtectedRoutes() {
           <Route path="/" element={<EmployeeDashboard />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/payslips" element={<PayslipsPage />} />
+          <Route path="/badgeuse" element={<EmployeeBadgeusePage />} />
           <Route path="/annual-reviews" element={<EmployeeAnnualReviews />} />
           <Route path="/annual-reviews/:reviewId" element={<EmployeeAnnualReviewDetail />} />
           <Route path="/absences" element={<EmployeeAbsencesPage />} />
@@ -233,6 +236,7 @@ function ProtectedRoutes() {
                   <Route path="/" element={<EmployeeDashboard />} />
                   <Route path="/profile" element={<ProfilePage />} />
                   <Route path="/payslips" element={<PayslipsPage />} />
+                  <Route path="/badgeuse" element={<EmployeeBadgeusePage />} />
                   <Route path="/annual-reviews" element={<EmployeeAnnualReviews />} />
                   <Route path="/annual-reviews/:reviewId" element={<EmployeeAnnualReviewDetail />} />
                   <Route path="/absences" element={<EmployeeAbsencesPage />} />
@@ -270,6 +274,7 @@ function ProtectedRoutes() {
                   <Route path="/promotions/:promotionId" element={<PromotionDetail />} />
                   <Route path="/cse" element={<CSE />} />
                   <Route path="/recruitment" element={<Recruitment />} />
+                  <Route path="/badgeuse-rh" element={<BadgeuseRhPage />} />
                   <Route path="/simulation" element={<Simulation />} />
                   <Route path="/exports" element={<Exports />} />
                   <Route path="/company" element={<CompanyPage />} />

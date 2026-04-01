@@ -1,0 +1,327 @@
+"""
+Routers du module badgeuse (pointage).
+
+- Vue employé : /api/me/badgeuse
+- Vue RH : /api/badgeuse
+"""
+
+from __future__ import annotations
+
+from datetime import date, datetime
+from io import StringIO
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
+
+from app.core.security import get_current_user
+from app.modules.access_control.application.service import access_control_service
+from app.modules.badgeuse.application import service as badgeuse_service
+from app.modules.badgeuse.domain.time_tracking import TimeEntryType, TimeEntrySource
+from app.modules.users.schemas.responses import User
+
+
+PERMISSION_BADGEUSE_MANAGE = "badgeuse.manage"
+
+
+def _require_badgeuse_rh_access(
+    company_id: str, current_user: User = Depends(get_current_user)
+) -> User:
+    """
+    Vérifie que l'utilisateur a le droit RH de gérer la badgeuse pour l'entreprise.
+    """
+    has_perm = access_control_service.check_user_has_permission(
+        str(current_user.id), company_id, PERMISSION_BADGEUSE_MANAGE
+    )
+    if not has_perm:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission RH badgeuse requise",
+        )
+    return current_user
+
+
+# ----- Router employé : /api/me/badgeuse -----
+
+router_me = APIRouter(
+    prefix="/api/me/badgeuse",
+    tags=["Badgeuse - Employé"],
+)
+
+
+@router_me.get("/status-today")
+def get_my_badgeuse_status_today(
+    day: Optional[date] = Query(
+        None,
+        description="Date pour laquelle récupérer le statut (par défaut : aujourd'hui)",
+    ),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Statut du jour pour l'employé connecté.
+    """
+    try:
+        return badgeuse_service.get_today_status_for_me(current_user, day=day)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router_me.post("/toggle")
+def toggle_my_badge(current_user: User = Depends(get_current_user)) -> Dict[str, Any]:
+    """
+    Bascule entre ENTREE et SORTIE pour l'employé connecté.
+    """
+    try:
+        return badgeuse_service.toggle_badge_for_me(current_user)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+
+
+# ----- Router RH : /api/badgeuse -----
+
+router_rh = APIRouter(
+    prefix="/api/badgeuse",
+    tags=["Badgeuse - RH"],
+)
+
+
+@router_rh.get("/employees/{employee_id}/days")
+def get_employee_days_summary(
+    employee_id: str,
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    start_date: date = Query(..., alias="from"),
+    end_date: date = Query(..., alias="to"),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Résumé par jour pour un employé sur une période.
+    """
+    _require_badgeuse_rh_access(company_id, current_user)
+    if start_date > end_date:
+        raise HTTPException(status_code=400, detail="Période invalide")
+
+    summaries = badgeuse_service.get_summary_for_employee_period(
+        employee_id=employee_id,
+        company_id=company_id,
+        start=start_date,
+        end=end_date,
+    )
+    return [
+        {
+            "date": d.isoformat(),
+            "status": dto.status,
+            "total_seconds": dto.total_seconds,
+            "sequences_count": dto.sequences_count,
+            "has_anomalies": dto.has_anomalies,
+            "validated": dto.validated,
+        }
+        for d, dto in sorted(summaries.items(), key=lambda x: x[0])
+    ]
+
+
+@router_rh.get("/employees/{employee_id}/days/{day}")
+def get_employee_day_detail(
+    employee_id: str,
+    day: date,
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Détail des pointages d'un employé pour un jour donné.
+    """
+    _require_badgeuse_rh_access(company_id, current_user)
+    return badgeuse_service.get_day_detail_for_employee(
+        employee_id=employee_id,
+        company_id=company_id,
+        day=day,
+    )
+
+
+@router_rh.post("/employees/{employee_id}/days/{day}/validate")
+def validate_employee_day(
+    employee_id: str,
+    day: date,
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Valide une journée de badgeuse pour un employé (validation RH).
+    """
+    _require_badgeuse_rh_access(company_id, current_user)
+    return badgeuse_service.validate_day_for_employee(
+        employee_id=employee_id,
+        company_id=company_id,
+        day=day,
+        current_user=current_user,
+    )
+
+
+@router_rh.post("/employees/{employee_id}/days/{day}/events")
+def add_employee_day_event(
+    employee_id: str,
+    day: date,
+    payload: Dict[str, Any],
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Ajoute un évènement de pointage pour un jour donné (RH).
+    """
+    _require_badgeuse_rh_access(company_id, current_user)
+    try:
+        event_type = TimeEntryType(payload["event_type"])
+        time_str = payload["time"]
+    except KeyError as e:
+        raise HTTPException(status_code=422, detail=f"Champ manquant: {e}") from e
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+    try:
+        hour, minute = map(int, time_str.split(":"))
+        ts = datetime.combine(day, datetime.min.time()).replace(
+            hour=hour, minute=minute
+        )
+    except Exception as e:
+        raise HTTPException(status_code=422, detail="Heure invalide") from e
+
+    return badgeuse_service.add_event_for_employee_day(
+        employee_id=employee_id,
+        company_id=company_id,
+        timestamp=ts,
+        event_type=event_type,
+        source=TimeEntrySource.RH,
+        current_user=current_user,
+    )
+
+
+@router_rh.patch("/events/{event_id}")
+def update_event(
+    event_id: str,
+    payload: Dict[str, Any],
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Met à jour un évènement de pointage (heure et/ou type).
+    """
+    _require_badgeuse_rh_access(company_id, current_user)
+    ts = None
+    event_type = None
+
+    if "time" in payload:
+        time_str = payload["time"]
+        try:
+            # On nécessite aussi la date dans payload pour reconstruire le datetime
+            day_str = payload.get("date")
+            if not day_str:
+                raise ValueError("date manquante pour la mise à jour de l'heure")
+            d = date.fromisoformat(day_str)
+            hour, minute = map(int, time_str.split(":"))
+            ts = datetime.combine(d, datetime.min.time()).replace(
+                hour=hour, minute=minute
+            )
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Heure invalide: {e}") from e
+
+    if "event_type" in payload:
+        try:
+            event_type = TimeEntryType(payload["event_type"])
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+
+    return badgeuse_service.update_event_for_employee_day(
+        event_id=event_id,
+        timestamp=ts,
+        event_type=event_type,
+        current_user=current_user,
+    )
+
+
+@router_rh.delete("/events/{event_id}", status_code=204)
+def delete_event(
+    event_id: str,
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Supprime un évènement de pointage.
+    """
+    _require_badgeuse_rh_access(company_id, current_user)
+    badgeuse_service.delete_event_for_employee_day(event_id=event_id)
+    return {}
+
+
+@router_rh.get("/summary")
+def get_company_summary(
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    start_date: date = Query(..., alias="from"),
+    end_date: date = Query(..., alias="to"),
+    employee_ids: Optional[List[str]] = Query(
+        None, description="Liste optionnelle d'IDs employés à filtrer"
+    ),
+    with_anomalies_only: bool = Query(
+        False, description="Ne retourner que les employés avec anomalies sur la période"
+    ),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Synthèse par employé sur la période : total d'heures et nombre de jours en anomalie.
+    """
+    _require_badgeuse_rh_access(company_id, current_user)
+    if start_date > end_date:
+        raise HTTPException(status_code=400, detail="Période invalide")
+
+    summaries = badgeuse_service.get_company_period_summary(
+        company_id=company_id,
+        start=start_date,
+        end=end_date,
+        employee_ids=employee_ids,
+    )
+    items = []
+    for emp_id, dto in summaries.items():
+        if with_anomalies_only and dto.days_with_anomalies == 0:
+            continue
+        items.append(
+            {
+                "employee_id": emp_id,
+                "total_seconds": dto.total_seconds,
+                "days_with_anomalies": dto.days_with_anomalies,
+            }
+        )
+    return items
+
+
+@router_rh.get("/export")
+def export_badgeuse_csv(
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    start_date: date = Query(..., alias="from"),
+    end_date: date = Query(..., alias="to"),
+    employee_ids: Optional[List[str]] = Query(
+        None, description="Liste optionnelle d'IDs employés à filtrer"
+    ),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Export CSV des temps de présence par jour et par employé sur la période.
+    Colonnes : employé_id, date, total_heures, nombre_de_séquences, anomalie_oui_non.
+    """
+    _require_badgeuse_rh_access(company_id, current_user)
+    if start_date > end_date:
+        raise HTTPException(status_code=400, detail="Période invalide")
+
+    filename, content = badgeuse_service.build_company_summary_csv(
+        company_id=company_id,
+        start=start_date,
+        end=end_date,
+        employee_ids=employee_ids,
+    )
+
+    output = StringIO(content)
+    return StreamingResponse(
+        output,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+__all__ = ["router_me", "router_rh"]

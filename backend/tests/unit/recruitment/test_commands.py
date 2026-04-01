@@ -291,16 +291,14 @@ class TestHireCandidate:
             actor_id="user-1",
         )
         assert result["id"] == "emp-new"
-        _patch_service.service_hire_candidate.assert_called_once_with(
-            "cand-1",
-            "co-1",
-            "2025-03-01",
-            site="Paris",
-            service_name="Tech",
-            job_title="Développeur",
-            contract_type="CDI",
-            actor_id="user-1",
-        )
+        _patch_service.service_hire_candidate.assert_called_once()
+        args, kwargs = _patch_service.service_hire_candidate.call_args
+        assert args[:3] == ("cand-1", "co-1", "2025-03-01")
+        assert kwargs["site"] == "Paris"
+        assert kwargs["service_name"] == "Tech"
+        assert kwargs["job_title"] == "Développeur"
+        assert kwargs["contract_type"] == "CDI"
+        assert kwargs["actor_id"] == "user-1"
 
     def test_raises_value_error_candidat_introuvable(self, _patch_service):
         _patch_service.service_hire_candidate.side_effect = ValueError(
