@@ -14,6 +14,7 @@ from app.modules.users.schemas.responses import User
 
 from app.modules.recruitment.application import commands, queries
 from app.modules.recruitment.schemas import (
+    ArchiveCandidateBody,
     CandidateCreate,
     CandidateOut,
     CandidateUpdate,
@@ -269,6 +270,21 @@ def move_candidate(
         raise _value_error_to_http(e)
 
 
+@router.post("/candidates/{candidate_id}/archive")
+def archive_candidate(
+    candidate_id: str,
+    body: ArchiveCandidateBody,
+    current_user: User = Depends(get_current_user),
+):
+    company_id = _ensure_module_enabled(current_user)
+    _ensure_rh_access(current_user, company_id)
+    try:
+        commands.archive_candidate(candidate_id, company_id, actor_id=str(current_user.id))
+        return {"ok": True}
+    except ValueError as e:
+        raise _value_error_to_http(e)
+
+
 @router.post("/candidates/{candidate_id}/check-duplicate")
 def check_candidate_duplicate(
     candidate_id: str,
@@ -301,7 +317,7 @@ def hire_candidate(
             detail="Impossible de finaliser l'embauche : champs obligatoires manquants.",
         )
     try:
-        employee = commands.hire_candidate(
+        result = commands.hire_candidate(
             candidate_id,
             company_id,
             body.hire_date,
@@ -310,10 +326,22 @@ def hire_candidate(
             job_title=body.job_title,
             contract_type=body.contract_type,
             actor_id=str(current_user.id),
+            link_to_employee_id=body.link_to_employee_id,
+            skip_duplicate_check=body.skip_duplicate_check,
         )
+        if result.get("requires_confirmation"):
+            return {
+                "ok": False,
+                "requires_confirmation": True,
+                "existing_employee_id": result["existing_employee_id"],
+                "existing_employee_first_name": result["existing_employee_first_name"],
+                "existing_employee_last_name": result["existing_employee_last_name"],
+                "existing_employee_email": result["existing_employee_email"],
+                "message": "Un salarié avec cet email existe déjà.",
+            }
         return {
             "ok": True,
-            "employee_id": employee["id"],
+            "employee_id": result["id"],
             "message": "Salarié créé. Complétez les informations pour finaliser l'intégration paie.",
         }
     except ValueError as e:

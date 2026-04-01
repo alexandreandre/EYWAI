@@ -1,0 +1,13 @@
+---
+description: Conventions React/Vite/TS pour frontend/
+globs: frontend/**
+alwaysApply: false
+---
+
+# Frontend (`frontend/`)
+
+- **Stack** : React, Vite, TypeScript ; UI (Radix / shadcn selon le code existant). Supabase côté client quand c’est déjà le pattern du fichier.
+- **Imports** : ordre et alias comme dans le projet ; pas d’imports inutilisés laissés en chemin.
+- **Portée** : pas de refactors massifs non demandés ; rester focalisé sur la fonctionnalité ou le correctif.
+- **UX / copie** : textes visibles par l’utilisateur en **français** (libellés, erreurs, toasts), sauf contrainte produit explicite.
+- **Qualité** : `npm run lint` avant PR ; pour une PR qui touche l’UI, une capture d’écran dans la description aide la revue (voir template PR).

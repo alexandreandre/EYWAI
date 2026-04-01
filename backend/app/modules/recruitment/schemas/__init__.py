@@ -5,6 +5,7 @@ Import de compatibilité : from app.modules.recruitment.schemas import JobOut, J
 """
 
 from app.modules.recruitment.schemas.requests import (
+    ArchiveCandidateBody,
     JobCreate,
     JobUpdate,
     CandidateCreate,
@@ -28,6 +29,7 @@ from app.modules.recruitment.schemas.responses import (
 )
 
 __all__ = [
+    "ArchiveCandidateBody",
     "JobCreate",
     "JobUpdate",
     "CandidateCreate",

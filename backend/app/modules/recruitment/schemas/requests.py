@@ -87,3 +87,9 @@ class HireCandidateBody(BaseModel):
     service: Optional[str] = None
     job_title: Optional[str] = None
     contract_type: Optional[str] = None
+    link_to_employee_id: Optional[str] = None
+    skip_duplicate_check: bool = False
+
+
+class ArchiveCandidateBody(BaseModel):
+    pass

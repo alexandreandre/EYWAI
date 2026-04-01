@@ -316,10 +316,20 @@ def _run_playwright_target(e2e_dir: Path, target: str) -> Dict[str, Any]:
         }
 
 
+def _get_python_executable(backend_root: Path) -> str:
+    """Retourne le Python du venv local si disponible, sinon sys.executable."""
+    for venv_name in (".venv-ci-local", ".venv"):
+        venv_python = backend_root / venv_name / "bin" / "python"
+        if venv_python.is_file():
+            return str(venv_python)
+    return sys.executable
+
+
 def _run_one_target(backend_root: Path, target: str) -> Dict[str, Any]:
     """Exécute pytest sur une seule cible. Retourne dict avec target, success, exit_code, stdout, stderr."""
+    python_exe = _get_python_executable(backend_root)
     cmd = [
-        sys.executable,
+        python_exe,
         "-m",
         "pytest",
         "-v",

@@ -211,12 +211,35 @@ export async function checkDuplicate(candidateId: string): Promise<{ warnings: D
   return res.data;
 }
 
+export interface HireResult {
+  ok: boolean;
+  employee_id?: string;
+  message?: string;
+  requires_confirmation?: boolean;
+  existing_employee_id?: string;
+  existing_employee_first_name?: string;
+  existing_employee_last_name?: string;
+  existing_employee_email?: string;
+}
+
 export async function hireCandidate(
   candidateId: string,
-  body: { hire_date: string; site?: string; service?: string; job_title?: string; contract_type?: string }
-): Promise<{ ok: boolean; employee_id: string; message: string }> {
+  body: {
+    hire_date: string;
+    site?: string;
+    service?: string;
+    job_title?: string;
+    contract_type?: string;
+    link_to_employee_id?: string;
+    skip_duplicate_check?: boolean;
+  }
+): Promise<HireResult> {
   const res = await apiClient.post(`/api/recruitment/candidates/${candidateId}/hire`, body);
   return res.data;
+}
+
+export async function archiveCandidate(candidateId: string): Promise<void> {
+  await apiClient.post(`/api/recruitment/candidates/${candidateId}/archive`, {});
 }
 
 // ─── Interviews ─────────────────────────────────────────────────────
