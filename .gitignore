@@ -14,6 +14,8 @@ __pycache__/
 # C extensions
 *.so
 
+sa-key.json
+
 # Distribution / packaging
 .Python
 build/
