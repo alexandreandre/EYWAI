@@ -53,3 +53,5 @@ git status
 ```
 
 Pour verifier les fichiers modifies avant de commencer.
+
+Phrase a donner a cursor pour mettre les changements a jour : je veux commit et push les changements que j'ai fait sur ma branche dev jose fais le 
