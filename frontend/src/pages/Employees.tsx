@@ -14,7 +14,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, PlusCircle, Eye, Loader2, ChevronRight, Upload, FileText, Trash2, UserMinus, Landmark } from "lucide-react";
+import { Search, Plus, PlusCircle, Eye, Loader2, ChevronRight, Upload, FileText, Trash2, UserMinus, Landmark } from "lucide-react";
 import * as ribAlertsApi from "@/api/ribAlerts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea"; // Pour les champs JSON
@@ -970,7 +970,7 @@ export default function Employees() {
         }}>
           <DialogTrigger asChild>
             <Button>
-              <PlusCircle className="mr-2 h-4 w-4" />
+              <Plus className="mr-2 h-4 w-4" />
               Nouveau Collaborateur
             </Button>
           </DialogTrigger>
