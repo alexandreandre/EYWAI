@@ -72,6 +72,13 @@ jobs:
           P="${{ vars.GCP_PROJECT_ID }}"
           echo "image=gcr.io/${P}/sirh-frontend:${DEPLOY_SHA}" >> "$GITHUB_OUTPUT"
 
+      - name: VITE_API_URL requis pour le build frontend
+        run: |
+          if [ -z "${{ vars.VITE_API_URL }}" ]; then
+            echo "::error::Variable dépôt VITE_API_URL manquante. Ajoute-la dans Settings → Secrets and variables → Actions → Variables (URL HTTPS publique du backend, ex. Cloud Run)."
+            exit 1
+          fi
+
       - uses: docker/build-push-action@v6
         with:
           context: ./frontend

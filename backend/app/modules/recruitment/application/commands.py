@@ -120,3 +120,29 @@ def archive_candidate(
 ) -> None:
     """Archiver un candidat (disparaît du pipeline actif). Lève ValueError si candidat introuvable."""
     svc.service_archive_candidate(candidate_id, company_id, actor_id=actor_id)
+
+
+def create_pipeline_stage(
+    company_id: str, job_id: str, data: dict[str, Any]
+) -> dict[str, Any]:
+    """Ajoute une étape standard au pipeline. Lève ValueError si poste introuvable."""
+    return svc.service_create_pipeline_stage(company_id, job_id, data)
+
+
+def update_pipeline_stage(
+    stage_id: str, company_id: str, job_id: str, data: dict[str, Any]
+) -> dict[str, Any]:
+    """Met à jour le libellé (et options) d'une étape. Lève ValueError si introuvable."""
+    return svc.service_update_pipeline_stage(stage_id, company_id, job_id, data)
+
+
+def delete_pipeline_stage(stage_id: str, company_id: str, job_id: str) -> None:
+    """Supprime une étape standard vide. Lève ValueError sinon."""
+    svc.service_delete_pipeline_stage(stage_id, company_id, job_id)
+
+
+def reorder_pipeline_stages(
+    company_id: str, job_id: str, ordered_stage_ids: list[str]
+) -> list[dict[str, Any]]:
+    """Réordonne toutes les étapes du poste. Lève ValueError si la liste est invalide."""
+    return svc.service_reorder_pipeline_stages(company_id, job_id, ordered_stage_ids)

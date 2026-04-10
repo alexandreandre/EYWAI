@@ -1,11 +1,18 @@
 """
-Point d'entrée de l'application cible (modular monolith).
+Point d’entrée de l’application cible (modular monolith).
 """
 
-from fastapi import FastAPI
+import logging
+import os
+import traceback
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.router import router as api_router
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="API SIRH (modular)", version="0.1.0")
 
@@ -18,13 +25,34 @@ ALLOWED_ORIGINS = [
     "https://sirh-frontend-505040845625.europe-west1.run.app",
 ]
 
+# localhost / 127.0.0.1 avec n’importe quel port (Vite, preview, etc.) — ne matche pas les domaines de prod.
+_DEV_LOCAL_ORIGIN_REGEX = r"https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+_cors_origin_regex = os.getenv("CORS_ALLOW_ORIGIN_REGEX", _DEV_LOCAL_ORIGIN_REGEX)
+if _cors_origin_regex.strip() == "":
+    _cors_origin_regex = None
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=_cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch-all : garantit une réponse JSON propre (avec headers CORS) même sur erreur 500."""
+    logger.error(
+        "Unhandled exception on %s %s: %s", request.method, request.url.path, exc
+    )
+    logger.error(traceback.format_exc())
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error"},
+    )
+
 
 # ---------------------------------------------------------------------------
 # Lifecycle (startup / shutdown, à brancher plus tard)

@@ -31,7 +31,10 @@ from app.modules.recruitment.schemas import (
     NoteOut,
     OpinionCreate,
     OpinionOut,
+    PipelineStageCreate,
     PipelineStageOut,
+    PipelineStageUpdate,
+    PipelineStagesReorderBody,
     TimelineEventOut,
 )
 
@@ -163,6 +166,72 @@ def get_pipeline_stages(
     return [PipelineStageOut(**x) for x in data]
 
 
+@router.post("/jobs/{job_id}/stages/reorder", response_model=List[PipelineStageOut])
+def reorder_pipeline_stages(
+    job_id: str,
+    body: PipelineStagesReorderBody,
+    current_user: User = Depends(get_current_user),
+):
+    company_id = _ensure_module_enabled(current_user)
+    _ensure_rh_access(current_user, company_id)
+    try:
+        data = commands.reorder_pipeline_stages(company_id, job_id, body.stage_ids)
+        return [PipelineStageOut(**x) for x in data]
+    except ValueError as e:
+        raise _value_error_to_http(e)
+
+
+@router.post("/jobs/{job_id}/stages", response_model=PipelineStageOut)
+def create_pipeline_stage(
+    job_id: str,
+    body: PipelineStageCreate,
+    current_user: User = Depends(get_current_user),
+):
+    company_id = _ensure_module_enabled(current_user)
+    _ensure_rh_access(current_user, company_id)
+    try:
+        out = commands.create_pipeline_stage(company_id, job_id, body.model_dump())
+        return PipelineStageOut(**out)
+    except ValueError as e:
+        raise _value_error_to_http(e)
+
+
+@router.patch("/jobs/{job_id}/stages/{stage_id}", response_model=PipelineStageOut)
+def update_pipeline_stage(
+    job_id: str,
+    stage_id: str,
+    body: PipelineStageUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    company_id = _ensure_module_enabled(current_user)
+    _ensure_rh_access(current_user, company_id)
+    try:
+        out = commands.update_pipeline_stage(
+            stage_id,
+            company_id,
+            job_id,
+            {k: v for k, v in body.model_dump().items() if v is not None},
+        )
+        return PipelineStageOut(**out)
+    except ValueError as e:
+        raise _value_error_to_http(e)
+
+
+@router.delete("/jobs/{job_id}/stages/{stage_id}")
+def delete_pipeline_stage(
+    job_id: str,
+    stage_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    company_id = _ensure_module_enabled(current_user)
+    _ensure_rh_access(current_user, company_id)
+    try:
+        commands.delete_pipeline_stage(stage_id, company_id, job_id)
+        return {"ok": True}
+    except ValueError as e:
+        raise _value_error_to_http(e)
+
+
 # ─── CANDIDATES ───────────────────────────────────────────────────────
 
 
@@ -279,7 +348,9 @@ def archive_candidate(
     company_id = _ensure_module_enabled(current_user)
     _ensure_rh_access(current_user, company_id)
     try:
-        commands.archive_candidate(candidate_id, company_id, actor_id=str(current_user.id))
+        commands.archive_candidate(
+            candidate_id, company_id, actor_id=str(current_user.id)
+        )
         return {"ok": True}
     except ValueError as e:
         raise _value_error_to_http(e)

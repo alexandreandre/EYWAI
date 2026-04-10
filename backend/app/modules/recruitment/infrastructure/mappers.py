@@ -7,15 +7,31 @@ Pas de dépendance FastAPI. Utilisés par repository et queries.
 from typing import Any, Optional
 
 
+def _embedded_stage_from_row(row: dict[str, Any]) -> dict[str, Any]:
+    """Relation PostgREST `stage` : dict, ou parfois liste d’objets selon le schéma."""
+    raw = row.get("stage")
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, dict):
+                return item
+    return {}
+
+
+def _dt_str(value: Any) -> str:
+    if value is None:
+        return ""
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
 def candidate_row_to_out(
     row: dict[str, Any], stage: Optional[dict[str, Any]] = None
 ) -> dict[str, Any]:
     """Construit un dict compatible CandidateOut depuis une row (+ stage optionnel)."""
-    s = (
-        stage
-        if stage is not None
-        else (row.get("stage") if isinstance(row.get("stage"), dict) else {})
-    )
+    s = stage if stage is not None else _embedded_stage_from_row(row)
     return {
         "id": row["id"],
         "company_id": row["company_id"],
@@ -30,10 +46,12 @@ def candidate_row_to_out(
         "source": row.get("source"),
         "rejection_reason": row.get("rejection_reason"),
         "rejection_reason_detail": row.get("rejection_reason_detail"),
-        "hired_at": str(row["hired_at"]) if row.get("hired_at") else None,
+        "hired_at": _dt_str(row["hired_at"])
+        if row.get("hired_at") is not None
+        else None,
         "employee_id": row.get("employee_id"),
-        "created_at": str(row["created_at"]),
-        "updated_at": str(row["updated_at"]),
+        "created_at": _dt_str(row.get("created_at")),
+        "updated_at": _dt_str(row.get("updated_at")),
     }
 
 

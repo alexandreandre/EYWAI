@@ -122,7 +122,8 @@ jobs:
       - run: npm run lint
       - run: npm run build
         env:
-          VITE_API_URL: https://example.com
+          # Même variable que le déploiement ; repli pour forks sans variable dépôt.
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://example.com' }}
 
       - name: npm audit (info seulement)
         continue-on-error: true

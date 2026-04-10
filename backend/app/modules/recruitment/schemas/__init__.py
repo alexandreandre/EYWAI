@@ -16,6 +16,9 @@ from app.modules.recruitment.schemas.requests import (
     NoteCreate,
     OpinionCreate,
     HireCandidateBody,
+    PipelineStageCreate,
+    PipelineStageUpdate,
+    PipelineStagesReorderBody,
 )
 from app.modules.recruitment.schemas.responses import (
     JobOut,
@@ -40,6 +43,9 @@ __all__ = [
     "NoteCreate",
     "OpinionCreate",
     "HireCandidateBody",
+    "PipelineStageCreate",
+    "PipelineStageUpdate",
+    "PipelineStagesReorderBody",
     "JobOut",
     "PipelineStageOut",
     "CandidateOut",

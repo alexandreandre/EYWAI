@@ -1,13 +1,14 @@
 // frontend/src/pages/Recruitment.tsx
 // Page RH : Module Recrutement (ATS) — Pipeline Kanban + Vue Liste + Fiche candidat
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getJobs, createJob, getPipelineStages, getCandidates, createCandidate,
   moveCandidate, getCandidate, getNotes, createNote, getOpinions, createOpinion,
   getInterviews, createInterview, getTimeline, hireCandidate, getRejectionReasons,
   deleteCandidate, archiveCandidate, checkDuplicate,
+  createPipelineStage, updatePipelineStage, deletePipelineStage, reorderPipelineStages,
   type Job, type PipelineStage, type Candidate, type Note, type Opinion,
   type Interview, type TimelineEvent, type HireResult,
 } from "@/api/recruitment";
@@ -22,17 +23,21 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/components/ui/use-toast";
 import {
   Plus, Search, LayoutGrid, List, User, Mail, Phone, Calendar,
-  Clock, MapPin, Link2, FileText, ThumbsUp, ThumbsDown, ArrowRight,
+  Clock, MapPin, Link2, FileText, ThumbsUp, ThumbsDown,
   Loader2, Briefcase, X, ChevronRight, MessageSquare, AlertTriangle,
-  UserPlus, GripVertical,
+  UserPlus, Check, GripVertical,
 } from "lucide-react";
 
 // ─── Kanban Card ────────────────────────────────────────────────────
@@ -67,50 +72,138 @@ function CandidateCard({ candidate, onClick }: { candidate: Candidate; onClick: 
 
 // ─── Kanban Column ──────────────────────────────────────────────────
 
+const STAGE_DND_TYPE = "application/x-stage-id";
+
 function KanbanColumn({
   stage,
   candidates,
   onCardClick,
-  onDrop,
+  onCandidateDrop,
   isRh,
+  onRename,
+  onDelete,
+  onHeaderDragStart,
 }: {
   stage: PipelineStage;
   candidates: Candidate[];
   onCardClick: (c: Candidate) => void;
-  onDrop: (candidateId: string, stageId: string) => void;
+  onCandidateDrop: (candidateId: string, stageId: string) => void;
   isRh: boolean;
+  onRename?: (name: string) => void;
+  onDelete?: () => void;
+  onHeaderDragStart?: (e: React.DragEvent) => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(stage.name);
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dragCountRef = useRef(0);
+
   const bgColor = stage.stage_type === "rejected"
     ? "border-red-200 bg-red-50/50"
     : stage.stage_type === "hired"
       ? "border-green-200 bg-green-50/50"
       : "border-border bg-muted/30";
 
+  const startEditing = () => {
+    setDraft(stage.name);
+    setEditing(true);
+    setTimeout(() => inputRef.current?.select(), 0);
+  };
+
+  const commitRename = () => {
+    setEditing(false);
+    const v = draft.trim();
+    if (v && v !== stage.name && onRename) onRename(v);
+  };
+
+  const canDelete = isRh && stage.stage_type === "standard" && candidates.length === 0;
+
   return (
     <div
-      className={`flex flex-col min-w-[260px] max-w-[300px] rounded-lg border ${bgColor}`}
-      onDragOver={isRh ? (e) => e.preventDefault() : undefined}
+      className={`flex flex-col min-w-[260px] max-w-[300px] rounded-lg border transition-colors duration-150 ${dragOver ? "ring-2 ring-primary/40 border-primary/40" : ""} ${bgColor}`}
+      onDragOver={isRh ? (e) => {
+        if (e.dataTransfer.types.includes("candidateid")) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+        }
+      } : undefined}
+      onDragEnter={isRh ? (e) => {
+        if (e.dataTransfer.types.includes("candidateid")) {
+          dragCountRef.current++;
+          setDragOver(true);
+        }
+      } : undefined}
+      onDragLeave={isRh ? () => {
+        dragCountRef.current--;
+        if (dragCountRef.current <= 0) { dragCountRef.current = 0; setDragOver(false); }
+      } : undefined}
       onDrop={isRh ? (e) => {
-        e.preventDefault();
+        dragCountRef.current = 0;
+        setDragOver(false);
         const candidateId = e.dataTransfer.getData("candidateId");
-        if (candidateId) onDrop(candidateId, stage.id);
+        if (candidateId) { e.preventDefault(); onCandidateDrop(candidateId, stage.id); }
       } : undefined}
     >
-      <div className="px-3 py-2.5 border-b flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold">{stage.name}</span>
-          <Badge variant="secondary" className="h-5 text-[10px] px-1.5">
-            {candidates.length}
-          </Badge>
-        </div>
+      {/* Header — draggable pour réordonner */}
+      <div
+        draggable={isRh && !editing}
+        onDragStart={isRh && !editing ? onHeaderDragStart : undefined}
+        className={`px-3 py-2 border-b flex items-center gap-1.5 ${isRh && !editing ? "cursor-grab active:cursor-grabbing" : ""}`}
+      >
+        {isRh && (
+          <GripVertical className="h-4 w-4 text-muted-foreground/50 shrink-0" />
+        )}
+
+        {editing ? (
+          <Input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitRename();
+              if (e.key === "Escape") { setEditing(false); setDraft(stage.name); }
+            }}
+            className="h-7 text-sm font-semibold px-1.5 flex-1 min-w-0"
+            autoFocus
+          />
+        ) : (
+          <span
+            className={`text-sm font-semibold truncate flex-1 min-w-0 ${isRh && onRename ? "cursor-pointer hover:underline decoration-dotted underline-offset-4" : ""}`}
+            onClick={isRh && onRename ? (e) => { e.stopPropagation(); startEditing(); } : undefined}
+            title={isRh && onRename ? "Cliquer pour renommer" : undefined}
+          >
+            {stage.name}
+          </span>
+        )}
+
+        <Badge variant="secondary" className="h-5 text-[10px] px-1.5 shrink-0">
+          {candidates.length}
+        </Badge>
+
+        {isRh && stage.stage_type === "standard" && (
+          <button
+            onClick={(e) => { e.stopPropagation(); if (canDelete && onDelete) onDelete(); }}
+            disabled={!canDelete}
+            className="p-0.5 rounded hover:bg-destructive/10 disabled:opacity-20 disabled:pointer-events-none text-muted-foreground hover:text-destructive transition-colors"
+            title={canDelete ? "Supprimer cette étape" : candidates.length > 0 ? "Déplacez d'abord les candidats" : "Supprimer"}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
+
       <ScrollArea className="flex-1 p-2 max-h-[calc(100vh-320px)]">
         <div className="space-y-2">
           {candidates.map((c) => (
             <div
               key={c.id}
               draggable={isRh}
-              onDragStart={isRh ? (e) => e.dataTransfer.setData("candidateId", c.id) : undefined}
+              onDragStart={isRh ? (e) => {
+                e.dataTransfer.setData("candidateId", c.id);
+                e.stopPropagation();
+              } : undefined}
             >
               <CandidateCard candidate={c} onClick={() => onCardClick(c)} />
             </div>
@@ -121,6 +214,99 @@ function KanbanColumn({
         </div>
       </ScrollArea>
     </div>
+  );
+}
+
+// ─── Drop zone between columns ──────────────────────────────────────
+
+function StageDropZone({
+  gapIndex,
+  activeGap,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+}: {
+  gapIndex: number;
+  activeGap: number | null;
+  onDragOver: (gapIndex: number, e: React.DragEvent) => void;
+  onDragLeave: () => void;
+  onDrop: (gapIndex: number) => void;
+}) {
+  const active = activeGap === gapIndex;
+  return (
+    <div
+      className={`shrink-0 self-stretch flex items-center transition-all duration-150 ${active ? "w-3" : "w-1.5"}`}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes(STAGE_DND_TYPE)) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          onDragOver(gapIndex, e);
+        }
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        onDragLeave();
+      }}
+      onDrop={(e) => {
+        if (e.dataTransfer.types.includes(STAGE_DND_TYPE)) {
+          e.preventDefault();
+          onDrop(gapIndex);
+        }
+      }}
+    >
+      <div className={`mx-auto h-full rounded-full transition-all duration-150 ${active ? "w-1 bg-primary" : "w-0"}`} />
+    </div>
+  );
+}
+
+// ─── Add-stage column ───────────────────────────────────────────────
+
+function AddStageColumn({ onAdd }: { onAdd: (name: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const submit = () => {
+    const v = name.trim();
+    if (!v) return;
+    onAdd(v);
+    setName("");
+    setOpen(false);
+  };
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (o) setTimeout(() => inputRef.current?.focus(), 0);
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          className="flex flex-col items-center justify-center min-w-[48px] max-w-[48px] rounded-lg border-2 border-dashed border-muted-foreground/25 hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer min-h-[120px]"
+          title="Ajouter une étape"
+        >
+          <Plus className="h-5 w-5 text-muted-foreground" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64 p-3">
+        <p className="text-sm font-medium mb-2">Nouvelle étape</p>
+        <div className="flex gap-2">
+          <Input
+            ref={inputRef}
+            placeholder="Ex: Test technique"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+            className="flex-1 h-8 text-sm"
+          />
+          <Button size="sm" className="h-8 px-3" disabled={!name.trim()} onClick={submit}>
+            <Check className="h-4 w-4" />
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -154,8 +340,6 @@ function CandidateSlideOver({
   const [noteText, setNoteText] = useState("");
   const [opinionRating, setOpinionRating] = useState<"favorable" | "defavorable" | null>(null);
   const [opinionComment, setOpinionComment] = useState("");
-  const [activeTab, setActiveTab] = useState("info");
-
   const candidateId = candidate?.id;
 
   const { data: notes = [], isLoading: loadingNotes } = useQuery({
@@ -212,9 +396,9 @@ function CandidateSlideOver({
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent className="w-full sm:max-w-xl overflow-y-auto p-0">
+      <SheetContent className="w-full sm:max-w-xl p-0 flex flex-col h-full max-h-[100dvh]">
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-background border-b px-6 py-4">
+        <div className="flex-shrink-0 z-10 bg-background border-b px-6 py-4">
           <SheetHeader className="mb-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -282,17 +466,13 @@ function CandidateSlideOver({
           )}
         </div>
 
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="px-6 pt-4">
-          <TabsList className="w-full grid grid-cols-4">
-            <TabsTrigger value="info">Infos</TabsTrigger>
-            <TabsTrigger value="notes">Notes ({notes.length})</TabsTrigger>
-            <TabsTrigger value="interviews">Entretiens ({interviews.length})</TabsTrigger>
-            <TabsTrigger value="timeline">Timeline</TabsTrigger>
-          </TabsList>
-
-          {/* Tab Infos */}
-          <TabsContent value="info" className="space-y-4 mt-4">
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="px-6 py-4 space-y-8 pb-8">
+            {/* Infos */}
+            <section aria-labelledby="candidate-section-infos">
+              <h3 id="candidate-section-infos" className="text-sm font-semibold mb-3">
+                Infos
+              </h3>
             <div className="grid gap-3">
               {candidate.email && (
                 <div className="flex items-center gap-2 text-sm">
@@ -385,10 +565,16 @@ function CandidateSlideOver({
                 )}
               </div>
             </div>
-          </TabsContent>
+            </section>
 
-          {/* Tab Notes */}
-          <TabsContent value="notes" className="space-y-4 mt-4">
+            <Separator />
+
+            {/* Notes */}
+            <section aria-labelledby="candidate-section-notes">
+              <h3 id="candidate-section-notes" className="text-sm font-semibold mb-3">
+                Notes ({notes.length})
+              </h3>
+            <div className="space-y-4">
             <div className="space-y-2 p-3 bg-muted/50 rounded-lg">
               <Textarea
                 placeholder="Ajouter une note..."
@@ -425,10 +611,17 @@ function CandidateSlideOver({
                 ))}
               </div>
             )}
-          </TabsContent>
+            </div>
+            </section>
 
-          {/* Tab Entretiens */}
-          <TabsContent value="interviews" className="space-y-4 mt-4">
+            <Separator />
+
+            {/* Entretiens */}
+            <section aria-labelledby="candidate-section-interviews">
+              <h3 id="candidate-section-interviews" className="text-sm font-semibold mb-3">
+                Entretiens ({interviews.length})
+              </h3>
+            <div className="space-y-4">
             {isRh && (
               <Button size="sm" className="h-8 text-xs w-full" onClick={onScheduleInterview}>
                 <Plus className="h-3 w-3 mr-1" /> Planifier un entretien
@@ -482,10 +675,17 @@ function CandidateSlideOver({
                 ))}
               </div>
             )}
-          </TabsContent>
+            </div>
+            </section>
 
-          {/* Tab Timeline */}
-          <TabsContent value="timeline" className="mt-4">
+            <Separator />
+
+            {/* Timeline */}
+            <section aria-labelledby="candidate-section-timeline">
+              <h3 id="candidate-section-timeline" className="text-sm font-semibold mb-3">
+                Timeline
+              </h3>
+            <div>
             {loadingTimeline ? (
               <div className="space-y-2">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-10" />)}</div>
             ) : timeline.length === 0 ? (
@@ -506,8 +706,10 @@ function CandidateSlideOver({
                 ))}
               </div>
             )}
-          </TabsContent>
-        </Tabs>
+            </div>
+            </section>
+          </div>
+        </ScrollArea>
       </SheetContent>
     </Sheet>
   );
@@ -530,6 +732,7 @@ export default function Recruitment() {
   const [showHireModal, setShowHireModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showInterviewModal, setShowInterviewModal] = useState(false);
+  const [deleteStageTarget, setDeleteStageTarget] = useState<PipelineStage | null>(null);
   const [showDuplicateEmployeeModal, setShowDuplicateEmployeeModal] = useState(false);
   const [hireCandidateId, setHireCandidateId] = useState<string | null>(null);
   const [rejectCandidateId, setRejectCandidateId] = useState<string | null>(null);
@@ -612,16 +815,31 @@ export default function Recruitment() {
     onError: () => toast({ title: "Erreur", description: "Impossible de créer le candidat.", variant: "destructive" }),
   });
 
+  const candidatesKey = ["recruitment", "candidates", effectiveJobId, searchText];
+
   const moveCandidateMutation = useMutation({
     mutationFn: ({ candidateId, stageId, reason, detail }: { candidateId: string; stageId: string; reason?: string; detail?: string }) =>
       moveCandidate(candidateId, { stage_id: stageId, rejection_reason: reason, rejection_reason_detail: detail }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["recruitment", "candidates"] });
-      queryClient.invalidateQueries({ queryKey: ["recruitment", "timeline"] });
-      toast({ title: "Candidat déplacé" });
+    onMutate: async ({ candidateId, stageId }) => {
+      await queryClient.cancelQueries({ queryKey: candidatesKey });
+      const prev = queryClient.getQueryData<Candidate[]>(candidatesKey);
+      const targetStage = stages.find((s) => s.id === stageId);
+      if (prev) {
+        queryClient.setQueryData<Candidate[]>(candidatesKey, prev.map((c) =>
+          c.id === candidateId
+            ? { ...c, current_stage_id: stageId, current_stage_name: targetStage?.name ?? c.current_stage_name, current_stage_type: targetStage?.stage_type ?? c.current_stage_type }
+            : c,
+        ));
+      }
+      return { prev };
     },
-    onError: (err: any) => {
+    onError: (err: any, _vars, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(candidatesKey, ctx.prev);
       toast({ title: "Erreur", description: err?.response?.data?.detail || "Impossible de déplacer le candidat.", variant: "destructive" });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: candidatesKey });
+      queryClient.invalidateQueries({ queryKey: ["recruitment", "timeline"] });
     },
   });
 
@@ -653,13 +871,21 @@ export default function Recruitment() {
 
   const archiveMutation = useMutation({
     mutationFn: (candidateId: string) => archiveCandidate(candidateId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["recruitment", "candidates"] });
+    onMutate: async (candidateId) => {
+      await queryClient.cancelQueries({ queryKey: candidatesKey });
+      const prev = queryClient.getQueryData<Candidate[]>(candidatesKey);
+      if (prev) {
+        queryClient.setQueryData<Candidate[]>(candidatesKey, prev.filter((c) => c.id !== candidateId));
+      }
       setSlideOverOpen(false);
       setSelectedCandidate(null);
-      toast({ title: "Candidat archivé" });
+      return { prev };
     },
-    onError: () => toast({ title: "Erreur", description: "Impossible d'archiver le candidat.", variant: "destructive" }),
+    onError: (_err, _v, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(candidatesKey, ctx.prev);
+      toast({ title: "Erreur", description: "Impossible d'archiver le candidat.", variant: "destructive" });
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: candidatesKey }),
   });
 
   const createInterviewMutation = useMutation({
@@ -682,13 +908,132 @@ export default function Recruitment() {
     onError: () => toast({ title: "Erreur", description: "Impossible de planifier l'entretien.", variant: "destructive" }),
   });
 
-  // Grouped candidates by stage
+  // ── Pipeline stage mutations (optimistic) ──
+
+  const stagesKey = ["recruitment", "stages", effectiveJobId];
+
+  const apiDetail = useCallback((err: unknown) => {
+    const ax = err as { response?: { data?: { detail?: string } } };
+    return ax?.response?.data?.detail;
+  }, []);
+
+  const renameStageMutation = useMutation({
+    mutationFn: ({ stageId, name }: { stageId: string; name: string }) =>
+      updatePipelineStage(effectiveJobId!, stageId, { name }),
+    onMutate: async ({ stageId, name }) => {
+      await queryClient.cancelQueries({ queryKey: stagesKey });
+      const prev = queryClient.getQueryData<PipelineStage[]>(stagesKey);
+      if (prev) {
+        queryClient.setQueryData<PipelineStage[]>(stagesKey, prev.map((s) =>
+          s.id === stageId ? { ...s, name } : s,
+        ));
+      }
+      return { prev };
+    },
+    onError: (err: unknown, _v, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(stagesKey, ctx.prev);
+      toast({ title: "Erreur", description: String(apiDetail(err) || "Impossible de renommer l'étape."), variant: "destructive" });
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: stagesKey }),
+  });
+
+  const addStageMutation = useMutation({
+    mutationFn: (name: string) => createPipelineStage(effectiveJobId!, { name }),
+    onMutate: async (name) => {
+      await queryClient.cancelQueries({ queryKey: stagesKey });
+      const prev = queryClient.getQueryData<PipelineStage[]>(stagesKey);
+      if (prev) {
+        const maxPos = prev.reduce((m, s) => Math.max(m, s.position), -1);
+        const optimistic: PipelineStage = {
+          id: `temp-${Date.now()}`,
+          job_id: effectiveJobId!,
+          name,
+          position: maxPos + 1,
+          is_final: false,
+          stage_type: "standard",
+        };
+        queryClient.setQueryData<PipelineStage[]>(stagesKey, [...prev, optimistic]);
+      }
+      return { prev };
+    },
+    onError: (err: unknown, _v, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(stagesKey, ctx.prev);
+      toast({ title: "Erreur", description: String(apiDetail(err) || "Impossible d'ajouter l'étape."), variant: "destructive" });
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: stagesKey }),
+  });
+
+  const removeStageMutation = useMutation({
+    mutationFn: (stageId: string) => deletePipelineStage(effectiveJobId!, stageId),
+    onMutate: async (stageId) => {
+      await queryClient.cancelQueries({ queryKey: stagesKey });
+      const prev = queryClient.getQueryData<PipelineStage[]>(stagesKey);
+      if (prev) {
+        queryClient.setQueryData<PipelineStage[]>(stagesKey, prev.filter((s) => s.id !== stageId));
+      }
+      return { prev };
+    },
+    onError: (err: unknown, _v, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(stagesKey, ctx.prev);
+      toast({ title: "Erreur", description: String(apiDetail(err) || "Impossible de supprimer l'étape."), variant: "destructive" });
+    },
+    onSettled: () => {
+      setDeleteStageTarget(null);
+      queryClient.invalidateQueries({ queryKey: stagesKey });
+    },
+  });
+
+  const reorderStagesMutation = useMutation({
+    mutationFn: (ids: string[]) => reorderPipelineStages(effectiveJobId!, ids),
+    onMutate: async (ids) => {
+      await queryClient.cancelQueries({ queryKey: stagesKey });
+      const prev = queryClient.getQueryData<PipelineStage[]>(stagesKey);
+      if (prev) {
+        const byId = Object.fromEntries(prev.map((s) => [s.id, s]));
+        const reordered = ids.map((id, i) => ({ ...byId[id], position: i })).filter(Boolean) as PipelineStage[];
+        const rest = prev.filter((s) => !ids.includes(s.id));
+        queryClient.setQueryData<PipelineStage[]>(stagesKey, [...reordered, ...rest]);
+      }
+      return { prev };
+    },
+    onError: (err: unknown, _v, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(stagesKey, ctx.prev);
+      toast({ title: "Erreur", description: String(apiDetail(err) || "Impossible de réordonner les étapes."), variant: "destructive" });
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: stagesKey }),
+  });
+
+  const [draggedStageId, setDraggedStageId] = useState<string | null>(null);
+  const [activeGap, setActiveGap] = useState<number | null>(null);
+
+  const handleStageGapDrop = useCallback((gapIndex: number) => {
+    if (!draggedStageId) return;
+    const sorted = [...stages].sort((a, b) => a.position - b.position);
+    const fromIdx = sorted.findIndex((s) => s.id === draggedStageId);
+    if (fromIdx === -1) return;
+    const targetIdx = gapIndex > fromIdx ? gapIndex - 1 : gapIndex;
+    if (targetIdx === fromIdx) { setDraggedStageId(null); setActiveGap(null); return; }
+    const next = [...sorted];
+    const [item] = next.splice(fromIdx, 1);
+    next.splice(targetIdx, 0, item);
+    reorderStagesMutation.mutate(next.map((s) => s.id));
+    setDraggedStageId(null);
+    setActiveGap(null);
+  }, [draggedStageId, stages, reorderStagesMutation]);
+
+  // Grouped candidates by stage (fallback : 1re colonne standard si étape absente ou inconnue)
   const candidatesByStage = useMemo(() => {
     const map: Record<string, Candidate[]> = {};
     for (const s of stages) map[s.id] = [];
+    const ordered = [...stages].sort((a, b) => a.position - b.position);
+    const fallbackStageId =
+      ordered.find((s) => s.stage_type === "standard")?.id ?? ordered[0]?.id;
     for (const c of candidates) {
-      if (c.current_stage_id && map[c.current_stage_id]) {
-        map[c.current_stage_id].push(c);
+      const sid = c.current_stage_id;
+      if (sid && map[sid]) {
+        map[sid].push(c);
+      } else if (fallbackStageId) {
+        map[fallbackStageId].push(c);
       }
     }
     return map;
@@ -864,17 +1209,65 @@ export default function Recruitment() {
         </div>
       ) : viewMode === "kanban" ? (
         /* KANBAN VIEW */
-        <div className="flex gap-3 overflow-x-auto pb-4">
-          {stages.map((stage) => (
-            <KanbanColumn
-              key={stage.id}
-              stage={stage}
-              candidates={candidatesByStage[stage.id] || []}
-              onCardClick={handleCardClick}
-              onDrop={handleDrop}
-              isRh={isRh}
-            />
-          ))}
+        <div
+          className="flex overflow-x-auto pb-4 items-stretch"
+          onDragEnd={() => { setDraggedStageId(null); setActiveGap(null); }}
+        >
+          {(() => {
+            const sorted = [...stages].sort((a, b) => a.position - b.position);
+            const items: React.ReactNode[] = [];
+            sorted.forEach((stage, idx) => {
+              if (isRh) {
+                items.push(
+                  <StageDropZone
+                    key={`gap-${idx}`}
+                    gapIndex={idx}
+                    activeGap={activeGap}
+                    onDragOver={(gi) => setActiveGap(gi)}
+                    onDragLeave={() => setActiveGap(null)}
+                    onDrop={handleStageGapDrop}
+                  />
+                );
+              }
+              items.push(
+                <div key={stage.id} className={idx > 0 && !isRh ? "ml-3" : ""}>
+                  <KanbanColumn
+                    stage={stage}
+                    candidates={candidatesByStage[stage.id] || []}
+                    onCardClick={handleCardClick}
+                    onCandidateDrop={handleDrop}
+                    isRh={isRh}
+                    onRename={isRh ? (name) => renameStageMutation.mutate({ stageId: stage.id, name }) : undefined}
+                    onDelete={isRh && stage.stage_type === "standard" ? () => setDeleteStageTarget(stage) : undefined}
+                    onHeaderDragStart={isRh ? (e) => {
+                      e.dataTransfer.setData(STAGE_DND_TYPE, stage.id);
+                      e.dataTransfer.effectAllowed = "move";
+                      if (e.currentTarget.parentElement) {
+                        e.dataTransfer.setDragImage(e.currentTarget.parentElement, 130, 20);
+                      }
+                      setDraggedStageId(stage.id);
+                    } : undefined}
+                  />
+                </div>
+              );
+            });
+            if (isRh) {
+              items.push(
+                <StageDropZone
+                  key={`gap-${sorted.length}`}
+                  gapIndex={sorted.length}
+                  activeGap={activeGap}
+                  onDragOver={(gi) => setActiveGap(gi)}
+                  onDragLeave={() => setActiveGap(null)}
+                  onDrop={handleStageGapDrop}
+                />
+              );
+            }
+            return items;
+          })()}
+          {isRh && effectiveJobId && (
+            <AddStageColumn onAdd={(name) => addStageMutation.mutate(name)} />
+          )}
         </div>
       ) : (
         /* LIST VIEW */
@@ -971,6 +1364,30 @@ export default function Recruitment() {
         onRequestArchive={handleRequestArchive}
         onScheduleInterview={() => setShowInterviewModal(true)}
       />
+
+      {/* Confirmation : Supprimer une étape */}
+      <AlertDialog open={!!deleteStageTarget} onOpenChange={(o) => !o && setDeleteStageTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer l&apos;étape « {deleteStageTarget?.name} » ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. L&apos;étape sera supprimée du pipeline.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteStageTarget) removeStageMutation.mutate(deleteStageTarget.id);
+              }}
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Dialog : Créer un poste */}
       <Dialog open={showCreateJob} onOpenChange={setShowCreateJob}>

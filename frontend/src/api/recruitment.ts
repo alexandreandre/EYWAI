@@ -153,6 +153,41 @@ export async function getPipelineStages(jobId: string): Promise<PipelineStage[]>
   return res.data ?? [];
 }
 
+export async function createPipelineStage(
+  jobId: string,
+  body: { name: string }
+): Promise<PipelineStage> {
+  const res = await apiClient.post<PipelineStage>(`/api/recruitment/jobs/${jobId}/stages`, body);
+  return res.data;
+}
+
+export async function updatePipelineStage(
+  jobId: string,
+  stageId: string,
+  body: { name?: string; is_final?: boolean }
+): Promise<PipelineStage> {
+  const res = await apiClient.patch<PipelineStage>(
+    `/api/recruitment/jobs/${jobId}/stages/${stageId}`,
+    body
+  );
+  return res.data;
+}
+
+export async function deletePipelineStage(jobId: string, stageId: string): Promise<void> {
+  await apiClient.delete(`/api/recruitment/jobs/${jobId}/stages/${stageId}`);
+}
+
+export async function reorderPipelineStages(
+  jobId: string,
+  stageIds: string[]
+): Promise<PipelineStage[]> {
+  const res = await apiClient.post<PipelineStage[]>(
+    `/api/recruitment/jobs/${jobId}/stages/reorder`,
+    { stage_ids: stageIds }
+  );
+  return res.data ?? [];
+}
+
 // ─── Candidates ─────────────────────────────────────────────────────
 
 export async function getCandidates(params?: {

@@ -93,3 +93,16 @@ class HireCandidateBody(BaseModel):
 
 class ArchiveCandidateBody(BaseModel):
     pass
+
+
+class PipelineStageCreate(BaseModel):
+    name: str
+
+
+class PipelineStageUpdate(BaseModel):
+    name: Optional[str] = None
+    is_final: Optional[bool] = None
+
+
+class PipelineStagesReorderBody(BaseModel):
+    stage_ids: List[str]

@@ -57,6 +57,19 @@ def get_pipeline_stages(company_id: str, job_id: str) -> list[dict[str, Any]]:
     return [pipeline_stage_row_to_out(s) for s in (res.data or [])]
 
 
+def count_candidates_on_stage(company_id: str, stage_id: str) -> int:
+    """Nombre de candidats actifs (non archivés) sur une étape."""
+    res = (
+        supabase.table("recruitment_candidates")
+        .select("id", count="exact")
+        .eq("company_id", company_id)
+        .eq("current_stage_id", stage_id)
+        .eq("is_archived", False)
+        .execute()
+    )
+    return int(res.count or 0) if res.count is not None else 0
+
+
 def list_candidates(
     company_id: str,
     job_id: Optional[str] = None,

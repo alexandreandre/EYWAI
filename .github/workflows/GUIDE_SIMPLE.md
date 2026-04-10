@@ -96,7 +96,8 @@ Deux comportements dans **le même fichier**, selon l’événement :
 
 - **Secret** : `GCP_SA_KEY` (JSON du compte de service).
 - **Variable** obligatoire : `GCP_PROJECT_ID`.
-- Souvent aussi : `GCP_REGION`, `BACKEND_SERVICE_NAME`, `FRONTEND_SERVICE_NAME`, `VITE_API_URL`, et pour la prod des variantes `*_PROD` si besoin.
+- **`VITE_API_URL`** (obligatoire pour **Deploy**) : URL **HTTPS** du backend utilisée au **build** du frontend (image Docker). Ne pas la mettre dans le dépôt : la valeur prod vit dans **Settings → Secrets and variables → Actions → Variables**. En local, le fichier `frontend/.env` contient `VITE_API_URL=http://localhost:8000` (voir `frontend/.env.example`).
+- Souvent aussi : `GCP_REGION`, `BACKEND_SERVICE_NAME`, `FRONTEND_SERVICE_NAME`, et pour la prod des variantes `*_PROD` si besoin.
 
 L’environnement GitHub **`production`** peut exiger une **approbation** avant le déploiement prod (*Settings → Environments*).
 

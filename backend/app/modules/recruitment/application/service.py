@@ -65,6 +65,17 @@ def service_update_job(
     return _job_repo.update(job_id, company_id, updates)
 
 
+def _first_pipeline_stage_id(stages: list[dict[str, Any]]) -> Optional[str]:
+    """Première étape « standard » par position, sinon première étape (ordre position)."""
+    if not stages:
+        return None
+    by_pos = sorted(stages, key=lambda s: int(s.get("position") or 0))
+    for s in by_pos:
+        if s.get("stage_type") == "standard":
+            return str(s["id"])
+    return str(by_pos[0]["id"])
+
+
 def service_create_candidate(
     company_id: str, user_id: str, data: dict[str, Any]
 ) -> dict[str, Any]:
@@ -72,7 +83,11 @@ def service_create_candidate(
     if not job:
         raise ValueError("Poste non trouvé")
     first_stages = _pipeline_stage_repo.list_by_job(company_id, data["job_id"])
-    stage_id = first_stages[0]["id"] if first_stages else None
+    if not first_stages:
+        first_stages = _pipeline_stage_repo.create_default_for_job(
+            company_id, data["job_id"]
+        )
+    stage_id = _first_pipeline_stage_id(first_stages)
     row = {
         "job_id": data["job_id"],
         "current_stage_id": stage_id,
@@ -281,6 +296,110 @@ def service_list_jobs(
 
 def service_get_pipeline_stages(company_id: str, job_id: str) -> list[dict[str, Any]]:
     return infra_queries.get_pipeline_stages(company_id, job_id)
+
+
+def _apply_positions(company_id: str, ordered_stages: list[dict[str, Any]]) -> None:
+    """Applique les positions 0..n-1 en évitant les conflits de contrainte unique (job_id, position)."""
+    for i, s in enumerate(ordered_stages):
+        _pipeline_stage_repo.update(str(s["id"]), company_id, {"position": -(i + 1)})
+    for i, s in enumerate(ordered_stages):
+        _pipeline_stage_repo.update(str(s["id"]), company_id, {"position": i})
+
+
+def _renormalize_stage_positions(company_id: str, job_id: str) -> None:
+    """Recalcule les positions 0..n-1 : étapes standard puis refus puis recruté."""
+    stages = _pipeline_stage_repo.list_by_job(company_id, job_id)
+    standards = sorted(
+        [s for s in stages if s.get("stage_type") == "standard"],
+        key=lambda x: int(x.get("position") or 0),
+    )
+    rejected = sorted(
+        [s for s in stages if s.get("stage_type") == "rejected"],
+        key=lambda x: int(x.get("position") or 0),
+    )
+    hired = sorted(
+        [s for s in stages if s.get("stage_type") == "hired"],
+        key=lambda x: int(x.get("position") or 0),
+    )
+    ordered = standards + rejected + hired
+    _apply_positions(company_id, ordered)
+
+
+def service_create_pipeline_stage(
+    company_id: str, job_id: str, data: dict[str, Any]
+) -> dict[str, Any]:
+    if not _job_repo.get_by_id(company_id, job_id):
+        raise ValueError("Poste non trouvé")
+    name = (data.get("name") or "").strip()
+    if not name:
+        raise ValueError("Le nom de l'étape est obligatoire.")
+    row = {
+        "name": name,
+        "position": 9999,
+        "stage_type": "standard",
+        "is_final": False,
+    }
+    created = _pipeline_stage_repo.create(company_id, job_id, row)
+    _renormalize_stage_positions(company_id, job_id)
+    out = _pipeline_stage_repo.get_by_id(company_id, str(created["id"]))
+    return out or created
+
+
+def service_update_pipeline_stage(
+    stage_id: str, company_id: str, job_id: str, data: dict[str, Any]
+) -> dict[str, Any]:
+    stage = _pipeline_stage_repo.get_by_id(company_id, stage_id)
+    if not stage or str(stage.get("job_id")) != str(job_id):
+        raise ValueError("Étape non trouvée")
+    raw = {k: v for k, v in data.items() if v is not None}
+    if "name" in raw:
+        raw["name"] = str(raw["name"]).strip()
+        if not raw["name"]:
+            raise ValueError("Le nom de l'étape est obligatoire.")
+    st_type = stage.get("stage_type")
+    if st_type in ("rejected", "hired"):
+        updates = {k: v for k, v in raw.items() if k == "name"}
+    else:
+        updates = {k: v for k, v in raw.items() if k in ("name", "is_final")}
+        if "is_final" in updates:
+            updates["is_final"] = bool(updates["is_final"])
+    if not updates:
+        raise ValueError("Aucune modification")
+    return _pipeline_stage_repo.update(stage_id, company_id, updates)
+
+
+def service_delete_pipeline_stage(stage_id: str, company_id: str, job_id: str) -> None:
+    stage = _pipeline_stage_repo.get_by_id(company_id, stage_id)
+    if not stage or str(stage.get("job_id")) != str(job_id):
+        raise ValueError("Étape non trouvée")
+    if stage.get("stage_type") in ("rejected", "hired"):
+        raise ValueError(
+            "Les étapes finales « refus » et « recruté » ne peuvent pas être supprimées."
+        )
+    job_id = str(stage["job_id"])
+    n = infra_queries.count_candidates_on_stage(company_id, stage_id)
+    if n > 0:
+        raise ValueError(
+            "Impossible de supprimer une étape contenant encore des candidats. Déplacez-les d'abord."
+        )
+    _pipeline_stage_repo.delete(stage_id, company_id)
+    _renormalize_stage_positions(company_id, job_id)
+
+
+def service_reorder_pipeline_stages(
+    company_id: str, job_id: str, ordered_stage_ids: list[str]
+) -> list[dict[str, Any]]:
+    if not _job_repo.get_by_id(company_id, job_id):
+        raise ValueError("Poste non trouvé")
+    stages = _pipeline_stage_repo.list_by_job(company_id, job_id)
+    ids_set = {str(s["id"]) for s in stages}
+    ordered = [str(x) for x in ordered_stage_ids]
+    if len(ordered) != len(ids_set) or set(ordered) != ids_set:
+        raise ValueError("La liste d'étapes ne correspond pas à ce poste.")
+    by_id = {str(s["id"]): s for s in stages}
+    ordered_stages = [by_id[sid] for sid in ordered]
+    _apply_positions(company_id, ordered_stages)
+    return _pipeline_stage_repo.list_by_job(company_id, job_id)
 
 
 def service_list_candidates(

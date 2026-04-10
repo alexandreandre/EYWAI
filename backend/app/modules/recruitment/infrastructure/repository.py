@@ -107,6 +107,47 @@ class PipelineStageRepository(IPipelineStageRepository):
                 stages.append(pipeline_stage_row_to_out(res.data[0]))
         return stages
 
+    def get_by_id(self, company_id: str, stage_id: str) -> Optional[dict[str, Any]]:
+        res = (
+            supabase.table("recruitment_pipeline_stages")
+            .select("*")
+            .eq("id", stage_id)
+            .eq("company_id", company_id)
+            .maybe_single()
+            .execute()
+        )
+        if not res.data:
+            return None
+        return pipeline_stage_row_to_out(res.data)
+
+    def create(
+        self, company_id: str, job_id: str, data: dict[str, Any]
+    ) -> dict[str, Any]:
+        row = {**data, "company_id": company_id, "job_id": job_id}
+        res = supabase.table("recruitment_pipeline_stages").insert(row).execute()
+        if not res.data:
+            raise ValueError("Erreur lors de la création de l'étape")
+        return pipeline_stage_row_to_out(res.data[0])
+
+    def update(
+        self, stage_id: str, company_id: str, data: dict[str, Any]
+    ) -> dict[str, Any]:
+        res = (
+            supabase.table("recruitment_pipeline_stages")
+            .update(data)
+            .eq("id", stage_id)
+            .eq("company_id", company_id)
+            .execute()
+        )
+        if not res.data:
+            raise ValueError("Étape non trouvée")
+        return pipeline_stage_row_to_out(res.data[0])
+
+    def delete(self, stage_id: str, company_id: str) -> None:
+        supabase.table("recruitment_pipeline_stages").delete().eq("id", stage_id).eq(
+            "company_id", company_id
+        ).execute()
+
 
 # ─── Timeline ──────────────────────────────────────────────────────────
 
@@ -188,9 +229,9 @@ class CandidateRepository(ICandidateRepository):
         ).execute()
 
     def archive(self, candidate_id: str, company_id: str) -> None:
-        supabase.table("recruitment_candidates").update(
-            {"is_archived": True}
-        ).eq("id", candidate_id).eq("company_id", company_id).execute()
+        supabase.table("recruitment_candidates").update({"is_archived": True}).eq(
+            "id", candidate_id
+        ).eq("company_id", company_id).execute()
 
 
 # ─── Duplicate checker ────────────────────────────────────────────────

@@ -90,6 +90,26 @@ class IPipelineStageRepository(ABC):
     ) -> list[dict[str, Any]]:
         pass
 
+    @abstractmethod
+    def get_by_id(self, company_id: str, stage_id: str) -> Optional[dict[str, Any]]:
+        pass
+
+    @abstractmethod
+    def create(
+        self, company_id: str, job_id: str, data: dict[str, Any]
+    ) -> dict[str, Any]:
+        pass
+
+    @abstractmethod
+    def update(
+        self, stage_id: str, company_id: str, data: dict[str, Any]
+    ) -> dict[str, Any]:
+        pass
+
+    @abstractmethod
+    def delete(self, stage_id: str, company_id: str) -> None:
+        pass
+
 
 class ITimelineEventWriter(ABC):
     """Écriture d'événements dans la timeline candidat."""

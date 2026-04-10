@@ -7,8 +7,8 @@ COPY package*.json ./
 RUN npm install
 COPY . .
 
-# On s'assure que VITE_API_URL est utilisé pendant le build
-ARG VITE_API_URL=https://sirh-backend-505040845625.europe-west1.run.app
+# URL HTTPS du backend (Cloud Run, etc.) — obligatoire au build : --build-arg ou deploy.yml (vars.VITE_API_URL)
+ARG VITE_API_URL
 ENV VITE_API_URL=${VITE_API_URL}
 RUN npm run build
 

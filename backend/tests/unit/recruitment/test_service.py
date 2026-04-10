@@ -145,7 +145,7 @@ class TestServiceCreateCandidate:
     def test_creates_candidate_and_timeline_event(self, mock_repos):
         mock_repos["job_repo"].get_by_id.return_value = {"id": "job-1"}
         mock_repos["stage_repo"].list_by_job.return_value = [
-            {"id": "stage-0", "position": 0}
+            {"id": "stage-0", "position": 0, "stage_type": "standard"}
         ]
         mock_repos["cand_repo"].create.return_value = {
             "id": "cand-new",
@@ -158,10 +158,38 @@ class TestServiceCreateCandidate:
             {"job_id": "job-1", "first_name": "Alice", "last_name": "Martin"},
         )
         assert result["id"] == "cand-new"
+        create_kw = mock_repos["cand_repo"].create.call_args[0][1]
+        assert create_kw["current_stage_id"] == "stage-0"
         mock_repos["timeline"].add.assert_called_once()
         call_kw = mock_repos["timeline"].add.call_args[1]
         assert call_kw["event_type"] == "candidate_created"
         assert "Alice" in call_kw["description"]
+
+    def test_creates_default_pipeline_when_empty_then_assigns_first_standard_stage(
+        self,
+        mock_repos,
+    ):
+        mock_repos["job_repo"].get_by_id.return_value = {"id": "job-1"}
+        mock_repos["stage_repo"].list_by_job.return_value = []
+        mock_repos["stage_repo"].create_default_for_job.return_value = [
+            {"id": "s-new", "position": 0, "stage_type": "standard"},
+            {"id": "s-ref", "position": 5, "stage_type": "rejected"},
+        ]
+        mock_repos["cand_repo"].create.return_value = {
+            "id": "c1",
+            "first_name": "B",
+            "last_name": "C",
+        }
+        svc.service_create_candidate(
+            "co-1",
+            "user-1",
+            {"job_id": "job-1", "first_name": "B", "last_name": "C"},
+        )
+        mock_repos["stage_repo"].create_default_for_job.assert_called_once_with(
+            "co-1", "job-1"
+        )
+        create_kw = mock_repos["cand_repo"].create.call_args[0][1]
+        assert create_kw["current_stage_id"] == "s-new"
 
 
 class TestServiceDeleteCandidate:
@@ -335,3 +363,55 @@ class TestIsUserParticipantForCandidate:
         mock_repos["participant_checker"].is_participant.assert_called_once_with(
             "user-1", "cand-1"
         )
+
+
+class TestServicePipelineStageCustomization:
+    """Création / suppression / réordonnancement du pipeline."""
+
+    def test_create_pipeline_stage_raises_when_job_missing(self, mock_repos):
+        mock_repos["job_repo"].get_by_id.return_value = None
+        with pytest.raises(ValueError, match="Poste non trouvé"):
+            svc.service_create_pipeline_stage("co-1", "job-x", {"name": "Étape"})
+
+    def test_create_pipeline_stage_raises_when_name_empty(self, mock_repos):
+        mock_repos["job_repo"].get_by_id.return_value = {"id": "job-1"}
+        with pytest.raises(ValueError, match="obligatoire"):
+            svc.service_create_pipeline_stage("co-1", "job-1", {"name": "  "})
+
+    def test_delete_pipeline_stage_raises_for_terminal(self, mock_repos):
+        mock_repos["stage_repo"].get_by_id.return_value = {
+            "id": "r",
+            "job_id": "job-1",
+            "stage_type": "rejected",
+        }
+        with pytest.raises(ValueError, match="supprim"):
+            svc.service_delete_pipeline_stage("r", "co-1", "job-1")
+
+    def test_delete_pipeline_stage_raises_when_wrong_job(self, mock_repos):
+        mock_repos["stage_repo"].get_by_id.return_value = {
+            "id": "s1",
+            "job_id": "job-other",
+            "stage_type": "standard",
+        }
+        with pytest.raises(ValueError, match="non trouvée"):
+            svc.service_delete_pipeline_stage("s1", "co-1", "job-1")
+
+    def test_reorder_pipeline_stages_raises_when_ids_mismatch(self, mock_repos):
+        mock_repos["job_repo"].get_by_id.return_value = {"id": "job-1"}
+        mock_repos["stage_repo"].list_by_job.return_value = [
+            {"id": "a"},
+            {"id": "b"},
+        ]
+        with pytest.raises(ValueError, match="correspond"):
+            svc.service_reorder_pipeline_stages("co-1", "job-1", ["a"])
+
+    def test_update_pipeline_stage_raises_when_wrong_job(self, mock_repos):
+        mock_repos["stage_repo"].get_by_id.return_value = {
+            "id": "s1",
+            "job_id": "job-other",
+            "stage_type": "standard",
+        }
+        with pytest.raises(ValueError, match="non trouvée"):
+            svc.service_update_pipeline_stage(
+                "s1", "co-1", "job-1", {"name": "Nouveau"}
+            )
