@@ -1,136 +1,154 @@
 ---
 name: check-feature
-description: Vérifie qu’une fonctionnalité demandée a bien été implémentée, teste son fonctionnement, et complète ou corrige le code si nécessaire. À utiliser lorsque l’utilisateur tape /check-feature avec le prompt d’origine décrivant la fonctionnalité.
+description: Vérifie qu’une fonctionnalité demandée a bien été implémentée, teste son fonctionnement, et complète ou corrige le code si nécessaire. À utiliser lorsque l’utilisateur tape /check-feature avec le prompt d’origine (ou une description équivalente) de la fonctionnalité ; couvre front, back, tests, CI et synthèse en français.
 ---
 
-# Check Feature
+# Check Feature (`/check-feature`)
 
 ## Objectif
 
-Ce skill sert à **vérifier qu’une fonctionnalité décrite dans un prompt d’origine est réellement implémentée, fonctionnelle et complète**, puis à **compléter ou corriger le code si besoin**.
+**Vérifier** qu’une fonctionnalité décrite dans un **prompt d’origine** (ou équivalent) est **implémentée, branchée et utilisable**, puis **compléter ou corriger** le code et les tests si besoin.
 
-Il est pensé pour être appelé quand l’utilisateur écrit quelque chose comme :  
-`/check-feature` suivi du **prompt d’origine** qui décrivait la fonctionnalité à développer.
+Invocation typique : `/check-feature` suivi du texte qui définissait la fonctionnalité (spec initiale, ticket, copie de prompt).
 
 ## Quand utiliser ce skill
 
-Utiliser ce skill lorsque :
+- L’utilisateur demande explicitement **`/check-feature`** ou une **revue de complétude** d’une fonctionnalité multi-fichiers (souvent front + back).
+- Il fournit au minimum une **description exploitable** : prompt d’origine, liste d’acceptance, ou lien vers une spec dans le dépôt.
 
-- l’utilisateur tape explicitement **`/check-feature`** ;
-- et fournit un **prompt d’origine** décrivant une fonctionnalité (souvent longue ou multi-étapes) ;
-- et souhaite savoir **si tout a été fait**, si c’est **vraiment fonctionnel**, et que l’agent **complète ou corrige** si nécessaire.
+**Ne pas** l’utiliser pour une question ponctuelle, un renommage isolé ou un débogage ciblé (préférer le skill **debug** ou une demande directe).
 
-Ne pas utiliser ce skill pour des questions générales ou des micro-modifs isolées ; il est destiné à des **fonctionnalités complètes** (plusieurs fichiers, front + back, etc.).
+### Si le prompt d’origine est absent ou trop flou
+
+1. **D’abord** : utiliser le contexte du fil (fichiers ouverts, diff récent, branche) pour déduire l’intention et une checklist minimale.
+2. **Sinon** : poser **une seule** question courte, listant les points bloquants (ex. rôles concernés, parcours utilisateur, endpoints attendus).
+3. Ne pas bloquer indéfiniment : traiter ce qui est vérifiable objectivement (routes, tests, erreurs 4xx/5xx) et marquer le reste **MANQUANT / à clarifier**.
 
 ---
 
 ## Workflow global
 
-Lorsque ce skill est actif, suis ce workflow :
+Lorsque ce skill est actif, suivre cet ordre (il évite les fausses « complétudes » où du code existe mais n’est pas branché).
 
-1. **Comprendre la fonctionnalité demandée**
-   - Lire soigneusement le **prompt d’origine** fourni après `/check-feature`.
-   - En extraire :
-     - les **objectifs métier** (ce que l’utilisateur final doit pouvoir faire) ;
-     - les **fonctionnalités attendues** (liste d’actions, écrans, endpoints, comportements) ;
-     - les **contraintes techniques** importantes (auth, rôles, perfs, UX, validations, etc.).
-   - Construire une **checklist structurée** (en mémoire ou dans la réponse) de tout ce qui doit être vrai pour considérer la fonctionnalité comme “finie”.
+### 1. Comprendre et cadrer
 
-2. **Cartographier les zones de code concernées**
-   - Identifier rapidement les zones probables :
-     - frontend : pages, composants, API client, routes ;
-     - backend : endpoints, services, modules, modèles, migrations, permissions ;
-     - tests : unitaires, d’intégration, e2e si présents.
-   - Utiliser les outils de navigation de code (SemanticSearch, Grep, Glob, Read) pour trouver :
-     - les noms de pages, routes, endpoints, composants ;
-     - les nouvelles entités métier ou modules techniques mentionnés dans le prompt.
+- Lire le **prompt d’origine** ou l’équivalent.
+- En extraire :
+  - **Objectifs métier** (ce que l’utilisateur final peut faire) ;
+  - **Comportements attendus** (écrans, actions, états, messages) ;
+  - **Contraintes** (auth, rôles, validation, perfs, accessibilité, i18n produit en **français** pour l’UI).
+- Produire une **checklist vérifiable** (formulations testables : « un utilisateur X peut… », « en cas d’erreur Y… »).
 
-3. **Vérifier la couverture fonctionnelle**
-   - Pour chaque point de la checklist :
-     - Chercher l’**implémentation correspondante** dans le code.
-     - Vérifier que :
-       - le code existe réellement ;
-       - il est relié au reste de l’application (routes, navigation, injections, exports/imports, etc.) ;
-       - il traite les cas principaux et, si précisé, les cas limites/erreurs.
-   - Marquer mentalement (ou dans la réponse) chaque point comme :
-     - **OK** : implémenté et cohérent ;
-     - **PARTIEL** : présent mais incomplet ou fragile ;
-     - **MANQUANT** : non trouvé ou non branché.
+### 2. Cartographier le code
 
-4. **Vérifier le comportement par l’exécution**
-   - Quand c’est possible dans ce projet :
-     - Lancer ou relancer les **tests** pertinents (unitaires / d’intégration) via `Shell` (ex. `pytest`, `npm test`, etc.).
-     - Lancer les **vérifications statiques** utiles (linters, type-checkers) sur les fichiers modifiés.
-   - Si un serveur de dev ou une appli web est en place et que le contexte s’y prête, utiliser un agent de type **browser** pour :
-     - naviguer jusqu’à la fonctionnalité ;
-     - exécuter les scénarios principaux décrits par le prompt (ex. créer un élément, valider un formulaire, changement d’état, etc.) ;
-     - vérifier les états d’UI, messages d’erreur, redirections, droits d’accès.
-   - Noter les comportements incorrects, incohérences UX ou erreurs techniques visibles.
+Repérer dans le dépôt :
 
-5. **Corriger et compléter si nécessaire**
-   - Pour chaque point **PARTIEL** ou **MANQUANT** :
-     - Concevoir la modification minimale mais propre pour respecter le prompt d’origine et l’architecture actuelle du projet.
-     - Apporter les modifications de code nécessaires (frontend, backend, tests, config, etc.).
-     - Éviter de casser les parties existantes qui ne sont pas concernées.
-   - Ajouter ou adapter des **tests** :
-     - tests unitaires pour la logique critique ;
-     - tests d’intégration ou e2e si l’infrastructure est déjà présente.
-   - Relancer les tests et les validations rapides (lint, type-check) pour s’assurer que les corrections tiennent.
+| Zone | Où chercher (indicatif EYWAI) |
+|------|-------------------------------|
+| Frontend | `frontend/src/` — pages, routes, composants, hooks, client API |
+| Backend | `backend/app/` — modules métier, routes FastAPI, services |
+| Persistance | schémas / migrations selon les conventions du repo ; **ne pas improviser** de migration SQL hors process (voir `AGENTS.md` / règles backend) |
+| Tests | `backend/tests/` (unit / integration / e2e / migration) ; Playwright sous `e2e/` si pertinent |
 
-6. **Évaluer la complétude finale**
-   - Repasser en revue la checklist construite à l’étape 1.
-   - Mettre à jour le statut de chaque point après corrections :
-     - **OK / implémenté** ;
-     - **Non fait / compromis** (si le projet ou le temps ne permet pas).
-   - Si certains points restent non implémentés (limitations techniques, manque de contexte, risques de régression), les **documenter explicitement** dans la réponse.
+Outils : recherche sémantique, `Grep`, `Glob`, `Read` sur noms de routes, handlers, clés i18n, strings métier.
 
-7. **Produire une synthèse claire pour l’utilisateur**
-   - Répondre en français (sauf demande contraire explicite).
-   - Fournir une synthèse structurée, par exemple :
-     - **Résumé rapide** : oui/non, la fonctionnalité est considérée comme complète.
-     - **Checklist de conformité** :
-       - chaque point important avec statut (OK / PARTIEL / MANQUANT) ;
-     - **Modifications effectuées** :
-       - liste courte et high-level des fichiers/parties modifiées sans copier-coller de gros blocs de code ;
-     - **Tests exécutés** :
-       - quels tests/commandes ont été lancés et le résultat ;
-     - **Limites connues / TODO** :
-       - ce qui reste éventuellement à faire ou les risques identifiés.
+### 3. Vérifier la couverture fonctionnelle (code + câblage)
+
+Pour chaque point de la checklist :
+
+- Le code **existe** ;
+- Il est **connecté** (route enregistrée, menu, navigation, export, injection DI, feature flag si utilisé dans le projet) ;
+- Les **cas d’erreur** mentionnés dans le prompt sont gérés (validation, 403/404, messages utilisateur).
+
+Statuts :
+
+- **OK** : implémenté, branché, cohérent avec le reste ;
+- **PARTIEL** : présent mais incomplet, fragile ou incohérent UX/API ;
+- **MANQUANT** : absent ou non branché.
+
+### 4. Vérifier par l’exécution
+
+Quand c’est possible, **exécuter** plutôt que seulement lire.
+
+**Backend** (depuis `backend/`, aligné sur la CI pytest « hors e2e ») :
+
+```bash
+python -m pytest tests/ -m "not e2e" -v --tb=short
+```
+
+Ciblage si la zone est connue :
+
+```bash
+python -m pytest tests/unit/<module>/ -v --tb=short
+python -m pytest tests/integration/<module>/ -v --tb=short
+```
+
+**Frontend** (depuis `frontend/`) :
+
+```bash
+npm run lint
+npm run build
+```
+
+**E2E** : les specs Playwright sous `e2e/` ne font pas partie du job pytest CI courant ; les lancer si la fonctionnalité est critique UI (`npm run test` ou équivalent dans `e2e/package.json` selon le dépôt).
+
+**Linter** : `ReadLints` sur les fichiers modifiés après changement.
+
+Si un **agent navigateur** est disponible : parcourir le flux principal (création, édition, droits, messages d’erreur). Sinon : décrire le **scénario manuel** minimal restant à valider humainement.
+
+### 5. Corriger et compléter
+
+- Pour **PARTIEL** / **MANQUANT** : changements **minimaux** et alignés sur l’architecture existante (pas de refactor gratuit).
+- Ajouter ou ajuster des **tests** pour la logique critique ; pour la convention des dossiers, marqueurs et visibilité Super Admin → se référer au skill **test** (fichier `.cursor/skills/test/SKILL.md` à la racine du dépôt) et à `backend/tests/README.md`.
+- Après modification : **relancer** pytest ciblé ou complet + lint/build si le périmètre le justifie.
+
+### 6. Complétude finale et transparence
+
+- Reparcourir la checklist : mettre à jour chaque statut.
+- Tout ce qui reste **non fait** (risque de régression, secret manquant, clarification produit) doit être dit **explicitement** dans la synthèse.
+
+### 7. Synthèse pour l’utilisateur (en français)
+
+Structure recommandée :
+
+1. **Résumé** : fonctionnalité considérée comme complète ou non, en une phrase.
+2. **Checklist de conformité** : points importants avec **OK / PARTIEL / MANQUANT** (et une brève justification ou chemin de fichier pour les doutes).
+3. **Modifications effectuées** : liste courte des zones touchées (pas de gros blocs de code).
+4. **Tests / commandes** : commandes lancées et résultat (succès / échec corrigé).
+5. **Limites / TODO** : ce qui manque ou ce qui devrait être validé manuellement.
 
 ---
 
-## Détails d’implémentation à respecter
+## Priorisation si le contexte est long ou contraint
 
-- **Ne pas s’arrêter à la première difficulté** :
-  - Si un test ou une commande échoue, analyser l’erreur, ajuster le code et relancer.
-  - Ne pas demander de validation à l’utilisateur juste pour confirmation si l’action est raisonnable à entreprendre.
-
-- **Respecter le style et la structure du projet** :
-  - Suivre les conventions déjà présentes (patterns backend/frontend, outils de test, structure des modules).
-  - Éviter d’introduire des dépendances lourdes sans nécessité claire.
-
-- **Limiter la verbosité du code ajouté** :
-  - Pas de commentaires évidents qui ré-expliquent littéralement le code.
-  - Les commentaires doivent uniquement expliciter des choix non évidents ou des contraintes métier.
-
-- **Toujours vérifier les lints sur les fichiers modifiés** lorsque des outils sont configurés dans le projet.
+1. **Sûreté et accès** (auth, permissions, données sensibles) ;
+2. **Parcours métier principal** du prompt ;
+3. **Régression** sur les flux adjacents ;
+4. **Tests** automatisables sans infrastructure exotique ;
+5. **Finitions** UX non bloquantes.
 
 ---
 
-## Exemple d’utilisation attendu
+## Règles d’implémentation pour l’agent
 
-Demande typique de l’utilisateur :
+- **Ne pas abandonner** au premier échec de test ou de build : analyser, corriger, relancer.
+- **Ne pas demander** une validation utilisateur pour une action raisonnable et réversible (lancer tests, lint, petit correctif).
+- **Respecter** les conventions du dépôt (règles `.cursor/rules/`, structure `backend/app/`, stack Vite/React).
+- **Code** : pas de commentaires redondants ; commenter seulement les choix non évidents ou contraintes métier.
+- **Portée** : ne pas étendre la fonctionnalité au-delà du prompt sauf bug bloquant découvert au passage (le mentionner dans la synthèse).
 
-> "/check-feature  
-> Voici le prompt d’origine de la fonctionnalité que je voulais implémenter :  
-> [texte du prompt d’origine décrivant la fonctionnalité, les écrans, les règles métier, etc.]  
-> Peux-tu vérifier que tout est bien en place, que ça fonctionne, et compléter si besoin ?"
+---
 
-Comportement attendu de l’agent avec ce skill :
+## Exemple d’utilisation
 
-1. Analyse du prompt d’origine et création d’une checklist.
-2. Inspection structurée du code (front, back, tests) pour chaque point de la checklist.
-3. Exécution des tests / linters / éventuellement scénarios via navigateur si possible.
-4. Corrections et compléments de code pour se rapprocher au maximum du prompt d’origine.
-5. Synthèse claire en français de l’état de la fonctionnalité, des modifications effectuées et de ce qu’il reste éventuellement à faire.
+> `/check-feature`  
+> Voici le prompt d’origine : […]  
+> Vérifie que tout est en place, que ça fonctionne, et complète si besoin.
 
+Comportement attendu :
+
+1. Checklist à partir du prompt.
+2. Inspection structurée (front, back, tests, câblage).
+3. Exécution pytest / lint / build (et e2e si pertinent).
+4. Correctifs ciblés + tests si trou de couverture.
+5. Synthèse structurée en français.
