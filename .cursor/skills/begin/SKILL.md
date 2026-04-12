@@ -2,18 +2,18 @@
 name: begin
 description: >-
   Démarre une session Git sur la branche personnelle du dépôt (dev-mathieu,
-  dev-jose, dev-alex), vérifie la branche courante, demande confirmation si
-  des modifications locales sont en cours avant fetch/merge, synchronise
-  cette branche avec origin/main sans basculer sur main, et affiche un
-  mini-bilan utile. À utiliser lorsque l’utilisateur demande de commencer une
-  session de travail sur sa branche dev-* ou attache explicitement ce skill.
+  dev-jose, dev-alex), vérifie la branche courante, demande une confirmation
+  explicite (Oui/Non) avant toute synchro avec main, synchronise cette branche
+  avec origin/main sans basculer sur main, et affiche un mini-bilan utile.
+  À utiliser lorsque l’utilisateur demande de commencer une session de travail
+  sur sa branche dev-* ou attache explicitement ce skill.
 ---
 
 # Begin — session de travail sur branche dev-*
 
 ## Objectif
 
-Aider les développeurs à **démarrer une session** : être sur **la bonne branche**, **récupérer les derniers changements de `main`** dans **leur** branche, **sans jamais checkout `main`** ni modifier l’état de la branche locale `main` (on ne fait que `fetch` + intégration sur la branche courante).
+Aider les développeurs à **démarrer une session** : être sur **la bonne branche**, obtenir une **confirmation explicite (Oui/Non)** avant toute synchro avec `main`, puis **récupérer les derniers changements de `main`** dans **leur** branche, **sans jamais checkout `main`** ni modifier l’état de la branche locale `main` (on ne fait que `fetch` + intégration sur la branche courante).
 
 ## Quand utiliser ce skill
 
@@ -59,19 +59,29 @@ Exécuter :
 git status -sb
 ```
 
-- **Arbre de travail propre** (aucune modification non commitée, staging vide pour les changements en cours) : enchaîner directement avec l’étape 4.
-- **Modifications en cours** (fichiers modifiés, ajoutés, supprimés non commités, conflits en cours, etc.) :
-  1. **Ne pas** exécuter l’étape 4 (`fetch` / `merge` / `rebase`) tant que l’utilisateur n’a pas répondu clairement.
-  2. **Demander explicitement** à l’utilisateur s’il souhaite poursuivre malgré les changements locaux, en rappelant le risque (conflits, état pénible, pertes si mal géré).
-  3. Proposer des options courtes, par exemple :
-     - **Annuler pour l’instant** : committer ou ranger le travail, puis relancer `/begin`.
-     - **Continuer après stash** : si l’utilisateur accepte, exécuter **`git stash push -u -m "begin session"`** avant l’étape 4, puis **`git stash pop`** après une intégration réussie (uniquement avec accord explicite).
-     - **Continuer sans stash** : seulement si l’utilisateur le demande **explicitement** et en connaissance de cause (l’agent peut rappeler que ce n’est pas l’option par défaut).
-  4. Si l’utilisateur ne confirme pas ou refuse : **s’arrêter** après `git status` (éventuellement résumer l’état et la branche), sans `fetch` ni merge/rebase.
+- S’il y a des modifications non commitées :
+  - **Avertir** que `merge` / `rebase` peut créer des conflits ou un état pénible.
+  - Proposer **`git stash push -u -m "begin session"`** avant l’étape 5, puis **`git stash pop`** après une intégration réussie (seulement si l’utilisateur accepte ou le contexte le permet sans perte de données).
 
-### 4. Mettre à jour **sans toucher à `main`**
+### 4. Confirmation utilisateur (obligatoire) — **avant** `fetch` / `merge` / `rebase`
 
-Principe : **`fetch`** met à jour les **refs distantes** ; la branche locale `main` n’est **pas** checkoutée ni modifiée par défaut. Cette étape n’a lieu **qu’après** validation de l’étape 3 (arbre propre ou accord explicite de l’utilisateur).
+**Ne pas** exécuter les commandes de l’étape 5 tant que cette étape n’est pas résolue.
+
+- Demander à l’utilisateur une validation **binaire** : **Oui** ou **Non**.
+  - **Préférence** : utiliser une **question structurée avec boutons** (deux choix explicites « Oui » / « Non ») lorsque l’interface le permet.
+  - **Sinon** : poser la question en texte clair et **attendre** une réponse explicite « Oui » ou « Non » (ne pas interpréter une absence de réponse comme un accord).
+
+**Texte minimum à communiquer** (adapter légèrement si besoin, sans diluer l’intention) :
+
+> En poursuivant la synchronisation avec `main`, vos **changements actuels** (fichiers modifiés non commités, et travail présent **uniquement** sur votre branche **qui n’est pas encore mergé sur `main`**) peuvent être **perdus, écrasés ou rendus difficiles à récupérer** selon la suite des opérations (conflits, réécriture d’historique, abandon d’une résolution, etc.).  
+> **Êtes-vous sûr·e ?**
+
+- Si la réponse est **Non** (ou équivalent refus) : **arrêter** le workflow begin ici ; indiquer ce qui **n’a pas** été fait (`fetch` / `merge` / `rebase` non lancés) et rappeler comment relancer plus tard.
+- Si la réponse est **Oui** : enchaîner avec l’étape 5.
+
+### 5. Mettre à jour **sans toucher à `main`**
+
+Principe : **`fetch`** met à jour les **refs distantes** ; la branche locale `main` n’est **pas** checkoutée ni modifiée par défaut. Cette étape n’a lieu **qu’après** validation de l’étape 4 (confirmation Oui de l’utilisateur).
 
 ```bash
 git fetch origin main
@@ -93,7 +103,7 @@ git rebase origin/main
 
 En cas de conflits : les signaler, lister les fichiers concernés, guider vers résolution (`git status`, édition, `git add`, puis `git merge --continue` ou `git rebase --continue`). Ne pas forcer (`--force`) sans demande explicite.
 
-### 5. Mini-bilan « gadget » (à afficher dans la réponse)
+### 6. Mini-bilan « gadget » (à afficher dans la réponse)
 
 Après intégration réussie, exécuter au besoin et résumer en **quelques lignes** :
 
@@ -109,7 +119,7 @@ Interprétation rapide du compteur `left	right` : gauche = commits sur `origin/m
 - Si `package.json` / `package-lock.json` / `pnpm-lock.yaml` / `requirements.txt` ont changé par rapport à avant le merge : rappeler **`npm install`** ou équivalent.
 - Rappeler le lancement dev du projet si documenté (ex. selon `guidebranche.md` : `npm run dev`).
 
-### 6. Synthèse pour l’utilisateur (en français)
+### 7. Synthèse pour l’utilisateur (en français)
 
 Répondre avec :
 
@@ -126,7 +136,8 @@ Répondre avec :
 
 - Ne pas faire `git checkout main` ni `git pull` **sur** `main` dans ce workflow (hors périmètre « session sur dev-* »).
 - Ne pas rebaser une branche **déjà poussée et utilisée par d’autres** sans accord / convention d’équipe.
-- Ne pas ignorer un working tree **sale** : **demander confirmation** et **ne pas** lancer `fetch` / merge / rebase sans réponse claire de l’utilisateur.
+- Ne pas ignorer un working tree **sale** : au minimum avertir avant merge/rebase.
+- Ne pas enchaîner `fetch` / `merge` / `rebase` **sans** la confirmation explicite Oui de l’étape 4.
 
 ---
 
