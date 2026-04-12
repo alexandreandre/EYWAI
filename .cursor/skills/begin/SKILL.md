@@ -2,10 +2,11 @@
 name: begin
 description: >-
   Démarre une session Git sur la branche personnelle du dépôt (dev-mathieu,
-  dev-jose, dev-alex), vérifie la branche courante, synchronise cette branche
-  avec origin/main sans basculer sur main, et affiche un mini-bilan utile.
-  À utiliser lorsque l’utilisateur demande de commencer une session de travail
-  sur sa branche dev-* ou attache explicitement ce skill.
+  dev-jose, dev-alex), vérifie la branche courante, demande confirmation si
+  des modifications locales sont en cours avant fetch/merge, synchronise
+  cette branche avec origin/main sans basculer sur main, et affiche un
+  mini-bilan utile. À utiliser lorsque l’utilisateur demande de commencer une
+  session de travail sur sa branche dev-* ou attache explicitement ce skill.
 ---
 
 # Begin — session de travail sur branche dev-*
@@ -50,7 +51,7 @@ git branch --show-current
     `git checkout dev-alex`  
   - S’arrêter ici sauf si l’utilisateur demande explicitement une autre branche documentée.
 
-### 3. État du working tree (gadget)
+### 3. État du working tree (obligatoire avant toute intégration)
 
 Exécuter :
 
@@ -58,13 +59,19 @@ Exécuter :
 git status -sb
 ```
 
-- S’il y a des modifications non commitées :
-  - **Avertir** que `merge` / `rebase` peut créer des conflits ou un état pénible.
-  - Proposer **`git stash push -u -m "begin session"`** avant l’étape 4, puis **`git stash pop`** après une intégration réussie (seulement si l’utilisateur accepte ou le contexte le permet sans perte de données).
+- **Arbre de travail propre** (aucune modification non commitée, staging vide pour les changements en cours) : enchaîner directement avec l’étape 4.
+- **Modifications en cours** (fichiers modifiés, ajoutés, supprimés non commités, conflits en cours, etc.) :
+  1. **Ne pas** exécuter l’étape 4 (`fetch` / `merge` / `rebase`) tant que l’utilisateur n’a pas répondu clairement.
+  2. **Demander explicitement** à l’utilisateur s’il souhaite poursuivre malgré les changements locaux, en rappelant le risque (conflits, état pénible, pertes si mal géré).
+  3. Proposer des options courtes, par exemple :
+     - **Annuler pour l’instant** : committer ou ranger le travail, puis relancer `/begin`.
+     - **Continuer après stash** : si l’utilisateur accepte, exécuter **`git stash push -u -m "begin session"`** avant l’étape 4, puis **`git stash pop`** après une intégration réussie (uniquement avec accord explicite).
+     - **Continuer sans stash** : seulement si l’utilisateur le demande **explicitement** et en connaissance de cause (l’agent peut rappeler que ce n’est pas l’option par défaut).
+  4. Si l’utilisateur ne confirme pas ou refuse : **s’arrêter** après `git status` (éventuellement résumer l’état et la branche), sans `fetch` ni merge/rebase.
 
 ### 4. Mettre à jour **sans toucher à `main`**
 
-Principe : **`fetch`** met à jour les **refs distantes** ; la branche locale `main` n’est **pas** checkoutée ni modifiée par défaut.
+Principe : **`fetch`** met à jour les **refs distantes** ; la branche locale `main` n’est **pas** checkoutée ni modifiée par défaut. Cette étape n’a lieu **qu’après** validation de l’étape 3 (arbre propre ou accord explicite de l’utilisateur).
 
 ```bash
 git fetch origin main
@@ -107,6 +114,7 @@ Interprétation rapide du compteur `left	right` : gauche = commits sur `origin/m
 Répondre avec :
 
 - Branche vérifiée (OK ou erreur + commande `checkout`).
+- Si l’étape 3 a bloqué (modifs locales sans accord) : résumer `git status -sb` et rappeler qu’aucun `fetch`/merge n’a été lancé tant que l’utilisateur n’a pas choisi.
 - Actions Git effectuées (`fetch`, `merge` ou `rebase`).
 - Dernier commit (`git log -1 --oneline`).
 - Éventuellement divergence `origin/main...HEAD` en une phrase.
@@ -118,7 +126,7 @@ Répondre avec :
 
 - Ne pas faire `git checkout main` ni `git pull` **sur** `main` dans ce workflow (hors périmètre « session sur dev-* »).
 - Ne pas rebaser une branche **déjà poussée et utilisée par d’autres** sans accord / convention d’équipe.
-- Ne pas ignorer un working tree **sale** : au minimum avertir avant merge/rebase.
+- Ne pas ignorer un working tree **sale** : **demander confirmation** et **ne pas** lancer `fetch` / merge / rebase sans réponse claire de l’utilisateur.
 
 ---
 
@@ -126,4 +134,4 @@ Répondre avec :
 
 > Je démarre ma journée — mets-moi à jour proprement sur ma branche dev (workflow begin du dépôt).
 
-L’agent exécute les commandes, respecte les arrêts si mauvaise branche, et renvoie le mini-bilan structuré.
+L’agent exécute les commandes, respecte les arrêts si mauvaise branche ou si des modifications locales sont en cours **sans accord explicite**, et renvoie le mini-bilan structuré une fois l’intégration terminée.
