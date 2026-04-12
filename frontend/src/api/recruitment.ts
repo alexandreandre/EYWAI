@@ -46,6 +46,8 @@ export interface Candidate {
   rejection_reason_detail?: string | null;
   hired_at?: string | null;
   employee_id?: string | null;
+  /** URL du CV si le backend / stockage l’expose */
+  cv_url?: string | null;
   created_at: string;
   updated_at: string;
 }

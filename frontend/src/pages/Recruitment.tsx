@@ -1,7 +1,7 @@
 // frontend/src/pages/Recruitment.tsx
 // Page RH : Module Recrutement (ATS) — Pipeline Kanban + Vue Liste + Fiche candidat
 
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, type CSSProperties } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getJobs, createJob, getPipelineStages, getCandidates, createCandidate,
@@ -10,7 +10,7 @@ import {
   deleteCandidate, archiveCandidate, checkDuplicate,
   createPipelineStage, updatePipelineStage, deletePipelineStage, reorderPipelineStages,
   type Job, type PipelineStage, type Candidate, type Note, type Opinion,
-  type Interview, type TimelineEvent, type HireResult,
+  type Interview, type HireResult,
 } from "@/api/recruitment";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -39,6 +39,24 @@ import {
   Loader2, Briefcase, X, ChevronRight, MessageSquare, AlertTriangle,
   UserPlus, Check, GripVertical,
 } from "lucide-react";
+import {
+  DndContext,
+  DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  horizontalListSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { cn } from "@/lib/utils";
 
 // ─── Kanban Card ────────────────────────────────────────────────────
 
@@ -72,8 +90,6 @@ function CandidateCard({ candidate, onClick }: { candidate: Candidate; onClick: 
 
 // ─── Kanban Column ──────────────────────────────────────────────────
 
-const STAGE_DND_TYPE = "application/x-stage-id";
-
 function KanbanColumn({
   stage,
   candidates,
@@ -82,7 +98,7 @@ function KanbanColumn({
   isRh,
   onRename,
   onDelete,
-  onHeaderDragStart,
+  stageDragHandleProps,
 }: {
   stage: PipelineStage;
   candidates: Candidate[];
@@ -91,7 +107,8 @@ function KanbanColumn({
   isRh: boolean;
   onRename?: (name: string) => void;
   onDelete?: () => void;
-  onHeaderDragStart?: (e: React.DragEvent) => void;
+  /** Poignée @dnd-kit (icône ⋮⋮ uniquement — évite le conflit avec le renommage) */
+  stageDragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(stage.name);
@@ -145,14 +162,17 @@ function KanbanColumn({
         if (candidateId) { e.preventDefault(); onCandidateDrop(candidateId, stage.id); }
       } : undefined}
     >
-      {/* Header — draggable pour réordonner */}
-      <div
-        draggable={isRh && !editing}
-        onDragStart={isRh && !editing ? onHeaderDragStart : undefined}
-        className={`px-3 py-2 border-b flex items-center gap-1.5 ${isRh && !editing ? "cursor-grab active:cursor-grabbing" : ""}`}
-      >
-        {isRh && (
-          <GripVertical className="h-4 w-4 text-muted-foreground/50 shrink-0" />
+      {/* Header — réordonnancement via la poignée ⋮⋮ (@dnd-kit) */}
+      <div className="px-3 py-2 border-b flex items-center gap-1.5">
+        {isRh && stageDragHandleProps && (
+          <button
+            type="button"
+            className="-ml-1 p-1 rounded-md shrink-0 cursor-grab active:cursor-grabbing touch-none text-muted-foreground hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            aria-label="Déplacer l&apos;étape"
+            {...stageDragHandleProps}
+          >
+            <GripVertical className="h-4 w-4 opacity-70" />
+          </button>
         )}
 
         {editing ? (
@@ -217,44 +237,55 @@ function KanbanColumn({
   );
 }
 
-// ─── Drop zone between columns ──────────────────────────────────────
-
-function StageDropZone({
-  gapIndex,
-  activeGap,
-  onDragOver,
-  onDragLeave,
-  onDrop,
+/** Colonne pipeline triable (comportement proche du Dock macOS : les autres colonnes cèdent la place). */
+function SortableStageColumn({
+  stage,
+  candidates,
+  onCardClick,
+  onCandidateDrop,
+  isRh,
+  onRename,
+  onDelete,
 }: {
-  gapIndex: number;
-  activeGap: number | null;
-  onDragOver: (gapIndex: number, e: React.DragEvent) => void;
-  onDragLeave: () => void;
-  onDrop: (gapIndex: number) => void;
+  stage: PipelineStage;
+  candidates: Candidate[];
+  onCardClick: (c: Candidate) => void;
+  onCandidateDrop: (candidateId: string, stageId: string) => void;
+  isRh: boolean;
+  onRename?: (name: string) => void;
+  onDelete?: () => void;
 }) {
-  const active = activeGap === gapIndex;
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: stage.id });
+
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 20 : undefined,
+  };
+
   return (
     <div
-      className={`shrink-0 self-stretch flex items-center transition-all duration-150 ${active ? "w-3" : "w-1.5"}`}
-      onDragOver={(e) => {
-        if (e.dataTransfer.types.includes(STAGE_DND_TYPE)) {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = "move";
-          onDragOver(gapIndex, e);
-        }
-      }}
-      onDragLeave={(e) => {
-        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-        onDragLeave();
-      }}
-      onDrop={(e) => {
-        if (e.dataTransfer.types.includes(STAGE_DND_TYPE)) {
-          e.preventDefault();
-          onDrop(gapIndex);
-        }
-      }}
+      ref={setNodeRef}
+      style={style}
+      className={cn("shrink-0", isDragging && "opacity-95")}
     >
-      <div className={`mx-auto h-full rounded-full transition-all duration-150 ${active ? "w-1 bg-primary" : "w-0"}`} />
+      <KanbanColumn
+        stage={stage}
+        candidates={candidates}
+        onCardClick={onCardClick}
+        onCandidateDrop={onCandidateDrop}
+        isRh={isRh}
+        onRename={onRename}
+        onDelete={onDelete}
+        stageDragHandleProps={{ ...listeners, ...attributes }}
+      />
     </div>
   );
 }
@@ -394,42 +425,100 @@ function CandidateSlideOver({
   const favorableCount = opinions.filter((o) => o.rating === "favorable").length;
   const defavorableCount = opinions.filter((o) => o.rating === "defavorable").length;
 
+  const showRhActions =
+    isRh && currentStage?.stage_type !== "rejected" && currentStage?.stage_type !== "hired";
+  const favorableLabel = `${favorableCount} favorable${favorableCount !== 1 ? "s" : ""}`;
+  const defavorableLabel = `${defavorableCount} défavorable${defavorableCount !== 1 ? "s" : ""}`;
+  const entryDateLabel = candidate.hired_at
+    ? `Entrée le ${new Date(candidate.hired_at).toLocaleDateString("fr-FR")}`
+    : `Ajouté le ${new Date(candidate.created_at).toLocaleDateString("fr-FR")}`;
+
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent className="w-full sm:max-w-xl p-0 flex flex-col h-full max-h-[100dvh]">
-        {/* Header */}
-        <div className="flex-shrink-0 z-10 bg-background border-b px-6 py-4">
-          <SheetHeader className="mb-0">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Avatar className="h-10 w-10">
-                  <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                    {candidate.first_name[0]}{candidate.last_name[0]}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <SheetTitle className="text-lg">{candidate.first_name} {candidate.last_name}</SheetTitle>
-                  {currentStage && (
-                    <Badge
-                      variant={currentStage.stage_type === "rejected" ? "destructive" : currentStage.stage_type === "hired" ? "default" : "secondary"}
-                      className="mt-0.5"
-                    >
-                      {currentStage.name}
-                    </Badge>
-                  )}
-                </div>
-              </div>
+        {/* Bloc A — Identité + contact rapide (à droite de l’avatar) */}
+        <div className="flex-shrink-0 z-10 bg-background border-b px-6 pt-4 pb-4 pr-14">
+          <div className="flex gap-3 items-start min-w-0">
+            <Avatar className="h-11 w-11 shrink-0">
+              <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
+                {candidate.first_name[0]}{candidate.last_name[0]}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <SheetTitle className="text-left text-lg font-semibold leading-tight">
+                {candidate.first_name} {candidate.last_name}
+              </SheetTitle>
+              {currentStage && (
+                <Badge
+                  variant={currentStage.stage_type === "rejected" ? "destructive" : currentStage.stage_type === "hired" ? "default" : "secondary"}
+                  className="mt-2"
+                >
+                  {currentStage.name}
+                </Badge>
+              )}
             </div>
-          </SheetHeader>
+            <div className="shrink-0 text-right text-xs space-y-1.5 max-w-[min(50%,11rem)] sm:max-w-[13rem] pt-0.5 border-l border-border/60 pl-3 ml-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Contact</p>
+              {candidate.email ? (
+                <a href={`mailto:${candidate.email}`} className="flex items-start justify-end gap-1.5 text-primary hover:underline break-all">
+                  <Mail className="h-3 w-3 shrink-0 mt-0.5 text-muted-foreground" />
+                  <span>{candidate.email}</span>
+                </a>
+              ) : (
+                <p className="flex items-center justify-end gap-1.5 text-muted-foreground">
+                  <Mail className="h-3 w-3 shrink-0" />
+                  <span>—</span>
+                </p>
+              )}
+              {candidate.phone ? (
+                <a href={`tel:${candidate.phone.replace(/\s/g, "")}`} className="flex items-center justify-end gap-1.5 hover:text-primary">
+                  <Phone className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  <span>{candidate.phone}</span>
+                </a>
+              ) : (
+                <p className="flex items-center justify-end gap-1.5 text-muted-foreground">
+                  <Phone className="h-3 w-3 shrink-0" />
+                  <span>—</span>
+                </p>
+              )}
+              <p className="flex items-start justify-end gap-1.5 text-muted-foreground">
+                <Calendar className="h-3 w-3 shrink-0 mt-0.5" />
+                <span className="leading-snug">{entryDateLabel}</span>
+              </p>
+            </div>
+          </div>
+        </div>
 
-          {/* Actions RH */}
-          {isRh && currentStage?.stage_type !== "rejected" && currentStage?.stage_type !== "hired" && (
-            <div className="flex flex-wrap gap-2 mt-3">
-              <Select
-                onValueChange={(stageId) => onMove(candidate.id, stageId)}
+        {/* Bloc B — Cockpit RH + avis (fixe sous l’identité) */}
+        <div className="flex-shrink-0 border-b bg-muted/30 px-6 py-4 space-y-4">
+          {showRhActions && (
+            <div className="flex flex-wrap gap-2 items-center" aria-label="Actions sur le candidat">
+              <Button
+                size="sm"
+                className="h-9 text-xs font-medium bg-green-600 hover:bg-green-700 text-white shrink-0"
+                onClick={() => onHire(candidate.id)}
               >
-                <SelectTrigger className="w-[200px] h-8 text-xs">
-                  <SelectValue placeholder="Déplacer vers..." />
+                Recruter
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-9 text-xs shrink-0"
+                onClick={() => onRequestReject(candidate.id)}
+              >
+                Refuser
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-9 text-xs shrink-0"
+                onClick={() => onRequestArchive(candidate.id)}
+              >
+                Archiver
+              </Button>
+              <Select onValueChange={(stageId) => onMove(candidate.id, stageId)}>
+                <SelectTrigger className="h-9 min-w-[160px] max-w-full flex-1 text-xs">
+                  <SelectValue placeholder="Déplacer vers…" />
                 </SelectTrigger>
                 <SelectContent>
                   {stages
@@ -439,274 +528,266 @@ function CandidateSlideOver({
                     ))}
                 </SelectContent>
               </Select>
-              <Button
-                size="sm"
-                variant="destructive"
-                className="h-8 text-xs"
-                onClick={() => onRequestReject(candidate.id)}
-              >
-                Refuser
-              </Button>
-              <Button
-                size="sm"
-                className="h-8 text-xs bg-green-600 hover:bg-green-700"
-                onClick={() => onHire(candidate.id)}
-              >
-                Recruter
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs"
-                onClick={() => onRequestArchive(candidate.id)}
-              >
-                Archiver
-              </Button>
             </div>
           )}
-        </div>
 
-        <ScrollArea className="flex-1 min-h-0">
-          <div className="px-6 py-4 space-y-8 pb-8">
-            {/* Infos */}
-            <section aria-labelledby="candidate-section-infos">
-              <h3 id="candidate-section-infos" className="text-sm font-semibold mb-3">
-                Infos
+          <div className="space-y-3" aria-labelledby="candidate-section-avis">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <h3 id="candidate-section-avis" className="text-sm font-semibold">
+                Avis
               </h3>
-            <div className="grid gap-3">
-              {candidate.email && (
-                <div className="flex items-center gap-2 text-sm">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <a href={`mailto:${candidate.email}`} className="text-primary hover:underline">{candidate.email}</a>
-                </div>
-              )}
-              {candidate.phone && (
-                <div className="flex items-center gap-2 text-sm">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span>{candidate.phone}</span>
-                </div>
-              )}
-              {candidate.source && (
-                <div className="flex items-center gap-2 text-sm">
-                  <Briefcase className="h-4 w-4 text-muted-foreground" />
-                  <span>Source : {candidate.source}</span>
-                </div>
-              )}
-              <div className="flex items-center gap-2 text-sm">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span>Ajouté le {new Date(candidate.created_at).toLocaleDateString("fr-FR")}</span>
-              </div>
+              <span className="text-sm text-muted-foreground">
+                {favorableLabel} / {defavorableLabel}
+              </span>
             </div>
-
-            {/* Opinions summary */}
-            <Separator />
-            <div>
-              <h4 className="text-sm font-semibold mb-3">Avis ({opinions.length})</h4>
-              <div className="flex gap-4 mb-3">
-                <div className="flex items-center gap-1.5">
-                  <ThumbsUp className="h-4 w-4 text-green-600" />
-                  <span className="text-sm font-medium">{favorableCount} favorable{favorableCount > 1 ? "s" : ""}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <ThumbsDown className="h-4 w-4 text-red-500" />
-                  <span className="text-sm font-medium">{defavorableCount} défavorable{defavorableCount > 1 ? "s" : ""}</span>
-                </div>
-              </div>
-              {opinions.map((o) => (
-                <div key={o.id} className="flex items-start gap-2 mb-2">
-                  <Badge variant={o.rating === "favorable" ? "default" : "destructive"} className="text-[10px] flex-shrink-0 mt-0.5">
-                    {o.rating === "favorable" ? "+" : "-"}
-                  </Badge>
-                  <div className="text-xs">
-                    <span className="font-medium">{o.author_first_name} {o.author_last_name}</span>
-                    {o.comment && <span className="text-muted-foreground"> — {o.comment}</span>}
+            {loadingOpinions ? (
+              <Skeleton className="h-16 w-full" />
+            ) : (
+              <>
+                {opinions.length > 0 && (
+                  <div className="space-y-2 max-h-28 overflow-y-auto pr-1">
+                    {opinions.map((o) => (
+                      <div key={o.id} className="flex items-start gap-2">
+                        <Badge variant={o.rating === "favorable" ? "default" : "destructive"} className="text-[10px] shrink-0 mt-0.5">
+                          {o.rating === "favorable" ? "+" : "−"}
+                        </Badge>
+                        <div className="text-xs leading-snug min-w-0">
+                          <span className="font-medium">{o.author_first_name} {o.author_last_name}</span>
+                          {o.comment && <span className="text-muted-foreground"> — {o.comment}</span>}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              ))}
-              {/* Add opinion */}
-              <div className="mt-3 space-y-2 p-3 bg-muted/50 rounded-lg">
-                <p className="text-xs font-medium">Donner un avis</p>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant={opinionRating === "favorable" ? "default" : "outline"}
-                    className="h-7 text-xs"
-                    onClick={() => setOpinionRating("favorable")}
-                  >
-                    <ThumbsUp className="h-3 w-3 mr-1" /> Favorable
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={opinionRating === "defavorable" ? "destructive" : "outline"}
-                    className="h-7 text-xs"
-                    onClick={() => setOpinionRating("defavorable")}
-                  >
-                    <ThumbsDown className="h-3 w-3 mr-1" /> Défavorable
-                  </Button>
-                </div>
-                {opinionRating && (
-                  <>
-                    <Input
-                      placeholder="Commentaire (optionnel)"
-                      className="h-8 text-xs"
-                      value={opinionComment}
-                      onChange={(e) => setOpinionComment(e.target.value)}
-                    />
+                )}
+                <div className="space-y-2 p-3 bg-background/80 border rounded-lg">
+                  <p className="text-xs font-medium text-muted-foreground">Donner un avis</p>
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       size="sm"
-                      className="h-7 text-xs"
-                      disabled={addOpinionMutation.isPending}
-                      onClick={() => addOpinionMutation.mutate({ rating: opinionRating, comment: opinionComment || undefined })}
+                      variant={opinionRating === "favorable" ? "default" : "outline"}
+                      className="h-8 text-xs"
+                      onClick={() => setOpinionRating("favorable")}
                     >
-                      {addOpinionMutation.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-                      Valider
+                      <ThumbsUp className="h-3.5 w-3.5 mr-1.5" /> Favorable
                     </Button>
-                  </>
+                    <Button
+                      size="sm"
+                      variant={opinionRating === "defavorable" ? "destructive" : "outline"}
+                      className="h-8 text-xs"
+                      onClick={() => setOpinionRating("defavorable")}
+                    >
+                      <ThumbsDown className="h-3.5 w-3.5 mr-1.5" /> Défavorable
+                    </Button>
+                  </div>
+                  {opinionRating && (
+                    <div className="flex flex-col gap-2 pt-1">
+                      <Input
+                        placeholder="Commentaire (optionnel)"
+                        className="h-8 text-xs"
+                        value={opinionComment}
+                        onChange={(e) => setOpinionComment(e.target.value)}
+                      />
+                      <Button
+                        size="sm"
+                        className="h-8 text-xs w-fit"
+                        disabled={addOpinionMutation.isPending}
+                        onClick={() => addOpinionMutation.mutate({ rating: opinionRating, comment: opinionComment || undefined })}
+                      >
+                        {addOpinionMutation.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                        Valider l&apos;avis
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Bloc C — Consultation (scroll) : dossier → notes → entretiens → activité */}
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="px-6 py-4 space-y-8 pb-10">
+            <section aria-labelledby="candidate-section-dossier" className="space-y-5">
+              <h3 id="candidate-section-dossier" className="text-sm font-semibold">
+                Dossier candidats
+              </h3>
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">CV</h4>
+                {candidate.cv_url ? (
+                  <a
+                    href={candidate.cv_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3 text-sm hover:bg-muted/50 transition-colors"
+                  >
+                    <FileText className="h-8 w-8 text-primary shrink-0" />
+                    <span className="font-medium text-primary underline-offset-4 hover:underline">Ouvrir le CV</span>
+                  </a>
+                ) : (
+                  <div className="rounded-lg border border-dashed bg-muted/20 p-4 flex gap-3 items-start">
+                    <FileText className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-sm font-medium">Aucun CV joint</p>
+                      <p className="text-xs text-muted-foreground">
+                        Le lien vers le CV apparaîtra ici lorsqu&apos;il sera disponible côté serveur ou après import.
+                      </p>
+                    </div>
+                  </div>
                 )}
               </div>
-            </div>
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                  Autres documents personnels
+                </h4>
+                <div className="rounded-lg border border-dashed bg-muted/20 p-4 flex gap-3 items-start">
+                  <FileText className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+                  <div className="min-w-0 space-y-1">
+                    <p className="text-sm font-medium">Aucun document complémentaire</p>
+                    <p className="text-xs text-muted-foreground">
+                      Pièces d&apos;identité, diplômes, attestations ou autres justificatifs pourront être ajoutés ici lorsque le dépôt de fichiers sera disponible.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </section>
 
             <Separator />
 
-            {/* Notes */}
             <section aria-labelledby="candidate-section-notes">
               <h3 id="candidate-section-notes" className="text-sm font-semibold mb-3">
                 Notes ({notes.length})
               </h3>
-            <div className="space-y-4">
-            <div className="space-y-2 p-3 bg-muted/50 rounded-lg">
-              <Textarea
-                placeholder="Ajouter une note..."
-                className="text-sm min-h-[60px]"
-                value={noteText}
-                onChange={(e) => setNoteText(e.target.value)}
-              />
-              <Button
-                size="sm"
-                className="h-8 text-xs"
-                disabled={!noteText.trim() || addNoteMutation.isPending}
-                onClick={() => addNoteMutation.mutate(noteText.trim())}
-              >
-                {addNoteMutation.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-                Ajouter une note
-              </Button>
-            </div>
-            {loadingNotes ? (
-              <div className="space-y-2">{[1, 2].map((i) => <Skeleton key={i} className="h-16" />)}</div>
-            ) : notes.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Aucune note pour ce candidat.</p>
-            ) : (
-              <div className="space-y-3">
-                {notes.map((n) => (
-                  <div key={n.id} className="border rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium">{n.author_first_name} {n.author_last_name}</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {new Date(n.created_at).toLocaleDateString("fr-FR")} à {new Date(n.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                    </div>
-                    <p className="text-sm whitespace-pre-wrap">{n.content}</p>
+              <div className="space-y-4">
+                <div className="space-y-2 p-3 bg-muted/50 rounded-lg border border-border/60">
+                  <Textarea
+                    placeholder="Ajouter une note…"
+                    className="text-sm min-h-[72px]"
+                    value={noteText}
+                    onChange={(e) => setNoteText(e.target.value)}
+                  />
+                  <Button
+                    size="sm"
+                    className="h-9 text-xs"
+                    disabled={!noteText.trim() || addNoteMutation.isPending}
+                    onClick={() => addNoteMutation.mutate(noteText.trim())}
+                  >
+                    {addNoteMutation.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                    Ajouter une note
+                  </Button>
+                </div>
+                {loadingNotes ? (
+                  <div className="space-y-2">{[1, 2].map((i) => <Skeleton key={i} className="h-16" />)}</div>
+                ) : notes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Aucune note pour ce candidat.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {notes.map((n) => (
+                      <div key={n.id} className="border rounded-lg p-3">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="text-xs font-medium">{n.author_first_name} {n.author_last_name}</span>
+                          <span className="text-[10px] text-muted-foreground shrink-0">
+                            {new Date(n.created_at).toLocaleDateString("fr-FR")} à {new Date(n.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        </div>
+                        <p className="text-sm whitespace-pre-wrap">{n.content}</p>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )}
-            </div>
             </section>
 
             <Separator />
 
-            {/* Entretiens */}
             <section aria-labelledby="candidate-section-interviews">
               <h3 id="candidate-section-interviews" className="text-sm font-semibold mb-3">
                 Entretiens ({interviews.length})
               </h3>
-            <div className="space-y-4">
-            {isRh && (
-              <Button size="sm" className="h-8 text-xs w-full" onClick={onScheduleInterview}>
-                <Plus className="h-3 w-3 mr-1" /> Planifier un entretien
-              </Button>
-            )}
-            {loadingInterviews ? (
-              <div className="space-y-2">{[1, 2].map((i) => <Skeleton key={i} className="h-20" />)}</div>
-            ) : interviews.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Aucun entretien planifié.</p>
-            ) : (
-              <div className="space-y-3">
-                {interviews.map((i) => (
-                  <div key={i.id} className="border rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium">{i.interview_type}</span>
-                      <Badge variant={i.status === "completed" ? "default" : i.status === "cancelled" ? "destructive" : "secondary"} className="text-[10px]">
-                        {i.status === "planned" ? "Planifié" : i.status === "completed" ? "Terminé" : "Annulé"}
-                      </Badge>
-                    </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {new Date(i.scheduled_at).toLocaleDateString("fr-FR")}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {new Date(i.scheduled_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} · {i.duration_minutes}min
-                      </span>
-                      {i.location && (
-                        <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{i.location}</span>
-                      )}
-                      {i.meeting_link && (
-                        <a href={i.meeting_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
-                          <Link2 className="h-3 w-3" />Lien
-                        </a>
-                      )}
-                    </div>
-                    {i.participants && i.participants.length > 0 && (
-                      <div className="flex gap-1 mt-2 flex-wrap">
-                        {i.participants.map((p) => (
-                          <Badge key={p.user_id} variant="outline" className="text-[10px] h-5">
-                            {p.first_name} {p.last_name}
+              <div className="space-y-4">
+                {isRh && (
+                  <Button size="sm" className="h-9 text-xs w-full" onClick={onScheduleInterview}>
+                    <Plus className="h-3.5 w-3.5 mr-1.5" /> Planifier un entretien
+                  </Button>
+                )}
+                {loadingInterviews ? (
+                  <div className="space-y-2">{[1, 2].map((i) => <Skeleton key={i} className="h-20" />)}</div>
+                ) : interviews.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Aucun entretien planifié.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {interviews.map((i) => (
+                      <div key={i.id} className="border rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-1 gap-2">
+                          <span className="text-sm font-medium">{i.interview_type}</span>
+                          <Badge variant={i.status === "completed" ? "default" : i.status === "cancelled" ? "destructive" : "secondary"} className="text-[10px] shrink-0">
+                            {i.status === "planned" ? "Planifié" : i.status === "completed" ? "Terminé" : "Annulé"}
                           </Badge>
-                        ))}
+                        </div>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3 shrink-0" />
+                            {new Date(i.scheduled_at).toLocaleDateString("fr-FR")}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3 shrink-0" />
+                            {new Date(i.scheduled_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} · {i.duration_minutes} min
+                          </span>
+                          {i.location && (
+                            <span className="flex items-center gap-1 min-w-0"><MapPin className="h-3 w-3 shrink-0" />{i.location}</span>
+                          )}
+                          {i.meeting_link && (
+                            <a href={i.meeting_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
+                              <Link2 className="h-3 w-3 shrink-0" />Lien
+                            </a>
+                          )}
+                        </div>
+                        {i.participants && i.participants.length > 0 && (
+                          <div className="flex gap-1 mt-2 flex-wrap">
+                            {i.participants.map((p) => (
+                              <Badge key={p.user_id} variant="outline" className="text-[10px] h-5">
+                                {p.first_name} {p.last_name}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                        {i.summary && (
+                          <p className="text-xs mt-2 bg-muted/50 p-2 rounded">{i.summary}</p>
+                        )}
                       </div>
-                    )}
-                    {i.summary && (
-                      <p className="text-xs mt-2 bg-muted/50 p-2 rounded">{i.summary}</p>
-                    )}
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )}
-            </div>
             </section>
 
             <Separator />
 
-            {/* Timeline */}
             <section aria-labelledby="candidate-section-timeline">
               <h3 id="candidate-section-timeline" className="text-sm font-semibold mb-3">
-                Timeline
+                Activité
               </h3>
-            <div>
-            {loadingTimeline ? (
-              <div className="space-y-2">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-10" />)}</div>
-            ) : timeline.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Aucun événement.</p>
-            ) : (
-              <div className="relative pl-4 border-l-2 border-muted space-y-4 pb-6">
-                {timeline.map((e) => (
-                  <div key={e.id} className="relative">
-                    <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full border-2 border-background bg-primary" />
-                    <div className="ml-2">
-                      <p className="text-sm">{e.description}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {e.actor_first_name && `${e.actor_first_name} ${e.actor_last_name} · `}
-                        {new Date(e.created_at).toLocaleDateString("fr-FR")} à {new Date(e.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                      </p>
-                    </div>
+              <div>
+                {loadingTimeline ? (
+                  <div className="space-y-2">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-10" />)}</div>
+                ) : timeline.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Aucun événement.</p>
+                ) : (
+                  <div className="relative pl-4 border-l-2 border-muted space-y-4 pb-2">
+                    {timeline.map((e) => (
+                      <div key={e.id} className="relative">
+                        <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full border-2 border-background bg-primary" />
+                        <div className="ml-2">
+                          <p className="text-sm">{e.description}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {e.actor_first_name && `${e.actor_first_name} ${e.actor_last_name} · `}
+                            {new Date(e.created_at).toLocaleDateString("fr-FR")} à {new Date(e.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )}
-            </div>
             </section>
           </div>
         </ScrollArea>
@@ -1003,23 +1084,29 @@ export default function Recruitment() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: stagesKey }),
   });
 
-  const [draggedStageId, setDraggedStageId] = useState<string | null>(null);
-  const [activeGap, setActiveGap] = useState<number | null>(null);
+  const sortedPipelineStages = useMemo(
+    () => [...stages].sort((a, b) => a.position - b.position),
+    [stages],
+  );
+  const pipelineStageIds = useMemo(() => sortedPipelineStages.map((s) => s.id), [sortedPipelineStages]);
 
-  const handleStageGapDrop = useCallback((gapIndex: number) => {
-    if (!draggedStageId) return;
-    const sorted = [...stages].sort((a, b) => a.position - b.position);
-    const fromIdx = sorted.findIndex((s) => s.id === draggedStageId);
-    if (fromIdx === -1) return;
-    const targetIdx = gapIndex > fromIdx ? gapIndex - 1 : gapIndex;
-    if (targetIdx === fromIdx) { setDraggedStageId(null); setActiveGap(null); return; }
-    const next = [...sorted];
-    const [item] = next.splice(fromIdx, 1);
-    next.splice(targetIdx, 0, item);
-    reorderStagesMutation.mutate(next.map((s) => s.id));
-    setDraggedStageId(null);
-    setActiveGap(null);
-  }, [draggedStageId, stages, reorderStagesMutation]);
+  const stageReorderSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handlePipelineStageDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const sorted = [...stages].sort((a, b) => a.position - b.position);
+      const oldIndex = sorted.findIndex((s) => s.id === active.id);
+      const newIndex = sorted.findIndex((s) => s.id === over.id);
+      if (oldIndex < 0 || newIndex < 0) return;
+      reorderStagesMutation.mutate(arrayMove(sorted, oldIndex, newIndex).map((s) => s.id));
+    },
+    [stages, reorderStagesMutation],
+  );
 
   // Grouped candidates by stage (fallback : 1re colonne standard si étape absente ou inconnue)
   const candidatesByStage = useMemo(() => {
@@ -1208,65 +1295,43 @@ export default function Recruitment() {
           ))}
         </div>
       ) : viewMode === "kanban" ? (
-        /* KANBAN VIEW */
-        <div
-          className="flex overflow-x-auto pb-4 items-stretch"
-          onDragEnd={() => { setDraggedStageId(null); setActiveGap(null); }}
-        >
-          {(() => {
-            const sorted = [...stages].sort((a, b) => a.position - b.position);
-            const items: React.ReactNode[] = [];
-            sorted.forEach((stage, idx) => {
-              if (isRh) {
-                items.push(
-                  <StageDropZone
-                    key={`gap-${idx}`}
-                    gapIndex={idx}
-                    activeGap={activeGap}
-                    onDragOver={(gi) => setActiveGap(gi)}
-                    onDragLeave={() => setActiveGap(null)}
-                    onDrop={handleStageGapDrop}
-                  />
-                );
-              }
-              items.push(
-                <div key={stage.id} className={idx > 0 && !isRh ? "ml-3" : ""}>
-                  <KanbanColumn
-                    stage={stage}
-                    candidates={candidatesByStage[stage.id] || []}
-                    onCardClick={handleCardClick}
-                    onCandidateDrop={handleDrop}
-                    isRh={isRh}
-                    onRename={isRh ? (name) => renameStageMutation.mutate({ stageId: stage.id, name }) : undefined}
-                    onDelete={isRh && stage.stage_type === "standard" ? () => setDeleteStageTarget(stage) : undefined}
-                    onHeaderDragStart={isRh ? (e) => {
-                      e.dataTransfer.setData(STAGE_DND_TYPE, stage.id);
-                      e.dataTransfer.effectAllowed = "move";
-                      if (e.currentTarget.parentElement) {
-                        e.dataTransfer.setDragImage(e.currentTarget.parentElement, 130, 20);
-                      }
-                      setDraggedStageId(stage.id);
-                    } : undefined}
-                  />
-                </div>
-              );
-            });
-            if (isRh) {
-              items.push(
-                <StageDropZone
-                  key={`gap-${sorted.length}`}
-                  gapIndex={sorted.length}
-                  activeGap={activeGap}
-                  onDragOver={(gi) => setActiveGap(gi)}
-                  onDragLeave={() => setActiveGap(null)}
-                  onDrop={handleStageGapDrop}
+        <div className={cn("flex overflow-x-auto pb-4 items-stretch", isRh && "gap-2")}>
+          {isRh ? (
+            <>
+              <DndContext
+                sensors={stageReorderSensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handlePipelineStageDragEnd}
+              >
+                <SortableContext items={pipelineStageIds} strategy={horizontalListSortingStrategy}>
+                  {sortedPipelineStages.map((stage) => (
+                    <SortableStageColumn
+                      key={stage.id}
+                      stage={stage}
+                      candidates={candidatesByStage[stage.id] || []}
+                      onCardClick={handleCardClick}
+                      onCandidateDrop={handleDrop}
+                      isRh={isRh}
+                      onRename={(name) => renameStageMutation.mutate({ stageId: stage.id, name })}
+                      onDelete={stage.stage_type === "standard" ? () => setDeleteStageTarget(stage) : undefined}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+              <AddStageColumn onAdd={(name) => addStageMutation.mutate(name)} />
+            </>
+          ) : (
+            sortedPipelineStages.map((stage, idx) => (
+              <div key={stage.id} className={cn("shrink-0", idx > 0 && "ml-3")}>
+                <KanbanColumn
+                  stage={stage}
+                  candidates={candidatesByStage[stage.id] || []}
+                  onCardClick={handleCardClick}
+                  onCandidateDrop={handleDrop}
+                  isRh={isRh}
                 />
-              );
-            }
-            return items;
-          })()}
-          {isRh && effectiveJobId && (
-            <AddStageColumn onAdd={(name) => addStageMutation.mutate(name)} />
+              </div>
+            ))
           )}
         </div>
       ) : (
