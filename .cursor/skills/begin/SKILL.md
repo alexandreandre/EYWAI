@@ -51,7 +51,7 @@ git branch --show-current
     `git checkout dev-alex`  
   - S’arrêter ici sauf si l’utilisateur demande explicitement une autre branche documentée.
 
-### 3. État du working tree (gadget)
+### 3. État du working tree (obligatoire avant toute intégration)
 
 Exécuter :
 
@@ -81,7 +81,7 @@ git status -sb
 
 ### 5. Mettre à jour **sans toucher à `main`**
 
-Principe : **`fetch`** met à jour les **refs distantes** ; la branche locale `main` n’est **pas** checkoutée ni modifiée par défaut.
+Principe : **`fetch`** met à jour les **refs distantes** ; la branche locale `main` n’est **pas** checkoutée ni modifiée par défaut. Cette étape n’a lieu **qu’après** validation de l’étape 4 (confirmation Oui de l’utilisateur).
 
 ```bash
 git fetch origin main
@@ -124,6 +124,7 @@ Interprétation rapide du compteur `left	right` : gauche = commits sur `origin/m
 Répondre avec :
 
 - Branche vérifiée (OK ou erreur + commande `checkout`).
+- Si l’étape 3 a bloqué (modifs locales sans accord) : résumer `git status -sb` et rappeler qu’aucun `fetch`/merge n’a été lancé tant que l’utilisateur n’a pas choisi.
 - Actions Git effectuées (`fetch`, `merge` ou `rebase`).
 - Dernier commit (`git log -1 --oneline`).
 - Éventuellement divergence `origin/main...HEAD` en une phrase.
@@ -144,4 +145,4 @@ Répondre avec :
 
 > Je démarre ma journée — mets-moi à jour proprement sur ma branche dev (workflow begin du dépôt).
 
-L’agent exécute les commandes, respecte les arrêts si mauvaise branche, et renvoie le mini-bilan structuré.
+L’agent exécute les commandes, respecte les arrêts si mauvaise branche ou si des modifications locales sont en cours **sans accord explicite**, et renvoie le mini-bilan structuré une fois l’intégration terminée.

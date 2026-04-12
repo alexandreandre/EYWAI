@@ -37,9 +37,9 @@ uvicorn app.main:app --reload
 
 ---
 
-## 3. Fin de session : pousser ton travail avec `/finish`
+## 3. Fin de session : pousser ton travail avec `/push`
 
-Quand tu as terminé une session et que tu veux **committer et pousser** sur **ta branche `dev-*`** (jamais `main` directement), écris **`/finish`** dans le chat.
+Quand tu as terminé une session et que tu veux **committer et pousser** sur **ta branche `dev-*`** (jamais `main` directement), écris **`/push`** dans le chat.
 
 L’agent vérifie la branche, prépare des commits propres et pousse vers `origin` sur la même branche.
 
@@ -56,4 +56,17 @@ Dans Cursor, tu peux **mentionner la commande** ou **attacher le fichier** du sk
 
 ---
 
-En résumé : **`/begin`** → **2 terminaux** (`npm run dev` + `uvicorn`) → travail → **`/finish`** ; en cas de souci ou de polish UI, **`/debug`** ou **`/frontend-design`**.
+## Raccourcis Mac (Cursor)
+
+Sur **Mac**, les touches **Cmd** (⌘), **Maj** (⇧), **Option** (⌥) et **Ctrl** correspondent aux libellés anglais *Command*, *Shift*, *Option*, *Control*.
+
+| Raccourci | Effet utile |
+|-----------|-------------|
+| **⌘⇧B** (*Cmd+Maj+B*) | Ouvre une **fenêtre navigateur** intégrée dans Cursor (aperçu Simple Browser / équivalent selon ta config). |
+| **⌘B** | Afficher ou masquer la **barre latérale** (explorateur de fichiers). |
+
+*(Tu peux créer tes propres raccourcis dans Cursor → Réglages → Raccourcis clavier.)*
+
+---
+
+En résumé : **`/begin`** → **2 terminaux** (`npm run dev` + `uvicorn`) → travail → **`/push`** ; en cas de souci ou de polish UI, **`/debug`** ou **`/frontend-design`**.

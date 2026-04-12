@@ -1,15 +1,15 @@
 ---
-name: finish
+name: push
 description: >-
   Clôture une session Git sur une branche personnelle dev-* : vérifie la
   branche courante, regroupe ou découpe les commits selon les changements,
   rédige des messages détaillés et propres, pousse vers origin sur la même
   branche (jamais main). À utiliser en fin de journée ou de session, lorsque
-  l’utilisateur demande /finish, de sauvegarder ou pousser son travail sur
+  l’utilisateur demande /push, de sauvegarder ou pousser son travail sur
   sa branche dev, ou attache explicitement ce skill.
 ---
 
-# Finish — clôture de session sur branche dev-*
+# Push — clôture de session sur branche dev-*
 
 ## Objectif
 
@@ -17,7 +17,7 @@ En fin de session, **sécuriser le travail** : confirmer que l’on est sur **un
 
 ## Quand utiliser ce skill
 
-- L’utilisateur demande **`/finish`**, une **fin de session**, de **tout committer et pousser** sur sa branche perso, ou attache ce fichier.
+- L’utilisateur demande **`/push`**, une **fin de session**, de **tout committer et pousser** sur sa branche perso, ou attache ce fichier.
 
 ## Branches autorisées pour commit + push
 
@@ -130,6 +130,6 @@ git push -u origin "$(git branch --show-current)"
 
 ## Exemple d’invocation
 
-> `/finish` — je ferme la session, tout est prêt à être sauvegardé sur ma branche.
+> `/push` — je ferme la session, tout est prêt à être sauvegardé sur ma branche.
 
 L’agent vérifie la branche, qualité des messages, pousse sur la branche `dev-*` courante uniquement, et renvoie une synthèse courte.
