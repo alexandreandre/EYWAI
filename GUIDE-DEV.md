@@ -37,9 +37,9 @@ uvicorn app.main:app --reload
 
 ---
 
-## 3. Fin de session : pousser ton travail avec `/finish`
+## 3. Fin de session : pousser ton travail avec `/push`
 
-Quand tu as terminé une session et que tu veux **committer et pousser** sur **ta branche `dev-*`** (jamais `main` directement), écris **`/finish`** dans le chat.
+Quand tu as terminé une session et que tu veux **committer et pousser** sur **ta branche `dev-*`** (jamais `main` directement), écris **`/push`** dans le chat.
 
 L’agent vérifie la branche, prépare des commits propres et pousse vers `origin` sur la même branche.
 
@@ -69,4 +69,4 @@ Sur **Mac**, les touches **Cmd** (⌘), **Maj** (⇧), **Option** (⌥) et **Ctr
 
 ---
 
-En résumé : **`/begin`** → **2 terminaux** (`npm run dev` + `uvicorn`) → travail → **`/finish`** ; en cas de souci ou de polish UI, **`/debug`** ou **`/frontend-design`**.
+En résumé : **`/begin`** → **2 terminaux** (`npm run dev` + `uvicorn`) → travail → **`/push`** ; en cas de souci ou de polish UI, **`/debug`** ou **`/frontend-design`**.
