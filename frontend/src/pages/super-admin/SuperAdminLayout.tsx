@@ -17,6 +17,7 @@ export default function SuperAdminLayout() {
     { name: 'Réduction Fillon', href: '/super-admin/reduction-fillon', icon: '💰' },
     { name: 'Scraping', href: '/super-admin/scraping', icon: '🌐' },
     { name: 'Monitoring', href: '/super-admin/monitoring', icon: '🔍' },
+    { name: 'Tickets', href: '/super-admin/support/tickets', lucideIcon: LifeBuoy },
     { name: 'Tests', href: '/super-admin/tests', icon: '🧪' },
     // { name: 'Super Admins', href: '/super-admin/admins', icon: '👑' },
   ];
@@ -51,35 +52,31 @@ export default function SuperAdminLayout() {
 
         {/* Navigation */}
         <nav className="mt-6 px-3">
-          {navigation.map((item) => (
-            <Link
-              key={item.name}
-              to={item.href}
-              className={`flex items-center space-x-3 px-4 py-3 mb-2 rounded-lg transition-all ${
-                isActive(item.href)
-                  ? 'bg-white bg-opacity-20 text-white font-semibold shadow-lg'
-                  : 'text-gray-200 hover:bg-white hover:bg-opacity-10'
-              }`}
-            >
-              <span className="text-2xl">{item.icon}</span>
-              <span>{item.name}</span>
-            </Link>
-          ))}
+          {navigation.map((item) => {
+            const LucideIcon = 'lucideIcon' in item ? item.lucideIcon : undefined;
+            return (
+              <Link
+                key={item.name}
+                to={item.href}
+                className={`flex items-center space-x-3 px-4 py-3 mb-2 rounded-lg transition-all ${
+                  isActive(item.href)
+                    ? 'bg-white bg-opacity-20 text-white font-semibold shadow-lg'
+                    : 'text-gray-200 hover:bg-white hover:bg-opacity-10'
+                }`}
+              >
+                {LucideIcon ? (
+                  <LucideIcon className="h-6 w-6 shrink-0" />
+                ) : (
+                  <span className="text-2xl">{'icon' in item ? item.icon : null}</span>
+                )}
+                <span>{item.name}</span>
+              </Link>
+            );
+          })}
         </nav>
 
         {/* Footer */}
         <div className="absolute bottom-0 w-full p-4 border-t border-white border-opacity-20 space-y-2">
-          <Link
-            to="/support"
-            className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
-              location.pathname === '/support' || location.pathname.startsWith('/support/')
-                ? 'bg-white bg-opacity-20 text-white font-semibold shadow-lg'
-                : 'text-gray-200 hover:bg-white hover:bg-opacity-10'
-            }`}
-          >
-            <LifeBuoy className="h-6 w-6 shrink-0" />
-            <span>Support</span>
-          </Link>
           <button
             onClick={() => navigate('/')}
             className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-200 hover:text-white hover:bg-white hover:bg-opacity-10 rounded-lg transition-all"
