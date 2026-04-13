@@ -4,20 +4,55 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Calendar, Plus, Trash2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import type { MaintenancePreview } from '@/api/absences';
+import {
+  isPayslipBlocMaintienPresent,
+  type BulletinLigneBrut,
+  type PayslipSyntheseNet,
+} from '@/api/payslips';
 
 interface CongesAbsencesSectionProps {
   congesData: any[];
   absencesData: any[];
   onCongesChange: (data: any[]) => void;
   onAbsencesChange: (data: any[]) => void;
+  /** Données maintien issues du bulletin (T4B) — optionnel. */
+  detailsMaintien?: BulletinLigneBrut[];
+  blocMaintien?: MaintenancePreview | Record<string, unknown>;
+  syntheseNet?: PayslipSyntheseNet;
+  onOpenMaintienModal?: () => void;
+}
+
+function formatMontantSignedEUR(value: number): string {
+  const abs = Math.abs(value);
+  const fmt = abs.toLocaleString('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+    maximumFractionDigits: 2,
+  });
+  if (value < 0) return `− ${fmt}`;
+  return `+ ${fmt}`;
 }
 
 export default function CongesAbsencesSection({
   congesData,
   absencesData,
   onCongesChange,
-  onAbsencesChange
+  onAbsencesChange,
+  detailsMaintien = [],
+  blocMaintien,
+  syntheseNet,
+  onOpenMaintienModal,
 }: CongesAbsencesSectionProps) {
   const handleCongeChange = (index: number, field: string, value: any) => {
     const newData = [...congesData];
@@ -62,6 +97,65 @@ export default function CongesAbsencesSection({
     const newData = absencesData.filter((_, i) => i !== index);
     onAbsencesChange(newData);
   };
+
+  const showMaintienBloc = isPayslipBlocMaintienPresent(blocMaintien);
+  const maintienBloc = showMaintienBloc ? blocMaintien : null;
+
+  const sumPerteMaintien = (detailsMaintien ?? []).reduce(
+    (s, l) => s + (Number(l?.perte) || 0),
+    0
+  );
+  const sn = syntheseNet ?? {};
+  const ijssSub = Number(sn.ijss_subrogees ?? 0);
+  const maintienEmp = Number(sn.maintien_employeur ?? 0);
+  const complementEmp = Number(sn.complement_employeur ?? 0);
+  const subrogationActive = Boolean(sn.subrogation_active);
+
+  type MaintienRow = {
+    key: string;
+    element: string;
+    montant: number;
+    commentaire: string;
+  };
+  const maintienRows: MaintienRow[] = [];
+  if (sumPerteMaintien > 0) {
+    maintienRows.push({
+      key: 'abs-brut',
+      element: 'Absence brute',
+      montant: -sumPerteMaintien,
+      commentaire: 'Déduction pour jours d’arrêt',
+    });
+  }
+  if (subrogationActive && ijssSub !== 0) {
+    maintienRows.push({
+      key: 'ijss',
+      element: 'IJSS subrogées',
+      montant: ijssSub,
+      commentaire: 'IJSS avancées par l’entreprise',
+    });
+  }
+  if (maintienEmp !== 0) {
+    const tauxPct =
+      maintienBloc != null
+        ? (maintienBloc.maintien.taux_maintien * 100).toFixed(1)
+        : '—';
+    const nbJours =
+      maintienBloc != null ? maintienBloc.maintien.nb_jours_maintien : '—';
+    maintienRows.push({
+      key: 'maint-emp',
+      element: 'Maintien employeur',
+      montant: maintienEmp,
+      commentaire: `Taux ${tauxPct}% — ${nbJours} jours`,
+    });
+  }
+  if (complementEmp !== 0) {
+    maintienRows.push({
+      key: 'compl',
+      element: 'Complément employeur',
+      montant: complementEmp,
+      commentaire: 'Part employeur après déduction IJSS',
+    });
+  }
 
   return (
     <Card>
@@ -243,6 +337,59 @@ export default function CongesAbsencesSection({
             </Button>
           </TabsContent>
         </Tabs>
+
+        {showMaintienBloc ? (
+          <div className="mt-6 space-y-3 border-t pt-6">
+            <h3 className="text-sm font-semibold text-foreground">
+              Maintien de salaire (impact bulletin)
+            </h3>
+            {maintienRows.length > 0 ? (
+              <div className="overflow-hidden rounded-md border border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50 hover:bg-muted/50">
+                      <TableHead className="font-medium">Élément</TableHead>
+                      <TableHead className="text-right font-medium">Montant</TableHead>
+                      <TableHead className="font-medium">Commentaire</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {maintienRows.map((row, idx) => (
+                      <TableRow
+                        key={row.key}
+                        className={cn(idx % 2 === 1 ? 'bg-muted/25' : 'bg-background')}
+                      >
+                        <TableCell className="align-top">{row.element}</TableCell>
+                        <TableCell
+                          className={cn(
+                            'text-right align-top font-medium tabular-nums',
+                            row.montant < 0 ? 'text-red-600' : 'text-green-600'
+                          )}
+                        >
+                          {formatMontantSignedEUR(row.montant)}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground align-top text-xs">
+                          {row.commentaire}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : null}
+            {onOpenMaintienModal ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
+                onClick={() => onOpenMaintienModal()}
+              >
+                Voir détail calcul maintien
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

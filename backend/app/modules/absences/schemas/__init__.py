@@ -6,6 +6,7 @@ from app.modules.absences.schemas.requests import (
     AbsenceRequestStatusUpdate,
     AbsenceStatus,
     AbsenceType,
+    ArretType,
 )
 from app.modules.absences.schemas.responses import (
     AbsenceBalance,
@@ -27,6 +28,7 @@ __all__ = [
     "AbsenceRequestStatusUpdate",
     "AbsenceStatus",
     "AbsenceType",
+    "ArretType",
     "AbsenceBalance",
     "AbsenceBalancesResponse",
     "AbsencePageData",

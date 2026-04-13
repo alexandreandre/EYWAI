@@ -25,9 +25,11 @@ from app.modules.employee_exits.api.router import router as employee_exits_route
 from app.modules.exports.api.router import router as exports_router
 from app.modules.expenses.api.router import router as expenses_router
 from app.modules.monthly_inputs.api.router import router as monthly_inputs_router
+from app.modules.maintenance_settings.api.router import router as maintenance_settings_router
 from app.modules.medical_follow_up.api.router import router as medical_follow_up_router
 from app.modules.mutuelle_types.api.router import router as mutuelle_types_router
 from app.modules.participation.api.router import router as participation_router
+from app.modules.payroll.api.router import router as payroll_simulation_router
 from app.modules.payslips.api.router import router as payslips_router
 from app.modules.promotions.api.router import router as promotions_router
 from app.modules.rates.api.router import router as rates_router
@@ -72,12 +74,14 @@ router.include_router(employee_exits_router)
 router.include_router(exports_router)
 router.include_router(absences_router)
 router.include_router(monthly_inputs_router)
+router.include_router(maintenance_settings_router)
 router.include_router(expenses_router)
 router.include_router(medical_follow_up_router, prefix="/api/medical-follow-up")
 router.include_router(mutuelle_types_router)
 router.include_router(bonus_types_router)
 router.include_router(participation_router)
 router.include_router(payslips_router)
+router.include_router(payroll_simulation_router)
 router.include_router(promotions_router)
 router.include_router(recruitment_router)
 router.include_router(repos_compensateur_router)

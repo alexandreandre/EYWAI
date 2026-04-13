@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -24,6 +25,56 @@ from .payslip_run_common import (
     definir_periode_de_paie,
     mettre_a_jour_cumuls,
 )
+
+
+def _extraire_arret_pour_maintien(
+    calendrier_etendu: List[Dict[str, Any]],
+    contexte: ContextePaie,
+    date_debut_periode: date,
+    date_fin_periode: date,
+) -> Dict[str, Any] | None:
+    """Construit le dict `arret` attendu par calculer_maintien si un arrêt typé est présent."""
+    candidats: list[tuple[date, Dict[str, Any]]] = []
+    for ev in calendrier_etendu:
+        dc = ev.get("date_complete")
+        if not dc:
+            continue
+        d = date.fromisoformat(str(dc)[:10])
+        if not (date_debut_periode <= d <= date_fin_periode):
+            continue
+        if ev.get("type") != "arret_maladie":
+            continue
+        if not ev.get("arret_type"):
+            continue
+        candidats.append((d, ev))
+    if not candidats:
+        return None
+    candidats.sort(key=lambda x: x[0])
+    first_ev = candidats[0][1]
+    first_d, last_d = candidats[0][0], candidats[-1][0]
+    temps_travail = (
+        (contexte.contrat or {}).get("contrat", {}).get("temps_travail", {}) or {}
+    )
+    return {
+        "arret_type": first_ev["arret_type"],
+        "date_debut": first_d.isoformat(),
+        "date_fin": last_d.isoformat(),
+        "subrogation_active": bool(first_ev.get("subrogation_active", True)),
+        "nombre_enfants": int(first_ev.get("nombre_enfants") or 0),
+        "is_temps_partiel": bool(
+            first_ev.get("is_temps_partiel")
+            if first_ev.get("is_temps_partiel") is not None
+            else temps_travail.get("is_temps_partiel", False)
+        ),
+        "quotite_temps_partiel": float(
+            first_ev.get("quotite_temps_partiel")
+            or temps_travail.get("quotite", 1.0)
+            or 1.0
+        ),
+        "historique_arrets_annee": first_ev.get("historique_arrets_annee") or [],
+        "date_dernier_arret": first_ev.get("date_dernier_arret"),
+        "salaire_periode_reelle": float(first_ev.get("salaire_periode_reelle") or 0.0),
+    }
 
 
 def _preparer_calendrier_enrichi(
@@ -73,6 +124,7 @@ def run_payslip_generation_heures(
     year: int,
     month: int,
     engine_root: Path,
+    company_id: str | None = None,
 ) -> dict:
     """
     Génère un bulletin heures en processus (sans subprocess).
@@ -182,6 +234,41 @@ def run_payslip_generation_heures(
     remuneration_hs = resultat_brut["remuneration_brute_heures_supp"]
     total_heures_supp = resultat_brut["total_heures_supp"]
 
+    # Moteur maintien (arrêt maladie typé) — sans company_id pas d’accès paramètres entreprise.
+    # TODO V1 : proratiser le PSS au prorata jours travaillés / jours du mois si arrêt.
+    # TODO V1 : CSG 6,2 % sur ijss_theorique si subrogation_active.
+    # TODO V1 : recalcul réduction Fillon si le brut est modifié par l’arrêt.
+    resultats_maintien: Dict[str, Any] | None = None
+    if company_id:
+        arret_data = _extraire_arret_pour_maintien(
+            calendrier_etendu, contexte, date_debut_periode, date_fin_periode
+        )
+        if arret_data:
+            try:
+                from app.modules.maintenance_settings.application.queries import (
+                    get_maintenance_settings,
+                )
+                from app.modules.payroll.engine.maintien_salaire_service import (
+                    calculer_maintien,
+                )
+
+                settings_maintien = get_maintenance_settings(company_id)
+                settings_dict = settings_maintien.model_dump(mode="json")
+                resultats_maintien = calculer_maintien(
+                    arret_data,
+                    contexte,
+                    settings_dict,
+                    date_debut_periode,
+                    date_fin_periode,
+                )
+            except Exception as exc:
+                logging.warning(
+                    "Maintien de salaire non calculé (company_id=%s): %s",
+                    company_id,
+                    exc,
+                )
+                resultats_maintien = None
+
     lignes_cotisations, total_salarial = calculer_cotisations(
         contexte, salaire_brut_calcule, remuneration_hs, total_heures_supp
     )
@@ -232,6 +319,7 @@ def run_payslip_generation_heures(
         primes_non_soumises,
         year,
         month,
+        resultats_maintien=resultats_maintien,
     )
 
     smic_calcule_mois = (

@@ -278,6 +278,7 @@ def calculer_salaire_brut(
 
     # 3. Traitement de tous les événements de la période
     jours_conges_dans_periode = []
+    deduction_arret_maladie_total = 0.0
     for evenement in jours_dans_periode:
         type_ev = evenement.get("type", "")
         heures = evenement.get("heures", 0.0)
@@ -334,6 +335,19 @@ def calculer_salaire_brut(
             )
         elif type_ev == "conges_payes":
             jours_conges_dans_periode.append(evenement)
+        elif type_ev == "arret_maladie":
+            montant_deduction = round(heures * taux_horaire_de_base, 2)
+            deduction_arret_maladie_total += montant_deduction
+            lignes_composants_brut.append(
+                {
+                    "libelle": "Absence arrêt maladie (jours déduction)",
+                    "quantite": heures,
+                    "taux": round(taux_horaire_de_base, 4),
+                    "gain": None,
+                    "perte": montant_deduction,
+                    "is_arret_maladie": True,
+                }
+            )
 
     # 4. Ajout des lignes de GAIN pour les heures travaillées (après accumulation)
     # if heures_travail_base_total > 0:
@@ -474,4 +488,5 @@ def calculer_salaire_brut(
         "lignes_composants_brut": lignes_composants_brut,
         "remuneration_brute_heures_supp": round(remuneration_hs_totale, 2),
         "total_heures_supp": round(total_heures_supp_mois, 2),
+        "deduction_arret_maladie": round(deduction_arret_maladie_total, 2),
     }

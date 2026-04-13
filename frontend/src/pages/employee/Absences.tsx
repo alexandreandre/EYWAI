@@ -12,6 +12,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import * as absencesApi from '@/api/absences';
 import * as absencesApiFunctions from '@/api/absences';
+import {
+  MaintenancePreviewBlock,
+  ABSENCE_TYPES_MAINTIEN_PREVIEW,
+} from '@/components/absences/MaintenancePreviewBlock';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import type { DayPicker } from 'react-day-picker';
@@ -268,14 +272,14 @@ export default function AbsencesPage() {
               {isLoading ? <div className="flex justify-center items-center h-24"><Loader2 className="h-6 w-6 animate-spin" /></div>
                : myAbsences.length > 0 ? (
                 <ul className="space-y-3">{myAbsences.map(a => (
-                    <li key={a.id} className="p-3 rounded-md border">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
+                    <li key={a.id} className="space-y-3 p-3 rounded-md border">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0">
                           <p className="font-medium">{a.type === 'evenement_familial' && a.event_subtype ? `Événement familial - ${evenementFamilialLabels[a.event_subtype] ?? a.event_subtype}` : typeLabels[a.type]}</p>
                           <p className="text-sm text-muted-foreground">{renderDates(a.selected_days)}</p>
                           {a.comment && <p className="text-xs text-muted-foreground mt-1 italic">{a.comment}</p>}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex shrink-0 items-center gap-2">
                           <div className="flex gap-1">
                             {a.attachment_url && (
                               <>
@@ -326,6 +330,14 @@ export default function AbsencesPage() {
                           {getStatusBadge(a.status)}
                         </div>
                       </div>
+                      {ABSENCE_TYPES_MAINTIEN_PREVIEW.has(a.type) ? (
+                        <div className="max-w-xl">
+                          <MaintenancePreviewBlock
+                            absenceId={a.id}
+                            arretType={a.arret_type ?? null}
+                          />
+                        </div>
+                      ) : null}
                     </li>))}
                 </ul>
               ) : <p className="text-center text-sm text-muted-foreground h-24 flex items-center justify-center">Aucune demande récente.</p>}

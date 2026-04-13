@@ -8,10 +8,16 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { AbsenceRequestModal } from "@/components/AbsenceRequestModal";
 import { Loader2, Check, X, Clock, Info, Download, Eye, FilePlus } from "lucide-react";
 import apiClient from '@/api/apiClient'; // <-- AJOUTER
 import type * as absencesApi from '@/api/absences'; // <-- CHANGER en 'import type'
 import * as absencesApiFunctions from '@/api/absences';
+import {
+  MaintenancePreviewBlock,
+  ABSENCE_TYPES_MAINTIEN_PREVIEW,
+} from '@/components/absences/MaintenancePreviewBlock';
 
 type AbsenceRequest = absencesApi.AbsenceRequestWithEmployee;
 type AbsenceType = AbsenceRequest['type'];
@@ -44,8 +50,17 @@ const groupConsecutiveDates = (dates: Date[]): { start: Date, end: Date }[] => {
 };
 
 
+function canShowRhNewAbsenceButton(user: { role?: string; is_super_admin?: boolean } | null): boolean {
+  if (!user) return false;
+  if (user.is_super_admin) return true;
+  const r = user.role;
+  return r === "rh" || r === "admin" || r === "super_admin";
+}
+
 export default function AbsencesPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [pending, setPending] = useState<AbsenceRequest[]>([]);
   const [processed, setProcessed] = useState<AbsenceRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -421,17 +436,27 @@ export default function AbsencesPage() {
                 </div>
               )}
             </TableCell>
-            <TableCell className="text-right">
-              {req.status === 'pending' ? (
-                <div className="flex gap-2 justify-end">
-                  <Button size="sm" variant="outline" onClick={() => handleUpdateStatus(req.id, 'rejected')}><X className="mr-2 h-4 w-4" /> Rejeter</Button>
-                  <Button size="sm" onClick={() => handleUpdateStatus(req.id, 'validated')}><Check className="mr-2 h-4 w-4" /> Approuver</Button>
-                </div>
-              ) : (
-                <Badge variant={req.status === 'validated' ? 'success' : 'destructive'} className="justify-end">
-                  {req.status === 'validated' ? <><Check className="mr-1 h-3 w-3" /> Validée</> : <><X className="mr-1 h-3 w-3" /> Rejetée</>}
-                </Badge>
-              )}
+            <TableCell className="text-right align-top">
+              <div className="flex flex-col items-end gap-3">
+                {ABSENCE_TYPES_MAINTIEN_PREVIEW.has(req.type) ? (
+                  <div className="w-full max-w-md text-left">
+                    <MaintenancePreviewBlock
+                      absenceId={req.id}
+                      arretType={req.arret_type ?? null}
+                    />
+                  </div>
+                ) : null}
+                {req.status === 'pending' ? (
+                  <div className="flex gap-2 justify-end">
+                    <Button size="sm" variant="outline" onClick={() => handleUpdateStatus(req.id, 'rejected')}><X className="mr-2 h-4 w-4" /> Rejeter</Button>
+                    <Button size="sm" onClick={() => handleUpdateStatus(req.id, 'validated')}><Check className="mr-2 h-4 w-4" /> Approuver</Button>
+                  </div>
+                ) : (
+                  <Badge variant={req.status === 'validated' ? 'success' : 'destructive'} className="justify-end">
+                    {req.status === 'validated' ? <><Check className="mr-1 h-3 w-3" /> Validée</> : <><X className="mr-1 h-3 w-3" /> Rejetée</>}
+                  </Badge>
+                )}
+              </div>
             </TableCell>
           </TableRow>
         ))}
@@ -441,7 +466,23 @@ export default function AbsencesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Gestion des Congés & Absences</h1>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-3xl font-bold">Gestion des Congés & Absences</h1>
+        {canShowRhNewAbsenceButton(user) ? (
+          <Button type="button" onClick={() => setShowCreateModal(true)}>
+            + Nouvelle absence
+          </Button>
+        ) : null}
+      </div>
+      <AbsenceRequestModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={() => {
+          setShowCreateModal(false);
+          void fetchData();
+        }}
+        showEmployeeSelector
+      />
       <Tabs defaultValue="pending">
         <TabsList>
           <TabsTrigger value="pending"><Clock className="mr-2 h-4 w-4" /> Demandes en attente <Badge className="ml-2">{pending.length}</Badge></TabsTrigger>

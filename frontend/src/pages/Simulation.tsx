@@ -4,14 +4,15 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Calculator, FileText, Loader2 } from 'lucide-react';
+import { Calculator, FileText, Loader2, Stethoscope } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Button } from '../components/ui/button';
 import {
   ReverseCalculationForm,
   ReverseCalculationResult,
   PayslipSimulationForm,
-  PayslipSimulationResult
+  PayslipSimulationResult,
+  ArretMaladieSimulationTab,
 } from '../components/simulation';
 import type { ReverseCalculationFormRef } from '../components/simulation/ReverseCalculationForm';
 import type { PayslipSimulationFormRef } from '../components/simulation/PayslipSimulationForm';
@@ -134,7 +135,7 @@ const Simulation: React.FC = () => {
 
       {/* Onglets principaux */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-6">
+        <TabsList className="mb-6 grid w-full grid-cols-3">
           <TabsTrigger value="reverse" className="flex items-center gap-2">
             <Calculator className="h-4 w-4" />
             <span className="hidden sm:inline">Calcul Inverse</span>
@@ -144,6 +145,11 @@ const Simulation: React.FC = () => {
             <FileText className="h-4 w-4" />
             <span className="hidden sm:inline">Simulation</span>
             <span className="sm:hidden">Simul.</span>
+          </TabsTrigger>
+          <TabsTrigger value="arret-maladie" className="flex items-center gap-2">
+            <Stethoscope className="h-4 w-4" />
+            <span className="hidden sm:inline">Arrêt maladie</span>
+            <span className="sm:hidden">Arrêt</span>
           </TabsTrigger>
         </TabsList>
 
@@ -283,6 +289,21 @@ const Simulation: React.FC = () => {
                 }}
               />
             )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="arret-maladie" className="space-y-6">
+          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="mb-6">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+                <Stethoscope className="h-5 w-5 text-rose-500" />
+                Simulation arrêt maladie
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Maintien et IJSS calculés avec le même moteur que sur le bulletin de paie
+              </p>
+            </div>
+            <ArretMaladieSimulationTab employees={employees} />
           </div>
         </TabsContent>
       </Tabs>

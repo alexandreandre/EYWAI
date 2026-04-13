@@ -10,7 +10,7 @@ import io
 import traceback
 from typing import List, Literal
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from app.core.security import get_current_user
@@ -39,11 +39,13 @@ router = APIRouter(
 
 
 def _handle_application_errors(e: Exception) -> None:
-    """Traduit ValueError/LookupError/RuntimeError en HTTPException."""
+    """Traduit ValueError/LookupError/RuntimeError/PermissionError en HTTPException."""
     if isinstance(e, ValueError):
         raise HTTPException(status_code=400, detail=str(e))
     if isinstance(e, LookupError):
         raise HTTPException(status_code=404, detail=str(e))
+    if isinstance(e, PermissionError):
+        raise HTTPException(status_code=403, detail=str(e))
     if isinstance(e, RuntimeError):
         raise HTTPException(status_code=500, detail=str(e))
     raise
@@ -239,6 +241,49 @@ async def get_my_absences_page_data(
         raise HTTPException(
             status_code=500, detail="Erreur de récupération des données."
         )
+
+
+# ----- Aperçu maintien de salaire -----
+
+
+@router.get("/{absence_id}/maintenance-preview")
+async def get_absence_maintenance_preview(
+    absence_id: str,
+    subrogation_active: bool | None = Query(
+        None,
+        description="Surcharge subrogation (ex. mode entreprise « par cas »).",
+    ),
+    current_user: User = Depends(get_current_user),
+):
+    """Calcule un aperçu maintien / IJSS pour une absence d'arrêt qualifiée."""
+    try:
+        return queries.get_absence_maintenance_preview(
+            absence_id,
+            current_user,
+            subrogation_active=subrogation_active,
+        )
+    except (ValueError, LookupError, RuntimeError, PermissionError) as e:
+        _handle_application_errors(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{absence_id}/regularisation-at")
+async def post_absence_regularisation_at(
+    absence_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Compare maintien / IJSS maladie simple vs AT pour une absence déjà requalifiée en AT (RH uniquement).
+    """
+    try:
+        return queries.get_absence_regularisation_at(absence_id, current_user)
+    except (ValueError, LookupError, RuntimeError, PermissionError) as e:
+        _handle_application_errors(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ----- Attestations de salaire -----

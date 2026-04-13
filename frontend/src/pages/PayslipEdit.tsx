@@ -8,7 +8,14 @@ import { useToast } from '@/components/ui/use-toast';
 import { ArrowLeft, Save, Eye, History, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-import { getPayslipDetails, editPayslip, PayslipDetail, PayslipEditRequest } from '@/api/payslips';
+import {
+  getPayslipDetails,
+  editPayslip,
+  PayslipDetail,
+  PayslipEditRequest,
+  isPayslipBlocMaintienPresent,
+  type PayslipBulletinData,
+} from '@/api/payslips';
 import { useAuth } from '@/contexts/AuthContext';
 
 // Import des composants d'édition (à créer)
@@ -22,6 +29,7 @@ import NotesDeFraisSection from '@/components/payslip-edit/NotesDeFraisSection';
 import NotesSection from '@/components/payslip-edit/NotesSection';
 import HistoryPanel from '@/components/payslip-edit/HistoryPanel';
 import PreviewPanel from '@/components/payslip-edit/PreviewPanel';
+import { MaintenanceDetailModal } from '@/components/payslip/MaintenanceDetailModal';
 
 export default function PayslipEdit() {
   const { payslipId } = useParams<{ payslipId: string }>();
@@ -30,7 +38,8 @@ export default function PayslipEdit() {
   const { user } = useAuth();
 
   const [payslip, setPayslip] = useState<PayslipDetail | null>(null);
-  const [editedData, setEditedData] = useState<any>(null);
+  const [editedData, setEditedData] = useState<PayslipBulletinData | null>(null);
+  const [showMaintienModal, setShowMaintienModal] = useState(false);
   const [cumuls, setCumuls] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -52,7 +61,9 @@ export default function PayslipEdit() {
       try {
         const data = await getPayslipDetails(payslipId);
         setPayslip(data);
-        setEditedData(JSON.parse(JSON.stringify(data.payslip_data))); // Deep clone
+        setEditedData(
+          JSON.parse(JSON.stringify(data.payslip_data)) as PayslipBulletinData
+        ); // Deep clone
         setPdfNotes(data.pdf_notes || '');
         setCumuls(data.cumuls || null);
       } catch (error: any) {
@@ -118,7 +129,9 @@ export default function PayslipEdit() {
       // Recharger les données
       const updatedPayslip = await getPayslipDetails(payslipId!);
       setPayslip(updatedPayslip);
-      setEditedData(JSON.parse(JSON.stringify(updatedPayslip.payslip_data)));
+      setEditedData(
+        JSON.parse(JSON.stringify(updatedPayslip.payslip_data)) as PayslipBulletinData
+      );
       setCumuls(updatedPayslip.cumuls || null);
     } catch (error: any) {
       toast({
@@ -231,6 +244,10 @@ export default function PayslipEdit() {
             absencesData={editedData.details_absences || []}
             onCongesChange={(data) => updateEditedData(['details_conges'], data)}
             onAbsencesChange={(data) => updateEditedData(['details_absences'], data)}
+            detailsMaintien={editedData.details_maintien}
+            blocMaintien={editedData.bloc_maintien}
+            syntheseNet={editedData.synthese_net}
+            onOpenMaintienModal={() => setShowMaintienModal(true)}
           />
 
           {/* Section Calcul du Brut */}
@@ -296,7 +313,9 @@ export default function PayslipEdit() {
               // Recharger après restauration
               getPayslipDetails(payslipId!).then((data) => {
                 setPayslip(data);
-                setEditedData(JSON.parse(JSON.stringify(data.payslip_data)));
+                setEditedData(
+                  JSON.parse(JSON.stringify(data.payslip_data)) as PayslipBulletinData
+                );
                 setCumuls(data.cumuls || null);
                 setActiveTab('edit');
               });
@@ -304,6 +323,14 @@ export default function PayslipEdit() {
           />
         </TabsContent>
       </Tabs>
+
+      {editedData && isPayslipBlocMaintienPresent(editedData.bloc_maintien) ? (
+        <MaintenanceDetailModal
+          open={showMaintienModal}
+          onClose={() => setShowMaintienModal(false)}
+          maintien={editedData.bloc_maintien}
+        />
+      ) : null}
     </div>
   );
 }

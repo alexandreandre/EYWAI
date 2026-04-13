@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { ChevronsUpDown, Check } from "lucide-react";
 import CollectiveAgreementCard from "@/components/CollectiveAgreementCard";
 import { mutuelleTypesApi, MutuelleType, MutuelleTypeCreate, MutuelleTypeUpdate } from "@/api/mutuelleTypes";
+import MaintenanceSettingsCard from "@/pages/company/components/MaintenanceSettingsCard";
 
 
 
@@ -439,6 +440,8 @@ export default function CompanyPage() {
           </CardContent>
         </Card>
       )}
+
+      <MaintenanceSettingsCard />
 
       {/* 3. Onglets pour les Données Détaillées */}
       <Tabs value={activeTab} onValueChange={(value) => {

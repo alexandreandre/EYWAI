@@ -86,6 +86,10 @@ def create_absence_request(request_data: Any) -> dict:
     if absence_type == "evenement_familial" and event_subtype:
         db_data["event_subtype"] = event_subtype
 
+    arret_type = getattr(request_data, "arret_type", None)
+    if isinstance(arret_type, str) and arret_type:
+        db_data["arret_type"] = arret_type
+
     return absence_repository.create(db_data)
 
 

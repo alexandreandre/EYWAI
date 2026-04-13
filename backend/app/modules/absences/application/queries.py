@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import sys
 from datetime import date, datetime
-from typing import List
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
+from app.core.database import supabase
 from app.modules.absences.domain.rules import (
     calculate_acquired_cp,
     calculate_acquired_rtt,
@@ -29,6 +30,13 @@ from app.modules.absences.infrastructure.queries import (
     resolve_employee_id_for_user,
 )
 from app.modules.absences.infrastructure.repository import absence_repository
+from app.modules.maintenance_settings.application.queries import get_maintenance_settings
+from app.modules.payroll.engine.contexte import ChargerContexte
+from app.modules.payroll.engine.maintien_salaire_service import (
+    calculer_maintien,
+    calculer_regularisation_at,
+)
+from app.modules.users.schemas.responses import User
 
 BUCKET_LEAVE_ATTACHMENTS = "leave_attachments"
 BUCKET_SALARY_CERTIFICATES = "salary_certificates"
@@ -395,3 +403,299 @@ def download_salary_certificate(absence_id: str) -> tuple[bytes, str] | None:
     if isinstance(file_resp, dict) and file_resp.get("error"):
         return None
     return (file_resp, filename)
+
+
+def _parse_absence_day(d: Any) -> date:
+    if isinstance(d, datetime):
+        return d.date()
+    if isinstance(d, date):
+        return d
+    s = str(d)[:10]
+    return date.fromisoformat(s)
+
+
+def _company_payload_for_contexte(company_row: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "entreprise": {
+            "identification": {
+                "raison_sociale": company_row.get("name")
+                or company_row.get("legal_name")
+                or "",
+                "siret": str(company_row.get("siret") or ""),
+                "adresse": company_row.get("address")
+                or company_row.get("headquarters_address")
+                or "",
+            },
+            "parametres_paie": {
+                "effectif": int(
+                    company_row.get("effectif")
+                    or company_row.get("employee_count")
+                    or 0
+                ),
+            },
+        }
+    }
+
+
+def _employee_payload_for_contexte(emp: Dict[str, Any]) -> Dict[str, Any]:
+    sdb = emp.get("salaire_de_base") or {}
+    if isinstance(sdb, dict):
+        salaire_base = float(sdb.get("valeur") or 0)
+    else:
+        salaire_base = float(emp.get("salaire_base_mensuel") or 0)
+    return {
+        "first_name": emp.get("first_name") or "",
+        "last_name": emp.get("last_name") or "",
+        "nir": emp.get("nir") or "",
+        "statut": emp.get("statut") or "Non-Cadre",
+        "emploi": emp.get("job_title") or "",
+        "duree_hebdomadaire": float(emp.get("duree_hebdomadaire") or 35),
+        "date_entree": emp.get("hire_date") or "",
+        "salaire_base": salaire_base,
+        "taux_prelevement_source": float(emp.get("taux_prelevement_source") or 0),
+        "prevoyance": emp.get("prevoyance") or "NON",
+        "is_temps_partiel": bool(emp.get("is_temps_partiel")),
+        "avantages_en_nature": emp.get("avantages_en_nature") or {},
+        "convention_collective": emp.get("convention_collective") or {},
+        "classification_conventionnelle": emp.get("classification_conventionnelle")
+        or {},
+        "mutuelle": emp.get("mutuelle") or {},
+        "titres_restaurant": emp.get("titres_restaurant") or {},
+        "transport": emp.get("transport") or {},
+        "is_alsace_moselle": bool(emp.get("is_alsace_moselle", False)),
+    }
+
+
+def _infer_subrogation_active(
+    settings_dict: Dict[str, Any],
+    arret_type: str,
+    override: Optional[bool],
+) -> bool:
+    if override is not None:
+        return bool(override)
+    mode = settings_dict.get("subrogation_mode") or "automatic"
+    at_mp_types = {
+        "accident_travail",
+        "maladie_professionnelle",
+        "accident_trajet",
+        "rechute_at",
+    }
+    if mode == "at_mp_only":
+        return arret_type in at_mp_types
+    if mode == "per_case":
+        return True
+    return True
+
+
+def get_absence_maintenance_preview(
+    absence_id: str,
+    current_user: User,
+    subrogation_active: Optional[bool] = None,
+) -> Dict[str, Any]:
+    """
+    Aperçu moteur maintien pour une absence (arrêt qualifié).
+    Contrôle : entreprise active = company de l'employé ; accès RH ou titulaire de la demande.
+    """
+    active_cid = current_user.active_company_id
+    if not active_cid:
+        raise ValueError(
+            "Sélectionnez une entreprise active pour afficher l'aperçu maintien."
+        )
+
+    absence = absence_repository.get_by_id(absence_id)
+    if not absence:
+        raise LookupError("Absence introuvable.")
+
+    arret_type = absence.get("arret_type")
+    if arret_type is None or not str(arret_type).strip():
+        raise ValueError(
+            "Veuillez qualifier le type d'arrêt avant de calculer le maintien"
+        )
+    arret_type = str(arret_type).strip()
+
+    emp_res = (
+        supabase.table("employees")
+        .select("*")
+        .eq("id", absence["employee_id"])
+        .maybe_single()
+        .execute()
+    )
+    employee_row = emp_res.data if emp_res else None
+    if not employee_row:
+        raise LookupError("Absence introuvable.")
+    emp_company = str(employee_row.get("company_id") or "")
+    if emp_company != str(active_cid):
+        raise LookupError("Absence introuvable.")
+
+    my_employee_id = resolve_employee_id_for_user(str(current_user.id))
+    is_owner = my_employee_id == absence.get("employee_id")
+    can_rh = current_user.has_rh_access_in_company(str(active_cid))
+    if not (is_owner or can_rh or current_user.is_super_admin):
+        raise LookupError("Absence introuvable.")
+
+    co_res = (
+        supabase.table("companies")
+        .select("*")
+        .eq("id", emp_company)
+        .maybe_single()
+        .execute()
+    )
+    company_row = (co_res.data if co_res else None) or {}
+
+    days_raw = absence.get("selected_days") or []
+    if not days_raw:
+        raise ValueError("Aucune date renseignée pour cette absence.")
+    parsed_days = sorted(_parse_absence_day(d) for d in days_raw)
+    date_debut_periode = parsed_days[0]
+    date_fin_periode = parsed_days[-1]
+
+    settings_model = get_maintenance_settings(emp_company)
+    settings_dict = settings_model.model_dump(mode="json")
+
+    sub_active = _infer_subrogation_active(settings_dict, arret_type, subrogation_active)
+
+    temps_travail_row = (
+        employee_row.get("temps_travail")
+        if isinstance(employee_row.get("temps_travail"), dict)
+        else {}
+    )
+    arret_data: Dict[str, Any] = {
+        "arret_type": arret_type,
+        "date_debut": date_debut_periode.isoformat(),
+        "date_fin": date_fin_periode.isoformat(),
+        "subrogation_active": sub_active,
+        "nombre_enfants": int(absence.get("nombre_enfants") or 0),
+        "is_temps_partiel": bool(
+            absence.get("is_temps_partiel")
+            if absence.get("is_temps_partiel") is not None
+            else employee_row.get("is_temps_partiel")
+            or temps_travail_row.get("is_temps_partiel")
+            or False
+        ),
+        "quotite_temps_partiel": float(
+            absence.get("quotite_temps_partiel")
+            or temps_travail_row.get("quotite")
+            or 1.0
+        ),
+        "historique_arrets_annee": absence.get("historique_arrets_annee") or [],
+        "date_dernier_arret": absence.get("date_dernier_arret"),
+        "salaire_periode_reelle": float(absence.get("salaire_periode_reelle") or 0.0),
+    }
+
+    employee_map = _employee_payload_for_contexte(employee_row)
+    company_map = _company_payload_for_contexte(company_row)
+
+    contexte = ChargerContexte(employee_map, company_map, {})
+    result = calculer_maintien(
+        arret_data,
+        contexte,
+        settings_dict,
+        date_debut_periode,
+        date_fin_periode,
+    )
+
+    result = dict(result)
+    result["subrogation_mode"] = settings_dict.get("subrogation_mode", "automatic")
+    return result
+
+
+def get_absence_regularisation_at(
+    absence_id: str,
+    current_user: User,
+) -> Dict[str, Any]:
+    """
+    Delta IJSS / maintien entre calcul maladie simple et AT (même absence, dates identiques).
+    Réservé aux profils RH sur l'entreprise active ; l'absence doit être qualifiée AT (post-requalification).
+    """
+    active_cid = current_user.active_company_id
+    if not active_cid:
+        raise ValueError(
+            "Sélectionnez une entreprise active pour la régularisation AT."
+        )
+    if not current_user.is_super_admin and not current_user.has_rh_access_in_company(
+        str(active_cid)
+    ):
+        raise PermissionError(
+            "Accès réservé aux profils RH pour la régularisation AT."
+        )
+
+    absence = absence_repository.get_by_id(absence_id)
+    if not absence:
+        raise LookupError("Absence introuvable.")
+
+    arret_type = str(absence.get("arret_type") or "").strip()
+    if arret_type != "accident_travail":
+        raise ValueError(
+            "La régularisation AT s'applique uniquement si le type d'arrêt est "
+            "« accident_travail » (après requalification)."
+        )
+
+    emp_res = (
+        supabase.table("employees")
+        .select("*")
+        .eq("id", absence["employee_id"])
+        .maybe_single()
+        .execute()
+    )
+    employee_row = emp_res.data if emp_res else None
+    if not employee_row:
+        raise LookupError("Absence introuvable.")
+    emp_company = str(employee_row.get("company_id") or "")
+    if emp_company != str(active_cid):
+        raise LookupError("Absence introuvable.")
+
+    co_res = (
+        supabase.table("companies")
+        .select("*")
+        .eq("id", emp_company)
+        .maybe_single()
+        .execute()
+    )
+    company_row = (co_res.data if co_res else None) or {}
+
+    days_raw = absence.get("selected_days") or []
+    if not days_raw:
+        raise ValueError("Aucune date renseignée pour cette absence.")
+    parsed_days = sorted(_parse_absence_day(d) for d in days_raw)
+    date_debut_periode = parsed_days[0]
+    date_fin_periode = parsed_days[-1]
+
+    settings_model = get_maintenance_settings(emp_company)
+    settings_dict = settings_model.model_dump(mode="json")
+
+    sub_active = _infer_subrogation_active(settings_dict, arret_type, None)
+
+    temps_travail_row = (
+        employee_row.get("temps_travail")
+        if isinstance(employee_row.get("temps_travail"), dict)
+        else {}
+    )
+    arret_data: Dict[str, Any] = {
+        "arret_type": arret_type,
+        "date_debut": date_debut_periode.isoformat(),
+        "date_fin": date_fin_periode.isoformat(),
+        "subrogation_active": sub_active,
+        "nombre_enfants": int(absence.get("nombre_enfants") or 0),
+        "is_temps_partiel": bool(
+            absence.get("is_temps_partiel")
+            if absence.get("is_temps_partiel") is not None
+            else employee_row.get("is_temps_partiel")
+            or temps_travail_row.get("is_temps_partiel")
+            or False
+        ),
+        "quotite_temps_partiel": float(
+            absence.get("quotite_temps_partiel")
+            or temps_travail_row.get("quotite")
+            or 1.0
+        ),
+        "historique_arrets_annee": absence.get("historique_arrets_annee") or [],
+        "date_dernier_arret": absence.get("date_dernier_arret"),
+        "salaire_periode_reelle": float(absence.get("salaire_periode_reelle") or 0.0),
+    }
+
+    employee_map = _employee_payload_for_contexte(employee_row)
+    company_map = _company_payload_for_contexte(company_row)
+
+    contexte = ChargerContexte(employee_map, company_map, {})
+
+    return calculer_regularisation_at(arret_data, contexte, settings_dict)

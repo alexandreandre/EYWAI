@@ -11,6 +11,16 @@ export interface SimpleEmployee {
   balances: AbsenceBalance[]; // <-- On ajoute les soldes ici
 }
 
+export type ArretType =
+  | 'maladie_simple'
+  | 'accident_travail'
+  | 'maladie_professionnelle'
+  | 'accident_trajet'
+  | 'mi_temps_therapeutique'
+  | 'ald'
+  | 'rechute_at'
+  | 'arret_exceptionnel';
+
 // Interface principale, mise à jour pour utiliser 'selected_days'
 export interface AbsenceRequest {
   id: string;
@@ -26,6 +36,7 @@ export interface AbsenceRequest {
   event_subtype?: string | null;
   /** Pour conge_paye: nombre de jours payés (reste = congé sans solde). */
   jours_payes?: number | null;
+  arret_type?: ArretType | null;
 }
 
 export interface AbsenceRequestWithEmployee extends AbsenceRequest {
@@ -103,6 +114,7 @@ export interface AbsenceCreationPayload {
   attachment_url?: string | null;
   filename?: string | null;
   event_subtype?: string | null; // Requis si type = evenement_familial
+  arret_type?: ArretType | null;
 }
 
 /**
@@ -203,4 +215,67 @@ export const downloadSalaryCertificate = async (absenceId: string): Promise<Blob
     responseType: 'blob',
   });
   return response.data;
+};
+
+// =====================================================
+// APERÇU MAINTIEN DE SALAIRE
+// =====================================================
+
+export type MaintenanceSubrogationMode = 'automatic' | 'at_mp_only' | 'per_case';
+
+export interface MaintenancePreview {
+  qualification: {
+    carence_ss_jours: number;
+    taux_ijss_base: number;
+    est_at_mp: boolean;
+    est_ald: boolean;
+  };
+  carence: {
+    carence_ss_jours: number;
+    carence_employeur_jours: number;
+    motif_carence: string;
+    est_continuite: boolean;
+  };
+  ijss: {
+    ijss_theorique: number;
+    ijss_journaliere: number;
+    nb_jours_indemnises: number;
+    taux_applique: number;
+    salaire_journalier_base: number;
+  };
+  maintien: {
+    maintien_applicable: boolean;
+    taux_maintien: number;
+    maintien_cible: number;
+    maintien_verse: number;
+    complement_employeur: number;
+    nb_jours_maintien: number;
+    conflit_convention: boolean;
+    motif_non_maintien?: string;
+  };
+  prevoyance: {
+    prevoyance_declenchee: boolean;
+    seuil_jours?: number;
+  };
+  alertes: string[];
+  subrogation_active: boolean;
+  type_arret: string;
+  /** Renseigné par l’API pour l’UI (paramétrage entreprise). */
+  subrogation_mode?: MaintenanceSubrogationMode;
+}
+
+/**
+ * Aperçu calcul maintien / IJSS pour une absence (arrêt qualifié).
+ * @param subrogationActive surcharge optionnelle (ex. mode subrogation « par cas »).
+ */
+export const getMaintenancePreview = (
+  absenceId: string,
+  subrogationActive?: boolean
+) => {
+  const params =
+    subrogationActive === undefined ? {} : { subrogation_active: subrogationActive };
+  return apiClient.get<MaintenancePreview>(
+    `/api/absences/${absenceId}/maintenance-preview`,
+    { params }
+  );
 };

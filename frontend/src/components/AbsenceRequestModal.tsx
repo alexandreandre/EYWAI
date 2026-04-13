@@ -21,6 +21,22 @@ import { Calendar } from "@/components/ui/calendar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import * as absencesApi from "@/api/absences";
+import { getEmployeesLite, type EmployeeLite } from "@/api/employees";
+
+/** Types d’absence pour lesquels la qualification d’arrêt est obligatoire. */
+const ARRET_PRINCIPAL_TYPES = [
+  "arret_maladie",
+  "arret_at",
+  "arret_maladie_pro",
+  "arret_maternite",
+  "arret_paternite",
+] as const;
+
+function isArretPrincipalType(
+  t: string
+): t is (typeof ARRET_PRINCIPAL_TYPES)[number] {
+  return (ARRET_PRINCIPAL_TYPES as readonly string[]).includes(t);
+}
 
 interface AbsenceRequestModalProps {
   isOpen: boolean;
@@ -28,9 +44,17 @@ interface AbsenceRequestModalProps {
   onSuccess: () => void;
   /** Soldes de l'employé (pour vérifier CP restant sur conge_paye). */
   balances?: absencesApi.AbsenceBalance[];
+  /** Vue RH : liste des employés de l'entreprise active et choix du bénéficiaire. */
+  showEmployeeSelector?: boolean;
 }
 
-export function AbsenceRequestModal({ isOpen, onClose, onSuccess, balances = [] }: AbsenceRequestModalProps) {
+export function AbsenceRequestModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  balances = [],
+  showEmployeeSelector = false,
+}: AbsenceRequestModalProps) {
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -45,6 +69,10 @@ export function AbsenceRequestModal({ isOpen, onClose, onSuccess, balances = [] 
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
   const [error, setError] = useState("");
   const [confirmSansSoldeOpen, setConfirmSansSoldeOpen] = useState(false);
+  const [arretType, setArretType] = useState<absencesApi.ArretType | "">("");
+  const [employees, setEmployees] = useState<EmployeeLite[]>([]);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  const [isLoadingEmployees, setIsLoadingEmployees] = useState(false);
 
   // Réinitialiser les états à l'ouverture du modal
   useEffect(() => {
@@ -56,8 +84,29 @@ export function AbsenceRequestModal({ isOpen, onClose, onSuccess, balances = [] 
       setComment("");
       setFile(null);
       setError("");
+      setArretType("");
+      if (showEmployeeSelector) {
+        setSelectedEmployeeId("");
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, showEmployeeSelector]);
+
+  useEffect(() => {
+    if (!isOpen || !showEmployeeSelector) {
+      return;
+    }
+    setIsLoadingEmployees(true);
+    getEmployeesLite()
+      .then(setEmployees)
+      .catch(() => setEmployees([]))
+      .finally(() => setIsLoadingEmployees(false));
+  }, [isOpen, showEmployeeSelector]);
+
+  useEffect(() => {
+    if (!isArretPrincipalType(absenceType)) {
+      setArretType("");
+    }
+  }, [absenceType]);
 
   // Charger les événements familiaux quand on sélectionne ce type
   useEffect(() => {
@@ -96,9 +145,14 @@ export function AbsenceRequestModal({ isOpen, onClose, onSuccess, balances = [] 
         filename = file.name;
       }
 
+      const employeeId =
+        showEmployeeSelector && selectedEmployeeId
+          ? selectedEmployeeId
+          : user!.id;
+
       // Créer la demande d'absence avec ou sans justificatif
       const payload: absencesApi.AbsenceCreationPayload = {
-        employee_id: user!.id,
+        employee_id: employeeId,
         type: absenceType as 'conge_paye' | 'rtt' | 'repos_compensateur' | 'evenement_familial' | 'arret_maladie' | 'arret_at' | 'arret_paternite' | 'arret_maternite' | 'arret_maladie_pro',
         selected_days: formattedDays,
         comment: comment || null,
@@ -107,6 +161,9 @@ export function AbsenceRequestModal({ isOpen, onClose, onSuccess, balances = [] 
       };
       if (absenceType === 'evenement_familial' && eventSubtype) {
         payload.event_subtype = eventSubtype;
+      }
+      if (isArretPrincipalType(absenceType)) {
+        payload.arret_type = arretType as absencesApi.ArretType;
       }
       await absencesApi.createAbsenceRequest(payload);
 
@@ -122,12 +179,20 @@ export function AbsenceRequestModal({ isOpen, onClose, onSuccess, balances = [] 
   };
 
   const handleSave = () => {
+    if (showEmployeeSelector && !selectedEmployeeId) {
+      setError("Veuillez sélectionner un employé.");
+      return;
+    }
     if (!absenceType) {
       setError("Veuillez sélectionner un type d'absence.");
       return;
     }
     if (absenceType === 'evenement_familial' && !eventSubtype) {
       setError("Veuillez sélectionner le type d'événement familial.");
+      return;
+    }
+    if (isArretPrincipalType(absenceType) && !arretType) {
+      setError("Veuillez sélectionner le type d'arrêt.");
       return;
     }
     if (!selectedDays || selectedDays.length === 0) {
@@ -167,6 +232,34 @@ export function AbsenceRequestModal({ isOpen, onClose, onSuccess, balances = [] 
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {showEmployeeSelector ? (
+            <div className="grid gap-2">
+              <Label htmlFor="absence-employee">Employé</Label>
+              {isLoadingEmployees ? (
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Chargement des employés…
+                </p>
+              ) : (
+                <Select
+                  value={selectedEmployeeId || undefined}
+                  onValueChange={setSelectedEmployeeId}
+                >
+                  <SelectTrigger id="absence-employee">
+                    <SelectValue placeholder="Sélectionner un employé…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.map((e) => (
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.first_name} {e.last_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          ) : null}
+
           <div className="grid gap-2">
             <Label htmlFor="absence-type">Type d'absence</Label>
             <Select value={absenceType} onValueChange={(value: AbsenceTypeValue) => setAbsenceType(value)}>
@@ -184,6 +277,30 @@ export function AbsenceRequestModal({ isOpen, onClose, onSuccess, balances = [] 
               </SelectContent>
             </Select>
           </div>
+
+          {isArretPrincipalType(absenceType) && (
+            <div className="grid gap-2">
+              <Label htmlFor="arret-type">Type d&apos;arrêt</Label>
+              <Select
+                value={arretType || undefined}
+                onValueChange={(v) => setArretType(v as absencesApi.ArretType)}
+              >
+                <SelectTrigger id="arret-type">
+                  <SelectValue placeholder="Sélectionner le type d'arrêt…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="maladie_simple">Maladie simple</SelectItem>
+                  <SelectItem value="accident_travail">Accident du travail</SelectItem>
+                  <SelectItem value="maladie_professionnelle">Maladie professionnelle</SelectItem>
+                  <SelectItem value="accident_trajet">Accident de trajet</SelectItem>
+                  <SelectItem value="mi_temps_therapeutique">Mi-temps thérapeutique</SelectItem>
+                  <SelectItem value="ald">ALD</SelectItem>
+                  <SelectItem value="rechute_at">Rechute AT</SelectItem>
+                  <SelectItem value="arret_exceptionnel">Arrêt exceptionnel</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {absenceType === 'evenement_familial' && (
             <div className="grid gap-2">

@@ -24,7 +24,7 @@ def resolve_employee_id_for_user(user_id: str) -> Optional[str]:
         .maybe_single()
         .execute()
     )
-    if emp.data:
+    if emp and emp.data:
         return emp.data["id"]
     emp2 = (
         supabase.table("employees")
@@ -33,7 +33,7 @@ def resolve_employee_id_for_user(user_id: str) -> Optional[str]:
         .maybe_single()
         .execute()
     )
-    return emp2.data["id"] if emp2.data else None
+    return emp2.data["id"] if emp2 and emp2.data else None
 
 
 def get_employee_hire_date(employee_id: str) -> Optional[str]:
@@ -45,7 +45,7 @@ def get_employee_hire_date(employee_id: str) -> Optional[str]:
         .maybe_single()
         .execute()
     )
-    return r.data.get("hire_date") if r.data else None
+    return r.data.get("hire_date") if r and r.data else None
 
 
 def get_employee_company_id(employee_id: str) -> Optional[str]:
@@ -57,7 +57,7 @@ def get_employee_company_id(employee_id: str) -> Optional[str]:
         .maybe_single()
         .execute()
     )
-    return r.data.get("company_id") if r.data else None
+    return r.data.get("company_id") if r and r.data else None
 
 
 def get_employees_hire_dates_batch(
@@ -73,7 +73,7 @@ def get_employees_hire_dates_batch(
         .execute()
     )
     result = {}
-    for row in r.data or []:
+    for row in (r.data or []) if r else []:
         if row.get("hire_date"):
             h = row["hire_date"]
             result[row["id"]] = date.fromisoformat(h) if isinstance(h, str) else h
@@ -94,7 +94,7 @@ def get_repos_credits_by_employee_year(
         .execute()
     )
     result: Dict[str, float] = {}
-    for c in credits_resp.data or []:
+    for c in (credits_resp.data or []) if credits_resp else []:
         eid = c.get("employee_id")
         result[eid] = result.get(eid, 0.0) + float(c.get("jours", 0) or 0)
     return result
@@ -111,7 +111,7 @@ def get_planned_calendar(
         .maybe_single()
         .execute()
     )
-    if response.data and response.data.get("planned_calendar"):
+    if response and response.data and response.data.get("planned_calendar"):
         return response.data["planned_calendar"].get("calendrier_prevu", [])
     return []
 
@@ -127,7 +127,7 @@ def get_salary_certificate_record(
         .maybe_single()
         .execute()
     )
-    return r.data if r.data else None
+    return r.data if r and r.data else None
 
 
 def list_absence_requests_validated_for_cp(
@@ -144,4 +144,4 @@ def list_absence_requests_validated_for_cp(
     if exclude_request_id:
         query = query.neq("id", exclude_request_id)
     result = query.execute()
-    return result.data or []
+    return (result.data or []) if result else []

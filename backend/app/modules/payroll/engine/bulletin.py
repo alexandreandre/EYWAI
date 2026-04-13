@@ -2,7 +2,7 @@
 
 import sys
 from .contexte import ContextePaie
-from typing import Dict, Any, List
+from typing import Any, Dict, List, Optional
 
 
 def creer_bulletin_final(
@@ -14,12 +14,15 @@ def creer_bulletin_final(
     primes_non_soumises: List[Dict[str, Any]],
     annee: int,
     mois: int,
+    resultats_maintien: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Assemble tous les éléments calculés en une structure de données finale
     qui respecte l'ordre d'affichage désiré sur le bulletin.
     """
     print("INFO: Assemblage et tri du bulletin de paie final...", file=sys.stderr)
+
+    lignes_maintien = [l for l in details_brut if l.get("is_arret_maladie")]
 
     # Séparation en 3 blocs (congés, absences, et le reste)
     lignes_conges = []
@@ -122,6 +125,37 @@ def creer_bulletin_final(
     ]
     periode_formatee = f"{mois_nom_francais[mois - 1]} {annee}"
 
+    synthese_net: Dict[str, Any] = {
+        "net_social_avant_impot": resultats_nets.get("net_social"),
+        "net_imposable": resultats_nets.get("net_imposable"),
+        "impot_prelevement_a_la_source": {
+            "base": resultats_nets.get("net_imposable"),
+            "taux": contexte.contrat.get("specificites_paie", {})
+            .get("prelevement_a_la_source", {})
+            .get("taux", 0.0),
+            "montant": resultats_nets.get("montant_impot_pas"),
+        },
+        "remboursement_transport": resultats_nets.get("remboursement_transport"),
+        "acompte_verse": resultats_nets.get(
+            "acompte_verse", 0.0
+        ),  # Montant des avances déduites
+    }
+    if resultats_maintien:
+        synthese_net["ijss_subrogees"] = (
+            resultats_maintien.get("ijss", {}).get("ijss_theorique", 0.0) or 0.0
+        )
+        synthese_net["maintien_employeur"] = (
+            resultats_maintien.get("maintien", {}).get("maintien_verse", 0.0) or 0.0
+        )
+        synthese_net["complement_employeur"] = (
+            resultats_maintien.get("maintien", {}).get("complement_employeur", 0.0)
+            or 0.0
+        )
+        synthese_net["alertes_maintien"] = resultats_maintien.get("alertes", []) or []
+        synthese_net["subrogation_active"] = resultats_maintien.get(
+            "subrogation_active", False
+        )
+
     bulletin = {
         "en_tete": {
             "periode": periode_formatee,
@@ -142,6 +176,8 @@ def creer_bulletin_final(
         },
         "details_conges": lignes_conges,
         "details_absences": lignes_absences,
+        "details_maintien": lignes_maintien,
+        "bloc_maintien": resultats_maintien or {},
         "calcul_du_brut": autres_lignes_brut,
         "arbitrage_conges": texte_arbitrage,
         "salaire_brut": salaire_brut,
@@ -161,21 +197,7 @@ def creer_bulletin_final(
             "total_salarial": round(total_cotisations_salariales, 2),
             "total_patronal": round(total_cotisations_patronales, 2),
         },
-        "synthese_net": {
-            "net_social_avant_impot": resultats_nets.get("net_social"),
-            "net_imposable": resultats_nets.get("net_imposable"),
-            "impot_prelevement_a_la_source": {
-                "base": resultats_nets.get("net_imposable"),
-                "taux": contexte.contrat.get("specificites_paie", {})
-                .get("prelevement_a_la_source", {})
-                .get("taux", 0.0),
-                "montant": resultats_nets.get("montant_impot_pas"),
-            },
-            "remboursement_transport": resultats_nets.get("remboursement_transport"),
-            "acompte_verse": resultats_nets.get(
-                "acompte_verse", 0.0
-            ),  # Montant des avances déduites
-        },
+        "synthese_net": synthese_net,
         "primes_non_soumises": primes_non_soumises,
         "net_a_payer": resultats_nets.get("net_a_payer"),
         "pied_de_page": {
@@ -205,6 +227,7 @@ def creer_bulletin_sortie(
     indemnites_sortie: Dict[str, Any],
     annee: int,
     mois: int,
+    resultats_maintien: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Assemble un bulletin de paie de sortie incluant les indemnités de fin de contrat.
@@ -239,6 +262,7 @@ def creer_bulletin_sortie(
         primes_non_soumises,
         annee,
         mois,
+        resultats_maintien=resultats_maintien,
     )
 
     # Préparer les lignes d'indemnités de sortie
