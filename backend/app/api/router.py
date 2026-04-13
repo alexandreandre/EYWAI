@@ -49,6 +49,7 @@ from app.modules.schedules.api.router import (
     router_rh as schedules_router_rh,
 )
 from app.modules.super_admin.api.router import router as super_admin_router
+from app.modules.support.api.router import router as support_router
 from app.modules.uploads.api.router import router as uploads_router
 from app.modules.users.api.router import router as users_router
 
@@ -89,6 +90,7 @@ router.include_router(schedules_router)
 router.include_router(schedules_router_me)
 router.include_router(schedules_router_rh)
 router.include_router(super_admin_router)
+router.include_router(support_router)
 router.include_router(users_router)
 router.include_router(uploads_router)
 router.include_router(badgeuse_router_me)

@@ -1,6 +1,7 @@
 // frontend/src/pages/super-admin/SuperAdminLayout.tsx
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
+import { LifeBuoy } from 'lucide-react';
 
 export default function SuperAdminLayout() {
   const location = useLocation();
@@ -67,7 +68,18 @@ export default function SuperAdminLayout() {
         </nav>
 
         {/* Footer */}
-        <div className="absolute bottom-0 w-full p-4 border-t border-white border-opacity-20">
+        <div className="absolute bottom-0 w-full p-4 border-t border-white border-opacity-20 space-y-2">
+          <Link
+            to="/support"
+            className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
+              location.pathname === '/support' || location.pathname.startsWith('/support/')
+                ? 'bg-white bg-opacity-20 text-white font-semibold shadow-lg'
+                : 'text-gray-200 hover:bg-white hover:bg-opacity-10'
+            }`}
+          >
+            <LifeBuoy className="h-6 w-6 shrink-0" />
+            <span>Support</span>
+          </Link>
           <button
             onClick={() => navigate('/')}
             className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-200 hover:text-white hover:bg-white hover:bg-opacity-10 rounded-lg transition-all"

@@ -160,6 +160,46 @@ L'équipe SIRH
             print(traceback.format_exc())
             return False
 
+    def send_multipart_email(
+        self,
+        to_email: str,
+        subject: str,
+        text_content: str,
+        html_content: str,
+    ) -> bool:
+        """Envoie un e-mail texte + HTML (même transport SMTP / variables d’environnement)."""
+        try:
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = f"{self.from_name} <{self.from_email}>"
+            msg["To"] = to_email
+
+            part1 = MIMEText(text_content, "plain", "utf-8")
+            part2 = MIMEText(html_content, "html", "utf-8")
+            msg.attach(part1)
+            msg.attach(part2)
+
+            if not self.smtp_user or not self.smtp_password:
+                print(
+                    "⚠️  [EmailService] SMTP credentials not configured. Email not sent."
+                )
+                print(f"📧 [EmailService] Would have sent email to: {to_email}")
+                print(f"📧 [EmailService] Subject: {subject}")
+                return True
+
+            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+                server.starttls()
+                server.login(self.smtp_user, self.smtp_password)
+                server.send_message(msg)
+
+            print(f"✅ [EmailService] Email sent to: {to_email}")
+            return True
+
+        except Exception as e:
+            print(f"❌ [EmailService] Error sending email: {e}")
+            print(traceback.format_exc())
+            return False
+
 
 _default_sender: PasswordResetSmtpSender | None = None
 

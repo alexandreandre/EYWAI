@@ -34,6 +34,7 @@ import {
   Sparkles,
   Rocket,
   Lock,
+  LifeBuoy,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext"; // <-- IMPORTATION
 import { useRhSidebarTaskBadges } from "@/hooks/useRhSidebarTaskBadges";
@@ -579,6 +580,16 @@ export function AppSidebar() {
 
       <SidebarFooter className={collapsed ? "p-2" : "p-4"}>
         {!collapsed && <Separator className="mb-4" />}
+        <SidebarMenu className={collapsed ? "mb-2 flex flex-col items-center gap-1" : "mb-2"}>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip={collapsed ? "Support" : undefined}>
+              <NavLink to="/support" className={getNavClassName("/support")}>
+                <LifeBuoy className="h-5 w-5 flex-shrink-0" />
+                {!collapsed && <span className="font-medium">Support</span>}
+              </NavLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
         <div className={`flex items-center ${collapsed ? 'flex-col gap-2' : 'gap-3'}`}>
           {!collapsed && (
             <Avatar className="h-8 w-8">

@@ -1,5 +1,6 @@
 // src/App.tsx (VERSION COMPLÈTE ET CORRIGÉE)
 
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 
 // --- Fournisseurs de contexte et composants globaux ---
@@ -18,7 +19,7 @@ import { CompanySwitcher } from '@/components/CompanySwitcher'; // NOUVEAU
 import LoginPage from './pages/Login'; // À CRÉER
 import ForgotPasswordPage from './pages/ForgotPassword';
 import ResetPasswordPage from './pages/ResetPassword';
-// Pages RH
+// Pages 
 import RhDashboard from "./pages/Dashboard";
 import Employees from "./pages/Employees";
 import EmployeeDetail from "./pages/EmployeeDetail";
@@ -85,6 +86,40 @@ import UserEdit from './pages/UserEdit';
 import Simulation from './pages/Simulation';
 // Page par défaut
 import NotFound from "./pages/NotFound";
+
+const SupportPage = lazy(() => import('./pages/support/SupportPage'));
+const SupportConfirmationPage = lazy(() => import('./pages/support/SupportConfirmationPage'));
+const TicketsHistoryPage = lazy(() => import('./pages/support/TicketsHistoryPage'));
+
+const supportRouteFallback = (
+  <div className="flex min-h-[50vh] w-full items-center justify-center">
+    <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
+  </div>
+);
+
+function SuspenseSupportPage() {
+  return (
+    <Suspense fallback={supportRouteFallback}>
+      <SupportPage />
+    </Suspense>
+  );
+}
+
+function SuspenseSupportConfirmationPage() {
+  return (
+    <Suspense fallback={supportRouteFallback}>
+      <SupportConfirmationPage />
+    </Suspense>
+  );
+}
+
+function SuspenseTicketsHistoryPage() {
+  return (
+    <Suspense fallback={supportRouteFallback}>
+      <TicketsHistoryPage />
+    </Suspense>
+  );
+}
 
 /**
  * Layout pour l'espace Salarié, avec sa propre barre de navigation.
@@ -180,6 +215,9 @@ function ProtectedRoutes() {
           <Route path="/salary-advances" element={<SalaryAdvancesPage />} />
           <Route path="/documents" element={<DocumentsPage />} />
           <Route path="/medical-follow-up" element={<EmployeeMedicalFollowUp />} />
+          <Route path="/support" element={<SuspenseSupportPage />} />
+          <Route path="/support/confirmation" element={<SuspenseSupportConfirmationPage />} />
+          <Route path="/support/tickets" element={<SuspenseTicketsHistoryPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
@@ -246,6 +284,9 @@ function ProtectedRoutes() {
                   <Route path="/documents" element={<DocumentsPage />} />
                   <Route path="/medical-follow-up" element={<EmployeeMedicalFollowUp />} />
                   <Route path="/cse" element={<EmployeeCSE />} />
+                  <Route path="/support" element={<SuspenseSupportPage />} />
+                  <Route path="/support/confirmation" element={<SuspenseSupportConfirmationPage />} />
+                  <Route path="/support/tickets" element={<SuspenseTicketsHistoryPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </>
               ) : (
@@ -285,6 +326,9 @@ function ProtectedRoutes() {
                   <Route path="/users/create" element={<UserCreation />} />
                   <Route path="/users/:userId" element={<UserProfile />} />
                   <Route path="/users/:userId/edit" element={<UserEdit />} />
+                  <Route path="/support" element={<SuspenseSupportPage />} />
+                  <Route path="/support/confirmation" element={<SuspenseSupportConfirmationPage />} />
+                  <Route path="/support/tickets" element={<SuspenseTicketsHistoryPage />} />
                   <Route path="*" element={<NotFound />} />
                 </>
               )}
@@ -325,6 +369,9 @@ export default function App() {
                 <Route path="scraping" element={<SuperAdminScraping />} />
                 <Route path="monitoring" element={<SuperAdminMonitoring />} />
                 <Route path="tests" element={<SuperAdminTests />} />
+                <Route path="support" element={<SuspenseSupportPage />} />
+                <Route path="support/confirmation" element={<SuspenseSupportConfirmationPage />} />
+                <Route path="support/tickets" element={<SuspenseTicketsHistoryPage />} />
               </Route>
               <Route path="/*" element={<ProtectedRoutesWithView />} />
             </Routes>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Home, User, Wallet, Calendar, Receipt, FolderKanban, LogOut, Plane, DollarSign, Notebook, Settings, MessageSquare, Scale, Handshake, Stethoscope } from "lucide-react";
+import { Home, User, Wallet, Calendar, Receipt, FolderKanban, LogOut, Plane, DollarSign, Notebook, Settings, MessageSquare, Scale, Handshake, Stethoscope, LifeBuoy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { ChangePasswordModal } from "@/components/ChangePasswordModal";
@@ -134,6 +134,16 @@ export function EmployeeSidebar() {
 
       <SidebarFooter className={collapsed ? "p-2" : "p-4"}>
         {!collapsed && <Separator className="mb-4" />}
+        <SidebarMenu className={collapsed ? "mb-2 flex flex-col items-center gap-1" : "mb-2"}>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip={collapsed ? "Support" : undefined}>
+              <NavLink to="/support" className={getNavClassName("/support")}>
+                <LifeBuoy className="h-5 w-5 flex-shrink-0" />
+                {!collapsed && <span className="font-medium">Support</span>}
+              </NavLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
         <div className={`flex items-center ${collapsed ? 'flex-col gap-2' : 'gap-3'}`}>
           {!collapsed && (
             <Avatar className="h-8 w-8">
