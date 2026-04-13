@@ -30,6 +30,7 @@ class AbsenceRequest(BaseModel):
     filename: str | None = None
     event_subtype: str | None = None
     jours_payes: int | None = None  # Pour conge_paye: jours payés (reste = sans solde)
+    arret_type: str | None = None
 
 
 class SimpleEmployee(BaseModel):

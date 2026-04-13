@@ -3,6 +3,7 @@
  */
 
 import apiClient from './apiClient';
+import type { MaintenancePreview } from './absences';
 
 // ============================================================================
 // Types
@@ -137,6 +138,53 @@ export interface PredefinedScenario {
   params: ScenarioParams;
 }
 
+export const SIMULATION_ARRET_MALADIE_TYPES = [
+  'maladie_simple',
+  'accident_travail',
+  'maladie_professionnelle',
+  'accident_trajet',
+  'mi_temps_therapeutique',
+  'ald',
+  'rechute_at',
+  'arret_exceptionnel',
+] as const;
+
+export type SimulationArretMaladieArretType = (typeof SIMULATION_ARRET_MALADIE_TYPES)[number];
+
+export interface SimulationArretMaladieParams {
+  employee_id: string;
+  duree_jours: number;
+  arret_type: SimulationArretMaladieArretType;
+  subrogation_active: boolean;
+  /** Date ISO (YYYY-MM-DD) */
+  date_debut: string;
+  nombre_enfants: number;
+}
+
+export interface SimulationArretMaladieSynthese {
+  salaire_mensuel_base: number;
+  impact_net_salarie: number;
+  cout_employeur_complement: number;
+  charges_patronales_estimees: number;
+  cout_employeur_total: number;
+  ijss_theorique: number;
+  maintien_verse: number;
+}
+
+export interface SimulationArretMaladieResult {
+  scenario: string;
+  parametres: {
+    duree_jours: number;
+    arret_type: string;
+    subrogation_active: boolean;
+    date_debut: string;
+    nombre_enfants: number;
+  };
+  resultats_maintien: MaintenancePreview;
+  synthese: SimulationArretMaladieSynthese;
+  alertes: string[];
+}
+
 // ============================================================================
 // API Functions
 // ============================================================================
@@ -242,6 +290,19 @@ export const downloadSimulationPDF = async (simulationId: string): Promise<void>
 /**
  * Ouvre l'aperçu HTML d'une simulation dans un nouvel onglet
  */
+/**
+ * Simulation arrêt maladie (maintien / IJSS, cohérent moteur bulletin).
+ */
+export const simulerArretMaladie = async (
+  params: SimulationArretMaladieParams
+): Promise<SimulationArretMaladieResult> => {
+  const response = await apiClient.post<SimulationArretMaladieResult>(
+    '/api/simulation/arret-maladie',
+    params
+  );
+  return response.data;
+};
+
 export const previewSimulationHTML = (simulationId: string): void => {
   // Construire l'URL pour l'aperçu HTML
   const baseURL = apiClient.defaults.baseURL || '';

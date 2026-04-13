@@ -439,7 +439,7 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
         )
 
         payslip_json_data = run_payslip_generation_heures(
-            employee_path, year, month, engine_root
+            employee_path, year, month, engine_root, company_id=str(company_id)
         )
 
         new_cumuls_path = employee_path / "cumuls" / f"{month:02d}.json"

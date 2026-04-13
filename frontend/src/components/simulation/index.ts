@@ -8,3 +8,4 @@ export { PayslipSimulationForm } from './PayslipSimulationForm';
 export { PayslipSimulationResult } from './PayslipSimulationResult';
 export { SimulationHistory } from './SimulationHistory';
 export { SimulationPreview } from './SimulationPreview';
+export { ArretMaladieSimulationTab } from './ArretMaladieSimulationTab';

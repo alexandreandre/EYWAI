@@ -5,9 +5,9 @@ Migrés depuis schemas/absence.py — comportement identique.
 """
 
 from datetime import date
-from typing import List, Literal
+from typing import List, Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 AbsenceType = Literal[
     "conge_paye",
@@ -23,6 +23,27 @@ AbsenceType = Literal[
 ]
 AbsenceStatus = Literal["pending", "validated", "rejected", "cancelled"]
 
+ArretType = Literal[
+    "maladie_simple",
+    "accident_travail",
+    "maladie_professionnelle",
+    "accident_trajet",
+    "mi_temps_therapeutique",
+    "ald",
+    "rechute_at",
+    "arret_exceptionnel",
+]
+
+_ARRETS_TYPES_PRINCIPAUX = frozenset(
+    {
+        "arret_maladie",
+        "arret_at",
+        "arret_maladie_pro",
+        "arret_maternite",
+        "arret_paternite",
+    }
+)
+
 
 class AbsenceRequestCreate(BaseModel):
     """Schéma pour la création d'une demande d'absence par un employé."""
@@ -37,6 +58,15 @@ class AbsenceRequestCreate(BaseModel):
     event_subtype: str | None = (
         None  # Requis si type = evenement_familial (ex: mariage_salarie, deces_enfant)
     )
+    arret_type: Optional[ArretType] = None
+
+    @model_validator(mode="after")
+    def arret_type_required_for_arrets(self) -> "AbsenceRequestCreate":
+        if self.type in _ARRETS_TYPES_PRINCIPAUX and self.arret_type is None:
+            raise ValueError(
+                "Le type d'arrêt est obligatoire pour ce type d'absence (arrêt / congé pathologique)."
+            )
+        return self
 
 
 class AbsenceRequestStatusUpdate(BaseModel):

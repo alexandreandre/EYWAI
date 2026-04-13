@@ -1,10 +1,71 @@
 // frontend/src/api/payslips.ts
 
 import apiClient from './apiClient';
+import type { MaintenancePreview } from './absences';
 
 // =====================================================
 // TYPES
 // =====================================================
+
+/** Ligne de détail brut (congés, absences, maintien arrêt maladie, etc.). */
+export interface BulletinLigneBrut {
+  libelle?: string | null;
+  quantite?: number | null;
+  taux?: number | null;
+  gain?: number | null;
+  perte?: number | null;
+  is_arret_maladie?: boolean;
+}
+
+/** Synthèse net du bulletin (champs maintien ajoutés en T4B). */
+export interface PayslipSyntheseNet {
+  net_social_avant_impot?: number | null;
+  net_imposable?: number | null;
+  impot_prelevement_a_la_source?: {
+    base?: number | null;
+    taux?: number | null;
+    montant?: number | null;
+  } | null;
+  remboursement_transport?: number | null;
+  acompte_verse?: number | null;
+  ijss_subrogees?: number;
+  maintien_employeur?: number;
+  complement_employeur?: number;
+  alertes_maintien?: string[];
+  subrogation_active?: boolean;
+}
+
+/** Données JSON du bulletin (structure moteur paie + extensions). */
+export interface PayslipBulletinData {
+  en_tete?: Record<string, unknown>;
+  details_conges?: BulletinLigneBrut[];
+  details_absences?: BulletinLigneBrut[];
+  details_maintien?: BulletinLigneBrut[];
+  bloc_maintien?: MaintenancePreview;
+  synthese_net?: PayslipSyntheseNet;
+  calcul_du_brut?: BulletinLigneBrut[];
+  structure_cotisations?: Record<string, unknown>;
+  salaire_brut?: number;
+  net_a_payer?: number;
+  primes_non_soumises?: unknown[];
+  notes_de_frais?: unknown[];
+  arbitrage_conges?: string | null;
+  pied_de_page?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export function isPayslipBlocMaintienPresent(
+  bloc: unknown
+): bloc is MaintenancePreview {
+  if (typeof bloc !== 'object' || bloc === null) return false;
+  const o = bloc as Record<string, unknown>;
+  return (
+    typeof o.type_arret === 'string' &&
+    o.qualification != null &&
+    o.maintien != null &&
+    o.ijss != null
+  );
+}
 
 export interface InternalNote {
   id: string;
@@ -46,7 +107,7 @@ export interface PayslipDetail {
   year: number;
   url: string;
   pdf_storage_path: string;
-  payslip_data: any;
+  payslip_data: PayslipBulletinData;
   manually_edited: boolean;
   edit_count: number;
   edited_at?: string;
@@ -58,7 +119,7 @@ export interface PayslipDetail {
 }
 
 export interface PayslipEditRequest {
-  payslip_data: any;
+  payslip_data: PayslipBulletinData;
   changes_summary: string;
   pdf_notes?: string;
   internal_note?: string;
