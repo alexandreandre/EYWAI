@@ -154,7 +154,7 @@ function SectionTaskDot({ visible, sectionLabel }: { visible: boolean; sectionLa
   if (!visible) return null;
   return (
     <SidebarMenuBadge
-      className="!right-7 !h-2 !w-2 !min-w-0 rounded-full border-0 bg-destructive p-0 text-[0] leading-none text-transparent shadow-sm"
+      className="!right-7 !top-1/2 !h-2 !w-2 !min-w-0 !-translate-y-1/2 rounded-full border-0 bg-destructive p-0 text-[0] leading-none text-transparent shadow-sm"
       title={`Actions à traiter — ${sectionLabel}`}
       aria-label={`Des tâches sont en attente dans ${sectionLabel}`}
     >
