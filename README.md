@@ -1,4 +1,4 @@
-# 🏢 SIRH - Système d'Information des Ressources Humaines
+# 🏢 SIRH - Système d'Information des Ressources Humaines :
 
 > **Plateforme SaaS complète de gestion RH multi-entreprises** avec gestion de paie, absences, notes de frais, simulations et bien plus encore.  
 > Code source du dépôt **EYWAI**.
