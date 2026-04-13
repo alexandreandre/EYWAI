@@ -228,7 +228,7 @@ function ProtectedRoutes() {
               <CompanySwitcher />
             </div>
           )}
-          <main className="flex-1 p-6 lg:p-8 overflow-y-auto">
+          <main className="flex-1 bg-background p-6 lg:p-8 overflow-y-auto">
             <Routes>
               {isCollaborateurRhView ? (
                 // Routes Collaborateur pour collaborateur_rh en vue Collaborateur

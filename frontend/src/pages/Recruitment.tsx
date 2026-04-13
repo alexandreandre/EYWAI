@@ -122,6 +122,13 @@ function KanbanColumn({
       ? "border-green-200 bg-green-50/50"
       : "border-border bg-muted/30";
 
+  const scrollViewportTint =
+    stage.stage_type === "rejected"
+      ? "[&_[data-radix-scroll-area-viewport]]:bg-red-50/50"
+      : stage.stage_type === "hired"
+        ? "[&_[data-radix-scroll-area-viewport]]:bg-green-50/50"
+        : "[&_[data-radix-scroll-area-viewport]]:bg-muted/30";
+
   const startEditing = () => {
     setDraft(stage.name);
     setEditing(true);
@@ -138,7 +145,7 @@ function KanbanColumn({
 
   return (
     <div
-      className={`flex flex-col min-w-[260px] max-w-[300px] rounded-lg border transition-colors duration-150 ${dragOver ? "ring-2 ring-primary/40 border-primary/40" : ""} ${bgColor}`}
+      className={`flex flex-col min-w-[260px] max-w-[300px] overflow-hidden rounded-lg border transition-colors duration-150 ${dragOver ? "ring-2 ring-primary/40 border-primary/40" : ""} ${bgColor}`}
       onDragOver={isRh ? (e) => {
         if (e.dataTransfer.types.includes("candidateid")) {
           e.preventDefault();
@@ -214,7 +221,13 @@ function KanbanColumn({
         )}
       </div>
 
-      <ScrollArea className="flex-1 p-2 max-h-[calc(100vh-320px)]">
+      <ScrollArea
+        className={cn(
+          "flex-1 p-2 max-h-[calc(100vh-320px)]",
+          scrollViewportTint,
+          "[&_[data-radix-scroll-area-viewport]]:rounded-b-lg",
+        )}
+      >
         <div className="space-y-2">
           {candidates.map((c) => (
             <div
@@ -233,6 +246,57 @@ function KanbanColumn({
           )}
         </div>
       </ScrollArea>
+    </div>
+  );
+}
+
+/** Vignettes récapitulatives : toutes les étapes visibles d’un coup ; clic pour centrer la colonne dans le défilement horizontal. */
+function PipelineStageSummaryRow({
+  stages,
+  candidatesByStage,
+}: {
+  stages: PipelineStage[];
+  candidatesByStage: Record<string, Candidate[]>;
+}) {
+  const scrollToStage = (stageId: string) => {
+    document.getElementById(`recruitment-pipeline-stage-${stageId}`)?.scrollIntoView({
+      behavior: "smooth",
+      inline: "center",
+      block: "nearest",
+    });
+  };
+
+  return (
+    <div
+      className="flex flex-wrap gap-2 pb-1"
+      role="navigation"
+      aria-label="Résumé des étapes du pipeline"
+    >
+      {stages.map((stage) => {
+        const count = candidatesByStage[stage.id]?.length ?? 0;
+        const isRejected = stage.stage_type === "rejected";
+        const isHired = stage.stage_type === "hired";
+        return (
+          <button
+            key={stage.id}
+            type="button"
+            onClick={() => scrollToStage(stage.id)}
+            className={cn(
+              "inline-flex min-w-0 max-w-[min(100%,14rem)] items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+              !isRejected && !isHired && "border-border bg-muted/30 hover:bg-muted/50",
+              isRejected && "border-red-200 bg-red-50/50 hover:bg-red-50/70",
+              isHired && "border-green-200 bg-green-50/50 hover:bg-green-50/70",
+            )}
+          >
+            <span className="truncate font-medium" title={stage.name}>
+              {stage.name}
+            </span>
+            <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-[10px] tabular-nums">
+              {count}
+            </Badge>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -272,6 +336,7 @@ function SortableStageColumn({
 
   return (
     <div
+      id={`recruitment-pipeline-stage-${stage.id}`}
       ref={setNodeRef}
       style={style}
       className={cn("shrink-0", isDragging && "opacity-95")}
@@ -1289,13 +1354,23 @@ export default function Recruitment() {
           </CardContent>
         </Card>
       ) : loadingStages || loadingCandidates ? (
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="flex gap-4 overflow-x-auto rounded-lg bg-muted/30 p-2 pb-4">
           {[1, 2, 3, 4, 5].map((i) => (
             <Skeleton key={i} className="h-80 min-w-[260px]" />
           ))}
         </div>
       ) : viewMode === "kanban" ? (
-        <div className={cn("flex overflow-x-auto pb-4 items-stretch", isRh && "gap-2")}>
+        <div className="space-y-2">
+          <PipelineStageSummaryRow
+            stages={sortedPipelineStages}
+            candidatesByStage={candidatesByStage}
+          />
+          <div
+            className={cn(
+              "flex overflow-x-auto scroll-smooth rounded-lg bg-muted/30 p-2 pb-4 items-stretch",
+              isRh && "gap-2",
+            )}
+          >
           {isRh ? (
             <>
               <DndContext
@@ -1322,7 +1397,11 @@ export default function Recruitment() {
             </>
           ) : (
             sortedPipelineStages.map((stage, idx) => (
-              <div key={stage.id} className={cn("shrink-0", idx > 0 && "ml-3")}>
+              <div
+                key={stage.id}
+                id={`recruitment-pipeline-stage-${stage.id}`}
+                className={cn("shrink-0", idx > 0 && "ml-3")}
+              >
                 <KanbanColumn
                   stage={stage}
                   candidates={candidatesByStage[stage.id] || []}
@@ -1333,6 +1412,7 @@ export default function Recruitment() {
               </div>
             ))
           )}
+          </div>
         </div>
       ) : (
         /* LIST VIEW */
