@@ -9,8 +9,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-# Réponses acceptées pour les smoke tests (pas de 500)
-ALLOWED_STATUSES = (200, 401, 403, 404, 422)
+# Réponses acceptées pour les smoke tests (pas de 500).
+# 400 inclus : certains endpoints requièrent des headers (ex. X-Active-Company) ;
+# leur absence retourne 400 "Bad Request", ce qui est un comportement correct (pas un crash).
+# 502 inclus : échec fournisseur LLM (clé absente/invalide, quota, réseau) mappé côté API.
+ALLOWED_STATUSES = (200, 400, 401, 403, 404, 422, 502)
 
 
 pytestmark = pytest.mark.e2e
@@ -18,7 +21,7 @@ pytestmark = pytest.mark.e2e
 
 def _assert_not_500(response, module_name: str):
     assert response.status_code in ALLOWED_STATUSES, (
-        f"[{module_name}] Attendu 200/401/403/404/422, reçu {response.status_code}"
+        f"[{module_name}] Attendu 200/400/401/403/404/422/502, reçu {response.status_code}"
     )
 
 

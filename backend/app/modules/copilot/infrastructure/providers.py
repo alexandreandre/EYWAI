@@ -46,7 +46,7 @@ class OpenAIProvider:
     def generate_sql_from_prompt(self, prompt: str, schema_context: str) -> str:
         today = date.today().isoformat()
         schema = (
-            schema_context.format(today=today)
+            schema_context.replace("{today}", today)
             if "{today}" in schema_context
             else schema_context
         )
