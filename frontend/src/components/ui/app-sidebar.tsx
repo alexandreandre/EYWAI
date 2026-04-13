@@ -8,9 +8,6 @@ import {
   UsersRound,
   ClipboardCheck,
   User,
-  FileText,
-  FolderOpen,
-  Plus,
   LogOut,
   ClipboardEdit,
   Notebook,
@@ -33,9 +30,13 @@ import {
   Handshake,
   Stethoscope,
   UserPlus,
+  ChevronRight,
+  Sparkles,
+  Rocket,
+  Lock,
 } from "lucide-react";
-import { getMedicalSettings } from "@/api/medicalFollowUp";
 import { useAuth } from "@/contexts/AuthContext"; // <-- IMPORTATION
+import { useRhSidebarTaskBadges } from "@/hooks/useRhSidebarTaskBadges";
 import {
   computeAccessibleGroups,
   useCompanyOptional,
@@ -55,42 +56,76 @@ import {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarTrigger,
   SidebarHeader,
   SidebarFooter,
+  SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import type { LucideIcon } from "lucide-react";
+
+type SidebarLinkItem = { title: string; url: string; icon: LucideIcon };
+
+const RH_HOME: SidebarLinkItem = {
+  title: "Tableau de bord",
+  url: "/",
+  icon: LayoutDashboard,
+};
+
+const RH_TEAM_BASE: SidebarLinkItem[] = [
+  { title: "Collaborateurs", url: "/employees", icon: Users },
+  { title: "Départs & sorties", url: "/employee-exits", icon: UserMinus },
+  { title: "Titres & documents", url: "/residence-permits", icon: FileCheck },
+  { title: "Calendriers", url: "/schedules", icon: Calendar },
+  { title: "Badgeuse", url: "/badgeuse-rh", icon: Calendar },
+  { title: "Mon Entreprise", url: "/company", icon: Building },
+  { title: "Entretiens", url: "/annual-reviews", icon: MessageSquare },
+  { title: "Promotions", url: "/promotions", icon: Award },
+  { title: "CSE & Dialogue Social", url: "/cse", icon: Handshake },
+  { title: "Recrutement", url: "/recruitment", icon: UserPlus },
+  { title: "Gestion des Utilisateurs", url: "/users", icon: UserCog },
+];
+
+const RH_PAIE_ITEMS: SidebarLinkItem[] = [
+  { title: "Congés & Absences", url: "/leaves", icon: Plane },
+  { title: "Notes de frais", url: "/expenses", icon: Notebook },
+  { title: "Primes", url: "/saisies", icon: ClipboardEdit },
+  { title: "Saisies sur salaire", url: "/salary-seizures", icon: Scale },
+  { title: "Avances sur salaire", url: "/salary-advances", icon: Wallet },
+  { title: "Simulation", url: "/simulation", icon: FlaskConical },
+  { title: "Suivi des Taux", url: "/rates", icon: TrendingUp },
+  { title: "Exports", url: "/exports", icon: FileDown },
+  { title: "Paie", url: "/payroll", icon: Calculator },
+];
+
+function withRhMedicalFollowUp(team: SidebarLinkItem[]): SidebarLinkItem[] {
+  const next = [...team];
+  const insertIndex = next.findIndex((m) => m.url === "/annual-reviews");
+  const idx = insertIndex >= 0 ? insertIndex + 1 : 4;
+  next.splice(idx, 0, {
+    title: "Suivi médical",
+    url: "/medical-follow-up",
+    icon: Stethoscope,
+  });
+  return next;
+}
+
+const rhTeamItems = withRhMedicalFollowUp(RH_TEAM_BASE);
 
 const menuItems = {
-  rh: [
-    { title: "Tableau de Bord", url: "/", icon: LayoutDashboard },
-    { title: "Collaborateurs", url: "/employees", icon: Users },
-    { title: "Titres de séjour", url: "/residence-permits", icon: FileCheck },
-    { title: "Entretiens", url: "/annual-reviews", icon: MessageSquare },
-    { title: "Promotions", url: "/promotions", icon: Award },
-    { title: "CSE & Dialogue Social", url: "/cse", icon: Handshake },
-    { title: "Recrutement", url: "/recruitment", icon: UserPlus },
-    { title: "Gestion des Utilisateurs", url: "/users", icon: UserCog },
-    { title: "Primes", url: "/saisies", icon: ClipboardEdit },
-    { title: "Saisies sur salaire", url: "/salary-seizures", icon: Scale },
-    { title: "Avances sur salaire", url: "/salary-advances", icon: Wallet },
-    { title: "Paie", url: "/payroll", icon: Calculator },
-    { title: "Simulation", url: "/simulation", icon: FlaskConical },
-    { title: "Calendriers", url: "/schedules", icon: Calendar },
-    { title: "Congés & Absences", url: "/leaves", icon: Plane },
-    { title: "Badgeuse", url: "/badgeuse-rh", icon: Calendar },
-    { title: "Notes de frais", url: "/expenses", icon: Notebook },
-    { title: "Sortie du collaborateur", url: "/employee-exits", icon: UserMinus },
-    { title: "Suivi des Taux", url: "/rates", icon: TrendingUp },
-    { title: "Exports", url: "/exports", icon: FileDown },
-    { title: "Mon Entreprise", url: "/company", icon: Building },
-  ],
+  rh: [RH_HOME, ...rhTeamItems, ...RH_PAIE_ITEMS] satisfies SidebarLinkItem[],
   manager: [
     { title: "Mon Équipe", url: "/team", icon: UsersRound },
     { title: "Demandes à valider", url: "/leave-requests", icon: ClipboardCheck },
@@ -107,6 +142,41 @@ const menuItems = {
     { title: "Profil", url: "/profile", icon: User },
   ]
 };
+
+function formatNavBadgeCount(n: number): string {
+  if (n <= 0) return "0";
+  return n > 99 ? "99+" : String(n);
+}
+
+/** Pastille discrète sur une section (pas de chiffre). */
+function SectionTaskDot({ visible, sectionLabel }: { visible: boolean; sectionLabel: string }) {
+  if (!visible) return null;
+  return (
+    <SidebarMenuBadge
+      className="!right-7 !h-2 !w-2 !min-w-0 rounded-full border-0 bg-destructive p-0 text-[0] leading-none text-transparent shadow-sm"
+      title={`Actions à traiter — ${sectionLabel}`}
+      aria-label={`Des tâches sont en attente dans ${sectionLabel}`}
+    >
+      .
+    </SidebarMenuBadge>
+  );
+}
+
+/** Compteur sur un sous-lien de navigation. */
+function SubNavCountBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  const shown = formatNavBadgeCount(count);
+  const nLabel = count > 99 ? "Plus de 99" : String(count);
+  const plural = count > 99 || count > 1;
+  return (
+    <span
+      className="pointer-events-none absolute right-1.5 top-1/2 z-[1] flex h-5 min-w-5 -translate-y-1/2 items-center justify-center rounded-md bg-destructive px-1 text-[10px] font-semibold tabular-nums text-destructive-foreground shadow-sm"
+      aria-label={`${nLabel} élément${plural ? "s" : ""} à traiter`}
+    >
+      {shown}
+    </span>
+  );
+}
 
 export function AppSidebar() {
 
@@ -157,39 +227,6 @@ export function AppSidebar() {
   console.log('%c[AppSidebar] Collapsed:', 'color: purple', collapsed);
   console.log('%c[AppSidebar] Accessible Groups:', 'color: purple', accessibleGroups);
 
-  // Si l'utilisateur n'est pas encore chargé, on n'affiche rien ou un loader
-  if (!user) {
-    console.log('%c[AppSidebar] ❌ Pas d\'utilisateur - Retour null', 'color: red');
-    return null;
-  }
-
-  console.log('%c[AppSidebar] ✅ Utilisateur chargé, affichage de la sidebar', 'color: green');
-
-  // Déterminer quel menu afficher selon le rôle et la vue
-  let userRole = user.role as keyof typeof menuItems;
-  let items = menuItems[userRole] || [];
-  
-  // Si collaborateur_rh et vue Collaborateur, afficher le menu collaborateur
-  if (isCollaborateurRh && viewMode === 'collaborateur') {
-    userRole = 'employee';
-    items = menuItems.employee || [];
-  } else if (isCollaborateurRh && viewMode === 'rh') {
-    // Si collaborateur_rh et vue RH, afficher le menu RH
-    userRole = 'rh';
-    items = menuItems.rh || [];
-  }
-
-  // Suivi médical : toujours affiché dans le menu RH (modules activés par défaut)
-  if (userRole === 'rh' && Array.isArray(items)) {
-    items = [...items];
-    const insertIndex = items.findIndex((m: { url: string }) => m.url === '/annual-reviews');
-    const idx = insertIndex >= 0 ? insertIndex + 1 : 4;
-    items.splice(idx, 0, { title: "Suivi médical", url: "/medical-follow-up", icon: Stethoscope });
-  }
-
-  console.log('%c[AppSidebar] Role:', 'color: purple', userRole);
-  console.log('%c[AppSidebar] Menu items:', 'color: purple', items.length, 'items');
-
   const isActive = (path: string) => {
     if (path === "/") {
       return currentPath === "/";
@@ -205,6 +242,54 @@ export function AppSidebar() {
       ? `${baseClasses} bg-primary text-primary-foreground shadow-sm`
       : `${baseClasses} text-muted-foreground hover:text-foreground`;
   };
+
+  const isRhMenu =
+    !!user &&
+    (user.role === "rh" || (isCollaborateurRh && viewMode === "rh"));
+  const { getCount } = useRhSidebarTaskBadges(isRhMenu);
+
+  const teamSectionHasTasks = rhTeamItems.some((i) => getCount(i.url) > 0);
+  const paieSectionHasTasks = RH_PAIE_ITEMS.some((i) => getCount(i.url) > 0);
+
+  const [teamOpen, setTeamOpen] = useState(() => rhTeamItems.some((i) => isActive(i.url)));
+  const [paieOpen, setPaieOpen] = useState(() => RH_PAIE_ITEMS.some((i) => isActive(i.url)));
+  const [plusOpen, setPlusOpen] = useState(false);
+
+  useEffect(() => {
+    const pathMatches = (path: string) => {
+      if (path === "/") return currentPath === "/";
+      return currentPath.startsWith(path);
+    };
+    if (rhTeamItems.some((i) => pathMatches(i.url))) setTeamOpen(true);
+    if (RH_PAIE_ITEMS.some((i) => pathMatches(i.url))) setPaieOpen(true);
+  }, [currentPath]);
+
+  // Si l'utilisateur n'est pas encore chargé, on n'affiche rien ou un loader
+  if (!user) {
+    console.log('%c[AppSidebar] ❌ Pas d\'utilisateur - Retour null', 'color: red');
+    return null;
+  }
+
+  console.log('%c[AppSidebar] ✅ Utilisateur chargé, affichage de la sidebar', 'color: green');
+
+  // Déterminer quel menu afficher selon le rôle et la vue
+  let userRole = user.role as keyof typeof menuItems;
+  let items = menuItems[userRole] || [];
+
+  // Si collaborateur_rh et vue Collaborateur, afficher le menu collaborateur
+  if (isCollaborateurRh && viewMode === 'collaborateur') {
+    userRole = 'employee';
+    items = menuItems.employee || [];
+  } else if (isCollaborateurRh && viewMode === 'rh') {
+    // Si collaborateur_rh et vue RH, afficher le menu RH
+    userRole = 'rh';
+    items = menuItems.rh || [];
+  }
+
+  console.log('%c[AppSidebar] Role:', 'color: purple', userRole);
+  console.log('%c[AppSidebar] Menu items:', 'color: purple', items.length, 'items');
+
+  const showRhAccordion = userRole === "rh" && !collapsed;
 
   return (
     <Sidebar className={collapsed ? "w-16" : "w-64"} collapsible="icon">
@@ -276,25 +361,185 @@ export function AppSidebar() {
       )}
 
       <SidebarContent className={collapsed ? "px-2" : "px-4"}>
-        <SidebarGroup>
-          <SidebarGroupLabel className={collapsed ? "sr-only" : ""}>
-            Navigation
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu className={collapsed ? "flex flex-col items-center gap-1" : ""}>
-              {items.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild tooltip={collapsed ? item.title : undefined}>
-                    <NavLink to={item.url} className={getNavClassName(item.url)} end={item.url === "/"}>
-                      <item.icon className="h-5 w-5 flex-shrink-0" />
-                      {!collapsed && <span className="font-medium">{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {showRhAccordion ? (
+          <>
+            <SidebarGroup>
+              <SidebarGroupLabel>EYWAI Home</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={RH_HOME.url}
+                        className={getNavClassName(RH_HOME.url)}
+                        end={RH_HOME.url === "/"}
+                      >
+                        <RH_HOME.icon className="h-5 w-5 flex-shrink-0" />
+                        <span className="font-medium">{RH_HOME.title}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarSeparator className="mx-0" />
+
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <SidebarMenu className="gap-0.5">
+                  <Collapsible open={teamOpen} onOpenChange={setTeamOpen} className="group/collapsible">
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton className="w-full">
+                          <Users className="h-5 w-5 flex-shrink-0" />
+                          <span className="font-medium">EYWAI Team</span>
+                          <ChevronRight
+                            className={cn(
+                              "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
+                              "group-data-[state=open]/collapsible:rotate-90",
+                            )}
+                          />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                      <SectionTaskDot visible={teamSectionHasTasks} sectionLabel="EYWAI Team" />
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          {rhTeamItems.map((item) => (
+                            <SidebarMenuSubItem key={item.url}>
+                              <div className="relative">
+                                <SidebarMenuSubButton
+                                  asChild
+                                  isActive={isActive(item.url)}
+                                  size="sm"
+                                  className={cn(getCount(item.url) > 0 && "pr-9")}
+                                >
+                                  <NavLink to={item.url} end={item.url === "/"}>
+                                    <item.icon className="h-4 w-4 shrink-0" />
+                                    <span>{item.title}</span>
+                                  </NavLink>
+                                </SidebarMenuSubButton>
+                                <SubNavCountBadge count={getCount(item.url)} />
+                              </div>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </SidebarMenuItem>
+                  </Collapsible>
+
+                  <Collapsible open={paieOpen} onOpenChange={setPaieOpen} className="group/collapsible">
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton className="w-full">
+                          <Calculator className="h-5 w-5 flex-shrink-0" />
+                          <span className="font-medium">EYWAI Paie</span>
+                          <ChevronRight
+                            className={cn(
+                              "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
+                              "group-data-[state=open]/collapsible:rotate-90",
+                            )}
+                          />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                      <SectionTaskDot visible={paieSectionHasTasks} sectionLabel="EYWAI Paie" />
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          {RH_PAIE_ITEMS.map((item) => (
+                            <SidebarMenuSubItem key={item.url}>
+                              <div className="relative">
+                                <SidebarMenuSubButton
+                                  asChild
+                                  isActive={isActive(item.url)}
+                                  size="sm"
+                                  className={cn(getCount(item.url) > 0 && "pr-9")}
+                                >
+                                  <NavLink to={item.url} end={item.url === "/"}>
+                                    <item.icon className="h-4 w-4 shrink-0" />
+                                    <span>{item.title}</span>
+                                  </NavLink>
+                                </SidebarMenuSubButton>
+                                <SubNavCountBadge count={getCount(item.url)} />
+                              </div>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                        <div className="mx-3.5 border-l border-sidebar-border px-2.5 py-1.5">
+                          <Button size="sm" className="w-full gap-2 shadow-sm" asChild>
+                            <NavLink to="/payroll">
+                              <Rocket className="h-4 w-4 shrink-0" />
+                              Lancer la paie
+                            </NavLink>
+                          </Button>
+                        </div>
+                      </CollapsibleContent>
+                    </SidebarMenuItem>
+                  </Collapsible>
+
+                  <Collapsible open={plusOpen} onOpenChange={setPlusOpen} className="group/collapsible">
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton className="w-full">
+                          <Sparkles className="h-5 w-5 flex-shrink-0" />
+                          <span className="font-medium">EYWAI+</span>
+                          <ChevronRight
+                            className={cn(
+                              "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
+                              "group-data-[state=open]/collapsible:rotate-90",
+                            )}
+                          />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          <SidebarMenuSubItem>
+                            <span className="flex h-7 min-w-0 items-center gap-2 rounded-md px-2 text-xs text-muted-foreground">
+                              Modules selon votre offre
+                            </span>
+                          </SidebarMenuSubItem>
+                          <SidebarMenuSubItem>
+                            <span className="flex h-7 min-w-0 items-center gap-2 rounded-md px-2 text-xs text-muted-foreground">
+                              <Lock className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+                              À découvrir
+                            </span>
+                          </SidebarMenuSubItem>
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </SidebarMenuItem>
+                  </Collapsible>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        ) : (
+          <SidebarGroup>
+            <SidebarGroupLabel className={collapsed ? "sr-only" : ""}>
+              Navigation
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu className={collapsed ? "flex flex-col items-center gap-1" : ""}>
+                {items.map((item) => {
+                  const subCount = userRole === "rh" ? getCount(item.url) : 0;
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild tooltip={collapsed ? item.title : undefined}>
+                        <NavLink to={item.url} className={getNavClassName(item.url)} end={item.url === "/"}>
+                          <item.icon className="h-5 w-5 flex-shrink-0" />
+                          {!collapsed && <span className="font-medium">{item.title}</span>}
+                        </NavLink>
+                      </SidebarMenuButton>
+                      {userRole === "rh" && subCount > 0 && (
+                        <SidebarMenuBadge className="bg-destructive text-[10px] font-semibold tabular-nums text-destructive-foreground">
+                          {formatNavBadgeCount(subCount)}
+                        </SidebarMenuBadge>
+                      )}
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {/* Section Groupes - affichée uniquement si l'utilisateur a accès à plusieurs entreprises d'un même groupe */}
         {accessibleGroups.length > 0 && (
