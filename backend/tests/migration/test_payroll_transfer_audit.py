@@ -70,7 +70,13 @@ def test_run_heures_has_run_function():
 
     sig = inspect.signature(run_payslip_generation_heures)
     params = list(sig.parameters)
-    assert params == ["employee_path", "year", "month", "engine_root"]
+    assert params == [
+        "employee_path",
+        "year",
+        "month",
+        "engine_root",
+        "company_id",
+    ]
 
 
 def test_run_heures_uses_common_definir_periode_and_calendrier():
