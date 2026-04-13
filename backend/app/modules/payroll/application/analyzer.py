@@ -10,6 +10,40 @@ from datetime import date
 from typing import Any, Dict, List
 from collections import defaultdict
 
+# Champs à recoller sur les événements agrégés (jour, type, heures) pour le maintien de salaire
+# et la cohérence avec payslip_run_heures._extraire_arret_pour_maintien / calcul_brut.
+_MAINTIEN_EVENT_META_KEYS: tuple[str, ...] = (
+    "arret_type",
+    "subrogation_active",
+    "nombre_enfants",
+    "is_temps_partiel",
+    "quotite_temps_partiel",
+    "historique_arrets_annee",
+    "date_dernier_arret",
+    "salaire_periode_reelle",
+)
+
+
+def _metadata_for_aggregated_event(
+    evenements_finaux: List[Dict[str, Any]],
+    mois: int,
+    jour: int,
+    type_ev: str,
+) -> Dict[str, Any]:
+    """Reprend les métadonnées perdues lors de l'agrégation (ex. arret_type sur arret_maladie)."""
+    meta: Dict[str, Any] = {}
+    for ev in evenements_finaux:
+        if ev.get("mois", mois) != mois:
+            continue
+        if ev.get("jour") != jour or ev.get("type") != type_ev:
+            continue
+        for k in _MAINTIEN_EVENT_META_KEYS:
+            if k in ev and k not in meta:
+                meta[k] = ev[k]
+        if meta.get("arret_type"):
+            break
+    return meta
+
 
 def analyser_horaires_du_mois(
     planned_data_all_months: List[Dict[str, Any]],
@@ -188,11 +222,20 @@ def analyser_horaires_du_mois(
         else:
             jours_sans_heures[key] = ev
 
-    evenements_agreges = [
-        {"jour": k[0], "type": k[1], "heures": round(v, 2)}
-        for k, v in agregats.items()
-        if v > 0
-    ]
+    evenements_agreges: List[Dict[str, Any]] = []
+    for k, v in agregats.items():
+        if v <= 0:
+            continue
+        jour_ev, type_ev = k[0], k[1]
+        ev_out: Dict[str, Any] = {
+            "jour": jour_ev,
+            "type": type_ev,
+            "heures": round(v, 2),
+        }
+        ev_out.update(
+            _metadata_for_aggregated_event(evenements_finaux, mois, jour_ev, type_ev)
+        )
+        evenements_agreges.append(ev_out)
     evenements_agreges.extend(jours_sans_heures.values())
 
     return sorted(evenements_agreges, key=lambda x: x["jour"])
