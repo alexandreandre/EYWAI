@@ -140,6 +140,7 @@ const menuItems = {
     { title: "Notes de Frais", url: "/expenses", icon: Notebook },
     { title: "Avances sur salaire", url: "/salary-advances", icon: Wallet },
     { title: "Mes Documents", url: "/documents", icon: FolderKanban },
+    { title: "Ma badgeuse", url: "/badgeuse", icon: Calendar },
     { title: "Profil", url: "/profile", icon: User },
   ]
 };

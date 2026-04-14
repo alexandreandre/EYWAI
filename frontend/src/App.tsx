@@ -215,6 +215,7 @@ function ProtectedRoutes() {
           <Route path="/salary-advances" element={<SalaryAdvancesPage />} />
           <Route path="/documents" element={<DocumentsPage />} />
           <Route path="/medical-follow-up" element={<EmployeeMedicalFollowUp />} />
+          <Route path="/cse" element={<EmployeeCSE />} />
           <Route path="/support" element={<SuspenseSupportPage />} />
           <Route path="/support/confirmation" element={<SuspenseSupportConfirmationPage />} />
           <Route path="/support/tickets" element={<SuspenseTicketsHistoryPage />} />
