@@ -46,6 +46,8 @@
 - ✅ **Suivi médical** : Parcours visite médicale (RH et espace collaborateur)
 - ✅ **CSE** : Espace dédié CSE (RH et représentants)
 - ✅ **Recrutement & promotions** : Modules associés côté API et interface RH
+- ✅ **Badgeuse** : Pointage côté collaborateur et pilotage RH
+- ✅ **Support** : Création et suivi de tickets depuis l’application
 
 ### Technologies utilisées
 
@@ -262,6 +264,14 @@ EYWAI/   (racine du dépôt)
 - Calcul automatique des repos compensateurs (COR)
 - Gestion des heures supplémentaires
 - Suivi des repos à prendre
+
+### Badgeuse
+- Pointage entrée / sortie côté collaborateur
+- Synthèses et validation des journées côté RH
+
+### Support & tickets
+- Assistant de création de demande (module, urgence, description)
+- Historique et filtrage des tickets pour les profils autorisés
 
 ---
 
@@ -611,7 +621,7 @@ Aucun script `npm run test` n’est défini dans `frontend/package.json` pour l�
 
 ---
 
-**Dernière mise à jour** : mars 2025
+**Dernière mise à jour** : avril 2026
 
 **Version** : suivre les tags Git / releases du dépôt (le frontend `package.json` reste en `0.0.0` pour l’outil de build).
 
