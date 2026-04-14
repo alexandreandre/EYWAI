@@ -105,7 +105,7 @@ Les modules ne s'importent pas entre eux pour des détails d'implémentation ; l
 
 Un répertoire par domaine. Noms en snake_case (ex. `annual_reviews`, `company_groups`, `repos_compensateur`). Liste des modules avec router API :
 
-- access_control, absences, annual_reviews, auth, bonus_types, companies, contract_parser, copilot, collective_agreements, company_groups, cse, dashboard, employees, employee_exits, exports, expenses, medical_follow_up, monthly_inputs, mutuelle_types, participation, payslips, payroll (sous-jacent à payslips), promotions, rates, recruitment, repos_compensateur, residence_permits, rib_alerts, saisies_avances, schedules, scraping, super_admin, uploads, users.
+- access_control, absences, annual_reviews, auth, badgeuse, bonus_types, companies, contract_parser, copilot, collective_agreements, company_groups, cse, dashboard, employees, employee_exits, exports, expenses, maintenance_settings, medical_follow_up, monthly_inputs, mutuelle_types, participation, payslips, payroll (sous-jacent à payslips), promotions, rates, recruitment, repos_compensateur, residence_permits, rib_alerts, saisies_avances, schedules, scraping, super_admin, support, uploads, users.
 
 Structure type d'un module :
 

@@ -245,3 +245,30 @@ def test_smoke_uploads_delete_logo(client: TestClient, auth_headers: dict):
         headers=auth_headers,
     )
     _assert_not_500(response, "uploads")
+
+
+def test_smoke_badgeuse_me_status_today(client: TestClient, auth_headers: dict):
+    """GET /api/me/badgeuse/status-today."""
+    response = client.get("/api/me/badgeuse/status-today", headers=auth_headers)
+    _assert_not_500(response, "badgeuse")
+
+
+def test_smoke_support_tickets_list(client: TestClient, auth_headers: dict):
+    """GET /api/support/tickets."""
+    response = client.get("/api/support/tickets", headers=auth_headers)
+    _assert_not_500(response, "support")
+
+
+def test_smoke_maintenance_settings_get(client: TestClient, auth_headers: dict):
+    """GET /api/maintenance-settings/."""
+    response = client.get("/api/maintenance-settings/", headers=auth_headers)
+    _assert_not_500(response, "maintenance_settings")
+
+
+def test_smoke_payroll_simulation_arret_maladie(client: TestClient, auth_headers: dict):
+    """POST /api/simulation/arret-maladie (body absent → 422 accepté)."""
+    response = client.post(
+        "/api/simulation/arret-maladie",
+        headers=auth_headers,
+    )
+    _assert_not_500(response, "payroll")

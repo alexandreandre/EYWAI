@@ -176,6 +176,9 @@ backend/
 │       ├── cse/
 │       ├── recruitment/
 │       ├── promotions/
+│       ├── badgeuse/
+│       ├── maintenance_settings/
+│       ├── support/
 │       └── uploads/
 │
 └── tests/                    # Pytest : unit/, integration/, e2e/, migration/
@@ -472,6 +475,77 @@ Les **préfixes de route** exacts et les schémas de requête/réponse sont la *
 - `POST /api/saisies-avances/avance` - Créer une avance
 - `PUT /api/saisies-avances/{id}/validate` - Valider
 
+### 23. CSE & dialogue social
+
+- **Réunions, élus, délégation** : Pilotage du dialogue social
+- **BDES & calendrier électoral** : Suivi des obligations
+
+**Endpoints principaux :**
+- `GET /api/cse/elected-members` - Élus et mandats
+
+### 24. Recrutement
+
+- **Offres** : Suivi des postes et candidatures côté RH
+
+**Endpoints principaux :**
+- `GET /api/recruitment/jobs` - Liste des offres
+
+### 25. Promotions
+
+- **Campagnes** : Gestion des promotions et validations
+
+**Endpoints principaux :**
+- `GET /api/promotions` - Liste des promotions
+
+### 26. Suivi médical
+
+- **Obligations & visites** : Parcours médical des salariés (paramétrage entreprise)
+
+**Endpoints principaux :**
+- `GET /api/medical-follow-up/obligations` - Obligations
+
+### 27. Badgeuse & pointage
+
+- **Vue employé** : Statut du jour, bascule entrée/sortie
+- **Vue RH** : Synthèses par jour, validation des journées
+
+**Endpoints principaux :**
+- `GET /api/me/badgeuse/status-today` - Statut du jour (connecté)
+- `GET /api/badgeuse/employees/{id}/days` - Synthèse période (RH, query params)
+
+### 28. Support & tickets
+
+- **Création** : Tickets utilisateurs (email + persistance)
+- **Suivi** : Liste et détail selon le rôle
+
+**Endpoints principaux :**
+- `POST /api/support/tickets` - Créer un ticket
+- `GET /api/support/tickets` - Liste filtrée
+
+### 29. Paramètres de maintien de salaire
+
+- **Lecture / mise à jour** : Paramètres entreprise pour le maintien de salaire (profils autorisés)
+
+**Endpoints principaux :**
+- `GET /api/maintenance-settings/` - Lecture
+- `PUT /api/maintenance-settings/` - Mise à jour (admin / rh / super_admin)
+
+### 30. Tableaux de bord & taux
+
+- **Indicateurs** : Synthèses multi-modules pour le tableau de bord RH
+- **Taux** : Données de barèmes et taux utilisés par la paie
+
+**Endpoints principaux :**
+- `GET /api/dashboard/all` - Données agrégées dashboard
+- `GET /api/rates/all` - Jeux de taux
+
+### 31. Analyse de contrats (PDF)
+
+- **Extraction** : Données structurées depuis un PDF de contrat
+
+**Endpoints principaux :**
+- `POST /api/contract-parser/extract-from-pdf` - Extraction (fichier requis)
+
 ---
 
 ## ⚙️ Configuration et installation
@@ -754,5 +828,5 @@ Pour contribuer au projet :
 
 ---
 
-**Dernière mise à jour** : mars 2025
+**Dernière mise à jour** : avril 2026
 
