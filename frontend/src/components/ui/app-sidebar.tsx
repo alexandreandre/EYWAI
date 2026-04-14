@@ -150,12 +150,17 @@ function formatNavBadgeCount(n: number): string {
   return n > 99 ? "99+" : String(n);
 }
 
-/** Pastille discrète sur une section (pas de chiffre). */
+/**
+ * Pastille discrète sur une section (pas de chiffre).
+ * Doit rester alignée sur la ligne du titre (CollapsibleTrigger), pas au centre vertical du bloc
+ * une fois la section ouverte — sinon la pastille « glisse » vers le milieu des sous-liens
+ * (ex. à côté de « Mon Entreprise »).
+ */
 function SectionTaskDot({ visible, sectionLabel }: { visible: boolean; sectionLabel: string }) {
   if (!visible) return null;
   return (
     <SidebarMenuBadge
-      className="!right-7 !top-1/2 !h-2 !w-2 !min-w-0 !-translate-y-1/2 rounded-full border-0 bg-destructive p-0 text-[0] leading-none text-transparent shadow-sm"
+      className="!right-7 !top-1.5 !h-2 !w-2 !min-w-0 rounded-full border-0 bg-destructive p-0 text-[0] leading-none text-transparent shadow-sm"
       title={`Actions à traiter — ${sectionLabel}`}
       aria-label={`Des tâches sont en attente dans ${sectionLabel}`}
     >
@@ -248,7 +253,7 @@ export function AppSidebar() {
   const isRhMenu =
     !!user &&
     (user.role === "rh" || (isCollaborateurRh && viewMode === "rh"));
-  const { getCount } = useRhSidebarTaskBadges(isRhMenu);
+  const { getCount, totalRhPending } = useRhSidebarTaskBadges(isRhMenu);
 
   const teamSectionHasTasks = rhTeamItems.some((i) => getCount(i.url) > 0);
   const paieSectionHasTasks = RH_PAIE_ITEMS.some((i) => getCount(i.url) > 0);
@@ -370,16 +375,19 @@ export function AppSidebar() {
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to={RH_HOME.url}
-                        className={getNavClassName(RH_HOME.url)}
-                        end={RH_HOME.url === "/"}
-                      >
-                        <RH_HOME.icon className="h-5 w-5 flex-shrink-0" />
-                        <span className="font-medium">{RH_HOME.title}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
+                    <div className="relative w-full">
+                      <SidebarMenuButton asChild>
+                        <NavLink
+                          to={RH_HOME.url}
+                          className={cn(getNavClassName(RH_HOME.url), totalRhPending > 0 && "pr-9")}
+                          end={RH_HOME.url === "/"}
+                        >
+                          <RH_HOME.icon className="h-5 w-5 flex-shrink-0" />
+                          <span className="font-medium">{RH_HOME.title}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                      <SubNavCountBadge count={totalRhPending} />
+                    </div>
                   </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>
@@ -521,7 +529,12 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu className={collapsed ? "flex flex-col items-center gap-1" : ""}>
                 {items.map((item) => {
-                  const subCount = userRole === "rh" ? getCount(item.url) : 0;
+                  const subCount =
+                    userRole === "rh"
+                      ? item.url === "/"
+                        ? totalRhPending
+                        : getCount(item.url)
+                      : 0;
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild tooltip={collapsed ? item.title : undefined}>
