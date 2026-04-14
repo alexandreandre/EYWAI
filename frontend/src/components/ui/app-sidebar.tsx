@@ -160,7 +160,7 @@ function SectionTaskDot({ visible, sectionLabel }: { visible: boolean; sectionLa
   if (!visible) return null;
   return (
     <SidebarMenuBadge
-      className="!right-7 !top-1.5 !h-2 !w-2 !min-w-0 rounded-full border-0 bg-destructive p-0 text-[0] leading-none text-transparent shadow-sm"
+      className="!right-7 !top-1/2 !h-2 !w-2 !min-w-0 !-translate-y-1/2 rounded-full border-0 bg-destructive p-0 text-[0] leading-none text-transparent shadow-sm"
       title={`Actions à traiter — ${sectionLabel}`}
       aria-label={`Des tâches sont en attente dans ${sectionLabel}`}
     >
@@ -400,19 +400,21 @@ export function AppSidebar() {
                 <SidebarMenu className="gap-0.5">
                   <Collapsible open={teamOpen} onOpenChange={setTeamOpen} className="group/collapsible">
                     <SidebarMenuItem>
-                      <CollapsibleTrigger asChild>
-                        <SidebarMenuButton className="w-full">
-                          <Users className="h-5 w-5 flex-shrink-0" />
-                          <span className="font-medium">EYWAI Team</span>
-                          <ChevronRight
-                            className={cn(
-                              "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
-                              "group-data-[state=open]/collapsible:rotate-90",
-                            )}
-                          />
-                        </SidebarMenuButton>
-                      </CollapsibleTrigger>
-                      <SectionTaskDot visible={teamSectionHasTasks} sectionLabel="EYWAI Team" />
+                      <div className="relative w-full">
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton className="w-full">
+                            <Users className="h-5 w-5 flex-shrink-0" />
+                            <span className="font-medium">EYWAI Team</span>
+                            <ChevronRight
+                              className={cn(
+                                "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
+                                "group-data-[state=open]/collapsible:rotate-90",
+                              )}
+                            />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                        <SectionTaskDot visible={teamSectionHasTasks} sectionLabel="EYWAI Team" />
+                      </div>
                       <CollapsibleContent>
                         <SidebarMenuSub>
                           {rhTeamItems.map((item) => (
@@ -440,19 +442,21 @@ export function AppSidebar() {
 
                   <Collapsible open={paieOpen} onOpenChange={setPaieOpen} className="group/collapsible">
                     <SidebarMenuItem>
-                      <CollapsibleTrigger asChild>
-                        <SidebarMenuButton className="w-full">
-                          <Calculator className="h-5 w-5 flex-shrink-0" />
-                          <span className="font-medium">EYWAI Paie</span>
-                          <ChevronRight
-                            className={cn(
-                              "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
-                              "group-data-[state=open]/collapsible:rotate-90",
-                            )}
-                          />
-                        </SidebarMenuButton>
-                      </CollapsibleTrigger>
-                      <SectionTaskDot visible={paieSectionHasTasks} sectionLabel="EYWAI Paie" />
+                      <div className="relative w-full">
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton className="w-full">
+                            <Calculator className="h-5 w-5 flex-shrink-0" />
+                            <span className="font-medium">EYWAI Paie</span>
+                            <ChevronRight
+                              className={cn(
+                                "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
+                                "group-data-[state=open]/collapsible:rotate-90",
+                              )}
+                            />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                        <SectionTaskDot visible={paieSectionHasTasks} sectionLabel="EYWAI Paie" />
+                      </div>
                       <CollapsibleContent>
                         <SidebarMenuSub>
                           {RH_PAIE_ITEMS.map((item) => (
