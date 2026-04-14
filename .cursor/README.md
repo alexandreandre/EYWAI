@@ -23,9 +23,18 @@ Il complète (sans les remplacer) les fichiers à la racine comme [`AGENTS.md`](
 ```
 .cursor/
 ├── README.md              ← ce guide (documentation humaine)
-└── rules/
-    ├── backend.mdc        ← règle IA : backend/
-    └── frontend.mdc       ← règle IA : frontend/
+├── rules/
+│   ├── backend.mdc        ← règle IA : backend/
+│   └── frontend.mdc       ← règle IA : frontend/
+└── skills/                 ← skills Agent (fichiers SKILL.md par dossier)
+    ├── begin/
+    ├── check-feature/
+    ├── debug/
+    ├── etat/
+    ├── frontend-design/
+    ├── merge-dev-to-main/
+    ├── push/
+    └── test/
 ```
 
 ---
@@ -101,6 +110,16 @@ Il complète (sans les remplacer) les fichiers à la racine comme [`AGENTS.md`](
 
 ---
 
+### 4. Dossier `skills/` (Agent Skills)
+
+| | |
+|--|--|
+| **Nature** | Un dossier par intention (`begin`, `push`, `debug`, `test`, etc.) contenant un fichier **`SKILL.md`** : consignes réutilisables pour l’agent (Git, CI, design, etc.). |
+| **Quand l’utiliser** | Attacher le skill dans le chat ou invoquer la commande slash associée (ex. `/begin`, `/push`, `/debug`) si elle est configurée dans Cursor. |
+| **Maintenance** | Ajouter un sous-dossier `nom-du-skill/SKILL.md` puis mettre à jour l’arborescence en tête de ce README. |
+
+---
+
 ## Format technique des `.mdc` (rappel)
 
 Chaque fichier dans `rules/` commence par un **frontmatter YAML**, puis du Markdown.
@@ -164,5 +183,6 @@ Corps en Markdown.
 | **`README.md`** | Lire pour comprendre et maintenir `.cursor/` ; mettre à jour quand la structure ou les fichiers changent. |
 | **`rules/backend.mdc`** | S’applique au contexte `backend/**` ; rien d’obligatoire côté dev au quotidien ; modifier si les conventions backend évoluent. |
 | **`rules/frontend.mdc`** | S’applique au contexte `frontend/**` ; idem pour le front. |
+| **`skills/*/`** | Workflows Agent (Git, tests, debug, design…) : consulter ou attacher le `SKILL.md` du dossier concerné. |
 
 Pour toute évolution majeure des conventions : mettre à jour **`AGENTS.md` / README des apps** et les **`.mdc`** correspondants.
