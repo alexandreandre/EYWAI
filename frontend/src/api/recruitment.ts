@@ -52,6 +52,30 @@ export interface Candidate {
   updated_at: string;
 }
 
+/**
+ * Candidats "à traiter" côté RH :
+ * tout ce qui n'est ni embauché ni rejeté.
+ */
+export function countActionableCandidates(candidates: Candidate[]): number {
+  return candidates.filter((c) => {
+    const stageType = (c.current_stage_type || "").toLowerCase();
+    return stageType !== "hired" && stageType !== "rejected";
+  }).length;
+}
+
+/**
+ * Priorité recrutement du dashboard/sidebar :
+ * uniquement les candidats présents dans la vignette "Entretien RH".
+ */
+export function isRecruitmentPriorityCandidate(candidate: Candidate): boolean {
+  const stageName = (candidate.current_stage_name || "").toLowerCase().trim();
+  return stageName.includes("entretien rh");
+}
+
+export function countRecruitmentPriorityCandidates(candidates: Candidate[]): number {
+  return candidates.filter(isRecruitmentPriorityCandidate).length;
+}
+
 export interface Interview {
   id: string;
   candidate_id: string;
