@@ -605,46 +605,63 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in rounded-2xl border border-stone-200/80 bg-gradient-to-b from-amber-50/60 via-stone-50 to-orange-50/35 p-4 shadow-sm md:p-6 dark:border-stone-800 dark:from-stone-950 dark:via-stone-950 dark:to-stone-900">
       <DashboardHeader
         firstName={user?.first_name || "Utilisateur"}
         onCopilotClick={() => setIsCopilotOpen(true)}
       />
       <div className="space-y-6">
-        <Card className="border-primary/20 bg-gradient-to-r from-primary/5 via-background to-background shadow-sm">
-          <CardContent className="p-5">
+        <Card
+          className="relative overflow-hidden border-2 border-amber-200/90 bg-white/95 shadow-md ring-1 ring-amber-900/10 dark:border-amber-800/70 dark:bg-stone-900 dark:ring-amber-950/40"
+          aria-labelledby="dashboard-priority-title"
+        >
+          <div
+            className="absolute left-0 top-0 h-full w-1.5 bg-gradient-to-b from-amber-600 to-orange-600 dark:from-amber-500 dark:to-orange-500"
+            aria-hidden
+          />
+          <CardContent className="p-5 pl-6 md:p-6 md:pl-8">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Priorité du jour
-                </p>
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p id="dashboard-priority-title" className="text-sm font-semibold text-stone-900 dark:text-stone-50">
+                    Ce qui compte aujourd’hui
+                  </p>
+                  <Badge className="border-0 bg-amber-700 text-white hover:bg-amber-700 dark:bg-amber-600">
+                    Prioritaire
+                  </Badge>
+                </div>
                 {mainFocus ? (
                   <div className="flex flex-wrap items-center gap-2">
-                    <mainFocus.icon className="h-5 w-5 text-primary" />
-                    <p className="text-lg font-semibold text-foreground">
-                      {mainFocus.label} ({mainFocus.count})
+                    <mainFocus.icon className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+                    <p className="text-lg font-semibold leading-snug text-foreground">
+                      {mainFocus.label}
+                      <span className="ml-1.5 font-normal text-muted-foreground tabular-nums">
+                        ({mainFocus.count})
+                      </span>
                     </p>
-                    <Badge variant="secondary">{mainFocus.hint}</Badge>
+                    <Badge variant="outline" className="font-normal text-muted-foreground">
+                      {mainFocus.hint}
+                    </Badge>
                   </div>
                 ) : (
                   <div className="flex flex-wrap items-center gap-2">
-                    <PartyPopper className="h-5 w-5 text-emerald-600" />
-                    <p className="text-lg font-semibold text-foreground">
-                      Aucun blocage prioritaire détecté
+                    <PartyPopper className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                    <p className="text-lg font-semibold leading-snug text-foreground">
+                      Rien d’urgent dans la file pour l’instant
                     </p>
                   </div>
                 )}
-                <p className="text-sm text-muted-foreground">
-                  Vue synthétique du pilotage RH : commencez par l’action la plus critique.
+                <p className="text-sm leading-relaxed text-stone-600 dark:text-stone-400 max-w-prose">
+                  Un point de départ pour votre journée : ouvrez le module indiqué, ou faites défiler la liste si vous préférez choisir vous-même.
                 </p>
                 {pendingPriorityItems.length > 0 && (
                   <div className="pt-1 max-w-md">
-                    <Label className="text-xs text-muted-foreground">Voir toutes les tâches</Label>
+                    <Label className="text-xs text-stone-600 dark:text-stone-400">Autres sujets en attente</Label>
                     <Select
                       value={selectedPriorityItem?.key}
                       onValueChange={(value) => setSelectedPriorityKey(value as DashboardPriorityKey)}
                     >
-                      <SelectTrigger className="mt-1 h-9">
+                      <SelectTrigger className="mt-1 h-9 border-stone-200 bg-white/90 dark:border-stone-700 dark:bg-stone-950/80">
                         <SelectValue placeholder="Choisir une tâche" />
                       </SelectTrigger>
                       <SelectContent>
@@ -658,14 +675,14 @@ export default function Dashboard() {
                   </div>
                 )}
                 {mainFocus && (
-                  <p className="text-xs text-muted-foreground pt-1">
+                  <p className="text-xs text-stone-500 dark:text-stone-500 pt-1">
                     {remainingMainFocus > 0
-                      ? `${remainingMainFocus} étape${remainingMainFocus > 1 ? "s" : ""} restante${remainingMainFocus > 1 ? "s" : ""}.`
-                      : "Dernière étape restante."}
+                      ? `Encore ${remainingMainFocus} sujet${remainingMainFocus > 1 ? "s" : ""} à parcourir après celui-ci.`
+                      : "Dernier sujet de la liste."}
                   </p>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-stretch gap-2 sm:justify-end">
                 {mainFocus ? (
                   <>
                     <Button asChild>
@@ -673,46 +690,46 @@ export default function Dashboard() {
                     </Button>
                     <Button
                       type="button"
-                      className="bg-emerald-600 hover:bg-emerald-700"
+                      variant="secondary"
                       onClick={handleValidateAndNext}
                     >
-                      Valider et passer à l'étape suivante
+                      Marquer comme vu et suivant
                     </Button>
                   </>
                 ) : (
                   <Button variant="outline" type="button" onClick={handleResetPriorities}>
-                    Réinitialiser les priorités
+                    Réafficher toute la liste
                   </Button>
                 )}
                 {availablePriorityItems.length > 0 && Object.keys(validatedPriorityByCount).length > 0 && (
                   <Button variant="ghost" type="button" onClick={handleResetPriorities}>
-                    Reprendre depuis le début
+                    Tout revoir depuis le début
                   </Button>
                 )}
                 <Button variant="outline" type="button" onClick={() => setIsCopilotOpen(true)}>
-                  <Sparkles className="h-4 w-4 mr-1" />
-                  Aide IA
+                  <Sparkles className="h-4 w-4 mr-1 opacity-70" aria-hidden />
+                  Assistant
                 </Button>
               </div>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-              <div className="rounded-lg border bg-background px-3 py-2">
-                <p className="text-xs text-muted-foreground">Total à traiter</p>
-                <p className="text-xl font-bold tabular-nums">{urgentTotal}</p>
+            <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+              <div className="rounded-md border border-amber-200/60 bg-amber-100/50 px-3 py-2.5 dark:border-amber-800/50 dark:bg-amber-950/25">
+                <p className="text-xs font-medium text-stone-600 dark:text-stone-400">Dossiers ouverts</p>
+                <p className="text-xl font-semibold tabular-nums tracking-tight text-stone-900 dark:text-stone-100">{urgentTotal}</p>
               </div>
-              <div className="rounded-lg border bg-background px-3 py-2">
-                <p className="text-xs text-muted-foreground">Paie & conformité</p>
-                <p className="text-xl font-bold tabular-nums">
+              <div className="rounded-md border border-orange-200/55 bg-orange-50/70 px-3 py-2.5 dark:border-orange-900/45 dark:bg-orange-950/20">
+                <p className="text-xs font-medium text-stone-600 dark:text-stone-400">Paie & déclarations</p>
+                <p className="text-xl font-semibold tabular-nums tracking-tight text-stone-900 dark:text-stone-100">
                   {data.actions.pendingAbsences + data.actions.pendingExpenses + data.alerts.obsoleteRates}
                 </p>
               </div>
-              <div className="rounded-lg border bg-background px-3 py-2">
-                <p className="text-xs text-muted-foreground">Équipe</p>
-                <p className="text-xl font-bold tabular-nums">{teamPendingTotal}</p>
+              <div className="rounded-md border border-stone-200 bg-stone-100/90 px-3 py-2.5 dark:border-stone-700 dark:bg-stone-800/60">
+                <p className="text-xs font-medium text-stone-600 dark:text-stone-400">Contrats & équipe</p>
+                <p className="text-xl font-semibold tabular-nums tracking-tight text-stone-900 dark:text-stone-100">{teamPendingTotal}</p>
               </div>
-              <div className="rounded-lg border bg-background px-3 py-2">
-                <p className="text-xs text-muted-foreground">Admin RH</p>
-                <p className="text-xl font-bold tabular-nums">
+              <div className="rounded-md border border-amber-200/50 bg-[#faf6f0] px-3 py-2.5 dark:border-stone-700 dark:bg-stone-900/70">
+                <p className="text-xs font-medium text-stone-600 dark:text-stone-400">Formalités & suivi</p>
+                <p className="text-xl font-semibold tabular-nums tracking-tight text-stone-900 dark:text-stone-100">
                   {residencePendingTotal + ribAlertTotal + medicalPendingTotal}
                 </p>
               </div>
@@ -720,15 +737,20 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <section className="space-y-4 rounded-xl border bg-background p-4 md:p-5">
+        <section
+          className="space-y-4 rounded-xl border border-stone-200/80 bg-white/70 p-4 shadow-sm backdrop-blur-sm md:p-6 dark:border-stone-800 dark:bg-stone-900/50"
+          aria-labelledby="dashboard-section-actions"
+        >
           <div>
-            <h2 className="text-xl font-semibold">Centre d’actions</h2>
-            <p className="text-sm text-muted-foreground">
-              Ce qu’il faut traiter en premier pour faire avancer la journée.
+            <h2 id="dashboard-section-actions" className="text-lg font-semibold tracking-tight text-stone-900 dark:text-stone-100">
+              À traiter en pratique
+            </h2>
+            <p className="mt-1 text-sm leading-relaxed text-stone-600 dark:text-stone-400 max-w-2xl">
+              Raccourcis et dossiers du quotidien — absences, paie, titres, alertes.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <ShortcutSimulationCard />
             <ShortcutExportsCard />
             {medicalModuleEnabled ? (
@@ -738,7 +760,7 @@ export default function Dashboard() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
             <div className="lg:col-span-4 space-y-6">
               <PayrollCard
                 status={data.payrollStatus}
@@ -774,11 +796,11 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <section className="space-y-4 rounded-xl border bg-background p-4 md:p-5">
+        <section className="space-y-4 rounded-xl border border-dashed border-stone-300/90 bg-stone-100/40 p-4 md:p-6 dark:border-stone-700 dark:bg-stone-950/50">
           <div>
-            <h2 className="text-xl font-semibold">Suivi & pilotage RH</h2>
-            <p className="text-sm text-muted-foreground">
-              Lecture de tendance, performance et modules transverses.
+            <h2 className="text-base font-semibold tracking-tight text-stone-700 dark:text-stone-300">Chiffres et tendances</h2>
+            <p className="mt-1 text-sm leading-relaxed text-stone-600 dark:text-stone-500 max-w-2xl">
+              Lecture d’ensemble (masse salariale, effectifs, CSE, exports) — utile mais secondaire par rapport aux dossiers ci-dessus.
             </p>
           </div>
 
@@ -827,21 +849,24 @@ export default function Dashboard() {
 // --- Section 1: Header & Copilote ---
 function DashboardHeader({ firstName, onCopilotClick }: { firstName: string, onCopilotClick: () => void }) {
   return (
-    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Bonjour {firstName},</h1>
-        <p className="text-muted-foreground mt-1">Voici votre cockpit de pilotage RH.</p>
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-50 md:text-3xl">
+          Bonjour {firstName},
+        </h1>
+        <p className="text-sm leading-relaxed text-stone-600 dark:text-stone-400 max-w-xl">
+          Voici ce qui mérite un coup d’œil aujourd’hui — le reste peut attendre votre rythme.
+        </p>
       </div>
       <Button
-        className="bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg rounded-lg flex items-center gap-2 px-5 py-2.5 border border-indigo-700"
-        size="lg"
+        variant="outline"
+        size="default"
+        className="shrink-0 gap-2 border-amber-200/80 bg-amber-50/50 text-stone-800 hover:bg-amber-100/70 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
         onClick={onCopilotClick}
       >
-        <Sparkles className="h-4 w-4 text-cyan-300 group-hover:text-cyan-200 transition-colors" />
-        <span className="font-semibold tracking-wide">Demander à l’IA</span>
+        <Sparkles className="h-4 w-4 opacity-70" aria-hidden />
+        Poser une question à l’assistant
       </Button>
-
-
     </div>
   );
 }
@@ -850,23 +875,26 @@ function DashboardHeader({ firstName, onCopilotClick }: { firstName: string, onC
 
 function PayrollCard({ status, onGenerateClick }: { status: DashboardData['payrollStatus'], onGenerateClick: () => void }) {
   return (
-    <Card className="shadow-lg border-primary/20">
+    <Card className="border-stone-200/90 bg-white/80 shadow-sm dark:border-stone-800 dark:bg-stone-900/40">
       <CardHeader>
-        <CardTitle>Gestion de la Paie</CardTitle>
+        <CardTitle className="text-base font-semibold text-stone-900 dark:text-stone-100">Paie du mois</CardTitle>
       </CardHeader>
       <CardContent>
         <button
+          type="button"
           onClick={onGenerateClick}
-          className="w-full group relative overflow-hidden rounded-lg border-2 border-indigo-200 bg-white hover:border-indigo-400 transition-all duration-300 shadow-sm hover:shadow-md"
+          className="w-full rounded-md border border-amber-200/70 bg-amber-50/60 px-4 py-3 text-left text-sm font-medium text-stone-900 transition-colors hover:bg-amber-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/50 focus-visible:ring-offset-2 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-stone-100 dark:hover:bg-amber-950/50"
         >
-          <div className="flex items-center justify-center py-3 px-4">
-            <Sparkles className="mr-2.5 h-5 w-5 text-indigo-500 group-hover:text-indigo-600 transition-colors" />
-            <span className="text-sm font-semibold text-gray-800 group-hover:text-indigo-900 transition-colors">
-              Générer la Paie
-            </span>
-          </div>
-          <div className="absolute inset-0 -z-10 bg-gradient-to-r from-indigo-50 to-purple-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          <span className="flex items-center justify-center gap-2">
+            <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+            Lancer la génération
+          </span>
         </button>
+        <p className="mt-3 text-xs text-stone-600 dark:text-stone-400">
+          Période : <span className="font-medium text-stone-900 dark:text-stone-100">{status.currentMonth}</span>
+          {" · "}
+          Avancement : {status.step}/{status.totalSteps}
+        </p>
       </CardContent>
     </Card>
   );
