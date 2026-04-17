@@ -10,6 +10,15 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
+InterviewType = Literal[
+    "annual_performance",
+    "professional_2ans",
+    "competency_6ans",
+    "return_absence",
+    "mid_year",
+    "other",
+]
+
 AnnualReviewStatus = Literal[
     "planifie",  # RH a planifié avec notes
     "en_attente_acceptation",  # En attente de l'acceptation de l'employé
@@ -42,6 +51,8 @@ class AnnualReviewCreate(BaseModel):
     status: AnnualReviewStatus = "en_attente_acceptation"
     planned_date: Optional[date] = None
     rh_preparation_template: Optional[str] = None  # Notes RH pour l'entretien
+    interview_type: InterviewType = "annual_performance"
+    template_id: Optional[str] = None
 
 
 class AnnualReviewUpdate(BaseModel):
@@ -66,3 +77,12 @@ class AnnualReviewUpdate(BaseModel):
     salary_review: Optional[str] = None
     overall_rating: Optional[str] = None
     next_review_date: Optional[date] = None
+    interview_type: Optional[InterviewType] = None
+    template_id: Optional[str] = None
+
+
+class SendForSignatureBody(BaseModel):
+    """Corps optionnel pour l'envoi en signature Yousign."""
+
+    second_signer_email: Optional[str] = None
+    expiration_days: int = Field(default=15, ge=1, le=365)

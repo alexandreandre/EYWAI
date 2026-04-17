@@ -24,6 +24,11 @@ class SupabaseAnnualReviewRepository(IAnnualReviewRepository):
     def get_by_id(self, review_id: str) -> Optional[Dict[str, Any]]:
         return infra_queries.query_get_by_id(review_id)
 
+    def get_by_yousign_procedure_id(
+        self, procedure_id: str
+    ) -> Optional[Dict[str, Any]]:
+        return infra_queries.query_get_by_yousign_procedure_id(procedure_id)
+
     def list_by_employee(
         self, employee_id: str, company_id: str
     ) -> List[Dict[str, Any]]:

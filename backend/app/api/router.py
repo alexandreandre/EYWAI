@@ -1,10 +1,22 @@
 """Routeur global : agrège les routers des modules app.modules."""
 
-from fastapi import APIRouter
+import json
+import logging
+
+from fastapi import APIRouter, Request, Response
+
+logger = logging.getLogger(__name__)
 
 from app.modules.access_control.api.router import router as access_control_router
 from app.modules.absences.api.router import router as absences_router
 from app.modules.annual_reviews.api.router import router as annual_reviews_router
+from app.modules.interview_templates.api.router import router as interview_templates_router
+from app.modules.certifications.api.router import router as certifications_router
+from app.modules.objectives.api.router import router as objectives_router
+from app.modules.training.api.router import router as training_router
+from app.modules.training_budget.api.router import router as training_budget_router
+from app.modules.legal_obligations.api.router import router as legal_obligations_router
+from app.modules.competencies.api.router import router as competencies_router
 from app.modules.auth.api.router import router as auth_router
 from app.modules.bonus_types.api.router import router as bonus_types_router
 from app.modules.companies.api.router import router as companies_router
@@ -60,6 +72,13 @@ router = APIRouter()
 router.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
 router.include_router(access_control_router)
 router.include_router(annual_reviews_router)
+router.include_router(interview_templates_router)
+router.include_router(certifications_router)
+router.include_router(objectives_router)
+router.include_router(training_router)
+router.include_router(training_budget_router)
+router.include_router(legal_obligations_router)
+router.include_router(competencies_router)
 router.include_router(companies_router, prefix="/api/company")
 router.include_router(contract_parser_router)
 router.include_router(copilot_router, prefix="/api/copilot")
@@ -99,3 +118,72 @@ router.include_router(users_router)
 router.include_router(uploads_router)
 router.include_router(badgeuse_router_me)
 router.include_router(badgeuse_router_rh)
+
+
+@router.post("/webhooks/yousign")
+async def yousign_webhook(request: Request) -> Response:
+    """
+    Webhook public Yousign (pas de JWT). Valide le HMAC puis met à jour annual_reviews.
+    Toujours 200 après traitement pour éviter les réessaies infinies (sauf 401 si signature invalide).
+    """
+    from app.core.database import supabase
+    from app.modules.annual_reviews.application import commands
+    from app.modules.annual_reviews.application.service import get_repository
+    from app.services.yousign_service import yousign_service
+
+    body_bytes = await request.body()
+    sig_header = request.headers.get("X-Yousign-Signature-256") or ""
+    if not yousign_service.validate_webhook(body_bytes, sig_header):
+        return Response(status_code=401, content="Invalid signature")
+
+    try:
+        payload = json.loads(body_bytes.decode("utf-8"))
+    except Exception:
+        return Response(status_code=200)
+
+    event_name = str(payload.get("event_name") or "")
+    data = payload.get("data") or {}
+    sr = data.get("signature_request") or {}
+    procedure_id = sr.get("id")
+    if not procedure_id:
+        return Response(status_code=200)
+
+    repo = get_repository()
+    row = repo.get_by_yousign_procedure_id(str(procedure_id))
+    if not row:
+        return Response(status_code=200)
+
+    review_id = str(row["id"])
+    company_id = str(row["company_id"])
+
+    try:
+        if event_name == "signature_request.done":
+            pdf = yousign_service.download_signed_document(str(procedure_id))
+            path = f"{company_id}/{review_id}/signed_document.pdf"
+            supabase.storage.from_("annual_reviews").upload(
+                path,
+                pdf,
+                file_options={"content-type": "application/pdf", "x-upsert": "true"},
+            )
+            signed_r = supabase.storage.from_("annual_reviews").create_signed_url(
+                path,
+                31536000,
+                options={"download": True},
+            )
+            signed_url = None
+            if isinstance(signed_r, dict):
+                signed_url = signed_r.get("signedURL") or signed_r.get("signedUrl")
+            commands.update_signature_status(
+                review_id,
+                "signed",
+                repo,
+                signed_pdf_url=signed_url,
+            )
+        elif event_name == "signature_request.expired":
+            commands.update_signature_status(review_id, "expired", repo)
+        elif event_name in ("signer.declined", "signature_request.declined"):
+            commands.update_signature_status(review_id, "refused", repo)
+    except Exception as e:
+        logger.exception("Erreur traitement webhook Yousign: %s", e)
+
+    return Response(status_code=200)

@@ -6,22 +6,24 @@ auth (company_id, is_rh), appel application, et traduction des exceptions en HTT
 """
 
 from datetime import date
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import io
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from app.core.security import get_current_user
 from app.modules.users.schemas.responses import User
 
 from app.modules.annual_reviews.application import commands, queries, service
+from app.modules.annual_reviews.infrastructure.mappers import row_to_annual_review_read
 from app.modules.annual_reviews.schemas import (
     AnnualReviewCreate,
     AnnualReviewListItem,
     AnnualReviewRead,
     AnnualReviewUpdate,
+    SendForSignatureBody,
 )
 
 router = APIRouter(
@@ -126,9 +128,10 @@ def create_annual_review(
     if not _is_rh(current_user):
         raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
     try:
-        return commands.create_annual_review(
+        row = commands.create_annual_review(
             _company_id(current_user), data.model_dump(), repository=_repo()
         )
+        return row_to_annual_review_read(row)
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e) or "Employé non trouvé.")
     except ValueError as e:
@@ -157,7 +160,7 @@ def update_annual_review(
         )
         if updated is None:
             raise HTTPException(status_code=404, detail="Entretien non trouvé.")
-        return updated
+        return row_to_annual_review_read(updated)
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e) or "Entretien non trouvé.")
     except PermissionError as e:
@@ -179,9 +182,10 @@ def mark_completed(
     if not _is_rh(current_user):
         raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
     try:
-        return commands.mark_completed(
+        row = commands.mark_completed(
             review_id, _company_id(current_user), repository=_repo()
         )
+        return row_to_annual_review_read(row)
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e) or "Entretien non trouvé.")
     except ValueError as e:
@@ -189,6 +193,34 @@ def mark_completed(
     except RuntimeError as e:
         raise HTTPException(
             status_code=500, detail=str(e) or "Erreur lors du marquage comme réalisé."
+        )
+
+
+# --- POST envoi signature Yousign (RH)
+@router.post("/{review_id}/send-for-signature", response_model=Dict[str, Any])
+def send_annual_review_for_signature(
+    review_id: str,
+    body: Optional[SendForSignatureBody] = Body(None),
+    current_user: User = Depends(get_current_user),
+):
+    if not _is_rh(current_user):
+        raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
+    payload = body if body is not None else SendForSignatureBody()
+    try:
+        return commands.send_annual_review_for_signature(
+            review_id,
+            _company_id(current_user),
+            payload.second_signer_email,
+            payload.expiration_days,
+            repository=_repo(),
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e) or "Entretien non trouvé.")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=500, detail=str(e) or "Erreur lors de l'envoi Yousign."
         )
 
 

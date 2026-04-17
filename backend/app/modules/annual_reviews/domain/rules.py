@@ -78,6 +78,10 @@ def build_rh_update_data(current_status: str, data: Dict[str, Any]) -> Dict[str,
         update_data["status"] = data["status"]
     if data.get("rh_preparation_template") is not None:
         update_data["rh_preparation_template"] = data["rh_preparation_template"]
+    if "interview_type" in data and data.get("interview_type") is not None:
+        update_data["interview_type"] = data["interview_type"]
+    if "template_id" in data:
+        update_data["template_id"] = data["template_id"]
     if current_status in ("realise", "cloture"):
         if data.get("meeting_report") is not None:
             update_data["meeting_report"] = data["meeting_report"]

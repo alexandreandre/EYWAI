@@ -42,6 +42,8 @@ def create_annual_review(
         "status": domain_rules.DEFAULT_STATUS_ON_CREATE,
         "planned_date": _serialize_date(planned_date),
         "rh_preparation_template": data.get("rh_preparation_template"),
+        "interview_type": data.get("interview_type") or "annual_performance",
+        "template_id": data.get("template_id"),
     }
     return repository.create(insert_data)
 
@@ -122,3 +124,89 @@ def delete_annual_review(
     if row["company_id"] != company_id:
         raise LookupError("Entretien non trouvé.")
     repository.delete(review_id)
+
+
+def update_signature_status(
+    review_id: str,
+    status: str,
+    repository: IAnnualReviewRepository,
+    signed_pdf_url: Optional[str] = None,
+) -> None:
+    """Met à jour signature_status (et optionnellement signed_pdf_url) pour un entretien."""
+    payload: Dict[str, Any] = {"signature_status": status}
+    if signed_pdf_url is not None:
+        payload["signed_pdf_url"] = signed_pdf_url
+    updated = repository.update(review_id, payload)
+    if not updated:
+        raise LookupError("Entretien non trouvé.")
+
+
+def send_annual_review_for_signature(
+    review_id: str,
+    company_id: str,
+    second_signer_email: Optional[str],
+    expiration_days: int,
+    repository: IAnnualReviewRepository,
+) -> Dict[str, Any]:
+    """
+    Génère le PDF, crée la procédure Yousign (AES), enregistre yousign_procedure_id et signature_status=pending.
+    L'entretien doit être au statut « cloture » (équivalent métier « completed »).
+    """
+    from app.services.annual_review_pdf_service import generate_review_pdf
+    from app.services.yousign_service import yousign_service
+
+    row = repository.get_by_id(review_id)
+    if not row:
+        raise LookupError("Entretien non trouvé.")
+    if row["company_id"] != company_id:
+        raise LookupError("Entretien non trouvé.")
+    if row.get("status") != "cloture":
+        raise ValueError(
+            "L'entretien doit être clôturé pour être envoyé en signature électronique."
+        )
+    sig = row.get("signature_status")
+    if sig in ("pending", "signed"):
+        raise ValueError(
+            "Une demande de signature est déjà en cours ou le document est déjà signé."
+        )
+
+    employee_id = row.get("employee_id")
+    employee = repository.get_employee_by_id(employee_id) if employee_id else None
+    if not employee:
+        raise LookupError("Employé non trouvé.")
+    email = (employee.get("email") or "").strip()
+    if not email:
+        raise ValueError(
+            "L'employé n'a pas d'adresse e-mail : impossible d'envoyer la demande Yousign."
+        )
+
+    company = repository.get_company_by_id(company_id) or {}
+    review_for_pdf = dict(row)
+    review_for_pdf["company"] = company
+    pdf_bytes = generate_review_pdf(review_for_pdf, employee)
+
+    second = (second_signer_email or "").strip() or None
+
+    doc_name = f"Entretien_{review_id}.pdf"
+    result = yousign_service.create_signature_request(
+        document_content=pdf_bytes,
+        document_name=doc_name,
+        signer_email=email,
+        signer_first_name=str(employee.get("first_name") or "").strip() or "Signataire",
+        signer_last_name=str(employee.get("last_name") or "").strip() or "Collaborateur",
+        expiration_days=expiration_days,
+        second_signer_email=second,
+    )
+    procedure_id = result["procedure_id"]
+
+    upd = repository.update(
+        review_id,
+        {
+            "signature_status": "pending",
+            "yousign_procedure_id": procedure_id,
+        },
+    )
+    if not upd:
+        raise RuntimeError("Erreur lors de l'enregistrement de la demande de signature.")
+
+    return {"procedure_id": procedure_id, "status": "pending"}

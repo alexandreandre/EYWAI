@@ -1,5 +1,9 @@
 # Domain layer for access_control: rules, enums, interfaces.
 from app.modules.access_control.domain.enums import RoleKind
+from app.modules.access_control.domain.permissions import (
+    FORMATION_TALENTS_CATEGORY_CODE,
+    FormationTalentsPermission,
+)
 from app.modules.access_control.domain.interfaces import (
     IPermissionCatalogReader,
     IPermissionRepository,
@@ -14,6 +18,8 @@ from app.modules.access_control.domain.rules import (
 
 __all__ = [
     "RoleKind",
+    "FORMATION_TALENTS_CATEGORY_CODE",
+    "FormationTalentsPermission",
     "ROLE_HIERARCHY",
     "can_assign_role",
     "get_viewable_roles",

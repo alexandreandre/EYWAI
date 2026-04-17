@@ -4,7 +4,9 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
@@ -22,14 +24,43 @@ import {
   updateAnnualReview,
   markAsCompleted,
   downloadAnnualReviewPdf,
+  sendForSignature,
+  INTERVIEW_TYPE_LABELS,
+  type InterviewType,
 } from "@/api/annualReviews";
 import type { AnnualReviewUpdate } from "@/api/annualReviews";
+import { getTemplate, getTemplates } from "@/api/interviewTemplates";
 import { getEmployeePromotions } from "@/api/promotions";
 import { PromotionModal } from "@/components/PromotionModal";
 import { PromotionBadge } from "@/components/PromotionBadge";
-import { Loader2, ArrowLeft, CheckCircle, Play, FileText, Info, MessageSquare, User, Edit, Calendar, Clock, UserCheck, FileCheck, FileDown, Eye, TrendingUp, Plus } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Loader2, ArrowLeft, CheckCircle, FileText, Info, MessageSquare, User, Edit, Calendar, UserCheck, FileCheck, FileDown, Eye, TrendingUp, Plus, PenLine, ExternalLink } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+function signatureStatusBadge(status: string | null | undefined) {
+  if (!status) return null;
+  const s = status.toLowerCase();
+  if (s === "pending") {
+    return <Badge variant="secondary" className="bg-muted text-muted-foreground">En attente de signature</Badge>;
+  }
+  if (s === "signed") {
+    return <Badge className="bg-emerald-600 hover:bg-emerald-600/90">Signé</Badge>;
+  }
+  if (s === "refused") {
+    return <Badge variant="destructive">Refusé</Badge>;
+  }
+  if (s === "expired") {
+    return <Badge className="bg-orange-500 hover:bg-orange-500/90 text-white">Expiré</Badge>;
+  }
+  return <Badge variant="outline">{status}</Badge>;
+}
 
 function formatDate(value: string | null): string {
   if (!value) return "—";
@@ -53,6 +84,12 @@ export default function AnnualReviewDetail() {
   const [editedTemplate, setEditedTemplate] = useState("");
   const [isEditingReport, setIsEditingReport] = useState(false);
   const [promotionModalOpen, setPromotionModalOpen] = useState(false);
+  const [metaDialogOpen, setMetaDialogOpen] = useState(false);
+  const [metaInterviewType, setMetaInterviewType] = useState<InterviewType>("annual_performance");
+  const [metaTemplateId, setMetaTemplateId] = useState<string>("");
+  const [sendSigOpen, setSendSigOpen] = useState(false);
+  const [secondSignerEmail, setSecondSignerEmail] = useState("");
+  const [expirationDays, setExpirationDays] = useState("15");
 
   const {
     data: review,
@@ -67,6 +104,29 @@ export default function AnnualReviewDetail() {
     enabled: !!reviewId,
   });
 
+  const { data: linkedTemplate } = useQuery({
+    queryKey: ["interview-template", review?.template_id],
+    queryFn: async () => {
+      const res = await getTemplate(review!.template_id!);
+      return res.data;
+    },
+    enabled: !!review?.template_id,
+  });
+
+  const { data: metaTemplates = [] } = useQuery({
+    queryKey: ["interview-templates"],
+    queryFn: async () => (await getTemplates()).data,
+    enabled: metaDialogOpen,
+  });
+
+  const templatesForMetaType = useMemo(
+    () =>
+      metaTemplates.filter(
+        (t) => t.status === "active" && t.interview_type === metaInterviewType
+      ),
+    [metaTemplates, metaInterviewType]
+  );
+
   const { data: employeePromotions = [] } = useQuery({
     queryKey: ["employee-promotions", review?.employee_id],
     queryFn: async () => {
@@ -77,6 +137,14 @@ export default function AnnualReviewDetail() {
     enabled: !!review?.employee_id,
   });
 
+  useEffect(() => {
+    if (metaDialogOpen && review) {
+      const it = (review.interview_type as InterviewType | undefined) ?? "annual_performance";
+      setMetaInterviewType(it);
+      setMetaTemplateId(review.template_id ?? "");
+    }
+  }, [metaDialogOpen, review]);
+
   const linkedPromotions = useMemo(
     () =>
       reviewId && employeePromotions.length
@@ -84,6 +152,34 @@ export default function AnnualReviewDetail() {
         : [],
     [reviewId, employeePromotions]
   );
+
+  const sendSignatureMutation = useMutation({
+    mutationFn: async () => {
+      const days = Math.min(365, Math.max(1, parseInt(expirationDays, 10) || 15));
+      await sendForSignature(reviewId!, {
+        second_signer_email: secondSignerEmail.trim() || null,
+        expiration_days: days,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["annual-review", reviewId] });
+      queryClient.invalidateQueries({ queryKey: ["annual-reviews"] });
+      setSendSigOpen(false);
+      setSecondSignerEmail("");
+      setExpirationDays("15");
+      toast({
+        title: "Demande envoyée",
+        description: "La procédure Yousign a été lancée. Le statut passera à « en attente de signature ».",
+      });
+    },
+    onError: (err: unknown) => {
+      const msg =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        (err as Error)?.message ??
+        "Impossible d'envoyer la demande.";
+      toast({ title: "Erreur", description: msg, variant: "destructive" });
+    },
+  });
 
   const updateMutation = useMutation({
     mutationFn: (data: AnnualReviewUpdate) => updateAnnualReview(reviewId!, data),
@@ -164,6 +260,16 @@ export default function AnnualReviewDetail() {
     setIsEditingTemplate(false);
   };
 
+  const handleSaveMeta = async () => {
+    if (!reviewId) return;
+    await updateMutation.mutateAsync({
+      interview_type: metaInterviewType,
+      template_id: metaTemplateId || null,
+    });
+    queryClient.invalidateQueries({ queryKey: ["interview-template"] });
+    setMetaDialogOpen(false);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -192,6 +298,15 @@ export default function AnnualReviewDetail() {
   const canMarkCompleted = review.status === "accepte";
   const canCloture = review.status === "realise";
   const canDownloadPdf = review.status === "cloture";
+  const sigStatus = review.signature_status;
+  const canSendForSignature =
+    review.status === "cloture" &&
+    (sigStatus == null ||
+      sigStatus === "" ||
+      sigStatus === "refused" ||
+      sigStatus === "expired");
+  const canDownloadSignedPdf =
+    review.signature_status === "signed" && !!review.signed_pdf_url;
 
   const handleViewPdf = async () => {
     if (!reviewId) return;
@@ -251,10 +366,30 @@ export default function AnnualReviewDetail() {
           </Button>
           <div className="flex-1">
             <h1 className="text-2xl font-semibold text-foreground">Fiche d'entretien</h1>
-            <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2 mt-2 text-sm text-muted-foreground">
               {review.planned_date && (
                 <span>{formatDate(review.planned_date)}</span>
               )}
+              <span className="text-foreground font-medium">
+                {INTERVIEW_TYPE_LABELS[
+                  (review.interview_type as InterviewType) ?? "annual_performance"
+                ]}
+              </span>
+              {signatureStatusBadge(review.signature_status)}
+              {review.template_id && (
+                <span className="text-xs">
+                  Modèle :{" "}
+                  <span className="font-medium text-foreground">
+                    {linkedTemplate?.name ?? review.template_id}
+                  </span>
+                </span>
+              )}
+            </div>
+            <div className="mt-2">
+              <Button variant="outline" size="sm" onClick={() => setMetaDialogOpen(true)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Type d&apos;entretien &amp; modèle
+              </Button>
             </div>
           </div>
         </div>
@@ -292,6 +427,25 @@ export default function AnnualReviewDetail() {
                 Télécharger
               </Button>
             </>
+          )}
+          {canSendForSignature && (
+            <Button
+              variant="default"
+              size="sm"
+              className="gap-2"
+              onClick={() => setSendSigOpen(true)}
+            >
+              <PenLine className="h-4 w-4" />
+              Envoyer pour signature
+            </Button>
+          )}
+          {canDownloadSignedPdf && review.signed_pdf_url && (
+            <Button variant="outline" size="sm" asChild className="gap-2">
+              <a href={review.signed_pdf_url} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-4 w-4" />
+                Télécharger PDF signé
+              </a>
+            </Button>
           )}
           <AnnualReviewBadge status={review.status} />
         </div>
@@ -523,6 +677,116 @@ export default function AnnualReviewDetail() {
       </Card>
 
       {/* Dialog pour éditer les notes */}
+      <Dialog open={metaDialogOpen} onOpenChange={setMetaDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Type d&apos;entretien et modèle</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-2">
+              <Label>Type d&apos;entretien *</Label>
+              <Select
+                value={metaInterviewType}
+                onValueChange={(v) => {
+                  setMetaInterviewType(v as InterviewType);
+                  setMetaTemplateId("");
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(INTERVIEW_TYPE_LABELS) as InterviewType[]).map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {INTERVIEW_TYPE_LABELS[k]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Modèle de trame (optionnel)</Label>
+              <Select
+                value={metaTemplateId || "_none"}
+                onValueChange={(v) => setMetaTemplateId(v === "_none" ? "" : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Aucun" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">Aucun modèle</SelectItem>
+                  {templatesForMetaType.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMetaDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleSaveMeta} disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : null}
+              Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={sendSigOpen} onOpenChange={setSendSigOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Envoyer pour signature électronique</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Un PDF de synthèse sera envoyé via Yousign au salarié (signature avancée avec code par e-mail).
+            Vous pouvez ajouter un second signataire (ordre séquentiel).
+          </p>
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-2">
+              <Label htmlFor="second-signer-email">E-mail second signataire (optionnel)</Label>
+              <Input
+                id="second-signer-email"
+                type="email"
+                placeholder="rh@exemple.fr"
+                value={secondSignerEmail}
+                onChange={(e) => setSecondSignerEmail(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="expiration-days">Délai d&apos;expiration (jours)</Label>
+              <Input
+                id="expiration-days"
+                type="number"
+                min={1}
+                max={365}
+                value={expirationDays}
+                onChange={(e) => setExpirationDays(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSendSigOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              onClick={() => sendSignatureMutation.mutate()}
+              disabled={sendSignatureMutation.isPending}
+            >
+              {sendSignatureMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : null}
+              Confirmer l&apos;envoi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isEditingTemplate} onOpenChange={setIsEditingTemplate}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>

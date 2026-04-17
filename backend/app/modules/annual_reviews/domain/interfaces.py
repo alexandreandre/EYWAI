@@ -27,6 +27,13 @@ class IAnnualReviewRepository(ABC):
         ...
 
     @abstractmethod
+    def get_by_yousign_procedure_id(
+        self, procedure_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Récupère un entretien par identifiant de procédure Yousign (webhook)."""
+        ...
+
+    @abstractmethod
     def list_by_employee(
         self, employee_id: str, company_id: str
     ) -> List[Dict[str, Any]]:
@@ -62,7 +69,7 @@ class IAnnualReviewRepository(ABC):
 
     @abstractmethod
     def get_employee_by_id(self, employee_id: str) -> Optional[Dict[str, Any]]:
-        """Retourne les champs employé nécessaires au PDF (id, first_name, last_name, job_title)."""
+        """Retourne les champs employé (id, first_name, last_name, job_title, email)."""
         ...
 
     @abstractmethod

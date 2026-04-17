@@ -26,6 +26,7 @@ class TestGetRepository:
         assert hasattr(repo, "get_employee_company_id")
         assert hasattr(repo, "get_employee_by_id")
         assert hasattr(repo, "get_company_by_id")
+        assert hasattr(repo, "get_by_yousign_procedure_id")
 
 
 class TestGetPdfGenerator:

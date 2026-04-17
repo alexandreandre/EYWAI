@@ -39,11 +39,14 @@ import {
   createAnnualReview,
   deleteAnnualReview,
   downloadAnnualReviewPdf,
+  INTERVIEW_TYPE_LABELS,
+  type InterviewType,
 } from "@/api/annualReviews";
 import type {
   AnnualReviewListItem,
   AnnualReviewStatus,
 } from "@/api/annualReviews";
+import { getTemplates } from "@/api/interviewTemplates";
 import { Loader2, Search, MessageSquare, Plus, ChevronRight, Trash2, FileDown, Eye } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -95,6 +98,9 @@ export default function AnnualReviews() {
   const [planningEmployeeId, setPlanningEmployeeId] = useState("");
   const [planningDate, setPlanningDate] = useState("");
   const [planningTemplate, setPlanningTemplate] = useState("");
+  const [planningInterviewType, setPlanningInterviewType] =
+    useState<InterviewType>("annual_performance");
+  const [planningTemplateId, setPlanningTemplateId] = useState<string>("");
 
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: 6 }, (_, i) => currentYear - i);
@@ -125,6 +131,23 @@ export default function AnnualReviews() {
     enabled: !!activeCompanyId && planningModalOpen,
   });
 
+  const { data: interviewTemplates = [] } = useQuery({
+    queryKey: ["interview-templates", activeCompanyId],
+    queryFn: async () => {
+      const res = await getTemplates();
+      return res.data;
+    },
+    enabled: !!activeCompanyId && planningModalOpen,
+  });
+
+  const templatesForType = useMemo(
+    () =>
+      interviewTemplates.filter(
+        (t) => t.status === "active" && t.interview_type === planningInterviewType
+      ),
+    [interviewTemplates, planningInterviewType]
+  );
+
   const createMutation = useMutation({
     mutationFn: createAnnualReview,
     onSuccess: () => {
@@ -133,6 +156,8 @@ export default function AnnualReviews() {
       setPlanningEmployeeId("");
       setPlanningDate("");
       setPlanningTemplate("");
+      setPlanningInterviewType("annual_performance");
+      setPlanningTemplateId("");
       toast({ 
         title: "Entretien créé", 
         description: "L'entretien a été créé en statut \"En attente d'acceptation\". L'employé peut maintenant l'accepter ou la refuser."
@@ -193,6 +218,8 @@ export default function AnnualReviews() {
     setPlanningEmployeeId("");
     setPlanningDate("");
     setPlanningTemplate("");
+    setPlanningInterviewType("annual_performance");
+    setPlanningTemplateId("");
     setPlanningModalOpen(true);
   };
 
@@ -201,6 +228,14 @@ export default function AnnualReviews() {
       toast({
         title: "Champ requis",
         description: "Veuillez sélectionner un employé.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!planningInterviewType) {
+      toast({
+        title: "Champ requis",
+        description: "Veuillez sélectionner le type d'entretien.",
         variant: "destructive",
       });
       return;
@@ -215,6 +250,8 @@ export default function AnnualReviews() {
       year: year,
       planned_date: planningDate ? planningDate : null,
       rh_preparation_template: planningTemplate || null,
+      interview_type: planningInterviewType,
+      template_id: planningTemplateId || null,
     });
   };
 
@@ -496,6 +533,53 @@ export default function AnnualReviews() {
                   )}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="interview-type">Type d&apos;entretien *</Label>
+              <Select
+                value={planningInterviewType}
+                onValueChange={(v) => {
+                  setPlanningInterviewType(v as InterviewType);
+                  setPlanningTemplateId("");
+                }}
+              >
+                <SelectTrigger id="interview-type">
+                  <SelectValue placeholder="Choisir un type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(INTERVIEW_TYPE_LABELS) as InterviewType[]).map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {INTERVIEW_TYPE_LABELS[k]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="template-select">Modèle de trame (optionnel)</Label>
+              <Select
+                value={planningTemplateId || "_none"}
+                onValueChange={(v) => setPlanningTemplateId(v === "_none" ? "" : v)}
+              >
+                <SelectTrigger id="template-select">
+                  <SelectValue placeholder="Aucun modèle" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">Aucun modèle</SelectItem>
+                  {templatesForType.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {templatesForType.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Aucun modèle actif pour ce type. Vous pouvez en créer dans l&apos;onglet Formation (Ticket 12).
+                </p>
+              )}
             </div>
 
             <div className="grid gap-2">

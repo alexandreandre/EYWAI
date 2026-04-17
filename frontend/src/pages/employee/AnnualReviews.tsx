@@ -13,9 +13,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AnnualReviewBadge } from "@/components/AnnualReviewBadge";
-import { getMyAnnualReviews } from "@/api/annualReviews";
-import type { AnnualReview } from "@/api/annualReviews";
-import { Loader2, MessageSquare, AlertCircle, ChevronRight } from "lucide-react";
+import { getMyAnnualReviews, INTERVIEW_TYPE_LABELS } from "@/api/annualReviews";
+import type { AnnualReview, InterviewType } from "@/api/annualReviews";
+import { Loader2, MessageSquare, AlertCircle, ChevronRight, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 function formatDate(value: string | null): string {
@@ -31,7 +31,17 @@ function formatDate(value: string | null): string {
   }
 }
 
-export default function EmployeeAnnualReviews() {
+function interviewLabel(it: string | undefined) {
+  if (!it) return "—";
+  return INTERVIEW_TYPE_LABELS[it as InterviewType] ?? it;
+}
+
+export type EmployeeAnnualReviewsProps = {
+  /** Masque le titre de page et ajoute colonnes type / PDF (vue « Ma formation »). */
+  embedded?: boolean;
+};
+
+export default function EmployeeAnnualReviews({ embedded = false }: EmployeeAnnualReviewsProps) {
   const navigate = useNavigate();
 
   const {
@@ -49,41 +59,44 @@ export default function EmployeeAnnualReviews() {
   });
 
   const handleRowClick = (reviewId: string) => {
-    console.log("[AnnualReviews] Clic sur entretien:", reviewId);
     navigate(`/annual-reviews/${reviewId}`);
   };
 
-  const handleKeyDown = (
-    e: React.KeyboardEvent,
-    reviewId: string
-  ) => {
+  const handleKeyDown = (e: React.KeyboardEvent, reviewId: string) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       handleRowClick(reviewId);
     }
   };
 
+  const colCount = embedded ? 5 : 3;
+
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Mes Entretiens</h1>
-          <p className="text-muted-foreground mt-2">
-            Retrouvez tous vos entretiens et suivez leur avancement
-          </p>
-        </div>
+      <div className={embedded ? "space-y-3" : "space-y-6"}>
+        {!embedded && (
+          <div>
+            <h1 className="text-3xl font-bold">Mes Entretiens</h1>
+            <p className="text-muted-foreground mt-2">
+              Retrouvez tous vos entretiens et suivez leur avancement
+            </p>
+          </div>
+        )}
         <Card>
           <CardContent className="pt-6">
             <Table>
               <TableHeader>
                 <TableRow>
+                  {embedded && <TableHead>Type</TableHead>}
                   <TableHead>Date</TableHead>
                   <TableHead>Statut</TableHead>
+                  {embedded && <TableHead>PDF signé</TableHead>}
+                  {!embedded && <TableHead className="w-[50px]" />}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 <TableRow>
-                  <TableCell colSpan={2} className="h-32 text-center">
+                  <TableCell colSpan={colCount} className="h-32 text-center">
                     <div className="flex flex-col items-center justify-center gap-3">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                       <p className="text-sm text-muted-foreground">
@@ -102,20 +115,22 @@ export default function EmployeeAnnualReviews() {
 
   if (isError) {
     const errorMessage =
-      (error as { response?: { data?: { detail?: string } } })?.response?.data
-        ?.detail ?? "Une erreur est survenue lors du chargement";
+      (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+      "Une erreur est survenue lors du chargement";
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Mes Entretiens</h1>
-          <p className="text-muted-foreground mt-2">
-            Retrouvez tous vos entretiens et suivez leur avancement
-          </p>
-        </div>
+      <div className={embedded ? "space-y-3" : "space-y-6"}>
+        {!embedded && (
+          <div>
+            <h1 className="text-3xl font-bold">Mes Entretiens</h1>
+            <p className="text-muted-foreground mt-2">
+              Retrouvez tous vos entretiens et suivez leur avancement
+            </p>
+          </div>
+        )}
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3 p-4 bg-destructive/10 text-destructive border border-destructive/20 rounded-md">
-              <AlertCircle className="h-5 w-5 flex-shrink-0" />
+            <div className="flex items-center gap-3 rounded-md border border-destructive/20 bg-destructive/10 p-4 text-destructive">
+              <AlertCircle className="h-5 w-5 shrink-0" />
               <div className="flex-1">
                 <p className="font-medium">Erreur lors du chargement</p>
                 <p className="text-sm">{errorMessage}</p>
@@ -131,63 +146,87 @@ export default function EmployeeAnnualReviews() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Mes Entretiens</h1>
-        <p className="text-muted-foreground mt-2">
-          Retrouvez tous vos entretiens et suivez leur avancement
-        </p>
-      </div>
+    <div className={embedded ? "space-y-3" : "space-y-6"}>
+      {!embedded && (
+        <div>
+          <h1 className="text-3xl font-bold">Mes Entretiens</h1>
+          <p className="text-muted-foreground mt-2">
+            Retrouvez tous vos entretiens et suivez leur avancement
+          </p>
+        </div>
+      )}
 
       {reviews.length === 0 ? (
         <Card>
-          <CardContent className="pt-12 pb-12">
+          <CardContent className="py-12">
             <div className="flex flex-col items-center justify-center text-center">
-              <MessageSquare className="h-16 w-16 mb-4 text-muted-foreground opacity-50" />
-              <h3 className="text-lg font-semibold mb-2">
-                Aucun entretien pour le moment
-              </h3>
-              <p className="text-sm text-muted-foreground max-w-md">
-                Vos entretiens apparaîtront ici une fois qu'ils auront été
-                planifiés par les RH.
+              <MessageSquare className="mb-4 h-16 w-16 text-muted-foreground opacity-50" />
+              <h3 className="mb-2 text-lg font-semibold">Aucun entretien pour le moment</h3>
+              <p className="max-w-md text-sm text-muted-foreground">
+                Vos entretiens apparaîtront ici une fois qu&apos;ils auront été planifiés par les RH.
               </p>
             </div>
           </CardContent>
         </Card>
       ) : (
         <Card>
-          <CardHeader>
-            <CardTitle>Liste de vos entretiens</CardTitle>
-          </CardHeader>
-          <CardContent>
+          {!embedded && (
+            <CardHeader>
+              <CardTitle>Liste de vos entretiens</CardTitle>
+            </CardHeader>
+          )}
+          <CardContent className={embedded ? "pt-4" : ""}>
             <Table>
               <TableHeader>
                 <TableRow>
+                  {embedded && <TableHead>Type</TableHead>}
                   <TableHead>Date</TableHead>
                   <TableHead>Statut</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
+                  {embedded && <TableHead>PDF signé</TableHead>}
+                  {!embedded && <TableHead className="w-[50px]" />}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {reviews.map((review: AnnualReview) => (
                   <TableRow
                     key={review.id}
-                    className="cursor-pointer hover:bg-muted/50 transition-colors duration-150"
+                    className="cursor-pointer transition-colors hover:bg-muted/50"
                     onClick={() => handleRowClick(review.id)}
                     role="button"
                     tabIndex={0}
                     aria-label="Voir l'entretien"
                     onKeyDown={(e) => handleKeyDown(e, review.id)}
                   >
+                    {embedded && (
+                      <TableCell className="max-w-[220px] text-sm">
+                        {interviewLabel(review.interview_type)}
+                      </TableCell>
+                    )}
                     <TableCell className="text-muted-foreground">
                       {formatDate(review.planned_date)}
                     </TableCell>
                     <TableCell>
                       <AnnualReviewBadge status={review.status} compact />
                     </TableCell>
-                    <TableCell>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </TableCell>
+                    {embedded && (
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        {review.signed_pdf_url ? (
+                          <Button variant="link" className="h-auto p-0" asChild>
+                            <a href={review.signed_pdf_url} target="_blank" rel="noopener noreferrer">
+                              <FileText className="mr-1 inline h-4 w-4" />
+                              Ouvrir
+                            </a>
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    )}
+                    {!embedded && (
+                      <TableCell>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

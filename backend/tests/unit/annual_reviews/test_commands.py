@@ -90,6 +90,8 @@ class TestCreateAnnualReview:
         assert call_data["year"] == 2024
         assert call_data["status"] == "en_attente_acceptation"
         assert call_data.get("planned_date") is None
+        assert call_data.get("interview_type") == "annual_performance"
+        assert call_data.get("template_id") is None
 
     def test_creates_with_planned_date_and_rh_template(self):
         """Crée avec planned_date et rh_preparation_template si fournis."""

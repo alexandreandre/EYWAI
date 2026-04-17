@@ -42,6 +42,9 @@ import MedicalFollowUp from './pages/MedicalFollowUp';
 import { ErrorBoundaryClass } from '@/components/ErrorBoundary';
 import AnnualReviews from './pages/AnnualReviews';
 import AnnualReviewDetail from './pages/AnnualReviewDetail';
+import HabilitationsPage from './pages/Habilitations';
+import ObjectivesPage from './pages/Objectives';
+import CatalogueFormationsPage from './pages/CatalogueFormations';
 import Promotions from './pages/Promotions';
 import PromotionDetail from './pages/PromotionDetail';
 import CSE from './pages/CSE';
@@ -59,6 +62,7 @@ import ExpensesPage from './pages/employee/Expenses';
 import SalaryAdvancesPage from './pages/employee/SalaryAdvances';
 import DocumentsPage from './pages/employee/Documents';
 import EmployeeAnnualReviews from './pages/employee/AnnualReviews';
+import EmployeeFormationPage from './pages/employee/EmployeeFormationPage';
 import EmployeeAnnualReviewDetail from './pages/employee/AnnualReviewDetail';
 import EmployeeCSE from './pages/employee/CSE';
 import EmployeeMedicalFollowUp from './pages/employee/MedicalFollowUp';
@@ -90,6 +94,7 @@ import NotFound from "./pages/NotFound";
 const SupportPage = lazy(() => import('./pages/support/SupportPage'));
 const SupportConfirmationPage = lazy(() => import('./pages/support/SupportConfirmationPage'));
 const TicketsHistoryPage = lazy(() => import('./pages/support/TicketsHistoryPage'));
+const FormationPage = lazy(() => import('./pages/formation/FormationPage'));
 
 const supportRouteFallback = (
   <div className="flex min-h-[50vh] w-full items-center justify-center">
@@ -117,6 +122,20 @@ function SuspenseTicketsHistoryPage() {
   return (
     <Suspense fallback={supportRouteFallback}>
       <TicketsHistoryPage />
+    </Suspense>
+  );
+}
+
+const formationRouteFallback = (
+  <div className="flex min-h-[40vh] w-full items-center justify-center">
+    <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
+  </div>
+);
+
+function SuspenseFormationPage() {
+  return (
+    <Suspense fallback={formationRouteFallback}>
+      <FormationPage />
     </Suspense>
   );
 }
@@ -209,6 +228,10 @@ function ProtectedRoutes() {
           <Route path="/badgeuse" element={<EmployeeBadgeusePage />} />
           <Route path="/annual-reviews" element={<EmployeeAnnualReviews />} />
           <Route path="/annual-reviews/:reviewId" element={<EmployeeAnnualReviewDetail />} />
+          <Route path="/employee/formation" element={<EmployeeFormationPage />} />
+          <Route path="/habilitations" element={<HabilitationsPage />} />
+          <Route path="/objectives" element={<ObjectivesPage />} />
+          <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
           <Route path="/absences" element={<EmployeeAbsencesPage />} />
           <Route path="/calendar" element={<EmployeeCalendarPage />} />
           <Route path="/expenses" element={<ExpensesPage />} />
@@ -278,6 +301,10 @@ function ProtectedRoutes() {
                   <Route path="/badgeuse" element={<EmployeeBadgeusePage />} />
                   <Route path="/annual-reviews" element={<EmployeeAnnualReviews />} />
                   <Route path="/annual-reviews/:reviewId" element={<EmployeeAnnualReviewDetail />} />
+                  <Route path="/employee/formation" element={<EmployeeFormationPage />} />
+                  <Route path="/habilitations" element={<HabilitationsPage />} />
+                  <Route path="/objectives" element={<ObjectivesPage />} />
+                  <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
                   <Route path="/absences" element={<EmployeeAbsencesPage />} />
                   <Route path="/calendar" element={<EmployeeCalendarPage />} />
                   <Route path="/expenses" element={<ExpensesPage />} />
@@ -312,6 +339,10 @@ function ProtectedRoutes() {
                   <Route path="/medical-follow-up" element={<ErrorBoundaryClass><MedicalFollowUp /></ErrorBoundaryClass>} />
                   <Route path="/annual-reviews" element={<AnnualReviews />} />
                   <Route path="/annual-reviews/:reviewId" element={<AnnualReviewDetail />} />
+                  <Route path="/formation" element={<SuspenseFormationPage />} />
+                  <Route path="/habilitations" element={<HabilitationsPage />} />
+                  <Route path="/objectives" element={<ObjectivesPage />} />
+                  <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
                   <Route path="/promotions" element={<Promotions />} />
                   <Route path="/promotions/:promotionId" element={<PromotionDetail />} />
                   <Route path="/cse" element={<CSE />} />

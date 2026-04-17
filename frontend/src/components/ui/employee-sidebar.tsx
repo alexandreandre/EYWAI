@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Home, User, Wallet, Calendar, Receipt, FolderKanban, LogOut, Plane, DollarSign, Notebook, Settings, MessageSquare, Scale, Handshake, Stethoscope, LifeBuoy } from "lucide-react";
+import { Home, User, Wallet, Calendar, FolderKanban, LogOut, Plane, DollarSign, Notebook, Settings, Handshake, Stethoscope, LifeBuoy, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { ChangePasswordModal } from "@/components/ChangePasswordModal";
@@ -30,7 +30,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 const baseNavItems = [
   { to: "/", label: "Tableau de Bord", icon: Home },
   { to: "/payslips", label: "Rémunération", icon: DollarSign },
-  { to: "/annual-reviews", label: "Mes Entretiens", icon: MessageSquare },
+  { to: "/employee/formation", label: "Ma formation", icon: GraduationCap },
   { to: "/calendar", label: "Calendrier", icon: Calendar },
   { to: "/absences", label: "Congés & Absences", icon: Plane },
   { to: "/expenses", label: "Notes de Frais", icon: Notebook },
@@ -79,6 +79,9 @@ export function EmployeeSidebar() {
   const isActive = (path: string) => {
     if (path === "/") {
       return currentPath === "/";
+    }
+    if (path === "/employee/formation") {
+      return currentPath.startsWith("/employee/formation");
     }
     return currentPath.startsWith(path);
   };

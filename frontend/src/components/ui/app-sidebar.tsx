@@ -35,6 +35,10 @@ import {
   Rocket,
   Lock,
   LifeBuoy,
+  ShieldCheck,
+  Target,
+  BookOpen,
+  GraduationCap,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext"; // <-- IMPORTATION
 import { useRhSidebarTaskBadges } from "@/hooks/useRhSidebarTaskBadges";
@@ -93,6 +97,10 @@ const RH_TEAM_BASE: SidebarLinkItem[] = [
   { title: "Badgeuse", url: "/badgeuse-rh", icon: Calendar },
   { title: "Mon Entreprise", url: "/company", icon: Building },
   { title: "Entretiens", url: "/annual-reviews", icon: MessageSquare },
+  { title: "Formation", url: "/formation", icon: GraduationCap },
+  { title: "Habilitations", url: "/habilitations", icon: ShieldCheck },
+  { title: "Objectifs & KPI", url: "/objectives", icon: Target },
+  { title: "Catalogue formations", url: "/catalogue-formations", icon: BookOpen },
   { title: "Promotions", url: "/promotions", icon: Award },
   { title: "CSE & Dialogue Social", url: "/cse", icon: Handshake },
   { title: "Recrutement", url: "/recruitment", icon: UserPlus },
@@ -113,8 +121,10 @@ const RH_PAIE_ITEMS: SidebarLinkItem[] = [
 
 function withRhMedicalFollowUp(team: SidebarLinkItem[]): SidebarLinkItem[] {
   const next = [...team];
-  const insertIndex = next.findIndex((m) => m.url === "/annual-reviews");
-  const idx = insertIndex >= 0 ? insertIndex + 1 : 4;
+  const formationIdx = next.findIndex((m) => m.url === "/formation");
+  const annualIdx = next.findIndex((m) => m.url === "/annual-reviews");
+  const idx =
+    formationIdx >= 0 ? formationIdx + 1 : annualIdx >= 0 ? annualIdx + 1 : 4;
   next.splice(idx, 0, {
     title: "Suivi médical",
     url: "/medical-follow-up",
@@ -135,6 +145,9 @@ const menuItems = {
     { title: "Tableau de Bord", url: "/", icon: Home },
     { title: "Rémunération", url: "/payslips", icon: DollarSign },
     { title: "Mes Entretiens", url: "/annual-reviews", icon: MessageSquare },
+    { title: "Mes habilitations", url: "/habilitations", icon: ShieldCheck },
+    { title: "Mes objectifs", url: "/objectives", icon: Target },
+    { title: "Formations", url: "/catalogue-formations", icon: BookOpen },
     { title: "Calendrier", url: "/calendar", icon: Calendar },
     { title: "Congés & Absences", url: "/absences", icon: Plane },
     { title: "Notes de Frais", url: "/expenses", icon: Notebook },
@@ -237,6 +250,9 @@ export function AppSidebar() {
   const isActive = (path: string) => {
     if (path === "/") {
       return currentPath === "/";
+    }
+    if (path === "/formation") {
+      return currentPath.startsWith("/formation");
     }
     return currentPath.startsWith(path);
   };

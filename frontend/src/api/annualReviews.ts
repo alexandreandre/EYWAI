@@ -3,6 +3,23 @@
 
 import apiClient from "./apiClient";
 
+export type InterviewType =
+  | "annual_performance"
+  | "professional_2ans"
+  | "competency_6ans"
+  | "return_absence"
+  | "mid_year"
+  | "other";
+
+export const INTERVIEW_TYPE_LABELS: Record<InterviewType, string> = {
+  annual_performance: "Entretien annuel de performance",
+  professional_2ans: "Entretien professionnel (2 ans)",
+  competency_6ans: "Bilan de compétences (6 ans)",
+  return_absence: "Entretien de retour d'absence",
+  mid_year: "Entretien de mi-année",
+  other: "Autre",
+};
+
 export type AnnualReviewStatus =
   | "planifie"
   | "en_attente_acceptation"
@@ -37,6 +54,11 @@ export interface AnnualReview {
   salary_review?: string | null;
   overall_rating?: string | null;
   next_review_date?: string | null;
+  interview_type?: InterviewType | string;
+  template_id?: string | null;
+  signature_status?: string | null;
+  signed_pdf_url?: string | null;
+  yousign_procedure_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -93,6 +115,8 @@ export interface AnnualReviewCreate {
   status?: AnnualReviewStatus;
   planned_date?: string | null;
   rh_preparation_template?: string | null; // Notes RH pour l'entretien
+  interview_type?: InterviewType;
+  template_id?: string | null;
 }
 
 export interface AnnualReviewUpdate {
@@ -115,6 +139,8 @@ export interface AnnualReviewUpdate {
   salary_review?: string | null;
   overall_rating?: string | null;
   next_review_date?: string | null;
+  interview_type?: InterviewType;
+  template_id?: string | null;
 }
 
 export const getEmployeeAnnualReviews = (employeeId: string) => {
@@ -152,6 +178,7 @@ export const createAnnualReview = (data: AnnualReviewCreate) => {
   const payload = {
     ...data,
     planned_date: data.planned_date || null,
+    interview_type: data.interview_type ?? "annual_performance",
   };
   return apiClient.post<AnnualReview>("/api/annual-reviews", payload);
 };
@@ -182,12 +209,32 @@ export const updateAnnualReview = (
   if (data.salary_review !== undefined) payload.salary_review = data.salary_review;
   if (data.overall_rating !== undefined) payload.overall_rating = data.overall_rating;
   if (data.next_review_date !== undefined) payload.next_review_date = data.next_review_date;
+  if (data.interview_type !== undefined) payload.interview_type = data.interview_type;
+  if (data.template_id !== undefined) payload.template_id = data.template_id;
   return apiClient.put<AnnualReview>(`/api/annual-reviews/${reviewId}`, payload);
 };
 
 export const markAsCompleted = (reviewId: string) => {
   return apiClient.post<AnnualReview>(
     `/api/annual-reviews/${reviewId}/mark-completed`
+  );
+};
+
+export interface SendForSignatureParams {
+  second_signer_email?: string | null;
+  expiration_days?: number;
+}
+
+export const sendForSignature = (
+  reviewId: string,
+  params?: SendForSignatureParams
+) => {
+  return apiClient.post<{ procedure_id: string; status: string }>(
+    `/api/annual-reviews/${reviewId}/send-for-signature`,
+    {
+      second_signer_email: params?.second_signer_email ?? null,
+      expiration_days: params?.expiration_days ?? 15,
+    }
   );
 };
 

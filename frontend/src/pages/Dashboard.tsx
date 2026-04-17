@@ -41,6 +41,7 @@ import {
   Clock,
   Users,
   SlidersHorizontal,
+  GraduationCap,
 } from "lucide-react";
 
 // --- Formulaires (que tu as fournis) ---
@@ -63,6 +64,10 @@ import {
 } from "@/api/recruitment";
 import { useQuery } from "@tanstack/react-query";
 import { useRhSidebarTaskBadges } from "@/hooks/useRhSidebarTaskBadges";
+import { getDashboardCounts } from "@/api/certifications";
+import { getOverdueCount } from "@/api/legalObligations";
+import { getBudget, type TrainingBudgetAlertLevel } from "@/api/trainingBudget";
+import { getAchievementRate } from "@/api/objectives";
 
 // --- 1. Définition des Types de Données ---
 
@@ -738,6 +743,8 @@ export default function Dashboard() {
             )}
           </div>
 
+          <FormationTalentsDashboardWidget />
+
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-4 space-y-6">
               <PayrollCard
@@ -823,6 +830,189 @@ export default function Dashboard() {
 
 
 // --- 3. Sous-Composants du Dashboard ---
+
+function FormationTalentsCellLoader() {
+  return (
+    <div className="mt-3 flex min-h-[40px] items-center justify-center">
+      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-hidden />
+    </div>
+  );
+}
+
+function countBadgeClass(n: number, tone: "red" | "orange") {
+  if (n <= 0) return "bg-muted text-muted-foreground";
+  return tone === "red" ? "bg-red-600 text-white" : "bg-orange-500 text-white";
+}
+
+function budgetGaugeFillClass(level: TrainingBudgetAlertLevel) {
+  if (level === "critical") return "bg-red-500";
+  if (level === "warning") return "bg-orange-500";
+  return "bg-emerald-500";
+}
+
+function FormationTalentsDashboardWidget() {
+  const navigate = useNavigate();
+  const year = new Date().getFullYear();
+
+  const certsQuery = useQuery({
+    queryKey: ["dashboard", "formation", "cert-counts"],
+    queryFn: getDashboardCounts,
+  });
+  const overdueQuery = useQuery({
+    queryKey: ["dashboard", "formation", "overdue"],
+    queryFn: getOverdueCount,
+  });
+  const budgetQuery = useQuery({
+    queryKey: ["dashboard", "formation", "budget", year],
+    queryFn: () => getBudget(year),
+  });
+  const achievementQuery = useQuery({
+    queryKey: ["dashboard", "formation", "achievement", year],
+    queryFn: () => getAchievementRate(year),
+  });
+
+  const expired = certsQuery.isError ? null : (certsQuery.data?.expired ?? 0);
+  const expiring = certsQuery.isError ? null : (certsQuery.data?.expiring ?? 0);
+  const overdue = overdueQuery.isError ? null : (overdueQuery.data?.count ?? 0);
+  const pct =
+    budgetQuery.isError || !budgetQuery.data
+      ? null
+      : Math.min(100, Math.max(0, budgetQuery.data.consumption_pct));
+  const alertLevel: TrainingBudgetAlertLevel | null = budgetQuery.isError
+    ? null
+    : (budgetQuery.data?.alert_level ?? "none");
+  const rate =
+    achievementQuery.isError || achievementQuery.data?.rate == null
+      ? null
+      : achievementQuery.data.rate;
+
+  const rateColor =
+    rate == null
+      ? "text-muted-foreground"
+      : rate >= 80
+        ? "text-emerald-600"
+        : rate >= 50
+          ? "text-orange-600"
+          : "text-red-600";
+
+  return (
+    <Card className="border-primary/15 shadow-sm">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <GraduationCap className="h-5 w-5 text-primary" />
+          Formation &amp; Talents
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Indicateurs Pack Talent — cliquez pour ouvrir le module.
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <button
+            type="button"
+            onClick={() => navigate("/formation#habilitations")}
+            className="flex flex-col rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted/60"
+          >
+            <span className="text-xs font-medium text-muted-foreground">Habilitations expirées</span>
+            {certsQuery.isLoading ? (
+              <FormationTalentsCellLoader />
+            ) : (
+              <div className="mt-2 flex flex-1 flex-col justify-center gap-2">
+                <Badge
+                  className={
+                    expired == null ? "bg-muted text-muted-foreground" : countBadgeClass(expired, "red")
+                  }
+                >
+                  {expired == null ? "—" : expired}
+                </Badge>
+              </div>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate("/formation#habilitations")}
+            className="flex flex-col rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted/60"
+          >
+            <span className="text-xs font-medium text-muted-foreground">Habilitations à échéance</span>
+            {certsQuery.isLoading ? (
+              <FormationTalentsCellLoader />
+            ) : (
+              <div className="mt-2 flex flex-1 flex-col justify-center gap-2">
+                <Badge
+                  className={
+                    expiring == null ? "bg-muted text-muted-foreground" : countBadgeClass(expiring, "orange")
+                  }
+                >
+                  {expiring == null ? "—" : expiring}
+                </Badge>
+              </div>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate("/formation#budget")}
+            className="flex flex-col rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted/60"
+          >
+            <span className="text-xs font-medium text-muted-foreground">Budget formation consommé</span>
+            {budgetQuery.isLoading ? (
+              <FormationTalentsCellLoader />
+            ) : pct == null || alertLevel == null ? (
+              <p className="mt-3 text-sm text-muted-foreground">—</p>
+            ) : (
+              <div className="mt-3 space-y-1">
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className={`h-full rounded-full transition-all ${budgetGaugeFillClass(alertLevel)}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <p className="text-xs tabular-nums text-muted-foreground">{pct.toFixed(0)} %</p>
+              </div>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate("/formation#obligations")}
+            className="flex flex-col rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted/60"
+          >
+            <span className="text-xs font-medium text-muted-foreground">Retard entretien prof.</span>
+            {overdueQuery.isLoading ? (
+              <FormationTalentsCellLoader />
+            ) : (
+              <div className="mt-2 flex flex-1 flex-col justify-center gap-2">
+                <Badge
+                  className={
+                    overdue == null ? "bg-muted text-muted-foreground" : countBadgeClass(overdue, "red")
+                  }
+                >
+                  {overdue == null ? "—" : overdue}
+                </Badge>
+              </div>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate("/formation#objectifs")}
+            className="flex flex-col rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted/60"
+          >
+            <span className="text-xs font-medium text-muted-foreground">Taux d&apos;atteinte objectifs</span>
+            {achievementQuery.isLoading ? (
+              <FormationTalentsCellLoader />
+            ) : (
+              <p className={`mt-3 text-2xl font-bold tabular-nums ${rateColor}`}>
+                {rate == null ? "—" : `${rate.toFixed(0)} %`}
+              </p>
+            )}
+          </button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 // --- Section 1: Header & Copilote ---
 function DashboardHeader({ firstName, onCopilotClick }: { firstName: string, onCopilotClick: () => void }) {

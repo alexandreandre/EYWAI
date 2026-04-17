@@ -105,6 +105,20 @@ class TestSupabaseAnnualReviewRepositoryGetById:
         assert result is None
 
 
+class TestSupabaseAnnualReviewRepositoryGetByYousignProcedureId:
+    """get_by_yousign_procedure_id."""
+
+    def test_delegates_to_query(self, repo: SupabaseAnnualReviewRepository):
+        row = {"id": "rev-1", "yousign_procedure_id": "proc-1"}
+        with patch(
+            "app.modules.annual_reviews.infrastructure.repository.infra_queries.query_get_by_yousign_procedure_id",
+            return_value=row,
+        ) as mock_query:
+            result = repo.get_by_yousign_procedure_id("proc-1")
+            mock_query.assert_called_once_with("proc-1")
+        assert result == row
+
+
 class TestSupabaseAnnualReviewRepositoryListByEmployee:
     """list_by_employee."""
 
