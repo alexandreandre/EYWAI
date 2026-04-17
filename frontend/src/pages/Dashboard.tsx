@@ -49,8 +49,20 @@ import { NewEmployeeForm } from "@/components/forms/NewEmployeeForm";
 import * as ribAlertsApi from "@/api/ribAlerts";
 import { CSEDashboardBlock } from "@/components/CSEDashboardBlock";
 import { getMedicalSettings, getKPIs, type KPIs } from "@/api/medicalFollowUp";
-import { getRecruitmentSettings, getJobs, getCandidates } from "@/api/recruitment";
+import {
+  ANNUAL_REVIEW_PRIORITY_WINDOW_DAYS,
+  countUpcomingPlannedAnnualReviews,
+  getAllAnnualReviews,
+} from "@/api/annualReviews";
+import {
+  countRecruitmentPriorityCandidates,
+  isRecruitmentPriorityCandidate,
+  getCandidates,
+  getJobs,
+  getRecruitmentSettings,
+} from "@/api/recruitment";
 import { useQuery } from "@tanstack/react-query";
+import { useRhSidebarTaskBadges } from "@/hooks/useRhSidebarTaskBadges";
 
 // --- 1. Définition des Types de Données ---
 
@@ -134,6 +146,10 @@ interface ResidencePermitStats {
   total_valide: number;
 }
 
+type DashboardPriorityKey = string;
+const PRIORITY_DAY_STORAGE_KEY = "eywai.dashboard.priority-day.validated.v1";
+type PriorityValidationByCount = Record<string, number>;
+
 export default function Dashboard() {
   const { user } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
@@ -142,13 +158,37 @@ export default function Dashboard() {
   const [residencePermitStats, setResidencePermitStats] = useState<ResidencePermitStats | null>(null);
   const [residencePermitLoading, setResidencePermitLoading] = useState(true);
   const [ribAlerts, setRibAlerts] = useState<ribAlertsApi.RibAlert[]>([]);
+  const [ribAlertTotal, setRibAlertTotal] = useState(0);
   const [ribAlertsLoading, setRibAlertsLoading] = useState(true);
   const [medicalModuleEnabled, setMedicalModuleEnabled] = useState(false);
   const [medicalKpis, setMedicalKpis] = useState<KPIs | null>(null);
   const [medicalKpisLoading, setMedicalKpisLoading] = useState(true);
+  const [annualReviewsUpcomingCount, setAnnualReviewsUpcomingCount] = useState(0);
+  const [recruitmentPendingCount, setRecruitmentPendingCount] = useState(0);
+  const [recruitmentPendingPreview, setRecruitmentPendingPreview] = useState<string | null>(null);
 
   const [isGeneratePayrollModalOpen, setIsGeneratePayrollModalOpen] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const [selectedPriorityKey, setSelectedPriorityKey] = useState<DashboardPriorityKey | null>(null);
+  const { getCount } = useRhSidebarTaskBadges(true);
+  const [validatedPriorityByCount, setValidatedPriorityByCount] = useState<PriorityValidationByCount>(() => {
+    try {
+      const raw = sessionStorage.getItem(PRIORITY_DAY_STORAGE_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        const out: PriorityValidationByCount = {};
+        for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+          if (typeof k === "string" && typeof v === "number") out[k] = v;
+        }
+        return out;
+      }
+      // Ancien format tableau ignoré pour éviter un masquage permanent.
+      return {};
+    } catch {
+      return {};
+    }
+  });
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -221,14 +261,65 @@ export default function Dashboard() {
           limit: 5,
         });
         setRibAlerts(response.data.alerts || []);
+        setRibAlertTotal(typeof response.data.total === "number" ? response.data.total : (response.data.alerts || []).length);
       } catch (e: any) {
         console.error("Erreur lors de la récupération des alertes RIB:", e);
         setRibAlerts([]);
+        setRibAlertTotal(0);
       } finally {
         setRibAlertsLoading(false);
       }
     };
     fetchRibAlerts();
+  }, []);
+
+  useEffect(() => {
+    const fetchAnnualReviewsPriority = async () => {
+      try {
+        const response = await getAllAnnualReviews();
+        setAnnualReviewsUpcomingCount(
+          countUpcomingPlannedAnnualReviews(
+            response.data || [],
+            ANNUAL_REVIEW_PRIORITY_WINDOW_DAYS,
+          ),
+        );
+      } catch {
+        setAnnualReviewsUpcomingCount(0);
+      }
+    };
+    fetchAnnualReviewsPriority();
+  }, []);
+
+  useEffect(() => {
+    const fetchRecruitmentPriority = async () => {
+      try {
+        const settings = await getRecruitmentSettings();
+        if (!settings.enabled) {
+          setRecruitmentPendingCount(0);
+          setRecruitmentPendingPreview(null);
+          return;
+        }
+
+        const candidates = await getCandidates();
+        const pendingCount = countRecruitmentPriorityCandidates(candidates);
+        const pending = candidates.filter(isRecruitmentPriorityCandidate);
+        setRecruitmentPendingCount(pendingCount);
+
+        if (pending.length > 0) {
+          const preview = pending
+            .slice(0, 2)
+            .map((c) => `${c.first_name} ${c.last_name}`)
+            .join(" · ");
+          setRecruitmentPendingPreview(preview);
+        } else {
+          setRecruitmentPendingPreview(null);
+        }
+      } catch {
+        setRecruitmentPendingCount(0);
+        setRecruitmentPendingPreview(null);
+      }
+    };
+    fetchRecruitmentPriority();
   }, []);
 
   // Gère le raccourci clavier global (Cmd+K) pour le Copilote
@@ -278,59 +369,441 @@ export default function Dashboard() {
 
   // --- Rendu Principal du Dashboard ---
 
+  const residencePendingTotal =
+    (residencePermitStats?.total_expire || 0) +
+    (residencePermitStats?.total_a_renouveler || 0) +
+    (residencePermitStats?.total_a_renseigner || 0);
+  const medicalPendingTotal =
+    medicalModuleEnabled && medicalKpis
+      ? medicalKpis.overdue_count + medicalKpis.due_within_30_count
+      : 0;
+  const teamPendingTotal =
+    data.alerts.expiringContracts + data.alerts.endOfTrialPeriods;
+  const urgentTotal =
+    data.actions.pendingAbsences +
+    data.actions.pendingExpenses +
+    data.alerts.obsoleteRates +
+    teamPendingTotal +
+    residencePendingTotal +
+    annualReviewsUpcomingCount +
+    recruitmentPendingCount +
+    medicalPendingTotal +
+    ribAlertTotal;
+
+  const mainFocusCandidates: Array<{
+    key: DashboardPriorityKey;
+    label: string;
+    count: number;
+    href: string;
+    icon: typeof CalendarCheck;
+    hint: string;
+  }> = [
+    {
+      key: "leaves",
+      label: "Demandes d'absences",
+      count: data.actions.pendingAbsences,
+      href: "/leaves",
+      icon: CalendarCheck,
+      hint: "À valider aujourd'hui",
+    },
+    {
+      key: "expenses",
+      label: "Notes de frais",
+      count: data.actions.pendingExpenses,
+      href: "/expenses",
+      icon: CreditCard,
+      hint: "En attente de traitement",
+    },
+    {
+      key: "rib",
+      label: "Alertes RIB",
+      count: ribAlertTotal,
+      href: "/employees",
+      icon: Landmark,
+      hint: "Contrôles administratifs",
+    },
+    {
+      key: "medical",
+      label: "Suivi médical",
+      count: medicalPendingTotal,
+      href: "/medical-follow-up",
+      icon: Stethoscope,
+      hint: "Visites à planifier",
+    },
+    {
+      key: "residence",
+      label: "Titres de séjour",
+      count: residencePendingTotal,
+      href: "/residence-permits",
+      icon: FileWarning,
+      hint: "Échéances à surveiller",
+    },
+    {
+      key: "annualReviews",
+      label: "Entretiens planifiés",
+      count: annualReviewsUpcomingCount,
+      href: "/annual-reviews",
+      icon: CalendarCheck,
+      hint: `Planifiés dans ${ANNUAL_REVIEW_PRIORITY_WINDOW_DAYS} jours`,
+    },
+    {
+      key: "recruitment",
+      label: "Recrutement",
+      count: recruitmentPendingCount,
+      href: "/recruitment",
+      icon: UserPlus,
+      hint: recruitmentPendingPreview
+        ? `Candidats à traiter : ${recruitmentPendingPreview}`
+        : "Candidatures en cours",
+    },
+    {
+      key: "rates",
+      label: "Taux de cotisations",
+      count: data.alerts.obsoleteRates,
+      href: "/rates",
+      icon: TrendingUp,
+      hint: "Mises à jour nécessaires",
+    },
+    // Sous-parties connectées (même avec 0) pour préparer l’extension complète sidebar -> priorité du jour.
+    {
+      key: "employees",
+      label: "Collaborateurs",
+      count: getCount("/employees"),
+      href: "/employees",
+      icon: Users,
+      hint: "Suivi des collaborateurs",
+    },
+    {
+      key: "employee-exits",
+      label: "Départs & sorties",
+      count: getCount("/employee-exits"),
+      href: "/employee-exits",
+      icon: Users,
+      hint: "Sorties à traiter",
+    },
+    {
+      key: "schedules",
+      label: "Calendriers",
+      count: getCount("/schedules"),
+      href: "/schedules",
+      icon: Clock,
+      hint: "Planning & suivi",
+    },
+    {
+      key: "badgeuse-rh",
+      label: "Badgeuse",
+      count: getCount("/badgeuse-rh"),
+      href: "/badgeuse-rh",
+      icon: Clock,
+      hint: "Pointages à vérifier",
+    },
+    {
+      key: "company",
+      label: "Mon Entreprise",
+      count: getCount("/company"),
+      href: "/company",
+      icon: Briefcase,
+      hint: "Paramètres société",
+    },
+    {
+      key: "promotions",
+      label: "Promotions",
+      count: getCount("/promotions"),
+      href: "/promotions",
+      icon: TrendingUp,
+      hint: "Dossiers de promotion",
+    },
+    {
+      key: "cse",
+      label: "CSE & Dialogue Social",
+      count: getCount("/cse"),
+      href: "/cse",
+      icon: Users,
+      hint: "Sujets sociaux",
+    },
+    {
+      key: "users",
+      label: "Gestion des Utilisateurs",
+      count: getCount("/users"),
+      href: "/users",
+      icon: Users,
+      hint: "Comptes et accès",
+    },
+    {
+      key: "saisies",
+      label: "Primes",
+      count: getCount("/saisies"),
+      href: "/saisies",
+      icon: CreditCard,
+      hint: "Éléments variables",
+    },
+    {
+      key: "salary-seizures",
+      label: "Saisies sur salaire",
+      count: getCount("/salary-seizures"),
+      href: "/salary-seizures",
+      icon: CreditCard,
+      hint: "Dossiers de saisies",
+    },
+    {
+      key: "salary-advances",
+      label: "Avances sur salaire",
+      count: getCount("/salary-advances"),
+      href: "/salary-advances",
+      icon: CreditCard,
+      hint: "Demandes d’avances",
+    },
+    {
+      key: "simulation",
+      label: "Simulation",
+      count: getCount("/simulation"),
+      href: "/simulation",
+      icon: FlaskConical,
+      hint: "Simulations bulletin",
+    },
+    {
+      key: "exports",
+      label: "Exports",
+      count: getCount("/exports"),
+      href: "/exports",
+      icon: FileDown,
+      hint: "Exports paie/RH",
+    },
+    {
+      key: "payroll",
+      label: "Paie",
+      count: getCount("/payroll"),
+      href: "/payroll",
+      icon: CreditCard,
+      hint: "Cycle de paie",
+    },
+  ];
+  const availablePriorityItems = mainFocusCandidates.filter((item) => item.count > 0);
+  const pendingPriorityItems = availablePriorityItems.filter(
+    (item) => validatedPriorityByCount[item.key] !== item.count,
+  );
+  const selectedPriorityItem =
+    pendingPriorityItems.find((item) => item.key === selectedPriorityKey) ||
+    pendingPriorityItems[0] ||
+    null;
+  const mainFocus = selectedPriorityItem;
+  const remainingMainFocus = pendingPriorityItems.length > 1 ? pendingPriorityItems.length - 1 : 0;
+
+  const handleValidateAndNext = () => {
+    if (!selectedPriorityItem) return;
+    const nextValidated: PriorityValidationByCount = {
+      ...validatedPriorityByCount,
+      [selectedPriorityItem.key]: selectedPriorityItem.count,
+    };
+    setValidatedPriorityByCount(nextValidated);
+    sessionStorage.setItem(PRIORITY_DAY_STORAGE_KEY, JSON.stringify(nextValidated));
+  };
+
+  const handleResetPriorities = () => {
+    setValidatedPriorityByCount({});
+    sessionStorage.removeItem(PRIORITY_DAY_STORAGE_KEY);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <DashboardHeader
         firstName={user?.first_name || "Utilisateur"}
         onCopilotClick={() => setIsCopilotOpen(true)}
       />
+      <div className="space-y-6">
+        <Card className="border-primary/20 bg-gradient-to-r from-primary/5 via-background to-background shadow-sm">
+          <CardContent className="p-5">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Priorité du jour
+                </p>
+                {mainFocus ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <mainFocus.icon className="h-5 w-5 text-primary" />
+                    <p className="text-lg font-semibold text-foreground">
+                      {mainFocus.label} ({mainFocus.count})
+                    </p>
+                    <Badge variant="secondary">{mainFocus.hint}</Badge>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <PartyPopper className="h-5 w-5 text-emerald-600" />
+                    <p className="text-lg font-semibold text-foreground">
+                      Aucun blocage prioritaire détecté
+                    </p>
+                  </div>
+                )}
+                <p className="text-sm text-muted-foreground">
+                  Vue synthétique du pilotage RH : commencez par l’action la plus critique.
+                </p>
+                {pendingPriorityItems.length > 0 && (
+                  <div className="pt-1 max-w-md">
+                    <Label className="text-xs text-muted-foreground">Voir toutes les tâches</Label>
+                    <Select
+                      value={selectedPriorityItem?.key}
+                      onValueChange={(value) => setSelectedPriorityKey(value as DashboardPriorityKey)}
+                    >
+                      <SelectTrigger className="mt-1 h-9">
+                        <SelectValue placeholder="Choisir une tâche" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {mainFocusCandidates.map((task) => (
+                          <SelectItem key={task.key} value={task.key} disabled={task.count <= 0}>
+                            {task.label} ({task.count})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {mainFocus && (
+                  <p className="text-xs text-muted-foreground pt-1">
+                    {remainingMainFocus > 0
+                      ? `${remainingMainFocus} étape${remainingMainFocus > 1 ? "s" : ""} restante${remainingMainFocus > 1 ? "s" : ""}.`
+                      : "Dernière étape restante."}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {mainFocus ? (
+                  <>
+                    <Button asChild>
+                      <Link to={mainFocus.href}>Ouvrir le module</Link>
+                    </Button>
+                    <Button
+                      type="button"
+                      className="bg-emerald-600 hover:bg-emerald-700"
+                      onClick={handleValidateAndNext}
+                    >
+                      Valider et passer à l'étape suivante
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="outline" type="button" onClick={handleResetPriorities}>
+                    Réinitialiser les priorités
+                  </Button>
+                )}
+                {availablePriorityItems.length > 0 && Object.keys(validatedPriorityByCount).length > 0 && (
+                  <Button variant="ghost" type="button" onClick={handleResetPriorities}>
+                    Reprendre depuis le début
+                  </Button>
+                )}
+                <Button variant="outline" type="button" onClick={() => setIsCopilotOpen(true)}>
+                  <Sparkles className="h-4 w-4 mr-1" />
+                  Aide IA
+                </Button>
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+              <div className="rounded-lg border bg-background px-3 py-2">
+                <p className="text-xs text-muted-foreground">Total à traiter</p>
+                <p className="text-xl font-bold tabular-nums">{urgentTotal}</p>
+              </div>
+              <div className="rounded-lg border bg-background px-3 py-2">
+                <p className="text-xs text-muted-foreground">Paie & conformité</p>
+                <p className="text-xl font-bold tabular-nums">
+                  {data.actions.pendingAbsences + data.actions.pendingExpenses + data.alerts.obsoleteRates}
+                </p>
+              </div>
+              <div className="rounded-lg border bg-background px-3 py-2">
+                <p className="text-xs text-muted-foreground">Équipe</p>
+                <p className="text-xl font-bold tabular-nums">{teamPendingTotal}</p>
+              </div>
+              <div className="rounded-lg border bg-background px-3 py-2">
+                <p className="text-xs text-muted-foreground">Admin RH</p>
+                <p className="text-xl font-bold tabular-nums">
+                  {residencePendingTotal + ribAlertTotal + medicalPendingTotal}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-      {/* Raccourcis pilotage — 3 cartes compactes (CSE déplacée plus bas) */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <ShortcutSimulationCard />
-        <ShortcutExportsCard />
-        {medicalModuleEnabled ? (
-          <MedicalVisitShortcutCard kpis={medicalKpis} loading={medicalKpisLoading} />
-        ) : (
-          <MedicalVisitShortcutCard kpis={null} loading={false} />
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Colonne gauche: Actions & alertes */}
-        <div className="lg:col-span-1 space-y-6">
-          <PayrollCard
-            status={data.payrollStatus}
-            onGenerateClick={() => setIsGeneratePayrollModalOpen(true)}
-          />
-          <NotificationsCard actions={data.actions} alerts={data.alerts} />
-          <ResidencePermitCard stats={residencePermitStats} loading={residencePermitLoading} />
-          {medicalModuleEnabled && (
-            <MedicalFollowUpCard kpis={medicalKpis} loading={medicalKpisLoading} />
-          )}
-          <RibAlertsCard alerts={ribAlerts} loading={ribAlertsLoading} onRefresh={() => {
-            ribAlertsApi.getRibAlerts({ is_read: false, is_resolved: false, limit: 5 })
-              .then((r) => setRibAlerts(r.data.alerts || []));
-          }} />
-          <CSEDashboardBlock />
-          <ShortcutsCard />
-          <DashboardPersonnalisationCard />
-        </div>
-
-        {/* Colonne droite: KPIs & pilotage */}
-        <div className="lg:col-span-2 space-y-6">
-          <CoutsCard kpis={data.kpis} chartData={data.chartData} />
-          <EffectifCard kpis={data.kpis} absentsToday={data.teamPulse?.absentToday || []} />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <GenderSplitCard kpis={data.kpis} />
-            <ContractSplitCard kpis={data.kpis} />
+        <section className="space-y-4 rounded-xl border bg-background p-4 md:p-5">
+          <div>
+            <h2 className="text-xl font-semibold">Centre d’actions</h2>
+            <p className="text-sm text-muted-foreground">
+              Ce qu’il faut traiter en premier pour faire avancer la journée.
+            </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <HeuresSupKpiCard />
-            <RecruitmentKpisCard />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <ShortcutSimulationCard />
+            <ShortcutExportsCard />
+            {medicalModuleEnabled ? (
+              <MedicalVisitShortcutCard kpis={medicalKpis} loading={medicalKpisLoading} />
+            ) : (
+              <MedicalVisitShortcutCard kpis={null} loading={false} />
+            )}
           </div>
-          <PrevisionMasseSalarialeCard kpis={data.kpis} />
-        </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-4 space-y-6">
+              <PayrollCard
+                status={data.payrollStatus}
+                onGenerateClick={() => setIsGeneratePayrollModalOpen(true)}
+              />
+              <NotificationsCard actions={data.actions} alerts={data.alerts} />
+              <RibAlertsCard alerts={ribAlerts} loading={ribAlertsLoading} onRefresh={() => {
+                ribAlertsApi.getRibAlerts({ is_read: false, is_resolved: false, limit: 5 })
+                  .then((r) => {
+                    setRibAlerts(r.data.alerts || []);
+                    setRibAlertTotal(typeof r.data.total === "number" ? r.data.total : (r.data.alerts || []).length);
+                  });
+              }} />
+            </div>
+
+            <div className="lg:col-span-8 space-y-6">
+              <ResidencePermitCard stats={residencePermitStats} loading={residencePermitLoading} />
+              {medicalModuleEnabled ? (
+                <MedicalFollowUpCard kpis={medicalKpis} loading={medicalKpisLoading} />
+              ) : (
+                <Card className="border-dashed">
+                  <CardHeader>
+                    <CardTitle className="text-base">Suivi médical</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                      Module non activé pour cette entreprise.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-4 rounded-xl border bg-background p-4 md:p-5">
+          <div>
+            <h2 className="text-xl font-semibold">Suivi & pilotage RH</h2>
+            <p className="text-sm text-muted-foreground">
+              Lecture de tendance, performance et modules transverses.
+            </p>
+          </div>
+
+          <div className="space-y-6">
+            <CoutsCard kpis={data.kpis} chartData={data.chartData} />
+            <EffectifCard kpis={data.kpis} absentsToday={data.teamPulse?.absentToday || []} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <GenderSplitCard kpis={data.kpis} />
+              <ContractSplitCard kpis={data.kpis} />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <HeuresSupKpiCard />
+              <RecruitmentKpisCard />
+            </div>
+            <PrevisionMasseSalarialeCard kpis={data.kpis} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <CSEDashboardBlock />
+            <div className="space-y-6">
+              <ShortcutsCard />
+              <DashboardPersonnalisationCard />
+            </div>
+          </div>
+        </section>
       </div>
 
       {/* --- Modaux --- */}
@@ -842,7 +1315,7 @@ function RecruitmentKpisCard() {
   const navigate = useNavigate();
   const { data: settings } = useQuery({ queryKey: ["recruitment", "settings"], queryFn: getRecruitmentSettings });
   const { data: jobs = [] } = useQuery({ queryKey: ["recruitment", "jobs"], queryFn: () => getJobs("active"), enabled: !!settings?.enabled });
-  const { data: candidates = [] } = useQuery({ queryKey: ["recruitment", "candidates"], queryFn: getCandidates, enabled: !!settings?.enabled });
+  const { data: candidates = [] } = useQuery({ queryKey: ["recruitment", "candidates"], queryFn: () => getCandidates(), enabled: !!settings?.enabled });
   const inProgress = candidates.filter((c) => c.current_stage_type !== "hired" && c.current_stage_type !== "rejected").length;
   const hired = candidates.filter((c) => c.current_stage_type === "hired").length;
   if (!settings?.enabled) return null;

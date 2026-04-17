@@ -15,93 +15,73 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 def test_imports():
     """Teste que tous les imports nécessaires fonctionnent"""
     print("🧪 Test 1 : Vérification des imports...")
-    try:
-        print("✅ Tous les imports sont valides\n")
-        return True
-    except Exception as e:
-        print(f"❌ Erreur d'import: {e}\n")
-        return False
+    from app.modules.auth.schemas import PasswordResetConfirm, PasswordResetRequest
+    from app.shared.infrastructure.email.password_reset_smtp import (
+        get_password_reset_smtp_sender,
+    )
+
+    assert PasswordResetRequest is not None
+    assert PasswordResetConfirm is not None
+    assert get_password_reset_smtp_sender is not None
+    print("✅ Tous les imports sont valides\n")
 
 
 def test_token_generation():
     """Teste la génération de tokens sécurisés"""
     print("🧪 Test 2 : Génération de tokens...")
-    try:
-        import secrets
+    import secrets
 
-        token = secrets.token_urlsafe(32)
-        assert len(token) > 0
-        assert isinstance(token, str)
-        print(f"✅ Token généré avec succès: {token[:20]}...\n")
-        return True
-    except Exception as e:
-        print(f"❌ Erreur de génération: {e}\n")
-        return False
+    token = secrets.token_urlsafe(32)
+    assert len(token) > 0
+    assert isinstance(token, str)
+    print(f"✅ Token généré avec succès: {token[:20]}...\n")
 
 
 def test_datetime_generation():
     """Teste la génération de dates d'expiration"""
     print("🧪 Test 3 : Génération de dates d'expiration...")
-    try:
-        expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
-        now = datetime.now(timezone.utc)
-        assert expires_at > now
-        print(f"✅ Date d'expiration générée: {expires_at}")
-        print(
-            f"   Temps restant: {(expires_at - now).total_seconds() / 60:.1f} minutes\n"
-        )
-        return True
-    except Exception as e:
-        print(f"❌ Erreur de génération de date: {e}\n")
-        return False
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+    now = datetime.now(timezone.utc)
+    assert expires_at > now
+    print(f"✅ Date d'expiration générée: {expires_at}")
+    print(
+        f"   Temps restant: {(expires_at - now).total_seconds() / 60:.1f} minutes\n"
+    )
 
 
 def test_smtp_sender_config():
     """Teste la configuration SMTP (reset password, app.shared)."""
     print("🧪 Test 4 : Configuration du service d'e-mail...")
-    try:
-        from app.shared.infrastructure.email.password_reset_smtp import (
-            get_password_reset_smtp_sender,
-        )
+    from app.shared.infrastructure.email.password_reset_smtp import (
+        get_password_reset_smtp_sender,
+    )
 
-        sender = get_password_reset_smtp_sender()
-        print(f"   SMTP Host: {sender.smtp_host}")
-        print(f"   SMTP Port: {sender.smtp_port}")
-        print(f"   SMTP User: {sender.smtp_user or '(Non configuré)'}")
-        print(f"   From Email: {sender.from_email}")
-        print(f"   Frontend URL: {sender.frontend_url}")
+    sender = get_password_reset_smtp_sender()
+    print(f"   SMTP Host: {sender.smtp_host}")
+    print(f"   SMTP Port: {sender.smtp_port}")
+    print(f"   SMTP User: {sender.smtp_user or '(Non configuré)'}")
+    print(f"   From Email: {sender.from_email}")
+    print(f"   Frontend URL: {sender.frontend_url}")
 
-        if sender.smtp_user and sender.smtp_password:
-            print("✅ Service SMTP configuré\n")
-        else:
-            print("⚠️  Service SMTP non configuré (mode développement)\n")
-        return True
-    except Exception as e:
-        print(f"❌ Erreur de configuration: {e}\n")
-        return False
+    if sender.smtp_user and sender.smtp_password:
+        print("✅ Service SMTP configuré\n")
+    else:
+        print("⚠️  Service SMTP non configuré (mode développement)\n")
 
 
 def test_pydantic_models():
     """Teste les modèles Pydantic"""
     print("🧪 Test 5 : Validation des modèles Pydantic...")
-    try:
-        from app.modules.auth.schemas import PasswordResetRequest, PasswordResetConfirm
+    from app.modules.auth.schemas import PasswordResetConfirm, PasswordResetRequest
 
-        # Test PasswordResetRequest
-        request = PasswordResetRequest(email="test@example.com")
-        assert request.email == "test@example.com"
-        print("✅ PasswordResetRequest valide")
+    request = PasswordResetRequest(email="test@example.com")
+    assert request.email == "test@example.com"
+    print("✅ PasswordResetRequest valide")
 
-        # Test PasswordResetConfirm
-        confirm = PasswordResetConfirm(token="test_token", new_password="SecurePass123")
-        assert confirm.token == "test_token"
-        assert confirm.new_password == "SecurePass123"
-        print("✅ PasswordResetConfirm valide\n")
-
-        return True
-    except Exception as e:
-        print(f"❌ Erreur de validation: {e}\n")
-        return False
+    confirm = PasswordResetConfirm(token="test_token", new_password="SecurePass123")
+    assert confirm.token == "test_token"
+    assert confirm.new_password == "SecurePass123"
+    print("✅ PasswordResetConfirm valide\n")
 
 
 def test_environment_variables():
@@ -137,7 +117,7 @@ def test_environment_variables():
             print(f"   ⚠️  {var}: Non définie")
 
     print()
-    return all_present
+    assert all_present, "Variables d'environnement requises manquantes (voir ci-dessus)"
 
 
 def main():
@@ -157,10 +137,10 @@ def main():
     ]
 
     results = []
-    for test in tests:
+    for test_fn in tests:
         try:
-            result = test()
-            results.append(result)
+            test_fn()
+            results.append(True)
         except Exception as e:
             print(f"❌ Exception inattendue: {e}\n")
             results.append(False)

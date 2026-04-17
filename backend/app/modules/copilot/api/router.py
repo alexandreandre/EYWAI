@@ -9,6 +9,7 @@ Comportement HTTP identique à api/routers/copilot.py et api/routers/copilot_age
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
+from openai import APIConnectionError, AuthenticationError, RateLimitError
 
 from app.core.security import get_current_user
 from app.modules.copilot.api.dependencies import AuthenticatedUser
@@ -48,6 +49,14 @@ async def handle_query(
         raise HTTPException(status_code=500, detail=str(e))
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
+    except (AuthenticationError, APIConnectionError, RateLimitError) as e:
+        logging.warning(
+            "Copilote : échec appel fournisseur LLM (%s)", type(e).__name__
+        )
+        raise HTTPException(
+            status_code=502,
+            detail="Le service d'IA est temporairement indisponible ou mal configuré.",
+        )
     except Exception as e:
         logging.error("Erreur dans le Copilote: %s", e, exc_info=True)
         detail = getattr(e, "message", str(e))
@@ -84,6 +93,14 @@ async def handle_agent_query(
         raise HTTPException(status_code=500, detail=str(e))
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except (AuthenticationError, APIConnectionError, RateLimitError) as e:
+        logging.warning(
+            "Copilote agent : échec appel fournisseur LLM (%s)", type(e).__name__
+        )
+        raise HTTPException(
+            status_code=502,
+            detail="Le service d'IA est temporairement indisponible ou mal configuré.",
+        )
     except Exception as e:
         logging.error("Erreur dans l'agent: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Erreur de l'agent: {str(e)}")

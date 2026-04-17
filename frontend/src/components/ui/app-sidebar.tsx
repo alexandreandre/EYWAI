@@ -140,6 +140,7 @@ const menuItems = {
     { title: "Notes de Frais", url: "/expenses", icon: Notebook },
     { title: "Avances sur salaire", url: "/salary-advances", icon: Wallet },
     { title: "Mes Documents", url: "/documents", icon: FolderKanban },
+    { title: "Ma badgeuse", url: "/badgeuse", icon: Calendar },
     { title: "Profil", url: "/profile", icon: User },
   ]
 };
@@ -149,12 +150,17 @@ function formatNavBadgeCount(n: number): string {
   return n > 99 ? "99+" : String(n);
 }
 
-/** Pastille discrète sur une section (pas de chiffre). */
+/**
+ * Pastille discrète sur une section (pas de chiffre).
+ * Doit rester alignée sur la ligne du titre (CollapsibleTrigger), pas au centre vertical du bloc
+ * une fois la section ouverte — sinon la pastille « glisse » vers le milieu des sous-liens
+ * (ex. à côté de « Mon Entreprise »).
+ */
 function SectionTaskDot({ visible, sectionLabel }: { visible: boolean; sectionLabel: string }) {
   if (!visible) return null;
   return (
     <SidebarMenuBadge
-      className="!right-7 !h-2 !w-2 !min-w-0 rounded-full border-0 bg-destructive p-0 text-[0] leading-none text-transparent shadow-sm"
+      className="!right-7 !top-1/2 !h-2 !w-2 !min-w-0 !-translate-y-1/2 rounded-full border-0 bg-destructive p-0 text-[0] leading-none text-transparent shadow-sm"
       title={`Actions à traiter — ${sectionLabel}`}
       aria-label={`Des tâches sont en attente dans ${sectionLabel}`}
     >
@@ -247,7 +253,7 @@ export function AppSidebar() {
   const isRhMenu =
     !!user &&
     (user.role === "rh" || (isCollaborateurRh && viewMode === "rh"));
-  const { getCount } = useRhSidebarTaskBadges(isRhMenu);
+  const { getCount, totalRhPending } = useRhSidebarTaskBadges(isRhMenu);
 
   const teamSectionHasTasks = rhTeamItems.some((i) => getCount(i.url) > 0);
   const paieSectionHasTasks = RH_PAIE_ITEMS.some((i) => getCount(i.url) > 0);
@@ -369,16 +375,19 @@ export function AppSidebar() {
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to={RH_HOME.url}
-                        className={getNavClassName(RH_HOME.url)}
-                        end={RH_HOME.url === "/"}
-                      >
-                        <RH_HOME.icon className="h-5 w-5 flex-shrink-0" />
-                        <span className="font-medium">{RH_HOME.title}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
+                    <div className="relative w-full">
+                      <SidebarMenuButton asChild>
+                        <NavLink
+                          to={RH_HOME.url}
+                          className={cn(getNavClassName(RH_HOME.url), totalRhPending > 0 && "pr-9")}
+                          end={RH_HOME.url === "/"}
+                        >
+                          <RH_HOME.icon className="h-5 w-5 flex-shrink-0" />
+                          <span className="font-medium">{RH_HOME.title}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                      <SubNavCountBadge count={totalRhPending} />
+                    </div>
                   </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>
@@ -391,19 +400,21 @@ export function AppSidebar() {
                 <SidebarMenu className="gap-0.5">
                   <Collapsible open={teamOpen} onOpenChange={setTeamOpen} className="group/collapsible">
                     <SidebarMenuItem>
-                      <CollapsibleTrigger asChild>
-                        <SidebarMenuButton className="w-full">
-                          <Users className="h-5 w-5 flex-shrink-0" />
-                          <span className="font-medium">EYWAI Team</span>
-                          <ChevronRight
-                            className={cn(
-                              "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
-                              "group-data-[state=open]/collapsible:rotate-90",
-                            )}
-                          />
-                        </SidebarMenuButton>
-                      </CollapsibleTrigger>
-                      <SectionTaskDot visible={teamSectionHasTasks} sectionLabel="EYWAI Team" />
+                      <div className="relative w-full">
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton className="w-full">
+                            <Users className="h-5 w-5 flex-shrink-0" />
+                            <span className="font-medium">EYWAI Team</span>
+                            <ChevronRight
+                              className={cn(
+                                "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
+                                "group-data-[state=open]/collapsible:rotate-90",
+                              )}
+                            />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                        <SectionTaskDot visible={teamSectionHasTasks} sectionLabel="EYWAI Team" />
+                      </div>
                       <CollapsibleContent>
                         <SidebarMenuSub>
                           {rhTeamItems.map((item) => (
@@ -431,19 +442,21 @@ export function AppSidebar() {
 
                   <Collapsible open={paieOpen} onOpenChange={setPaieOpen} className="group/collapsible">
                     <SidebarMenuItem>
-                      <CollapsibleTrigger asChild>
-                        <SidebarMenuButton className="w-full">
-                          <Calculator className="h-5 w-5 flex-shrink-0" />
-                          <span className="font-medium">EYWAI Paie</span>
-                          <ChevronRight
-                            className={cn(
-                              "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
-                              "group-data-[state=open]/collapsible:rotate-90",
-                            )}
-                          />
-                        </SidebarMenuButton>
-                      </CollapsibleTrigger>
-                      <SectionTaskDot visible={paieSectionHasTasks} sectionLabel="EYWAI Paie" />
+                      <div className="relative w-full">
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton className="w-full">
+                            <Calculator className="h-5 w-5 flex-shrink-0" />
+                            <span className="font-medium">EYWAI Paie</span>
+                            <ChevronRight
+                              className={cn(
+                                "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
+                                "group-data-[state=open]/collapsible:rotate-90",
+                              )}
+                            />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                        <SectionTaskDot visible={paieSectionHasTasks} sectionLabel="EYWAI Paie" />
+                      </div>
                       <CollapsibleContent>
                         <SidebarMenuSub>
                           {RH_PAIE_ITEMS.map((item) => (
@@ -520,7 +533,12 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu className={collapsed ? "flex flex-col items-center gap-1" : ""}>
                 {items.map((item) => {
-                  const subCount = userRole === "rh" ? getCount(item.url) : 0;
+                  const subCount =
+                    userRole === "rh"
+                      ? item.url === "/"
+                        ? totalRhPending
+                        : getCount(item.url)
+                      : 0;
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild tooltip={collapsed ? item.title : undefined}>

@@ -4,7 +4,7 @@ Petit aide-mémoire pour travailler sur le projet sans se perdre.
 
 ---
 
-## 1. Démarrer une session : `/begin`
+## 1. Commencer une nouvelle implémentation et se mettre à jour avec la branche main (PAS A CHAQUE DEBUT DE SESSION)  : `/begin`
 
 Dans le chat Cursor, écris **`/begin`** (ou demande explicitement de démarrer une session sur ta branche `dev-*`).
 
@@ -37,7 +37,7 @@ uvicorn app.main:app --reload
 
 ---
 
-## 3. Fin de session : pousser ton travail avec `/push`
+## 3. Fin de session (A FAIRE A CHAQUE FIN DE SESSION) : pousser ton travail avec `/push`
 
 Quand tu as terminé une session et que tu veux **committer et pousser** sur **ta branche `dev-*`** (jamais `main` directement), écris **`/push`** dans le chat.
 
@@ -45,14 +45,22 @@ L’agent vérifie la branche, prépare des commits propres et pousse vers `orig
 
 ---
 
-## Skills utiles 
+## Skills utiles
 
 Dans Cursor, tu peux **mentionner la commande** ou **attacher le fichier** du skill pour guider l’agent.
 
-| Commande / intention | À quoi ça sert |
-|----------------------|----------------|
-| **`/debug`** | Quelque chose **ne marche pas** : erreur dans le terminal, écran blanc, 500, stack trace, échec `npm` / `pytest`, message dans la console navigateur. Colle le **log** ou décris **ce que tu faisais** et **ce qui s’affiche**. L’agent diagnostique et corrige jusqu’à ce qu’un test minimal (build, relance, etc.) passe. |
-| **`/frontend-design`** | Tu veux **améliorer l’UI/UX** d’un écran ou composant : plus propre, cohérent avec le reste du produit, **sans** look « template IA ». Décris en mots ce que tu veux (lisibilité, états hover/erreur/chargement, mobile, accessibilité). |
+
+| Commande / intention   | À quoi ça sert                                                                                                                                                                                                                                                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`/debug`**           | Quelque chose **ne marche pas** : erreur dans le terminal, écran blanc, 500, stack trace, échec `npm` / `pytest`, message dans la console navigateur. Colle le **log** ou décris **ce que tu faisais** et **ce qui s’affiche**. L’agent diagnostique et corrige jusqu’à ce qu’un test minimal (build, relance, etc.) passe. |
+| **`/frontend-design`** | Tu veux **améliorer l’UI/UX** d’un écran ou composant : plus propre, cohérent avec le reste du produit, **sans** look « template IA ». Décris en mots ce que tu veux (lisibilité, états hover/erreur/chargement, mobile, accessibilité).                                                                                    |
+| **`/test`**            | Couverture **pytest** backend, CI, page Super Admin « Tests » : attacher le skill `test` (`.cursor/skills/test/SKILL.md`) ou taper `/test`.                                                                                                                                                                                  |
+| **`/check-feature`**   | Vérifier qu’une fonctionnalité décrite est bien en place (front, back, tests) : skill `check-feature`.                                                                                                                                                                                                                       |
+| **`/etat`**            | Bilan Git local vs `origin` / `main` : skill `etat`.                                                                                                                                                                                                                                                                       |
+| **Fusion `dev-*` → `main`** | Procédure détaillée : skill `merge-dev-to-main` (fichier `SKILL.md` dans le même dossier).                                                                                                                                                                                                                             |
+
+Les fichiers correspondants sont sous **`.cursor/skills/<nom>/SKILL.md`** (à attacher dans le chat si besoin).
+
 
 ---
 
@@ -60,13 +68,16 @@ Dans Cursor, tu peux **mentionner la commande** ou **attacher le fichier** du sk
 
 Sur **Mac**, les touches **Cmd** (⌘), **Maj** (⇧), **Option** (⌥) et **Ctrl** correspondent aux libellés anglais *Command*, *Shift*, *Option*, *Control*.
 
-| Raccourci | Effet utile |
-|-----------|-------------|
+
+| Raccourci             | Effet utile                                                                                                 |
+| --------------------- | ----------------------------------------------------------------------------------------------------------- |
 | **⌘⇧B** (*Cmd+Maj+B*) | Ouvre une **fenêtre navigateur** intégrée dans Cursor (aperçu Simple Browser / équivalent selon ta config). |
-| **⌘B** | Afficher ou masquer la **barre latérale** (explorateur de fichiers). |
+| **⌘B**                | Afficher ou masquer la **barre latérale** (explorateur de fichiers).                                        |
+
 
 *(Tu peux créer tes propres raccourcis dans Cursor → Réglages → Raccourcis clavier.)*
 
 ---
 
 En résumé : **`/begin`** → **2 terminaux** (`npm run dev` + `uvicorn`) → travail → **`/push`** ; en cas de souci ou de polish UI, **`/debug`** ou **`/frontend-design`**.
+

@@ -237,7 +237,8 @@ def test_company_then_export_history(client: TestClient, auth_headers: dict):
     assert details_resp.status_code != 500
 
     history_resp = client.get("/api/exports/history", headers=auth_headers)
-    assert history_resp.status_code in (200, 403), (
+    # 400 accepté : l'endpoint requiert le header X-Active-Company, absent ici → Bad Request normal.
+    assert history_resp.status_code in (200, 400, 403), (
         f"exports/history doit pas retourner 500 (got {history_resp.status_code})"
     )
 

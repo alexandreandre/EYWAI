@@ -9,8 +9,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-# Réponses acceptées pour les smoke tests (pas de 500)
-ALLOWED_STATUSES = (200, 401, 403, 404, 422)
+# Réponses acceptées pour les smoke tests (pas de 500).
+# 400 inclus : certains endpoints requièrent des headers (ex. X-Active-Company) ;
+# leur absence retourne 400 "Bad Request", ce qui est un comportement correct (pas un crash).
+# 502 inclus : échec fournisseur LLM (clé absente/invalide, quota, réseau) mappé côté API.
+ALLOWED_STATUSES = (200, 400, 401, 403, 404, 422, 502)
 
 
 pytestmark = pytest.mark.e2e
@@ -18,7 +21,7 @@ pytestmark = pytest.mark.e2e
 
 def _assert_not_500(response, module_name: str):
     assert response.status_code in ALLOWED_STATUSES, (
-        f"[{module_name}] Attendu 200/401/403/404/422, reçu {response.status_code}"
+        f"[{module_name}] Attendu 200/400/401/403/404/422/502, reçu {response.status_code}"
     )
 
 
@@ -242,3 +245,30 @@ def test_smoke_uploads_delete_logo(client: TestClient, auth_headers: dict):
         headers=auth_headers,
     )
     _assert_not_500(response, "uploads")
+
+
+def test_smoke_badgeuse_me_status_today(client: TestClient, auth_headers: dict):
+    """GET /api/me/badgeuse/status-today."""
+    response = client.get("/api/me/badgeuse/status-today", headers=auth_headers)
+    _assert_not_500(response, "badgeuse")
+
+
+def test_smoke_support_tickets_list(client: TestClient, auth_headers: dict):
+    """GET /api/support/tickets."""
+    response = client.get("/api/support/tickets", headers=auth_headers)
+    _assert_not_500(response, "support")
+
+
+def test_smoke_maintenance_settings_get(client: TestClient, auth_headers: dict):
+    """GET /api/maintenance-settings/."""
+    response = client.get("/api/maintenance-settings/", headers=auth_headers)
+    _assert_not_500(response, "maintenance_settings")
+
+
+def test_smoke_payroll_simulation_arret_maladie(client: TestClient, auth_headers: dict):
+    """POST /api/simulation/arret-maladie (body absent → 422 accepté)."""
+    response = client.post(
+        "/api/simulation/arret-maladie",
+        headers=auth_headers,
+    )
+    _assert_not_500(response, "payroll")

@@ -774,6 +774,10 @@ const mutation = useMutation({
 
 ## 🧭 Routing
 
+Pour la **liste exhaustive des chemins** (collaborateur, RH, `collaborateur_rh`, super-admin, support lazy), se référer à **`src/App.tsx`** : chaque `<Route>` y est défini avec son composant page.
+
+Chemins notables côté RH : `/employees`, `/payroll`, `/leaves`, `/schedules`, `/badgeuse-rh`, `/medical-follow-up`, `/annual-reviews`, `/promotions`, `/cse`, `/recruitment`, `/support`, `/super-admin/...`. Côté collaborateur : `/`, `/payslips`, `/badgeuse`, `/annual-reviews`, `/absences`, `/calendar`, `/medical-follow-up`, `/cse` (si élu), `/support`, etc.
+
 ### Structure des routes
 
 L'application utilise **React Router DOM** avec une structure hiérarchique :
@@ -1053,4 +1057,4 @@ Pour contribuer au projet :
 
 ---
 
-**Dernière mise à jour** : mars 2025
+**Dernière mise à jour** : avril 2026

@@ -54,6 +54,39 @@ export interface AnnualReviewListItem {
   created_at: string | null;
 }
 
+export const ANNUAL_REVIEW_PRIORITY_WINDOW_DAYS = 14;
+
+function isActionableAnnualReviewStatus(status: AnnualReviewStatus): boolean {
+  return (
+    status === "planifie" ||
+    status === "en_attente_acceptation" ||
+    status === "accepte"
+  );
+}
+
+/**
+ * Nombre d'entretiens planifiés à court terme (fenêtre glissante),
+ * destinés aux pastilles sidebar et à "Priorité du jour".
+ */
+export function countUpcomingPlannedAnnualReviews(
+  reviews: AnnualReviewListItem[],
+  windowDays: number = ANNUAL_REVIEW_PRIORITY_WINDOW_DAYS
+): number {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const maxDate = new Date(now);
+  maxDate.setDate(maxDate.getDate() + windowDays);
+
+  return reviews.filter((review) => {
+    if (!review.planned_date) return false;
+    if (!isActionableAnnualReviewStatus(review.status)) return false;
+
+    const planned = new Date(review.planned_date);
+    planned.setHours(0, 0, 0, 0);
+    return planned >= now && planned <= maxDate;
+  }).length;
+}
+
 export interface AnnualReviewCreate {
   employee_id: string;
   year: number;
