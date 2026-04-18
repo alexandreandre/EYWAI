@@ -268,6 +268,18 @@ export default function CompetencesTab() {
     return map;
   }, [matrixQuery.data]);
 
+  const matrix = matrixQuery.data;
+  const compById = useMemo(() => {
+    const m: Record<
+      string,
+      { id: string; name: string; category: string; required_level?: number | null }
+    > = {};
+    (matrix?.competencies ?? []).forEach((c) => {
+      m[c.id] = c;
+    });
+    return m;
+  }, [matrix]);
+
   if (!activeCompany) {
     return (
       <p className="text-sm text-muted-foreground">Sélectionnez une entreprise pour continuer.</p>
@@ -334,16 +346,6 @@ export default function CompetencesTab() {
       </div>
     );
   }
-
-  const matrix = matrixQuery.data;
-  const compById = useMemo(() => {
-    const m: Record<string, { id: string; name: string; category: string; required_level?: number | null }> =
-      {};
-    (matrix?.competencies ?? []).forEach((c) => {
-      m[c.id] = c;
-    });
-    return m;
-  }, [matrix]);
 
   return (
     <div className="space-y-4">
