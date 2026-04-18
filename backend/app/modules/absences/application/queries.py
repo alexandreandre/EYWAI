@@ -16,6 +16,7 @@ from app.core.database import supabase
 from app.modules.absences.domain.rules import (
     calculate_acquired_cp,
     calculate_acquired_rtt,
+    requires_salary_certificate,
 )
 from app.modules.absences.infrastructure.providers import (
     evenement_familial_provider,
@@ -40,6 +41,28 @@ from app.modules.users.schemas.responses import User
 
 BUCKET_LEAVE_ATTACHMENTS = "leave_attachments"
 BUCKET_SALARY_CERTIFICATES = "salary_certificates"
+
+
+def _enrich_absence_certificate_fields(row: dict) -> None:
+    """Ajoute certificate_status et certificate_id (attestation IJSS / salaire)."""
+    atype = row.get("type") or ""
+    status = row.get("status") or ""
+    aid = row.get("id")
+    if not requires_salary_certificate(atype):
+        row["certificate_status"] = "not_required"
+        row["certificate_id"] = None
+        return
+    cert = get_salary_certificate_record(aid) if aid else None
+    if cert and cert.get("id"):
+        row["certificate_status"] = "generated"
+        row["certificate_id"] = str(cert["id"])
+        return
+    if status == "validated":
+        row["certificate_status"] = "pending"
+        row["certificate_id"] = None
+        return
+    row["certificate_status"] = None
+    row["certificate_id"] = None
 
 
 def _enrich_with_signed_urls(
@@ -151,6 +174,8 @@ def get_absence_requests(status: str | None = None) -> List[dict]:
             )
 
     _enrich_with_signed_urls(requests)
+    for req in requests:
+        _enrich_absence_certificate_fields(req)
     return requests
 
 
@@ -160,6 +185,8 @@ def get_absences_for_employee(employee_id: str) -> List[dict]:
     if not data:
         return []
     _enrich_with_signed_urls(data)
+    for row in data:
+        _enrich_absence_certificate_fields(row)
     return data
 
 
@@ -179,7 +206,24 @@ def update_absence_request_signed_url_single(request_id: str) -> dict | None:
                 data["attachment_url"] = url
         except Exception as e:
             print(f"[WARNING] Erreur URL signée: {e}", file=sys.stderr)
+    _enrich_absence_certificate_fields(data)
     return data
+
+
+def get_absence_request_detail(user_id: str, absence_id: str) -> dict:
+    """Détail d'une absence pour le collaborateur connecté (avec statut attestation IJSS)."""
+    employee_id = resolve_employee_id_for_user(user_id)
+    if not employee_id:
+        raise LookupError("Profil collaborateur sans employé associé.")
+    row = absence_repository.get_by_id(absence_id)
+    if not row:
+        raise LookupError("Demande non trouvée.")
+    if str(row.get("employee_id")) != str(employee_id):
+        raise PermissionError("Accès refusé à cette absence.")
+    enriched = update_absence_request_signed_url_single(absence_id)
+    if enriched is None:
+        raise LookupError("Demande non trouvée.")
+    return enriched
 
 
 def get_my_absence_balances(employee_id: str) -> List[dict]:
@@ -266,6 +310,8 @@ def get_my_absences_history(employee_id: str) -> List[dict]:
     if not data:
         return []
     _enrich_with_signed_urls(data)
+    for row in data:
+        _enrich_absence_certificate_fields(row)
     return data
 
 
@@ -344,6 +390,8 @@ def get_my_absences_page_data(employee_id: str, year: int, month: int) -> dict:
     history_data = absence_repository.list_by_employee_id(employee_id)
     if history_data:
         _enrich_with_signed_urls(history_data)
+        for row in history_data:
+            _enrich_absence_certificate_fields(row)
 
     return {
         "balances": balances_data,
