@@ -1,0 +1,1 @@
+"""Schémas module documents."""

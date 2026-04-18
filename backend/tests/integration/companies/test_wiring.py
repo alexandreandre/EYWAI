@@ -134,3 +134,23 @@ class TestCompaniesWiringSettingsPatch:
         mock_repo.update_settings.assert_called_once()
         call_settings = mock_repo.update_settings.call_args[0][1]
         assert call_settings["medical_follow_up_enabled"] is True
+
+
+class TestCompaniesWiringPlan:
+    """Flux GET /api/company/plan : entreprise active + lecture du flag premium."""
+
+    def test_plan_returns_is_premium(self, client: TestClient):
+        from app.core.security import get_current_user
+
+        with patch(
+            "app.modules.companies.api.router.is_company_premium",
+            return_value=True,
+        ):
+            app.dependency_overrides[get_current_user] = lambda: _rh_user()
+            try:
+                response = client.get("/api/company/plan")
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
+
+        assert response.status_code == 200
+        assert response.json() == {"is_premium": True}

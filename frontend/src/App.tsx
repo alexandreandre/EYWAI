@@ -60,12 +60,12 @@ import EmployeeCalendarPage from './pages/employee/Calendar';
 import EmployeeBadgeusePage from './pages/employee/Badgeuse';
 import ExpensesPage from './pages/employee/Expenses';
 import SalaryAdvancesPage from './pages/employee/SalaryAdvances';
-import DocumentsPage from './pages/employee/Documents';
 import EmployeeAnnualReviews from './pages/employee/AnnualReviews';
 import EmployeeFormationPage from './pages/employee/EmployeeFormationPage';
 import EmployeeAnnualReviewDetail from './pages/employee/AnnualReviewDetail';
 import EmployeeCSE from './pages/employee/CSE';
 import EmployeeMedicalFollowUp from './pages/employee/MedicalFollowUp';
+import EmployeeCollaboratorDocumentsPage from './pages/employee/Documents';
 // --- Pages Super Admin ---
 import SuperAdminLayout from './pages/super-admin/SuperAdminLayout';
 import SuperAdminDashboard from './pages/super-admin/SuperAdminDashboard';
@@ -95,6 +95,7 @@ const SupportPage = lazy(() => import('./pages/support/SupportPage'));
 const SupportConfirmationPage = lazy(() => import('./pages/support/SupportConfirmationPage'));
 const TicketsHistoryPage = lazy(() => import('./pages/support/TicketsHistoryPage'));
 const FormationPage = lazy(() => import('./pages/formation/FormationPage'));
+const RhDocumentsPage = lazy(() => import('./pages/Documents'));
 
 const supportRouteFallback = (
   <div className="flex min-h-[50vh] w-full items-center justify-center">
@@ -136,6 +137,14 @@ function SuspenseFormationPage() {
   return (
     <Suspense fallback={formationRouteFallback}>
       <FormationPage />
+    </Suspense>
+  );
+}
+
+function SuspenseRhDocumentsPage() {
+  return (
+    <Suspense fallback={formationRouteFallback}>
+      <RhDocumentsPage />
     </Suspense>
   );
 }
@@ -236,7 +245,8 @@ function ProtectedRoutes() {
           <Route path="/calendar" element={<EmployeeCalendarPage />} />
           <Route path="/expenses" element={<ExpensesPage />} />
           <Route path="/salary-advances" element={<SalaryAdvancesPage />} />
-          <Route path="/documents" element={<DocumentsPage />} />
+          <Route path="/employee/documents" element={<EmployeeCollaboratorDocumentsPage />} />
+          <Route path="/documents" element={<Navigate to="/employee/documents" replace />} />
           <Route path="/medical-follow-up" element={<EmployeeMedicalFollowUp />} />
           <Route path="/cse" element={<EmployeeCSE />} />
           <Route path="/support" element={<SuspenseSupportPage />} />
@@ -309,7 +319,8 @@ function ProtectedRoutes() {
                   <Route path="/calendar" element={<EmployeeCalendarPage />} />
                   <Route path="/expenses" element={<ExpensesPage />} />
                   <Route path="/salary-advances" element={<SalaryAdvancesPage />} />
-                  <Route path="/documents" element={<DocumentsPage />} />
+                  <Route path="/employee/documents" element={<EmployeeCollaboratorDocumentsPage />} />
+                  <Route path="/documents" element={<Navigate to="/employee/documents" replace />} />
                   <Route path="/medical-follow-up" element={<EmployeeMedicalFollowUp />} />
                   <Route path="/cse" element={<EmployeeCSE />} />
                   <Route path="/support" element={<SuspenseSupportPage />} />
@@ -340,6 +351,7 @@ function ProtectedRoutes() {
                   <Route path="/annual-reviews" element={<AnnualReviews />} />
                   <Route path="/annual-reviews/:reviewId" element={<AnnualReviewDetail />} />
                   <Route path="/formation" element={<SuspenseFormationPage />} />
+                  <Route path="/documents" element={<SuspenseRhDocumentsPage />} />
                   <Route path="/habilitations" element={<HabilitationsPage />} />
                   <Route path="/objectives" element={<ObjectivesPage />} />
                   <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />

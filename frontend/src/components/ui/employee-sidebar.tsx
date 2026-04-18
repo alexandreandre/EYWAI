@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Home, User, Wallet, Calendar, FolderKanban, LogOut, Plane, DollarSign, Notebook, Settings, Handshake, Stethoscope, LifeBuoy, GraduationCap } from "lucide-react";
+import { Home, User, Wallet, Calendar, LogOut, Plane, DollarSign, Notebook, Settings, Handshake, Stethoscope, LifeBuoy, GraduationCap, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { ChangePasswordModal } from "@/components/ChangePasswordModal";
@@ -31,11 +31,11 @@ const baseNavItems = [
   { to: "/", label: "Tableau de Bord", icon: Home },
   { to: "/payslips", label: "Rémunération", icon: DollarSign },
   { to: "/employee/formation", label: "Ma formation", icon: GraduationCap },
+  { to: "/employee/documents", label: "Mes documents", icon: FileText },
   { to: "/calendar", label: "Calendrier", icon: Calendar },
   { to: "/absences", label: "Congés & Absences", icon: Plane },
   { to: "/expenses", label: "Notes de Frais", icon: Notebook },
   { to: "/salary-advances", label: "Avances sur salaire", icon: Wallet },
-  { to: "/documents", label: "Mes Documents", icon: FolderKanban },
   { to: "/badgeuse", label: "Ma badgeuse", icon: Calendar },
   { to: "/profile", label: "Profil", icon: User },
 ];
@@ -82,6 +82,9 @@ export function EmployeeSidebar() {
     }
     if (path === "/employee/formation") {
       return currentPath.startsWith("/employee/formation");
+    }
+    if (path === "/employee/documents") {
+      return currentPath.startsWith("/employee/documents");
     }
     return currentPath.startsWith(path);
   };
