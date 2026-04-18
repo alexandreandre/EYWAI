@@ -299,7 +299,30 @@ export default function AbsencesPage() {
                                 </Button>
                               </>
                             )}
-                            {a.status === 'validated' && requiresCertificate(a.type) && (
+                            {a.certificate_status === 'generated' && (
+                              <div className="flex items-center gap-2">
+                                <Badge className="bg-green-600 hover:bg-green-600 text-white border-0 shrink-0">
+                                  Attestation IJSS générée
+                                </Badge>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 shrink-0"
+                                  onClick={() => handleDownloadCertificate(a.id)}
+                                >
+                                  Télécharger
+                                </Button>
+                              </div>
+                            )}
+                            {a.certificate_status === 'pending' && (
+                              <Badge className="bg-orange-500 hover:bg-orange-500 text-white border-0 shrink-0">
+                                Attestation en cours
+                              </Badge>
+                            )}
+                            {(a.certificate_status === undefined ||
+                              a.certificate_status === null) &&
+                              a.status === 'validated' &&
+                              requiresCertificate(a.type) && (
                               <>
                                 {loadingCertificates.has(a.id) ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />

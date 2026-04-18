@@ -355,3 +355,20 @@ async def get_salary_certificate(
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{absence_id}", response_model=AbsenceRequest)
+async def get_absence_request_detail_for_user(
+    absence_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Détail d'une absence (collaborateur) avec statut attestation IJSS."""
+    try:
+        return queries.get_absence_request_detail(str(current_user.id), absence_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))

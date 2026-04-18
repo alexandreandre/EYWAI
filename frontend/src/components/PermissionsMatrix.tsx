@@ -3,6 +3,9 @@ import { Loader2, Info, ChevronDown, ChevronRight, CheckSquare, Square } from 'l
 import { getPermissionsMatrix, PermissionMatrix, PermissionMatrixCategory } from '../api/permissions';
 import { cn } from '../lib/utils';
 
+/** Code catégorie catalogue (seed SQL `pack_talent_permissions.sql`) — affichée en dernier dans la matrice. */
+const FORMATION_TALENTS_CATEGORY_CODE = 'formation_talents';
+
 interface PermissionsMatrixProps {
   companyId: string;
   userId?: string;
@@ -32,7 +35,12 @@ export const PermissionsMatrix: React.FC<PermissionsMatrixProps> = ({
     try {
       setLoading(true);
       const data = await getPermissionsMatrix(companyId, userId);
-      setMatrix(data);
+      const categories = [...data.categories].sort((a, b) => {
+        const aFt = a.code === FORMATION_TALENTS_CATEGORY_CODE ? 1 : 0;
+        const bFt = b.code === FORMATION_TALENTS_CATEGORY_CODE ? 1 : 0;
+        return aFt - bFt;
+      });
+      setMatrix({ ...data, categories });
       // Expand all categories by default
       setExpandedCategories(new Set(data.categories.map((cat) => cat.code)));
     } catch (error) {

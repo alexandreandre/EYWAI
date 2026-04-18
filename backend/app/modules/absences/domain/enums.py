@@ -28,3 +28,6 @@ SALARY_CERTIFICATE_ABSENCE_TYPES: tuple[str, ...] = (
     "arret_maternite",
     "arret_maladie_pro",
 )
+
+# Types éligibles attestation / maintien IJSS (alignés sur l'attestation de salaire).
+IJSS_ELIGIBLE_TYPES: frozenset[str] = frozenset(SALARY_CERTIFICATE_ABSENCE_TYPES)

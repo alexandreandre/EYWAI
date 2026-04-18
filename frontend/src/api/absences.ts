@@ -37,6 +37,9 @@ export interface AbsenceRequest {
   /** Pour conge_paye: nombre de jours payés (reste = congé sans solde). */
   jours_payes?: number | null;
   arret_type?: ArretType | null;
+  /** Statut attestation salaire / IJSS (API module Documents). */
+  certificate_status?: 'generated' | 'not_required' | 'pending' | null;
+  certificate_id?: string | null;
 }
 
 export interface AbsenceRequestWithEmployee extends AbsenceRequest {

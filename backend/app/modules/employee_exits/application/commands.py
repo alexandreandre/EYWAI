@@ -6,6 +6,7 @@ Comportement identique au router legacy.
 """
 
 import sys
+import traceback
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -42,6 +43,12 @@ from app.modules.employee_exits.infrastructure.providers import (
     get_exit_document_generator,
     get_indemnity_calculator,
     get_exit_storage_provider,
+)
+from app.services.document_service import document_service
+from app.services.portability_document_generator import portability_generator
+
+ELIGIBLE_PORTABILITY_MOTIFS = frozenset(
+    {"licenciement", "fin_cdd", "rupture_conventionnelle"}
 )
 
 
@@ -126,6 +133,110 @@ def create_employee_exit(
     return created
 
 
+def _format_last_working_day_fr(exit_full_data: Dict[str, Any]) -> str:
+    raw = exit_full_data.get("last_working_day")
+    if not raw:
+        return ""
+    if isinstance(raw, str):
+        try:
+            return datetime.fromisoformat(raw[:10]).strftime("%d/%m/%Y")
+        except ValueError:
+            return raw
+    if hasattr(raw, "strftime"):
+        return raw.strftime("%d/%m/%Y")
+    return str(raw)
+
+
+def _run_portability_exit_documents(
+    exit_id: str,
+    company_id: str,
+    current_user_id: str,
+    sb: Any,
+    exit_full_data: Dict[str, Any],
+    employee_full_data: Dict[str, Any],
+    company_data: Dict[str, Any],
+    exit_type: str,
+    employee_id_exit: str,
+    storage: Any,
+    doc_repo: ExitDocumentRepository,
+) -> None:
+    """Génère les attestations de portabilité (mutuelle + prévoyance) si motif éligible."""
+    exit_date_fr = _format_last_working_day_fr(exit_full_data)
+    ctx_base = {"exit_id": str(exit_id), "exit_type": exit_type}
+
+    specs = (
+        (
+            "attestation_portabilite_mutuelle",
+            portability_generator.generate_portabilite_mutuelle,
+        ),
+        (
+            "attestation_portabilite_prevoyance",
+            portability_generator.generate_portabilite_prevoyance,
+        ),
+    )
+
+    for doc_type_key, gen_method in specs:
+        try:
+            gen_resp = document_service.generate_document(
+                company_id=company_id,
+                employee_id=employee_id_exit,
+                document_type=doc_type_key,
+                category="attestation_sortie",
+                employee_data=employee_full_data,
+                company_data=company_data,
+                context=dict(ctx_base),
+                generated_by=current_user_id,
+            )
+            if not gen_resp.get("is_eywai_template"):
+                continue
+
+            stub_id = gen_resp.get("document_id")
+            if stub_id:
+                document_service.delete_generated_document(str(stub_id), sb)
+
+            pdf_bytes = gen_method(
+                employee_full_data, company_data, exit_date_fr, exit_type
+            )
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{doc_type_key}_{ts}.pdf"
+            storage_path = f"exits/{exit_id}/{filename}"
+            storage.upload(storage_path, pdf_bytes, "application/pdf")
+            doc_repo.create(
+                {
+                    "exit_id": exit_id,
+                    "company_id": company_id,
+                    "document_type": doc_type_key,
+                    "document_category": "generated",
+                    "storage_path": storage_path,
+                    "filename": filename,
+                    "mime_type": "application/pdf",
+                    "file_size_bytes": len(pdf_bytes),
+                    "generation_template": f"template_{doc_type_key}",
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    "uploaded_by": current_user_id,
+                }
+            )
+            trace_ctx = {
+                **ctx_base,
+                "source": "employee_exit_bundle_portability",
+            }
+            document_service.trace_existing_document(
+                company_id=company_id,
+                employee_id=employee_id_exit,
+                document_type=doc_type_key,
+                category="attestation_sortie",
+                file_url=storage_path,
+                file_name=filename,
+                is_eywai_template=True,
+                generation_context=trace_ctx,
+                generated_by=current_user_id,
+            )
+            print(f"✓ {doc_type_key} généré (portabilité)", file=sys.stderr)
+        except Exception as e:
+            print(f"⚠ Erreur portabilité {doc_type_key}: {e}", file=sys.stderr)
+            traceback.print_exc()
+
+
 def _run_post_create_indemnities_and_docs(
     exit_id: str, company_id: str, current_user_id: str, sb: Any
 ) -> None:
@@ -146,6 +257,8 @@ def _run_post_create_indemnities_and_docs(
     if not exit_full_data:
         return
     employee_full_data = exit_full_data.get("employees") or {}
+    employee_id_exit = str(exit_full_data.get("employee_id") or "")
+    exit_type = exit_full_data.get("exit_type") or ""
     indemnities = calculator.calculate(employee_full_data, exit_full_data, sb)
     exit_repo.update(
         exit_id,
@@ -199,8 +312,53 @@ def _run_post_create_indemnities_and_docs(
                 }
             )
             print(f"✓ {doc_type} généré", file=sys.stderr)
+            try:
+                trace_id = document_service.trace_existing_document(
+                    company_id=company_id,
+                    employee_id=employee_id_exit,
+                    document_type=doc_type,
+                    category="attestation_sortie",
+                    file_url=storage_path,
+                    file_name=filename,
+                    is_eywai_template=True,
+                    generation_context={
+                        "exit_id": str(exit_id),
+                        "exit_type": exit_type,
+                        "source": "employee_exit_bundle",
+                    },
+                    generated_by=current_user_id,
+                )
+                if not trace_id:
+                    print(
+                        f"⚠ trace generated_documents ignorée pour {doc_type}",
+                        file=sys.stderr,
+                    )
+            except Exception as te:
+                print(
+                    f"⚠ trace generated_documents {doc_type}: {te}",
+                    file=sys.stderr,
+                )
         except Exception as e:
             print(f"⚠ Erreur génération {doc_type}: {e}", file=sys.stderr)
+
+    if exit_type in ELIGIBLE_PORTABILITY_MOTIFS and employee_id_exit:
+        try:
+            _run_portability_exit_documents(
+                exit_id=exit_id,
+                company_id=company_id,
+                current_user_id=current_user_id,
+                sb=sb,
+                exit_full_data=exit_full_data,
+                employee_full_data=employee_full_data,
+                company_data=company_data,
+                exit_type=exit_type,
+                employee_id_exit=employee_id_exit,
+                storage=storage,
+                doc_repo=doc_repo,
+            )
+        except Exception as pe:
+            print(f"⚠ Erreur documents portabilité: {pe}", file=sys.stderr)
+            traceback.print_exc()
 
 
 def update_employee_exit(

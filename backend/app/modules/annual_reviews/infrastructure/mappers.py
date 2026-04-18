@@ -39,6 +39,11 @@ def row_to_annual_review_read(row: Dict[str, Any]) -> AnnualReviewRead:
         salary_review=row.get("salary_review"),
         overall_rating=row.get("overall_rating"),
         next_review_date=row.get("next_review_date"),
+        interview_type=row.get("interview_type") or "annual_performance",
+        template_id=row.get("template_id"),
+        signature_status=row.get("signature_status"),
+        signed_pdf_url=row.get("signed_pdf_url"),
+        yousign_procedure_id=row.get("yousign_procedure_id"),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { FileText, Download, Loader2, Wallet, HardHat, UserRound, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext'; // Pour afficher le nom
+import { EmployeeGeneratedDocumentsSection } from '@/components/employee/EmployeeGeneratedDocumentsSection';
 
 // --- Types de données ---
 interface Document {
@@ -300,8 +301,9 @@ export default function DocumentsPage() {
             </Accordion>
           </CardContent>
         </Card>
-
       </div>
+
+      <EmployeeGeneratedDocumentsSection />
     </div>
   );
 }

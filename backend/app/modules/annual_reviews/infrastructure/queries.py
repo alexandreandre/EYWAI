@@ -34,6 +34,21 @@ def query_list_by_company(
     return list(resp.data or [])
 
 
+def query_get_by_yousign_procedure_id(
+    procedure_id: str,
+) -> Optional[Dict[str, Any]]:
+    """Récupère un entretien par yousign_procedure_id (webhook)."""
+    resp = (
+        supabase.table("annual_reviews")
+        .select("*")
+        .eq("yousign_procedure_id", procedure_id)
+        .limit(1)
+        .execute()
+    )
+    rows = list(resp.data or [])
+    return dict(rows[0]) if rows else None
+
+
 def query_get_by_id(review_id: str) -> Optional[Dict[str, Any]]:
     """Récupère un entretien par id."""
     resp = (
@@ -126,10 +141,10 @@ def query_employee_company_id(employee_id: str) -> Optional[str]:
 
 
 def query_employee_by_id(employee_id: str) -> Optional[Dict[str, Any]]:
-    """Retourne les champs employé pour le PDF (id, first_name, last_name, job_title)."""
+    """Retourne les champs employé pour le PDF et la signature (email inclus)."""
     resp = (
         supabase.table("employees")
-        .select("id, first_name, last_name, job_title")
+        .select("id, first_name, last_name, job_title, email")
         .eq("id", employee_id)
         .single()
         .execute()

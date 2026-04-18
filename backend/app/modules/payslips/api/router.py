@@ -16,21 +16,29 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.core.security import get_current_user
 from app.modules.payslips.application import (
     PayslipBadRequestError,
+    PayslipCriticalActiveError,
     PayslipForbiddenError,
     PayslipNotFoundError,
     UserContext,
+    acquit_payslip_alert_for_user,
     delete_payslip,
     generate_payslip,
     get_debug_storage_info,
     get_employee_payslips,
     get_my_payslips,
+    get_payslip_comparison_for_user,
     get_payslip_details_for_user,
     get_payslip_history_for_user,
+    get_payslip_trend_for_user,
     edit_payslip_for_user,
+    ignore_payslip_alert_for_user,
     restore_payslip_for_user,
+    validate_payslip_for_user,
     GeneratePayslipInput,
 )
 from app.modules.payslips.schemas import (
+    AcquitAlertRequest,
+    ComparisonResultResponse,
     HistoryEntry,
     PayslipDetail,
     PayslipEditRequest,
@@ -39,6 +47,7 @@ from app.modules.payslips.schemas import (
     PayslipRequest,
     PayslipRestoreRequest,
     PayslipRestoreResponse,
+    TrendResponse,
 )
 from app.modules.users.schemas.responses import User
 
@@ -49,6 +58,7 @@ _PAYSLIP_APP_ERRORS = (
     PayslipNotFoundError,
     PayslipForbiddenError,
     PayslipBadRequestError,
+    PayslipCriticalActiveError,
 )
 
 
@@ -70,8 +80,17 @@ def _map_app_errors(exc: Exception) -> None:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     if isinstance(exc, PayslipForbiddenError):
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+    if isinstance(exc, PayslipCriticalActiveError):
+        raise HTTPException(
+            status_code=400, detail={"critical_alerts": exc.critical_alerts}
+        ) from exc
     if isinstance(exc, PayslipBadRequestError):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _handle_application_errors(exc: Exception) -> None:
+    """Alias explicite pour le mapping des erreurs applicatives payslips."""
+    _map_app_errors(exc)
 
 
 # --- Génération ---
@@ -126,6 +145,114 @@ def delete_payslip_route(payslip_id: str):
     """Supprime un bulletin (BDD, storage, recalc COR)."""
     try:
         delete_payslip(payslip_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Comparaison N vs N-1 ---
+@router.get(
+    "/api/payslips/{payslip_id}/comparison",
+    response_model=ComparisonResultResponse,
+)
+def get_payslip_comparison_route(
+    payslip_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Comparaison du bulletin N avec le dernier bulletin N-1 validé."""
+    try:
+        return get_payslip_comparison_for_user(
+            payslip_id, _to_user_context(current_user)
+        )
+    except _PAYSLIP_APP_ERRORS as e:
+        _handle_application_errors(e)
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/payslips/{payslip_id}/trend", response_model=TrendResponse)
+def get_payslip_trend_route(
+    payslip_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Tendance sur les 12 derniers bulletins validés avant la période du bulletin."""
+    try:
+        return get_payslip_trend_for_user(payslip_id, _to_user_context(current_user))
+    except _PAYSLIP_APP_ERRORS as e:
+        _handle_application_errors(e)
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/payslips/{payslip_id}/alerts/{rule_id}/acquit")
+def acquit_payslip_alert_route(
+    payslip_id: str,
+    rule_id: str,
+    body: AcquitAlertRequest = AcquitAlertRequest(),
+    current_user: User = Depends(get_current_user),
+):
+    """Acquitte une alerte (RH / admin entreprise)."""
+    try:
+        acquit_payslip_alert_for_user(
+            payslip_id,
+            rule_id,
+            _to_user_context(current_user),
+            body.comment,
+        )
+        return {"ok": True, "rule_id": rule_id, "status": "acquittee"}
+    except _PAYSLIP_APP_ERRORS as e:
+        _handle_application_errors(e)
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/payslips/{payslip_id}/alerts/{rule_id}/ignore")
+def ignore_payslip_alert_route(
+    payslip_id: str,
+    rule_id: str,
+    body: AcquitAlertRequest = AcquitAlertRequest(),
+    current_user: User = Depends(get_current_user),
+):
+    """Ignore une alerte (RH / admin entreprise)."""
+    try:
+        ignore_payslip_alert_for_user(
+            payslip_id,
+            rule_id,
+            _to_user_context(current_user),
+            body.comment,
+        )
+        return {"ok": True, "rule_id": rule_id, "status": "ignoree"}
+    except _PAYSLIP_APP_ERRORS as e:
+        _handle_application_errors(e)
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/payslips/{payslip_id}/validate", response_model=PayslipDetail)
+def validate_payslip_route(
+    payslip_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Valide le bulletin si aucune alerte critique active."""
+    try:
+        validate_payslip_for_user(payslip_id, _to_user_context(current_user))
+        return get_payslip_details_for_user(payslip_id, _to_user_context(current_user))
+    except _PAYSLIP_APP_ERRORS as e:
+        _handle_application_errors(e)
     except HTTPException:
         raise
     except Exception as e:

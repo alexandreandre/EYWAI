@@ -31,6 +31,7 @@ import Saisies from './pages/Saisies';
 import SalarySeizures from './pages/SalarySeizures';
 import SalaryAdvances from './pages/SalaryAdvances';
 import RhAbsencesPage from './pages/Absences'; // À CRÉER (pour les RH)
+import Planning from '@/pages/Planning';
 import RhExpensesPage from './pages/Expenses';
 import RhSchedulesPage from './pages/Schedules'; // NOUVEAU - Gestion des calendriers
 import CompanyPage from './pages/CompanyPage';
@@ -42,6 +43,9 @@ import MedicalFollowUp from './pages/MedicalFollowUp';
 import { ErrorBoundaryClass } from '@/components/ErrorBoundary';
 import AnnualReviews from './pages/AnnualReviews';
 import AnnualReviewDetail from './pages/AnnualReviewDetail';
+import HabilitationsPage from './pages/Habilitations';
+import ObjectivesPage from './pages/Objectives';
+import CatalogueFormationsPage from './pages/CatalogueFormations';
 import Promotions from './pages/Promotions';
 import PromotionDetail from './pages/PromotionDetail';
 import CSE from './pages/CSE';
@@ -52,16 +56,19 @@ import { EmployeeSidebar } from '@/components/ui/employee-sidebar'; // NOUVEAU
 import EmployeeDashboard from './pages/employee/Dashboard';
 import ProfilePage from './pages/employee/Profile';
 import PayslipsPage from './pages/employee/Payslips';
+import EmployeePayslipDetail from './pages/employee/PayslipDetail';
 import EmployeeAbsencesPage from './pages/employee/Absences'; // Renommé pour plus de clarté
+import EmployeePlanning from '@/pages/EmployeePlanning';
 import EmployeeCalendarPage from './pages/employee/Calendar';
 import EmployeeBadgeusePage from './pages/employee/Badgeuse';
 import ExpensesPage from './pages/employee/Expenses';
 import SalaryAdvancesPage from './pages/employee/SalaryAdvances';
-import DocumentsPage from './pages/employee/Documents';
 import EmployeeAnnualReviews from './pages/employee/AnnualReviews';
+import EmployeeFormationPage from './pages/employee/EmployeeFormationPage';
 import EmployeeAnnualReviewDetail from './pages/employee/AnnualReviewDetail';
 import EmployeeCSE from './pages/employee/CSE';
 import EmployeeMedicalFollowUp from './pages/employee/MedicalFollowUp';
+import EmployeeCollaboratorDocumentsPage from './pages/employee/Documents';
 // --- Pages Super Admin ---
 import SuperAdminLayout from './pages/super-admin/SuperAdminLayout';
 import SuperAdminDashboard from './pages/super-admin/SuperAdminDashboard';
@@ -90,6 +97,8 @@ import NotFound from "./pages/NotFound";
 const SupportPage = lazy(() => import('./pages/support/SupportPage'));
 const SupportConfirmationPage = lazy(() => import('./pages/support/SupportConfirmationPage'));
 const TicketsHistoryPage = lazy(() => import('./pages/support/TicketsHistoryPage'));
+const FormationPage = lazy(() => import('./pages/formation/FormationPage'));
+const RhDocumentsPage = lazy(() => import('./pages/Documents'));
 
 const supportRouteFallback = (
   <div className="flex min-h-[50vh] w-full items-center justify-center">
@@ -117,6 +126,28 @@ function SuspenseTicketsHistoryPage() {
   return (
     <Suspense fallback={supportRouteFallback}>
       <TicketsHistoryPage />
+    </Suspense>
+  );
+}
+
+const formationRouteFallback = (
+  <div className="flex min-h-[40vh] w-full items-center justify-center">
+    <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
+  </div>
+);
+
+function SuspenseFormationPage() {
+  return (
+    <Suspense fallback={formationRouteFallback}>
+      <FormationPage />
+    </Suspense>
+  );
+}
+
+function SuspenseRhDocumentsPage() {
+  return (
+    <Suspense fallback={formationRouteFallback}>
+      <RhDocumentsPage />
     </Suspense>
   );
 }
@@ -206,14 +237,22 @@ function ProtectedRoutes() {
           <Route path="/" element={<EmployeeDashboard />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/payslips" element={<PayslipsPage />} />
+          <Route path="/employee/payslips/:payslipId" element={<EmployeePayslipDetail />} />
           <Route path="/badgeuse" element={<EmployeeBadgeusePage />} />
           <Route path="/annual-reviews" element={<EmployeeAnnualReviews />} />
           <Route path="/annual-reviews/:reviewId" element={<EmployeeAnnualReviewDetail />} />
+          <Route path="/employee/formation" element={<EmployeeFormationPage />} />
+          <Route path="/habilitations" element={<HabilitationsPage />} />
+          <Route path="/objectives" element={<ObjectivesPage />} />
+          <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
           <Route path="/absences" element={<EmployeeAbsencesPage />} />
+          {/* TODO: vérifier garde d’auth / permissions module planning côté API si besoin */}
+          <Route path="/employee/planning" element={<EmployeePlanning />} />
           <Route path="/calendar" element={<EmployeeCalendarPage />} />
           <Route path="/expenses" element={<ExpensesPage />} />
           <Route path="/salary-advances" element={<SalaryAdvancesPage />} />
-          <Route path="/documents" element={<DocumentsPage />} />
+          <Route path="/employee/documents" element={<EmployeeCollaboratorDocumentsPage />} />
+          <Route path="/documents" element={<Navigate to="/employee/documents" replace />} />
           <Route path="/medical-follow-up" element={<EmployeeMedicalFollowUp />} />
           <Route path="/cse" element={<EmployeeCSE />} />
           <Route path="/support" element={<SuspenseSupportPage />} />
@@ -275,14 +314,22 @@ function ProtectedRoutes() {
                   <Route path="/" element={<EmployeeDashboard />} />
                   <Route path="/profile" element={<ProfilePage />} />
                   <Route path="/payslips" element={<PayslipsPage />} />
+                  <Route path="/employee/payslips/:payslipId" element={<EmployeePayslipDetail />} />
                   <Route path="/badgeuse" element={<EmployeeBadgeusePage />} />
                   <Route path="/annual-reviews" element={<EmployeeAnnualReviews />} />
                   <Route path="/annual-reviews/:reviewId" element={<EmployeeAnnualReviewDetail />} />
+                  <Route path="/employee/formation" element={<EmployeeFormationPage />} />
+                  <Route path="/habilitations" element={<HabilitationsPage />} />
+                  <Route path="/objectives" element={<ObjectivesPage />} />
+                  <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
                   <Route path="/absences" element={<EmployeeAbsencesPage />} />
+                  {/* TODO: vérifier garde d’auth / permissions module planning côté API si besoin */}
+                  <Route path="/employee/planning" element={<EmployeePlanning />} />
                   <Route path="/calendar" element={<EmployeeCalendarPage />} />
                   <Route path="/expenses" element={<ExpensesPage />} />
                   <Route path="/salary-advances" element={<SalaryAdvancesPage />} />
-                  <Route path="/documents" element={<DocumentsPage />} />
+                  <Route path="/employee/documents" element={<EmployeeCollaboratorDocumentsPage />} />
+                  <Route path="/documents" element={<Navigate to="/employee/documents" replace />} />
                   <Route path="/medical-follow-up" element={<EmployeeMedicalFollowUp />} />
                   <Route path="/cse" element={<EmployeeCSE />} />
                   <Route path="/support" element={<SuspenseSupportPage />} />
@@ -304,6 +351,8 @@ function ProtectedRoutes() {
                   <Route path="/payroll/:employeeId" element={<PayrollDetail />} />
                   <Route path="/payslips/:payslipId/edit" element={<PayslipEdit />} />
                   <Route path="/leaves" element={<RhAbsencesPage />} />
+                  {/* TODO: vérifier garde d’auth / permissions module planning (route /planning) côté API si besoin */}
+                  <Route path="/planning" element={<Planning />} />
                   <Route path="/expenses" element={<RhExpensesPage />} />
                   <Route path="/schedules" element={<RhSchedulesPage />} />
                   <Route path="/employee-exits" element={<EmployeeExits />} />
@@ -312,6 +361,11 @@ function ProtectedRoutes() {
                   <Route path="/medical-follow-up" element={<ErrorBoundaryClass><MedicalFollowUp /></ErrorBoundaryClass>} />
                   <Route path="/annual-reviews" element={<AnnualReviews />} />
                   <Route path="/annual-reviews/:reviewId" element={<AnnualReviewDetail />} />
+                  <Route path="/formation" element={<SuspenseFormationPage />} />
+                  <Route path="/documents" element={<SuspenseRhDocumentsPage />} />
+                  <Route path="/habilitations" element={<HabilitationsPage />} />
+                  <Route path="/objectives" element={<ObjectivesPage />} />
+                  <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
                   <Route path="/promotions" element={<Promotions />} />
                   <Route path="/promotions/:promotionId" element={<PromotionDetail />} />
                   <Route path="/cse" element={<CSE />} />

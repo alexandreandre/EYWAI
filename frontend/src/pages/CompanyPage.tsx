@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import apiClient from "@/api/apiClient";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -22,6 +23,7 @@ import { ChevronsUpDown, Check } from "lucide-react";
 import CollectiveAgreementCard from "@/components/CollectiveAgreementCard";
 import { mutuelleTypesApi, MutuelleType, MutuelleTypeCreate, MutuelleTypeUpdate } from "@/api/mutuelleTypes";
 import MaintenanceSettingsCard from "@/pages/company/components/MaintenanceSettingsCard";
+import DocumentLibraryTab from "@/pages/company/components/DocumentLibraryTab";
 
 
 
@@ -132,11 +134,19 @@ const formatPercentage = (value: number | null | undefined) => {
 export default function CompanyPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const location = useLocation();
   const [data, setData] = useState<CompanyData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("informations");
   const scrollPositionRef = useRef<number>(0);
+
+  useEffect(() => {
+    const h = (location.hash || "").replace(/^#/, "");
+    if (h === "bibliotheque") {
+      setActiveTab("bibliotheque");
+    }
+  }, [location.hash]);
 
   useEffect(() => {
     const fetchCompanyData = async () => {
@@ -449,11 +459,12 @@ export default function CompanyPage() {
         scrollPositionRef.current = window.scrollY;
         setActiveTab(value);
       }}>
-        <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+        <TabsList className="grid w-full grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-5 max-w-4xl">
           <TabsTrigger value="informations">Informations Légales</TabsTrigger>
           <TabsTrigger value="coordonnees">Coordonnées</TabsTrigger>
           <TabsTrigger value="parametres">Paramètres Paie</TabsTrigger>
           <TabsTrigger value="mutuelle">Mutuelle</TabsTrigger>
+          <TabsTrigger value="bibliotheque">Bibliothèque</TabsTrigger>
         </TabsList>
         
         <TabsContent value="informations" className="mt-4">
@@ -581,6 +592,10 @@ export default function CompanyPage() {
 
         <TabsContent value="mutuelle" className="mt-4">
           <MutuelleManagementTab />
+        </TabsContent>
+
+        <TabsContent value="bibliotheque" className="mt-4">
+          <DocumentLibraryTab />
         </TabsContent>
 
       </Tabs>

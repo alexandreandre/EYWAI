@@ -1,6 +1,6 @@
 // src/pages/EmployeeDetail.tsx 
 
-import React, { useCallback, useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect, useRef, useMemo } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import apiClient from "@/api/apiClient";
 
@@ -25,7 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox"; // ✅ On importe Checkbox 
 import { isForfaitJour } from '@/utils/employeeUtils';
 import { toast } from "@/components/ui/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -39,6 +39,16 @@ import { EmployeeCSEBlock } from "@/components/EmployeeCSEBlock";
 import { getEmployeePromotions } from "@/api/promotions";
 import type { PromotionListItem } from "@/api/promotions";
 import { getMedicalSettings, getObligationsForEmployee, type ObligationListItem } from "@/api/medicalFollowUp";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { generateDocument } from "@/api/documents";
+import { DOCUMENT_TYPE_LABELS, getTemplates, type DocumentTemplate } from "@/api/documentLibrary";
+import { EmployeeDetailDocumentsRhSection } from "@/components/employee-detail/EmployeeDetailDocumentsRhSection";
+import {
+  diffWatchedSnapshots,
+  extractWatchedSnapshot,
+  resolveAvenantTypeFromDiffs,
+  type ContractualFieldDiff,
+} from "@/utils/employeeContractualWatch";
 
 
 // --- Imports FullCalendar ---
@@ -70,6 +80,12 @@ interface Employee {
   annual_review_current_planned_date?: string | null;
   annual_review_current_completed_date?: string | null;
   collective_agreement_id?: string | null;
+  salaire_de_base?: unknown;
+  duree_hebdomadaire?: unknown;
+  lieu_travail?: unknown;
+  workplace?: unknown;
+  poste?: string | null;
+  weekly_hours?: unknown;
 }
 interface Payslip { id: string; name: string; url: string; month: number; year: number; }
 
@@ -660,6 +676,88 @@ export default function EmployeeDetail() {
   const [collectiveAgreementId, setCollectiveAgreementId] = useState<string | null>(null);
   const [isSavingCC, setIsSavingCC] = useState(false);
 
+  const queryClient = useQueryClient();
+  const contractualBaselineSeededRef = useRef(false);
+  const contractualInitialWatchRef = useRef<ReturnType<typeof extractWatchedSnapshot> | null>(null);
+  const [contractualOpen, setContractualOpen] = useState(false);
+  const [contractualDiffs, setContractualDiffs] = useState<ContractualFieldDiff[]>([]);
+  const [contractualAvenantType, setContractualAvenantType] = useState("avenant_general");
+  const [contractualTemplate, setContractualTemplate] = useState("__eywai__");
+  const [contractualDateEffet, setContractualDateEffet] = useState("");
+  const [contractualMotifExtra, setContractualMotifExtra] = useState("");
+
+  useEffect(() => {
+    contractualBaselineSeededRef.current = false;
+    contractualInitialWatchRef.current = null;
+  }, [employeeId]);
+
+  useEffect(() => {
+    if (!employee || contractualBaselineSeededRef.current) return;
+    contractualInitialWatchRef.current = extractWatchedSnapshot(employee as Record<string, unknown>);
+    contractualBaselineSeededRef.current = true;
+  }, [employee, employeeId]);
+
+  const resetContractualBaselineFromEmployee = useCallback((emp: Employee) => {
+    contractualInitialWatchRef.current = extractWatchedSnapshot(emp as Record<string, unknown>);
+  }, []);
+
+  const evaluateContractualAfterPersist = useCallback((nextEmployee: Employee) => {
+    if (!contractualInitialWatchRef.current) return;
+    const cur = extractWatchedSnapshot(nextEmployee as Record<string, unknown>);
+    const diffs = diffWatchedSnapshots(contractualInitialWatchRef.current, cur);
+    if (diffs.length === 0) return;
+    setContractualDiffs(diffs);
+    setContractualAvenantType(resolveAvenantTypeFromDiffs(diffs));
+    setContractualTemplate("__eywai__");
+    setContractualDateEffet("");
+    setContractualMotifExtra("");
+    setContractualOpen(true);
+  }, []);
+
+  const contractualGenMut = useMutation({
+    mutationFn: generateDocument,
+    onSuccess: async () => {
+      queryClient.invalidateQueries({ queryKey: ["employee-generated-documents", employeeId] });
+      setContractualOpen(false);
+      setContractualDiffs([]);
+      if (employeeId) {
+        try {
+          const r = await apiClient.get<Employee>(`/api/employees/${employeeId}`);
+          setEmployee(r.data);
+          resetContractualBaselineFromEmployee(r.data);
+        } catch {
+          if (employee) resetContractualBaselineFromEmployee(employee);
+        }
+      }
+      toast({ title: "Avenant généré", description: "Le document a été ajouté à la liste." });
+    },
+    onError: (e: unknown) => {
+      const msg =
+        e && typeof e === "object" && "response" in e
+          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast({
+        title: "Échec",
+        description: typeof msg === "string" ? msg : "Génération impossible.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const { data: contractualLibTemplates = [] } = useQuery({
+    queryKey: ["document-library", "templates", "active", contractualAvenantType, contractualOpen],
+    queryFn: () => getTemplates("active"),
+    enabled: contractualOpen && !!contractualAvenantType,
+  });
+
+  const contractualTemplatesForType = useMemo(
+    () =>
+      contractualLibTemplates.filter(
+        (t: DocumentTemplate) => t.document_type === contractualAvenantType && t.status === "active"
+      ),
+    [contractualLibTemplates, contractualAvenantType]
+  );
+
   // Promotions
   const [promotions, setPromotions] = useState<PromotionListItem[]>([]);
   const [promotionModalOpen, setPromotionModalOpen] = useState(false);
@@ -724,8 +822,9 @@ export default function EmployeeDetail() {
     try {
       await apiClient.put(`/api/employees/${employeeId}`, { collective_agreement_id: collectiveAgreementId });
       toast({ title: "Enregistré", description: "Convention collective mise à jour." });
-      const employeeRes = await apiClient.get(`/api/employees/${employeeId}`);
+      const employeeRes = await apiClient.get<Employee>(`/api/employees/${employeeId}`);
       setEmployee(employeeRes.data);
+      evaluateContractualAfterPersist(employeeRes.data);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Erreur";
       toast({ title: "Erreur", description: msg, variant: "destructive" });
@@ -752,8 +851,9 @@ export default function EmployeeDetail() {
       setPlanningDate("");
       fetchAnnualReviews();
       // Rafraîchir l'employé pour mettre à jour le badge
-      const employeeRes = await apiClient.get(`/api/employees/${employeeId}`);
+      const employeeRes = await apiClient.get<Employee>(`/api/employees/${employeeId}`);
       setEmployee(employeeRes.data);
+      evaluateContractualAfterPersist(employeeRes.data);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Erreur";
       toast({ title: "Erreur", description: msg, variant: "destructive" });
@@ -783,8 +883,9 @@ export default function EmployeeDetail() {
       fetchAnnualReviews();
       // Rafraîchir l'employé pour mettre à jour le badge
       if (employeeId) {
-        const employeeRes = await apiClient.get(`/api/employees/${employeeId}`);
+        const employeeRes = await apiClient.get<Employee>(`/api/employees/${employeeId}`);
         setEmployee(employeeRes.data);
+        evaluateContractualAfterPersist(employeeRes.data);
       }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Erreur";
@@ -1089,6 +1190,9 @@ export default function EmployeeDetail() {
 
         {/* --- Onglet Documents : Contrat, Pièce d'Identité et Bulletins de Paie --- */}
         <TabsContent value="documents" className="mt-4 space-y-4">
+          {employeeId && (
+            <EmployeeDetailDocumentsRhSection employeeId={employeeId} employee={employee} />
+          )}
           {/* Section Contrat de Travail */}
           <Card>
             <CardHeader>
@@ -1742,6 +1846,120 @@ export default function EmployeeDetail() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingReview(null)}>Annuler</Button>
             <Button onClick={handleUpdateReview}>Enregistrer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={contractualOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setContractualOpen(false);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Modification contractuelle détectée</DialogTitle>
+            <DialogDescription>
+              Des champs pouvant nécessiter un avenant ont changé depuis le chargement de la fiche.
+              La fiche est déjà enregistrée : vous pouvez générer un avenant ou ignorer cette proposition.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[40vh] space-y-2 overflow-y-auto rounded-md border bg-muted/40 p-3 text-sm">
+            {contractualDiffs.map((d) => (
+              <p key={d.key}>
+                <span className="font-medium">{d.label}</span> : {d.before} → {d.after}
+              </p>
+            ))}
+          </div>
+          <div className="grid gap-3 py-2">
+            <div className="grid gap-2">
+              <Label>Type d&apos;avenant</Label>
+              <Select value={contractualAvenantType} onValueChange={setContractualAvenantType}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(
+                    [
+                      "avenant_salaire",
+                      "avenant_poste",
+                      "avenant_temps",
+                      "avenant_lieu",
+                      "avenant_general",
+                    ] as const
+                  ).map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {DOCUMENT_TYPE_LABELS[t] ?? t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Modèle</Label>
+              <Select value={contractualTemplate} onValueChange={setContractualTemplate}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__eywai__">Standard EYWAI</SelectItem>
+                  {contractualTemplatesForType.map((tpl: DocumentTemplate) => (
+                    <SelectItem key={tpl.id} value={tpl.id}>
+                      {tpl.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Date d&apos;effet</Label>
+              <Input
+                type="date"
+                value={contractualDateEffet}
+                onChange={(e) => setContractualDateEffet(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Motif (optionnel)</Label>
+              <Input
+                value={contractualMotifExtra}
+                onChange={(e) => setContractualMotifExtra(e.target.value)}
+                placeholder="Précisions pour l'avenant"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setContractualOpen(false);
+                if (employee) resetContractualBaselineFromEmployee(employee);
+              }}
+            >
+              Ignorer
+            </Button>
+            <Button
+              disabled={!contractualDateEffet || contractualGenMut.isPending}
+              onClick={() => {
+                if (!employeeId) return;
+                const lines = contractualDiffs.map((d) => `${d.label} : ${d.before} → ${d.after}`);
+                const auto = `Modification détectée sur la fiche :\n${lines.join("\n")}`;
+                const motif = [auto, contractualMotifExtra.trim()].filter(Boolean).join("\n\n");
+                contractualGenMut.mutate({
+                  employee_id: employeeId,
+                  document_type: contractualAvenantType,
+                  category: "avenant",
+                  date_effet: contractualDateEffet,
+                  motif,
+                  template_id: contractualTemplate === "__eywai__" ? null : contractualTemplate,
+                });
+              }}
+            >
+              {contractualGenMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Générer l&apos;avenant
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -218,12 +218,16 @@ class TestBuildRhUpdateData:
                 "completed_date": None,
                 "status": "accepte",
                 "rh_preparation_template": "Template RH",
+                "interview_type": "mid_year",
+                "template_id": "tpl-1",
             },
         )
         assert data["planned_date"] == "2024-06-15"
         assert data.get("completed_date") is None
         assert data["status"] == "accepte"
         assert data["rh_preparation_template"] == "Template RH"
+        assert data["interview_type"] == "mid_year"
+        assert data["template_id"] == "tpl-1"
 
     def test_rh_can_set_meeting_report_only_when_realise_or_cloture(self):
         """RH peut mettre meeting_report, rh_notes, etc. uniquement si réalise ou clôture."""

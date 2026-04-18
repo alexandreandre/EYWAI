@@ -47,7 +47,7 @@ class DebugStorageInfoProvider:
             .single()
             .execute()
         )
-        if not emp.data:
+        if not emp or not emp.data:
             raise ValueError("Employé non trouvé.")
         company_id = emp.data["company_id"]
         folder_name = emp.data["employee_folder_name"]

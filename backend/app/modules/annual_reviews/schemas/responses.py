@@ -41,6 +41,11 @@ class AnnualReviewRead(BaseModel):
     salary_review: Optional[str] = None
     overall_rating: Optional[str] = None
     next_review_date: Optional[date] = None
+    interview_type: str = "annual_performance"
+    template_id: Optional[str] = None
+    signature_status: Optional[str] = None
+    signed_pdf_url: Optional[str] = None
+    yousign_procedure_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

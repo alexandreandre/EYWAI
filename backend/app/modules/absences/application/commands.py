@@ -12,10 +12,13 @@ import traceback
 from datetime import date
 from typing import Any
 
+from app.core.database import supabase
+from app.modules.absences.domain.enums import IJSS_ELIGIBLE_TYPES
 from app.modules.absences.domain.rules import (
     calculate_acquired_cp,
     requires_salary_certificate,
 )
+from app.services.document_service import document_service
 from app.modules.absences.infrastructure.providers import (
     calendar_update_provider,
     evenement_familial_provider,
@@ -27,6 +30,54 @@ from app.modules.absences.infrastructure.queries import (
     list_absence_requests_validated_for_cp,
 )
 from app.modules.absences.infrastructure.repository import absence_repository
+
+
+def _trace_attestation_salaire_ijss_after_generation(
+    absence_id: str,
+    certificate_id: str | None,
+    absence_type: str,
+    employee_id: str,
+    company_id: str,
+    generated_by: str | None,
+) -> None:
+    """Trace l'attestation dans generated_documents (ne lève pas)."""
+    if not certificate_id or not company_id or not employee_id:
+        return
+    try:
+        cert_r = (
+            supabase.table("salary_certificates")
+            .select("storage_path, filename")
+            .eq("id", certificate_id)
+            .maybe_single()
+            .execute()
+        )
+        row = cert_r.data if cert_r and cert_r.data else None
+        if not row:
+            print(
+                f"⚠️ trace IJSS: certificat {certificate_id} introuvable après génération",
+                file=sys.stderr,
+            )
+            return
+        storage_path = row.get("storage_path") or ""
+        document_service.trace_existing_document(
+            company_id=company_id,
+            employee_id=employee_id,
+            document_type="attestation_salaire_ijss",
+            category="attestation_situation",
+            file_url=storage_path,
+            file_name="attestation_salaire_ijss.pdf",
+            is_eywai_template=True,
+            generation_context={
+                "absence_id": str(absence_id),
+                "absence_type": absence_type,
+                "certificate_id": str(certificate_id),
+                "source": "absence_ijss_auto",
+            },
+            generated_by=generated_by,
+        )
+    except Exception as e:
+        print(f"⚠️ trace generated_documents attestation IJSS: {e}", file=sys.stderr)
+        traceback.print_exc()
 
 
 def create_absence_request(request_data: Any) -> dict:
@@ -144,12 +195,22 @@ def update_absence_request_status(
             data["employee_id"], days_to_update, data["type"]
         )
         absence_type = data.get("type", "")
-        if requires_salary_certificate(absence_type):
+        # Types IJSS / attestation : alignés sur IJSS_ELIGIBLE_TYPES (= arrêts avec attestation).
+        if requires_salary_certificate(absence_type) and absence_type in IJSS_ELIGIBLE_TYPES:
             try:
                 generated_by = str(current_user_id) if current_user_id else None
-                salary_certificate_provider.generate_for_absence(
+                certificate_id = salary_certificate_provider.generate_for_absence(
                     request_id, generated_by=generated_by
                 )
+                if certificate_id:
+                    _trace_attestation_salaire_ijss_after_generation(
+                        absence_id=request_id,
+                        certificate_id=certificate_id,
+                        absence_type=absence_type,
+                        employee_id=str(data.get("employee_id") or ""),
+                        company_id=str(data.get("company_id") or ""),
+                        generated_by=generated_by,
+                    )
             except Exception as cert_error:
                 print(
                     f"⚠️ Erreur lors de la génération automatique de l'attestation: {cert_error}",
@@ -179,4 +240,16 @@ def generate_salary_certificate(
     )
     if not cert_id:
         raise RuntimeError("Erreur lors de la génération de l'attestation")
+    try:
+        _trace_attestation_salaire_ijss_after_generation(
+            absence_id=absence_id,
+            certificate_id=cert_id,
+            absence_type=absence.get("type", ""),
+            employee_id=str(absence.get("employee_id") or ""),
+            company_id=str(absence.get("company_id") or ""),
+            generated_by=generated_by,
+        )
+    except Exception as e:
+        print(f"⚠️ trace attestation IJSS (manuelle): {e}", file=sys.stderr)
+        traceback.print_exc()
     return cert_id
