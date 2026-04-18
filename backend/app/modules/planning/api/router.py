@@ -7,10 +7,8 @@ import traceback
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
-from app.core.database import supabase
 from app.core.security import get_current_user
 from app.modules.planning.application import commands, queries as app_queries
-from app.modules.planning.infrastructure.repository import planning_repository
 from app.modules.planning.schemas.requests import (
     CompanyPlanningSettingsUpdate,
     DayLockRequest,
@@ -300,24 +298,9 @@ async def get_my_planning_week(
 ):
     company_id = _require_active_company(current_user)
     try:
-        r = (
-            supabase.table("employees")
-            .select("id")
-            .eq("user_id", str(current_user.id))
-            .eq("company_id", company_id)
-            .maybe_single()
-            .execute()
+        return app_queries.get_my_planning_week(
+            str(current_user.id), company_id, week_start
         )
-        employee = r.data if r else None
-        if not employee or not employee.get("id"):
-            raise HTTPException(
-                status_code=404, detail="Profil salarié introuvable pour cette entreprise."
-            )
-        employee_id = str(employee["id"])
-        ws = week_start[:10]
-        wstatus = planning_repository.get_week_status(company_id, ws)
-        team_view = bool(wstatus.get("team_view_enabled")) if wstatus else False
-        return app_queries.get_employee_planning(employee_id, ws, team_view)
     except HTTPException:
         raise
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:

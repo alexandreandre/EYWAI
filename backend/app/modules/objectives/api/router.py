@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.core.security import get_current_user
 from app.modules.objectives.application import commands, queries
-from app.modules.objectives.infrastructure.repository import objectives_repository
 from app.modules.objectives.schemas.requests import (
     CheckinCreate,
     CompanyServiceCreate,
@@ -65,7 +64,7 @@ def _is_rh(user: User) -> bool:
 
 
 def _employee_scope_id(user: User, company_id: str) -> Optional[str]:
-    return objectives_repository.get_employee_id_for_user(str(user.id), company_id)
+    return queries.get_employee_id_for_user_scope(str(user.id), company_id)
 
 
 @router.get("/achievement-rate", response_model=AchievementRateResponse)

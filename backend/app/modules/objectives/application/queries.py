@@ -169,3 +169,8 @@ def objective_milestone_from_row(row: Dict[str, Any]) -> ObjectiveMilestone:
 
 def objective_checkin_from_row(row: Dict[str, Any]) -> ObjectiveCheckin:
     return _checkin_from_row(row)
+
+
+def get_employee_id_for_user_scope(user_id: str, company_id: str) -> Optional[str]:
+    """Résout l'employé courant (user + entreprise) pour le périmètre salarié."""
+    return objectives_repository.get_employee_id_for_user(user_id, company_id)

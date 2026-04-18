@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
+from app.modules.certifications.infrastructure.repository import certification_repository
 from app.modules.documents.infrastructure.repository import documents_repository
 
 
@@ -27,6 +28,11 @@ def get_documents(
 
 def get_document(document_id: str, company_id: str) -> Optional[dict]:
     return documents_repository.get_by_id(document_id, company_id)
+
+
+def get_employee_id_for_user_scope(user_id: str, company_id: str) -> Optional[str]:
+    """Même résolution employé que le module certifications (table employees)."""
+    return certification_repository.get_employee_id_for_user(user_id, company_id)
 
 
 def get_download_url(document_id: str, company_id: str) -> str:

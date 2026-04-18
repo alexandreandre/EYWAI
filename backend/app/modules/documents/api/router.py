@@ -8,7 +8,6 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.security import get_current_user
-from app.modules.certifications.infrastructure.repository import certification_repository
 from app.modules.documents.application import commands, queries
 from app.modules.documents.schemas.requests import (
     GenerateDocumentRequest,
@@ -58,7 +57,7 @@ def _require_company_access(user: User, company_id: str) -> None:
 
 
 def _employee_scope_id(user: User, company_id: str) -> Optional[str]:
-    return certification_repository.get_employee_id_for_user(str(user.id), company_id)
+    return queries.get_employee_id_for_user_scope(str(user.id), company_id)
 
 
 def _row_to_generated(row: dict) -> GeneratedDocument:

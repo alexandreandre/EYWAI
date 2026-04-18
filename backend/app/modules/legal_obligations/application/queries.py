@@ -49,3 +49,7 @@ def get_employee_status(company_id: str, employee_id: str) -> LegalObligationSta
 def get_overdue_count(company_id: str) -> OverdueCountResponse:
     n = legal_obligations_repository.get_overdue_count(company_id)
     return OverdueCountResponse(count=n)
+
+
+def get_employee_id_for_user_scope(user_id: str, company_id: str) -> Optional[str]:
+    return legal_obligations_repository.get_employee_id_for_user(user_id, company_id)

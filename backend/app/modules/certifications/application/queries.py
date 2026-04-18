@@ -119,3 +119,7 @@ def get_dashboard_counts(company_id: str) -> DashboardCounts:
     expiring = certification_repository.get_expiring_count(company_id)
     expired = certification_repository.get_expired_count(company_id)
     return DashboardCounts(expiring=expiring, expired=expired)
+
+
+def get_employee_id_for_user_scope(user_id: str, company_id: str) -> Optional[str]:
+    return certification_repository.get_employee_id_for_user(user_id, company_id)

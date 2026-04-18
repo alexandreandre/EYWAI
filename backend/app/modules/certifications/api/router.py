@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 
 from app.core.security import get_current_user
 from app.modules.certifications.application import commands, queries
-from app.modules.certifications.infrastructure.repository import certification_repository
 from app.modules.certifications.schemas.requests import (
     CertificationRefCreate,
     CertificationRefUpdate,
@@ -64,7 +63,7 @@ def _is_rh(user: User) -> bool:
 
 
 def _employee_scope_id(user: User, company_id: str) -> Optional[str]:
-    return certification_repository.get_employee_id_for_user(str(user.id), company_id)
+    return queries.get_employee_id_for_user_scope(str(user.id), company_id)
 
 
 # --- Ordre : routes statiques avant /{id} ---

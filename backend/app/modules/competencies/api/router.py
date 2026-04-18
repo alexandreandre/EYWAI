@@ -9,7 +9,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from app.core.security import get_current_user
 from app.modules.competencies.application import commands, queries
-from app.modules.competencies.infrastructure.repository import competencies_repository
 from app.modules.competencies.schemas.requests import (
     CompetencyRefCreate,
     CompetencyRefUpdate,
@@ -60,7 +59,7 @@ def _is_rh(user: User) -> bool:
 
 
 def _employee_scope_id(user: User, company_id: str) -> Optional[str]:
-    return competencies_repository.get_employee_id_for_user(str(user.id), company_id)
+    return queries.get_employee_id_for_user_scope(str(user.id), company_id)
 
 
 # --- Référentiel ---

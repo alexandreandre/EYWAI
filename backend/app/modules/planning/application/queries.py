@@ -273,3 +273,23 @@ def get_employee_planning(
         "shifts": shifts,
         "employee_hours": emp_hours,
     }
+
+
+def get_my_planning_week(user_id: str, company_id: str, week_start: str) -> dict:
+    """Vue salarié : résout l'employé depuis le compte utilisateur puis charge la semaine."""
+    r = (
+        supabase.table("employees")
+        .select("id")
+        .eq("user_id", user_id)
+        .eq("company_id", company_id)
+        .maybe_single()
+        .execute()
+    )
+    employee = r.data if r else None
+    if not employee or not employee.get("id"):
+        raise LookupError("Profil salarié introuvable pour cette entreprise.")
+    employee_id = str(employee["id"])
+    ws = week_start[:10]
+    wstatus = planning_repository.get_week_status(company_id, ws)
+    team_view = bool(wstatus.get("team_view_enabled")) if wstatus else False
+    return get_employee_planning(employee_id, ws, team_view)

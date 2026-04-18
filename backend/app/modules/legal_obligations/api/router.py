@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.security import get_current_user
 from app.modules.legal_obligations.application import commands, queries
-from app.modules.legal_obligations.infrastructure.repository import legal_obligations_repository
 from app.modules.legal_obligations.schemas.requests import LegalObligationOverrideWrite
 from app.modules.legal_obligations.schemas.responses import (
     LegalObligationOverride,
@@ -54,7 +53,7 @@ def _is_rh(user: User) -> bool:
 
 
 def _employee_scope_id(user: User, company_id: str) -> Optional[str]:
-    return legal_obligations_repository.get_employee_id_for_user(str(user.id), company_id)
+    return queries.get_employee_id_for_user_scope(str(user.id), company_id)
 
 
 @router.get("", response_model=List[LegalObligationStatus])

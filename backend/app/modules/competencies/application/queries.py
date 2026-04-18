@@ -128,3 +128,7 @@ def get_matrix(
         gaps=gaps,
         gap_trainings=gap_trainings,
     )
+
+
+def get_employee_id_for_user_scope(user_id: str, company_id: str) -> Optional[str]:
+    return competencies_repository.get_employee_id_for_user(user_id, company_id)

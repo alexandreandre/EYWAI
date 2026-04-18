@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.core.security import get_current_user
 from app.modules.training.application import commands, queries
-from app.modules.training.infrastructure.repository import training_repository
 from app.modules.training.schemas.requests import (
     TrainingCatalogCreate,
     TrainingCatalogUpdate,
@@ -59,7 +58,7 @@ def _is_rh(user: User) -> bool:
 
 
 def _employee_scope_id(user: User, company_id: str) -> Optional[str]:
-    return training_repository.get_employee_id_for_user(str(user.id), company_id)
+    return queries.get_employee_id_for_user_scope(str(user.id), company_id)
 
 
 @router.get("/consumed/{year}", response_model=TotalConsumedResponse)

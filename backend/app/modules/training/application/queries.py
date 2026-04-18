@@ -126,3 +126,7 @@ def get_enrollment(enrollment_id: str, company_id: str) -> Optional[TrainingEnro
 
 def get_total_consumed(company_id: str, year: int) -> float:
     return training_repository.get_total_consumed(company_id, year)
+
+
+def get_employee_id_for_user_scope(user_id: str, company_id: str) -> Optional[str]:
+    return training_repository.get_employee_id_for_user(user_id, company_id)
