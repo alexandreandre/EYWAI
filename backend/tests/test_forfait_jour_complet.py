@@ -210,8 +210,8 @@ def calculer_periode_paie(annee: int, mois: int) -> tuple[date, date]:
     return date_debut_periode, date_fin_periode
 
 
-def test_analyseur_avec_periode_paie():
-    """Test 1: Vérifie que l'analyseur filtre correctement selon la période de paie."""
+def _scenario_analyseur_avec_periode_paie() -> None:
+    """Scénario 1: Vérifie que l'analyseur filtre correctement selon la période de paie."""
     print("\n" + "=" * 80)
     print("TEST 1: Analyseur avec filtrage par période de paie")
     print("=" * 80)
@@ -328,11 +328,17 @@ def test_analyseur_avec_periode_paie():
             "\n⚠️  ATTENTION : Le filtrage par période ne semble pas fonctionner correctement."
         )
 
-    return evenements_avec_periode, date_debut, date_fin
+    assert len(absences_avec_periode) > len(absences_sans_periode), (
+        "Le filtrage par période de paie doit compter plus d'absences que le filtrage mois seul."
+    )
 
 
-def test_calcul_brut_avec_absences():
-    """Test 2: Vérifie le calcul du brut avec absences injustifiées."""
+def test_analyseur_avec_periode_paie() -> None:
+    _scenario_analyseur_avec_periode_paie()
+
+
+def _scenario_calcul_brut_avec_absences() -> bool:
+    """Scénario 2: Vérifie le calcul du brut avec absences injustifiées."""
     print("\n" + "=" * 80)
     print("TEST 2: Calcul du brut avec absences injustifiées")
     print("=" * 80)
@@ -387,8 +393,7 @@ def test_calcul_brut_avec_absences():
     if brut_total < 0:
         print(f"\n❌ ERREUR : Le brut total est négatif ({brut_total:.2f} €)")
         return False
-    else:
-        print(f"\n✅ SUCCÈS : Le brut total est valide ({brut_total:.2f} €)")
+    print(f"\n✅ SUCCÈS : Le brut total est valide ({brut_total:.2f} €)")
 
     # Vérifier les lignes de déduction
     lignes_composants = resultat_brut.get("lignes_composants_brut", [])
@@ -404,8 +409,12 @@ def test_calcul_brut_avec_absences():
     return True
 
 
-def test_normalisation_donnees():
-    """Test 3: Vérifie la normalisation des données (0/1 pour forfait jour)."""
+def test_calcul_brut_avec_absences() -> None:
+    assert _scenario_calcul_brut_avec_absences()
+
+
+def _scenario_normalisation_donnees() -> bool:
+    """Scénario 3: Vérifie la normalisation des données (0/1 pour forfait jour)."""
     print("\n" + "=" * 80)
     print("TEST 3: Normalisation des données (0/1 pour forfait jour)")
     print("=" * 80)
@@ -451,8 +460,12 @@ def test_normalisation_donnees():
     return toutes_normalisees
 
 
-def test_scenario_complet():
-    """Test 4: Scénario complet d'un employé absent injustifié sur toute la période."""
+def test_normalisation_donnees() -> None:
+    assert _scenario_normalisation_donnees()
+
+
+def _scenario_complet_forfait_jour() -> bool:
+    """Scénario 4: employé absent injustifié sur toute la période."""
     print("\n" + "=" * 80)
     print("TEST 4: Scénario complet - Absence injustifiée totale")
     print("=" * 80)
@@ -590,6 +603,10 @@ def test_scenario_complet():
     return succes
 
 
+def test_scenario_complet() -> None:
+    assert _scenario_complet_forfait_jour()
+
+
 def main():
     """Fonction principale qui exécute tous les tests."""
     print("\n" + "=" * 80)
@@ -600,7 +617,7 @@ def main():
 
     try:
         # Test 1: Analyseur avec période de paie
-        evenements, date_debut, date_fin = test_analyseur_avec_periode_paie()
+        _scenario_analyseur_avec_periode_paie()
         resultats["test_1"] = True
     except Exception as e:
         print(f"\n❌ ERREUR dans Test 1 : {e}")
@@ -611,7 +628,7 @@ def main():
 
     try:
         # Test 2: Calcul du brut avec absences
-        resultats["test_2"] = test_calcul_brut_avec_absences()
+        resultats["test_2"] = _scenario_calcul_brut_avec_absences()
     except Exception as e:
         print(f"\n❌ ERREUR dans Test 2 : {e}")
         import traceback
@@ -621,7 +638,7 @@ def main():
 
     try:
         # Test 3: Normalisation des données
-        resultats["test_3"] = test_normalisation_donnees()
+        resultats["test_3"] = _scenario_normalisation_donnees()
     except Exception as e:
         print(f"\n❌ ERREUR dans Test 3 : {e}")
         import traceback
@@ -631,7 +648,7 @@ def main():
 
     try:
         # Test 4: Scénario complet
-        resultats["test_4"] = test_scenario_complet()
+        resultats["test_4"] = _scenario_complet_forfait_jour()
     except Exception as e:
         print(f"\n❌ ERREUR dans Test 4 : {e}")
         import traceback
