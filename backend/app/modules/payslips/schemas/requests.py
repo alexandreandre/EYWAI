@@ -46,3 +46,9 @@ class InternalNoteCreate(BaseModel):
     """Création d'une note interne sur un bulletin."""
 
     content: str
+
+
+class AcquitAlertRequest(BaseModel):
+    """Acquittement ou commentaire sur une alerte."""
+
+    comment: str | None = None

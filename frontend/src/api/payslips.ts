@@ -98,6 +98,58 @@ export interface PayslipInfo {
   edited_by?: string;
 }
 
+export type AlertLevel = 'CRITIQUE' | 'AVERTISSEMENT' | 'INFO';
+
+export interface PayslipAlert {
+  rule_id: string;
+  level: AlertLevel;
+  message: string;
+  field: string;
+  value_n: number;
+  value_n1: number;
+  delta_pct: number;
+  status: 'active' | 'acquittee' | 'ignoree';
+  acquitted_by?: string;
+  acquitted_at?: string;
+  comment?: string;
+}
+
+export interface ComparisonLine {
+  libelle: string;
+  value_n?: number;
+  value_n1?: number;
+  delta_abs?: number;
+  delta_pct?: number;
+  alert_level?: AlertLevel;
+}
+
+export interface ComparisonResult {
+  bulletin_n_id: string;
+  bulletin_n1_id?: string;
+  month_n: number;
+  year_n: number;
+  month_n1?: number;
+  year_n1?: number;
+  lines: ComparisonLine[];
+  alerts: PayslipAlert[];
+  has_critical: boolean;
+}
+
+export interface TrendMonth {
+  month: number;
+  year: number;
+  payslip_id: string;
+  salaire_brut: number;
+  net_a_payer: number;
+  total_cotisations: number;
+  alerts: PayslipAlert[];
+}
+
+export interface TrendResult {
+  employee_id: string;
+  months: TrendMonth[];
+}
+
 export interface PayslipDetail {
   id: string;
   employee_id: string;
@@ -116,6 +168,9 @@ export interface PayslipDetail {
   pdf_notes?: string;
   edit_history: HistoryEntry[];
   cumuls?: any;
+  status?: 'brouillon' | 'valide';
+  validated_at?: string;
+  validated_by?: string;
 }
 
 export interface PayslipEditRequest {
@@ -223,5 +278,40 @@ export const generatePayslip = async (data: {
   month: number;
 }): Promise<{ status: string; message: string; download_url: string }> => {
   const response = await apiClient.post('/api/actions/generate-payslip', data);
+  return response.data;
+};
+
+/** Comparaison N vs dernier bulletin N-1 validé */
+export const getComparison = async (payslipId: string): Promise<ComparisonResult> => {
+  const response = await apiClient.get<ComparisonResult>(`/api/payslips/${payslipId}/comparison`);
+  return response.data;
+};
+
+/** Tendance sur les bulletins validés précédant la période du bulletin */
+export const getTrend = async (payslipId: string): Promise<TrendResult> => {
+  const response = await apiClient.get<TrendResult>(`/api/payslips/${payslipId}/trend`);
+  return response.data;
+};
+
+export const acquitAlert = async (
+  payslipId: string,
+  ruleId: string,
+  comment?: string
+): Promise<void> => {
+  await apiClient.post(`/api/payslips/${payslipId}/alerts/${encodeURIComponent(ruleId)}/acquit`, {
+    comment: comment ?? null,
+  });
+};
+
+export const ignoreAlert = async (payslipId: string, ruleId: string): Promise<void> => {
+  await apiClient.post(
+    `/api/payslips/${payslipId}/alerts/${encodeURIComponent(ruleId)}/ignore`,
+    {}
+  );
+};
+
+/** Valide le bulletin (RH). Échoue en 400 si alertes critiques actives. */
+export const validatePayslip = async (payslipId: string): Promise<PayslipDetail> => {
+  const response = await apiClient.post<PayslipDetail>(`/api/payslips/${payslipId}/validate`);
   return response.data;
 };

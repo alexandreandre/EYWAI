@@ -1,9 +1,10 @@
 // frontend/src/pages/PayslipEdit.tsx
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { ArrowLeft, Save, Eye, History, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -11,12 +12,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   getPayslipDetails,
   editPayslip,
+  validatePayslip,
   PayslipDetail,
   PayslipEditRequest,
   isPayslipBlocMaintienPresent,
   type PayslipBulletinData,
 } from '@/api/payslips';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth, hasRhAccess } from '@/contexts/AuthContext';
 
 // Import des composants d'édition (à créer)
 import PayslipHeaderSection from '@/components/payslip-edit/PayslipHeaderSection';
@@ -30,6 +32,22 @@ import NotesSection from '@/components/payslip-edit/NotesSection';
 import HistoryPanel from '@/components/payslip-edit/HistoryPanel';
 import PreviewPanel from '@/components/payslip-edit/PreviewPanel';
 import { MaintenanceDetailModal } from '@/components/payslip/MaintenanceDetailModal';
+import { PayslipComparisonTab } from '@/components/payslip/PayslipComparisonTab';
+import { PayslipTrendTab } from '@/components/payslip/PayslipTrendTab';
+import { PayslipValidateBlockedModal } from '@/components/payslip/PayslipValidateBlockedModal';
+import { cn } from '@/lib/utils';
+
+function isCriticalValidationBlock(err: unknown): boolean {
+  const ax = err as { response?: { status?: number; data?: { detail?: unknown } } };
+  if (ax.response?.status !== 400) return false;
+  const detail = ax.response.data?.detail;
+  return (
+    typeof detail === 'object' &&
+    detail !== null &&
+    'critical_alerts' in detail &&
+    Array.isArray((detail as { critical_alerts: unknown }).critical_alerts)
+  );
+}
 
 export default function PayslipEdit() {
   const { payslipId } = useParams<{ payslipId: string }>();
@@ -48,6 +66,23 @@ export default function PayslipEdit() {
   const [internalNote, setInternalNote] = useState('');
   const [activeTab, setActiveTab] = useState('edit');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [validateModalOpen, setValidateModalOpen] = useState(false);
+  const [validateBusy, setValidateBusy] = useState(false);
+
+  const isRH = payslip ? hasRhAccess(user, payslip.company_id) : false;
+  const payslipStatus = payslip?.status ?? 'brouillon';
+
+  const refreshPayslipFromServer = useCallback(async () => {
+    if (!payslipId) return;
+    const data = await getPayslipDetails(payslipId);
+    setPayslip(data);
+    setEditedData(JSON.parse(JSON.stringify(data.payslip_data)) as PayslipBulletinData);
+    setPdfNotes(data.pdf_notes || '');
+    setCumuls(data.cumuls || null);
+    setHasUnsavedChanges(false);
+    setChangesSummary('');
+    setInternalNote('');
+  }, [payslipId]);
 
   // Charger les détails du bulletin
   useEffect(() => {
@@ -80,6 +115,34 @@ export default function PayslipEdit() {
 
     fetchPayslip();
   }, [payslipId, navigate, toast]);
+
+  const handleValidatePayslip = async () => {
+    if (!payslipId) return;
+    setValidateBusy(true);
+    try {
+      const updated = await validatePayslip(payslipId);
+      setPayslip(updated);
+      setEditedData(JSON.parse(JSON.stringify(updated.payslip_data)) as PayslipBulletinData);
+      setHasUnsavedChanges(false);
+      toast({ title: 'Bulletin validé', description: 'Le statut du bulletin a été mis à jour.' });
+    } catch (error: unknown) {
+      if (isCriticalValidationBlock(error)) {
+        setValidateModalOpen(true);
+      } else {
+        const ax = error as { response?: { data?: { detail?: string } } };
+        toast({
+          title: 'Erreur',
+          description:
+            typeof ax.response?.data?.detail === 'string'
+              ? ax.response.data.detail
+              : 'Impossible de valider le bulletin',
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setValidateBusy(false);
+    }
+  };
 
   // Fonction pour mettre à jour les données éditées
   const updateEditedData = (path: string[], value: any) => {
@@ -188,7 +251,27 @@ export default function PayslipEdit() {
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {payslipStatus === 'valide' ? (
+            <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">
+              Bulletin validé
+              {payslip.validated_at
+                ? ` · ${new Date(payslip.validated_at).toLocaleString('fr-FR')}`
+                : ''}
+            </Badge>
+          ) : isRH ? (
+            <Button
+              type="button"
+              className="bg-sky-600 text-white hover:bg-sky-700"
+              onClick={handleValidatePayslip}
+              disabled={validateBusy}
+            >
+              {validateBusy ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : null}
+              Valider le bulletin
+            </Button>
+          ) : null}
           <Button variant="outline" onClick={() => setActiveTab('preview')}>
             <Eye className="h-4 w-4 mr-2" />
             Aperçu
@@ -224,10 +307,17 @@ export default function PayslipEdit() {
 
       {/* Onglets */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList
+          className={cn(
+            'grid h-auto w-full gap-1 p-1',
+            'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
+          )}
+        >
           <TabsTrigger value="edit">Édition</TabsTrigger>
           <TabsTrigger value="preview">Aperçu</TabsTrigger>
           <TabsTrigger value="history">Historique</TabsTrigger>
+          <TabsTrigger value="comparison">Comparaison N-1</TabsTrigger>
+          <TabsTrigger value="trend">Tendance</TabsTrigger>
         </TabsList>
 
         {/* Onglet Édition */}
@@ -322,7 +412,32 @@ export default function PayslipEdit() {
             }}
           />
         </TabsContent>
+
+        <TabsContent value="comparison" className="mt-0">
+          <PayslipComparisonTab
+            payslipId={payslipId!}
+            isRH={isRH}
+            onShowTrend={() => setActiveTab('trend')}
+            onPayslipRefresh={refreshPayslipFromServer}
+          />
+        </TabsContent>
+
+        <TabsContent value="trend" className="mt-0">
+          <PayslipTrendTab
+            payslipId={payslipId!}
+            referenceYear={payslip.year}
+            referenceMonth={payslip.month}
+          />
+        </TabsContent>
       </Tabs>
+
+      <PayslipValidateBlockedModal
+        open={validateModalOpen}
+        onOpenChange={setValidateModalOpen}
+        payslipId={payslipId!}
+        isRH={isRH}
+        onValidated={refreshPayslipFromServer}
+      />
 
       {editedData && isPayslipBlocMaintienPresent(editedData.bloc_maintien) ? (
         <MaintenanceDetailModal

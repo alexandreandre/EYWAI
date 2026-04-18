@@ -6,24 +6,31 @@ ContractResponse (URL signée) reste dans app.shared.schemas (utilisé par emplo
 """
 
 from app.modules.payslips.schemas.requests import (
+    AcquitAlertRequest,
     InternalNoteCreate,
     PayslipEditRequest,
     PayslipRequest,
     PayslipRestoreRequest,
 )
 from app.modules.payslips.schemas.responses import (
+    ComparisonLineResponse,
+    ComparisonResultResponse,
     HistoryEntry,
     InternalNote,
+    PayslipAlertResponse,
     PayslipDetail,
     PayslipEditResponse,
     PayslipInfo,
     PayslipRestoreResponse,
+    TrendMonthResponse,
+    TrendResponse,
 )
 
 __all__ = [
     "PayslipRequest",
     "PayslipEditRequest",
     "PayslipRestoreRequest",
+    "AcquitAlertRequest",
     "InternalNoteCreate",
     "PayslipInfo",
     "PayslipDetail",
@@ -31,4 +38,9 @@ __all__ = [
     "PayslipRestoreResponse",
     "HistoryEntry",
     "InternalNote",
+    "PayslipAlertResponse",
+    "ComparisonLineResponse",
+    "ComparisonResultResponse",
+    "TrendMonthResponse",
+    "TrendResponse",
 ]

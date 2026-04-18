@@ -29,6 +29,14 @@ class PayslipBadRequestError(Exception):
     pass
 
 
+class PayslipCriticalActiveError(Exception):
+    """Validation impossible : alertes critiques encore actives."""
+
+    def __init__(self, critical_alerts: list[dict[str, Any]]):
+        self.critical_alerts = critical_alerts
+        super().__init__("Alertes critiques actives")
+
+
 @dataclass
 class UserContext:
     """

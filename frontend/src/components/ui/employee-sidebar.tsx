@@ -34,6 +34,7 @@ const baseNavItems = [
   { to: "/employee/documents", label: "Mes documents", icon: FileText },
   { to: "/calendar", label: "Calendrier", icon: Calendar },
   { to: "/absences", label: "Congés & Absences", icon: Plane },
+  { to: "/employee/planning", label: "Mon planning", icon: Calendar },
   { to: "/expenses", label: "Notes de Frais", icon: Notebook },
   { to: "/salary-advances", label: "Avances sur salaire", icon: Wallet },
   { to: "/badgeuse", label: "Ma badgeuse", icon: Calendar },
@@ -85,6 +86,9 @@ export function EmployeeSidebar() {
     }
     if (path === "/employee/documents") {
       return currentPath.startsWith("/employee/documents");
+    }
+    if (path === "/employee/planning") {
+      return currentPath.startsWith("/employee/planning");
     }
     return currentPath.startsWith(path);
   };

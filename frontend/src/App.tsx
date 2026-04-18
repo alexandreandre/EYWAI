@@ -31,6 +31,7 @@ import Saisies from './pages/Saisies';
 import SalarySeizures from './pages/SalarySeizures';
 import SalaryAdvances from './pages/SalaryAdvances';
 import RhAbsencesPage from './pages/Absences'; // À CRÉER (pour les RH)
+import Planning from '@/pages/Planning';
 import RhExpensesPage from './pages/Expenses';
 import RhSchedulesPage from './pages/Schedules'; // NOUVEAU - Gestion des calendriers
 import CompanyPage from './pages/CompanyPage';
@@ -55,7 +56,9 @@ import { EmployeeSidebar } from '@/components/ui/employee-sidebar'; // NOUVEAU
 import EmployeeDashboard from './pages/employee/Dashboard';
 import ProfilePage from './pages/employee/Profile';
 import PayslipsPage from './pages/employee/Payslips';
+import EmployeePayslipDetail from './pages/employee/PayslipDetail';
 import EmployeeAbsencesPage from './pages/employee/Absences'; // Renommé pour plus de clarté
+import EmployeePlanning from '@/pages/EmployeePlanning';
 import EmployeeCalendarPage from './pages/employee/Calendar';
 import EmployeeBadgeusePage from './pages/employee/Badgeuse';
 import ExpensesPage from './pages/employee/Expenses';
@@ -234,6 +237,7 @@ function ProtectedRoutes() {
           <Route path="/" element={<EmployeeDashboard />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/payslips" element={<PayslipsPage />} />
+          <Route path="/employee/payslips/:payslipId" element={<EmployeePayslipDetail />} />
           <Route path="/badgeuse" element={<EmployeeBadgeusePage />} />
           <Route path="/annual-reviews" element={<EmployeeAnnualReviews />} />
           <Route path="/annual-reviews/:reviewId" element={<EmployeeAnnualReviewDetail />} />
@@ -242,6 +246,8 @@ function ProtectedRoutes() {
           <Route path="/objectives" element={<ObjectivesPage />} />
           <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
           <Route path="/absences" element={<EmployeeAbsencesPage />} />
+          {/* TODO: vérifier garde d’auth / permissions module planning côté API si besoin */}
+          <Route path="/employee/planning" element={<EmployeePlanning />} />
           <Route path="/calendar" element={<EmployeeCalendarPage />} />
           <Route path="/expenses" element={<ExpensesPage />} />
           <Route path="/salary-advances" element={<SalaryAdvancesPage />} />
@@ -308,6 +314,7 @@ function ProtectedRoutes() {
                   <Route path="/" element={<EmployeeDashboard />} />
                   <Route path="/profile" element={<ProfilePage />} />
                   <Route path="/payslips" element={<PayslipsPage />} />
+                  <Route path="/employee/payslips/:payslipId" element={<EmployeePayslipDetail />} />
                   <Route path="/badgeuse" element={<EmployeeBadgeusePage />} />
                   <Route path="/annual-reviews" element={<EmployeeAnnualReviews />} />
                   <Route path="/annual-reviews/:reviewId" element={<EmployeeAnnualReviewDetail />} />
@@ -316,6 +323,8 @@ function ProtectedRoutes() {
                   <Route path="/objectives" element={<ObjectivesPage />} />
                   <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
                   <Route path="/absences" element={<EmployeeAbsencesPage />} />
+                  {/* TODO: vérifier garde d’auth / permissions module planning côté API si besoin */}
+                  <Route path="/employee/planning" element={<EmployeePlanning />} />
                   <Route path="/calendar" element={<EmployeeCalendarPage />} />
                   <Route path="/expenses" element={<ExpensesPage />} />
                   <Route path="/salary-advances" element={<SalaryAdvancesPage />} />
@@ -342,6 +351,8 @@ function ProtectedRoutes() {
                   <Route path="/payroll/:employeeId" element={<PayrollDetail />} />
                   <Route path="/payslips/:payslipId/edit" element={<PayslipEdit />} />
                   <Route path="/leaves" element={<RhAbsencesPage />} />
+                  {/* TODO: vérifier garde d’auth / permissions module planning (route /planning) côté API si besoin */}
+                  <Route path="/planning" element={<Planning />} />
                   <Route path="/expenses" element={<RhExpensesPage />} />
                   <Route path="/schedules" element={<RhSchedulesPage />} />
                   <Route path="/employee-exits" element={<EmployeeExits />} />

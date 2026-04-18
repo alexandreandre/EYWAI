@@ -25,7 +25,7 @@ class PayslipRepository:
             .single()
             .execute()
         )
-        return r.data if r.data else None
+        return r.data if r else None
 
     def list_by_employee(self, employee_id: str) -> list[dict[str, Any]]:
         r = (
@@ -36,18 +36,18 @@ class PayslipRepository:
             .order("month", desc=True)
             .execute()
         )
-        return r.data or []
+        return (r.data or []) if r else []
 
     def delete(self, payslip_id: str) -> None:
         """Supprime le bulletin (BDD + storage) et déclenche recalc COR."""
-        row = (
+        r = (
             supabase.table("payslips")
             .select("pdf_storage_path, employee_id, company_id, year, month")
             .eq("id", payslip_id)
             .single()
             .execute()
-            .data
         )
+        row = r.data if r else None
 
         supabase.table("payslips").delete().eq("id", payslip_id).execute()
 

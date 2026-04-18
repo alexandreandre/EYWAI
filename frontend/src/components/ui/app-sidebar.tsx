@@ -111,6 +111,7 @@ const RH_TEAM_BASE: SidebarLinkItem[] = [
 
 const RH_PAIE_ITEMS: SidebarLinkItem[] = [
   { title: "Congés & Absences", url: "/leaves", icon: Plane },
+  { title: "Planning", url: "/planning", icon: Calendar },
   { title: "Notes de frais", url: "/expenses", icon: Notebook },
   { title: "Primes", url: "/saisies", icon: ClipboardEdit },
   { title: "Saisies sur salaire", url: "/salary-seizures", icon: Scale },
@@ -152,6 +153,7 @@ const menuItems = {
     { title: "Formations", url: "/catalogue-formations", icon: BookOpen },
     { title: "Calendrier", url: "/calendar", icon: Calendar },
     { title: "Congés & Absences", url: "/absences", icon: Plane },
+    { title: "Mon planning", url: "/employee/planning", icon: Calendar },
     { title: "Notes de Frais", url: "/expenses", icon: Notebook },
     { title: "Avances sur salaire", url: "/salary-advances", icon: Wallet },
     { title: "Mes Documents", url: "/documents", icon: FolderKanban },

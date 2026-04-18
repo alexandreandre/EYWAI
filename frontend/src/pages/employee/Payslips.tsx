@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Download, BarChart2, Loader2, Euro, CalendarDays, TrendingUp } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Download, BarChart2, Loader2, Euro, CalendarDays, TrendingUp, LineChart } from 'lucide-react';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip } from 'recharts';
 import { useAuth } from '@/contexts/AuthContext';
 import apiClient from '@/api/apiClient';
@@ -296,7 +297,8 @@ export default function PayslipsPage() {
                   <TableHead>Période</TableHead>
                   {/* Optionnel: Ajouter colonne Net si besoin */}
                   {/* <TableHead className="text-right">Net à Payer</TableHead> */}
-                  <TableHead className="text-right">Action</TableHead>
+                  <TableHead className="text-right">Analyse</TableHead>
+                  <TableHead className="text-right">Télécharger</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -308,10 +310,17 @@ export default function PayslipsPage() {
                     {/* Optionnel: Afficher Net */}
                     {/* <TableCell className="text-right">{formatCurrency(p.net_a_payer)}</TableCell> */}
                     <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" asChild title="Comparaison et tendance">
+                        <Link to={`/employee/payslips/${p.id}`}>
+                          <LineChart className="mr-1.5 h-4 w-4" />
+                          Comparer
+                        </Link>
+                      </Button>
+                    </TableCell>
+                    <TableCell className="text-right">
                       <Button variant="ghost" size="icon" asChild>
-                        {/* Utilise le nom de fichier retourné par l'API */}
                         <a href={p.url} download={p.name} title={`Télécharger ${p.name}`}>
-                            <Download className="h-4 w-4" />
+                          <Download className="h-4 w-4" />
                         </a>
                       </Button>
                     </TableCell>

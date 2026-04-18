@@ -23,7 +23,7 @@ def get_employee_statut(employee_id: str) -> str | None:
         .single()
         .execute()
     )
-    return (r.data or {}).get("statut") if r.data else None
+    return (r.data or {}).get("statut") if r else None
 
 
 def get_payslip_meta(payslip_id: str) -> dict[str, Any] | None:
@@ -35,20 +35,20 @@ def get_payslip_meta(payslip_id: str) -> dict[str, Any] | None:
         .single()
         .execute()
     )
-    return r.data if r.data else None
+    return r.data if r else None
 
 
 def get_my_payslips(employee_id: str) -> list[dict[str, Any]]:
     """Liste des bulletins de l'employé avec net_a_payer et URLs signées."""
-    payslips_db = (
+    r = (
         supabase.table("payslips")
         .select("id, month, year, pdf_storage_path, payslip_data")
         .eq("employee_id", employee_id)
         .order("year", desc=True)
         .order("month", desc=True)
         .execute()
-        .data
     )
+    payslips_db = (r.data or []) if r else []
     if not payslips_db:
         return []
 
@@ -95,13 +95,13 @@ def get_my_payslips(employee_id: str) -> list[dict[str, Any]]:
 
 def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
     """Liste des bulletins d'un employé (sans net_a_payer)."""
-    payslips_db = (
+    r = (
         supabase.table("payslips")
         .select("id, month, year, pdf_storage_path")
         .eq("employee_id", employee_id)
         .execute()
-        .data
     )
+    payslips_db = (r.data or []) if r else []
     if not payslips_db:
         return []
 
@@ -136,14 +136,14 @@ def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
 
 def get_payslip_details(payslip_id: str) -> dict[str, Any] | None:
     """Détail complet d'un bulletin (dont cumuls, url signée). Utilise le mapper pour la structure."""
-    row = (
+    r = (
         supabase.table("payslips")
         .select("*")
         .eq("id", payslip_id)
         .single()
         .execute()
-        .data
     )
+    row = r.data if r else None
     if not row:
         return None
 
@@ -167,21 +167,25 @@ def get_payslip_details(payslip_id: str) -> dict[str, Any] | None:
             .maybe_single()
             .execute()
         )
-        cumuls = (cumuls_res.data or {}).get("cumuls") if cumuls_res.data else None
+        cumuls = (
+            (cumuls_res.data or {}).get("cumuls")
+            if cumuls_res and cumuls_res.data
+            else None
+        )
 
     return build_payslip_detail(row, signed_url, cumuls)
 
 
 def get_payslip_history(payslip_id: str) -> list[dict[str, Any]]:
     """Historique d'édition d'un bulletin."""
-    payslip = (
+    r = (
         supabase.table("payslips")
         .select("edit_history")
         .eq("id", payslip_id)
         .single()
         .execute()
-        .data
     )
+    payslip = r.data if r else None
     if not payslip:
         return []
     history = payslip.get("edit_history")

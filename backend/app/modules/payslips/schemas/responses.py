@@ -6,7 +6,7 @@ par ces schémas puis retirer l'ancien fichier.
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -68,6 +68,72 @@ class PayslipDetail(BaseModel):
     pdf_notes: str | None = None
     edit_history: list[HistoryEntry] = []
     cumuls: dict[str, Any] | None = None
+    status: str = "brouillon"
+    validated_at: datetime | None = None
+    validated_by: str | None = None
+
+
+AlertLevelResponse = Literal["CRITIQUE", "AVERTISSEMENT", "INFO"]
+
+
+class PayslipAlertResponse(BaseModel):
+    """Alerte de comparaison ou de tendance."""
+
+    rule_id: str
+    level: AlertLevelResponse
+    message: str
+    field: str
+    value_n: float
+    value_n1: float
+    delta_pct: float
+    status: str = "active"
+    acquitted_by: str | None = None
+    acquitted_at: str | None = None
+    comment: str | None = None
+
+
+class ComparisonLineResponse(BaseModel):
+    """Ligne de comparaison d'agrégats."""
+
+    libelle: str
+    value_n: float | None = None
+    value_n1: float | None = None
+    delta_abs: float | None = None
+    delta_pct: float | None = None
+    alert_level: AlertLevelResponse | None = None
+
+
+class ComparisonResultResponse(BaseModel):
+    """Résultat complet comparaison N vs N-1."""
+
+    bulletin_n_id: str
+    bulletin_n1_id: str | None = None
+    month_n: int
+    year_n: int
+    month_n1: int | None = None
+    year_n1: int | None = None
+    lines: list[ComparisonLineResponse]
+    alerts: list[PayslipAlertResponse]
+    has_critical: bool
+
+
+class TrendMonthResponse(BaseModel):
+    """Point mensuel pour la tendance."""
+
+    month: int
+    year: int
+    payslip_id: str
+    salaire_brut: float
+    net_a_payer: float
+    total_cotisations: float
+    alerts: list[PayslipAlertResponse]
+
+
+class TrendResponse(BaseModel):
+    """Tendance sur les bulletins validés précédents."""
+
+    employee_id: str
+    months: list[TrendMonthResponse]
 
 
 class PayslipEditResponse(BaseModel):

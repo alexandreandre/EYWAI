@@ -5,9 +5,17 @@ from app.modules.payslips.application.commands import (
     generate_payslip,
     restore_payslip_version,
 )
+from app.modules.payslips.application.comparison_service import (
+    acquit_payslip_alert_for_user,
+    get_payslip_comparison_for_user,
+    get_payslip_trend_for_user,
+    ignore_payslip_alert_for_user,
+    validate_payslip_for_user,
+)
 from app.modules.payslips.application.dto import (
     GeneratePayslipInput,
     PayslipBadRequestError,
+    PayslipCriticalActiveError,
     PayslipForbiddenError,
     PayslipNotFoundError,
     UserContext,
@@ -48,9 +56,15 @@ __all__ = [
     "edit_payslip_for_user",
     "restore_payslip_for_user",
     "get_debug_storage_info",
+    "get_payslip_comparison_for_user",
+    "get_payslip_trend_for_user",
+    "acquit_payslip_alert_for_user",
+    "ignore_payslip_alert_for_user",
+    "validate_payslip_for_user",
     "GeneratePayslipInput",
     "UserContext",
     "PayslipNotFoundError",
     "PayslipForbiddenError",
     "PayslipBadRequestError",
+    "PayslipCriticalActiveError",
 ]
