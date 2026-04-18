@@ -302,6 +302,8 @@ $RECYCLE.BIN/
 
 # MySQL
 *.sql
+# Migrations Supabase versionnées (CI / tests : test_planning.py)
+!supabase/migrations/*.sql
 
 # ===================================
 # Logs and temporary files
