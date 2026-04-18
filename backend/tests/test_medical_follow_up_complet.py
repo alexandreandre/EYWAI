@@ -42,7 +42,7 @@ from app.modules.medical_follow_up.application.service import (
 )
 
 
-class TestResult:
+class ScenarioCheckResult:
     def __init__(self, name: str, success: bool, message: str, data: Any = None):
         self.name = name
         self.success = success
@@ -156,7 +156,7 @@ class MedicalFollowUpTester:
     def __init__(self):
         self.company_id: Optional[str] = None
         self.employee_id: Optional[str] = None
-        self.results: List[TestResult] = []
+        self.results: List[ScenarioCheckResult] = []
         self.created_obligation_ids: List[str] = []
         self._obligation_id_planified: Optional[str] = None
         self._obligation_id_completed: Optional[str] = None
@@ -175,7 +175,7 @@ class MedicalFollowUpTester:
 
     def add(self, name: str, success: bool, message: str, data: Any = None):
         self.results.append(
-            TestResult(name=name, success=success, message=message, data=data)
+            ScenarioCheckResult(name=name, success=success, message=message, data=data)
         )
         self.log(f"{name}: {message}", "SUCCESS" if success else "ERROR")
 

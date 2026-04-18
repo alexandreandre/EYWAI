@@ -92,7 +92,7 @@ def add_timeline_event(
 # ═══════════════════════════════════════════════════════════════════════
 
 
-class TestResult:
+class ScenarioCheckResult:
     def __init__(self, name: str, success: bool, message: str, data: Any = None):
         self.name = name
         self.success = success
@@ -216,7 +216,7 @@ class RecruitmentTester:
     def __init__(self):
         self.company_id: Optional[str] = None
         self.actor_id: Optional[str] = None
-        self.results: List[TestResult] = []
+        self.results: List[ScenarioCheckResult] = []
 
         # IDs créés (pour cleanup)
         self._created_job_ids: List[str] = []
@@ -250,7 +250,7 @@ class RecruitmentTester:
 
     def add(self, name: str, success: bool, message: str, data: Any = None):
         self.results.append(
-            TestResult(name=name, success=success, message=message, data=data)
+            ScenarioCheckResult(name=name, success=success, message=message, data=data)
         )
         self.log(f"{name}: {message}", "SUCCESS" if success else "ERROR")
 
