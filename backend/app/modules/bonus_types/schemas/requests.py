@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, model_validator
 
 from app.modules.bonus_types.domain.enums import BonusTypeKind
 
@@ -24,18 +24,17 @@ class BonusTypeCreate(BaseModel):
     soumise_a_impot: bool = True
     prompt_ia: Optional[str] = None
 
-    @field_validator("seuil_heures")
-    @classmethod
-    def validate_seuil_heures(cls, v, info):
-        """Valide que seuil_heures est présent si type = selon_heures"""
-        if info.data.get("type") == BonusTypeKind.SELON_HEURES:
-            if v is None:
+    @model_validator(mode="after")
+    def validate_seuil_heures_vs_type(self) -> "BonusTypeCreate":
+        """seuil_heures obligatoire si type = selon_heures ; interdit sinon."""
+        if self.type == BonusTypeKind.SELON_HEURES:
+            if self.seuil_heures is None:
                 raise ValueError("seuil_heures est requis pour le type 'selon_heures'")
-        elif v is not None:
+        elif self.seuil_heures is not None:
             raise ValueError(
                 "seuil_heures ne doit être renseigné que pour le type 'selon_heures'"
             )
-        return v
+        return self
 
 
 class BonusTypeUpdate(BaseModel):
