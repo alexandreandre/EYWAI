@@ -47,7 +47,7 @@ from app.modules.promotions.schemas import (
 
 
 @dataclass
-class TestResult:
+class ScenarioCheckResult:
     name: str
     success: bool
     message: str
@@ -60,7 +60,7 @@ class PromotionTester:
         self.employee_id: Optional[str] = None
         self.profile_id: Optional[str] = None  # pour requested_by / approved_by
         self.created_promotion_ids: List[str] = []
-        self.results: List[TestResult] = []
+        self.results: List[ScenarioCheckResult] = []
 
     def log(self, message: str, level: str = "INFO"):
         prefix = {
@@ -74,7 +74,7 @@ class PromotionTester:
 
     def add(self, name: str, success: bool, message: str, data: Any = None):
         self.results.append(
-            TestResult(name=name, success=success, message=message, data=data)
+            ScenarioCheckResult(name=name, success=success, message=message, data=data)
         )
         self.log(f"{name}: {message}", "SUCCESS" if success else "ERROR")
 

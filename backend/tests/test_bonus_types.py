@@ -21,8 +21,8 @@ def print_test(name, passed=True):
     print(f"{status} {name}")
 
 
-def test_table_exists():
-    """Test 1: Vérifier que la table company_bonus_types existe"""
+def _scenario_table_exists() -> bool:
+    """Scénario 1: Vérifier que la table company_bonus_types existe."""
     print_header("TEST 1: Vérification de la table company_bonus_types")
     try:
         supabase.table("company_bonus_types").select("id").limit(1).execute()
@@ -33,8 +33,12 @@ def test_table_exists():
         return False
 
 
-def test_table_structure():
-    """Test 2: Vérifier la structure de la table"""
+def test_table_exists() -> None:
+    assert _scenario_table_exists()
+
+
+def _scenario_table_structure() -> bool:
+    """Scénario 2: Vérifier la structure de la table."""
     print_header("TEST 2: Structure de la table")
 
     try:
@@ -70,8 +74,12 @@ def test_table_structure():
         return False
 
 
-def test_monthly_inputs_integration():
-    """Test 3: Vérifier que monthly_inputs peut recevoir des primes"""
+def test_table_structure() -> None:
+    assert _scenario_table_structure()
+
+
+def _scenario_monthly_inputs_integration() -> bool:
+    """Scénario 3: Vérifier que monthly_inputs peut recevoir des primes."""
     print_header("TEST 3: Intégration avec monthly_inputs")
     try:
         # Vérifier qu'on peut lire depuis monthly_inputs
@@ -92,8 +100,12 @@ def test_monthly_inputs_integration():
         return False
 
 
-def test_payslip_generator_integration():
-    """Test 4: Vérifier que le générateur de bulletin peut lire les monthly_inputs"""
+def test_monthly_inputs_integration() -> None:
+    assert _scenario_monthly_inputs_integration()
+
+
+def _scenario_payslip_generator_integration() -> bool:
+    """Scénario 4: le générateur de bulletin peut lire les monthly_inputs."""
     print_header("TEST 4: Intégration avec le générateur de bulletin")
     try:
         # Vérifier qu'on peut lire les monthly_inputs comme le fait payslip_generator.py
@@ -123,8 +135,12 @@ def test_payslip_generator_integration():
         return False
 
 
-def test_schema_validation():
-    """Test 5: Vérifier que les schémas Pydantic sont corrects"""
+def test_payslip_generator_integration() -> None:
+    assert _scenario_payslip_generator_integration()
+
+
+def _scenario_schema_validation() -> bool:
+    """Scénario 5: schémas Pydantic corrects."""
     print_header("TEST 5: Validation des schémas Pydantic")
     try:
         from app.modules.bonus_types.schemas import BonusTypeCreate, BonusTypeEnum
@@ -174,8 +190,12 @@ def test_schema_validation():
         return False
 
 
-def test_routes_registered():
-    """Test 6: Vérifier que les routes sont bien enregistrées"""
+def test_schema_validation() -> None:
+    assert _scenario_schema_validation()
+
+
+def _scenario_routes_registered() -> bool:
+    """Scénario 6: routes bien enregistrées."""
     print_header("TEST 6: Vérification des routes API")
     try:
         from app.main import app
@@ -205,6 +225,10 @@ def test_routes_registered():
         return False
 
 
+def test_routes_registered() -> None:
+    assert _scenario_routes_registered()
+
+
 def main():
     """Exécute tous les tests"""
     print("\n" + "=" * 80)
@@ -212,12 +236,12 @@ def main():
     print("=" * 80)
 
     tests = [
-        ("Table existe", test_table_exists),
-        ("Structure table", test_table_structure),
-        ("Intégration monthly_inputs", test_monthly_inputs_integration),
-        ("Intégration générateur bulletin", test_payslip_generator_integration),
-        ("Validation schémas", test_schema_validation),
-        ("Routes API", test_routes_registered),
+        ("Table existe", _scenario_table_exists),
+        ("Structure table", _scenario_table_structure),
+        ("Intégration monthly_inputs", _scenario_monthly_inputs_integration),
+        ("Intégration générateur bulletin", _scenario_payslip_generator_integration),
+        ("Validation schémas", _scenario_schema_validation),
+        ("Routes API", _scenario_routes_registered),
     ]
 
     results = []

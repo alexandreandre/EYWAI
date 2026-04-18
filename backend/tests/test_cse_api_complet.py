@@ -68,7 +68,7 @@ from app.modules.cse.schemas import (
 
 
 @dataclass
-class TestResult:
+class ScenarioCheckResult:
     name: str
     success: bool
     message: str
@@ -93,7 +93,7 @@ class CSETester:
         self.created_meeting_ids: List[str] = []
         self.created_cycle_ids: List[str] = []
         self.created_hour_ids: List[str] = []
-        self.results: List[TestResult] = []
+        self.results: List[ScenarioCheckResult] = []
 
     def log(self, message: str, level: str = "INFO"):
         prefix = {
@@ -107,7 +107,7 @@ class CSETester:
 
     def add(self, name: str, success: bool, message: str, data: Any = None):
         self.results.append(
-            TestResult(name=name, success=success, message=message, data=data)
+            ScenarioCheckResult(name=name, success=success, message=message, data=data)
         )
         self.log(f"{name}: {message}", "SUCCESS" if success else "ERROR")
 
