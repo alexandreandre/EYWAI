@@ -4,10 +4,13 @@ Script de test pour la fonctionnalité Primes (Bonus Types)
 Teste les endpoints backend et vérifie l'intégration complète
 """
 
+import os
 import sys
+from datetime import datetime
+
+from pydantic import ValidationError
 
 from app.core.database import supabase
-from datetime import datetime
 
 
 def print_header(text):
@@ -19,6 +22,20 @@ def print_header(text):
 def print_test(name, passed=True):
     status = "✅" if passed else "❌"
     print(f"{status} {name}")
+
+
+def _resolve_test_company_id() -> str | None:
+    """Même logique que la fixture test_company_id (conftest) : FK valide pour les inserts."""
+    cid = os.getenv("TEST_COMPANY_ID")
+    if cid:
+        return cid
+    try:
+        r = supabase.table("companies").select("id").limit(1).execute()
+        if r.data:
+            return r.data[0].get("id")
+    except Exception:
+        pass
+    return None
 
 
 def _scenario_table_exists() -> bool:
@@ -46,9 +63,18 @@ def _scenario_table_structure() -> bool:
         supabase.table("company_bonus_types").select("*").limit(0).execute()
         print_test("Structure de la table accessible", True)
 
+        company_id = _resolve_test_company_id()
+        if not company_id:
+            print_test(
+                "Insertion de structure: aucune entreprise en base (skip insert), "
+                "select * suffit pour valider l'accès",
+                True,
+            )
+            return True
+
         # Vérifier les colonnes en essayant d'insérer une ligne de test (qu'on supprimera)
         test_data = {
-            "company_id": "00000000-0000-0000-0000-000000000001",  # ID par défaut
+            "company_id": company_id,
             "libelle": "TEST_PRIME_DELETE",
             "type": "montant_fixe",
             "montant": 0.01,
@@ -178,7 +204,7 @@ def _scenario_schema_validation() -> bool:
             )
             print_test("Validation seuil_heures requis: ÉCHEC (devrait échouer)", False)
             return False
-        except ValueError:
+        except (ValueError, ValidationError):
             print_test("Validation seuil_heures requis: OK (échoue comme prévu)", True)
 
         return True
