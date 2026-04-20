@@ -40,6 +40,7 @@ import { getEmployeePromotions } from "@/api/promotions";
 import type { PromotionListItem } from "@/api/promotions";
 import { getMedicalSettings, getObligationsForEmployee, type ObligationListItem } from "@/api/medicalFollowUp";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { assignEmployeeTeam, getTeams } from "@/api/teams";
 import { generateDocument } from "@/api/documents";
 import { DOCUMENT_TYPE_LABELS, getTemplates, type DocumentTemplate } from "@/api/documentLibrary";
 import { EmployeeDetailDocumentsRhSection } from "@/components/employee-detail/EmployeeDetailDocumentsRhSection";
@@ -86,6 +87,7 @@ interface Employee {
   workplace?: unknown;
   poste?: string | null;
   weekly_hours?: unknown;
+  team_id?: string | null;
 }
 interface Payslip { id: string; name: string; url: string; month: number; year: number; }
 
@@ -676,6 +678,29 @@ export default function EmployeeDetail() {
   const [collectiveAgreementId, setCollectiveAgreementId] = useState<string | null>(null);
   const [isSavingCC, setIsSavingCC] = useState(false);
 
+  const [teamEditorOpen, setTeamEditorOpen] = useState(false);
+  const [draftTeamId, setDraftTeamId] = useState<string>("__none__");
+  const [savingTeam, setSavingTeam] = useState(false);
+
+  const teamsActiveQuery = useQuery({
+    queryKey: ["teams-active"],
+    queryFn: () => getTeams(false),
+    enabled: Boolean(employeeId),
+  });
+  const activeTeamsSorted = useMemo(
+    () =>
+      [...(teamsActiveQuery.data?.teams ?? [])].sort((a, b) =>
+        a.name.localeCompare(b.name, "fr", { sensitivity: "base" }),
+      ),
+    [teamsActiveQuery.data?.teams],
+  );
+  const resolvedTeam = useMemo(() => {
+    if (!employee?.team_id || !teamsActiveQuery.data?.teams) return null;
+    return (
+      teamsActiveQuery.data.teams.find((t) => t.id === employee.team_id) ?? null
+    );
+  }, [employee?.team_id, teamsActiveQuery.data?.teams]);
+
   const queryClient = useQueryClient();
   const contractualBaselineSeededRef = useRef(false);
   const contractualInitialWatchRef = useRef<ReturnType<typeof extractWatchedSnapshot> | null>(null);
@@ -690,6 +715,12 @@ export default function EmployeeDetail() {
     contractualBaselineSeededRef.current = false;
     contractualInitialWatchRef.current = null;
   }, [employeeId]);
+
+  useEffect(() => {
+    if (teamEditorOpen) return;
+    if (employee?.team_id) setDraftTeamId(employee.team_id);
+    else setDraftTeamId("__none__");
+  }, [employee?.team_id, teamEditorOpen]);
 
   useEffect(() => {
     if (!employee || contractualBaselineSeededRef.current) return;
@@ -1045,6 +1076,30 @@ export default function EmployeeDetail() {
     }
   };
 
+  const handleSaveTeamAssignment = async () => {
+    if (!employeeId) return;
+    setSavingTeam(true);
+    try {
+      const nextId = draftTeamId === "__none__" ? null : draftTeamId;
+      await assignEmployeeTeam(employeeId, nextId);
+      const employeeRes = await apiClient.get<Employee>(`/api/employees/${employeeId}`);
+      setEmployee(employeeRes.data);
+      void queryClient.invalidateQueries({ queryKey: ["employee", employeeId] });
+      setTeamEditorOpen(false);
+      toast({ title: "Équipe mise à jour" });
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { detail?: string } } };
+      const errorMessage =
+        err.response?.data?.detail || "Impossible de mettre à jour l'équipe.";
+      toast({
+        title: "Erreur",
+        description: String(errorMessage),
+        variant: "destructive",
+      });
+    } finally {
+      setSavingTeam(false);
+    }
+  };
 
   
   // AJOUTER CETTE FONCTION
@@ -1143,6 +1198,96 @@ export default function EmployeeDetail() {
                 <div><strong>Type de contrat:</strong> {employee.contract_type}</div>
                 <div><strong>Statut:</strong> {employee.statut}</div>
                 <div><strong>Date d'entrée:</strong> {new Date(employee.hire_date).toLocaleDateString('fr-FR')}</div>
+                <div className="flex flex-wrap items-center gap-2 basis-full sm:basis-auto">
+                  <strong>Équipe :</strong>
+                  {!teamEditorOpen ? (
+                    <>
+                      {employee.team_id && resolvedTeam ? (
+                        <span className="inline-flex items-center gap-2 text-foreground">
+                          <span
+                            className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-border"
+                            style={{ backgroundColor: resolvedTeam.color }}
+                            aria-hidden
+                          />
+                          {resolvedTeam.name}
+                        </span>
+                      ) : employee.team_id && teamsActiveQuery.isLoading ? (
+                        <span className="text-muted-foreground text-sm">Chargement…</span>
+                      ) : employee.team_id && !resolvedTeam ? (
+                        <span className="text-muted-foreground text-sm">Équipe (référence)</span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        onClick={() => {
+                          setDraftTeamId(
+                            employee.team_id ? employee.team_id : "__none__",
+                          );
+                          setTeamEditorOpen(true);
+                        }}
+                      >
+                        Modifier l&apos;équipe
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Select
+                        value={draftTeamId}
+                        onValueChange={setDraftTeamId}
+                        disabled={teamsActiveQuery.isLoading || savingTeam}
+                      >
+                        <SelectTrigger className="w-[min(100%,280px)]">
+                          <SelectValue placeholder="Choisir une équipe" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Aucune équipe</SelectItem>
+                          {activeTeamsSorted.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              <span className="flex items-center gap-2">
+                                <span
+                                  className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-border"
+                                  style={{ backgroundColor: t.color }}
+                                  aria-hidden
+                                />
+                                {t.name}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={savingTeam}
+                        onClick={() => void handleSaveTeamAssignment()}
+                      >
+                        {savingTeam ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          "Enregistrer"
+                        )}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={savingTeam}
+                        onClick={() => {
+                          setTeamEditorOpen(false);
+                          setDraftTeamId(
+                            employee.team_id ? employee.team_id : "__none__",
+                          );
+                        }}
+                      >
+                        Annuler
+                      </Button>
+                    </>
+                  )}
+                </div>
                 <ResidencePermitBadge 
                   data={{
                     is_subject_to_residence_permit: employee.is_subject_to_residence_permit ?? false,

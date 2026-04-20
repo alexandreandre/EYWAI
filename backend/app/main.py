@@ -12,6 +12,8 @@ from fastapi.responses import JSONResponse
 
 from app.api.router import router as api_router
 from app.modules.planning.api.router import router as planning_router
+from app.modules.signatures.api.router import router as signatures_router
+from app.modules.teams.api.router import router as teams_router
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +78,8 @@ async def global_exception_handler(request: Request, exc: Exception):
 # ---------------------------------------------------------------------------
 app.include_router(api_router)
 app.include_router(planning_router)
+app.include_router(signatures_router)
+app.include_router(teams_router)
 
 
 @app.get("/health")

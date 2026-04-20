@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import apiClient from '../api/apiClient';
 
@@ -23,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useFieldArray } from "react-hook-form";
 import { mutuelleTypesApi, MutuelleType } from "@/api/mutuelleTypes";
 import * as collectiveAgreementsApi from "@/api/collectiveAgreements";
+import { getTeams } from "@/api/teams";
 
 
 // Interface pour la liste (simple)
@@ -68,6 +70,8 @@ const formSchema = z.object({
   contract_type: z.string().min(2),
   statut: z.string().min(2),
   job_title: z.string().min(2),
+  /** Équipe (optionnel, vide = aucune) — affecté à la création si supporté par l’API */
+  team_id: z.string().optional(),
   // periode_essai: z.object({
   //   duree_initiale: z.coerce.number().int().positive(),
   //   unite: z.string(),
@@ -233,6 +237,15 @@ export default function Employees() {
 
   const [ribAlerts, setRibAlerts] = useState<ribAlertsApi.RibAlert[]>([]);
 
+  const teamsActiveQuery = useQuery({
+    queryKey: ["teams-active"],
+    queryFn: () => getTeams(false),
+    enabled: isDialogOpen,
+  });
+  const activeTeamsSorted = [...(teamsActiveQuery.data?.teams ?? [])].sort((a, b) =>
+    a.name.localeCompare(b.name, "fr", { sensitivity: "base" }),
+  );
+
   // Conventions collectives de l'entreprise (pour le sélecteur)
   const [companyAgreements, setCompanyAgreements] = useState<collectiveAgreementsApi.CompanyCollectiveAgreementWithDetails[]>([]);
   // Grille de classification pour la convention sélectionnée
@@ -255,6 +268,7 @@ export default function Employees() {
       residence_permit_number: "",
       hire_date: new Date().toISOString().split('T')[0],
       contract_type: "CDI", statut: "Non-Cadre", job_title: "",
+      team_id: "",
       // periode_essai: { duree_initiale: 2, unite: "mois", renouvellement_possible: true },
       is_temps_partiel: false,
       duree_hebdomadaire: 39, 
@@ -779,6 +793,7 @@ export default function Employees() {
   // On prépare le payload final pour le backend
   const payload = {
     ...values,
+    team_id: values.team_id?.trim() ? values.team_id.trim() : null,
     specificites_paie: {
       ...values.specificites_paie,
       // On met à jour la section mutuelle pour inclure "adhesion"
@@ -1301,6 +1316,42 @@ export default function Employees() {
                       <h3 className="font-semibold pt-4">Coordonnées bancaires</h3>
                       <FormField control={form.control} name="coordonnees_bancaires.iban" render={({ field }) => (<FormItem><FormLabel>IBAN</FormLabel><FormControl><Input placeholder="FR76..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name="coordonnees_bancaires.bic" render={({ field }) => (<FormItem><FormLabel>BIC</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField
+                        control={form.control}
+                        name="team_id"
+                        render={({ field }) => (
+                          <FormItem className="pt-4">
+                            <FormLabel>Équipe</FormLabel>
+                            <Select
+                              value={field.value && field.value.length > 0 ? field.value : "__none__"}
+                              onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)}
+                              disabled={teamsActiveQuery.isLoading}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="w-full max-w-md">
+                                  <SelectValue placeholder={teamsActiveQuery.isLoading ? "Chargement…" : "Choisir une équipe"} />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="__none__">Aucune équipe</SelectItem>
+                                {activeTeamsSorted.map((team) => (
+                                  <SelectItem key={team.id} value={team.id}>
+                                    <span className="flex items-center gap-2">
+                                      <span
+                                        className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-border"
+                                        style={{ backgroundColor: team.color }}
+                                        aria-hidden
+                                      />
+                                      {team.name}
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </TabsContent>
                     <TabsContent value="contrat">
                       <div className="space-y-4">

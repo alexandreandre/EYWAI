@@ -22,6 +22,7 @@ import ResetPasswordPage from './pages/ResetPassword';
 // Pages 
 import RhDashboard from "./pages/Dashboard";
 import Employees from "./pages/Employees";
+import Teams from "@/pages/Teams";
 import EmployeeDetail from "./pages/EmployeeDetail";
 import Rates from "./pages/Rates";
 import Payroll from './pages/Payroll';
@@ -342,6 +343,7 @@ function ProtectedRoutes() {
                 <>
                   <Route path="/" element={<RhDashboard />} />
                   <Route path="/employees" element={<Employees />} />
+                  <Route path="/teams" element={<Teams />} />
                   <Route path="/employees/:employeeId" element={<EmployeeDetail />} />
                   <Route path="/saisies" element={<Saisies />} />
                   <Route path="/salary-seizures" element={<SalarySeizures />} />
