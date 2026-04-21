@@ -8,7 +8,26 @@ from typing import Optional, Tuple, List, Dict
 import requests
 from bs4 import BeautifulSoup
 
-URL = "https://www.legisocial.fr/reperes-sociaux/bareme-kilometrique-2025.html"
+URL_LEGISOCIAL_TEMPLATE = (
+    "https://www.legisocial.fr/reperes-sociaux/bareme-kilometrique-{year}.html"
+)
+
+
+def fetch_legisocial(url_template: str) -> requests.Response:
+    year = datetime.now().year
+    for y in [year, year - 1]:
+        url = url_template.format(year=y)
+        try:
+            resp = requests.get(
+                url, timeout=15, headers={"User-Agent": "Mozilla/5.0"}
+            )
+            if resp.status_code == 200:
+                return resp
+        except requests.RequestException:
+            continue
+    raise RuntimeError(
+        f"URL LegiSocial inaccessible pour {year} et {year - 1}"
+    )
 
 NBSP = "\xa0"
 NNBSP = "\u202f"
@@ -199,12 +218,18 @@ def scrape_cyclo(soup: BeautifulSoup) -> List[Dict]:
 
 
 # ---------- Payload ----------
-def build_payload(voitures: List[Dict], motos: List[Dict], cyclos: List[Dict]) -> dict:
+def build_payload(
+    voitures: List[Dict],
+    motos: List[Dict],
+    cyclos: List[Dict],
+    source_url: str,
+    annee: int,
+) -> dict:
     return {
         "id": "baremes_km",
         "type": "barème_kilométrique",
-        "libelle": "Barème kilométrique 2025 (LégiSocial)",
-        "annee": 2025,
+        "libelle": f"Barème kilométrique {annee} (LégiSocial)",
+        "annee": annee,
         "vehicules": {
             "voitures": {
                 "base": "distance_km",
@@ -235,7 +260,7 @@ def build_payload(voitures: List[Dict], motos: List[Dict], cyclos: List[Dict]) -
             },
         },
         "meta": {
-            "source": [{"url": URL, "label": "LégiSocial", "date_doc": ""}],
+            "source": [{"url": source_url, "label": "LégiSocial", "date_doc": ""}],
             "scraped_at": iso_now(),
             "generator": "scripts/bareme-indemnite-kilometrique/bareme-indemnite-kilometrique_LegiSocial.py",
             "method": "secondary",
@@ -245,13 +270,14 @@ def build_payload(voitures: List[Dict], motos: List[Dict], cyclos: List[Dict]) -
 
 # ---------- Main ----------
 if __name__ == "__main__":
-    r = requests.get(URL, timeout=25, headers={"User-Agent": "Mozilla/5.0"})
-    r.raise_for_status()
+    r = fetch_legisocial(URL_LEGISOCIAL_TEMPLATE)
+    m_year = re.search(r"-(\d{4})\.html", r.url)
+    annee = int(m_year.group(1)) if m_year else datetime.now().year
     soup = BeautifulSoup(r.text, "lxml")
 
     tr_voitures = scrape_voitures(soup)
     tr_moto = scrape_moto(soup)
     tr_cyclo = scrape_cyclo(soup)
 
-    payload = build_payload(tr_voitures, tr_moto, tr_cyclo)
+    payload = build_payload(tr_voitures, tr_moto, tr_cyclo, r.url, annee)
     print(json.dumps(payload, ensure_ascii=False))

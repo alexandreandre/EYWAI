@@ -8,7 +8,26 @@ from datetime import datetime, timezone
 import requests
 from bs4 import BeautifulSoup
 
-URL_LEGISOCIAL = "https://www.legisocial.fr/reperes-sociaux/taxe-formation-professionnelle-continue-2025.html"
+URL_LEGISOCIAL_TEMPLATE = (
+    "https://www.legisocial.fr/reperes-sociaux/taxe-formation-professionnelle-continue-{year}.html"
+)
+
+
+def fetch_legisocial(url_template: str) -> requests.Response:
+    year = datetime.now().year
+    for y in [year, year - 1]:
+        url = url_template.format(year=y)
+        try:
+            resp = requests.get(
+                url, timeout=15, headers={"User-Agent": "Mozilla/5.0"}
+            )
+            if resp.status_code == 200:
+                return resp
+        except requests.RequestException:
+            continue
+    raise RuntimeError(
+        f"URL LegiSocial inaccessible pour {year} et {year - 1}"
+    )
 
 
 # --- UTILITAIRES ---
@@ -33,20 +52,15 @@ def parse_taux(text: str) -> float | None:
 
 
 # --- SCRAPER ---
-def scrape_cfp_rates_legisocial() -> dict | None:
+def scrape_cfp_rates_legisocial() -> tuple[dict | None, str]:
     """
     Scrape le site de LegiSocial pour les taux de la Contribution à la Formation Professionnelle (CFP).
     """
+    resolved_url = ""
     try:
-        print(f"Scraping de l'URL : {URL_LEGISOCIAL}...", file=sys.stderr)
-        r = requests.get(
-            URL_LEGISOCIAL,
-            timeout=20,
-            headers={
-                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-            },
-        )
-        r.raise_for_status()
+        r = fetch_legisocial(URL_LEGISOCIAL_TEMPLATE)
+        resolved_url = r.url
+        print(f"Scraping de l'URL : {resolved_url}...", file=sys.stderr)
 
         soup = BeautifulSoup(r.text, "html.parser")
 
@@ -99,17 +113,17 @@ def scrape_cfp_rates_legisocial() -> dict | None:
         return {
             "patronal_moins_11": taux_moins_11,
             "patronal_11_et_plus": taux_11_et_plus,
-        }
+        }, resolved_url
 
     except Exception as e:
         print(f"ERREUR : Le scraping a échoué. Raison : {e}", file=sys.stderr)
-        return None
+        return None, resolved_url
 
 
 # --- FONCTION PRINCIPALE ---
 def main():
     """Orchestre le scraping et génère la sortie JSON pour l'orchestrateur."""
-    rates_data = scrape_cfp_rates_legisocial()
+    rates_data, resolved_url = scrape_cfp_rates_legisocial()
 
     if not rates_data:
         print(
@@ -130,7 +144,8 @@ def main():
         "meta": {
             "source": [
                 {
-                    "url": URL_LEGISOCIAL,
+                    "url": resolved_url
+                    or URL_LEGISOCIAL_TEMPLATE.format(year=datetime.now().year),
                     "label": "LegiSocial - Taxe Formation Professionnelle",
                     "date_doc": "",
                 }

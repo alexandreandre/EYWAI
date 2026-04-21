@@ -13,9 +13,10 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from ddgs.ddgs import DDGS  # plus stable que googlesearch
 
+import PAS as pas_module
+
 load_dotenv()
 
-PREFERRED_URL = "https://bofip.impots.gouv.fr/bofip/11255-PGP.html/identifiant%3DBOI-BAREME-000037-20250410"
 SEARCH_QUERY = (
     "barème taux neutre prélèvement à la source BOFiP site:bofip.impots.gouv.fr"
 )
@@ -111,9 +112,13 @@ Texte à analyser :
 
 
 # --- Core ---
-def get_pas_baremes_via_ai() -> Optional[Dict[str, List[Dict[str, Any]]]]:
-    """Cherche la page BOFiP et extrait le barème complet."""
-    candidates = [PREFERRED_URL]
+def get_pas_baremes_via_ai() -> tuple[
+    Optional[Dict[str, List[Dict[str, Any]]]], str
+]:
+    """Cherche la page BOFiP et extrait le barème complet. Retourne (données, url_utilisée)."""
+    url_primary = pas_module.get_latest_bofip_url()
+    print(f"[PAS_AI] URL BOFIP prioritaire : {url_primary}", file=sys.stderr)
+    candidates = [url_primary]
 
     try:
         print(f"Recherche DDGS : {SEARCH_QUERY}", file=sys.stderr)
@@ -124,7 +129,9 @@ def get_pas_baremes_via_ai() -> Optional[Dict[str, List[Dict[str, Any]]]]:
     except Exception as e:
         print(f"   - ERREUR de recherche : {e}", file=sys.stderr)
 
+    last_url = url_primary
     for url in candidates:
+        last_url = url
         print(f"\n--- Analyse de {url} ---", file=sys.stderr)
         try:
             html = _download(url)
@@ -156,16 +163,16 @@ def get_pas_baremes_via_ai() -> Optional[Dict[str, List[Dict[str, Any]]]]:
                     conv.append({"plafond": plafond, "taux": round(taux / 100.0, 5)})
                 result[dst] = conv
             if valid:
-                return result
+                return result, url
         except Exception as e:
             print(f"   - ERREUR lecture page : {e}", file=sys.stderr)
 
-    return None
+    return None, last_url
 
 
 # --- Main ---
 def main():
-    data = get_pas_baremes_via_ai()
+    data, url_used = get_pas_baremes_via_ai()
     if data is None:
         print("ERREUR CRITIQUE : aucun barème trouvé.", file=sys.stderr)
         sys.exit(1)
@@ -178,7 +185,7 @@ def main():
         "meta": {
             "source": [
                 {
-                    "url": PREFERRED_URL,
+                    "url": url_used,
                     "label": "BOFIP - Barème du prélèvement à la source",
                     "date_doc": "",
                 }

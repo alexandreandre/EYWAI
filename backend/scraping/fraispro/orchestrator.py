@@ -7,6 +7,7 @@ import subprocess
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple, Optional
+from pathlib import Path
 from supabase import create_client, Client, PostgrestAPIResponse
 from dotenv import load_dotenv
 
@@ -16,6 +17,7 @@ from dotenv import load_dotenv
 CONFIG_KEY_TO_UPDATE = "frais_pro"
 # ID de l'item (non utilisé pour patcher, mais pour valider le payload)
 ITEM_ID_TO_VALIDATE = "frais_pro"
+SCRAPER_NAME = "fraispro"
 
 # Configuration du logging
 logging.basicConfig(
@@ -27,18 +29,28 @@ logging.basicConfig(
 # Trouver la racine du projet
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
-# Charger les variables d'environnement
-dotenv_path = os.path.join(REPO_ROOT, ".env")
-if not os.path.exists(dotenv_path):
-    logging.critical(f"Fichier .env non trouvé à: {dotenv_path}")
-    sys.exit(1)
-load_dotenv(dotenv_path=dotenv_path)
+def load_env():
+    script_dir = Path(__file__).resolve().parent
+    for candidate in [
+        script_dir / ".." / ".." / ".env",
+        script_dir / ".." / ".." / ".." / ".env",
+        Path.cwd() / ".env",
+    ]:
+        env_path = candidate.resolve()
+        if env_path.exists():
+            load_dotenv(env_path)
+            print(f"[ENV] Chargé depuis : {env_path}")
+            return
+    print("[ENV] AVERTISSEMENT : aucun fichier .env trouvé")
+
+
+load_env()
 
 # Liste des scrapers à exécuter
 SCRIPTS_TO_RUN: List[Tuple[str, str]] = [
     ("fraispro.py", os.path.join(os.path.dirname(__file__), "fraispro.py")),
-    # ("fraispro_LegiSocial.py", os.path.join(os.path.dirname(__file__), "fraispro_LegiSocial.py")),
-    # ("fraispro_AI.py", os.path.join(os.path.dirname(__file__), "fraispro_AI.py")),
+    ("fraispro_LegiSocial.py", os.path.join(os.path.dirname(__file__), "fraispro_LegiSocial.py")),
+    ("fraispro_AI.py", os.path.join(os.path.dirname(__file__), "fraispro_AI.py")),
 ]
 
 
@@ -571,6 +583,29 @@ def update_config_in_supabase(
             raise
 
 
+def _emit_orchestrator_json_result(
+    scraper: str,
+    success: bool,
+    config_key: str,
+    data: Dict[str, Any],
+    sources_used: List[str],
+    error: str = "",
+) -> None:
+    out: Dict[str, Any] = {
+        "scraper": scraper,
+        "success": success,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "config_key": config_key,
+    }
+    if success:
+        out["data"] = data
+        out["sources_used"] = sources_used
+    else:
+        out["error"] = error
+        out["data"] = {}
+    print(json.dumps(out, ensure_ascii=False))
+
+
 # --- 3. Fonction Principale ---
 
 
@@ -637,12 +672,39 @@ def main() -> None:
         )
 
         logging.info("--- FIN Orchestrateur Frais Professionnels ---")
+        sources_used = [p.get("__script", "?") for p in payloads]
+        _emit_orchestrator_json_result(
+            SCRAPER_NAME,
+            True,
+            CONFIG_KEY_TO_UPDATE,
+            final_core_data,
+            sources_used,
+        )
 
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")
-        sys.exit(int(str(e).split()[-1]) if str(e).split()[-1].isdigit() else 1)
+        code = getattr(e, "code", 1)
+        if not isinstance(code, int):
+            code = 1
+        _emit_orchestrator_json_result(
+            SCRAPER_NAME,
+            False,
+            CONFIG_KEY_TO_UPDATE,
+            {},
+            [],
+            str(e),
+        )
+        sys.exit(code)
     except Exception as e:
         logging.critical(f"Une erreur fatale est survenue: {e}", exc_info=True)
+        _emit_orchestrator_json_result(
+            SCRAPER_NAME,
+            False,
+            CONFIG_KEY_TO_UPDATE,
+            {},
+            [],
+            str(e),
+        )
         sys.exit(1)
 
 

@@ -8,9 +8,26 @@ from datetime import datetime, timezone
 import requests
 from bs4 import BeautifulSoup
 
-URL_LEGISOCIAL = (
-    "https://www.legisocial.fr/reperes-sociaux/calcul-salaire-smic-2025.html"
+URL_LEGISOCIAL_TEMPLATE = (
+    "https://www.legisocial.fr/reperes-sociaux/calcul-salaire-smic-{year}.html"
 )
+
+
+def fetch_legisocial(url_template: str) -> requests.Response:
+    year = datetime.now().year
+    for y in [year, year - 1]:
+        url = url_template.format(year=y)
+        try:
+            resp = requests.get(
+                url, timeout=15, headers={"User-Agent": "Mozilla/5.0"}
+            )
+            if resp.status_code == 200:
+                return resp
+        except requests.RequestException:
+            continue
+    raise RuntimeError(
+        f"URL LegiSocial inaccessible pour {year} et {year - 1}"
+    )
 
 
 # --- UTILITAIRES ---
@@ -31,21 +48,16 @@ def parse_valeur_numerique(text: str) -> float:
 
 
 # --- SCRAPER ---
-def get_smic_legisocial() -> dict | None:
+def get_smic_legisocial() -> tuple[dict | None, str]:
     """
     Scrape le site LegiSocial pour trouver la valeur du SMIC horaire.
     NOTE: Cette source ne détaille que le cas général.
     """
+    resolved_url = ""
     try:
-        print(f"Scraping de l'URL : {URL_LEGISOCIAL}...", file=sys.stderr)
-        response = requests.get(
-            URL_LEGISOCIAL,
-            timeout=20,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
-            },
-        )
-        response.raise_for_status()
+        response = fetch_legisocial(URL_LEGISOCIAL_TEMPLATE)
+        resolved_url = response.url
+        print(f"Scraping de l'URL : {resolved_url}...", file=sys.stderr)
         soup = BeautifulSoup(response.text, "html.parser")
 
         page_text = soup.get_text(" ", strip=True)
@@ -69,17 +81,17 @@ def get_smic_legisocial() -> dict | None:
         )
 
         # Ce scraper ne retourne que le cas général car la source est limitée
-        return {"cas_general": smic_general}
+        return {"cas_general": smic_general}, resolved_url
 
     except Exception as e:
         print(f"ERREUR : Le scraping a échoué. Raison : {e}", file=sys.stderr)
-        return None
+        return None, resolved_url
 
 
 # --- FONCTION PRINCIPALE ---
 def main():
     """Orchestre le scraping et génère la sortie JSON pour l'orchestrateur."""
-    smic_data = get_smic_legisocial()
+    smic_data, resolved_url = get_smic_legisocial()
 
     if not smic_data:
         print(
@@ -96,7 +108,8 @@ def main():
         "meta": {
             "source": [
                 {
-                    "url": URL_LEGISOCIAL,
+                    "url": resolved_url
+                    or URL_LEGISOCIAL_TEMPLATE.format(year=datetime.now().year),
                     "label": "LegiSocial - Calcul du SMIC",
                     "date_doc": "",
                 }

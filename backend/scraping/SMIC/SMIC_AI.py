@@ -20,14 +20,44 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from ddgs.ddgs import DDGS
 from openai import OpenAI
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # --- CONFIGURATION ---
 load_dotenv()
 SEARCH_QUERY = "montant smic horaire brut URSSAF {year}"
-USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
-)
+
+
+def get_session() -> requests.Session:
+    session = requests.Session()
+    retry = Retry(
+        total=3,
+        backoff_factor=2,
+        status_forcelist=[429, 500, 502, 503, 504],
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("https://", adapter)
+    session.headers.update(
+        {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Accept": (
+                "text/html,application/xhtml+xml,"
+                "application/xml;q=0.9,*/*;q=0.8"
+            ),
+            "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+        }
+    )
+    return session
 
 
 # --- UTILITAIRES ---
@@ -106,10 +136,11 @@ def get_smic_via_ai() -> dict | None:
         print("ERREUR : Aucun résultat trouvé.", file=sys.stderr)
         return None
 
+    session = get_session()
     for url in candidates:
         print(f"\n--- Tentative sur : {url} ---", file=sys.stderr)
         try:
-            r = requests.get(url, timeout=20, headers={"User-Agent": USER_AGENT})
+            r = session.get(url, timeout=20)
             r.raise_for_status()
             soup = BeautifulSoup(r.text, "html.parser")
             text = soup.get_text(" ", strip=True)

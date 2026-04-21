@@ -8,7 +8,40 @@ from datetime import datetime, timezone
 import requests
 from bs4 import BeautifulSoup
 
-URL_BOFIP = "https://bofip.impots.gouv.fr/bofip/11255-PGP.html/identifiant%3DBOI-BAREME-000037-20250410"
+BASE_URL = "https://bofip.impots.gouv.fr"
+SEARCH_URL = (
+    "https://bofip.impots.gouv.fr/bofip/ext/refs/"
+    "recherche/chp?query=BOI-BAREME-000037"
+    "&domain=bofip"
+)
+
+
+def get_latest_bofip_url() -> str:
+    """
+    Cherche la dernière version de BOI-BAREME-000037.
+    Fallback : URL connue si la recherche échoue.
+    """
+    FALLBACK = "https://bofip.impots.gouv.fr/bofip/9188-PGP"
+    try:
+        resp = requests.get(
+            SEARCH_URL,
+            timeout=15,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        if resp.status_code == 200:
+            soup = BeautifulSoup(resp.text, "html.parser")
+            link = soup.find(
+                "a",
+                href=lambda h: h and "BOI-BAREME-000037" in h,
+            )
+            if link:
+                href = link["href"]
+                if href.startswith("http"):
+                    return href
+                return BASE_URL + href
+    except Exception as e:
+        print(f"[PAS] Recherche BOFIP échouée : {e}", file=sys.stderr)
+    return FALLBACK
 
 NBSP = "\xa0"
 NNBSP = "\u202f"
@@ -73,7 +106,7 @@ def _extract_tranches_from_table(table: BeautifulSoup) -> list[dict]:
 
 
 # -------- Scraper --------
-def scrape_bofip(url: str = URL_BOFIP) -> dict:
+def scrape_bofip(url: str) -> dict:
     print(f"Scraping de l'URL du BOFIP : {url}", file=sys.stderr)
     r = requests.get(
         url,
@@ -125,8 +158,10 @@ def scrape_bofip(url: str = URL_BOFIP) -> dict:
 # -------- Main --------
 def main():
     """Orchestre le scraping et génère la sortie JSON pour l'orchestrateur."""
+    url_used = get_latest_bofip_url()
+    print(f"[PAS] URL BOFIP utilisée : {url_used}", file=sys.stderr)
     try:
-        zones_data = scrape_bofip()
+        zones_data = scrape_bofip(url_used)
     except Exception as e:
         print(
             f"ERREUR CRITIQUE: Le scraping du PAS a échoué. Raison : {e}",
@@ -142,7 +177,7 @@ def main():
         "meta": {
             "source": [
                 {
-                    "url": URL_BOFIP,
+                    "url": url_used,
                     "label": "BOFIP - Barème du prélèvement à la source",
                     "date_doc": "",
                 }

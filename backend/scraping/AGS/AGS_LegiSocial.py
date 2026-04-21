@@ -3,13 +3,34 @@
 import json
 import os
 import re
+from datetime import datetime
+
 import requests
 from bs4 import BeautifulSoup
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 FICHIER_ENTREPRISE = os.path.join(REPO_ROOT, "config", "parametres_entreprise.json")
-URL_LEGISOCIAL = "https://www.legisocial.fr/reperes-sociaux/taux-cotisations-sociales-urssaf-2025.html"
+URL_LEGISOCIAL_TEMPLATE = (
+    "https://www.legisocial.fr/reperes-sociaux/taux-cotisations-sociales-urssaf-{year}.html"
+)
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+
+
+def fetch_legisocial(url_template: str) -> requests.Response:
+    year = datetime.now().year
+    for y in [year, year - 1]:
+        url = url_template.format(year=y)
+        try:
+            resp = requests.get(
+                url, timeout=15, headers={"User-Agent": "Mozilla/5.0"}
+            )
+            if resp.status_code == 200:
+                return resp
+        except requests.RequestException:
+            continue
+    raise RuntimeError(
+        f"URL LegiSocial inaccessible pour {year} et {year - 1}"
+    )
 
 
 def _get_is_ett() -> bool:
@@ -106,11 +127,10 @@ def get_ags_payload_from_legisocial(est_ett: bool) -> dict:
     }
     """
     taux = None
+    resolved_url = ""
     try:
-        resp = requests.get(
-            URL_LEGISOCIAL, timeout=25, headers={"User-Agent": USER_AGENT}
-        )
-        resp.raise_for_status()
+        resp = fetch_legisocial(URL_LEGISOCIAL_TEMPLATE)
+        resolved_url = resp.url
         soup = BeautifulSoup(resp.text, "html.parser")
 
         # Chercher un header h3 contenant "Cotisations chômage"
@@ -161,7 +181,14 @@ def get_ags_payload_from_legisocial(est_ett: bool) -> dict:
         "base": "brut",
         "valeurs": {"salarial": None, "patronal": taux},
         "meta": {
-            "source": [{"url": URL_LEGISOCIAL, "label": "LegiSocial", "date_doc": ""}],
+            "source": [
+                {
+                    "url": resolved_url
+                    or URL_LEGISOCIAL_TEMPLATE.format(year=datetime.now().year),
+                    "label": "LegiSocial",
+                    "date_doc": "",
+                }
+            ],
             "generator": "AGS_LegiSocial.py",
         },
     }

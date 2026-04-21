@@ -7,7 +7,26 @@ from datetime import datetime, timezone
 import requests
 from bs4 import BeautifulSoup
 
-URL_LEGISOCIAL = "https://www.legisocial.fr/reperes-sociaux/taux-cotisations-sociales-urssaf-2025.html"
+URL_LEGISOCIAL_TEMPLATE = (
+    "https://www.legisocial.fr/reperes-sociaux/taux-cotisations-sociales-urssaf-{year}.html"
+)
+
+
+def fetch_legisocial(url_template: str) -> requests.Response:
+    year = datetime.now().year
+    for y in [year, year - 1]:
+        url = url_template.format(year=y)
+        try:
+            resp = requests.get(
+                url, timeout=15, headers={"User-Agent": "Mozilla/5.0"}
+            )
+            if resp.status_code == 200:
+                return resp
+        except requests.RequestException:
+            continue
+    raise RuntimeError(
+        f"URL LegiSocial inaccessible pour {year} et {year - 1}"
+    )
 
 
 def iso_now() -> str:
@@ -25,26 +44,16 @@ def _parse_percent_to_rate(text: str) -> float | None:
     return round(float(m.group(1).replace(",", ".")) / 100.0, 6)
 
 
-def _fetch_page(url: str) -> BeautifulSoup:
-    """Récupère et parse le contenu HTML d'une URL."""
-    r = requests.get(
-        url,
-        timeout=25,
-        headers={
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-        },
-    )
-    r.raise_for_status()
-    return BeautifulSoup(r.text, "html.parser")
-
-
 def scrape_fnal_rates_legisocial() -> dict[str, float | None]:
     """
     Scrape et retourne les deux taux FNAL depuis LegiSocial.
     """
-    print(f"[DEBUG] Scraping de l'URL : {URL_LEGISOCIAL}...", file=sys.stderr)
+    resolved_url = ""
     try:
-        soup = _fetch_page(URL_LEGISOCIAL)
+        r = fetch_legisocial(URL_LEGISOCIAL_TEMPLATE)
+        resolved_url = r.url
+        print(f"[DEBUG] Scraping de l'URL : {resolved_url}...", file=sys.stderr)
+        soup = BeautifulSoup(r.text, "html.parser")
         print(
             f"[DEBUG] Page récupérée avec succès (taille: {len(soup.get_text())} caractères)",
             file=sys.stderr,
@@ -83,7 +92,11 @@ def scrape_fnal_rates_legisocial() -> dict[str, float | None]:
             )
 
         # La structure de la table peut varier, on cherche la bonne
-        searched_text = "Quels sont les taux de cotisations en 2025"
+        page_year = datetime.now().year
+        m_year = re.search(r"-(\d{4})\.html", resolved_url)
+        if m_year:
+            page_year = int(m_year.group(1))
+        searched_text = f"Quels sont les taux de cotisations en {page_year}"
         print(
             f"[DEBUG] === Recherche du titre exact: '{searched_text}' ===",
             file=sys.stderr,
@@ -100,10 +113,10 @@ def scrape_fnal_rates_legisocial() -> dict[str, float | None]:
                 file=sys.stderr,
             )
             variants = [
-                "Quels sont les taux de cotisations en 2025",
-                "taux de cotisations en 2025",
+                f"Quels sont les taux de cotisations en {page_year}",
+                f"taux de cotisations en {page_year}",
                 "taux de cotisations",
-                "cotisations en 2025",
+                f"cotisations en {page_year}",
                 "cotisations sociales",
             ]
             for variant in variants:
@@ -270,21 +283,31 @@ def scrape_fnal_rates_legisocial() -> dict[str, float | None]:
                 file=sys.stderr,
             )
 
-        return {
+        out = {
             "patronal_moins_50": taux_moins_50,
             "patronal_50_et_plus": taux_50_et_plus,
         }
+        out["_resolved_legisocial_url"] = resolved_url
+        return out
     except requests.RequestException as e:
         print(
             f"[ERROR] ERREUR HTTP lors du scraping : {type(e).__name__}: {e}",
             file=sys.stderr,
         )
-        print(f"[ERROR] URL tentée: {URL_LEGISOCIAL}", file=sys.stderr)
-        return {"patronal_moins_50": None, "patronal_50_et_plus": None}
+        print(f"[ERROR] URL tentée: {resolved_url}", file=sys.stderr)
+        return {
+            "patronal_moins_50": None,
+            "patronal_50_et_plus": None,
+            "_resolved_legisocial_url": resolved_url,
+        }
     except ValueError as e:
         print(f"[ERROR] ERREUR de parsing : {e}", file=sys.stderr)
-        print(f"[ERROR] URL: {URL_LEGISOCIAL}", file=sys.stderr)
-        return {"patronal_moins_50": None, "patronal_50_et_plus": None}
+        print(f"[ERROR] URL: {resolved_url}", file=sys.stderr)
+        return {
+            "patronal_moins_50": None,
+            "patronal_50_et_plus": None,
+            "_resolved_legisocial_url": resolved_url,
+        }
     except Exception as e:
         import traceback
 
@@ -292,10 +315,14 @@ def scrape_fnal_rates_legisocial() -> dict[str, float | None]:
             f"[ERROR] ERREUR INATTENDUE lors du scraping : {type(e).__name__}: {e}",
             file=sys.stderr,
         )
-        print(f"[ERROR] URL: {URL_LEGISOCIAL}", file=sys.stderr)
+        print(f"[ERROR] URL: {resolved_url}", file=sys.stderr)
         print("[ERROR] Traceback complet:", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
-        return {"patronal_moins_50": None, "patronal_50_et_plus": None}
+        return {
+            "patronal_moins_50": None,
+            "patronal_50_et_plus": None,
+            "_resolved_legisocial_url": resolved_url,
+        }
 
 
 def main() -> None:
@@ -303,6 +330,10 @@ def main() -> None:
     Orchestre le scraping et génère la sortie JSON pour l'orchestrateur.
     """
     rates = scrape_fnal_rates_legisocial()
+    resolved_url = rates.pop(
+        "_resolved_legisocial_url",
+        "",
+    ) or URL_LEGISOCIAL_TEMPLATE.format(year=datetime.now().year)
 
     missing_rates = []
     if rates.get("patronal_moins_50") is None:
@@ -316,7 +347,7 @@ def main() -> None:
             file=sys.stderr,
         )
         print(f"[ERROR] Taux récupérés: {rates}", file=sys.stderr)
-        print(f"[ERROR] URL source: {URL_LEGISOCIAL}", file=sys.stderr)
+        print(f"[ERROR] URL source: {resolved_url}", file=sys.stderr)
         print(
             "[ERROR] Le scraping n'a pas pu extraire tous les taux requis depuis LegiSocial.",
             file=sys.stderr,
@@ -335,7 +366,7 @@ def main() -> None:
         "meta": {
             "source": [
                 {
-                    "url": URL_LEGISOCIAL,
+                    "url": resolved_url,
                     "label": "LégiSocial — Taux cotisations URSSAF",
                     "date_doc": "",
                 }
