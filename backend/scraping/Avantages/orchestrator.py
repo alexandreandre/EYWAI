@@ -46,6 +46,11 @@ def load_env():
 
 load_env()
 
+_SCRAPING_DIR = Path(__file__).resolve().parent.parent
+if str(_SCRAPING_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING_DIR))
+from utils import consensus_satisfied, is_ai_scraper_label  # noqa: E402
+
 # Liste des scrapers à exécuter
 SCRIPTS_TO_RUN: List[Tuple[str, str]] = [
     ("URSSAF", os.path.join(os.path.dirname(__file__), "Avantages.py")),
@@ -62,8 +67,8 @@ def iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def run_script(label: str, path: str) -> Dict[str, Any]:
-    """Exécute un scraper et récupère son JSON depuis stdout."""
+def run_script(label: str, path: str) -> Optional[Dict[str, Any]]:
+    """Exécute un scraper et récupère son JSON depuis stdout. None si scraper *_AI.py en échec."""
     logging.info(f"Exécution du scraper: {label}...")
     try:
         proc = subprocess.run(
@@ -93,12 +98,27 @@ def run_script(label: str, path: str) -> Dict[str, Any]:
                 pass  # Échec du parsing, on log l'erreur ci-dessous
 
         logging.error(f"Échec du scraper {label}. stderr: {e.stderr.strip()}")
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Scraper IA {label} ignoré — poursuite avec les autres sources."
+            )
+            return None
         raise SystemExit(f"Échec du script {label}")
     except json.JSONDecodeError:
         logging.error(f"Sortie non-JSON de {label}. stdout: {proc.stdout[:200]}...")
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Sortie invalide du scraper IA {label} — poursuite avec les autres sources."
+            )
+            return None
         raise SystemExit(f"Sortie invalide du script {label}")
     except Exception as e:
         logging.error(f"Erreur inattendue avec {label}: {e}")
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Scraper IA {label} ignoré — poursuite avec les autres sources."
+            )
+            return None
         raise
 
 
@@ -493,23 +513,13 @@ def main() -> None:
         payloads: List[Dict[str, Any]] = []
         for label, path in SCRIPTS_TO_RUN:
             payload = run_script(label, path)
-            if not payload:
-                logging.warning(
-                    f"Le script {label} n'a retourné aucun payload. Ignoré."
-                )
+            if payload is None:
                 continue
             payloads.append(payload)
 
         if not payloads:
-            logging.critical("Aucun scraper n'a retourné de données. Arrêt.")
-            sys.exit(1)
-
-        # S'assure qu'au moins un scraper a réussi (nécessaire s'il n'y en a qu'un)
-        if all(not p for p in payloads):
-            logging.critical(
-                "Tous les scrapers ont échoué ou n'ont retourné aucune donnée. Arrêt."
-            )
-            sys.exit(1)
+            logging.error("Aucune source de scraping n'a réussi. Arrêt.")
+            sys.exit(2)
 
         # 2. Normaliser les signatures
         cores = [payload_to_core(p) for p in payloads]
@@ -517,17 +527,20 @@ def main() -> None:
         # 3. Afficher la comparaison
         debug_comparison(labels, cores)
 
-        # 4. Valider la concordance
-        all_equal = all(cores_equal(cores[0], c) for c in cores[1:])
-
-        if not all_equal:
+        # 4. Valider la concordance (2/3, 2/2, ou 1 source avec warning)
+        ok, ref_idx = consensus_satisfied(cores, cores_equal)
+        if len(cores) == 1:
+            logging.warning(
+                "Une seule source avec données valides : mise à jour sans concordance croisée."
+            )
+        if not ok:
             logging.error("Divergence entre les sources de scraping. Arrêt.")
             sys.exit(2)
 
         logging.info("Concordance des taux (Avantages en Nature) validée.")
 
         # Le 'core' validé et les sources
-        final_core_data = cores[0]
+        final_core_data = cores[ref_idx]
         source_links = merge_sources(payloads, cores)
 
         # 5. Initialiser la BDD

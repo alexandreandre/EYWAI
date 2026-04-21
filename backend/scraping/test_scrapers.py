@@ -37,12 +37,15 @@ SCRAPERS = [
         "orchestrator": "orchestrator.py",
         "timeout": 180,  # Selenium peut être lent
         "checks": [
+            # TODO: scraper en échec — exécution locale impossible (ex. ModuleNotFoundError: supabase).
+            #       Chemins alignés sur success["data"] = core_signature → payload["sections"] (clés annuel, mensuel, journalier).
             {
-                "path": ["data", "plafond_annuel"],
-                "min": 40000, "max": 60000,
-                "description": "Plafond SS annuel"
+                "path": ["data", "annuel"],
+                "min": 40000,
+                "max": 60000,
+                "description": "PSS — plafond SS annuel (sections.annuel)",
             }
-        ]
+        ],
     },
     {
         "name": "CSG",
@@ -50,12 +53,15 @@ SCRAPERS = [
         "orchestrator": "orchestrator.py",
         "timeout": 120,
         "checks": [
+            # TODO: scraper en échec — exécution locale impossible (ex. ModuleNotFoundError: supabase).
+            #       Chemins alignés sur success["data"] = core_signature : valeurs.salarial.non_deductible (CSG imposable + CRDS).
             {
-                "path": ["data", "taux_csg_imposable"],
-                "min": 0.05, "max": 0.15,
-                "description": "Taux CSG déductible"
+                "path": ["data", "valeurs", "salarial", "non_deductible"],
+                "min": 0.02,
+                "max": 0.05,
+                "description": "CSG/CRDS — part salariale non déductible (imposable)",
             }
-        ]
+        ],
     },
     {
         "name": "AGS",
@@ -63,12 +69,15 @@ SCRAPERS = [
         "orchestrator": "orchestrator.py",
         "timeout": 120,
         "checks": [
+            # TODO: scraper en échec — exécution locale impossible (ex. ModuleNotFoundError: supabase).
+            #       Chemins alignés sur success["data"] = core_signature : seul le taux patronal AGS est renseigné.
             {
-                "path": ["data", "taux_ags"],
-                "min": 0.001, "max": 0.01,
-                "description": "Taux AGS"
+                "path": ["data", "valeurs", "patronal"],
+                "min": 0.001,
+                "max": 0.01,
+                "description": "AGS — taux patronal",
             }
-        ]
+        ],
     },
     {
         "name": "AGIRC-ARRCO",
@@ -76,13 +85,15 @@ SCRAPERS = [
         "orchestrator": "orchestrator.py",
         "timeout": 120,
         "checks": [
+            # TODO: scraper en échec — exécution locale impossible (ex. ModuleNotFoundError: supabase).
+            #       Chemins alignés sur success["data"] = bundle final : dict par id d'item (retraite_comp_t1, …).
             {
-                "path": ["data",
-                         "tranche_1_taux_salarial"],
-                "min": 0.03, "max": 0.08,
-                "description": "Taux salarial T1 AGIRC"
+                "path": ["data", "retraite_comp_t1", "valeurs", "salarial"],
+                "min": 0.03,
+                "max": 0.08,
+                "description": "AGIRC-ARRCO — retraite complémentaire T1, taux salarial",
             }
-        ]
+        ],
     },
 ]
 

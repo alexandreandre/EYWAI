@@ -47,6 +47,11 @@ def load_env():
 
 load_env()
 
+_SCRAPING_DIR = Path(__file__).resolve().parent.parent
+if str(_SCRAPING_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING_DIR))
+from utils import consensus_satisfied, is_ai_scraper_label  # noqa: E402
+
 # Liste des scrapers à exécuter
 SCRIPTS_TO_RUN: List[Tuple[str, str]] = [
     ("AGS.py", os.path.join(os.path.dirname(__file__), "AGS.py")),
@@ -65,8 +70,8 @@ def iso_now() -> str:
 
 def run_script(
     label: str, path: str, env: Optional[Dict[str, str]] = None
-) -> Dict[str, Any]:
-    """Exécute un scraper et récupère son JSON depuis stdout. env: env pour le subprocess (ORCHESTRATOR_EST_ETT pour AGS)."""
+) -> Optional[Dict[str, Any]]:
+    """Exécute un scraper et récupère son JSON depuis stdout. None si scraper *_AI.py en échec."""
     run_env = env if env is not None else os.environ.copy()
     logging.info(f"Exécution du scraper: {label}...")
     try:
@@ -84,12 +89,27 @@ def run_script(
         return payload
     except subprocess.CalledProcessError as e:
         logging.error(f"Échec du scraper {label}. stderr: {e.stderr.strip()}")
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Scraper IA {label} ignoré — poursuite avec les autres sources."
+            )
+            return None
         raise SystemExit(f"Échec du script {label}")
     except json.JSONDecodeError:
         logging.error(f"Sortie non-JSON de {label}. stdout: {proc.stdout[:200]}...")
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Sortie invalide du scraper IA {label} — poursuite avec les autres sources."
+            )
+            return None
         raise SystemExit(f"Sortie invalide du script {label}")
     except Exception as e:
         logging.error(f"Erreur inattendue avec {label}: {e}")
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Scraper IA {label} ignoré — poursuite avec les autres sources."
+            )
+            return None
         raise
 
 
@@ -445,8 +465,15 @@ def main() -> None:
         payloads: List[Dict[str, Any]] = []
         labels: List[str] = []
         for label, path in SCRIPTS_TO_RUN:
-            payloads.append(run_script(label, path, env=run_env))
+            res = run_script(label, path, env=run_env)
+            if res is None:
+                continue
+            payloads.append(res)
             labels.append(label)
+
+        if not payloads:
+            logging.error("Aucune source de scraping n'a réussi. Arrêt.")
+            sys.exit(2)
 
         # 2. Normaliser les signatures
         sigs: List[Dict[str, Any]] = []
@@ -457,15 +484,18 @@ def main() -> None:
                 logging.error(f"Normalisation échouée pour {labels[i]}: {e}")
                 raise SystemExit(f"Échec normalisation {labels[i]}")
 
-        # 3. Valider la concordance
-        all_equal = all(
-            compare_floats(
-                sigs[i]["valeurs"]["patronal"], sigs[i + 1]["valeurs"]["patronal"]
+        # 3. Valider la concordance (2/3, 2/2, ou 1 source avec warning)
+        def _ags_sig_equal(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
+            return compare_floats(
+                a["valeurs"]["patronal"], b["valeurs"]["patronal"]
             )
-            for i in range(len(sigs) - 1)
-        )
 
-        if not all_equal:
+        ok, ref_idx = consensus_satisfied(sigs, _ags_sig_equal)
+        if len(sigs) == 1:
+            logging.warning(
+                "Une seule source avec données valides : mise à jour sans concordance croisée."
+            )
+        if not ok:
             debug_mismatch(payloads, sigs)
             logging.error("Divergence entre les sources de scraping. Arrêt.")
             sys.exit(2)
@@ -473,7 +503,7 @@ def main() -> None:
         debug_success(payloads, sigs)
 
         # Le patch AGS validé et les sources
-        ags_patch_data = sigs[0]
+        ags_patch_data = sigs[ref_idx]
         source_links = merge_sources(payloads)
 
         # 5. Lire l'état actuel (supabase déjà initialisé) (peut être None)

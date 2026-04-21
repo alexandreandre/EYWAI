@@ -168,10 +168,17 @@ def main():
         print("ERREUR CRITIQUE : Extraction échouée.", file=sys.stderr)
         sys.exit(1)
 
+    cas = data.get("cas_general")
+    mensuel_est = (
+        round(float(cas) * 35 * 52 / 12, 2) if cas is not None else None
+    )
     smic_data = {
-        "cas_general": data.get("cas_general"),
+        "cas_general": cas,
         "jeune_17_ans": data.get("entre_17_et_18_ans"),
         "jeune_moins_17_ans": data.get("moins_de_17_ans"),
+        "smic_horaire_brut": cas,
+        "smic_mensuel_brut": mensuel_est,
+        "annee": datetime.now().year,
     }
 
     payload = {

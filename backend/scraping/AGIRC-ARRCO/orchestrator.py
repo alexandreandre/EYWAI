@@ -55,6 +55,11 @@ def load_env():
 
 load_env()
 
+_SCRAPING_DIR = Path(__file__).resolve().parent.parent
+if str(_SCRAPING_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING_DIR))
+from utils import consensus_satisfied, is_ai_scraper_label  # noqa: E402
+
 # Liste des scrapers à exécuter
 SCRIPTS_TO_RUN: List[Tuple[str, str]] = [
     ("AGIRC-ARRCO.py", os.path.join(os.path.dirname(__file__), "AGIRC-ARRCO.py")),
@@ -74,8 +79,8 @@ def iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def run_script(label: str, path: str) -> Dict[str, Any]:
-    """Exécute un scraper et récupère son JSON depuis stdout."""
+def run_script(label: str, path: str) -> Optional[Dict[str, Any]]:
+    """Exécute un scraper et récupère son JSON depuis stdout. None si scraper *_AI.py en échec."""
     logging.info(f"Exécution du scraper: {label}...")
     try:
         proc = subprocess.run(
@@ -92,12 +97,27 @@ def run_script(label: str, path: str) -> Dict[str, Any]:
         return payload
     except subprocess.CalledProcessError as e:
         logging.error(f"Échec du scraper {label}. stderr: {e.stderr.strip()}")
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Scraper IA {label} ignoré — poursuite avec les autres sources."
+            )
+            return None
         raise SystemExit(f"Échec du script {label}")
     except json.JSONDecodeError:
         logging.error(f"Sortie non-JSON de {label}. stdout: {proc.stdout[:200]}...")
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Sortie invalide du scraper IA {label} — poursuite avec les autres sources."
+            )
+            return None
         raise SystemExit(f"Sortie invalide du script {label}")
     except Exception as e:
         logging.error(f"Erreur inattendue avec {label}: {e}")
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Scraper IA {label} ignoré — poursuite avec les autres sources."
+            )
+            return None
         raise
 
 
@@ -197,6 +217,19 @@ def compare_floats(a: float | None, b: float | None, tol: float = 1e-9) -> bool:
         return math.isclose(float(a), float(b), abs_tol=tol)
     except (ValueError, TypeError):
         return False
+
+
+def bundles_pair_equal(
+    ba: Dict[str, Dict[str, Any]], bb: Dict[str, Dict[str, Any]]
+) -> bool:
+    """True si deux bundles AGIRC-ARRCO concordent sur tous les items attendus."""
+    for cid in ITEMS_ID_TO_PATCH:
+        ia, ib = ba.get(cid), bb.get(cid)
+        if ia is None or ib is None:
+            return False
+        if not equal_item(ia, ib):
+            return False
+    return True
 
 
 def debug_compare(per_source: List[Tuple[str, Dict[str, Dict[str, Any]]]]) -> bool:
@@ -526,8 +559,15 @@ def main() -> None:
         payloads: List[Dict[str, Any]] = []
         labels: List[str] = []
         for label, path in SCRIPTS_TO_RUN:
-            payloads.append(run_script(label, path))
+            res = run_script(label, path)
+            if res is None:
+                continue
+            payloads.append(res)
             labels.append(label)
+
+        if not payloads:
+            logging.error("Aucune source de scraping n'a réussi. Arrêt.")
+            sys.exit(2)
 
         # 2. Normaliser les signatures (bundles)
         cores_labeled: List[Tuple[str, Dict[str, Dict[str, Any]]]] = []
@@ -538,15 +578,22 @@ def main() -> None:
                 logging.error(f"Normalisation échouée pour {labels[i]}: {e}")
                 sys.exit(2)
 
-        # 3. Valider la concordance
-        if not debug_compare(cores_labeled):
+        # 3. Valider la concordance (2/3, 2/2, ou 1 source avec warning)
+        bundles_only = [b for _, b in cores_labeled]
+        ok, ref_idx = consensus_satisfied(bundles_only, bundles_pair_equal)
+        if len(bundles_only) == 1:
+            logging.warning(
+                "Une seule source avec données valides : mise à jour sans concordance croisée."
+            )
+        if not ok:
+            debug_compare(cores_labeled)
             logging.error("Divergence ou données manquantes entre les sources. Arrêt.")
             sys.exit(2)
 
         logging.info("Concordance des bundles AGIRC-ARRCO validée.")
 
         # Le patch (bundle) validé et les sources
-        final_patch_bundle = cores_labeled[0][1]  # Le dict de 6+ items
+        final_patch_bundle = bundles_only[ref_idx]
         source_links = merge_sources(payloads)
         comment = (
             f"Mise à jour automatique: AGIRC-ARRCO ({', '.join(ITEMS_ID_TO_PATCH)})"

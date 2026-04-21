@@ -50,6 +50,11 @@ def load_env():
 
 load_env()
 
+_SCRAPING_DIR = Path(__file__).resolve().parent.parent
+if str(_SCRAPING_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING_DIR))
+from utils import consensus_satisfied, is_ai_scraper_label  # noqa: E402
+
 # Liste des scrapers à exécuter
 SCRIPTS_TO_RUN: List[Tuple[str, str]] = [
     ("FNAL.py", os.path.join(os.path.dirname(__file__), "FNAL.py")),
@@ -69,8 +74,8 @@ def iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def run_script(label: str, path: str) -> Dict[str, Any]:
-    """Exécute un scraper et récupère son JSON depuis stdout."""
+def run_script(label: str, path: str) -> Optional[Dict[str, Any]]:
+    """Exécute un scraper et récupère son JSON depuis stdout. None si scraper *_AI.py en échec."""
     logging.info(f"Exécution du scraper: {label}...")
     try:
         proc = subprocess.run(
@@ -87,12 +92,27 @@ def run_script(label: str, path: str) -> Dict[str, Any]:
         return payload
     except subprocess.CalledProcessError as e:
         logging.error(f"Échec du scraper {label}. stderr: {e.stderr.strip()}")
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Scraper IA {label} ignoré — poursuite avec les autres sources."
+            )
+            return None
         raise SystemExit(f"Échec du script {label}")
     except json.JSONDecodeError:
         logging.error(f"Sortie non-JSON de {label}. stdout: {proc.stdout[:200]}...")
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Sortie invalide du scraper IA {label} — poursuite avec les autres sources."
+            )
+            return None
         raise SystemExit(f"Sortie invalide du script {label}")
     except Exception as e:
         logging.error(f"Erreur inattendue avec {label}: {e}")
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Scraper IA {label} ignoré — poursuite avec les autres sources."
+            )
+            return None
         raise
 
 
@@ -436,10 +456,20 @@ def main() -> None:
         for i, (label, path) in enumerate(SCRIPTS_TO_RUN, 1):
             logging.info(f"  [{i}/{len(SCRIPTS_TO_RUN)}] Exécution de {label}...")
             sys.stderr.flush()
-            payloads.append(run_script(label, path))
+            res = run_script(label, path)
+            if res is None:
+                logging.warning(f"  ⚠️ {label} ignoré — poursuite avec les autres sources.")
+                sys.stderr.flush()
+                continue
+            payloads.append(res)
             labels.append(label)
             logging.info(f"  ✅ {label} terminé avec succès")
             sys.stderr.flush()
+
+        if not payloads:
+            logging.error("Aucune source de scraping n'a réussi. Arrêt.")
+            sys.stderr.flush()
+            sys.exit(2)
 
         # 2. Normaliser les signatures
         logging.info("Étape 2/8: Normalisation des signatures...")
@@ -464,18 +494,15 @@ def main() -> None:
         logging.info("Étape 4/8: Validation de la concordance entre sources...")
         sys.stderr.flush()
 
-        all_equal = True
-        for i in range(len(sigs) - 1):
-            are_equal, details = equal_core(sigs[i], sigs[i + 1])
-            if not are_equal:
-                all_equal = False
-                logging.error(
-                    f"Divergence entre '{labels[i]}' et '{labels[i + 1]}': {details}"
-                )
-                sys.stderr.flush()
-                break
-
-        if not all_equal:
+        ok, ref_idx = consensus_satisfied(
+            sigs, lambda a, b: equal_core(a, b)[0]
+        )
+        if len(sigs) == 1:
+            logging.warning(
+                "Une seule source avec données valides : mise à jour sans concordance croisée."
+            )
+            sys.stderr.flush()
+        if not ok:
             logging.error("Divergence entre les sources de scraping. Arrêt.")
             sys.stderr.flush()
             sys.exit(2)
@@ -484,7 +511,7 @@ def main() -> None:
         sys.stderr.flush()
 
         # Le patch validé et les sources
-        final_patch_data = sigs[0]
+        final_patch_data = sigs[ref_idx]
         source_links = merge_sources(payloads)
 
         # 5. Initialiser la BDD

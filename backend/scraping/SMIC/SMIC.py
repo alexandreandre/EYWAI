@@ -47,86 +47,91 @@ def get_session() -> requests.Session:
     return session
 
 
-# --- UTILITAIRES ---
 def iso_now() -> str:
     """Retourne la date et l'heure actuelles au format ISO 8601 UTC."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def parse_valeur_numerique(text: str) -> float:
-    """Nettoie et convertit un texte contenant une valeur monétaire en float."""
-    if not text:
-        return 0.0
-    cleaned_text = text.replace(",", ".").replace("\xa0", "").replace("€", "").strip()
-    match = re.search(r"([0-9]+\.?[0-9]*)", cleaned_text)
+def parse_montant(texte: str) -> float:
+    """Convertit '1 823,03 €' ou '1\xa0823,03 €' en 1823.03"""
+    import re
+    # Normalise : supprime espaces normaux, insécables,
+    # apostrophes, points de milliers
+    cleaned = (texte
+               .replace('\xa0', '')
+               .replace('\u202f', '')
+               .replace(' ', '')
+               .replace('\u2009', '')
+               .strip())
+    # Remplace virgule décimale par point
+    cleaned = cleaned.replace(',', '.')
+    # Extrait le premier nombre décimal ou entier
+    match = re.search(r'\d+\.?\d*', cleaned)
     if match:
-        return float(match.group(1))
+        return float(match.group())
     return 0.0
 
 
-def find_cas_general_section(soup: BeautifulSoup):
+def extract_smic_data(soup: BeautifulSoup) -> dict:
     """
-    Cherche la section 'Cas général' par plusieurs stratégies.
+    Extrait les données SMIC depuis les tableaux URSSAF.
+    Parcourt tous les tr : chaque ligne « Smic horaire brut »
+    ajoute une valeur (> 5 €) dans l'ordre (cas général, 17–18 ans, etc.).
     """
-    year = datetime.now().year
-    # Stratégie 1 : ID avec année courante ou N-1
-    for y in [year, year - 1, year + 1]:
-        section = soup.find(id=f"Cas-general-{y}")
-        if section:
-            return section
-    # Stratégie 2 : ID contenant 'Cas-general'
-    section = soup.find(id=lambda x: x and "Cas-general" in x)
-    if section:
-        return section
-    # Stratégie 3 : h2/h3 contenant 'Cas général'
-    for tag in soup.find_all(["h2", "h3", "h4"]):
-        if "cas général" in tag.get_text().lower():
-            return tag.find_parent(["section", "div", "article"])
-    # Stratégie 4 : premier tableau avec valeurs SMIC
-    return None
+    rows = soup.find_all("tr")
 
+    horaires: list[float] = []
+    smic_mensuel_brut = None
+    annee = datetime.now().year
 
-def get_smic_horaire_from_container(section, nom_cas: str) -> float:
-    """Extrait le SMIC horaire brut depuis un conteneur (section, div, etc.)."""
-    if not section:
-        raise ValueError(f"Section '{nom_cas}' introuvable.")
+    for tr in rows:
+        text = tr.get_text(strip=True, separator=" | ")
 
-    table_rows = section.find_all("tr")
-    for row in table_rows:
-        header_cell = row.find("th")
-        if header_cell and "Smic horaire brut" in header_cell.get_text(strip=True):
-            value_cell = row.find("td")
-            if not value_cell:
-                raise ValueError(
-                    f"Cellule de valeur manquante pour le SMIC horaire dans '{nom_cas}'."
-                )
+        if "Smic horaire brut" in text:
+            tds = tr.find_all(["td", "th"])
+            for td in tds:
+                val = parse_montant(td.get_text())
+                if val > 5:
+                    horaires.append(val)
+                    break
 
-            valeur_smic = parse_valeur_numerique(value_cell.get_text())
-            print(
-                f"  - SMIC horaire brut trouvé ({nom_cas}): {valeur_smic} €",
-                file=sys.stderr,
-            )
-            return valeur_smic
+        if "mensuel" in text.lower() and smic_mensuel_brut is None:
+            tds = tr.find_all(["td", "th"])
+            for td in tds:
+                val = parse_montant(td.get_text())
+                if val > 1000:
+                    smic_mensuel_brut = val
+                    break
 
-    raise ValueError(
-        f"Ligne 'Smic horaire brut' introuvable dans la section '{nom_cas}'."
-    )
+        if "janvier" in text.lower():
+            m = re.search(r"20\d{2}", text)
+            if m:
+                annee = int(m.group())
 
+    if not horaires:
+        raise ValueError("Impossible d'extraire le SMIC horaire brut")
 
-# --- SCRAPER ---
-def get_smic_horaire_par_cas(soup, section_id: str, nom_cas: str) -> float:
-    """Fonction générique pour scraper le SMIC horaire d'une section donnée (par id)."""
-    section = soup.find(id=section_id)
-    if not section:
-        raise ValueError(f"Section '{nom_cas}' (ID: {section_id}) introuvable.")
+    smic_horaire_brut = horaires[0]
+    if smic_mensuel_brut is None:
+        smic_mensuel_brut = round(smic_horaire_brut * 35 * 52 / 12, 2)
 
-    return get_smic_horaire_from_container(section, nom_cas)
+    cas_general = horaires[0]
+    jeune_17 = horaires[1] if len(horaires) > 1 else horaires[0]
+    jeune_moins_17 = horaires[2] if len(horaires) > 2 else horaires[0]
+
+    return {
+        "smic_horaire_brut": smic_horaire_brut,
+        "smic_mensuel_brut": smic_mensuel_brut,
+        "annee": annee,
+        "source": "URSSAF",
+        "cas_general": cas_general,
+        "jeune_17_ans": jeune_17,
+        "jeune_moins_17_ans": jeune_moins_17,
+    }
 
 
 def get_tous_les_smic() -> dict | None:
-    """
-    Scrape le site de l'URSSAF pour trouver tous les montants du SMIC horaire.
-    """
+    """Scrape l'URSSAF et retourne le dict sections (taux horaires + agrégats)."""
     try:
         print(f"Scraping de l'URL : {URL_URSSAF}...", file=sys.stderr)
         session = get_session()
@@ -134,30 +139,28 @@ def get_tous_les_smic() -> dict | None:
         r.raise_for_status()
 
         soup = BeautifulSoup(r.text, "html.parser")
+        data = extract_smic_data(soup)
 
-        current_year = datetime.now().year
+        print(
+            f"  - SMIC horaire brut (réf.): {data['smic_horaire_brut']} € | "
+            f"mensuel: {data['smic_mensuel_brut']} € | année: {data['annee']}",
+            file=sys.stderr,
+        )
+        print(
+            f"  - Par cas: général={data['cas_general']}, "
+            f"17–18={data['jeune_17_ans']}, <17={data['jeune_moins_17_ans']}",
+            file=sys.stderr,
+        )
 
-        cas_section = find_cas_general_section(soup)
-        smic_valeurs = {
-            "cas_general": get_smic_horaire_from_container(
-                cas_section, "Cas général"
-            ),
-            "jeune_17_ans": get_smic_horaire_par_cas(
-                soup, f"salaries-entre-17-18-{current_year}", "17 ans"
-            ),
-            "jeune_moins_17_ans": get_smic_horaire_par_cas(
-                soup, f"salaries-moins-17-{current_year}", "Moins de 17 ans"
-            ),
-        }
-
-        return smic_valeurs
+        # Pour l'orchestrateur : comparer uniquement des nombres (pas la clé str "source")
+        sections = {k: v for k, v in data.items() if k != "source"}
+        return sections
 
     except Exception as e:
         print(f"ERREUR : Le scraping a échoué. Raison : {e}", file=sys.stderr)
         return None
 
 
-# --- FONCTION PRINCIPALE ---
 def main():
     """Orchestre le scraping et génère la sortie JSON pour l'orchestrateur."""
     smic_data = get_tous_les_smic()
@@ -184,7 +187,6 @@ def main():
         },
     }
 
-    # Impression du JSON final sur la sortie standard
     print(json.dumps(payload, ensure_ascii=False))
 
 

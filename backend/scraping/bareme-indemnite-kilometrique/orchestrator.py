@@ -32,6 +32,11 @@ def load_env():
 
 load_env()
 
+_SCRAPING_DIR = Path(__file__).resolve().parent.parent
+if str(_SCRAPING_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING_DIR))
+from utils import consensus_satisfied, is_ai_scraper_label  # noqa: E402
+
 CONFIG_KEY_TO_UPDATE = "baremes_km"
 SCRAPER_NAME = "bareme-indemnite-kilometrique"
 logging.basicConfig(
@@ -76,7 +81,8 @@ def iso_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def run_script(path: str) -> Dict[str, Any]:
+def run_script(path: str) -> Optional[Dict[str, Any]]:
+    label = os.path.basename(path)
     proc = subprocess.run(
         [sys.executable, path],
         capture_output=True,
@@ -87,26 +93,36 @@ def run_script(path: str) -> Dict[str, Any]:
     )
     if proc.returncode != 0:
         print(
-            f"\n[ERREUR] {os.path.basename(path)} a échoué (code {proc.returncode})",
+            f"\n[ERREUR] {label} a échoué (code {proc.returncode})",
             file=sys.stderr,
         )
         if proc.stdout.strip():
             print("[stdout]", proc.stdout, file=sys.stderr)
         if proc.stderr.strip():
             print("[stderr]", proc.stderr, file=sys.stderr)
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Scraper IA {label} ignoré — poursuite avec les autres sources."
+            )
+            return None
         raise SystemExit(2)
 
     out = proc.stdout.strip()
     try:
         payload = json.loads(out)
-        payload.setdefault("meta", {}).setdefault("generator", os.path.basename(path))
-        payload["__script"] = os.path.basename(path)
+        payload.setdefault("meta", {}).setdefault("generator", label)
+        payload["__script"] = label
         return payload
     except Exception as e:
         print(
-            f"[ERREUR] Sortie non-JSON depuis {os.path.basename(path)}: {e}\n---stdout---\n{out}\n-------------",
+            f"[ERREUR] Sortie non-JSON depuis {label}: {e}\n---stdout---\n{out}\n-------------",
             file=sys.stderr,
         )
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Sortie invalide du scraper IA {label} — poursuite avec les autres sources."
+            )
+            return None
         raise SystemExit(2)
 
 
@@ -346,15 +362,24 @@ def _emit_orchestrator_json_result(
 
 def main() -> None:
     try:
-        payloads = [run_script(p) for p in SCRIPTS]
+        payloads: List[Dict[str, Any]] = []
+        for p in SCRIPTS:
+            r = run_script(p)
+            if r is None:
+                continue
+            payloads.append(r)
+
+        if not payloads:
+            logging.error("Aucune source de scraping n'a réussi. Arrêt.")
+            raise SystemExit(2)
+
         sigs = [core_signature(p) for p in payloads]
 
-        ok = True
-        for i in range(len(sigs) - 1):
-            if not equal_core(sigs[i], sigs[i + 1]):
-                ok = False
-                break
-
+        ok, ref_idx = consensus_satisfied(sigs, equal_core)
+        if len(sigs) == 1:
+            logging.warning(
+                "Une seule source avec données valides : mise à jour sans concordance croisée."
+            )
         if not ok:
             debug_mismatch(payloads, sigs)
             raise SystemExit(2)
@@ -363,7 +388,7 @@ def main() -> None:
 
         sources = merge_sources(payloads)
         source_links = [s.get("url", "") for s in sources if s.get("url")]
-        new_config_data = build_config_data(sigs[0], sources)
+        new_config_data = build_config_data(sigs[ref_idx], sources)
         supabase = get_supabase()
         current_row = fetch_active_config(supabase, CONFIG_KEY_TO_UPDATE)
         update_config_in_supabase(supabase, current_row, new_config_data, source_links)
@@ -376,7 +401,7 @@ def main() -> None:
             SCRAPER_NAME,
             True,
             CONFIG_KEY_TO_UPDATE,
-            sigs[0],
+            sigs[ref_idx],
             sources_used,
         )
     except SystemExit as e:

@@ -1,5 +1,6 @@
 from pathlib import Path
 from datetime import datetime
+from typing import Any, Callable, List, Tuple
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
@@ -134,3 +135,43 @@ def equal_core(sig_a: dict, sig_b: dict,
             if str(a).strip() != str(b).strip():
                 return False
     return True
+
+
+def is_ai_scraper_label(label: str) -> bool:
+    """True si le scraper est un script IA (*_AI.py ou libellé « AI »)."""
+    u = (label or "").upper()
+    if "_AI.PY" in u:
+        return True
+    if u.endswith("_AI"):
+        return True
+    if u == "AI":
+        return True
+    return False
+
+
+def consensus_satisfied(
+    sigs: List[Any],
+    pair_equal: Callable[[Any, Any], bool],
+) -> Tuple[bool, int]:
+    """
+    Valide la concordance entre sources :
+    - 0 source : échec
+    - 1 source : accepté (warning à logger côté appelant)
+    - 2 sources : les deux doivent concorder
+    - 3+ sources : au moins une paire doit concorder (2/3 ou plus)
+    Retourne (ok, index_de_référence) pour choisir la signature canonique.
+    """
+    n = len(sigs)
+    if n == 0:
+        return False, 0
+    if n == 1:
+        return True, 0
+    if n == 2:
+        if pair_equal(sigs[0], sigs[1]):
+            return True, 0
+        return False, 0
+    for i in range(n):
+        for j in range(i + 1, n):
+            if pair_equal(sigs[i], sigs[j]):
+                return True, min(i, j)
+    return False, 0
