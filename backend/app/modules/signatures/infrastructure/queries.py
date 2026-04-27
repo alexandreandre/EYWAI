@@ -53,6 +53,24 @@ def get_pending_signatures_rh(company_id: str) -> List[Dict[str, Any]]:
     return _list_pending_rows(company_id, {})
 
 
+def get_employee_id_for_user_in_company(
+    user_id: str, company_id: str
+) -> Optional[str]:
+    """Résout l'employé lié au compte utilisateur dans l'entreprise active."""
+    r = (
+        supabase.table("employees")
+        .select("id")
+        .eq("user_id", user_id)
+        .eq("company_id", company_id)
+        .maybe_single()
+        .execute()
+    )
+    employee = r.data if r else None
+    if not employee or not isinstance(employee, dict) or not employee.get("id"):
+        return None
+    return str(employee["id"])
+
+
 def get_pending_signatures_employee(
     employee_id: str, company_id: str
 ) -> List[Dict[str, Any]]:

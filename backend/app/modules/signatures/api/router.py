@@ -6,7 +6,6 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.core.database import supabase
 from app.core.security import get_current_user
 from app.modules.signatures.application import queries as application_queries
 from app.modules.signatures.schemas.responses import PendingSignaturesResponse
@@ -51,20 +50,10 @@ def get_pending_signatures_rh(current_user: User = Depends(get_current_user)):
 def get_my_pending_signatures(current_user: User = Depends(get_current_user)):
     """Vue salarié — ses propres procédures en attente."""
     company_id = _require_active_company(current_user)
-    r = (
-        supabase.table("employees")
-        .select("id")
-        .eq("user_id", current_user.id)
-        .eq("company_id", company_id)
-        .maybe_single()
-        .execute()
-    )
-    employee = r.data if r else None
-    if not employee or not isinstance(employee, dict) or not employee.get("id"):
-        return PendingSignaturesResponse(total=0, items=[])
-    employee_id = str(employee["id"])
     try:
-        return application_queries.get_widget_pending_employee(employee_id, company_id)
+        return application_queries.get_widget_pending_for_current_user(
+            str(current_user.id), company_id
+        )
     except Exception as e:
         _handle_application_errors(e)
 

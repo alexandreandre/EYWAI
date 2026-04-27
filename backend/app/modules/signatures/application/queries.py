@@ -147,6 +147,18 @@ def get_widget_pending_employee(
     )
 
 
+def get_widget_pending_for_current_user(
+    user_id: str, company_id: str
+) -> PendingSignaturesResponse:
+    """Vue salarié : résout l'employé puis délègue au widget par employee_id."""
+    employee_id = infra_queries.get_employee_id_for_user_in_company(
+        user_id, company_id
+    )
+    if not employee_id:
+        return PendingSignaturesResponse(total=0, items=[])
+    return get_widget_pending_employee(employee_id, company_id)
+
+
 def send_signature_reminder(review_id: str, company_id: str) -> Dict[str, Any]:
     """
     Relance Yousign pour un annual_review en pending (RH).
