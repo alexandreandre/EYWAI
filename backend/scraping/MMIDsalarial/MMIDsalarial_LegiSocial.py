@@ -8,7 +8,26 @@ from datetime import datetime, timezone
 import requests
 from bs4 import BeautifulSoup
 
-URL_LEGISOCIAL = "https://www.legisocial.fr/reperes-sociaux/taux-cotisations-sociales-urssaf-2025.html"
+URL_LEGISOCIAL_TEMPLATE = (
+    "https://www.legisocial.fr/reperes-sociaux/taux-cotisations-sociales-urssaf-{year}.html"
+)
+
+
+def fetch_legisocial(url_template: str) -> requests.Response:
+    year = datetime.now().year
+    for y in [year, year - 1]:
+        url = url_template.format(year=y)
+        try:
+            resp = requests.get(
+                url, timeout=15, headers={"User-Agent": "Mozilla/5.0"}
+            )
+            if resp.status_code == 200:
+                return resp
+        except requests.RequestException:
+            continue
+    raise RuntimeError(
+        f"URL LegiSocial inaccessible pour {year} et {year - 1}"
+    )
 
 # --- FONCTIONS UTILITAIRES ---
 
@@ -39,32 +58,32 @@ def parse_taux(text: str) -> float | None:
 # --- FONCTION DE SCRAPING ---
 
 
-def get_taux_alsace_moselle_legisocial() -> float | None:
+def get_taux_alsace_moselle_legisocial() -> tuple[float | None, str]:
     """
     Scrape le site LegiSocial pour trouver le taux salarial maladie du régime Alsace-Moselle.
     """
+    resolved_url = ""
     try:
-        print(f"Scraping de l'URL : {URL_LEGISOCIAL}...", file=sys.stderr)
-        response = requests.get(
-            URL_LEGISOCIAL,
-            timeout=20,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
-            },
-        )
-        response.raise_for_status()
+        response = fetch_legisocial(URL_LEGISOCIAL_TEMPLATE)
+        resolved_url = response.url
+        print(f"Scraping de l'URL : {resolved_url}...", file=sys.stderr)
 
         soup = BeautifulSoup(response.text, "html.parser")
 
+        page_year = datetime.now().year
+        m_year = re.search(r"-(\d{4})\.html", resolved_url)
+        if m_year:
+            page_year = int(m_year.group(1))
+        title_needle = f"Quels sont les taux de cotisations en {page_year}"
+
         table_title = soup.find(
             lambda tag: (
-                tag.name in ["h2", "h3"]
-                and "Quels sont les taux de cotisations en 2025" in tag.get_text()
+                tag.name in ["h2", "h3"] and title_needle in tag.get_text()
             )
         )
         if not table_title:
             raise ValueError(
-                "Titre de la table principale des cotisations 2025 introuvable."
+                f"Titre de la table principale des cotisations {page_year} introuvable."
             )
 
         table = table_title.find_next("table")
@@ -85,13 +104,13 @@ def get_taux_alsace_moselle_legisocial() -> float | None:
                             f"Taux salarial maladie (Alsace-Moselle) trouvé : {taux * 100:.2f}%",
                             file=sys.stderr,
                         )
-                        return taux
+                        return taux, resolved_url
 
         raise ValueError("Ligne correspondant au régime Alsace-Moselle introuvable.")
 
     except Exception as e:
         print(f"ERREUR : Le scraping a échoué. Raison : {e}", file=sys.stderr)
-        return None
+        return None, resolved_url
 
 
 # --- FONCTION PRINCIPALE ---
@@ -101,7 +120,7 @@ def main():
     """
     Orchestre le scraping et génère la sortie JSON pour l'orchestrateur.
     """
-    taux = get_taux_alsace_moselle_legisocial()
+    taux, source_url = get_taux_alsace_moselle_legisocial()
 
     if taux is None:
         print("ERREUR CRITIQUE: Le taux n'a pas pu être récupéré.", file=sys.stderr)
@@ -116,7 +135,8 @@ def main():
         "meta": {
             "source": [
                 {
-                    "url": URL_LEGISOCIAL,
+                    "url": source_url
+                    or URL_LEGISOCIAL_TEMPLATE.format(year=datetime.now().year),
                     "label": "LegiSocial - Taux de cotisations sociales",
                     "date_doc": "",
                 }

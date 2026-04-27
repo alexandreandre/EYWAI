@@ -7,14 +7,38 @@ import hashlib
 import subprocess
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-load_dotenv(os.path.join(REPO_ROOT, ".env"))
+
+
+def load_env():
+    script_dir = Path(__file__).resolve().parent
+    for candidate in [
+        script_dir / ".." / ".." / ".env",
+        script_dir / ".." / ".." / ".." / ".env",
+        Path.cwd() / ".env",
+    ]:
+        env_path = candidate.resolve()
+        if env_path.exists():
+            load_dotenv(env_path)
+            print(f"[ENV] Chargé depuis : {env_path}")
+            return
+    print("[ENV] AVERTISSEMENT : aucun fichier .env trouvé")
+
+
+load_env()
+
+_SCRAPING_DIR = Path(__file__).resolve().parent.parent
+if str(_SCRAPING_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING_DIR))
+from utils import consensus_satisfied, is_ai_scraper_label  # noqa: E402
 
 CONFIG_KEY_TO_UPDATE = "baremes_km"
+SCRAPER_NAME = "bareme-indemnite-kilometrique"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -57,36 +81,48 @@ def iso_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def run_script(path: str) -> Dict[str, Any]:
+def run_script(path: str) -> Optional[Dict[str, Any]]:
+    label = os.path.basename(path)
     proc = subprocess.run(
         [sys.executable, path],
         capture_output=True,
         text=True,
         cwd=REPO_ROOT,
         env=os.environ.copy(),
+        timeout=120,
     )
     if proc.returncode != 0:
         print(
-            f"\n[ERREUR] {os.path.basename(path)} a échoué (code {proc.returncode})",
+            f"\n[ERREUR] {label} a échoué (code {proc.returncode})",
             file=sys.stderr,
         )
         if proc.stdout.strip():
             print("[stdout]", proc.stdout, file=sys.stderr)
         if proc.stderr.strip():
             print("[stderr]", proc.stderr, file=sys.stderr)
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Scraper IA {label} ignoré — poursuite avec les autres sources."
+            )
+            return None
         raise SystemExit(2)
 
     out = proc.stdout.strip()
     try:
         payload = json.loads(out)
-        payload.setdefault("meta", {}).setdefault("generator", os.path.basename(path))
-        payload["__script"] = os.path.basename(path)
+        payload.setdefault("meta", {}).setdefault("generator", label)
+        payload["__script"] = label
         return payload
     except Exception as e:
         print(
-            f"[ERREUR] Sortie non-JSON depuis {os.path.basename(path)}: {e}\n---stdout---\n{out}\n-------------",
+            f"[ERREUR] Sortie non-JSON depuis {label}: {e}\n---stdout---\n{out}\n-------------",
             file=sys.stderr,
         )
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Sortie invalide du scraper IA {label} — poursuite avec les autres sources."
+            )
+            return None
         raise SystemExit(2)
 
 
@@ -296,33 +332,101 @@ def debug_success(payloads: List[Dict[str, Any]], sigs: List[Dict[str, Any]]) ->
     m0 = v["motocyclettes"]["tranches_cv"][0]["formules"][0]
     c0 = v["cyclomoteurs"]["tranches_cv"][0]["formules"][0]
     print(
-        f"OK concordance barème: V(seg1 a={v0['a']} b={v0['b']}) | M(seg1 a={m0['a']} b={m0['b']}) | C(seg1 a={c0['a']} b={c0['b']})"
+        f"OK concordance barème: V(seg1 a={v0['a']} b={v0['b']}) | M(seg1 a={m0['a']} b={m0['b']}) | C(seg1 a={c0['a']} b={c0['b']})",
+        file=sys.stderr,
     )
 
 
+def _emit_orchestrator_json_result(
+    scraper: str,
+    success: bool,
+    config_key: str,
+    data: Dict[str, Any],
+    sources_used: List[str],
+    error: str = "",
+) -> None:
+    out: Dict[str, Any] = {
+        "scraper": scraper,
+        "success": success,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "config_key": config_key,
+    }
+    if success:
+        out["data"] = data
+        out["sources_used"] = sources_used
+    else:
+        out["error"] = error
+        out["data"] = {}
+    print(json.dumps(out, ensure_ascii=False))
+
+
 def main() -> None:
-    payloads = [run_script(p) for p in SCRIPTS]
-    sigs = [core_signature(p) for p in payloads]
+    try:
+        payloads: List[Dict[str, Any]] = []
+        for p in SCRIPTS:
+            r = run_script(p)
+            if r is None:
+                continue
+            payloads.append(r)
 
-    ok = True
-    for i in range(len(sigs) - 1):
-        if not equal_core(sigs[i], sigs[i + 1]):
-            ok = False
-            break
+        if not payloads:
+            logging.error("Aucune source de scraping n'a réussi. Arrêt.")
+            raise SystemExit(2)
 
-    if not ok:
-        debug_mismatch(payloads, sigs)
-        raise SystemExit(2)
+        sigs = [core_signature(p) for p in payloads]
 
-    debug_success(payloads, sigs)
+        ok, ref_idx = consensus_satisfied(sigs, equal_core)
+        if len(sigs) == 1:
+            logging.warning(
+                "Une seule source avec données valides : mise à jour sans concordance croisée."
+            )
+        if not ok:
+            debug_mismatch(payloads, sigs)
+            raise SystemExit(2)
 
-    sources = merge_sources(payloads)
-    source_links = [s.get("url", "") for s in sources if s.get("url")]
-    new_config_data = build_config_data(sigs[0], sources)
-    supabase = get_supabase()
-    current_row = fetch_active_config(supabase, CONFIG_KEY_TO_UPDATE)
-    update_config_in_supabase(supabase, current_row, new_config_data, source_links)
-    print("OK: baremes_km mis à jour dans payroll_config.")
+        debug_success(payloads, sigs)
+
+        sources = merge_sources(payloads)
+        source_links = [s.get("url", "") for s in sources if s.get("url")]
+        new_config_data = build_config_data(sigs[ref_idx], sources)
+        supabase = get_supabase()
+        current_row = fetch_active_config(supabase, CONFIG_KEY_TO_UPDATE)
+        update_config_in_supabase(supabase, current_row, new_config_data, source_links)
+        print(
+            "OK: baremes_km mis à jour dans payroll_config.",
+            file=sys.stderr,
+        )
+        sources_used = [p.get("__script", "?") for p in payloads]
+        _emit_orchestrator_json_result(
+            SCRAPER_NAME,
+            True,
+            CONFIG_KEY_TO_UPDATE,
+            sigs[ref_idx],
+            sources_used,
+        )
+    except SystemExit as e:
+        code = getattr(e, "code", 1)
+        if not isinstance(code, int):
+            code = 1
+        _emit_orchestrator_json_result(
+            SCRAPER_NAME,
+            False,
+            CONFIG_KEY_TO_UPDATE,
+            {},
+            [],
+            str(e),
+        )
+        sys.exit(code)
+    except Exception as e:
+        _emit_orchestrator_json_result(
+            SCRAPER_NAME,
+            False,
+            CONFIG_KEY_TO_UPDATE,
+            {},
+            [],
+            str(e),
+        )
+        sys.exit(1)
 
 
 if __name__ == "__main__":

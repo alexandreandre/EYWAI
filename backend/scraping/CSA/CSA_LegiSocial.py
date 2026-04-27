@@ -9,7 +9,26 @@ from datetime import datetime, timezone
 import requests
 from bs4 import BeautifulSoup
 
-URL_LEGISOCIAL = "https://www.legisocial.fr/reperes-sociaux/taux-cotisations-sociales-urssaf-2025.html"
+URL_LEGISOCIAL_TEMPLATE = (
+    "https://www.legisocial.fr/reperes-sociaux/taux-cotisations-sociales-urssaf-{year}.html"
+)
+
+
+def fetch_legisocial(url_template: str) -> requests.Response:
+    year = datetime.now().year
+    for y in [year, year - 1]:
+        url = url_template.format(year=y)
+        try:
+            resp = requests.get(
+                url, timeout=15, headers={"User-Agent": "Mozilla/5.0"}
+            )
+            if resp.status_code == 200:
+                return resp
+        except requests.RequestException:
+            continue
+    raise RuntimeError(
+        f"URL LegiSocial inaccessible pour {year} et {year - 1}"
+    )
 
 
 # ---------- Utils ----------
@@ -36,16 +55,9 @@ def parse_percent(txt: str) -> float | None:
 
 
 # ---------- Scrape ----------
-def fetch_page() -> BeautifulSoup:
-    r = requests.get(
-        URL_LEGISOCIAL,
-        timeout=25,
-        headers={
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-        },
-    )
-    r.raise_for_status()
-    return BeautifulSoup(r.text, "html.parser")
+def fetch_page() -> tuple[BeautifulSoup, str]:
+    r = fetch_legisocial(URL_LEGISOCIAL_TEMPLATE)
+    return BeautifulSoup(r.text, "html.parser"), r.url
 
 
 def find_csa_rate(soup: BeautifulSoup) -> float | None:
@@ -89,7 +101,7 @@ def find_csa_rate(soup: BeautifulSoup) -> float | None:
 
 
 # ---------- Payload I/O ----------
-def build_payload(rate_patronal: float) -> dict:
+def build_payload(rate_patronal: float, source_url: str) -> dict:
     return {
         "id": "csa",
         "type": "cotisation",
@@ -99,7 +111,7 @@ def build_payload(rate_patronal: float) -> dict:
         "meta": {
             "source": [
                 {
-                    "url": URL_LEGISOCIAL,
+                    "url": source_url,
                     "label": "LégiSocial — Taux cotisations sociales URSSAF 2025",
                     "date_doc": "",
                 }
@@ -114,12 +126,12 @@ def build_payload(rate_patronal: float) -> dict:
 # ---------- Main ----------
 def main() -> None:
     try:
-        soup = fetch_page()
+        soup, source_url = fetch_page()
         rate = find_csa_rate(soup)
         if rate is None:
             print("ERREUR: taux CSA introuvable sur Légisocial.", file=sys.stderr)
             sys.exit(2)
-        payload = build_payload(rate)
+        payload = build_payload(rate, source_url)
         print(json.dumps(payload, ensure_ascii=False))
     except Exception as e:
         print(f"ERREUR: {e}", file=sys.stderr)

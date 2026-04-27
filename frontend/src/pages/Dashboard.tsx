@@ -49,6 +49,8 @@ import { NewEmployeeForm } from "@/components/forms/NewEmployeeForm";
 // --- Alertes RIB ---
 import * as ribAlertsApi from "@/api/ribAlerts";
 import { CSEDashboardBlock } from "@/components/CSEDashboardBlock";
+import { PendingSignaturesWidget } from "@/components/dashboard/PendingSignaturesWidget";
+import TeamAnalyticsSection from "@/components/dashboard/TeamAnalyticsSection";
 import { getMedicalSettings, getKPIs, type KPIs } from "@/api/medicalFollowUp";
 import {
   ANNUAL_REVIEW_PRIORITY_WINDOW_DAYS,
@@ -725,6 +727,8 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
+        <PendingSignaturesWidget mode="rh" />
+
         <section className="space-y-4 rounded-xl border bg-background p-4 md:p-5">
           <div>
             <h2 className="text-xl font-semibold">Centre d’actions</h2>
@@ -801,6 +805,7 @@ export default function Dashboard() {
               <RecruitmentKpisCard />
             </div>
             <PrevisionMasseSalarialeCard kpis={data.kpis} />
+            <TeamAnalyticsSection />
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

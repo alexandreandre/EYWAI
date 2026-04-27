@@ -92,6 +92,7 @@ const RH_HOME: SidebarLinkItem = {
 
 const RH_TEAM_BASE: SidebarLinkItem[] = [
   { title: "Collaborateurs", url: "/employees", icon: Users },
+  { title: "Équipes", url: "/teams", icon: Users },
   { title: "Départs & sorties", url: "/employee-exits", icon: UserMinus },
   { title: "Titres & documents", url: "/residence-permits", icon: FileCheck },
   { title: "Calendriers", url: "/schedules", icon: Calendar },

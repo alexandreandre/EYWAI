@@ -2,11 +2,32 @@
 
 import json
 import re
-import requests
-from bs4 import BeautifulSoup
+from datetime import datetime
 from typing import Optional
 
-URL_LEGISOCIAL = "https://www.legisocial.fr/reperes-sociaux/taux-cotisations-sociales-urssaf-2025.html"
+import requests
+from bs4 import BeautifulSoup
+
+URL_LEGISOCIAL_TEMPLATE = (
+    "https://www.legisocial.fr/reperes-sociaux/taux-cotisations-sociales-urssaf-{year}.html"
+)
+
+
+def fetch_legisocial(url_template: str) -> requests.Response:
+    year = datetime.now().year
+    for y in [year, year - 1]:
+        url = url_template.format(year=y)
+        try:
+            resp = requests.get(
+                url, timeout=15, headers={"User-Agent": "Mozilla/5.0"}
+            )
+            if resp.status_code == 200:
+                return resp
+        except requests.RequestException:
+            continue
+    raise RuntimeError(
+        f"URL LegiSocial inaccessible pour {year} et {year - 1}"
+    )
 
 
 def _txt(el) -> str:
@@ -35,7 +56,7 @@ def parse_taux(text: str) -> Optional[float]:
         return None
 
 
-def make_payload(rate: Optional[float]) -> dict:
+def make_payload(rate: Optional[float], source_url: str) -> dict:
     return {
         "id": "assurance_chomage",
         "type": "cotisation",
@@ -43,21 +64,15 @@ def make_payload(rate: Optional[float]) -> dict:
         "base": "brut",
         "valeurs": {"salarial": None, "patronal": rate},
         "meta": {
-            "source": [{"url": URL_LEGISOCIAL, "label": "LegiSocial", "date_doc": ""}],
+            "source": [{"url": source_url, "label": "LegiSocial", "date_doc": ""}],
             "generator": "scripts/assurancechomage/assurancechomage_LegiSocial.py",
         },
     }
 
 
-def scrape_legisocial_assurance_chomage() -> Optional[float]:
-    r = requests.get(
-        URL_LEGISOCIAL,
-        timeout=25,
-        headers={
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36"
-        },
-    )
-    r.raise_for_status()
+def scrape_legisocial_assurance_chomage() -> tuple[Optional[float], str]:
+    r = fetch_legisocial(URL_LEGISOCIAL_TEMPLATE)
+    resolved_url = r.url
     soup = BeautifulSoup(r.text, "lxml")
 
     # Parcourt toutes les lignes et cherche EXACTEMENT la structure décrite :
@@ -86,7 +101,7 @@ def scrape_legisocial_assurance_chomage() -> Optional[float]:
                 patronal_txt = _txt(tds[4])
                 rate = parse_taux(patronal_txt)
                 if rate is not None:
-                    return rate
+                    return rate, resolved_url
 
     # Fallback: si la ligne exacte n'est pas trouvée, tente la première ligne
     # "Assurance chômage" où la 5e cellule contient un pourcentage.
@@ -99,14 +114,20 @@ def scrape_legisocial_assurance_chomage() -> Optional[float]:
             if "%" in txt:
                 rate = parse_taux(txt)
                 if rate is not None:
-                    return rate
+                    return rate, resolved_url
 
-    return None
+    return None, resolved_url
 
 
 if __name__ == "__main__":
     try:
-        rate = scrape_legisocial_assurance_chomage()
-        print(json.dumps(make_payload(rate), ensure_ascii=False))
+        rate, source_url = scrape_legisocial_assurance_chomage()
+        print(json.dumps(make_payload(rate, source_url), ensure_ascii=False))
     except Exception:
-        print(json.dumps(make_payload(None), ensure_ascii=False))
+        y = datetime.now().year
+        print(
+            json.dumps(
+                make_payload(None, URL_LEGISOCIAL_TEMPLATE.format(year=y)),
+                ensure_ascii=False,
+            )
+        )

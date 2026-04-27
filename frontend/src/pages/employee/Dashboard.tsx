@@ -13,6 +13,7 @@ import apiClient from '@/api/apiClient';
 import { DayPickerSingleProps } from 'react-day-picker'; // Pour typer les modifiers
 import { fr } from 'date-fns/locale';
 import type * as absencesApi from '@/api/absences'; // Import types
+import { PendingSignaturesWidget } from '@/components/dashboard/PendingSignaturesWidget';
 
 // --- Interfaces (simplifiées pour le dashboard) ---
 interface PayslipInfo {
@@ -277,6 +278,7 @@ export default function EmployeeDashboard() {
           <Card className="border-destructive bg-destructive/10"><CardContent className="pt-6 text-destructive text-sm font-medium flex items-center gap-2"><Info className="h-4 w-4"/> {error}</CardContent></Card>
       )}
 
+      <PendingSignaturesWidget mode="employee" />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">

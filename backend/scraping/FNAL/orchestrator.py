@@ -9,6 +9,7 @@ import logging
 import math
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple, Optional
+from pathlib import Path
 from supabase import create_client, Client, PostgrestAPIResponse
 from dotenv import load_dotenv
 
@@ -18,6 +19,7 @@ from dotenv import load_dotenv
 CONFIG_KEY_TO_UPDATE = "cotisations"
 # ID de l'item spécifique que ce script met à jour DANS le JSONB
 ITEM_ID_TO_PATCH = "fnal"
+SCRAPER_NAME = "FNAL"
 
 # Configuration du logging
 # Configurer le logging pour écrire sur stderr (capturé par l'interface)
@@ -31,12 +33,27 @@ logging.basicConfig(
 # Trouver la racine du projet
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
-# Charger les variables d'environnement
-dotenv_path = os.path.join(REPO_ROOT, ".env")
-if not os.path.exists(dotenv_path):
-    logging.critical(f"Fichier .env non trouvé à: {dotenv_path}")
-    sys.exit(1)
-load_dotenv(dotenv_path=dotenv_path)
+def load_env():
+    script_dir = Path(__file__).resolve().parent
+    for candidate in [
+        script_dir / ".." / ".." / ".env",
+        script_dir / ".." / ".." / ".." / ".env",
+        Path.cwd() / ".env",
+    ]:
+        env_path = candidate.resolve()
+        if env_path.exists():
+            load_dotenv(env_path)
+            print(f"[ENV] Chargé depuis : {env_path}")
+            return
+    print("[ENV] AVERTISSEMENT : aucun fichier .env trouvé")
+
+
+load_env()
+
+_SCRAPING_DIR = Path(__file__).resolve().parent.parent
+if str(_SCRAPING_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING_DIR))
+from utils import consensus_satisfied, is_ai_scraper_label  # noqa: E402
 
 # Liste des scrapers à exécuter
 SCRIPTS_TO_RUN: List[Tuple[str, str]] = [
@@ -57,8 +74,8 @@ def iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def run_script(label: str, path: str) -> Dict[str, Any]:
-    """Exécute un scraper et récupère son JSON depuis stdout."""
+def run_script(label: str, path: str) -> Optional[Dict[str, Any]]:
+    """Exécute un scraper et récupère son JSON depuis stdout. None si scraper *_AI.py en échec."""
     logging.info(f"Exécution du scraper: {label}...")
     try:
         proc = subprocess.run(
@@ -75,12 +92,27 @@ def run_script(label: str, path: str) -> Dict[str, Any]:
         return payload
     except subprocess.CalledProcessError as e:
         logging.error(f"Échec du scraper {label}. stderr: {e.stderr.strip()}")
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Scraper IA {label} ignoré — poursuite avec les autres sources."
+            )
+            return None
         raise SystemExit(f"Échec du script {label}")
     except json.JSONDecodeError:
         logging.error(f"Sortie non-JSON de {label}. stdout: {proc.stdout[:200]}...")
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Sortie invalide du scraper IA {label} — poursuite avec les autres sources."
+            )
+            return None
         raise SystemExit(f"Sortie invalide du script {label}")
     except Exception as e:
         logging.error(f"Erreur inattendue avec {label}: {e}")
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Scraper IA {label} ignoré — poursuite avec les autres sources."
+            )
+            return None
         raise
 
 
@@ -382,6 +414,29 @@ def update_config_in_supabase(
             raise
 
 
+def _emit_orchestrator_json_result(
+    scraper: str,
+    success: bool,
+    config_key: str,
+    data: Dict[str, Any],
+    sources_used: List[str],
+    error: str = "",
+) -> None:
+    out: Dict[str, Any] = {
+        "scraper": scraper,
+        "success": success,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "config_key": config_key,
+    }
+    if success:
+        out["data"] = data
+        out["sources_used"] = sources_used
+    else:
+        out["error"] = error
+        out["data"] = {}
+    print(json.dumps(out, ensure_ascii=False))
+
+
 # --- 3. Fonction Principale ---
 
 
@@ -401,10 +456,20 @@ def main() -> None:
         for i, (label, path) in enumerate(SCRIPTS_TO_RUN, 1):
             logging.info(f"  [{i}/{len(SCRIPTS_TO_RUN)}] Exécution de {label}...")
             sys.stderr.flush()
-            payloads.append(run_script(label, path))
+            res = run_script(label, path)
+            if res is None:
+                logging.warning(f"  ⚠️ {label} ignoré — poursuite avec les autres sources.")
+                sys.stderr.flush()
+                continue
+            payloads.append(res)
             labels.append(label)
             logging.info(f"  ✅ {label} terminé avec succès")
             sys.stderr.flush()
+
+        if not payloads:
+            logging.error("Aucune source de scraping n'a réussi. Arrêt.")
+            sys.stderr.flush()
+            sys.exit(2)
 
         # 2. Normaliser les signatures
         logging.info("Étape 2/8: Normalisation des signatures...")
@@ -429,18 +494,15 @@ def main() -> None:
         logging.info("Étape 4/8: Validation de la concordance entre sources...")
         sys.stderr.flush()
 
-        all_equal = True
-        for i in range(len(sigs) - 1):
-            are_equal, details = equal_core(sigs[i], sigs[i + 1])
-            if not are_equal:
-                all_equal = False
-                logging.error(
-                    f"Divergence entre '{labels[i]}' et '{labels[i + 1]}': {details}"
-                )
-                sys.stderr.flush()
-                break
-
-        if not all_equal:
+        ok, ref_idx = consensus_satisfied(
+            sigs, lambda a, b: equal_core(a, b)[0]
+        )
+        if len(sigs) == 1:
+            logging.warning(
+                "Une seule source avec données valides : mise à jour sans concordance croisée."
+            )
+            sys.stderr.flush()
+        if not ok:
             logging.error("Divergence entre les sources de scraping. Arrêt.")
             sys.stderr.flush()
             sys.exit(2)
@@ -449,7 +511,7 @@ def main() -> None:
         sys.stderr.flush()
 
         # Le patch validé et les sources
-        final_patch_data = sigs[0]
+        final_patch_data = sigs[ref_idx]
         source_links = merge_sources(payloads)
 
         # 5. Initialiser la BDD
@@ -492,14 +554,41 @@ def main() -> None:
         # Forcer le flush de tous les logs avant de terminer
         sys.stderr.flush()
         sys.stdout.flush()
+        sources_used = [p.get("__script", "?") for p in payloads]
+        _emit_orchestrator_json_result(
+            SCRAPER_NAME,
+            True,
+            CONFIG_KEY_TO_UPDATE,
+            final_patch_data,
+            sources_used,
+        )
 
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")
         sys.stderr.flush()
-        sys.exit(int(str(e).split()[-1]) if str(e).split()[-1].isdigit() else 1)
+        code = getattr(e, "code", 1)
+        if not isinstance(code, int):
+            code = 1
+        _emit_orchestrator_json_result(
+            SCRAPER_NAME,
+            False,
+            CONFIG_KEY_TO_UPDATE,
+            {},
+            [],
+            str(e),
+        )
+        sys.exit(code)
     except Exception as e:
         logging.critical(f"Une erreur fatale est survenue: {e}", exc_info=True)
         sys.stderr.flush()
+        _emit_orchestrator_json_result(
+            SCRAPER_NAME,
+            False,
+            CONFIG_KEY_TO_UPDATE,
+            {},
+            [],
+            str(e),
+        )
         sys.exit(1)
 
 

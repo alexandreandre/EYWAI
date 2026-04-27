@@ -46,6 +46,8 @@ class NewFullEmployee(BaseModel):
     specificites_paie: Dict[str, Any]
     # Convention collective (optionnel: si null, utilise celle de l'entreprise)
     collective_agreement_id: str | None = None
+    # Équipe (optionnel, FK teams)
+    team_id: str | None = None
 
 
 class UpdateEmployee(BaseModel):

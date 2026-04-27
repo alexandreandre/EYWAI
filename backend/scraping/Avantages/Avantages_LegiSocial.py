@@ -3,20 +3,39 @@
 import json
 import re
 import sys
-import requests
-from bs4 import BeautifulSoup
+from datetime import datetime
 from typing import Optional, Dict, List
 
-URL_REPAS = (
-    "https://www.legisocial.fr/reperes-sociaux/avantage-en-nature-repas-2025.html"
+import requests
+from bs4 import BeautifulSoup
+
+URL_REPAS_TEMPLATE = (
+    "https://www.legisocial.fr/reperes-sociaux/avantage-en-nature-repas-{year}.html"
 )
-URL_LOGEMENT = (
-    "https://www.legisocial.fr/reperes-sociaux/avantage-en-nature-logement-2025.html"
+URL_LOGEMENT_TEMPLATE = (
+    "https://www.legisocial.fr/reperes-sociaux/avantage-en-nature-logement-{year}.html"
 )
 UA = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 )
+
+
+def fetch_legisocial(url_template: str) -> requests.Response:
+    year = datetime.now().year
+    for y in [year, year - 1]:
+        url = url_template.format(year=y)
+        try:
+            resp = requests.get(
+                url, timeout=15, headers={"User-Agent": "Mozilla/5.0"}
+            )
+            if resp.status_code == 200:
+                return resp
+        except requests.RequestException:
+            continue
+    raise RuntimeError(
+        f"URL LegiSocial inaccessible pour {year} et {year - 1}"
+    )
 
 
 # ---------- helpers ----------
@@ -47,6 +66,8 @@ def make_payload(
     repas: Optional[float],
     titre_restaurant: Optional[float],
     logement_bareme: List[Dict],
+    url_repas: str,
+    url_logement: str,
 ) -> dict:
     return {
         "id": "avantages_en_nature",
@@ -58,8 +79,12 @@ def make_payload(
         ],
         "meta": {
             "source": [
-                {"url": URL_REPAS, "label": "LegiSocial (Repas)", "date_doc": ""},
-                {"url": URL_LOGEMENT, "label": "LegiSocial (Logement)", "date_doc": ""},
+                {"url": url_repas, "label": "LegiSocial (Repas)", "date_doc": ""},
+                {
+                    "url": url_logement,
+                    "label": "LegiSocial (Logement)",
+                    "date_doc": "",
+                },
             ],
             "generator": "scripts/Avantages/Avantages_LegiSocial.py",
         },
@@ -67,9 +92,8 @@ def make_payload(
 
 
 # ---------- scrapers ----------
-def scrape_repas() -> Dict[str, Optional[float]]:
-    r = requests.get(URL_REPAS, timeout=25, headers={"User-Agent": UA})
-    r.raise_for_status()
+def scrape_repas() -> tuple[Dict[str, Optional[float]], str]:
+    r = fetch_legisocial(URL_REPAS_TEMPLATE)
     soup = BeautifulSoup(r.text, "lxml")
 
     repas_val = None
@@ -77,7 +101,7 @@ def scrape_repas() -> Dict[str, Optional[float]]:
 
     table = soup.find("table")
     if not table:
-        return {"repas": None, "titre": None}
+        return {"repas": None, "titre": None}, r.url
 
     for tr in table.find_all("tr"):
         tds = tr.find_all("td")
@@ -95,12 +119,11 @@ def scrape_repas() -> Dict[str, Optional[float]]:
         if "participation patronale maximum sur tickets restaurant" in lib:
             titre_exo = val
 
-    return {"repas": repas_val, "titre": titre_exo}
+    return {"repas": repas_val, "titre": titre_exo}, r.url
 
 
-def scrape_logement() -> List[Dict]:
-    r = requests.get(URL_LOGEMENT, timeout=25, headers={"User-Agent": UA})
-    r.raise_for_status()
+def scrape_logement() -> tuple[List[Dict], str]:
+    r = fetch_legisocial(URL_LOGEMENT_TEMPLATE)
     soup = BeautifulSoup(r.text, "lxml")
 
     header = None
@@ -113,16 +136,16 @@ def scrape_logement() -> List[Dict]:
             header = h3
             break
     if not header:
-        return []
+        return [], r.url
 
     table = header.find_next("table")
     if not table:
-        return []
+        return [], r.url
 
     tbody = table.find("tbody") or table
     rows = tbody.find_all("tr")
     if len(rows) < 3:
-        return []
+        return [], r.url
 
     # structure attendue : 3 lignes (tranches / 1 pièce / par pièce suppl.)
     tranches = rows[0].find_all("td")[1:]
@@ -152,19 +175,21 @@ def scrape_logement() -> List[Dict]:
         if b["valeur_1_piece_eur"] is not None
         and b["valeur_par_piece_suppl_eur"] is not None
     ]
-    return out
+    return out, r.url
 
 
 # ---------- main ----------
 if __name__ == "__main__":
     try:
-        repas = scrape_repas()
-        logement = scrape_logement()
+        repas, url_repas = scrape_repas()
+        logement, url_logement = scrape_logement()
 
         payload = make_payload(
             repas=repas.get("repas"),
             titre_restaurant=repas.get("titre"),
             logement_bareme=logement,
+            url_repas=url_repas,
+            url_logement=url_logement,
         )
 
         # succès si on a au moins repas ET titre_restaurant ET >=1 tranche logement
@@ -179,6 +204,13 @@ if __name__ == "__main__":
         sys.exit(0 if ok else 2)
     except Exception:
         # en échec, renvoyer structure vide mais valide
-        empty = make_payload(None, None, [])
+        y = datetime.now().year
+        empty = make_payload(
+            None,
+            None,
+            [],
+            url_repas=URL_REPAS_TEMPLATE.format(year=y),
+            url_logement=URL_LOGEMENT_TEMPLATE.format(year=y),
+        )
         print(json.dumps(empty, ensure_ascii=False))
         sys.exit(2)

@@ -6,7 +6,26 @@ from datetime import datetime, timezone
 import requests
 from bs4 import BeautifulSoup
 
-URL_LEGISOCIAL = "https://www.legisocial.fr/reperes-sociaux/indemnites-journalieres-de-securite-sociale-ijss-2025.html"
+URL_LEGISOCIAL_TEMPLATE = (
+    "https://www.legisocial.fr/reperes-sociaux/indemnites-journalieres-de-securite-sociale-ijss-{year}.html"
+)
+
+
+def fetch_legisocial(url_template: str) -> requests.Response:
+    year = datetime.now().year
+    for y in [year, year - 1]:
+        url = url_template.format(year=y)
+        try:
+            resp = requests.get(
+                url, timeout=15, headers={"User-Agent": "Mozilla/5.0"}
+            )
+            if resp.status_code == 200:
+                return resp
+        except requests.RequestException:
+            continue
+    raise RuntimeError(
+        f"URL LegiSocial inaccessible pour {year} et {year - 1}"
+    )
 
 
 def iso_now() -> str:
@@ -27,16 +46,11 @@ def parse_valeur_numerique(text: str) -> float:
     return float(m.group(1)) if m else 0.0
 
 
-def get_all_plafonds_ij_legisocial() -> dict | None:
+def get_all_plafonds_ij_legisocial() -> tuple[dict | None, str]:
+    resolved_url = ""
     try:
-        r = requests.get(
-            URL_LEGISOCIAL,
-            timeout=20,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
-            },
-        )
-        r.raise_for_status()
+        r = fetch_legisocial(URL_LEGISOCIAL_TEMPLATE)
+        resolved_url = r.url
         soup = BeautifulSoup(r.text, "html.parser")
 
         plafonds: dict = {}
@@ -99,12 +113,12 @@ def get_all_plafonds_ij_legisocial() -> dict | None:
         }:
             raise ValueError(f"Incomplet: {plafonds}")
 
-        return plafonds
+        return plafonds, resolved_url
     except Exception:
-        return None
+        return None, resolved_url
 
 
-def build_payload(vals: dict | None) -> dict:
+def build_payload(vals: dict | None, source_url: str) -> dict:
     valeurs = {
         "maladie": None,
         "maternite_paternite": None,
@@ -130,7 +144,7 @@ def build_payload(vals: dict | None) -> dict:
         "meta": {
             "source": [
                 {
-                    "url": URL_LEGISOCIAL,
+                    "url": source_url,
                     "label": "LégiSocial — IJSS 2025",
                     "date_doc": "",
                 }
@@ -143,8 +157,8 @@ def build_payload(vals: dict | None) -> dict:
 
 
 def main() -> None:
-    vals = get_all_plafonds_ij_legisocial()
-    payload = build_payload(vals)
+    vals, source_url = get_all_plafonds_ij_legisocial()
+    payload = build_payload(vals, source_url)
     print(json.dumps(payload, ensure_ascii=False))
 
 

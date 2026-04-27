@@ -3,14 +3,33 @@
 import json
 import re
 import sys
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
+
 import requests
 from bs4 import BeautifulSoup
-from typing import Dict, Optional, List
 
-URL_LEGISOCIAL = (
-    "https://www.legisocial.fr/reperes-sociaux/cotisations-agirc-arrco-2025.html"
+URL_LEGISOCIAL_TEMPLATE = (
+    "https://www.legisocial.fr/reperes-sociaux/cotisations-agirc-arrco-{year}.html"
 )
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+
+
+def fetch_legisocial(url_template: str) -> requests.Response:
+    year = datetime.now().year
+    for y in [year, year - 1]:
+        url = url_template.format(year=y)
+        try:
+            resp = requests.get(
+                url, timeout=15, headers={"User-Agent": "Mozilla/5.0"}
+            )
+            if resp.status_code == 200:
+                return resp
+        except requests.RequestException:
+            continue
+    raise RuntimeError(
+        f"URL LegiSocial inaccessible pour {year} et {year - 1}"
+    )
 
 
 # ---------- helpers ----------
@@ -80,14 +99,15 @@ def mk_item(_id: str, libelle: str, base: str, sal: float, pat: float) -> Dict:
 
 
 # ---------- scrape ----------
-def scrape_legisocial() -> Optional[Dict[str, float]]:
+def scrape_legisocial() -> Tuple[Optional[Dict[str, float]], str]:
+    resolved_url = ""
     try:
-        r = requests.get(URL_LEGISOCIAL, timeout=25, headers={"User-Agent": UA})
-        r.raise_for_status()
+        r = fetch_legisocial(URL_LEGISOCIAL_TEMPLATE)
+        resolved_url = r.url
         soup = BeautifulSoup(r.text, "lxml")
     except Exception as e:
         print(f"[ERREUR] HTTP: {e}", file=sys.stderr)
-        return None
+        return None, resolved_url
 
     taux: Dict[str, float] = {}
     tables = soup.find_all("table")
@@ -179,14 +199,14 @@ def scrape_legisocial() -> Optional[Dict[str, float]]:
     missing = [k for k in expected if k not in taux or taux[k] is None]
     if missing:
         print(f"[ERREUR] Taux manquants: {missing}", file=sys.stderr)
-        return None
+        return None, resolved_url
 
-    return taux
+    return taux, resolved_url
 
 
 # ---------- main ----------
 if __name__ == "__main__":
-    tx = scrape_legisocial()
+    tx, url_used = scrape_legisocial()
     if not tx:
         # échoue proprement pour l'orchestrateur
         print(
@@ -198,7 +218,10 @@ if __name__ == "__main__":
                     "meta": {
                         "source": [
                             {
-                                "url": URL_LEGISOCIAL,
+                                "url": url_used
+                                or URL_LEGISOCIAL_TEMPLATE.format(
+                                    year=datetime.now().year
+                                ),
                                 "label": "LegiSocial",
                                 "date_doc": "",
                             }
@@ -261,7 +284,9 @@ if __name__ == "__main__":
         "type": "cotisation_bundle",
         "items": items,
         "meta": {
-            "source": [{"url": URL_LEGISOCIAL, "label": "LegiSocial", "date_doc": ""}],
+            "source": [
+                {"url": url_used, "label": "LegiSocial", "date_doc": ""}
+            ],
             "generator": "scripts/AGIRC-ARRCO/AGIRC-ARRCO_LegiSocial.py",
         },
     }

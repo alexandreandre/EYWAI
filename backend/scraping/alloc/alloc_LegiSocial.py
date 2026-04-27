@@ -3,10 +3,31 @@
 import json
 import re
 import sys
+from datetime import datetime
+
 import requests
 from bs4 import BeautifulSoup
 
-URL_LEGISOCIAL = "https://www.legisocial.fr/reperes-sociaux/taux-cotisations-sociales-urssaf-2025.html"
+URL_LEGISOCIAL_TEMPLATE = (
+    "https://www.legisocial.fr/reperes-sociaux/taux-cotisations-sociales-urssaf-{year}.html"
+)
+
+
+def fetch_legisocial(url_template: str) -> requests.Response:
+    year = datetime.now().year
+    for y in [year, year - 1]:
+        url = url_template.format(year=y)
+        try:
+            resp = requests.get(
+                url, timeout=15, headers={"User-Agent": "Mozilla/5.0"}
+            )
+            if resp.status_code == 200:
+                return resp
+        except requests.RequestException:
+            continue
+    raise RuntimeError(
+        f"URL LegiSocial inaccessible pour {year} et {year - 1}"
+    )
 
 
 def parse_taux(text: str) -> float | None:
@@ -27,7 +48,7 @@ def parse_taux(text: str) -> float | None:
         return None
 
 
-def make_payload(plein, reduit):
+def make_payload(plein, reduit, source_url: str):
     return {
         "id": "allocations_familiales",
         "type": "cotisation",
@@ -39,13 +60,13 @@ def make_payload(plein, reduit):
             "patronal_reduit": reduit,
         },
         "meta": {
-            "source": [{"url": URL_LEGISOCIAL, "label": "LegiSocial", "date_doc": ""}],
+            "source": [{"url": source_url, "label": "LegiSocial", "date_doc": ""}],
             "generator": "scripts/alloc/alloc_LegiSocial.py",
         },
     }
 
 
-def get_taux_alloc_legisocial() -> dict | None:
+def get_taux_alloc_legisocial() -> tuple[dict | None, str]:
     """
     Scrape LegiSocial pour trouver les taux plein et réduit.
     STRATÉGIE IDENTIQUE :
@@ -54,23 +75,21 @@ def get_taux_alloc_legisocial() -> dict | None:
       3) Dans les lignes 'allocations familiales', lire la 5ᵉ cellule (index 4)
       4) Classer réduit si '≤' ou '<' dans le libellé ; plein si '>' dans le libellé
     """
-    # print(f"Scraping de l'URL : {URL_LEGISOCIAL}...")
-    response = requests.get(
-        URL_LEGISOCIAL,
-        timeout=20,
-        headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
-        },
-    )
-    response.raise_for_status()
+    response = fetch_legisocial(URL_LEGISOCIAL_TEMPLATE)
+    resolved_url = response.url
 
     soup = BeautifulSoup(response.text, "html.parser")
+
+    page_year = datetime.now().year
+    m_year = re.search(r"-(\d{4})\.html", resolved_url)
+    if m_year:
+        page_year = int(m_year.group(1))
 
     # 1) Trouver la table principale des cotisations
     # Recherche flexible : plusieurs variantes possibles du titre
     table_title = None
     possible_titles = [
-        "Quels sont les taux de cotisations en 2025",
+        f"Quels sont les taux de cotisations en {page_year}",
         "Quels sont les taux de cotisations",
         "Quels sont les taux",
         "taux de cotisations",
@@ -131,7 +150,7 @@ def get_taux_alloc_legisocial() -> dict | None:
                         taux_trouves["plein"] = taux
 
     if "reduit" in taux_trouves and "plein" in taux_trouves:
-        return taux_trouves
+        return taux_trouves, resolved_url
     else:
         raise ValueError(
             "Impossible de trouver les deux taux (réduit et plein) pour les allocations familiales."
@@ -140,8 +159,12 @@ def get_taux_alloc_legisocial() -> dict | None:
 
 if __name__ == "__main__":
     try:
-        tous_les_taux = get_taux_alloc_legisocial()
-        payload = make_payload(tous_les_taux.get("plein"), tous_les_taux.get("reduit"))
+        tous_les_taux, source_url = get_taux_alloc_legisocial()
+        payload = make_payload(
+            tous_les_taux.get("plein"),
+            tous_les_taux.get("reduit"),
+            source_url,
+        )
         print(json.dumps(payload, ensure_ascii=False))
         # succès si les deux valeurs sont présentes
         sys.exit(
@@ -153,6 +176,16 @@ if __name__ == "__main__":
             else 2
         )
     except Exception as e:
-        print(json.dumps(make_payload(None, None), ensure_ascii=False))
+        y = datetime.now().year
+        print(
+            json.dumps(
+                make_payload(
+                    None,
+                    None,
+                    URL_LEGISOCIAL_TEMPLATE.format(year=y),
+                ),
+                ensure_ascii=False,
+            )
+        )
         print(f"ERREUR : {e}", file=sys.stderr)
         sys.exit(2)

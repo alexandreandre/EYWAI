@@ -7,7 +7,26 @@ from datetime import datetime, timezone
 import requests
 from bs4 import BeautifulSoup
 
-URL_LEGISOCIAL = "https://www.legisocial.fr/reperes-sociaux/taux-cotisations-sociales-urssaf-2025.html"
+URL_LEGISOCIAL_TEMPLATE = (
+    "https://www.legisocial.fr/reperes-sociaux/taux-cotisations-sociales-urssaf-{year}.html"
+)
+
+
+def fetch_legisocial(url_template: str) -> requests.Response:
+    year = datetime.now().year
+    for y in [year, year - 1]:
+        url = url_template.format(year=y)
+        try:
+            resp = requests.get(
+                url, timeout=15, headers={"User-Agent": "Mozilla/5.0"}
+            )
+            if resp.status_code == 200:
+                return resp
+        except requests.RequestException:
+            continue
+    raise RuntimeError(
+        f"URL LegiSocial inaccessible pour {year} et {year - 1}"
+    )
 
 
 def iso_now() -> str:
@@ -26,25 +45,18 @@ def parse_taux(text: str) -> float | None:
         return None
 
 
-def fetch_page() -> BeautifulSoup:
-    r = requests.get(
-        URL_LEGISOCIAL,
-        timeout=25,
-        headers={
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-        },
-    )
-    r.raise_for_status()
-    return BeautifulSoup(r.text, "html.parser")
+def fetch_page() -> tuple[BeautifulSoup, str]:
+    r = fetch_legisocial(URL_LEGISOCIAL_TEMPLATE)
+    return BeautifulSoup(r.text, "html.parser"), r.url
 
 
-def get_taux_csg_legisocial() -> dict | None:
+def get_taux_csg_legisocial() -> tuple[dict | None, str]:
     """
     Retourne {"deductible": float, "non_deductible": float} ou None.
     deductible = CSG déductible
     non_deductible = CSG non déductible + CRDS non déductible
     """
-    soup = fetch_page()
+    soup, source_url = fetch_page()
 
     # Trouver le bloc "COTISATIONS CSG et CRDS"
     target_h3 = None
@@ -56,16 +68,16 @@ def get_taux_csg_legisocial() -> dict | None:
             target_h3 = h3
             break
     if not target_h3:
-        return None
+        return None, source_url
 
     table = target_h3.find_next("table")
     if not table:
-        return None
+        return None, source_url
 
     # Parcours du tbody, gestion implicite du rowspan via colonnes présentes
     tbody = table.find("tbody")
     if not tbody:
-        return None
+        return None, source_url
 
     vals = {"deductible": None, "non_deductible_csg": None, "non_deductible_crds": None}
     for tr in tbody.find_all("tr"):
@@ -99,13 +111,13 @@ def get_taux_csg_legisocial() -> dict | None:
             break
 
     if any(v is None for v in vals.values()):
-        return None
+        return None, source_url
 
     non_deductible = round(vals["non_deductible_csg"] + vals["non_deductible_crds"], 6)
-    return {"deductible": vals["deductible"], "non_deductible": non_deductible}
+    return {"deductible": vals["deductible"], "non_deductible": non_deductible}, source_url
 
 
-def build_payload(taux: dict | None) -> dict:
+def build_payload(taux: dict | None, source_url: str) -> dict:
     vals = {"salarial": None, "patronal": None}
     if taux is not None:
         vals["salarial"] = {
@@ -121,7 +133,7 @@ def build_payload(taux: dict | None) -> dict:
         "meta": {
             "source": [
                 {
-                    "url": URL_LEGISOCIAL,
+                    "url": source_url,
                     "label": "LégiSocial — Taux cotisations URSSAF 2025",
                     "date_doc": "",
                 }
@@ -134,6 +146,6 @@ def build_payload(taux: dict | None) -> dict:
 
 
 if __name__ == "__main__":
-    taux = get_taux_csg_legisocial()
-    payload = build_payload(taux)
+    taux, source_url = get_taux_csg_legisocial()
+    payload = build_payload(taux, source_url)
     print(json.dumps(payload, ensure_ascii=False))

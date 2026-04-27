@@ -8,6 +8,7 @@ import logging
 import math
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple, Optional
+from pathlib import Path
 from supabase import create_client, Client, PostgrestAPIResponse
 from dotenv import load_dotenv
 
@@ -17,6 +18,7 @@ from dotenv import load_dotenv
 CONFIG_KEY_TO_UPDATE = "cotisations"
 
 # IDs des items spécifiques que ce script met à jour DANS le JSONB
+SCRAPER_NAME = "AGIRC-ARRCO"
 ITEMS_ID_TO_PATCH = [
     "retraite_comp_t1",
     "retraite_comp_t2",
@@ -36,12 +38,27 @@ logging.basicConfig(
 # Trouver la racine du projet
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
-# Charger les variables d'environnement
-dotenv_path = os.path.join(REPO_ROOT, ".env")
-if not os.path.exists(dotenv_path):
-    logging.critical(f"Fichier .env non trouvé à: {dotenv_path}")
-    sys.exit(1)
-load_dotenv(dotenv_path=dotenv_path)
+def load_env():
+    script_dir = Path(__file__).resolve().parent
+    for candidate in [
+        script_dir / ".." / ".." / ".env",
+        script_dir / ".." / ".." / ".." / ".env",
+        Path.cwd() / ".env",
+    ]:
+        env_path = candidate.resolve()
+        if env_path.exists():
+            load_dotenv(env_path)
+            print(f"[ENV] Chargé depuis : {env_path}")
+            return
+    print("[ENV] AVERTISSEMENT : aucun fichier .env trouvé")
+
+
+load_env()
+
+_SCRAPING_DIR = Path(__file__).resolve().parent.parent
+if str(_SCRAPING_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING_DIR))
+from utils import consensus_satisfied, is_ai_scraper_label  # noqa: E402
 
 # Liste des scrapers à exécuter
 SCRIPTS_TO_RUN: List[Tuple[str, str]] = [
@@ -62,8 +79,8 @@ def iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def run_script(label: str, path: str) -> Dict[str, Any]:
-    """Exécute un scraper et récupère son JSON depuis stdout."""
+def run_script(label: str, path: str) -> Optional[Dict[str, Any]]:
+    """Exécute un scraper et récupère son JSON depuis stdout. None si scraper *_AI.py en échec."""
     logging.info(f"Exécution du scraper: {label}...")
     try:
         proc = subprocess.run(
@@ -80,12 +97,27 @@ def run_script(label: str, path: str) -> Dict[str, Any]:
         return payload
     except subprocess.CalledProcessError as e:
         logging.error(f"Échec du scraper {label}. stderr: {e.stderr.strip()}")
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Scraper IA {label} ignoré — poursuite avec les autres sources."
+            )
+            return None
         raise SystemExit(f"Échec du script {label}")
     except json.JSONDecodeError:
         logging.error(f"Sortie non-JSON de {label}. stdout: {proc.stdout[:200]}...")
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Sortie invalide du scraper IA {label} — poursuite avec les autres sources."
+            )
+            return None
         raise SystemExit(f"Sortie invalide du script {label}")
     except Exception as e:
         logging.error(f"Erreur inattendue avec {label}: {e}")
+        if is_ai_scraper_label(label):
+            logging.warning(
+                f"Scraper IA {label} ignoré — poursuite avec les autres sources."
+            )
+            return None
         raise
 
 
@@ -185,6 +217,19 @@ def compare_floats(a: float | None, b: float | None, tol: float = 1e-9) -> bool:
         return math.isclose(float(a), float(b), abs_tol=tol)
     except (ValueError, TypeError):
         return False
+
+
+def bundles_pair_equal(
+    ba: Dict[str, Dict[str, Any]], bb: Dict[str, Dict[str, Any]]
+) -> bool:
+    """True si deux bundles AGIRC-ARRCO concordent sur tous les items attendus."""
+    for cid in ITEMS_ID_TO_PATCH:
+        ia, ib = ba.get(cid), bb.get(cid)
+        if ia is None or ib is None:
+            return False
+        if not equal_item(ia, ib):
+            return False
+    return True
 
 
 def debug_compare(per_source: List[Tuple[str, Dict[str, Dict[str, Any]]]]) -> bool:
@@ -479,6 +524,29 @@ def update_config_in_supabase(
             raise
 
 
+def _emit_orchestrator_json_result(
+    scraper: str,
+    success: bool,
+    config_key: str,
+    data: Dict[str, Any],
+    sources_used: List[str],
+    error: str = "",
+) -> None:
+    out: Dict[str, Any] = {
+        "scraper": scraper,
+        "success": success,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "config_key": config_key,
+    }
+    if success:
+        out["data"] = data
+        out["sources_used"] = sources_used
+    else:
+        out["error"] = error
+        out["data"] = {}
+    print(json.dumps(out, ensure_ascii=False))
+
+
 # --- 3. Fonction Principale ---
 
 
@@ -491,8 +559,15 @@ def main() -> None:
         payloads: List[Dict[str, Any]] = []
         labels: List[str] = []
         for label, path in SCRIPTS_TO_RUN:
-            payloads.append(run_script(label, path))
+            res = run_script(label, path)
+            if res is None:
+                continue
+            payloads.append(res)
             labels.append(label)
+
+        if not payloads:
+            logging.error("Aucune source de scraping n'a réussi. Arrêt.")
+            sys.exit(2)
 
         # 2. Normaliser les signatures (bundles)
         cores_labeled: List[Tuple[str, Dict[str, Dict[str, Any]]]] = []
@@ -503,15 +578,22 @@ def main() -> None:
                 logging.error(f"Normalisation échouée pour {labels[i]}: {e}")
                 sys.exit(2)
 
-        # 3. Valider la concordance
-        if not debug_compare(cores_labeled):
+        # 3. Valider la concordance (2/3, 2/2, ou 1 source avec warning)
+        bundles_only = [b for _, b in cores_labeled]
+        ok, ref_idx = consensus_satisfied(bundles_only, bundles_pair_equal)
+        if len(bundles_only) == 1:
+            logging.warning(
+                "Une seule source avec données valides : mise à jour sans concordance croisée."
+            )
+        if not ok:
+            debug_compare(cores_labeled)
             logging.error("Divergence ou données manquantes entre les sources. Arrêt.")
             sys.exit(2)
 
         logging.info("Concordance des bundles AGIRC-ARRCO validée.")
 
         # Le patch (bundle) validé et les sources
-        final_patch_bundle = cores_labeled[0][1]  # Le dict de 6+ items
+        final_patch_bundle = bundles_only[ref_idx]
         source_links = merge_sources(payloads)
         comment = (
             f"Mise à jour automatique: AGIRC-ARRCO ({', '.join(ITEMS_ID_TO_PATCH)})"
@@ -534,12 +616,39 @@ def main() -> None:
         )
 
         logging.info("--- FIN Orchestrateur AGIRC-ARRCO ---")
+        sources_used = [p.get("__script", "?") for p in payloads]
+        _emit_orchestrator_json_result(
+            SCRAPER_NAME,
+            True,
+            CONFIG_KEY_TO_UPDATE,
+            final_patch_bundle,
+            sources_used,
+        )
 
     except SystemExit as e:
         logging.error(f"Arrêt contrôlé: {e}")
-        sys.exit(int(str(e).split()[-1]) if str(e).split()[-1].isdigit() else 1)
+        code = getattr(e, "code", 1)
+        if not isinstance(code, int):
+            code = 1
+        _emit_orchestrator_json_result(
+            SCRAPER_NAME,
+            False,
+            CONFIG_KEY_TO_UPDATE,
+            {},
+            [],
+            str(e),
+        )
+        sys.exit(code)
     except Exception as e:
         logging.critical(f"Une erreur fatale est survenue: {e}", exc_info=True)
+        _emit_orchestrator_json_result(
+            SCRAPER_NAME,
+            False,
+            CONFIG_KEY_TO_UPDATE,
+            {},
+            [],
+            str(e),
+        )
         sys.exit(1)
 
 

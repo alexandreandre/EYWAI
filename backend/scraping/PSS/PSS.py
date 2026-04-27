@@ -1,15 +1,50 @@
 # scripts/PSS/PSS.py
 
 import json
+import re
 import sys
 from datetime import datetime, timezone
 
 import requests
 from bs4 import BeautifulSoup
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 URL_URSSAF = "https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/plafonds-securite-sociale.html"
 
 # --- UTILITAIRES ---
+
+
+def get_session() -> requests.Session:
+    session = requests.Session()
+    retry = Retry(
+        total=3,
+        backoff_factor=2,
+        status_forcelist=[429, 500, 502, 503, 504],
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("https://", adapter)
+    session.headers.update(
+        {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Accept": (
+                "text/html,application/xhtml+xml,"
+                "application/xml;q=0.9,*/*;q=0.8"
+            ),
+            "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+        }
+    )
+    return session
 
 
 def iso_now() -> str:
@@ -17,12 +52,114 @@ def iso_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def parse_valeur_numerique(text: str) -> int:
-    """Nettoie et convertit un texte contenant un montant en entier."""
-    if not text:
-        return 0
-    cleaned_text = text.replace("\xa0", "").replace(" ", "").replace("€", "").strip()
-    return int(cleaned_text)
+def parse_montant(texte: str) -> float:
+    """Convertit '1 823,03 €' ou '1\xa0823,03 €' en 1823.03 (aligné sur SMIC.py)."""
+    cleaned = (
+        texte.replace("\xa0", "")
+        .replace("\u202f", "")
+        .replace(" ", "")
+        .replace("\u2009", "")
+        .strip()
+    )
+    cleaned = cleaned.replace(",", ".")
+    match = re.search(r"\d+\.?\d*", cleaned)
+    if match:
+        return float(match.group())
+    return 0.0
+
+
+def extract_pss_data(soup: BeautifulSoup) -> dict:
+    """
+    Extrait les plafonds SS depuis les tableaux URSSAF.
+    Prend le premier bloc avec "Année" > 40000.
+    """
+    rows = soup.find_all("tr")
+
+    annuel = None
+    trimestriel = None
+    mensuel = None
+    quinzaine = None
+    hebdomadaire = None
+    journalier = None
+    horaire = None
+    annee = datetime.now().year
+
+    for tr in rows:
+        text = tr.get_text(strip=True, separator=" | ")
+        tds = tr.find_all(["td", "th"])
+
+        if re.match(r"^\d{4}$", text.strip()):
+            try:
+                annee = int(text.strip())
+            except ValueError:
+                pass
+            continue
+
+        if "Année" in text and annuel is None:
+            for td in tds:
+                val = parse_montant(td.get_text())
+                if val > 40000:
+                    annuel = int(val)
+                    break
+
+        if "Trimestre" in text and trimestriel is None:
+            for td in tds:
+                val = parse_montant(td.get_text())
+                if val > 5000:
+                    trimestriel = int(val)
+                    break
+
+        if "Mois" in text and mensuel is None:
+            for td in tds:
+                val = parse_montant(td.get_text())
+                if val > 1000:
+                    mensuel = int(val)
+                    break
+
+        if "Quinzaine" in text and quinzaine is None:
+            for td in tds:
+                val = parse_montant(td.get_text())
+                if val > 500:
+                    quinzaine = int(val)
+                    break
+
+        if "Semaine" in text and hebdomadaire is None:
+            for td in tds:
+                val = parse_montant(td.get_text())
+                if val > 100:
+                    hebdomadaire = int(val)
+                    break
+
+        if "Jour" in text and journalier is None:
+            for td in tds:
+                val = parse_montant(td.get_text())
+                if val > 50:
+                    journalier = int(val)
+                    break
+
+        if "Heure" in text and horaire is None:
+            for td in tds:
+                val = parse_montant(td.get_text())
+                if 5 < val < 200:
+                    horaire = int(val)
+                    break
+
+        if annuel is not None and mensuel is not None and journalier is not None:
+            break
+
+    if not annuel:
+        raise ValueError("Impossible d'extraire le plafond annuel SS")
+
+    return {
+        "annuel": annuel,
+        "trimestriel": trimestriel,
+        "mensuel": mensuel,
+        "quinzaine": quinzaine,
+        "hebdomadaire": hebdomadaire,
+        "journalier": journalier,
+        "horaire": horaire,
+        "annee": annee,
+    }
 
 
 # --- SCRAPER ---
@@ -34,55 +171,16 @@ def get_plafonds_ss() -> dict | None:
     """
     try:
         print(f"Scraping de l'URL : {URL_URSSAF}...", file=sys.stderr)
-        r = requests.get(
-            URL_URSSAF,
-            timeout=20,
-            headers={
-                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-            },
-        )
+        session = get_session()
+        r = session.get(URL_URSSAF, timeout=20)
         r.raise_for_status()
 
         soup = BeautifulSoup(r.text, "html.parser")
+        plafonds = extract_pss_data(soup)
 
-        main_section = soup.find("div", id="metropole-outre-mer")
-        if not main_section:
-            raise ValueError(
-                "Section principale des plafonds (ID: metropole-outre-mer) introuvable."
-            )
-
-        key_mapping = {
-            "Année": "annuel",
-            "Trimestre": "trimestriel",
-            "Mois": "mensuel",
-            "Quinzaine": "quinzaine",
-            "Semaine": "hebdomadaire",
-            "Jour": "journalier",
-            "Heure": "horaire",
-        }
-
-        plafonds = {}
-        table_rows = main_section.find_all("tr", class_="table_custom__tbody")
-
-        for row in table_rows:
-            header_cell = row.find("th")
-            value_cell = row.find("td")
-
-            if header_cell and value_cell:
-                libelle = header_cell.get_text(strip=True)
-                if libelle in key_mapping:
-                    json_key = key_mapping[libelle]
-                    valeur = parse_valeur_numerique(value_cell.get_text())
-                    plafonds[json_key] = valeur
-                    print(
-                        f"  - Plafond '{libelle}' trouvé : {valeur} €", file=sys.stderr
-                    )
-
-        if len(plafonds) != len(key_mapping):
-            print(
-                f"AVERTISSEMENT : Tous les plafonds n'ont pas été trouvés. Attendu: {len(key_mapping)}, Trouvé: {len(plafonds)}",
-                file=sys.stderr,
-            )
+        for k, v in plafonds.items():
+            if v is not None:
+                print(f"  - Plafond '{k}' : {v}", file=sys.stderr)
 
         return plafonds
 
@@ -110,6 +208,7 @@ def main():
         "type": "bareme_plafond",
         "libelle": "Plafonds de la Sécurité Sociale",
         "sections": plafonds_data,
+        "data": plafonds_data,
         "meta": {
             "source": [
                 {
