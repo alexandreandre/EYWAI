@@ -37,6 +37,7 @@ from app.modules.employee_exits.api.router import router as employee_exits_route
 from app.modules.exports.api.router import router as exports_router
 from app.modules.expenses.api.router import router as expenses_router
 from app.modules.monthly_inputs.api.router import router as monthly_inputs_router
+from app.modules.notifications.api.router import router as notifications_router
 from app.modules.maintenance_settings.api.router import router as maintenance_settings_router
 from app.modules.document_library.api.router import router as document_library_router
 from app.modules.documents.api.router import router as documents_router
@@ -95,6 +96,7 @@ router.include_router(employee_exits_router)
 router.include_router(exports_router)
 router.include_router(absences_router)
 router.include_router(monthly_inputs_router)
+router.include_router(notifications_router)
 router.include_router(maintenance_settings_router)
 router.include_router(document_library_router)
 router.include_router(documents_router)

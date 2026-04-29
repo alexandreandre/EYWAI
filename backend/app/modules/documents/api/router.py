@@ -185,7 +185,12 @@ def update_status_route(
     cid = _company_id(current_user)
     _require_rh(current_user, cid)
     try:
-        row = commands.update_document_status(document_id, cid, body)
+        row = commands.update_document_status(
+            document_id,
+            cid,
+            body,
+            updated_by_user_id=str(current_user.id),
+        )
         return _row_to_generated(row)
     except Exception as e:
         traceback.print_exc()

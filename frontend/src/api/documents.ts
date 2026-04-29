@@ -44,6 +44,8 @@ export interface GenerateDocumentPayload {
   date_effet?: string | null;
   motif?: string | null;
   template_id?: string | null;
+  /** Persisté côté serveur dans generation_context (rebouclage à la signature). */
+  nouveau_salaire?: number | null;
 }
 
 export async function getDocuments(filters?: DocumentsFilters): Promise<GeneratedDocument[]> {

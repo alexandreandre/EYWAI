@@ -100,6 +100,7 @@ const SupportConfirmationPage = lazy(() => import('./pages/support/SupportConfir
 const TicketsHistoryPage = lazy(() => import('./pages/support/TicketsHistoryPage'));
 const FormationPage = lazy(() => import('./pages/formation/FormationPage'));
 const RhDocumentsPage = lazy(() => import('./pages/Documents'));
+const AugmentationsCollectivesPage = lazy(() => import('./pages/AugmentationsCollectives'));
 
 const supportRouteFallback = (
   <div className="flex min-h-[50vh] w-full items-center justify-center">
@@ -149,6 +150,14 @@ function SuspenseRhDocumentsPage() {
   return (
     <Suspense fallback={formationRouteFallback}>
       <RhDocumentsPage />
+    </Suspense>
+  );
+}
+
+function SuspenseAugmentationsCollectivesPage() {
+  return (
+    <Suspense fallback={formationRouteFallback}>
+      <AugmentationsCollectivesPage />
     </Suspense>
   );
 }
@@ -365,6 +374,7 @@ function ProtectedRoutes() {
                   <Route path="/annual-reviews/:reviewId" element={<AnnualReviewDetail />} />
                   <Route path="/formation" element={<SuspenseFormationPage />} />
                   <Route path="/documents" element={<SuspenseRhDocumentsPage />} />
+                  <Route path="/augmentations-collectives" element={<SuspenseAugmentationsCollectivesPage />} />
                   <Route path="/habilitations" element={<HabilitationsPage />} />
                   <Route path="/objectives" element={<ObjectivesPage />} />
                   <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
