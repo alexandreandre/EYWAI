@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.security import get_current_user
 from app.modules.documents.application.queries import get_employee_id_for_user_scope
-from app.modules.notifications.infrastructure.repository import notifications_repository
+from app.modules.notifications.application import queries as notification_queries
 from app.modules.notifications.schemas.responses import NotificationResponse, UnreadCountResponse
 from app.modules.users.schemas.responses import User
 
@@ -34,7 +34,7 @@ def _employee_scope_or_403(user: User, company_id: str) -> str:
 
 
 def _employee_id_for_notifications_read(user: User, company_id: str) -> str | None:
-    """GET liste / compteur : pas d’employé → vide silencieux (pas 403/500)."""
+    """GET liste / compteur : pas d'employé → vide silencieux (pas 403/500)."""
     try:
         eid = get_employee_id_for_user_scope(str(user.id), company_id)
         return str(eid) if eid else None
@@ -62,7 +62,7 @@ def list_notifications(
     employee_id = _employee_id_for_notifications_read(current_user, cid)
     if not employee_id:
         return []
-    rows = notifications_repository.get_for_employee(employee_id, cid, limit=20)
+    rows = notification_queries.list_for_employee(employee_id, cid, limit=20)
     return [_row_to_response(r) for r in rows]
 
 
@@ -72,7 +72,7 @@ def unread_count(current_user: User = Depends(get_current_user)) -> UnreadCountR
     employee_id = _employee_id_for_notifications_read(current_user, cid)
     if not employee_id:
         return UnreadCountResponse(count=0)
-    n = notifications_repository.get_unread_count(employee_id, cid)
+    n = notification_queries.unread_count(employee_id, cid)
     return UnreadCountResponse(count=n)
 
 
@@ -80,7 +80,7 @@ def unread_count(current_user: User = Depends(get_current_user)) -> UnreadCountR
 def mark_all_read(current_user: User = Depends(get_current_user)) -> dict:
     cid = _company_id(current_user)
     employee_id = _employee_scope_or_403(current_user, cid)
-    notifications_repository.mark_all_as_read(employee_id, cid)
+    notification_queries.mark_all_as_read(employee_id, cid)
     return {"success": True}
 
 
@@ -91,6 +91,5 @@ def mark_one_read(
 ) -> dict:
     cid = _company_id(current_user)
     employee_id = _employee_scope_or_403(current_user, cid)
-    notifications_repository.mark_as_read(notification_id, employee_id)
+    notification_queries.mark_as_read(notification_id, employee_id)
     return {"success": True}
-

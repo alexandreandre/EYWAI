@@ -41,11 +41,8 @@ from app.modules.employees.schemas.responses import (
     PromotionListItem,
 )
 from app.modules.users.schemas.responses import User
-from app.modules.employees.infrastructure.repository import EmployeeRepository
 
 router = APIRouter(prefix="/api/employees", tags=["Employees"])
-
-_employee_repository = EmployeeRepository()
 
 
 def _require_rh_access(company_id: str | None, current_user: User) -> str:
@@ -156,7 +153,7 @@ def simulate_augmentation_collective(
     try:
         company_id = _require_rh_access(current_user.active_company_id, current_user)
         f = body.filtres
-        rows = _employee_repository.get_employees_filtered(
+        rows = queries.get_employees_filtered(
             company_id,
             service_id=f.service_id,
             statut=f.statut,
@@ -230,7 +227,7 @@ def appliquer_augmentation_collective(
 
         for eid in body.employee_ids:
             try:
-                emp = _employee_repository.get_by_id(eid, company_id)
+                emp = queries.get_employee_row(eid, company_id)
                 if emp is None:
                     erreurs.append(f"{eid}: employé introuvable.")
                     continue
@@ -240,7 +237,7 @@ def appliquer_augmentation_collective(
                 )
                 ancien_dict = _ancien_salaire_dict(emp.get("salaire_de_base"))
                 nouveau_dict = {"valeur": nouveau}
-                _employee_repository.update_salary(
+                commands.apply_salary_update(
                     employee_id=eid,
                     company_id=company_id,
                     ancien_salaire=ancien_dict,
@@ -279,7 +276,7 @@ def generer_avenants_lot(
 
         for eid in body.employee_ids:
             try:
-                emp = _employee_repository.get_by_id(eid, company_id)
+                emp = queries.get_employee_row(eid, company_id)
                 if emp is None:
                     erreurs.append(f"{eid}: employé introuvable.")
                     continue
@@ -610,13 +607,13 @@ def update_employee_salary(
     """Met à jour le salaire de base et enregistre une ligne d'historique."""
     try:
         company_id = _require_rh_access(current_user.active_company_id, current_user)
-        employee = _employee_repository.get_by_id(employee_id, company_id)
+        employee = queries.get_employee_row(employee_id, company_id)
         if employee is None:
             raise HTTPException(status_code=404, detail="Employé non trouvé.")
 
         ancien_salaire = _ancien_salaire_dict(employee.get("salaire_de_base"))
         nouveau_salaire = {"valeur": body.nouveau_salaire}
-        hist = _employee_repository.update_salary(
+        hist = commands.apply_salary_update(
             employee_id=employee_id,
             company_id=company_id,
             ancien_salaire=ancien_salaire,
@@ -645,7 +642,7 @@ def get_employee_salary_history(
     """Historique des évolutions de salaire pour un collaborateur."""
     try:
         company_id = _require_rh_access(current_user.active_company_id, current_user)
-        rows = _employee_repository.get_salary_history(employee_id, company_id)
+        rows = queries.get_salary_history_rows(employee_id, company_id)
         out: List[SalaryHistoryEntry] = []
         for row in rows:
             out.append(
@@ -678,7 +675,7 @@ def simulate_augmentation(
     """Simulation d'augmentation (nets et charges estimés par taux moyens)."""
     try:
         company_id = _require_rh_access(current_user.active_company_id, current_user)
-        employee = _employee_repository.get_by_id(employee_id, company_id)
+        employee = queries.get_employee_row(employee_id, company_id)
         if employee is None:
             raise HTTPException(status_code=404, detail="Employé non trouvé.")
 
