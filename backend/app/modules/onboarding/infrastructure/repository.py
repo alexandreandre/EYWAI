@@ -158,22 +158,30 @@ class OnboardingRepository:
             .insert({"employee_id": employee_id, "company_id": company_id})
             .execute()
         )
-        if not ins.data:
+        if not ins or not ins.data:
             raise RuntimeError("Échec création checklist onboarding")
         checklist = ins.data[0]
         cid = str(checklist["id"])
+        tasks_data: List[Dict[str, Any]] = []
         for tdef in DEFAULT_ONBOARDING_TASKS:
-            row = {
-                "checklist_id": cid,
-                "company_id": company_id,
-                "title": tdef["title"],
-                "description": tdef.get("description"),
-                "category": tdef["category"],
-                "due_days": tdef.get("due_days"),
-                "position": tdef["position"],
-                "is_completed": False,
-            }
-            supabase.table("onboarding_tasks").insert(row).execute()
+            tasks_data.append(
+                {
+                    "checklist_id": cid,
+                    "company_id": company_id,
+                    "title": tdef["title"],
+                    "description": tdef.get("description"),
+                    "category": tdef["category"],
+                    "due_days": tdef.get("due_days"),
+                    "position": tdef["position"],
+                    "is_completed": False,
+                }
+            )
+        tr = supabase.table("onboarding_tasks").insert(tasks_data).execute()
+        inserted = (tr.data or []) if tr else []
+        if len(inserted) != len(tasks_data):
+            raise RuntimeError(
+                "Échec création des tâches onboarding (insert incomplet)."
+            )
 
         out = self.get_checklist_by_employee(employee_id, company_id)
         if not out:
@@ -191,7 +199,7 @@ class OnboardingRepository:
             .maybe_single()
             .execute()
         )
-        if not res.data:
+        if not res or not res.data:
             return None
         checklist_row = res.data
         tid = str(checklist_row["id"])
@@ -203,7 +211,7 @@ class OnboardingRepository:
             .order("position")
             .execute()
         )
-        task_rows = tres.data or []
+        task_rows = (tres.data or []) if tres else []
         return _build_checklist_payload(checklist_row, task_rows)
 
     def complete_task(
@@ -228,7 +236,7 @@ class OnboardingRepository:
             .eq("company_id", company_id)
             .execute()
         )
-        if not upd.data:
+        if not upd or not upd.data:
             return False
 
         remaining = (
@@ -239,7 +247,7 @@ class OnboardingRepository:
             .eq("is_completed", False)
             .execute()
         )
-        cnt = remaining.count if remaining.count is not None else 0
+        cnt = remaining.count if remaining and remaining.count is not None else 0
         if cnt == 0:
             supabase.table("onboarding_checklists").update({"completed_at": now}).eq(
                 "id", checklist_id
@@ -263,7 +271,7 @@ class OnboardingRepository:
             .eq("company_id", company_id)
             .execute()
         )
-        if not upd.data:
+        if not upd or not upd.data:
             return False
         supabase.table("onboarding_checklists").update({"completed_at": None}).eq(
             "id", checklist_id
