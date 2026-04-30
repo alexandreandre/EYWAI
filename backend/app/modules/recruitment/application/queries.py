@@ -88,3 +88,27 @@ def check_duplicate(company_id: str, candidate_id: str) -> dict[str, Any]:
 def is_user_participant_for_candidate(user_id: str, candidate_id: str) -> bool:
     """Vérifie si l'utilisateur est participant (intervieweur) pour le candidat."""
     return svc.is_user_participant_for_candidate(user_id, candidate_id)
+
+
+def get_recruitment_analytics(
+    company_id: str,
+    job_id: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    budget_total: float | None = None,
+) -> dict[str, Any]:
+    """Agrégats analytics recrutement (dict compatible RecruitmentAnalytics)."""
+    return svc.service_get_recruitment_analytics(
+        company_id,
+        job_id=job_id,
+        date_from=date_from,
+        date_to=date_to,
+        budget_total=budget_total,
+    )
+
+
+def get_candidate_score_row(
+    candidate_id: str, company_id: str
+) -> dict[str, Any] | None:
+    """Ligne scoring IA candidat ou None."""
+    return svc.service_get_candidate_score_row(candidate_id, company_id)

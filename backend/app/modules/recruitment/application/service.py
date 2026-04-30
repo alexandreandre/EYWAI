@@ -8,6 +8,7 @@ Aucun accès DB direct. Comportement identique au legacy.
 import logging
 from typing import Any, Optional
 
+from app.modules.recruitment.application.scoring_service import scoring_service
 from app.modules.recruitment.domain import rules as domain_rules
 from app.modules.recruitment.infrastructure import queries as infra_queries
 from app.modules.recruitment.infrastructure.providers import REJECTION_REASONS
@@ -24,6 +25,7 @@ from app.modules.recruitment.infrastructure.repository import (
     _settings_reader,
     _timeline_reader,
     _timeline_writer,
+    analytics_repository,
 )
 
 _logger = logging.getLogger(__name__)
@@ -526,3 +528,81 @@ def check_duplicate_employee(
 
 def is_user_participant_for_candidate(user_id: str, candidate_id: str) -> bool:
     return _participant_checker.is_participant(user_id, candidate_id)
+
+
+def service_get_recruitment_analytics(
+    company_id: str,
+    job_id: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    budget_total: Optional[float] = None,
+) -> dict[str, Any]:
+    return analytics_repository.get_analytics(
+        company_id,
+        job_id=job_id,
+        date_from=date_from,
+        date_to=date_to,
+        budget_total=budget_total,
+    )
+
+
+def service_upload_candidate_cv(
+    candidate_id: str,
+    company_id: str,
+    content: bytes,
+    filename: str,
+    content_type: str,
+) -> str:
+    return _candidate_repo.upload_cv(
+        candidate_id,
+        company_id,
+        content,
+        filename,
+        content_type,
+    )
+
+
+def service_upload_note_audio(
+    candidate_id: str,
+    company_id: str,
+    content: bytes,
+    filename: str,
+    content_type: str,
+) -> str:
+    return _note_repo.upload_audio(
+        candidate_id,
+        company_id,
+        content,
+        filename,
+        content_type=content_type,
+    )
+
+
+def service_get_candidate_score_row(
+    candidate_id: str, company_id: str
+) -> Optional[dict[str, Any]]:
+    return _candidate_repo.get_score_detail(candidate_id, company_id)
+
+
+def service_score_candidate_ai(
+    candidate_id: str, company_id: str
+) -> dict[str, Any]:
+    cand = _candidate_repo.get_by_id(company_id, candidate_id)
+    if not cand:
+        raise ValueError("Candidat non trouvé")
+    job = _job_repo.get_by_id(company_id, cand["job_id"])
+    if not job:
+        raise ValueError("Poste non trouvé")
+    notes = _note_repo.list_by_candidate(company_id, candidate_id)
+    opinions = _opinion_repo.list_by_candidate(company_id, candidate_id)
+    result = scoring_service.score_candidate(cand, job, notes, opinions)
+    _candidate_repo.save_score(
+        candidate_id,
+        company_id,
+        int(result["score"]),
+        result,
+    )
+    row = _candidate_repo.get_score_detail(candidate_id, company_id)
+    if not row or row.get("ai_score") is None:
+        raise RuntimeError("Échec de la persistance du score.")
+    return row

@@ -15,14 +15,6 @@ from app.core.security import get_current_user
 from app.modules.users.schemas.responses import User
 
 from app.modules.recruitment.application import commands, queries
-from app.modules.recruitment.application.scoring_service import scoring_service
-from app.modules.recruitment.infrastructure.repository import (
-    _candidate_repo,
-    _job_repo,
-    _note_repo,
-    _opinion_repo,
-    analytics_repository,
-)
 from app.modules.recruitment.schemas import (
     ArchiveCandidateBody,
     CandidateCreate,
@@ -168,7 +160,7 @@ def get_recruitment_analytics(
 ):
     company_id = _ensure_module_enabled(current_user)
     _ensure_rh_access(current_user, company_id)
-    data = analytics_repository.get_analytics(
+    data = queries.get_recruitment_analytics(
         company_id,
         job_id=job_id,
         date_from=date_from,
@@ -388,7 +380,7 @@ async def upload_candidate_cv(
         raise HTTPException(status_code=400, detail="Fichier vide.")
     content_type = file.content_type or "application/octet-stream"
     try:
-        url = _candidate_repo.upload_cv(
+        url = commands.upload_candidate_cv(
             candidate_id,
             company_id,
             content,
@@ -409,41 +401,24 @@ def score_candidate_ai(
 ):
     company_id = _ensure_module_enabled(current_user)
     _ensure_rh_access(current_user, company_id)
-    cand = _candidate_repo.get_by_id(company_id, candidate_id)
-    if not cand:
-        raise HTTPException(status_code=404, detail="Candidat non trouvé")
-    job = _job_repo.get_by_id(company_id, cand["job_id"])
-    if not job:
-        raise HTTPException(status_code=404, detail="Poste non trouvé")
-    notes = _note_repo.list_by_candidate(company_id, candidate_id)
-    opinions = _opinion_repo.list_by_candidate(company_id, candidate_id)
     try:
-        result = scoring_service.score_candidate(cand, job, notes, opinions)
+        row = commands.score_candidate_ai(candidate_id, company_id)
+        return _build_scoring_result(candidate_id, row)
     except ValueError as e:
-        if "OPENAI_API_KEY" in str(e):
+        msg = str(e)
+        if "non trouvé" in msg:
+            raise HTTPException(status_code=404, detail=msg) from e
+        if "OPENAI_API_KEY" in msg:
             raise HTTPException(
                 status_code=503,
                 detail="Clé API OpenAI non configurée (OPENAI_API_KEY).",
             ) from e
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        raise HTTPException(status_code=400, detail=msg) from e
     except json.JSONDecodeError as e:
         raise HTTPException(
             status_code=500,
             detail="Impossible d'interpréter la réponse du modèle IA (JSON invalide).",
         ) from e
-    try:
-        _candidate_repo.save_score(
-            candidate_id,
-            company_id,
-            int(result["score"]),
-            result,
-        )
-        row = _candidate_repo.get_score_detail(candidate_id, company_id)
-        if not row or row.get("ai_score") is None:
-            raise HTTPException(
-                status_code=500, detail="Échec de la persistance du score."
-            )
-        return _build_scoring_result(candidate_id, row)
     except HTTPException:
         raise
     except Exception as e:
@@ -459,7 +434,7 @@ def get_candidate_score(
 ):
     company_id = _ensure_module_enabled(current_user)
     _ensure_rh_access(current_user, company_id)
-    row = _candidate_repo.get_score_detail(candidate_id, company_id)
+    row = queries.get_candidate_score_row(candidate_id, company_id)
     if not row or row.get("ai_score") is None:
         raise HTTPException(
             status_code=404, detail="Aucun score IA enregistré pour ce candidat."
@@ -651,12 +626,12 @@ async def upload_note_audio(
         raise HTTPException(status_code=400, detail="Fichier audio vide.")
     ct = file.content_type or "audio/webm"
     try:
-        url = _note_repo.upload_audio(
+        url = commands.upload_note_audio(
             candidate_id,
             company_id,
             content,
             file.filename or "note.webm",
-            content_type=ct,
+            ct,
         )
     except ValueError as e:
         raise _value_error_to_http(e)

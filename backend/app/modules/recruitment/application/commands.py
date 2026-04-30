@@ -146,3 +146,37 @@ def reorder_pipeline_stages(
 ) -> list[dict[str, Any]]:
     """Réordonne toutes les étapes du poste. Lève ValueError si la liste est invalide."""
     return svc.service_reorder_pipeline_stages(company_id, job_id, ordered_stage_ids)
+
+
+def upload_candidate_cv(
+    candidate_id: str,
+    company_id: str,
+    content: bytes,
+    filename: str,
+    content_type: str,
+) -> str:
+    """Upload du CV en storage ; retourne l'URL publique. Lève ValueError / RuntimeError."""
+    return svc.service_upload_candidate_cv(
+        candidate_id, company_id, content, filename, content_type
+    )
+
+
+def upload_note_audio(
+    candidate_id: str,
+    company_id: str,
+    content: bytes,
+    filename: str,
+    content_type: str,
+) -> str:
+    """Upload audio de note ; retourne l'URL. Lève ValueError / RuntimeError."""
+    return svc.service_upload_note_audio(
+        candidate_id, company_id, content, filename, content_type
+    )
+
+
+def score_candidate_ai(candidate_id: str, company_id: str) -> dict[str, Any]:
+    """
+    Calcule et persiste le score IA ; retourne la ligne candidat enrichie (ai_score, etc.).
+    Lève ValueError (métier), json.JSONDecodeError, RuntimeError.
+    """
+    return svc.service_score_candidate_ai(candidate_id, company_id)

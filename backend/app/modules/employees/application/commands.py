@@ -413,6 +413,30 @@ def update_employee(employee_id: str, update_data: Dict[str, Any]) -> Dict[str, 
     return updated
 
 
+def apply_salary_update(
+    employee_id: str,
+    company_id: str,
+    ancien_salaire: Dict[str, Any],
+    nouveau_salaire: Dict[str, Any],
+    motif: str | None,
+    effective_date: str,
+    created_by: str,
+) -> Dict[str, Any]:
+    """
+    Met à jour salaire_de_base et insère une ligne salary_history.
+    Retourne la ligne d'historique insérée.
+    """
+    return _employee_repository.update_salary(
+        employee_id=employee_id,
+        company_id=company_id,
+        ancien_salaire=ancien_salaire,
+        nouveau_salaire=nouveau_salaire,
+        motif=motif,
+        effective_date=effective_date,
+        created_by=created_by,
+    )
+
+
 def delete_employee(employee_id: str) -> None:
     """
     Supprime un employé : permissions, accès entreprises, profil, ligne employees,
