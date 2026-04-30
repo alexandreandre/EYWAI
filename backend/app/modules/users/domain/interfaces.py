@@ -23,6 +23,9 @@ class IUserRepository(ABC):
     @abstractmethod
     def update(self, user_id: str, data: dict) -> None: ...
 
+    @abstractmethod
+    def delete(self, user_id: str) -> None: ...
+
 
 class IUserCompanyAccessRepository(ABC):
     """Accès aux accès utilisateur-entreprise (user_company_accesses)."""

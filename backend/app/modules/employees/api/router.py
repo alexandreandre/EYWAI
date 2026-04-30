@@ -176,6 +176,7 @@ async def create_employee(
             identity_filename=identity_filename,
             identity_content_type=identity_content_type,
             generate_pdf_contract=generate_pdf_contract.lower() == "true",
+            granted_by_user_id=str(current_user.id),
         )
         return result
     except EmployeeCreateValidationError as e:

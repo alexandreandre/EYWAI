@@ -34,6 +34,9 @@ class SupabaseUserRepository(IUserRepository):
     def update(self, user_id: str, data: dict) -> None:
         supabase.table("profiles").update(data).eq("id", user_id).execute()
 
+    def delete(self, user_id: str) -> None:
+        supabase.table("profiles").delete().eq("id", user_id).execute()
+
 
 class SupabaseUserCompanyAccessRepository(IUserCompanyAccessRepository):
     """Table user_company_accesses."""

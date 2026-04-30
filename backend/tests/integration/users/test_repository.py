@@ -99,6 +99,20 @@ class TestSupabaseUserRepository:
         table.update.assert_called_once_with({"first_name": "Updated"})
         chain.eq.assert_called_once_with("id", "u1")
 
+    @patch("app.modules.users.infrastructure.repository.supabase")
+    def test_delete_calls_delete_then_eq_then_execute(self, supabase):
+        table = MagicMock()
+        chain = MagicMock()
+        table.delete.return_value = chain
+        chain.eq.return_value.execute.return_value = MagicMock(data=[])
+        supabase.table.return_value = table
+
+        repo = SupabaseUserRepository()
+        repo.delete("u1")
+
+        table.delete.assert_called_once()
+        chain.eq.assert_called_once_with("id", "u1")
+
 
 # ----- SupabaseUserCompanyAccessRepository -----
 

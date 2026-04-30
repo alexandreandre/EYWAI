@@ -41,6 +41,53 @@ _employee_repository = EmployeeRepository()
 _profile_repository = ProfileRepository()
 
 
+def _grant_collaborator_company_access(
+    user_id: str,
+    company_id: str,
+    granted_by_user_id: Optional[str],
+) -> None:
+    """
+    Lie le nouvel utilisateur à l'entreprise dans user_company_accesses (requis pour get_current_user).
+    Aligné sur super_admin create_company_user et create_user_with_permissions (template collaborateur).
+    """
+    from app.modules.users.application.service import (
+        copy_template_permissions_to_user,
+        get_default_system_template_id,
+        get_user_company_access_repository,
+    )
+
+    access_repo = get_user_company_access_repository()
+    template_id = get_default_system_template_id("collaborateur")
+    access_data: Dict[str, Any] = {
+        "user_id": user_id,
+        "company_id": company_id,
+        "role": "collaborateur",
+        "is_primary": True,
+    }
+    if template_id:
+        access_data["role_template_id"] = str(template_id)
+
+    existing = access_repo.get_by_user_and_company(user_id, company_id)
+    if existing:
+        update_payload: Dict[str, Any] = {
+            "role": "collaborateur",
+            "is_primary": True,
+        }
+        if template_id:
+            update_payload["role_template_id"] = str(template_id)
+        access_repo.update(user_id, company_id, update_payload)
+    else:
+        access_repo.create(access_data)
+
+    if template_id and granted_by_user_id:
+        copy_template_permissions_to_user(
+            str(template_id),
+            user_id,
+            company_id,
+            granted_by_user_id,
+        )
+
+
 def _default_logo_path() -> Path:
     return API_DIR / "frontend" / "public" / "Colorplast.png"
 
@@ -54,6 +101,7 @@ async def create_employee(
     identity_filename: Optional[str] = None,
     identity_content_type: Optional[str] = None,
     generate_pdf_contract: bool = False,
+    granted_by_user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Crée un employé (Auth + profil + employees + storage + PDF + RIB).
@@ -131,6 +179,27 @@ async def create_employee(
                 status_code=500,
                 detail="Échec de l'enregistrement de l'employé dans la base de données. Vérifiez les politiques RLS de la table 'employees' et les logs de la base de données Supabase.",
             )
+
+        try:
+            _grant_collaborator_company_access(
+                str(new_user_id),
+                company_id,
+                granted_by_user_id,
+            )
+        except Exception as grant_err:
+            traceback.print_exc()
+            try:
+                _employee_repository.delete(new_employee_db["id"])
+            except Exception:
+                traceback.print_exc()
+            try:
+                auth.delete_user(new_user_id)
+            except Exception:
+                traceback.print_exc()
+            raise HTTPException(
+                status_code=500,
+                detail="Échec de l'enregistrement de l'accès à l'entreprise pour le collaborateur.",
+            ) from grant_err
 
         storage_prefix = f"{company_id}/{new_user_id}"
         logo_path = _default_logo_path()
@@ -346,20 +415,47 @@ def update_employee(employee_id: str, update_data: Dict[str, Any]) -> Dict[str, 
 
 def delete_employee(employee_id: str) -> None:
     """
-    Supprime un employé (table employees puis Supabase Auth).
-    Comportement identique à delete_employee (router legacy).
+    Supprime un employé : permissions, accès entreprises, profil, ligne employees,
+    puis compte Supabase Auth. Sans ce pré-nettoyage, auth.admin.delete_user échoue
+    souvent (FK / « Database error deleting user »).
     """
+    from app.modules.users.application.service import (
+        get_user_company_access_repository,
+        get_user_permission_repository,
+        get_user_repository,
+    )
+
     auth = get_auth_provider()
+    emp = _employee_repository.get_by_id_only(employee_id)
+    if emp is None:
+        raise HTTPException(status_code=404, detail="Employé non trouvé.")
+
+    auth_uid = str(emp.get("user_id") or employee_id)
+
     try:
+        access_repo = get_user_company_access_repository()
+        perm_repo = get_user_permission_repository()
+        user_repo = get_user_repository()
+
+        for acc in access_repo.get_accesses_for_user(auth_uid):
+            cid = acc["company_id"]
+            perm_repo.delete_for_user_company(auth_uid, cid)
+            access_repo.delete(auth_uid, cid)
+
+        user_repo.delete(auth_uid)
         _employee_repository.delete(employee_id)
-        auth.delete_user(employee_id)
+
+        try:
+            auth.delete_user(auth_uid)
+        except Exception as auth_exc:
+            msg = str(auth_exc).lower()
+            if "not found" in msg:
+                return
+            raise
+    except HTTPException:
+        raise
     except Exception as e:
         traceback.print_exc()
-        if "User not found" in str(e):
-            raise HTTPException(
-                status_code=404,
-                detail=f"Utilisateur avec l'ID {employee_id} non trouvé dans le système d'authentification.",
-            ) from e
         raise HTTPException(
             status_code=500,
             detail=f"Erreur interne du serveur lors de la suppression: {str(e)}",
