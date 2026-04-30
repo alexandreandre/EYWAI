@@ -33,6 +33,15 @@ def _employee_scope_or_403(user: User, company_id: str) -> str:
     return str(eid)
 
 
+def _employee_id_for_notifications_read(user: User, company_id: str) -> str | None:
+    """GET liste / compteur : pas d’employé → vide silencieux (pas 403/500)."""
+    try:
+        eid = get_employee_id_for_user_scope(str(user.id), company_id)
+        return str(eid) if eid else None
+    except Exception:
+        return None
+
+
 def _row_to_response(row: Dict[str, Any]) -> NotificationResponse:
     return NotificationResponse(
         id=str(row["id"]),
@@ -50,7 +59,9 @@ def list_notifications(
     current_user: User = Depends(get_current_user),
 ) -> List[NotificationResponse]:
     cid = _company_id(current_user)
-    employee_id = _employee_scope_or_403(current_user, cid)
+    employee_id = _employee_id_for_notifications_read(current_user, cid)
+    if not employee_id:
+        return []
     rows = notifications_repository.get_for_employee(employee_id, cid, limit=20)
     return [_row_to_response(r) for r in rows]
 
@@ -58,7 +69,9 @@ def list_notifications(
 @router.get("/unread-count", response_model=UnreadCountResponse)
 def unread_count(current_user: User = Depends(get_current_user)) -> UnreadCountResponse:
     cid = _company_id(current_user)
-    employee_id = _employee_scope_or_403(current_user, cid)
+    employee_id = _employee_id_for_notifications_read(current_user, cid)
+    if not employee_id:
+        return UnreadCountResponse(count=0)
     n = notifications_repository.get_unread_count(employee_id, cid)
     return UnreadCountResponse(count=n)
 

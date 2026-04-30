@@ -73,6 +73,7 @@ class InterviewUpdate(BaseModel):
 class NoteCreate(BaseModel):
     candidate_id: str
     content: str
+    audio_url: Optional[str] = None
 
 
 class OpinionCreate(BaseModel):

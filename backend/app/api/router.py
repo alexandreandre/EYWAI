@@ -49,6 +49,7 @@ from app.modules.payslips.api.router import router as payslips_router
 from app.modules.promotions.api.router import router as promotions_router
 from app.modules.rates.api.router import router as rates_router
 from app.modules.recruitment.api.router import router as recruitment_router
+from app.modules.onboarding.api.router import router as onboarding_router
 from app.modules.repos_compensateur.api.router import (
     router as repos_compensateur_router,
 )
@@ -109,6 +110,7 @@ router.include_router(payslips_router)
 router.include_router(payroll_simulation_router)
 router.include_router(promotions_router)
 router.include_router(recruitment_router)
+router.include_router(onboarding_router)
 router.include_router(repos_compensateur_router)
 router.include_router(saisies_avances_router)
 router.include_router(scraping_router)

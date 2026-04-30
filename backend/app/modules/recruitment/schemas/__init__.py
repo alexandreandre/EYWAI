@@ -29,6 +29,11 @@ from app.modules.recruitment.schemas.responses import (
     OpinionOut,
     TimelineEventOut,
     DuplicateWarning,
+    ScoringResult,
+    TimeToHireStats,
+    SourceStats,
+    StageConversionStats,
+    RecruitmentAnalytics,
 )
 
 __all__ = [
@@ -54,4 +59,9 @@ __all__ = [
     "OpinionOut",
     "TimelineEventOut",
     "DuplicateWarning",
+    "ScoringResult",
+    "TimeToHireStats",
+    "SourceStats",
+    "StageConversionStats",
+    "RecruitmentAnalytics",
 ]

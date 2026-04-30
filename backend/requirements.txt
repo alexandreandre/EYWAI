@@ -34,7 +34,7 @@ ddgs
 googlesearch-python
 
 # --- Intelligence artificielle ---
-openai
+openai>=1.0.0
 
 # --- PDF / OCR / Images ---
 PyPDF2

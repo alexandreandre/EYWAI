@@ -51,6 +51,14 @@ import Promotions from './pages/Promotions';
 import PromotionDetail from './pages/PromotionDetail';
 import CSE from './pages/CSE';
 import Recruitment from './pages/Recruitment';
+
+const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
+const OnboardingHubPage = lazy(() =>
+  import('./pages/OnboardingPage').then((m) => ({ default: m.OnboardingHubPage })),
+);
+const EmployeeOnboardingRedirect = lazy(() =>
+  import('./pages/OnboardingPage').then((m) => ({ default: m.EmployeeOnboardingRedirect })),
+);
 import BadgeuseRhPage from './pages/BadgeuseRh';
 // --- Pages Collaborateur (NOUVEAU) ---
 import { EmployeeSidebar } from '@/components/ui/employee-sidebar'; // NOUVEAU
@@ -265,6 +273,14 @@ function ProtectedRoutes() {
           <Route path="/documents" element={<Navigate to="/employee/documents" replace />} />
           <Route path="/medical-follow-up" element={<EmployeeMedicalFollowUp />} />
           <Route path="/cse" element={<EmployeeCSE />} />
+          <Route
+            path="/employee/onboarding"
+            element={
+              <Suspense fallback={<div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
+                <EmployeeOnboardingRedirect />
+              </Suspense>
+            }
+          />
           <Route path="/support" element={<SuspenseSupportPage />} />
           <Route path="/support/confirmation" element={<SuspenseSupportConfirmationPage />} />
           <Route path="/support/tickets" element={<SuspenseTicketsHistoryPage />} />
@@ -342,6 +358,14 @@ function ProtectedRoutes() {
                   <Route path="/documents" element={<Navigate to="/employee/documents" replace />} />
                   <Route path="/medical-follow-up" element={<EmployeeMedicalFollowUp />} />
                   <Route path="/cse" element={<EmployeeCSE />} />
+                  <Route
+                    path="/employee/onboarding"
+                    element={
+                      <Suspense fallback={<div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
+                        <EmployeeOnboardingRedirect />
+                      </Suspense>
+                    }
+                  />
                   <Route path="/support" element={<SuspenseSupportPage />} />
                   <Route path="/support/confirmation" element={<SuspenseSupportConfirmationPage />} />
                   <Route path="/support/tickets" element={<SuspenseTicketsHistoryPage />} />
@@ -382,6 +406,22 @@ function ProtectedRoutes() {
                   <Route path="/promotions/:promotionId" element={<PromotionDetail />} />
                   <Route path="/cse" element={<CSE />} />
                   <Route path="/recruitment" element={<Recruitment />} />
+                  <Route
+                    path="/onboarding"
+                    element={
+                      <Suspense fallback={<div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
+                        <OnboardingHubPage />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/onboarding/:employeeId"
+                    element={
+                      <Suspense fallback={<div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
+                        <OnboardingPage />
+                      </Suspense>
+                    }
+                  />
                   <Route path="/badgeuse-rh" element={<BadgeuseRhPage />} />
                   <Route path="/simulation" element={<Simulation />} />
                   <Route path="/exports" element={<Exports />} />

@@ -10,6 +10,7 @@ import {
   User,
   LogOut,
   ClipboardEdit,
+  ClipboardList,
   Notebook,
   Plane,
   Settings,
@@ -109,6 +110,7 @@ const RH_TEAM_BASE: SidebarLinkItem[] = [
   { title: "Promotions", url: "/promotions", icon: Award },
   { title: "CSE & Dialogue Social", url: "/cse", icon: Handshake },
   { title: "Recrutement", url: "/recruitment", icon: UserPlus },
+  { title: "Onboarding", url: "/onboarding", icon: ClipboardList },
   { title: "Gestion des Utilisateurs", url: "/users", icon: UserCog },
 ];
 
