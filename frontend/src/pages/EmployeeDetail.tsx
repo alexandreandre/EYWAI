@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SaisieModal } from "@/components/SaisieModal";
-import { Download, Calendar as CalendarIcon, FileText, Loader2, ArrowLeft, Save, ClipboardEdit, ChevronLeft, ChevronRight, UserPlus, Grid3x3, CalendarDays, Edit, MessageSquare, Play, CheckCircle, FileText as FileTextIcon, FileDown, Eye, TrendingUp, Plus, Trash2, ArrowRight, Stethoscope } from "lucide-react";
+import { Download, Calendar as CalendarIcon, FileText, Loader2, ArrowLeft, Save, ClipboardEdit, ChevronLeft, ChevronRight, UserPlus, Grid3x3, CalendarDays, Edit, MessageSquare, Play, CheckCircle, FileText as FileTextIcon, FileDown, Eye, TrendingUp, Plus, Trash2, ArrowRight, Stethoscope, Calculator } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"; // prettier-ignore
 import * as saisiesApi from "@/api/saisies"; // ✅ On importe le nouveau type
 import { useCalendar, WeekTemplate } from "@/hooks/useCalendar"; // ✅ On importe le nouveau type
@@ -50,6 +50,15 @@ import {
   resolveAvenantTypeFromDiffs,
   type ContractualFieldDiff,
 } from "@/utils/employeeContractualWatch";
+import { useCompany } from "@/contexts/CompanyContext";
+import {
+  appliquerAugmentation,
+  getSalaryHistory,
+  simulerAugmentation,
+  type SimulationResultat,
+} from "@/api/augmentations";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Skeleton } from "@/components/ui/skeleton";
 
 
 // --- Imports FullCalendar ---
@@ -90,6 +99,28 @@ interface Employee {
   team_id?: string | null;
 }
 interface Payslip { id: string; name: string; url: string; month: number; year: number; }
+
+function formatEuroAmount(n: number): string {
+  return `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+}
+
+function formatDateFR(iso: string): string {
+  if (!iso) return "";
+  const d = iso.includes("T") ? new Date(iso) : new Date(`${iso}T12:00:00`);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString("fr-FR");
+}
+
+function valeurSalaireBrut(obj: unknown): number {
+  if (obj && typeof obj === "object" && obj !== null && "valeur" in obj) {
+    const v = (obj as { valeur: unknown }).valeur;
+    if (typeof v === "number" && !Number.isNaN(v)) return v;
+    if (typeof v === "string") {
+      const p = parseFloat(v.replace(",", "."));
+      return Number.isNaN(p) ? 0 : p;
+    }
+  }
+  return 0;
+}
 
 // ✅ MODIFIÉ : Le formulaire pour le modèle de semaine
 // -----------------------------------------------------------------------------
@@ -666,6 +697,34 @@ export default function EmployeeDetail() {
     }
   }, [location.search]);
 
+  const { activeCompany } = useCompany();
+  const activeCompanyId = activeCompany?.company_id ?? "";
+
+  const [augSimType, setAugSimType] = useState<"pourcentage" | "montant_fixe">("pourcentage");
+  const [augValeur, setAugValeur] = useState("");
+  const [augEffectiveDate, setAugEffectiveDate] = useState(() =>
+    new Date().toISOString().slice(0, 10),
+  );
+  const [augSimLoading, setAugSimLoading] = useState(false);
+  const [augSimResult, setAugSimResult] = useState<SimulationResultat | null>(null);
+  const [augApplyDialogOpen, setAugApplyDialogOpen] = useState(false);
+  const [augApplyMotif, setAugApplyMotif] = useState("");
+  const [augApplySubmitting, setAugApplySubmitting] = useState(false);
+  const [augGenDraft, setAugGenDraft] = useState<{
+    nouveau_brut: number;
+    effective_date: string;
+    motif: string;
+  } | null>(null);
+  const [augGenDialogOpen, setAugGenDialogOpen] = useState(false);
+  const [augGenDateInput, setAugGenDateInput] = useState("");
+  const [augGenMotifInput, setAugGenMotifInput] = useState("");
+
+  const salaryHistoryQuery = useQuery({
+    queryKey: ["salary-history", employeeId, activeCompanyId],
+    queryFn: () => getSalaryHistory(employeeId!, activeCompanyId),
+    enabled: Boolean(employeeId && activeCompanyId && activeTab === "augmentation"),
+  });
+
   // Entretiens
   const [annualReviews, setAnnualReviews] = useState<import("@/api/annualReviews").AnnualReview[]>([]);
   const [planningModalOpen, setPlanningModalOpen] = useState(false);
@@ -761,6 +820,30 @@ export default function EmployeeDetail() {
         }
       }
       toast({ title: "Avenant généré", description: "Le document a été ajouté à la liste." });
+    },
+    onError: (e: unknown) => {
+      const msg =
+        e && typeof e === "object" && "response" in e
+          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast({
+        title: "Échec",
+        description: typeof msg === "string" ? msg : "Génération impossible.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const augSalariatGenMut = useMutation({
+    mutationFn: generateDocument,
+    onSuccess: async () => {
+      queryClient.invalidateQueries({ queryKey: ["employee-generated-documents", employeeId] });
+      setAugGenDialogOpen(false);
+      setAugGenDraft(null);
+      toast({
+        title: "Avenant salaire généré",
+        description: "Le PDF est disponible dans l’onglet Documents.",
+      });
     },
     onError: (e: unknown) => {
       const msg =
@@ -1060,6 +1143,82 @@ export default function EmployeeDetail() {
     fetchPageData();
   }, [employeeId]);
 
+  const handleSimulateAugmentation = async () => {
+    if (!employeeId || !activeCompanyId) {
+      toast({ title: "Entreprise active requise", variant: "destructive" });
+      return;
+    }
+    const v = parseFloat(augValeur.replace(",", "."));
+    if (Number.isNaN(v) || v <= 0) {
+      toast({ title: "Saisissez une valeur positive.", variant: "destructive" });
+      return;
+    }
+    setAugSimLoading(true);
+    try {
+      const res = await simulerAugmentation(employeeId, activeCompanyId, {
+        type_augmentation: augSimType,
+        valeur: v,
+        effective_date: augEffectiveDate,
+      });
+      setAugSimResult(res);
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast({
+        title: "Simulation impossible",
+        description: typeof msg === "string" ? msg : "Réessayez plus tard.",
+        variant: "destructive",
+      });
+    } finally {
+      setAugSimLoading(false);
+    }
+  };
+
+  const handleApplyAugmentationConfirm = async () => {
+    if (!employeeId || !activeCompanyId || !augSimResult) return;
+    const snapshot = {
+      nouveau_brut: augSimResult.nouveau_salaire_brut,
+      effective_date: augEffectiveDate,
+      motif: augApplyMotif.trim(),
+    };
+    setAugApplySubmitting(true);
+    try {
+      await appliquerAugmentation(employeeId, activeCompanyId, {
+        nouveau_salaire: augSimResult.nouveau_salaire_brut,
+        motif: augApplyMotif.trim() || undefined,
+        effective_date: augEffectiveDate,
+      });
+      toast({
+        title: "Augmentation enregistrée",
+        description: "Le salaire de base a été mis à jour.",
+      });
+      setAugApplyDialogOpen(false);
+      setAugApplyMotif("");
+      setAugSimResult(null);
+      setAugValeur("");
+      setAugGenDraft(snapshot);
+      setAugGenDateInput(snapshot.effective_date);
+      setAugGenMotifInput(snapshot.motif);
+      await salaryHistoryQuery.refetch();
+      const employeeRes = await apiClient.get<Employee>(`/api/employees/${employeeId}`);
+      setEmployee(employeeRes.data);
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast({
+        title: "Enregistrement impossible",
+        description: typeof msg === "string" ? msg : "Réessayez plus tard.",
+        variant: "destructive",
+      });
+    } finally {
+      setAugApplySubmitting(false);
+    }
+  };
+
   const handleDeleteEmployee = async () => {
     if (!employeeId) return;
     try {
@@ -1324,8 +1483,9 @@ export default function EmployeeDetail() {
       {employeeId && <EmployeeCSEBlock employeeId={employeeId} />}
       
       <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="calendrier" className="w-full">
-        <TabsList className={cn("grid w-full", medicalModuleEnabled ? "grid-cols-6" : "grid-cols-5")}>
+        <TabsList className={cn("grid w-full", medicalModuleEnabled ? "grid-cols-7" : "grid-cols-6")}>
           <TabsTrigger value="documents"><FileText className="mr-2 h-4 w-4"/>Documents</TabsTrigger>
+          <TabsTrigger value="augmentation"><Calculator className="mr-2 h-4 w-4"/>Augmentation</TabsTrigger>
           <TabsTrigger value="saisie"><ClipboardEdit className="mr-2 h-4 w-4"/>Saisie du mois</TabsTrigger>
           <TabsTrigger value="entretiens"><MessageSquare className="mr-2 h-4 w-4"/>Entretiens</TabsTrigger>
           <TabsTrigger value="promotions"><TrendingUp className="mr-2 h-4 w-4"/>Promotions</TabsTrigger>
@@ -1448,6 +1608,338 @@ export default function EmployeeDetail() {
               </ul>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="augmentation" className="mt-4 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calculator className="h-5 w-5 text-muted-foreground" />
+                Simulateur d&apos;augmentation
+              </CardTitle>
+              <CardDescription>
+                Salaire brut mensuel actuel (lecture seule) :{" "}
+                <span className="font-medium text-foreground">
+                  {formatEuroAmount(valeurSalaireBrut(employee?.salaire_de_base))}
+                </span>
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-3">
+                <Label>Type d&apos;augmentation</Label>
+                <RadioGroup
+                  value={augSimType}
+                  onValueChange={(v) => setAugSimType(v as "pourcentage" | "montant_fixe")}
+                  className="flex flex-col gap-2 sm:flex-row sm:gap-6"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="pourcentage" id="aug-pct" />
+                    <Label htmlFor="aug-pct" className="font-normal cursor-pointer">
+                      Par pourcentage
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="montant_fixe" id="aug-fixe" />
+                    <Label htmlFor="aug-fixe" className="font-normal cursor-pointer">
+                      Par montant fixe
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="aug-valeur">
+                    {augSimType === "pourcentage" ? "Pourcentage (%)" : "Montant (€)"}
+                  </Label>
+                  <Input
+                    id="aug-valeur"
+                    type="number"
+                    min={0}
+                    step={augSimType === "pourcentage" ? "0.1" : "1"}
+                    value={augValeur}
+                    onChange={(e) => setAugValeur(e.target.value)}
+                    placeholder={augSimType === "pourcentage" ? "Ex. 3" : "Ex. 150"}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="aug-date-effet">Date d&apos;effet</Label>
+                  <Input
+                    id="aug-date-effet"
+                    type="date"
+                    value={augEffectiveDate}
+                    onChange={(e) => setAugEffectiveDate(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button
+                    type="button"
+                    className="w-full sm:w-auto"
+                    onClick={() => void handleSimulateAugmentation()}
+                    disabled={augSimLoading || !activeCompanyId}
+                  >
+                    {augSimLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <TrendingUp className="mr-2 h-4 w-4" />
+                    )}
+                    Simuler
+                  </Button>
+                </div>
+              </div>
+
+              {augSimResult && (
+                <div className="space-y-4">
+                  <Card className="border-muted bg-muted/30">
+                    <CardContent className="pt-6">
+                      <div className="grid gap-6 md:grid-cols-3">
+                        <div className="space-y-2">
+                          <p className="text-sm font-semibold">Brut</p>
+                          <p className="text-sm text-muted-foreground">
+                            Avant : {formatEuroAmount(augSimResult.ancien_salaire_brut)}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Après : {formatEuroAmount(augSimResult.nouveau_salaire_brut)}
+                          </p>
+                          <p className="text-sm font-medium text-emerald-700">
+                            Gain : +{formatEuroAmount(augSimResult.difference_brut)} (
+                            {augSimResult.taux_augmentation_reel.toLocaleString("fr-FR", {
+                              maximumFractionDigits: 2,
+                            })}
+                            %)
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-sm font-semibold">Net estimé*</p>
+                          <p className="text-sm text-muted-foreground">
+                            Avant : {formatEuroAmount(augSimResult.ancien_net_estime)}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Après : {formatEuroAmount(augSimResult.nouveau_net_estime)}
+                          </p>
+                          <p className="text-sm font-medium text-emerald-700">
+                            Gain : +{formatEuroAmount(augSimResult.difference_net)}
+                          </p>
+                          <p className="text-xs text-muted-foreground leading-snug">
+                            * Estimation basée sur des taux moyens. Le net réel figure sur le bulletin de paie.
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-sm font-semibold">Coût employeur</p>
+                          <p className="text-sm text-muted-foreground">
+                            Avant : {formatEuroAmount(augSimResult.cout_total_employeur_avant)}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Après : {formatEuroAmount(augSimResult.cout_total_employeur_apres)}
+                          </p>
+                          <p className="text-sm font-medium text-emerald-700">
+                            Gain : +{formatEuroAmount(augSimResult.difference_cout_employeur)}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Button type="button" onClick={() => setAugApplyDialogOpen(true)}>
+                    Appliquer cette augmentation
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {augGenDraft && employee && (
+            <Card className="border-primary/35 bg-muted/15">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Prochaine étape</CardTitle>
+                <CardDescription>
+                  Formaliser l&apos;augmentation par un avenant salaire (PDF dans Documents RH).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-wrap items-center justify-between gap-4">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setAugGenDateInput(augGenDraft.effective_date);
+                    setAugGenMotifInput(augGenDraft.motif);
+                    setAugGenDialogOpen(true);
+                  }}
+                >
+                  Générer l&apos;avenant salaire
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setAugGenDraft(null)}>
+                  Masquer
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Historique des augmentations</CardTitle>
+              <CardDescription>Évolutions de salaire enregistrées pour ce collaborateur.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {salaryHistoryQuery.isLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : salaryHistoryQuery.data && salaryHistoryQuery.data.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date d&apos;effet</TableHead>
+                        <TableHead>Ancien salaire</TableHead>
+                        <TableHead>Nouveau salaire</TableHead>
+                        <TableHead>Motif</TableHead>
+                        <TableHead>Augmentation</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {salaryHistoryQuery.data.map((row) => {
+                        const avant = valeurSalaireBrut(row.ancien_salaire);
+                        const apres = valeurSalaireBrut(row.nouveau_salaire);
+                        const diff = apres - avant;
+                        const pct = avant > 0 ? (diff / avant) * 100 : 0;
+                        return (
+                          <TableRow key={row.id}>
+                            <TableCell>{formatDateFR(row.effective_date)}</TableCell>
+                            <TableCell>{formatEuroAmount(avant)}</TableCell>
+                            <TableCell>{formatEuroAmount(apres)}</TableCell>
+                            <TableCell className="max-w-[200px] truncate" title={row.motif ?? ""}>
+                              {row.motif ?? "—"}
+                            </TableCell>
+                            <TableCell className="font-medium text-emerald-700 whitespace-nowrap">
+                              +{formatEuroAmount(diff)} (+
+                              {pct.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}%)
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground py-6 text-center">
+                  Aucune augmentation enregistrée.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Dialog open={augApplyDialogOpen} onOpenChange={setAugApplyDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Confirmer l&apos;augmentation</DialogTitle>
+                <DialogDescription>
+                  Augmenter {employee.first_name} {employee.last_name} de{" "}
+                  {augSimResult
+                    ? `${formatEuroAmount(augSimResult.ancien_salaire_brut)} à ${formatEuroAmount(
+                        augSimResult.nouveau_salaire_brut,
+                      )} brut`
+                    : ""}
+                  .
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2 py-2">
+                <Label htmlFor="aug-motif">Motif (optionnel)</Label>
+                <Input
+                  id="aug-motif"
+                  value={augApplyMotif}
+                  onChange={(e) => setAugApplyMotif(e.target.value)}
+                  placeholder="Ex. ancienneté, reclassement…"
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setAugApplyDialogOpen(false)}>
+                  Annuler
+                </Button>
+                <Button
+                  onClick={() => void handleApplyAugmentationConfirm()}
+                  disabled={augApplySubmitting || !augSimResult}
+                >
+                  {augApplySubmitting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                  Confirmer
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={augGenDialogOpen} onOpenChange={setAugGenDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Générer un avenant salaire</DialogTitle>
+                <DialogDescription>
+                  Générer un avenant salaire pour {employee.first_name} {employee.last_name}
+                  {augGenDraft ? (
+                    <>
+                      {" "}
+                      — nouveau brut : {formatEuroAmount(augGenDraft.nouveau_brut)}
+                    </>
+                  ) : null}
+                  .
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <Label htmlFor="aug-gen-date">Date d&apos;effet</Label>
+                  <Input
+                    id="aug-gen-date"
+                    type="date"
+                    value={augGenDateInput}
+                    onChange={(e) => setAugGenDateInput(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="aug-gen-motif">Motif (optionnel)</Label>
+                  <Input
+                    id="aug-gen-motif"
+                    value={augGenMotifInput}
+                    onChange={(e) => setAugGenMotifInput(e.target.value)}
+                    placeholder="Ex. revue salariale"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground rounded-md border border-muted bg-muted/30 px-3 py-2">
+                  Les données seront enregistrées dans le document pour application automatique lorsque
+                  le statut passera à « Signé ».
+                </p>
+              </div>
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button type="button" variant="outline" onClick={() => setAugGenDialogOpen(false)}>
+                  Annuler
+                </Button>
+                <Button
+                  type="button"
+                  disabled={
+                    augSalariatGenMut.isPending ||
+                    !employeeId ||
+                    !augGenDraft ||
+                    !augGenDateInput.trim()
+                  }
+                  onClick={() => {
+                    if (!employeeId || !augGenDraft) return;
+                    augSalariatGenMut.mutate({
+                      employee_id: employeeId,
+                      document_type: "avenant_salaire",
+                      category: "avenant",
+                      date_effet: augGenDateInput,
+                      motif: augGenMotifInput.trim() || undefined,
+                      nouveau_salaire: augGenDraft.nouveau_brut,
+                      template_id: null,
+                    });
+                  }}
+                >
+                  {augSalariatGenMut.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                  Confirmer
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
         
         <TabsContent value="saisie" className="mt-4">

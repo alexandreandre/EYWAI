@@ -25,6 +25,10 @@ class GenerateDocumentRequest(BaseModel):
     date_effet: Optional[date] = None
     motif: Optional[str] = None
     template_id: Optional[str] = None
+    nouveau_salaire: Optional[float] = Field(
+        None,
+        description="Persisté dans generation_context pour rebouclage à la signature.",
+    )
 
 
 class UpdateDocumentStatusRequest(BaseModel):

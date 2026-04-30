@@ -62,6 +62,16 @@ apiClient.interceptors.request.use(
       }
     }
 
+    // multipart/form-data : le défaut application/json casse le boundary → 422 FastAPI
+    if (config.data instanceof FormData) {
+      const h = config.headers;
+      if (h && typeof (h as { delete?: (key: string) => void }).delete === 'function') {
+        (h as { delete: (key: string) => void }).delete('Content-Type');
+      } else {
+        delete (h as Record<string, unknown>)['Content-Type'];
+      }
+    }
+
     return config;
   },
   (error) => Promise.reject(error),

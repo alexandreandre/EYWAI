@@ -5,6 +5,7 @@ Délègue au domain (règles pures) et à l'infrastructure (repository, queries,
 Aucun accès DB direct. Comportement identique au legacy.
 """
 
+import logging
 from typing import Any, Optional
 
 from app.modules.recruitment.domain import rules as domain_rules
@@ -24,6 +25,8 @@ from app.modules.recruitment.infrastructure.repository import (
     _timeline_reader,
     _timeline_writer,
 )
+
+_logger = logging.getLogger(__name__)
 
 
 # ─── Settings (délégation infrastructure) ──────────────────────────────
@@ -282,6 +285,19 @@ def service_hire_candidate(
             _candidate_repo.update(
                 candidate_id, company_id, {"current_stage_id": hired_stage["id"]}
             )
+    try:
+        from app.modules.onboarding.infrastructure.repository import (
+            onboarding_repository,
+        )
+
+        employee_id = result.get("id")
+        if employee_id:
+            onboarding_repository.create_checklist(
+                employee_id=str(employee_id),
+                company_id=company_id,
+            )
+    except Exception as e:
+        _logger.error("[onboarding] Erreur création checklist : %s", e)
     return result
 
 

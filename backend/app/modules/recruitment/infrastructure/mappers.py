@@ -50,6 +50,11 @@ def candidate_row_to_out(
         if row.get("hired_at") is not None
         else None,
         "employee_id": row.get("employee_id"),
+        "cv_url": row.get("cv_url"),
+        "ai_score": row.get("ai_score"),
+        "ai_scored_at": _dt_str(row["ai_scored_at"])
+        if row.get("ai_scored_at") is not None
+        else None,
         "created_at": _dt_str(row.get("created_at")),
         "updated_at": _dt_str(row.get("updated_at")),
     }
@@ -129,6 +134,7 @@ def note_row_to_out(row: dict[str, Any]) -> dict[str, Any]:
         "author_first_name": author.get("first_name"),
         "author_last_name": author.get("last_name"),
         "created_at": str(row["created_at"]),
+        "audio_url": row.get("audio_url"),
     }
 
 

@@ -48,6 +48,8 @@ export interface Candidate {
   employee_id?: string | null;
   /** URL du CV si le backend / stockage l’expose */
   cv_url?: string | null;
+  ai_score?: number | null;
+  ai_scored_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -104,6 +106,7 @@ export interface Note {
   author_first_name?: string | null;
   author_last_name?: string | null;
   created_at: string;
+  audio_url?: string | null;
 }
 
 export interface Opinion {
@@ -299,6 +302,64 @@ export async function hireCandidate(
   return res.data;
 }
 
+export async function uploadCandidateCV(
+  candidateId: string,
+  companyId: string,
+  file: File
+): Promise<{ cv_url: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await apiClient.post<{ cv_url: string }>(
+    `/api/recruitment/candidates/${candidateId}/upload-cv`,
+    formData,
+    {
+      headers: {
+        "X-Active-Company": companyId,
+      },
+    }
+  );
+  return res.data;
+}
+
+export type ScoringMention = "Excellent" | "Bon" | "Moyen" | "Faible";
+
+export interface ScoringResult {
+  candidate_id: string;
+  score: number;
+  mention: ScoringMention | string;
+  points_forts: string[];
+  points_faibles: string[];
+  recommandation: string;
+  scored_at: string;
+}
+
+export async function scoreCandidateAI(
+  candidateId: string,
+  companyId: string
+): Promise<ScoringResult> {
+  const res = await apiClient.post<ScoringResult>(
+    `/api/recruitment/candidates/${candidateId}/score`,
+    {},
+    {
+      headers: { "X-Active-Company": companyId },
+    }
+  );
+  return res.data;
+}
+
+export async function getCandidateScore(
+  candidateId: string,
+  companyId: string
+): Promise<ScoringResult> {
+  const res = await apiClient.get<ScoringResult>(
+    `/api/recruitment/candidates/${candidateId}/score`,
+    {
+      headers: { "X-Active-Company": companyId },
+    }
+  );
+  return res.data;
+}
+
 export async function archiveCandidate(candidateId: string): Promise<void> {
   await apiClient.post(`/api/recruitment/candidates/${candidateId}/archive`, {});
 }
@@ -338,8 +399,31 @@ export async function getNotes(candidateId: string): Promise<Note[]> {
   return res.data ?? [];
 }
 
-export async function createNote(body: { candidate_id: string; content: string }): Promise<Note> {
+export async function createNote(body: {
+  candidate_id: string;
+  content: string;
+  audio_url?: string | null;
+}): Promise<Note> {
   const res = await apiClient.post<Note>("/api/recruitment/notes", body);
+  return res.data;
+}
+
+export async function uploadNoteAudio(
+  candidateId: string,
+  companyId: string,
+  blob: Blob
+): Promise<{ audio_url: string }> {
+  const ext =
+    blob.type.includes("ogg") ? "ogg" : blob.type.includes("mp4") ? "m4a" : "webm";
+  const formData = new FormData();
+  formData.append("file", blob, `note.${ext}`);
+  const res = await apiClient.post<{ audio_url: string }>(
+    `/api/recruitment/notes/upload-audio?candidate_id=${encodeURIComponent(candidateId)}`,
+    formData,
+    {
+      headers: { "X-Active-Company": companyId },
+    }
+  );
   return res.data;
 }
 
@@ -370,5 +454,71 @@ export async function getTimeline(candidateId: string): Promise<TimelineEvent[]>
 
 export async function getRejectionReasons(): Promise<{ reasons: string[] }> {
   const res = await apiClient.get<{ reasons: string[] }>("/api/recruitment/rejection-reasons");
+  return res.data;
+}
+
+// ─── Analytics ──────────────────────────────────────────────────────
+
+export interface TimeToHireStats {
+  job_id: string;
+  job_title: string;
+  avg_days: number;
+  min_days: number;
+  max_days: number;
+  nb_hired: number;
+}
+
+export interface SourceStats {
+  source: string;
+  nb_candidates: number;
+  nb_hired: number;
+  conversion_rate: number;
+}
+
+export interface StageConversionStats {
+  stage_name: string;
+  stage_position: number;
+  nb_candidates: number;
+  nb_passed: number;
+  conversion_rate: number;
+  avg_days_in_stage: number;
+}
+
+export interface RecruitmentAnalytics {
+  period_start: string | null;
+  period_end: string | null;
+  total_candidates: number;
+  total_hired: number;
+  overall_conversion_rate: number;
+  avg_time_to_hire_days: number;
+  time_to_hire_by_job: TimeToHireStats[];
+  source_stats: SourceStats[];
+  stage_conversion: StageConversionStats[];
+  cost_per_hire: number | null;
+}
+
+export interface RecruitmentAnalyticsParams {
+  job_id?: string;
+  date_from?: string;
+  date_to?: string;
+  budget_total?: number;
+}
+
+export async function getRecruitmentAnalytics(
+  companyId: string,
+  params?: RecruitmentAnalyticsParams
+): Promise<RecruitmentAnalytics> {
+  const sp = new URLSearchParams();
+  if (params?.job_id) sp.set("job_id", params.job_id);
+  if (params?.date_from) sp.set("date_from", params.date_from);
+  if (params?.date_to) sp.set("date_to", params.date_to);
+  if (params?.budget_total != null && !Number.isNaN(params.budget_total)) {
+    sp.set("budget_total", String(params.budget_total));
+  }
+  const q = sp.toString();
+  const res = await apiClient.get<RecruitmentAnalytics>(
+    `/api/recruitment/analytics${q ? `?${q}` : ""}`,
+    { headers: { "X-Active-Company": companyId } }
+  );
   return res.data;
 }
