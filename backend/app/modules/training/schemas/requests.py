@@ -106,3 +106,39 @@ class TrainingEnrollmentUpdate(BaseModel):
                 "status doit être planned, in_progress, completed ou cancelled."
             )
         return s
+
+
+class EnrollmentRequestBySalarie(BaseModel):
+    """Demande d'inscription par le salarié lui-même."""
+
+    training_id: str
+    preferred_date: Optional[date] = None
+    motivation: Optional[str] = None
+
+
+class ManagerApprovalRequest(BaseModel):
+    approved: bool
+    rejection_reason: Optional[str] = None
+
+
+class RHApprovalRequest(BaseModel):
+    approved: bool
+    rejection_reason: Optional[str] = None
+    planned_start_date: Optional[date] = None
+    planned_end_date: Optional[date] = None
+
+
+class TrainingEvaluationRequest(BaseModel):
+    rating: int
+    comment: Optional[str] = None
+
+    @field_validator("rating", mode="before")
+    @classmethod
+    def rating_valide(cls, v: object) -> int:
+        try:
+            n = int(v)  # type: ignore[arg-type]
+        except (TypeError, ValueError) as e:
+            raise ValueError("La note doit être un entier entre 1 et 5.") from e
+        if not 1 <= n <= 5:
+            raise ValueError("La note doit être entre 1 et 5")
+        return n

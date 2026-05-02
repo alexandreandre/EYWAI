@@ -5,12 +5,17 @@ Repository Supabase catalogue formations (training_catalog, training_enrollments
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
+import mimetypes
+from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
 
 from app.modules.training.domain.interfaces import AbstractTrainingRepository
+
+BUCKET_TRAINING_CERTIFICATES = "training-certificates"
+_TRAINING_CERT_SIGNED_TTL_SEC = 63072000  # 2 ans
+_EVAL_ELIGIBLE_STATUSES = frozenset({"realise", "approuve_rh", "completed"})
 
 
 def _categories_from_db(val: Any) -> List[str]:
@@ -192,7 +197,7 @@ class SupabaseTrainingRepository(AbstractTrainingRepository):
             .select("id")
             .eq("training_id", training_id)
             .eq("company_id", company_id)
-            .in_("status", ("planned", "in_progress"))
+            .in_("status", ("planned", "in_progress", "approuve_rh"))
             .limit(1)
             .execute()
         )
@@ -222,7 +227,16 @@ class SupabaseTrainingRepository(AbstractTrainingRepository):
             .eq("company_id", company_id)
             .eq("training_id", training_id)
             .eq("employee_id", employee_id)
-            .in_("status", ("planned", "in_progress"))
+            .in_(
+                "status",
+                (
+                    "planned",
+                    "in_progress",
+                    "demande_salarie",
+                    "approuve_manager",
+                    "approuve_rh",
+                ),
+            )
             .limit(1)
             .execute()
         )
@@ -367,7 +381,7 @@ class SupabaseTrainingRepository(AbstractTrainingRepository):
             supabase.table("training_enrollments")
             .select("*")
             .eq("company_id", company_id)
-            .in_("status", ("planned", "completed"))
+            .in_("status", ("planned", "completed", "approuve_rh"))
             .execute()
         )
         rows = list(r.data or []) if r else []
@@ -385,6 +399,396 @@ class SupabaseTrainingRepository(AbstractTrainingRepository):
             if cost is not None:
                 total += float(cost)
         return total
+
+    def _resolve_team_manager_employee_id(
+        self, employee_id: str, company_id: str
+    ) -> Optional[str]:
+        er = (
+            supabase.table("employees")
+            .select("team_id")
+            .eq("id", employee_id)
+            .eq("company_id", company_id)
+            .maybe_single()
+            .execute()
+        )
+        if not er or not er.data:
+            return None
+        tid = er.data.get("team_id")
+        if not tid:
+            return None
+        tr = (
+            supabase.table("teams")
+            .select("manager_employee_id")
+            .eq("id", str(tid))
+            .eq("company_id", company_id)
+            .maybe_single()
+            .execute()
+        )
+        if not tr or not tr.data:
+            return None
+        mid = tr.data.get("manager_employee_id")
+        return str(mid) if mid else None
+
+    def create_enrollment_request(
+        self,
+        employee_id: str,
+        company_id: str,
+        training_id: str,
+        requested_by: str,
+        preferred_date: Optional[str],
+        motivation: Optional[str],
+    ) -> Dict[str, Any]:
+        if self.has_active_enrollment_duplicate(company_id, training_id, employee_id):
+            raise ValueError(
+                "Une demande ou inscription est déjà en cours pour cette formation."
+            )
+        tr = self.get_training_by_id(training_id, company_id)
+        if not tr:
+            raise LookupError("Formation non trouvée.")
+        if str(tr.get("status") or "") == "archived":
+            raise ValueError("Cette formation n'est plus disponible à l'inscription.")
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        mgr_emp_id = self._resolve_team_manager_employee_id(employee_id, company_id)
+
+        base: Dict[str, Any] = {
+            "company_id": company_id,
+            "training_id": training_id,
+            "employee_id": employee_id,
+            "requested_by": requested_by,
+            "notes": motivation,
+            "updated_at": now_iso,
+        }
+        if preferred_date:
+            base["planned_date"] = preferred_date
+
+        if mgr_emp_id:
+            base["status"] = "demande_salarie"
+            base["manager_id"] = mgr_emp_id
+        else:
+            base["status"] = "approuve_manager"
+            base["manager_id"] = None
+            base["manager_approved_at"] = now_iso
+
+        ins = supabase.table("training_enrollments").insert(base).execute()
+        if not ins.data:
+            raise RuntimeError("Erreur lors de la création de la demande.")
+        new_id = str(ins.data[0]["id"])
+        got = self.get_enrollment_by_id(new_id, company_id)
+        if not got:
+            raise RuntimeError("Erreur lors du rechargement.")
+        return got
+
+    def approve_by_manager(
+        self,
+        enrollment_id: str,
+        company_id: str,
+        approved: bool,
+        rejection_reason: Optional[str],
+    ) -> Dict[str, Any]:
+        row = self.get_enrollment_by_id(enrollment_id, company_id)
+        if not row:
+            raise LookupError("Inscription non trouvée.")
+        st = str(row.get("status") or "")
+        if st != "demande_salarie":
+            raise ValueError("Cette inscription n'est pas en attente de validation manager.")
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        if approved:
+            patch: Dict[str, Any] = {
+                "status": "approuve_manager",
+                "manager_approved_at": now_iso,
+                "manager_rejected_at": None,
+                "manager_rejection_reason": None,
+                "updated_at": now_iso,
+            }
+        else:
+            patch = {
+                "status": "rejete_manager",
+                "manager_rejected_at": now_iso,
+                "manager_rejection_reason": rejection_reason,
+                "updated_at": now_iso,
+            }
+        u = (
+            supabase.table("training_enrollments")
+            .update(patch)
+            .eq("id", enrollment_id)
+            .eq("company_id", company_id)
+            .execute()
+        )
+        if not u.data:
+            raise LookupError("Inscription non trouvée.")
+        got = self.get_enrollment_by_id(enrollment_id, company_id)
+        if not got:
+            raise LookupError("Inscription non trouvée.")
+        return got
+
+    def approve_by_rh(
+        self,
+        enrollment_id: str,
+        company_id: str,
+        approved: bool,
+        rejection_reason: Optional[str],
+        planned_start_date: Optional[str],
+        planned_end_date: Optional[str],
+    ) -> Dict[str, Any]:
+        row = self.get_enrollment_by_id(enrollment_id, company_id)
+        if not row:
+            raise LookupError("Inscription non trouvée.")
+        st = str(row.get("status") or "")
+        if st != "approuve_manager":
+            raise ValueError("Cette inscription n'est pas en attente de validation RH.")
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        if approved:
+            notes_existing = row.get("notes") or ""
+            extra_note = ""
+            if planned_end_date:
+                extra_note = f"Fin prévue : {planned_end_date}"
+            merged_notes = notes_existing
+            if extra_note:
+                merged_notes = (
+                    f"{notes_existing}\n{extra_note}".strip()
+                    if notes_existing
+                    else extra_note
+                )
+            patch: Dict[str, Any] = {
+                "status": "approuve_rh",
+                "rh_approved_at": now_iso,
+                "rh_rejected_at": None,
+                "rh_rejection_reason": None,
+                "updated_at": now_iso,
+                "planned_date": planned_start_date
+                if planned_start_date
+                else row.get("planned_date"),
+            }
+            if merged_notes != row.get("notes"):
+                patch["notes"] = merged_notes
+        else:
+            patch = {
+                "status": "rejete_rh",
+                "rh_rejected_at": now_iso,
+                "rh_rejection_reason": rejection_reason,
+                "updated_at": now_iso,
+            }
+        u = (
+            supabase.table("training_enrollments")
+            .update(patch)
+            .eq("id", enrollment_id)
+            .eq("company_id", company_id)
+            .execute()
+        )
+        if not u.data:
+            raise LookupError("Inscription non trouvée.")
+        got = self.get_enrollment_by_id(enrollment_id, company_id)
+        if not got:
+            raise LookupError("Inscription non trouvée.")
+        return got
+
+    def list_pending_manager_approval(
+        self,
+        company_id: str,
+        filter_manager_employee_id: Optional[str],
+    ) -> List[Dict[str, Any]]:
+        q = (
+            supabase.table("training_enrollments")
+            .select("*")
+            .eq("company_id", company_id)
+            .eq("status", "demande_salarie")
+        )
+        if filter_manager_employee_id:
+            q = q.eq("manager_id", filter_manager_employee_id)
+        q = q.order("created_at", desc=True)
+        r = q.execute()
+        rows = [dict(x) for x in list(r.data or []) if r]
+        if not rows:
+            return []
+        eids = list({str(x["employee_id"]) for x in rows})
+        tids = list({str(x["training_id"]) for x in rows})
+        names = self._fetch_employee_names(company_id, eids)
+        tmeta = self._fetch_training_meta(company_id, tids)
+        out: List[Dict[str, Any]] = []
+        for row in rows:
+            d = dict(row)
+            tid = str(row["training_id"])
+            eid = str(row["employee_id"])
+            d["_employee_name"] = names.get(eid)
+            tm = tmeta.get(tid, {})
+            d["_training_title"] = tm.get("title")
+            d["_unit_cost_ht"] = tm.get("unit_cost_ht")
+            out.append(d)
+        return out
+
+    def list_pending_rh_approval(self, company_id: str) -> List[Dict[str, Any]]:
+        r = (
+            supabase.table("training_enrollments")
+            .select("*")
+            .eq("company_id", company_id)
+            .eq("status", "approuve_manager")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        rows = [dict(x) for x in list(r.data or []) if r]
+        if not rows:
+            return []
+        eids = list({str(x["employee_id"]) for x in rows})
+        tids = list({str(x["training_id"]) for x in rows})
+        mids = [str(x["manager_id"]) for x in rows if x.get("manager_id")]
+        names = self._fetch_employee_names(company_id, eids)
+        tmeta = self._fetch_training_meta(company_id, tids)
+        mgr_names = self._fetch_employee_names(company_id, list(set(mids))) if mids else {}
+        out: List[Dict[str, Any]] = []
+        for row in rows:
+            d = dict(row)
+            tid = str(row["training_id"])
+            eid = str(row["employee_id"])
+            d["_employee_name"] = names.get(eid)
+            tm = tmeta.get(tid, {})
+            d["_training_title"] = tm.get("title")
+            d["_unit_cost_ht"] = tm.get("unit_cost_ht")
+            mid = row.get("manager_id")
+            d["_manager_display_name"] = mgr_names.get(str(mid)) if mid else None
+            out.append(d)
+        return out
+
+    def _guess_content_type(self, filename: str) -> str:
+        guessed, _ = mimetypes.guess_type(filename)
+        return guessed or "application/octet-stream"
+
+    def submit_evaluation(
+        self,
+        enrollment_id: str,
+        company_id: str,
+        actor_employee_id: Optional[str],
+        rating: int,
+        comment: Optional[str],
+    ) -> Dict[str, Any]:
+        row = self.get_enrollment_by_id(enrollment_id, company_id)
+        if not row:
+            raise LookupError("Inscription non trouvée.")
+        if actor_employee_id is not None:
+            if str(row["employee_id"]) != str(actor_employee_id):
+                raise PermissionError("Accès non autorisé.")
+            if row.get("rating") is not None:
+                raise ValueError("Cette formation a déjà été évaluée.")
+        st = str(row.get("status") or "")
+        if st not in _EVAL_ELIGIBLE_STATUSES:
+            raise ValueError(
+                "Évaluation possible uniquement lorsque la formation est réalisée (statut réalisé ou équivalent)."
+            )
+        now_iso = datetime.now(timezone.utc).isoformat()
+        patch: Dict[str, Any] = {
+            "rating": rating,
+            "evaluation_comment": comment,
+            "evaluated_at": now_iso,
+            "updated_at": now_iso,
+        }
+        u = (
+            supabase.table("training_enrollments")
+            .update(patch)
+            .eq("id", enrollment_id)
+            .eq("company_id", company_id)
+            .execute()
+        )
+        if not u.data:
+            raise LookupError("Inscription non trouvée.")
+        got = self.get_enrollment_by_id(enrollment_id, company_id)
+        if not got:
+            raise LookupError("Inscription non trouvée.")
+        return got
+
+    def upload_enrollment_certificate(
+        self,
+        enrollment_id: str,
+        company_id: str,
+        file_bytes: bytes,
+        filename: str,
+        content_type: str,
+    ) -> str:
+        row = self.get_enrollment_by_id(enrollment_id, company_id)
+        if not row:
+            raise LookupError("Inscription non trouvée.")
+        st = str(row.get("status") or "")
+        if st not in _EVAL_ELIGIBLE_STATUSES:
+            raise ValueError(
+                "Envoi de certificat possible uniquement lorsque la formation est réalisée (statut réalisé ou équivalent)."
+            )
+        safe_name = filename.replace("..", "").replace("/", "_").strip() or "certificat.pdf"
+        path = f"{company_id}/{enrollment_id}/{safe_name}"
+        ct = content_type.strip().lower() if content_type else self._guess_content_type(safe_name)
+
+        supabase.storage.from_(BUCKET_TRAINING_CERTIFICATES).upload(
+            path,
+            file_bytes,
+            file_options={"content-type": ct, "x-upsert": "true"},
+        )
+        signed_r = supabase.storage.from_(BUCKET_TRAINING_CERTIFICATES).create_signed_url(
+            path,
+            _TRAINING_CERT_SIGNED_TTL_SEC,
+            options={"download": True},
+        )
+        signed_url: Optional[str] = None
+        if isinstance(signed_r, dict):
+            signed_url = signed_r.get("signedURL") or signed_r.get("signedUrl")
+        if not signed_url:
+            raise RuntimeError("Impossible de générer l'URL signée du certificat.")
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        u = (
+            supabase.table("training_enrollments")
+            .update(
+                {
+                    "certificate_url": signed_url,
+                    "certificate_uploaded_at": now_iso,
+                    "updated_at": now_iso,
+                }
+            )
+            .eq("id", enrollment_id)
+            .eq("company_id", company_id)
+            .execute()
+        )
+        if not u.data:
+            raise LookupError("Inscription non trouvée.")
+        return signed_url
+
+    def get_evaluations_summary(self, company_id: str) -> List[Dict[str, Any]]:
+        r = (
+            supabase.table("training_enrollments")
+            .select("training_id, rating")
+            .eq("company_id", company_id)
+            .execute()
+        )
+        raw = list(r.data or []) if r else []
+        rows = [dict(x) for x in raw if x.get("rating") is not None]
+        if not rows:
+            return []
+        by_tid: Dict[str, List[int]] = {}
+        for row in rows:
+            tid = str(row["training_id"])
+            by_tid.setdefault(tid, []).append(int(row["rating"]))
+        tids = list(by_tid.keys())
+        titles = self._fetch_training_meta(company_id, tids)
+        out: List[Dict[str, Any]] = []
+        for tid, ratings in by_tid.items():
+            n = len(ratings)
+            dist: Dict[str, int] = {str(i): 0 for i in range(1, 6)}
+            for x in ratings:
+                k = str(int(x))
+                if k in dist:
+                    dist[k] = dist.get(k, 0) + 1
+            avg = sum(ratings) / n if n else 0.0
+            title = str(titles.get(tid, {}).get("title") or "—")
+            out.append(
+                {
+                    "training_id": tid,
+                    "training_title": title,
+                    "nb_evaluations": n,
+                    "avg_rating": round(avg, 2),
+                    "ratings_distribution": dist,
+                }
+            )
+        out.sort(key=lambda x: -int(x["nb_evaluations"]))
+        return out
 
 
 training_repository: AbstractTrainingRepository = SupabaseTrainingRepository()
