@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Pencil, Plus } from "lucide-react";
+import { isAxiosError } from "axios";
+import { Loader2, Pencil, Plus, RefreshCw, Sparkles } from "lucide-react";
 
 import apiClient from "@/api/apiClient";
 import {
+  analyzeMobility,
   archiveCompetencyRef,
   createCompetencyRef,
   evaluateEmployee,
@@ -19,12 +21,15 @@ import {
   type CompetencyRef,
   type CompetencyRefCreate,
   type EmployeeCompetency,
+  type MobilityAnalysis,
 } from "@/api/competencies";
 import { listCompanyServices, type CompanyService } from "@/api/objectives";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -89,6 +94,20 @@ function scoreBadge(score: number) {
   return <Badge className={cn(cls, "border-0")}>{score === 0 ? "—" : String(score)}</Badge>;
 }
 
+function potentielBadgeClass(ev: string) {
+  const v = ev.toLowerCase();
+  if (v.includes("fort")) return "bg-emerald-600 hover:bg-emerald-600";
+  if (v.includes("faible")) return "bg-orange-500 hover:bg-orange-500";
+  return "bg-blue-600 hover:bg-blue-600";
+}
+
+function prioriteBadgeClass(p: string) {
+  const v = p.toLowerCase();
+  if (v.includes("haute")) return "bg-red-600 hover:bg-red-600";
+  if (v.includes("faible")) return "bg-emerald-600 hover:bg-emerald-600";
+  return "bg-orange-500 hover:bg-orange-500";
+}
+
 export default function CompetencesTab() {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -110,6 +129,8 @@ export default function CompetencesTab() {
   const [sub, setSub] = useState<"matrice" | "gaps" | "referentiel">("matrice");
   const [svc, setSvc] = useState<string>("all");
   const [cat, setCat] = useState<string>("all");
+  const [mobilityEmpId, setMobilityEmpId] = useState<string>("");
+  const [mobilityResult, setMobilityResult] = useState<MobilityAnalysis | null>(null);
 
   const servicesQuery = useQuery({
     queryKey: ["objectives", "services", companyKey],
@@ -267,6 +288,44 @@ export default function CompetencesTab() {
     });
     return map;
   }, [matrixQuery.data]);
+
+  useEffect(() => {
+    setMobilityResult(null);
+  }, [mobilityEmpId]);
+
+  const mobilityMut = useMutation({
+    mutationFn: async () => {
+      if (!mobilityEmpId) throw new Error("Sélectionnez un collaborateur.");
+      return analyzeMobility(mobilityEmpId, activeCompany?.company_id);
+    },
+    onMutate: () => {
+      toast({ title: "Analyse en cours..." });
+    },
+    onSuccess: (data) => {
+      setMobilityResult(data);
+      toast({ title: "Analyse terminée" });
+    },
+    onError: (e: unknown) => {
+      if (isAxiosError(e) && e.response?.status === 503) {
+        toast({
+          title: "Clé API non configurée",
+          variant: "destructive",
+        });
+        return;
+      }
+      const msg =
+        isAxiosError(e) && e.response?.data && typeof e.response.data === "object"
+          ? String((e.response.data as { detail?: string }).detail ?? "")
+          : e instanceof Error
+            ? e.message
+            : "Échec de l’analyse";
+      toast({
+        title: "Erreur",
+        description: msg || "Échec de l’analyse",
+        variant: "destructive",
+      });
+    },
+  });
 
   const matrix = matrixQuery.data;
   const compById = useMemo(() => {
@@ -459,6 +518,173 @@ export default function CompetencesTab() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {matrix && !matrixQuery.isLoading && (
+            <div className="space-y-4 border-t pt-6">
+              <h3 className="text-lg font-semibold">Analyse de mobilité IA</h3>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="space-y-1">
+                  <Label>Collaborateur</Label>
+                  <Select value={mobilityEmpId} onValueChange={setMobilityEmpId}>
+                    <SelectTrigger className="w-[280px]">
+                      <SelectValue placeholder="Choisir un collaborateur…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {matrix.employees.map((e) => (
+                        <SelectItem key={e.id} value={e.id}>
+                          {e.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  type="button"
+                  disabled={!mobilityEmpId || mobilityMut.isPending}
+                  onClick={() => mobilityMut.mutate()}
+                >
+                  {mobilityMut.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-2 h-4 w-4" />
+                  )}
+                  Analyser le potentiel de mobilité
+                </Button>
+              </div>
+
+              {mobilityResult && mobilityResult.employee_id === mobilityEmpId && (
+                <div className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-3">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base">Score de mobilité</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="flex items-center gap-4">
+                          <div
+                            className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full border-4 border-primary bg-muted/40 text-2xl font-bold"
+                            aria-label={`Score ${mobilityResult.mobilite_score} sur 100`}
+                          >
+                            {mobilityResult.mobilite_score}
+                          </div>
+                          <div className="min-w-0 flex-1 space-y-2">
+                            <Badge
+                              className={cn("text-white", potentielBadgeClass(mobilityResult.potentiel_evolution))}
+                            >
+                              Potentiel : {mobilityResult.potentiel_evolution}
+                            </Badge>
+                            <Progress value={mobilityResult.mobilite_score} className="h-2" />
+                          </div>
+                        </div>
+                        <p className="text-sm italic text-muted-foreground">{mobilityResult.synthese}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Analyse du{" "}
+                          {new Date(mobilityResult.analyzed_at).toLocaleString("fr-FR", {
+                            dateStyle: "short",
+                            timeStyle: "short",
+                          })}
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="lg:col-span-2">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base">Postes recommandés</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {mobilityResult.postes_recommandes.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">Aucun poste suggéré.</p>
+                        ) : (
+                          mobilityResult.postes_recommandes.map((p, i) => (
+                            <div key={`${p.poste}-${i}`} className="rounded-md border p-3 space-y-2">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="font-medium">{p.poste}</p>
+                                <span className="text-sm text-muted-foreground">{p.compatibilite}%</span>
+                              </div>
+                              <Progress value={p.compatibilite} className="h-2" />
+                              {p.points_forts.length > 0 && (
+                                <ul className="list-inside list-disc text-sm text-emerald-700">
+                                  {p.points_forts.map((x) => (
+                                    <li key={x}>{x}</li>
+                                  ))}
+                                </ul>
+                              )}
+                              {p.competences_a_developper.length > 0 && (
+                                <ul className="list-inside list-disc text-sm text-orange-700">
+                                  {p.competences_a_developper.map((x) => (
+                                    <li key={x}>{x}</li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Formations recommandées</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {mobilityResult.formations_recommandees.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Aucune formation suggérée.</p>
+                      ) : (
+                        mobilityResult.formations_recommandees.map((f, i) => (
+                          <div
+                            key={`${f.titre}-${i}`}
+                            className="flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-start sm:justify-between"
+                          >
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-medium">{f.titre}</p>
+                                <Badge
+                                  className={cn("text-white", prioriteBadgeClass(f.priorite))}
+                                >
+                                  {f.priorite}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Compétence : {f.competence_ciblee}
+                              </p>
+                              <p className="text-sm">{f.impact_estime}</p>
+                            </div>
+                            {f.training_id ? (
+                              <Button variant="outline" size="sm" asChild className="shrink-0">
+                                <Link
+                                  to={`/catalogue-formations?enrollTraining=${encodeURIComponent(f.training_id)}`}
+                                >
+                                  Voir dans le catalogue
+                                </Link>
+                              </Button>
+                            ) : null}
+                          </div>
+                        ))
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={!mobilityEmpId || mobilityMut.isPending}
+                      onClick={() => mobilityMut.mutate()}
+                    >
+                      {mobilityMut.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                      )}
+                      Relancer l&apos;analyse
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </TabsContent>

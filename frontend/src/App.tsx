@@ -107,6 +107,10 @@ const SupportPage = lazy(() => import('./pages/support/SupportPage'));
 const SupportConfirmationPage = lazy(() => import('./pages/support/SupportConfirmationPage'));
 const TicketsHistoryPage = lazy(() => import('./pages/support/TicketsHistoryPage'));
 const FormationPage = lazy(() => import('./pages/formation/FormationPage'));
+const ManagerAnnualReviews = lazy(() => import('./pages/manager/ManagerAnnualReviews'));
+const ManagerFormations = lazy(() => import('./pages/manager/ManagerFormations'));
+const ManagerObjectives = lazy(() => import('./pages/manager/ManagerObjectives'));
+const ManagerCompetences = lazy(() => import('./pages/manager/ManagerCompetences'));
 const RhDocumentsPage = lazy(() => import('./pages/Documents'));
 const AugmentationsCollectivesPage = lazy(() => import('./pages/AugmentationsCollectives'));
 
@@ -281,6 +285,14 @@ function ProtectedRoutes() {
               </Suspense>
             }
           />
+          <Route
+            path="/onboarding/:employeeId"
+            element={
+              <Suspense fallback={<div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
+                <OnboardingPage />
+              </Suspense>
+            }
+          />
           <Route path="/support" element={<SuspenseSupportPage />} />
           <Route path="/support/confirmation" element={<SuspenseSupportConfirmationPage />} />
           <Route path="/support/tickets" element={<SuspenseTicketsHistoryPage />} />
@@ -366,6 +378,14 @@ function ProtectedRoutes() {
                       </Suspense>
                     }
                   />
+                  <Route
+                    path="/onboarding/:employeeId"
+                    element={
+                      <Suspense fallback={<div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
+                        <OnboardingPage />
+                      </Suspense>
+                    }
+                  />
                   <Route path="/support" element={<SuspenseSupportPage />} />
                   <Route path="/support/confirmation" element={<SuspenseSupportConfirmationPage />} />
                   <Route path="/support/tickets" element={<SuspenseTicketsHistoryPage />} />
@@ -396,6 +416,38 @@ function ProtectedRoutes() {
                   <Route path="/medical-follow-up" element={<ErrorBoundaryClass><MedicalFollowUp /></ErrorBoundaryClass>} />
                   <Route path="/annual-reviews" element={<AnnualReviews />} />
                   <Route path="/annual-reviews/:reviewId" element={<AnnualReviewDetail />} />
+                  <Route
+                    path="/manager/annual-reviews"
+                    element={
+                      <Suspense fallback={formationRouteFallback}>
+                        <ManagerAnnualReviews />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/manager/formations"
+                    element={
+                      <Suspense fallback={formationRouteFallback}>
+                        <ManagerFormations />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/manager/objectives"
+                    element={
+                      <Suspense fallback={formationRouteFallback}>
+                        <ManagerObjectives />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/manager/competences"
+                    element={
+                      <Suspense fallback={formationRouteFallback}>
+                        <ManagerCompetences />
+                      </Suspense>
+                    }
+                  />
                   <Route path="/formation" element={<SuspenseFormationPage />} />
                   <Route path="/documents" element={<SuspenseRhDocumentsPage />} />
                   <Route path="/augmentations-collectives" element={<SuspenseAugmentationsCollectivesPage />} />
