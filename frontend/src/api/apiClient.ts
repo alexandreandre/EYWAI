@@ -6,7 +6,7 @@ import axios from 'axios';
  * URL de l’API : injectée au build via VITE_API_URL (Docker / GitHub Actions).
  * En dev, `.env` pointe vers le backend local ; en prod, la variable dépôt GitHub du même nom.
  */
-function getApiBaseUrl(): string {
+export function getApiBaseUrl(): string {
   const raw = import.meta.env.VITE_API_URL as string | undefined;
   const trimmed = typeof raw === 'string' ? raw.trim() : '';
 

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Request, Response
 
 logger = logging.getLogger(__name__)
 
+from app.modules.audit.api.router import router as audit_router
 from app.modules.access_control.api.router import router as access_control_router
 from app.modules.absences.api.router import router as absences_router
 from app.modules.annual_reviews.api.router import router as annual_reviews_router
@@ -70,10 +71,12 @@ from app.modules.super_admin.api.router import router as super_admin_router
 from app.modules.support.api.router import router as support_router
 from app.modules.uploads.api.router import router as uploads_router
 from app.modules.users.api.router import router as users_router
+from app.modules.webhooks.api.router import router as webhooks_router
 
 router = APIRouter()
 
 router.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
+router.include_router(audit_router)
 router.include_router(access_control_router)
 router.include_router(annual_reviews_router)
 router.include_router(interview_templates_router)
@@ -95,6 +98,7 @@ router.include_router(dashboard_router)
 router.include_router(employees_router)
 router.include_router(employee_exits_router)
 router.include_router(exports_router)
+router.include_router(webhooks_router)
 router.include_router(absences_router)
 router.include_router(monthly_inputs_router)
 router.include_router(notifications_router)

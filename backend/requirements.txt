@@ -20,6 +20,7 @@ reportlab
 
 # --- Utilities ---
 requests
+httpx
 python-multipart
 pydantic[email]
 

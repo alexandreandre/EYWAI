@@ -9,11 +9,17 @@ appel du use case, mapping des exceptions applicatives vers HTTP.
 from __future__ import annotations
 
 import traceback
-from typing import List
+from datetime import date
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.core.security import get_current_user
+from app.modules.audit.infrastructure.repository import audit_repository
+from app.modules.webhooks.infrastructure.repository import webhook_repository
+from app.modules.payslips.application.anomalies_report import (
+    build_payslips_anomalies_report,
+)
 from app.modules.payslips.application import (
     PayslipBadRequestError,
     PayslipCriticalActiveError,
@@ -36,6 +42,8 @@ from app.modules.payslips.application import (
     validate_payslip_for_user,
     GeneratePayslipInput,
 )
+from app.modules.payslips.infrastructure.queries import get_payslip_meta
+from app.modules.payslips.schemas.anomalies import PayslipsAnomaliesReport
 from app.modules.payslips.schemas import (
     AcquitAlertRequest,
     ComparisonResultResponse,
@@ -91,6 +99,36 @@ def _map_app_errors(exc: Exception) -> None:
 def _handle_application_errors(exc: Exception) -> None:
     """Alias explicite pour le mapping des erreurs applicatives payslips."""
     _map_app_errors(exc)
+
+
+def _require_rh_company_context(current_user: User) -> str:
+    company_id = current_user.active_company_id
+    if not company_id:
+        raise HTTPException(status_code=400, detail="Aucune entreprise active")
+    if not current_user.has_rh_access_in_company(company_id):
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+    return str(company_id)
+
+
+# --- Rapport anomalies (RH) ---
+@router.get("/api/payslips/anomalies", response_model=PayslipsAnomaliesReport)
+def get_payslips_anomalies_route(
+    year: Optional[int] = Query(None, ge=2000, le=2100),
+    month: Optional[int] = Query(None, ge=1, le=12),
+    current_user: User = Depends(get_current_user),
+):
+    """Contrôles métier sur tous les bulletins du mois (entreprise active)."""
+    company_id = _require_rh_company_context(current_user)
+    today = date.today()
+    y = year if year is not None else today.year
+    m = month if month is not None else today.month
+    try:
+        return build_payslips_anomalies_report(company_id, y, m)
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # --- Génération ---
@@ -245,11 +283,35 @@ def ignore_payslip_alert_route(
 @router.post("/api/payslips/{payslip_id}/validate", response_model=PayslipDetail)
 def validate_payslip_route(
     payslip_id: str,
+    request: Request,
     current_user: User = Depends(get_current_user),
 ):
     """Valide le bulletin si aucune alerte critique active."""
     try:
         validate_payslip_for_user(payslip_id, _to_user_context(current_user))
+        meta = get_payslip_meta(payslip_id)
+        cid = str(meta.get("company_id") or "") if meta else ""
+        if cid:
+            audit_repository.log(
+                company_id=cid,
+                user_id=str(current_user.id),
+                user_email=current_user.email,
+                action="payslip.validate",
+                resource_type="payslip",
+                resource_id=payslip_id,
+                details={
+                    "employee_id": str(meta.get("employee_id") or ""),
+                },
+                ip_address=request.client.host if request.client else None,
+            )
+            webhook_repository.trigger_event(
+                cid,
+                "payslip.validated",
+                {
+                    "payslip_id": payslip_id,
+                    "employee_id": str(meta.get("employee_id") or ""),
+                },
+            )
         return get_payslip_details_for_user(payslip_id, _to_user_context(current_user))
     except _PAYSLIP_APP_ERRORS as e:
         _handle_application_errors(e)

@@ -11,10 +11,12 @@ import logging
 import traceback
 from typing import List, Literal
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 from app.core.security import get_current_user
+from app.modules.audit.infrastructure.repository import audit_repository
+from app.modules.webhooks.infrastructure.repository import webhook_repository
 from app.modules.users.schemas.responses import User
 
 from app.modules.absences.application import commands, notifications as absence_notif, queries
@@ -162,6 +164,7 @@ async def create_absence_request(request_data: AbsenceRequestCreate):
 @router.patch("/requests/{request_id}/status", response_model=AbsenceRequest)
 async def update_absence_request_status(
     request_id: str,
+    http_request: Request,
     status_update: AbsenceRequestStatusUpdate,
     current_user: User = Depends(get_current_user),
 ):
@@ -194,7 +197,33 @@ async def update_absence_request_status(
                 data = merged
         _notify_rh_status_change(req_before, status_update.status)
         enriched = queries.update_absence_request_signed_url_single(request_id)
-        return enriched if enriched is not None else data
+        out = enriched if enriched is not None else data
+        cid = str((out or data).get("company_id") or "")
+        if cid and status_update.status in ("validated", "rejected"):
+            audit_repository.log(
+                company_id=cid,
+                user_id=str(current_user.id),
+                user_email=current_user.email,
+                action=(
+                    "absence.validate"
+                    if status_update.status == "validated"
+                    else "absence.reject"
+                ),
+                resource_type="absence_request",
+                resource_id=str(request_id),
+                details={"employee_id": str((out or data).get("employee_id") or "")},
+                ip_address=http_request.client.host if http_request.client else None,
+            )
+        if status_update.status == "validated" and cid:
+            webhook_repository.trigger_event(
+                cid,
+                "absence.approved",
+                {
+                    "request_id": str(request_id),
+                    "employee_id": str((out or data).get("employee_id") or ""),
+                },
+            )
+        return out
     except HTTPException:
         raise
     except (ValueError, LookupError, RuntimeError) as e:
@@ -207,6 +236,7 @@ async def update_absence_request_status(
 @router.patch("/{request_id}", response_model=AbsenceRequest)
 async def update_absence_request(
     request_id: str,
+    http_request: Request,
     status_update: AbsenceRequestStatusUpdate,
 ):
     """Met à jour le statut d'une demande d'absence (pour RH/Admin)."""
@@ -235,7 +265,33 @@ async def update_absence_request(
                 data = merged
         _notify_rh_status_change(req_before, status_update.status)
         enriched = queries.update_absence_request_signed_url_single(request_id)
-        return enriched if enriched is not None else data
+        out = enriched if enriched is not None else data
+        cid = str((out or data).get("company_id") or "")
+        if cid and status_update.status in ("validated", "rejected"):
+            audit_repository.log(
+                company_id=cid,
+                user_id=None,
+                user_email=None,
+                action=(
+                    "absence.validate"
+                    if status_update.status == "validated"
+                    else "absence.reject"
+                ),
+                resource_type="absence_request",
+                resource_id=str(request_id),
+                details={"employee_id": str((out or data).get("employee_id") or "")},
+                ip_address=http_request.client.host if http_request.client else None,
+            )
+        if status_update.status == "validated" and cid:
+            webhook_repository.trigger_event(
+                cid,
+                "absence.approved",
+                {
+                    "request_id": str(request_id),
+                    "employee_id": str((out or data).get("employee_id") or ""),
+                },
+            )
+        return out
     except HTTPException:
         raise
     except (ValueError, LookupError, RuntimeError) as e:

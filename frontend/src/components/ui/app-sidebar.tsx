@@ -94,6 +94,7 @@ const RH_HOME: SidebarLinkItem = {
 };
 
 const RH_TEAM_BASE: SidebarLinkItem[] = [
+  { title: "Analytics", url: "/analytics", icon: BarChart2 },
   { title: "Collaborateurs", url: "/employees", icon: Users },
   { title: "Équipes", url: "/teams", icon: Users },
   { title: "Départs & sorties", url: "/employee-exits", icon: UserMinus },
@@ -153,7 +154,11 @@ const MANAGER_TEAM_NAV_LINKS: SidebarLinkItem[] = [
 const rhTeamItems = [...withRhMedicalFollowUp(RH_TEAM_BASE), ...MANAGER_TEAM_NAV_LINKS];
 
 const menuItems = {
-  rh: [RH_HOME, ...rhTeamItems, ...RH_PAIE_ITEMS] satisfies SidebarLinkItem[],
+  rh: [
+    RH_HOME,
+    ...rhTeamItems,
+    ...RH_PAIE_ITEMS,
+  ] satisfies SidebarLinkItem[],
   manager: [
     { title: "Mon Équipe", url: "/team", icon: UsersRound },
     { title: "Demandes à valider", url: "/leave-requests", icon: ClipboardCheck },

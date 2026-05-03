@@ -9,9 +9,11 @@ import json
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 
 from app.core.security import get_current_user
+from app.modules.audit.infrastructure.repository import audit_repository
+from app.modules.webhooks.infrastructure.repository import webhook_repository
 from app.modules.users.schemas.responses import User
 
 from app.modules.recruitment.application import commands, queries
@@ -503,6 +505,7 @@ def check_candidate_duplicate(
 def hire_candidate(
     candidate_id: str,
     body: HireCandidateBody,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
 ):
     company_id = _ensure_module_enabled(current_user)
@@ -535,6 +538,22 @@ def hire_candidate(
                 "existing_employee_email": result["existing_employee_email"],
                 "message": "Un salarié avec cet email existe déjà.",
             }
+        emp_id = str(result["id"])
+        audit_repository.log(
+            company_id=str(company_id),
+            user_id=str(current_user.id),
+            user_email=current_user.email,
+            action="recruitment.hire",
+            resource_type="candidate",
+            resource_id=str(candidate_id),
+            details={"employee_id": emp_id},
+            ip_address=http_request.client.host if http_request.client else None,
+        )
+        webhook_repository.trigger_event(
+            str(company_id),
+            "recruitment.hired",
+            {"candidate_id": str(candidate_id), "employee_id": emp_id},
+        )
         return {
             "ok": True,
             "employee_id": result["id"],

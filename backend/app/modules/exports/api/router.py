@@ -1,7 +1,7 @@
 # Router exports — délégation à la couche application uniquement.
 # Comportement HTTP identique à api/routers/exports.py (prefix=/api/exports).
 import traceback
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -9,6 +9,7 @@ from app.core.security import get_current_user
 from app.modules.users.schemas.responses import User
 from app.modules.exports.api.dependencies import get_active_company_id
 from app.modules.exports.application import service as export_service
+from app.modules.exports.application import scheduled_exports as scheduled_export_service
 from app.modules.exports.schemas import (
     ExportPreviewRequest,
     ExportPreviewResponse,
@@ -17,11 +18,22 @@ from app.modules.exports.schemas import (
     ExportHistoryResponse,
     DSNGenerateResponse,
 )
+from app.modules.exports.schemas.scheduled_exports import (
+    ScheduledExportCreate,
+    ScheduledExportOut,
+    ScheduledExportRunNowResponse,
+    ScheduledExportUpdate,
+)
 
 router = APIRouter(
     prefix="/api/exports",
     tags=["Exports"],
 )
+
+
+def _require_rh_exports(current_user: User, company_id: str) -> None:
+    if not current_user.has_rh_access_in_company(company_id):
+        raise HTTPException(status_code=403, detail="Accès réservé au profil RH.")
 
 
 def _value_error_to_http(e: ValueError) -> HTTPException:
@@ -91,6 +103,113 @@ async def download_export(
     try:
         download_url = export_service.get_export_download_url(company_id, export_id)
         return {"download_url": download_url}
+    except ValueError as e:
+        raise _value_error_to_http(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Exports planifiés (RH) ---
+
+
+@router.get("/scheduled", response_model=List[ScheduledExportOut])
+async def list_scheduled_exports(
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    _require_rh_exports(current_user, company_id)
+    try:
+        return scheduled_export_service.list_scheduled(company_id)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/scheduled", response_model=ScheduledExportOut)
+async def create_scheduled_export(
+    body: ScheduledExportCreate,
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    _require_rh_exports(current_user, company_id)
+    try:
+        return scheduled_export_service.create_scheduled(
+            company_id, body, created_by=str(current_user.id)
+        )
+    except ValueError as e:
+        raise _value_error_to_http(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/scheduled/{schedule_id}/history",
+    response_model=ExportHistoryResponse,
+)
+async def scheduled_export_history(
+    schedule_id: str,
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    _require_rh_exports(current_user, company_id)
+    try:
+        return scheduled_export_service.history_for_schedule(schedule_id, company_id)
+    except ValueError as e:
+        raise _value_error_to_http(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/scheduled/{schedule_id}/run-now",
+    response_model=ScheduledExportRunNowResponse,
+)
+async def run_scheduled_export_now(
+    schedule_id: str,
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    _require_rh_exports(current_user, company_id)
+    try:
+        return scheduled_export_service.run_scheduled_now(
+            schedule_id, company_id, str(current_user.id)
+        )
+    except ValueError as e:
+        raise _value_error_to_http(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/scheduled/{schedule_id}", response_model=ScheduledExportOut)
+async def update_scheduled_export(
+    schedule_id: str,
+    body: ScheduledExportUpdate,
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    _require_rh_exports(current_user, company_id)
+    try:
+        return scheduled_export_service.update_scheduled(schedule_id, company_id, body)
+    except ValueError as e:
+        raise _value_error_to_http(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/scheduled/{schedule_id}", status_code=204)
+async def delete_scheduled_export(
+    schedule_id: str,
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    _require_rh_exports(current_user, company_id)
+    try:
+        scheduled_export_service.delete_scheduled(schedule_id, company_id)
     except ValueError as e:
         raise _value_error_to_http(e)
     except Exception as e:

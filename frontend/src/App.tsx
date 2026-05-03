@@ -115,6 +115,7 @@ const LeaveRequests = lazy(() => import('./pages/manager/LeaveRequests'));
 const RhDocumentsPage = lazy(() => import('./pages/Documents'));
 const AugmentationsCollectivesPage = lazy(() => import('./pages/AugmentationsCollectives'));
 const MeetingDetailPage = lazy(() => import('./pages/cse/MeetingDetail'));
+const AnalyticsPage = lazy(() => import('./pages/Analytics'));
 
 const supportRouteFallback = (
   <div className="flex min-h-[50vh] w-full items-center justify-center">
@@ -409,6 +410,14 @@ function ProtectedRoutes() {
                 // Routes RH pour rh, admin, collaborateur_rh en vue RH, custom avec permissions RH
                 <>
                   <Route path="/" element={<RhDashboard />} />
+                  <Route
+                    path="/analytics"
+                    element={
+                      <Suspense fallback={formationRouteFallback}>
+                        <AnalyticsPage />
+                      </Suspense>
+                    }
+                  />
                   <Route path="/employees" element={<Employees />} />
                   <Route path="/teams" element={<Teams />} />
                   <Route path="/employees/:employeeId" element={<EmployeeDetail />} />

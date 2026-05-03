@@ -9,11 +9,13 @@ import json
 import traceback
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from app.core.security import get_current_user
+from app.modules.audit.infrastructure.repository import audit_repository
+from app.modules.webhooks.infrastructure.repository import webhook_repository
 from app.modules.employees.application import commands, queries
 from app.modules.employees.application.dto import EmployeeCreateValidationError
 from app.modules.employees.schemas.requests import NewFullEmployee, UpdateEmployee
@@ -371,6 +373,7 @@ def get_employee_details(
 
 @router.post("", response_model=NewEmployeeResponse, status_code=201)
 async def create_employee(
+    request: Request,
     data: str = Form(...),
     file: Optional[UploadFile] = File(None),
     identity_file: Optional[UploadFile] = File(None),
@@ -438,6 +441,23 @@ async def create_employee(
             generate_pdf_contract=generate_pdf_contract.lower() == "true",
             granted_by_user_id=str(current_user.id),
         )
+        eid = str(result.get("id") or "")
+        if eid:
+            audit_repository.log(
+                company_id=str(company_id),
+                user_id=str(current_user.id),
+                user_email=current_user.email,
+                action="employee.create",
+                resource_type="employee",
+                resource_id=eid,
+                details={"email": employee_data.email},
+                ip_address=request.client.host if request.client else None,
+            )
+            webhook_repository.trigger_event(
+                str(company_id),
+                "employee.hired",
+                {"employee_id": eid, "email": employee_data.email},
+            )
         return result
     except EmployeeCreateValidationError as e:
         return JSONResponse(
@@ -601,6 +621,7 @@ def get_employee_rh_access_info(
 
 @router.put("/{employee_id}/salary", response_model=SalaryUpdateResponse)
 def update_employee_salary(
+    request: Request,
     employee_id: str,
     body: UpdateSalaryRequest,
     current_user: User = Depends(get_current_user),
@@ -622,6 +643,28 @@ def update_employee_salary(
             motif=body.motif,
             effective_date=body.effective_date.isoformat(),
             created_by=str(current_user.id),
+        )
+        audit_repository.log(
+            company_id=str(company_id),
+            user_id=str(current_user.id),
+            user_email=current_user.email,
+            action="salary.update",
+            resource_type="employee",
+            resource_id=str(employee_id),
+            details={
+                "nouveau_salaire": body.nouveau_salaire,
+                "history_entry_id": str(hist["id"]),
+            },
+            ip_address=request.client.host if request.client else None,
+        )
+        webhook_repository.trigger_event(
+            str(company_id),
+            "employee.salary_updated",
+            {
+                "employee_id": str(employee_id),
+                "history_entry_id": str(hist["id"]),
+                "nouveau_salaire": body.nouveau_salaire,
+            },
         )
         return SalaryUpdateResponse(
             success=True,

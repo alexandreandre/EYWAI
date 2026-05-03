@@ -15,6 +15,7 @@ from app.modules.documents.schemas.requests import (
 )
 from app.modules.documents.schemas.responses import DownloadUrlResponse, GeneratedDocument
 from app.modules.users.schemas.responses import User
+from app.modules.webhooks.infrastructure.repository import webhook_repository
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
 
@@ -191,6 +192,15 @@ def update_status_route(
             body,
             updated_by_user_id=str(current_user.id),
         )
+        if body.status == "signe":
+            webhook_repository.trigger_event(
+                str(cid),
+                "document.signed",
+                {
+                    "document_id": str(document_id),
+                    "employee_id": str(row.get("employee_id") or ""),
+                },
+            )
         return _row_to_generated(row)
     except Exception as e:
         traceback.print_exc()
