@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import calendar
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -41,6 +42,16 @@ def _shift_type_to_dict(st: Any) -> Optional[Dict[str, Any]]:
     }
 
 
+def _embed_display_name(embed: Any) -> Optional[str]:
+    if not isinstance(embed, dict):
+        return None
+    fn = (embed.get("first_name") or "").strip()
+    ln = (embed.get("last_name") or "").strip()
+    if not fn and not ln:
+        return None
+    return f"{ln} {fn}".strip() or None
+
+
 def _shift_row_to_response_dict(
     row: Dict[str, Any], *, is_rh: bool, strip_internal: bool = False
 ) -> Dict[str, Any]:
@@ -51,6 +62,15 @@ def _shift_row_to_response_dict(
         sd = sd.date()
     elif isinstance(sd, str):
         sd = date.fromisoformat(sd[:10])
+    is_rep = bool(row.get("is_replacement"))
+    rep_embed = row.get("replacing_employee")
+    orig_embed = row.get("original_employee")
+    rep_name = _embed_display_name(rep_embed)
+    if not rep_name and is_rep:
+        rid = row.get("replacing_employee_id")
+        if rid and str(rid) == str(row.get("employee_id")):
+            rep_name = _embed_display_name(emp)
+    orig_name = _embed_display_name(orig_embed)
     out: Dict[str, Any] = {
         "id": str(row.get("id") or ""),
         "company_id": str(row.get("company_id") or ""),
@@ -68,6 +88,16 @@ def _shift_row_to_response_dict(
         "is_locked": bool(row.get("is_locked")),
         "source": str(row.get("source") or "manual"),
         "created_at": str(row.get("created_at") or ""),
+        "is_replacement": is_rep,
+        "replacing_employee_id": str(row["replacing_employee_id"])
+        if row.get("replacing_employee_id")
+        else None,
+        "replacement_reason": row.get("replacement_reason"),
+        "original_employee_id": str(row["original_employee_id"])
+        if row.get("original_employee_id")
+        else None,
+        "replacing_employee_name": rep_name,
+        "original_employee_name": orig_name,
     }
     show_internal = is_rh and not strip_internal
     if show_internal:
@@ -75,6 +105,11 @@ def _shift_row_to_response_dict(
     else:
         out["comment_internal"] = None
     return out
+
+
+def shift_row_to_response_rh(row: Dict[str, Any]) -> dict:
+    """Expose la forme RH d’un shift (ex. après création avec ligne jointe)."""
+    return _shift_row_to_response_dict(row, is_rh=True, strip_internal=False)
 
 
 def get_week_planning(company_id: str, week_start: str, is_rh: bool) -> dict:
@@ -293,3 +328,87 @@ def get_my_planning_week(user_id: str, company_id: str, week_start: str) -> dict
     wstatus = planning_repository.get_week_status(company_id, ws)
     team_view = bool(wstatus.get("team_view_enabled")) if wstatus else False
     return get_employee_planning(employee_id, ws, team_view)
+
+
+def _month_date_bounds(year: int, month: int) -> tuple[str, str]:
+    if month < 1 or month > 12:
+        raise ValueError("Mois invalide (1–12).")
+    first = date(year, month, 1)
+    last_day = calendar.monthrange(year, month)[1]
+    last = date(year, month, last_day)
+    return first.isoformat(), last.isoformat()
+
+
+def list_company_shifts_month_rh(company_id: str, year: int, month: int) -> List[dict]:
+    """Liste des shifts du mois (RH) — ShiftResponseRH."""
+    d0, d1 = _month_date_bounds(year, month)
+    rows = infra_queries.get_shifts_company_date_range_joined(company_id, d0, d1)
+    return [
+        _shift_row_to_response_dict(r, is_rh=True, strip_internal=False) for r in rows
+    ]
+
+
+def list_company_on_call_month_rh(company_id: str, year: int, month: int) -> List[dict]:
+    """Astreintes du mois (RH)."""
+    d0, d1 = _month_date_bounds(year, month)
+    rows = infra_queries.get_shifts_company_on_call_date_range(company_id, d0, d1)
+    return [
+        _shift_row_to_response_dict(r, is_rh=True, strip_internal=False) for r in rows
+    ]
+
+
+def list_company_replacements_month_rh(company_id: str, year: int, month: int) -> List[dict]:
+    """Shifts de remplacement du mois (RH)."""
+    d0, d1 = _month_date_bounds(year, month)
+    rows = infra_queries.get_shifts_company_replacements_date_range(company_id, d0, d1)
+    return [
+        _shift_row_to_response_dict(r, is_rh=True, strip_internal=False) for r in rows
+    ]
+
+
+def list_my_shifts_month(user_id: str, company_id: str, year: int, month: int) -> List[dict]:
+    """
+    Shifts du mois pour le salarié connecté.
+    Exclut les semaines encore en brouillon (aligné sur get_employee_planning).
+    """
+    r = (
+        supabase.table("employees")
+        .select("id")
+        .eq("user_id", user_id)
+        .eq("company_id", company_id)
+        .maybe_single()
+        .execute()
+    )
+    employee = r.data if r else None
+    if not employee or not employee.get("id"):
+        raise LookupError("Profil salarié introuvable pour cette entreprise.")
+    employee_id = str(employee["id"])
+    d0, d1 = _month_date_bounds(year, month)
+    rows = infra_queries.get_shifts_employee_date_range_joined(
+        employee_id, company_id, d0, d1
+    )
+    week_status_cache: Dict[str, Any] = {}
+    out: List[dict] = []
+    for row in rows:
+        sd_raw = row.get("shift_date")
+        if isinstance(sd_raw, datetime):
+            sd = sd_raw.date()
+        elif isinstance(sd_raw, date):
+            sd = sd_raw
+        elif isinstance(sd_raw, str):
+            try:
+                sd = date.fromisoformat(sd_raw[:10])
+            except (ValueError, TypeError):
+                continue
+        else:
+            continue
+        monday = sd - timedelta(days=sd.weekday())
+        wk = monday.isoformat()
+        if wk not in week_status_cache:
+            week_status_cache[wk] = planning_repository.get_week_status(company_id, wk)
+        wstatus = week_status_cache[wk]
+        status = str(wstatus.get("status") or "draft") if wstatus else "draft"
+        if status == "draft":
+            continue
+        out.append(_shift_row_to_response_dict(row, is_rh=False, strip_internal=True))
+    return out

@@ -34,6 +34,12 @@ class ShiftResponse(BaseModel):
     is_locked: bool
     source: str
     created_at: str
+    is_replacement: Optional[bool] = None
+    replacing_employee_id: Optional[str] = None
+    replacement_reason: Optional[str] = None
+    original_employee_id: Optional[str] = None
+    replacing_employee_name: Optional[str] = None
+    original_employee_name: Optional[str] = None
 
 
 class ShiftResponseRH(ShiftResponse):

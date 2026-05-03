@@ -9,6 +9,15 @@ from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
 
+# Jointures shifts : plusieurs FK vers employees → hints PostgREST explicites
+SHIFT_ROW_SELECT = (
+    "*, "
+    "employees!employee_id(id, first_name, last_name, duree_hebdomadaire), "
+    "replacing_employee:employees!replacing_employee_id(id, first_name, last_name), "
+    "original_employee:employees!original_employee_id(id, first_name, last_name), "
+    "shift_types(id, code, label, color, default_start, default_end)"
+)
+
 
 def _parse_shift_date(value: Any) -> Optional[date]:
     if value is None:
@@ -56,11 +65,7 @@ def get_week_planning_full(
     """
     r = (
         supabase.table("shifts")
-        .select(
-            "*, "
-            "employees(id, first_name, last_name, duree_hebdomadaire), "
-            "shift_types(id, code, label, color, default_start, default_end)"
-        )
+        .select(SHIFT_ROW_SELECT)
         .eq("company_id", company_id)
         .gte("shift_date", week_start)
         .lte("shift_date", week_end)
@@ -164,7 +169,9 @@ def get_week_shifts_for_payroll(
         supabase.table("shifts")
         .select(
             "*, "
-            "employees(id, first_name, last_name, duree_hebdomadaire), "
+            "employees!employee_id(id, first_name, last_name, duree_hebdomadaire), "
+            "replacing_employee:employees!replacing_employee_id(id, first_name, last_name), "
+            "original_employee:employees!original_employee_id(id, first_name, last_name), "
             "shift_types(id, code, label)"
         )
         .eq("company_id", company_id)
@@ -249,3 +256,97 @@ def get_payroll_period_locked(company_id: str, month: int, year: int) -> bool:
     except Exception:
         # Table inexistante ou erreur Supabase → paie non clôturée par défaut
         return False
+
+
+def _sort_shift_rows(rows: List[Dict[str, Any]]) -> None:
+    def sort_key(row: Dict[str, Any]) -> tuple:
+        emp = row.get("employees") or {}
+        ln = (emp.get("last_name") or "").lower()
+        sd = str(row.get("shift_date") or "")
+        st = str(row.get("start_time") or "")
+        return (ln, sd, st)
+
+    rows.sort(key=sort_key)
+
+
+def get_shifts_company_date_range_joined(
+    company_id: str, date_start: str, date_end: str
+) -> List[Dict[str, Any]]:
+    """Tous les shifts entre deux dates (inclus) avec jointures employé / type."""
+    r = (
+        supabase.table("shifts")
+        .select(SHIFT_ROW_SELECT)
+        .eq("company_id", company_id)
+        .gte("shift_date", date_start)
+        .lte("shift_date", date_end)
+        .execute()
+    )
+    rows: List[Dict[str, Any]] = (r.data or []) if r else []
+    _sort_shift_rows(rows)
+    return rows
+
+
+def get_shifts_employee_date_range_joined(
+    employee_id: str, company_id: str, date_start: str, date_end: str
+) -> List[Dict[str, Any]]:
+    """Shifts d'un salarié sur une période (jointures pour affichage type / nom)."""
+    r = (
+        supabase.table("shifts")
+        .select(SHIFT_ROW_SELECT)
+        .eq("company_id", company_id)
+        .eq("employee_id", employee_id)
+        .gte("shift_date", date_start)
+        .lte("shift_date", date_end)
+        .execute()
+    )
+    rows: List[Dict[str, Any]] = (r.data or []) if r else []
+    _sort_shift_rows(rows)
+    return rows
+
+
+def get_shifts_company_on_call_date_range(
+    company_id: str, date_start: str, date_end: str
+) -> List[Dict[str, Any]]:
+    """Astreintes : transverse_category astreinte ou on_call (historique)."""
+    r = (
+        supabase.table("shifts")
+        .select(SHIFT_ROW_SELECT)
+        .eq("company_id", company_id)
+        .gte("shift_date", date_start)
+        .lte("shift_date", date_end)
+        .in_("transverse_category", ["astreinte", "on_call"])
+        .execute()
+    )
+    rows: List[Dict[str, Any]] = (r.data or []) if r else []
+    _sort_shift_rows(rows)
+    return rows
+
+
+def get_shifts_company_replacements_date_range(
+    company_id: str, date_start: str, date_end: str
+) -> List[Dict[str, Any]]:
+    """Shifts marqués remplacement sur la période (inclus)."""
+    r = (
+        supabase.table("shifts")
+        .select(SHIFT_ROW_SELECT)
+        .eq("company_id", company_id)
+        .gte("shift_date", date_start)
+        .lte("shift_date", date_end)
+        .eq("is_replacement", True)
+        .execute()
+    )
+    rows: List[Dict[str, Any]] = (r.data or []) if r else []
+    _sort_shift_rows(rows)
+    return rows
+
+
+def get_shift_by_id_joined(shift_id: str) -> Optional[Dict[str, Any]]:
+    """Une ligne shift avec jointures affichage (PostgREST)."""
+    r = (
+        supabase.table("shifts")
+        .select(SHIFT_ROW_SELECT)
+        .eq("id", shift_id)
+        .maybe_single()
+        .execute()
+    )
+    return r.data if r else None

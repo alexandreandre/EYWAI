@@ -62,8 +62,20 @@ export function ShiftBlock({ shift, onClick, isLocked }: ShiftBlockProps) {
     >
       <div className="flex items-center justify-between gap-1">
         <span className="truncate">{label}</span>
-        {locked ? <Lock className="h-3 w-3 shrink-0 opacity-90" aria-hidden /> : null}
+        <span className="flex shrink-0 items-center gap-0.5">
+          {shift.is_replacement ? (
+            <span className="rounded bg-orange-500 px-1 py-px text-[9px] font-bold uppercase leading-none text-white">
+              Rempl.
+            </span>
+          ) : null}
+          {locked ? <Lock className="h-3 w-3 opacity-90" aria-hidden /> : null}
+        </span>
       </div>
+      {shift.is_replacement && shift.original_employee_name ? (
+        <div className="mt-0.5 truncate text-[10px] font-normal opacity-95">
+          Remplace {shift.original_employee_name}
+        </div>
+      ) : null}
       <div className="mt-0.5 font-normal opacity-95">
         {start} - {end}
       </div>
