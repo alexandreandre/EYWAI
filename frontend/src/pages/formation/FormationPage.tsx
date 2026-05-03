@@ -194,14 +194,14 @@ function FormationEvaluationsRhSection() {
           Aucune évaluation enregistrée pour le moment.
         </p>
       ) : (
-        <div className="rounded-md border">
+        <div className="overflow-x-auto rounded-md border w-full">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Formation</TableHead>
                 <TableHead className="text-right">Nb évaluations</TableHead>
                 <TableHead>Note moyenne</TableHead>
-                <TableHead className="min-w-[200px]">Distribution (1–5)</TableHead>
+                <TableHead className="min-w-0 max-w-[280px]">Distribution (1–5)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -242,7 +242,7 @@ function FormationEvaluationsRhSection() {
                           return (
                             <div key={note} className="flex items-center gap-2 text-xs">
                               <span className="w-3 tabular-nums text-muted-foreground">{note}</span>
-                              <div className="h-2 min-w-[80px] flex-1 overflow-hidden rounded bg-muted">
+                              <div className="h-2 min-w-0 flex-1 overflow-hidden rounded bg-muted">
                                 <div
                                   className="h-full rounded-sm bg-primary/80 transition-all"
                                   style={{ width: `${pct}%` }}
@@ -386,7 +386,7 @@ function FormationDemandesPanel() {
             Aucune demande en attente de validation manager.
           </p>
         ) : (
-          <div className="rounded-md border">
+          <div className="overflow-x-auto rounded-md border w-full">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -457,7 +457,7 @@ function FormationDemandesPanel() {
             Aucune demande en attente de validation RH.
           </p>
         ) : (
-          <div className="rounded-md border">
+          <div className="overflow-x-auto rounded-md border w-full">
             <Table>
               <TableHeader>
                 <TableRow>

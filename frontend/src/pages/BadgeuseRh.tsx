@@ -209,8 +209,9 @@ export default function BadgeuseRhPage() {
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_1.5fr] gap-4">
-        <Card className="p-0 overflow-hidden">
-          <table className="w-full text-sm">
+        <Card className="min-w-0 p-0">
+          <div className="w-full overflow-x-auto">
+            <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>
                 <th className="px-4 py-2 text-left">Employé</th>
@@ -269,6 +270,7 @@ export default function BadgeuseRhPage() {
                 ))}
             </tbody>
           </table>
+          </div>
         </Card>
 
         <div className="space-y-4">

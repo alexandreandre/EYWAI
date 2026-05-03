@@ -518,7 +518,7 @@ export default function CatalogueTab() {
 
         <TabsContent value="catalogue" className="space-y-4 pt-4">
           <div className="flex flex-wrap items-end gap-3">
-            <div className="grid gap-1.5 min-w-[140px]">
+            <div className="grid gap-1.5 min-w-0">
               <Label>Type</Label>
               <Select value={catType} onValueChange={setCatType}>
                 <SelectTrigger>
@@ -534,7 +534,7 @@ export default function CatalogueTab() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-1.5 min-w-[140px]">
+            <div className="grid gap-1.5 min-w-0">
               <Label>Statut catalogue</Label>
               <Select value={catStatus} onValueChange={setCatStatus}>
                 <SelectTrigger>
@@ -547,7 +547,7 @@ export default function CatalogueTab() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-1.5 min-w-[200px] flex-1">
+            <div className="grid gap-1.5 min-w-0 flex-1">
               <Label>Recherche</Label>
               <Input placeholder="Titre…" value={catSearch} onChange={(e) => setCatSearch(e.target.value)} />
             </div>
@@ -570,7 +570,7 @@ export default function CatalogueTab() {
           </div>
 
           {loadingCat ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <Skeleton className="h-48" />
               <Skeleton className="h-48" />
               <Skeleton className="h-48" />
@@ -582,7 +582,7 @@ export default function CatalogueTab() {
               Aucune formation.
             </div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {filteredCatalog.map((t) => (
                 <Card key={t.id} className={cn(t.status === "archived" && "opacity-80")}>
                   <CardHeader className="space-y-2">
@@ -674,7 +674,7 @@ export default function CatalogueTab() {
         {showRhActions ? (
           <TabsContent value="inscriptions" className="space-y-4 pt-4">
             <div className="flex flex-wrap items-end gap-3">
-              <div className="grid gap-1.5 min-w-[180px]">
+              <div className="grid gap-1.5 min-w-0">
                 <Label>Formation</Label>
                 <Select value={enTrain} onValueChange={setEnTrain}>
                   <SelectTrigger>
@@ -690,7 +690,7 @@ export default function CatalogueTab() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid gap-1.5 min-w-[180px]">
+              <div className="grid gap-1.5 min-w-0">
                 <Label>Collaborateur</Label>
                 <Select value={enEmp} onValueChange={setEnEmp}>
                   <SelectTrigger>
@@ -706,7 +706,7 @@ export default function CatalogueTab() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid gap-1.5 min-w-[160px]">
+              <div className="grid gap-1.5 min-w-0">
                 <Label>Statut</Label>
                 <Select value={enStatus} onValueChange={setEnStatus}>
                   <SelectTrigger>

@@ -100,7 +100,7 @@ export default function Users() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
         {['admin', 'rh', 'manager', 'salarie'].map((role) => (
           <div key={role} className="bg-white rounded-lg shadow p-4">
             <p className="text-sm text-gray-600 capitalize">{role}</p>
@@ -112,7 +112,8 @@ export default function Users() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="rounded-lg bg-white shadow">
+        <div className="w-full overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -153,6 +154,7 @@ export default function Users() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {users.length === 0 && (

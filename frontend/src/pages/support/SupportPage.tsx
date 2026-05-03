@@ -247,7 +247,7 @@ export default function SupportPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           {currentStep === 1 && (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {MODULES.map((m) => (
                 <button
                   key={m.id}
@@ -286,7 +286,7 @@ export default function SupportPage() {
 
           {currentStep === 3 && (
             <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {URGENCY_LEVELS.map((u) => (
                   <button
                     key={u.id}

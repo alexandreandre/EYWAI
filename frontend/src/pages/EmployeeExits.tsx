@@ -165,7 +165,7 @@ const EmployeeExitsPage = () => {
                   <p className="text-sm">Cliquez sur "Nouvelle sortie" pour commencer</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="w-full overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>

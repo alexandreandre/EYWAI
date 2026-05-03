@@ -238,7 +238,7 @@ export default function PayrollDetail() {
       <Card>
         <CardHeader><CardTitle>Gestion Mensuelle</CardTitle></CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {months.map(month => (
               <div key={month} className="p-4 border rounded-lg flex justify-between items-center">
                 <span className="font-medium capitalize">

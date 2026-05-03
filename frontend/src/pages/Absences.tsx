@@ -320,11 +320,12 @@ export default function AbsencesPage() {
   };
 
   const renderRequestsTable = (requests: AbsenceRequest[]) => (
+    <div className="w-full overflow-x-auto">
     <Table>
       <TableHeader><TableRow>
           <TableHead>Employé</TableHead>
           <TableHead>Type</TableHead>
-          <TableHead className="w-[220px]">Demande</TableHead>
+          <TableHead className="min-w-0 max-w-[220px]">Demande</TableHead>
           <TableHead>Solde Restant</TableHead>
           <TableHead>Justificatif</TableHead>
           <TableHead>Attestation</TableHead>
@@ -462,6 +463,7 @@ export default function AbsencesPage() {
         ))}
       </TableBody>
     </Table>
+    </div>
   );
 
   return (

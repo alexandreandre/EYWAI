@@ -932,7 +932,7 @@ Exemples de points à inclure :
                     <p className="text-sm whitespace-pre-wrap leading-relaxed text-foreground">{review.evaluation_summary}</p>
                   </div>
                 )}
-                <div className="grid md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-2">
                   {review.objectives_achieved && (
                     <div className="p-4 bg-muted/30 rounded-lg border-l-4 border-l-primary">
                       <h3 className="font-semibold mb-2 flex items-center gap-2">

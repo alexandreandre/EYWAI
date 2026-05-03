@@ -122,7 +122,7 @@ function MedicalCompliancePanels({ cr }: { cr: ComplianceReport }) {
     <>
       <div>
         <h3 className="text-sm font-medium text-muted-foreground mb-3">Score global</h3>
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -185,17 +185,18 @@ function MedicalCompliancePanels({ cr }: { cr: ComplianceReport }) {
         <h3 className="text-sm font-medium text-muted-foreground mb-3">Par type de visite</h3>
         <Card>
           <CardContent className="pt-6">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Type de visite</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Conformes</TableHead>
-                  <TableHead className="text-right">En retard</TableHead>
-                  <TableHead>Taux de conformité</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <div className="w-full overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Type de visite</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-right">Conformes</TableHead>
+                    <TableHead className="text-right">En retard</TableHead>
+                    <TableHead>Taux de conformité</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                 {cr.by_visit_type.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
@@ -210,7 +211,7 @@ function MedicalCompliancePanels({ cr }: { cr: ComplianceReport }) {
                       <TableCell className="text-right tabular-nums">{v.compliant}</TableCell>
                       <TableCell className="text-right tabular-nums">{v.overdue}</TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2 min-w-[140px]">
+                        <div className="flex min-w-0 items-center gap-2">
                           <span className="text-sm tabular-nums w-12">{v.compliance_rate.toFixed(0)}%</span>
                           <div className="h-2 flex-1 max-w-[120px] overflow-hidden rounded-full bg-muted">
                             <div
@@ -223,8 +224,9 @@ function MedicalCompliancePanels({ cr }: { cr: ComplianceReport }) {
                     </TableRow>
                   ))
                 )}
-              </TableBody>
-            </Table>
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -238,16 +240,17 @@ function MedicalCompliancePanels({ cr }: { cr: ComplianceReport }) {
                 ✅ Tous les salariés sont à jour.
               </p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Salarié</TableHead>
-                    <TableHead className="text-right">Nb obligations en retard</TableHead>
-                    <TableHead>Plus urgent</TableHead>
-                    <TableHead>Types de visites</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <div className="w-full overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Salarié</TableHead>
+                      <TableHead className="text-right">Nb obligations en retard</TableHead>
+                      <TableHead>Plus urgent</TableHead>
+                      <TableHead>Types de visites</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                   {cr.employees_overdue.map((e) => (
                     <TableRow key={e.employee_id}>
                       <TableCell className="font-medium">{e.employee_name}</TableCell>
@@ -266,6 +269,7 @@ function MedicalCompliancePanels({ cr }: { cr: ComplianceReport }) {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -564,7 +568,7 @@ export default function MedicalFollowUp() {
       </div>
 
       <Tabs value={medTab} onValueChange={(v) => setMedTab(v as "pilotage" | "conformite")} className="w-full">
-        <TabsList className="grid w-full max-w-lg grid-cols-2">
+        <TabsList className="grid w-full max-w-lg grid-cols-1 gap-1 sm:grid-cols-2">
           <TabsTrigger value="pilotage">Pilotage</TabsTrigger>
           <TabsTrigger value="conformite">Tableau de conformité</TabsTrigger>
         </TabsList>
@@ -572,7 +576,7 @@ export default function MedicalFollowUp() {
         <TabsContent value="pilotage" className="mt-4 space-y-6">
       <div className="space-y-3">
         <h2 className="text-lg font-semibold tracking-tight">Rappels et alertes</h2>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-2">
           <Card className="border-destructive/30">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Visites en retard</CardTitle>
@@ -680,7 +684,7 @@ export default function MedicalFollowUp() {
       </AlertDialog>
 
       {kpis && (
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card className="border-l-4 border-l-red-500">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">En retard</CardTitle>
@@ -768,20 +772,21 @@ export default function MedicalFollowUp() {
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Salarié</TableHead>
-                  <TableHead>Type de visite</TableHead>
-                  <TableHead>Déclencheur</TableHead>
-                  <TableHead>Date limite</TableHead>
-                  <TableHead>Priorité</TableHead>
-                  <TableHead>Statut</TableHead>
-                  <TableHead>Justification</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <div className="w-full overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Salarié</TableHead>
+                    <TableHead>Type de visite</TableHead>
+                    <TableHead>Déclencheur</TableHead>
+                    <TableHead>Date limite</TableHead>
+                    <TableHead>Priorité</TableHead>
+                    <TableHead>Statut</TableHead>
+                    <TableHead>Justification</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                 {(!Array.isArray(obligations) || obligations.length === 0) ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
@@ -838,6 +843,7 @@ export default function MedicalFollowUp() {
                 )}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -880,7 +886,7 @@ export default function MedicalFollowUp() {
 
           {complianceQuery.isLoading ? (
             <div className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {[0, 1, 2, 3].map((i) => (
                   <Skeleton key={i} className="h-28 w-full" />
                 ))}

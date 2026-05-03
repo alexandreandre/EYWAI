@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bar,
@@ -108,14 +108,36 @@ function turnoverBadge(taux: number): { label: string; className: string } {
 function SectionSkeleton(): JSX.Element {
   return (
     <Card>
-      <CardHeader>
-        <Skeleton className="h-6 w-48" />
-        <Skeleton className="mt-2 h-4 w-full max-w-md" />
+      <CardHeader className="p-4 pb-2">
+        <Skeleton className="h-5 w-48" />
+        <Skeleton className="mt-1 h-3 w-full max-w-md" />
       </CardHeader>
-      <CardContent className="space-y-3">
-        <Skeleton className="h-40 w-full" />
+      <CardContent className="space-y-2 p-4 pt-0">
+        <Skeleton className="h-[220px] w-full" />
       </CardContent>
     </Card>
+  );
+}
+
+function SectionHeading({
+  title,
+  subtitle,
+  right,
+}: {
+  title: string;
+  subtitle?: string;
+  right?: ReactNode;
+}): JSX.Element {
+  return (
+    <div className="mb-3 flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h2 className="text-lg font-semibold leading-tight tracking-tight">{title}</h2>
+        {subtitle ? (
+          <p className="text-muted-foreground line-clamp-1 text-sm">{subtitle}</p>
+        ) : null}
+      </div>
+      {right ? <div className="shrink-0">{right}</div> : null}
+    </div>
   );
 }
 
@@ -382,7 +404,7 @@ export default function Analytics(): JSX.Element {
   const evoPositiveIsWorse = !evoNeutral && evo > 0;
 
   return (
-    <div className="container max-w-6xl space-y-8 py-8">
+    <div className="container max-w-7xl space-y-6 py-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Analytics RH</h1>
@@ -429,316 +451,343 @@ export default function Analytics(): JSX.Element {
       ) : null}
 
       {showInitialSkeleton ? (
-        <div className="grid gap-6">
-          <SectionSkeleton />
-          <SectionSkeleton />
-          <SectionSkeleton />
-          <SectionSkeleton />
-          <SectionSkeleton />
+        <div className="lg:grid lg:grid-cols-3 lg:gap-4 space-y-4 lg:space-y-0">
+          <div className="min-w-0 space-y-4 lg:col-span-2">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <SectionSkeleton />
+              <SectionSkeleton />
+            </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <SectionSkeleton />
+              <SectionSkeleton />
+            </div>
+            <SectionSkeleton />
+          </div>
+          <div className="min-w-0 lg:col-span-1">
+            <SectionSkeleton />
+          </div>
         </div>
       ) : (
-        <div className="grid gap-6">
-          {/* SECTION 1 — Turnover */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Turnover</CardTitle>
-              <CardDescription>Rolling 12 mois (effectif actuel comme base)</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {data ? (
-                <>
-                  <div className="flex flex-wrap items-end gap-4">
-                    <div>
-                      <p className="text-muted-foreground text-sm">
-                        Taux de turnover annuel
-                      </p>
-                      <p className="text-4xl font-bold tabular-nums">
-                        {data.turnover.taux_turnover_annuel.toLocaleString("fr-FR", {
-                          maximumFractionDigits: 1,
-                        })}
-                        %
-                      </p>
-                    </div>
-                    {(() => {
-                      const b = turnoverBadge(data.turnover.taux_turnover_annuel);
-                      return (
-                        <Badge className={b.className} variant="default">
-                          {b.label}
-                        </Badge>
-                      );
-                    })()}
-                  </div>
-                  <div className="text-muted-foreground grid gap-2 text-sm sm:grid-cols-2">
-                    <div>
-                      Embauches (12 mois) :{" "}
-                      <span className="text-foreground font-medium">
-                        {data.turnover.nb_embauches_12_mois}
-                      </span>
-                    </div>
-                    <div>
-                      Départs (12 mois) :{" "}
-                      <span className="text-foreground font-medium">
-                        {data.turnover.nb_departs_12_mois}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="h-48 w-full min-w-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={turnoverRatioBar} layout="vertical" margin={{ left: 8 }}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis type="number" allowDecimals={false} />
-                        <YAxis type="category" dataKey="label" width={160} tick={{ fontSize: 12 }} />
-                        <RechartsTooltip formatter={(v: number) => [v, ""]} />
-                        <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                          {turnoverRatioBar.map((row) => (
-                            <Cell key={row.label} fill={row.fill} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </>
-              ) : null}
-            </CardContent>
-          </Card>
+        <>
+        <div className="lg:grid lg:grid-cols-3 lg:items-start lg:gap-4 space-y-4 lg:space-y-0">
+          <div className="min-w-0 space-y-4 lg:col-span-2">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {/* Turnover */}
+              <Card>
+                <CardHeader className="p-4 pb-0">
+                  <SectionHeading
+                    title="Turnover"
+                    subtitle="Rolling 12 mois (effectif actuel comme base)"
+                  />
+                </CardHeader>
+                <CardContent className="space-y-3 p-4 pt-2">
+                  {data ? (
+                    <>
+                      <div className="flex flex-wrap items-end justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-muted-foreground text-xs">Taux annuel</p>
+                          <p className="text-2xl font-bold tabular-nums leading-none">
+                            {data.turnover.taux_turnover_annuel.toLocaleString("fr-FR", {
+                              maximumFractionDigits: 1,
+                            })}
+                            %
+                          </p>
+                        </div>
+                        {(() => {
+                          const b = turnoverBadge(data.turnover.taux_turnover_annuel);
+                          return (
+                            <Badge className={b.className} variant="default">
+                              {b.label}
+                            </Badge>
+                          );
+                        })()}
+                      </div>
+                      <div className="text-muted-foreground grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+                        <div className="truncate">
+                          Emb. :{" "}
+                          <span className="text-foreground font-medium">
+                            {data.turnover.nb_embauches_12_mois}
+                          </span>
+                        </div>
+                        <div className="truncate">
+                          Dép. :{" "}
+                          <span className="text-foreground font-medium">
+                            {data.turnover.nb_departs_12_mois}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="h-[220px] w-full min-w-0">
+                        <ResponsiveContainer width="100%" height={220}>
+                          <BarChart data={turnoverRatioBar} layout="vertical" margin={{ left: 4, right: 8, top: 4, bottom: 4 }}>
+                            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                            <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
+                            <YAxis type="category" dataKey="label" width={120} tick={{ fontSize: 10 }} />
+                            <RechartsTooltip formatter={(v: number) => [v, ""]} />
+                            <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                              {turnoverRatioBar.map((row) => (
+                                <Cell key={row.label} fill={row.fill} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </>
+                  ) : null}
+                </CardContent>
+              </Card>
 
-          {/* SECTION 2 — Pyramide */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Pyramide des âges</CardTitle>
-              <CardDescription>Salariés actifs avec date de naissance</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {data ? (
-                <div className="space-y-4">
-                  <div className="h-72 w-full min-w-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={data.pyramide_ages}
-                        layout="vertical"
-                        margin={{ left: 8, right: 16 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis type="number" allowDecimals={false} />
-                        <YAxis
-                          type="category"
-                          dataKey="tranche"
-                          width={56}
-                          tick={{ fontSize: 12 }}
-                        />
-                        <RechartsTooltip
-                          formatter={(v: number, _n, ctx) => {
-                            const p = ctx?.payload as
-                              | AnalyticsAvances["pyramide_ages"][number]
-                              | undefined;
-                            const pct = p?.pourcentage ?? 0;
-                            return [`${v} (${pct}%)`, "Effectif"];
-                          }}
-                        />
-                        <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                          {data.pyramide_ages.map((_, i) => (
-                            <Cell
-                              key={data.pyramide_ages[i].tranche}
-                              fill={CHART_PYRAMID_COLORS[i % CHART_PYRAMID_COLORS.length]}
-                            />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <ul className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                    {data.pyramide_ages.map((p) => (
-                      <li key={p.tranche}>
-                        <span className="text-foreground font-medium">{p.tranche}</span> :{" "}
-                        {p.pourcentage.toLocaleString("fr-FR", { maximumFractionDigits: 1 })}%
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
+              {/* Absentéisme */}
+              <Card>
+                <CardHeader className="p-4 pb-0">
+                  <SectionHeading
+                    title="Absentéisme"
+                    subtitle="30 jours glissants vs mois précédent (même durée)"
+                  />
+                </CardHeader>
+                <CardContent className="space-y-3 p-4 pt-2">
+                  {data ? (
+                    <>
+                      <div className="flex flex-wrap items-end justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-muted-foreground text-xs">Taux global</p>
+                          <p className="text-2xl font-bold tabular-nums leading-none">
+                            {data.absenteisme.taux_global.toLocaleString("fr-FR", {
+                              maximumFractionDigits: 2,
+                            })}
+                            %
+                          </p>
+                        </div>
+                        <div
+                          className={`flex min-w-0 shrink-0 items-center gap-1 text-xs font-medium ${
+                            evoNeutral
+                              ? "text-muted-foreground"
+                              : evoPositiveIsWorse
+                                ? "text-red-600"
+                                : "text-emerald-600"
+                          }`}
+                        >
+                          {!evoNeutral ? (
+                            evoPositiveIsWorse ? (
+                              <ArrowUpRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            ) : (
+                              <ArrowDownRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            )
+                          ) : null}
+                          <span className="truncate">
+                            {evo > 0 ? "+" : ""}
+                            {evo.toLocaleString("fr-FR", { maximumFractionDigits: 1 })}% vs N-1
+                          </span>
+                        </div>
+                      </div>
+                      <div className="grid gap-1 text-xs">
+                        <div className="flex justify-between gap-2">
+                          <span>Maladie</span>
+                          <span className="tabular-nums">
+                            {data.absenteisme.taux_maladie.toFixed(1)}% ({data.absenteisme.jours_perdus_maladie} j.)
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span>AT</span>
+                          <span className="tabular-nums">
+                            {data.absenteisme.taux_at.toFixed(1)}% ({data.absenteisme.jours_perdus_at} j.)
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span>Autres</span>
+                          <span className="tabular-nums">
+                            {data.absenteisme.taux_autres.toFixed(1)}% ({data.absenteisme.jours_perdus_autres} j.)
+                          </span>
+                        </div>
+                      </div>
+                      <div className="bg-muted h-2.5 w-full overflow-hidden rounded-full">
+                        <div className="flex h-full w-full">
+                          <div
+                            className="h-full bg-primary transition-all"
+                            style={{ width: `${absStack.mal}%` }}
+                            title="Maladie"
+                          />
+                          <div
+                            className="h-full bg-primary/60"
+                            style={{ width: `${absStack.at}%` }}
+                            title="AT"
+                          />
+                          <div
+                            className="h-full bg-muted-foreground/30"
+                            style={{ width: `${absStack.aut}%` }}
+                            title="Autres"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  ) : null}
+                </CardContent>
+              </Card>
+            </div>
 
-          {/* SECTION 3 — Absentéisme */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Absentéisme détaillé</CardTitle>
-              <CardDescription>30 jours glissants vs mois précédent (même durée)</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {data ? (
-                <>
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div>
-                      <p className="text-muted-foreground text-sm">Taux global</p>
-                      <p className="text-4xl font-bold tabular-nums">
-                        {data.absenteisme.taux_global.toLocaleString("fr-FR", {
-                          maximumFractionDigits: 2,
-                        })}
-                        %
-                      </p>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {/* Effectif par service */}
+              <Card>
+                <CardHeader className="p-4 pb-0">
+                  <SectionHeading title="Effectif par service" />
+                </CardHeader>
+                <CardContent className="p-4 pt-2">
+                  {data && serviceChartData.length > 0 ? (
+                    <div className="h-[220px] w-full min-w-0">
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={serviceChartData} margin={{ bottom: 48, left: 4, right: 8, top: 4 }}>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis
+                            dataKey="service"
+                            angle={-30}
+                            textAnchor="end"
+                            height={56}
+                            interval={0}
+                            tick={{ fontSize: 9 }}
+                          />
+                          <YAxis allowDecimals={false} tick={{ fontSize: 10 }} width={32} />
+                          <RechartsTooltip />
+                          <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
                     </div>
-                    <div
-                      className={`flex items-center gap-1 text-sm font-medium ${
-                        evoNeutral
-                          ? "text-muted-foreground"
-                          : evoPositiveIsWorse
-                            ? "text-red-600"
-                            : "text-emerald-600"
-                      }`}
-                    >
-                      {!evoNeutral ? (
-                        evoPositiveIsWorse ? (
-                          <ArrowUpRight className="h-4 w-4" aria-hidden />
-                        ) : (
-                          <ArrowDownRight className="h-4 w-4" aria-hidden />
-                        )
-                      ) : null}
-                      <span>
-                        {evo > 0 ? "+" : ""}
-                        {evo.toLocaleString("fr-FR", { maximumFractionDigits: 1 })}% vs période
-                        précédente
-                      </span>
-                    </div>
-                  </div>
-                  <div className="grid gap-2 text-sm">
-                    <div className="flex justify-between gap-4">
-                      <span>Maladie</span>
-                      <span>
-                        {data.absenteisme.taux_maladie.toFixed(1)}% (
-                        {data.absenteisme.jours_perdus_maladie} j.)
-                      </span>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                      <span>AT</span>
-                      <span>
-                        {data.absenteisme.taux_at.toFixed(1)}% (
-                        {data.absenteisme.jours_perdus_at} j.)
-                      </span>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                      <span>Autres</span>
-                      <span>
-                        {data.absenteisme.taux_autres.toFixed(1)}% (
-                        {data.absenteisme.jours_perdus_autres} j.)
-                      </span>
-                    </div>
-                  </div>
-                  <div className="bg-muted h-3 w-full overflow-hidden rounded-full">
-                    <div className="flex h-full w-full">
-                      <div
-                        className="h-full bg-primary transition-all"
-                        style={{ width: `${absStack.mal}%` }}
-                        title="Maladie"
-                      />
-                      <div
-                        className="h-full bg-primary/60"
-                        style={{ width: `${absStack.at}%` }}
-                        title="AT"
-                      />
-                      <div
-                        className="h-full bg-muted-foreground/30"
-                        style={{ width: `${absStack.aut}%` }}
-                        title="Autres"
-                      />
-                    </div>
-                  </div>
-                </>
-              ) : null}
-            </CardContent>
-          </Card>
+                  ) : (
+                    <p className="text-muted-foreground text-sm">Aucune répartition par service.</p>
+                  )}
+                </CardContent>
+              </Card>
 
-          {/* SECTION 4 — Effectif service */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Effectif par service</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {data && serviceChartData.length > 0 ? (
-                <div className="h-72 w-full min-w-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={serviceChartData} margin={{ bottom: 64 }}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis
-                        dataKey="service"
-                        angle={-35}
-                        textAnchor="end"
-                        height={72}
-                        interval={0}
-                        tick={{ fontSize: 11 }}
-                      />
-                      <YAxis allowDecimals={false} />
-                      <RechartsTooltip />
-                      <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-sm">Aucune répartition par service.</p>
-              )}
-            </CardContent>
-          </Card>
+              {/* Masse salariale */}
+              <Card>
+                <CardHeader className="p-4 pb-0">
+                  <SectionHeading
+                    title="Masse salariale par service"
+                    subtitle="Brut mensuel de base (salaire_de_base)"
+                  />
+                </CardHeader>
+                <CardContent className="p-4 pt-2">
+                  {data && masseChartData.length > 0 ? (
+                    <div className="h-[220px] w-full min-w-0">
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={masseChartData} margin={{ bottom: 48, left: 4, right: 8, top: 4 }}>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis
+                            dataKey="service"
+                            angle={-30}
+                            textAnchor="end"
+                            height={56}
+                            interval={0}
+                            tick={{ fontSize: 9 }}
+                          />
+                          <YAxis
+                            width={40}
+                            tick={{ fontSize: 9 }}
+                            tickFormatter={(v) =>
+                              Number(v).toLocaleString("fr-FR", { maximumFractionDigits: 0 })
+                            }
+                          />
+                          <RechartsTooltip formatter={(v: number) => [eur.format(v), "Masse brute"]} />
+                          <Legend wrapperStyle={{ fontSize: 11 }} />
+                          <Bar dataKey="masse" fill="hsl(var(--primary))" name="Masse" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground text-sm">Aucune masse salariale par service.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
 
-          {/* SECTION 5 — Masse salariale */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Masse salariale par service</CardTitle>
-              <CardDescription>Brut mensuel de base agrégé (salaire_de_base)</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {data && masseChartData.length > 0 ? (
-                <div className="h-72 w-full min-w-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={masseChartData} margin={{ bottom: 64 }}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis
-                        dataKey="service"
-                        angle={-35}
-                        textAnchor="end"
-                        height={72}
-                        interval={0}
-                        tick={{ fontSize: 11 }}
-                      />
-                      <YAxis
-                        tickFormatter={(v) =>
-                          Number(v).toLocaleString("fr-FR", { maximumFractionDigits: 0 })
-                        }
-                      />
-                      <RechartsTooltip
-                        formatter={(v: number) => [eur.format(v), "Masse brute"]}
-                      />
-                      <Legend />
-                      <Bar dataKey="masse" fill="hsl(var(--primary))" name="Masse" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-sm">Aucune masse salariale par service.</p>
-              )}
-            </CardContent>
-          </Card>
+          {/* Colonne droite : démographie */}
+          <div className="min-w-0 space-y-4 lg:col-span-1">
+            <Card>
+              <CardHeader className="p-4 pb-0">
+                <SectionHeading
+                  title="Pyramide des âges"
+                  subtitle="Salariés actifs avec date de naissance"
+                />
+              </CardHeader>
+              <CardContent className="p-4 pt-2">
+                {data ? (
+                  <div className="space-y-2">
+                    <div className="h-[220px] w-full min-w-0">
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart
+                          data={data.pyramide_ages}
+                          layout="vertical"
+                          margin={{ left: 4, right: 8, top: 4, bottom: 4 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
+                          <YAxis
+                            type="category"
+                            dataKey="tranche"
+                            width={48}
+                            tick={{ fontSize: 10 }}
+                          />
+                          <RechartsTooltip
+                            formatter={(v: number, _n, ctx) => {
+                              const p = ctx?.payload as
+                                | AnalyticsAvances["pyramide_ages"][number]
+                                | undefined;
+                              const pct = p?.pourcentage ?? 0;
+                              return [`${v} (${pct}%)`, "Effectif"];
+                            }}
+                          />
+                          <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                            {data.pyramide_ages.map((_, i) => (
+                              <Cell
+                                key={data.pyramide_ages[i].tranche}
+                                fill={CHART_PYRAMID_COLORS[i % CHART_PYRAMID_COLORS.length]}
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <ul className="text-muted-foreground flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] leading-tight">
+                      {data.pyramide_ages.map((p) => (
+                        <li key={p.tranche} className="max-w-[9rem] truncate">
+                          <span className="text-foreground font-medium">{p.tranche}</span>{" "}
+                          {p.pourcentage.toLocaleString("fr-FR", { maximumFractionDigits: 1 })}%
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
 
+        <div className="mt-4 space-y-4">
           {/* SECTION 6 — Anomalies paie */}
           <Card>
-            <CardHeader>
-              <CardTitle>Anomalies de paie détectées</CardTitle>
-              <CardDescription>
-                Contrôles automatiques sur les bulletins du mois sélectionné
-              </CardDescription>
+            <CardHeader className="p-4 pb-2">
+              <SectionHeading
+                title="Anomalies de paie détectées"
+                subtitle="Contrôles automatiques sur les bulletins du mois sélectionné"
+                right={
+                  <div className="flex shrink-0 flex-col gap-1">
+                    <Label
+                      htmlFor="payroll-period"
+                      className="text-xs leading-none text-muted-foreground"
+                    >
+                      Période
+                    </Label>
+                    <Input
+                      id="payroll-period"
+                      type="month"
+                      value={payrollYm}
+                      onChange={(e) => setPayrollYm(e.target.value)}
+                      className="h-9 w-[9.5rem]"
+                    />
+                  </div>
+                }
+              />
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap items-end gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="payroll-period">Période</Label>
-                  <Input
-                    id="payroll-period"
-                    type="month"
-                    value={payrollYm}
-                    onChange={(e) => setPayrollYm(e.target.value)}
-                    className="w-[200px]"
-                  />
-                </div>
-              </div>
+            <CardContent className="space-y-3 p-4 pt-0">
               {anomaliesError ? (
                 <Alert variant="destructive">
                   <AlertTitle>Anomalies</AlertTitle>
@@ -750,41 +799,41 @@ export default function Analytics(): JSX.Element {
                 </Alert>
               ) : null}
               {anomaliesLoading ? (
-                <Skeleton className="h-48 w-full" />
+                <Skeleton className="h-24 w-full" />
               ) : anomaliesData ? (
                 <>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                     <Card>
-                      <CardHeader className="pb-2">
-                        <CardDescription>Total bulletins</CardDescription>
-                        <CardTitle className="text-2xl">
+                      <CardContent className="p-3">
+                        <p className="text-2xl font-bold tabular-nums">
                           {anomaliesData.total_bulletins}
-                        </CardTitle>
-                      </CardHeader>
+                        </p>
+                        <p className="text-muted-foreground text-xs">Total bulletins</p>
+                      </CardContent>
                     </Card>
                     <Card>
-                      <CardHeader className="pb-2">
-                        <CardDescription>Avec anomalies</CardDescription>
-                        <CardTitle className="text-2xl">
+                      <CardContent className="p-3">
+                        <p className="text-2xl font-bold tabular-nums">
                           {anomaliesData.bulletins_avec_anomalies}
-                        </CardTitle>
-                      </CardHeader>
+                        </p>
+                        <p className="text-muted-foreground text-xs">Avec anomalies</p>
+                      </CardContent>
                     </Card>
                     <Card>
-                      <CardHeader className="pb-2">
-                        <CardDescription>Bloquants</CardDescription>
-                        <CardTitle className="text-2xl text-red-600">
+                      <CardContent className="p-3">
+                        <p className="text-2xl font-bold tabular-nums text-red-600">
                           {anomaliesSummary.bloquants}
-                        </CardTitle>
-                      </CardHeader>
+                        </p>
+                        <p className="text-muted-foreground text-xs">Bloquants</p>
+                      </CardContent>
                     </Card>
                     <Card>
-                      <CardHeader className="pb-2">
-                        <CardDescription>Avertissements</CardDescription>
-                        <CardTitle className="text-2xl text-amber-600">
+                      <CardContent className="p-3">
+                        <p className="text-2xl font-bold tabular-nums text-amber-600">
                           {anomaliesSummary.avertissements}
-                        </CardTitle>
-                      </CardHeader>
+                        </p>
+                        <p className="text-muted-foreground text-xs">Avertissements</p>
+                      </CardContent>
                     </Card>
                   </div>
                   {anomaliesData.anomalies.length === 0 ? (
@@ -792,25 +841,24 @@ export default function Analytics(): JSX.Element {
                       ✅ Aucune anomalie détectée ce mois-ci
                     </p>
                   ) : (
-                    <div className="rounded-md border">
-                      <Table>
+                    <div className="w-full overflow-x-auto rounded-md border">
+                      <Table className="text-sm [&_td]:px-3 [&_td]:py-2 [&_th]:px-3 [&_th]:py-2">
                         <TableHeader>
                           <TableRow>
                             <TableHead>Salarié</TableHead>
                             <TableHead>Type</TableHead>
                             <TableHead>Sévérité</TableHead>
                             <TableHead>Détail</TableHead>
-                            <TableHead>Valeur détectée</TableHead>
-                            <TableHead>Suggestion</TableHead>
+                            <TableHead>Valeur</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {anomaliesData.anomalies.map((row, idx) => (
                             <TableRow key={`${row.payslip_id}-${row.type}-${idx}`}>
-                              <TableCell className="font-medium">
+                              <TableCell className="max-w-[10rem] truncate font-medium">
                                 {row.employee_name}
                               </TableCell>
-                              <TableCell className="text-muted-foreground text-xs">
+                              <TableCell className="max-w-[6rem] truncate text-muted-foreground text-xs">
                                 {row.type}
                               </TableCell>
                               <TableCell>
@@ -827,14 +875,11 @@ export default function Analytics(): JSX.Element {
                                     : "Avertissement"}
                                 </Badge>
                               </TableCell>
-                              <TableCell className="max-w-[220px] text-sm">
+                              <TableCell className="max-w-[200px] text-xs">
                                 {row.message}
                               </TableCell>
-                              <TableCell className="max-w-[160px] truncate text-xs">
+                              <TableCell className="max-w-[120px] truncate text-xs">
                                 {row.valeur_detectee}
-                              </TableCell>
-                              <TableCell className="max-w-[200px] text-xs text-muted-foreground">
-                                {row.suggestion_correction}
                               </TableCell>
                             </TableRow>
                           ))}
@@ -849,23 +894,23 @@ export default function Analytics(): JSX.Element {
 
           {/* SECTION 7 — Journal d'audit */}
           <Card>
-            <CardHeader>
-              <CardTitle>Journal d&apos;audit</CardTitle>
-              <CardDescription>
-                Actions sensibles enregistrées (best effort côté serveur)
-              </CardDescription>
+            <CardHeader className="p-4 pb-2">
+              <SectionHeading
+                title="Journal d&apos;audit"
+                subtitle="Actions sensibles enregistrées (best effort côté serveur)"
+              />
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-4">
-                <div className="space-y-2">
-                  <Label>Type de ressource</Label>
+            <CardContent className="space-y-3 p-4 pt-0">
+              <div className="mb-1 flex flex-wrap items-end gap-3">
+                <div className="min-w-[140px] flex-1 space-y-1">
+                  <Label className="text-xs">Type de ressource</Label>
                   <Select
                     value={auditResourceType || "__all__"}
                     onValueChange={(v) =>
                       setAuditResourceType(v === "__all__" ? "" : v)
                     }
                   >
-                    <SelectTrigger className="w-[200px]">
+                    <SelectTrigger className="h-9 w-full">
                       <SelectValue placeholder="Tous" />
                     </SelectTrigger>
                     <SelectContent>
@@ -877,26 +922,40 @@ export default function Analytics(): JSX.Element {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="audit-since">Depuis</Label>
+                <div className="min-w-[120px] flex-1 space-y-1">
+                  <Label htmlFor="audit-since" className="text-xs">
+                    Depuis
+                  </Label>
                   <Input
                     id="audit-since"
                     type="date"
                     value={auditSince}
                     onChange={(e) => setAuditSince(e.target.value)}
-                    className="w-[160px]"
+                    className="h-9 w-full min-w-0"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="audit-until">Jusqu&apos;au</Label>
+                <div className="min-w-[120px] flex-1 space-y-1">
+                  <Label htmlFor="audit-until" className="text-xs">
+                    Jusqu&apos;au
+                  </Label>
                   <Input
                     id="audit-until"
                     type="date"
                     value={auditUntil}
                     onChange={(e) => setAuditUntil(e.target.value)}
-                    className="w-[160px]"
+                    className="h-9 w-full min-w-0"
                   />
                 </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="shrink-0"
+                  disabled={auditFetching}
+                  onClick={() => void refetchAudit()}
+                >
+                  Filtrer
+                </Button>
               </div>
               {auditError ? (
                 <Alert variant="destructive">
@@ -909,10 +968,10 @@ export default function Analytics(): JSX.Element {
                 </Alert>
               ) : null}
               {auditLoading && !auditData ? (
-                <Skeleton className="h-40 w-full" />
+                <Skeleton className="h-32 w-full" />
               ) : (
-                <div className="rounded-md border">
-                  <Table>
+                <div className="w-full overflow-x-auto rounded-md border">
+                  <Table className="text-sm [&_td]:px-3 [&_td]:py-2 [&_th]:px-3 [&_th]:py-2">
                     <TableHeader>
                       <TableRow>
                         <TableHead>Date</TableHead>
@@ -925,7 +984,7 @@ export default function Analytics(): JSX.Element {
                     <TableBody>
                       {(auditData ?? []).length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-muted-foreground text-center text-sm">
+                          <TableCell colSpan={5} className="text-muted-foreground px-3 py-2 text-center text-sm">
                             Aucune entrée pour ces filtres.
                           </TableCell>
                         </TableRow>
@@ -935,17 +994,17 @@ export default function Analytics(): JSX.Element {
                             <TableCell className="whitespace-nowrap text-xs">
                               {new Date(row.created_at).toLocaleString("fr-FR")}
                             </TableCell>
-                            <TableCell className="text-xs">
+                            <TableCell className="max-w-[8rem] truncate text-xs">
                               {row.user_email || row.user_id || "—"}
                             </TableCell>
                             <TableCell className="text-xs">
                               {ACTIONS_LABELS[row.action] || row.action}
                             </TableCell>
-                            <TableCell className="text-xs">
+                            <TableCell className="max-w-[7rem] truncate text-xs">
                               {row.resource_type}
                               {row.resource_id ? ` / ${row.resource_id}` : ""}
                             </TableCell>
-                            <TableCell className="max-w-[240px] truncate text-xs text-muted-foreground">
+                            <TableCell className="max-w-[180px] truncate text-xs text-muted-foreground">
                               {row.details
                                 ? JSON.stringify(row.details)
                                 : "—"}
@@ -972,14 +1031,14 @@ export default function Analytics(): JSX.Element {
           </Card>
 
           {/* SECTION 8 — Webhooks & Intégrations BI */}
-          <Card className="md:col-span-2">
-            <CardHeader>
-              <CardTitle>Webhooks &amp; Intégrations BI</CardTitle>
-              <CardDescription>
-                Notifications HTTP vers vos outils et repères pour connecteurs analytiques
-              </CardDescription>
+          <Card>
+            <CardHeader className="p-4 pb-2">
+              <SectionHeading
+                title="Webhooks &amp; Intégrations BI"
+                subtitle="Notifications HTTP et repères pour connecteurs analytiques"
+              />
             </CardHeader>
-            <CardContent className="space-y-10">
+            <CardContent className="space-y-6 p-4 pt-0">
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold tracking-tight">
                   Webhooks configurés
@@ -1094,15 +1153,15 @@ export default function Analytics(): JSX.Element {
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold tracking-tight">Connecteurs BI</h3>
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <Card className="border-muted">
-                    <CardHeader>
-                      <CardTitle className="text-base">Power BI</CardTitle>
-                      <CardDescription>
-                        Connectez Power BI via l&apos;API REST EYWAI
+                    <CardHeader className="space-y-1 p-3 pb-2">
+                      <CardTitle className="text-sm font-semibold">Power BI</CardTitle>
+                      <CardDescription className="line-clamp-2 text-xs">
+                        API REST EYWAI
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-2 text-sm text-muted-foreground">
+                    <CardContent className="space-y-2 p-3 pt-0 text-xs text-muted-foreground">
                       <p>
                         URL base :{" "}
                         <span className="font-mono text-xs text-foreground">
@@ -1124,13 +1183,13 @@ export default function Analytics(): JSX.Element {
                     </CardContent>
                   </Card>
                   <Card className="border-muted">
-                    <CardHeader>
-                      <CardTitle className="text-base">Tableau</CardTitle>
-                      <CardDescription>
-                        Connectez Tableau via l&apos;API REST EYWAI
+                    <CardHeader className="space-y-1 p-3 pb-2">
+                      <CardTitle className="text-sm font-semibold">Tableau</CardTitle>
+                      <CardDescription className="line-clamp-2 text-xs">
+                        API REST EYWAI
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-2 text-sm text-muted-foreground">
+                    <CardContent className="space-y-2 p-3 pt-0 text-xs text-muted-foreground">
                       <p>
                         URL base :{" "}
                         <span className="font-mono text-xs text-foreground">
@@ -1152,13 +1211,13 @@ export default function Analytics(): JSX.Element {
                     </CardContent>
                   </Card>
                   <Card className="border-muted">
-                    <CardHeader>
-                      <CardTitle className="text-base">Metabase</CardTitle>
-                      <CardDescription>
-                        Connectez Metabase via l&apos;API REST EYWAI
+                    <CardHeader className="space-y-1 p-3 pb-2">
+                      <CardTitle className="text-sm font-semibold">Metabase</CardTitle>
+                      <CardDescription className="line-clamp-2 text-xs">
+                        API REST EYWAI
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-2 text-sm text-muted-foreground">
+                    <CardContent className="space-y-2 p-3 pt-0 text-xs text-muted-foreground">
                       <p>
                         URL base :{" "}
                         <span className="font-mono text-xs text-foreground">
@@ -1183,6 +1242,7 @@ export default function Analytics(): JSX.Element {
               </div>
             </CardContent>
           </Card>
+        </div>
 
           <Dialog open={whCreateOpen} onOpenChange={setWhCreateOpen}>
             <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
@@ -1297,7 +1357,7 @@ export default function Analytics(): JSX.Element {
               </div>
             </SheetContent>
           </Sheet>
-        </div>
+        </>
       )}
     </div>
   );

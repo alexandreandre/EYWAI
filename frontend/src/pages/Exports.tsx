@@ -235,7 +235,7 @@ function ScheduledExportsTab() {
       </div>
 
       {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-2">
           <Skeleton className="h-40" />
           <Skeleton className="h-40" />
         </div>
@@ -246,7 +246,7 @@ function ScheduledExportsTab() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-2">
           {data.map((row) => (
             <Card key={row.id}>
               <CardHeader className="pb-2">
@@ -497,7 +497,7 @@ export default function Exports() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-6">
+        <TabsList className="grid h-auto w-full grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
           <TabsTrigger value="paie-comptabilite" className="flex items-center gap-2 text-xs sm:text-sm">
             <Calculator className="h-4 w-4 shrink-0" />
             <span className="hidden sm:inline">Paie & Comptabilité</span>

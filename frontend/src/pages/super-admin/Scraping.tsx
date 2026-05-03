@@ -314,7 +314,7 @@ export default function ScrapingPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-4">
           <TabsTrigger value="dashboard">
             <TrendingUp className="h-4 w-4 mr-2" />
             Dashboard

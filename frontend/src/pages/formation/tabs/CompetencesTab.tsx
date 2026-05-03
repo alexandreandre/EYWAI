@@ -471,7 +471,7 @@ export default function CompetencesTab() {
             <p className="text-sm text-destructive">Impossible de charger la matrice.</p>
           )}
           {matrix && !matrixQuery.isLoading && (
-            <div className="max-w-full overflow-x-auto rounded-md border">
+            <div className="w-full max-w-full overflow-x-auto rounded-md border">
               <table className="w-max min-w-full border-collapse text-sm">
                 <thead>
                   <tr>
@@ -556,7 +556,7 @@ export default function CompetencesTab() {
 
               {mobilityResult && mobilityResult.employee_id === mobilityEmpId && (
                 <div className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                     <Card>
                       <CardHeader className="pb-2">
                         <CardTitle className="text-base">Score de mobilité</CardTitle>

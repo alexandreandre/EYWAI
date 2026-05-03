@@ -87,7 +87,7 @@ export default function EmployeePayslipDetail() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-md grid-cols-1 gap-1 sm:grid-cols-2">
           <TabsTrigger value="comparison">Comparaison N-1</TabsTrigger>
           <TabsTrigger value="trend">Tendance</TabsTrigger>
         </TabsList>

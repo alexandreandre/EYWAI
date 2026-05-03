@@ -255,7 +255,7 @@ export default function EmployeePlanning() {
           Cette semaine n&apos;est pas encore publiée.
         </div>
       ) : planning ? (
-        <div className="overflow-x-auto rounded-md border">
+        <div className="w-full overflow-x-auto rounded-md border">
           <div className="grid min-w-[720px] grid-cols-7 gap-0 divide-x">
             {weekDays.map((d) => {
               const list = shiftsByDay[d] ?? [];

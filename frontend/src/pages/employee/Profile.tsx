@@ -337,7 +337,7 @@ export default function ProfilePage() {
 
       {/* --- Section Prévoyance, Mutuelle, PAS --- */}
       {profile && (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center"><Percent className="mr-2 h-5 w-5" /> Prélèvement à la Source</CardTitle>
@@ -383,7 +383,7 @@ export default function ProfilePage() {
 
        {/* --- Section Données Bancaires --- */}
       {profile && (
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center"><Banknote className="mr-2 h-5 w-5" /> Données Bancaires</CardTitle>

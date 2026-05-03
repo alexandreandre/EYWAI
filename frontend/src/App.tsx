@@ -193,7 +193,7 @@ function EmployeeLayout() {
         <SidebarProvider>
             <div className="grid min-h-screen w-full md:grid-cols-[auto_1fr]">
                 <EmployeeSidebar />
-                <div className="flex flex-col flex-1">
+                <div className="flex min-w-0 flex-col flex-1">
                     {/* Header mobile avec bouton menu */}
                     <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 md:hidden">
                         <SidebarTrigger>
@@ -206,7 +206,7 @@ function EmployeeLayout() {
                             <img src="/Colorplast.png" alt="Logo Colorplast" className="h-8 w-auto" />
                         </div>
                     </header>
-                    <main className="flex-1 p-6 lg:p-8 overflow-auto"><Outlet /></main>
+                    <main className="min-w-0 flex-1 overflow-auto overflow-x-auto p-6 lg:p-8"><Outlet /></main>
                 </div>
             </div>
         </SidebarProvider>
@@ -333,7 +333,7 @@ function ProtectedRoutes() {
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-muted/40">
         <AppSidebar />
-        <div className="flex-1 flex flex-col">
+        <div className="flex min-w-0 flex-1 flex-col">
           {/* Header mobile avec bouton menu et sélecteur d'entreprise - Affiché seulement si plusieurs entreprises */}
           {showCompanySwitcher && (
             <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 md:hidden">
@@ -357,7 +357,7 @@ function ProtectedRoutes() {
               <CompanySwitcher />
             </div>
           )}
-          <main className="flex-1 bg-background p-6 lg:p-8 overflow-y-auto">
+          <main className="min-w-0 flex-1 overflow-x-auto overflow-y-auto bg-background p-6 lg:p-8">
             <Routes>
               {isCollaborateurRhView ? (
                 // Routes Collaborateur pour collaborateur_rh en vue Collaborateur

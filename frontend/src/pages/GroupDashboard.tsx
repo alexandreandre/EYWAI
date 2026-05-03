@@ -805,7 +805,7 @@ export function GroupDashboard() {
 
       {/* Onglets pour différentes vues */}
       <Tabs defaultValue="table" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5 lg:w-[650px]">
+        <TabsList className="grid w-full min-w-0 grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
           <TabsTrigger value="table">
             <ArrowUpDown className="h-4 w-4 mr-2" />
             Tableau
@@ -845,13 +845,13 @@ export function GroupDashboard() {
                     placeholder="Rechercher..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-64"
+                    className="w-full min-w-0 max-w-xs sm:max-w-sm"
                   />
                 </div>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
+              <div className="w-full overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b bg-muted/50">
@@ -1009,7 +1009,7 @@ export function GroupDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
+              <div className="w-full overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/50">

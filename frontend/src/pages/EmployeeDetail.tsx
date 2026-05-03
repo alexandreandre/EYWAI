@@ -1660,7 +1660,7 @@ export default function EmployeeDetail() {
                   </div>
                 </RadioGroup>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="aug-valeur">
                     {augSimType === "pourcentage" ? "Pourcentage (%)" : "Montant (€)"}
@@ -1705,7 +1705,7 @@ export default function EmployeeDetail() {
                 <div className="space-y-4">
                   <Card className="border-muted bg-muted/30">
                     <CardContent className="pt-6">
-                      <div className="grid gap-6 md:grid-cols-3">
+                      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3">
                         <div className="space-y-2">
                           <p className="text-sm font-semibold">Brut</p>
                           <p className="text-sm text-muted-foreground">
@@ -1799,7 +1799,7 @@ export default function EmployeeDetail() {
                   <Skeleton className="h-10 w-full" />
                 </div>
               ) : salaryHistoryQuery.data && salaryHistoryQuery.data.length > 0 ? (
-                <div className="overflow-x-auto">
+                <div className="w-full overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>

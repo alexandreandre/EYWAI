@@ -237,7 +237,7 @@ export default function CompanyPage() {
       </div>
 
       {/* 2. KPIs Principaux */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
         <Card className="border-l-4 border-l-indigo-500">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -292,7 +292,7 @@ export default function CompanyPage() {
       </div>
 
       {/* 3. KPIs Secondaires */}
-      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium text-muted-foreground">Net Versé (M-1)</CardTitle>
@@ -340,7 +340,7 @@ export default function CompanyPage() {
       </div>
 
       {/* 4. Graphiques et Analyses */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -412,7 +412,7 @@ export default function CompanyPage() {
           <CardTitle className="text-lg">Bilan Annuel (12 derniers mois)</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
             <div className="space-y-1">
               <p className="text-sm font-medium text-muted-foreground">Masse Salariale Brute Totale</p>
               <p className="text-2xl font-bold text-amber-600">{formatCurrency(kpis.annual_gross_salary)}</p>
@@ -439,7 +439,7 @@ export default function CompanyPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
               {Object.entries(kpis.job_distribution).map(([job, count]) => (
                 <div key={job} className="flex justify-between items-center p-2 bg-slate-50 rounded-md">
                   <span className="text-sm font-medium truncate">{job}</span>
@@ -459,7 +459,7 @@ export default function CompanyPage() {
         scrollPositionRef.current = window.scrollY;
         setActiveTab(value);
       }}>
-        <TabsList className="grid w-full grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-5 max-w-4xl">
+        <TabsList className="grid w-full max-w-4xl grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
           <TabsTrigger value="informations">Informations Légales</TabsTrigger>
           <TabsTrigger value="coordonnees">Coordonnées</TabsTrigger>
           <TabsTrigger value="parametres">Paramètres Paie</TabsTrigger>
@@ -474,7 +474,7 @@ export default function CompanyPage() {
               <Table>
                 <TableBody>
                   <TableRow>
-                    <TableCell className="font-medium text-muted-foreground w-[250px]">Raison Sociale</TableCell>
+                    <TableCell className="min-w-0 font-medium text-muted-foreground">Raison Sociale</TableCell>
                     <TableCell>{company_data.raison_sociale || company_data.company_name}</TableCell>
                   </TableRow>
                   <TableRow>
@@ -510,7 +510,7 @@ export default function CompanyPage() {
               <Table>
                 <TableBody>
                   <TableRow>
-                    <TableCell className="font-medium text-muted-foreground w-[250px]">Adresse</TableCell>
+                    <TableCell className="min-w-0 font-medium text-muted-foreground">Adresse</TableCell>
                     <TableCell>
                       {company_data.adresse_rue ? (
                         <address className="not-italic">
@@ -576,7 +576,7 @@ export default function CompanyPage() {
                 <Table>
                   <TableBody>
                     <TableRow>
-                      <TableCell className="font-medium text-muted-foreground w-[250px]">Jour de fin de période de paie</TableCell>
+                      <TableCell className="min-w-0 font-medium text-muted-foreground">Jour de fin de période de paie</TableCell>
                       <TableCell className="font-medium">{formatPayday(company_data.paie_jour_de_fin)}</TableCell>
                     </TableRow>
                     <TableRow>
@@ -921,7 +921,7 @@ function MutuelleManagementTab() {
                 placeholder="Ex: Mutuelle Collaborateur Seul"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label htmlFor="montant_salarial">Montant Salarial (€) *</Label>
                 <Input

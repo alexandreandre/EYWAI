@@ -178,7 +178,7 @@ export default function MaintenanceSettingsCard() {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="legal" className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsList className="grid w-full max-w-md grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-3">
             <TabsTrigger value="legal">
               Légal
             </TabsTrigger>

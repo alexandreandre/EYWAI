@@ -61,7 +61,7 @@ export default function CSE() {
 
       {/* Alertes rapides */}
       {(mandateAlerts.length > 0 || electionAlerts.length > 0) && (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-2">
           {mandateAlerts.length > 0 && (
             <Card className="border-orange-200">
               <CardHeader>

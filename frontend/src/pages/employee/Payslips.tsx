@@ -207,7 +207,7 @@ export default function PayslipsPage() {
              <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Chargement...</div>
           // --- Affichage des cumuls (si disponibles) ---
           ) : cumuls?.cumuls ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
+            <div className="grid grid-cols-1 gap-y-4 gap-x-6 sm:grid-cols-3">
               <div>
                 <Label className="text-xs text-muted-foreground">Brut Total</Label>
                 <p className="font-semibold">{formatCurrency(cumuls.cumuls.brut_total)}</p>

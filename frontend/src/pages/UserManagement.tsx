@@ -1390,7 +1390,7 @@ const UserManagement: React.FC = () => {
               </DialogHeader>
 
               <Tabs value={newCollaboratorMainTab} onValueChange={(v) => setNewCollaboratorMainTab(v as 'collab' | 'rh')} className="w-full flex-1 flex flex-col min-h-0">
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2">
                   <TabsTrigger value="collab">Accès Collaborateur</TabsTrigger>
                   <TabsTrigger value="rh">Accès RH</TabsTrigger>
                 </TabsList>
@@ -1721,7 +1721,7 @@ const UserManagement: React.FC = () => {
                         <FormField control={collaboratorForm.control} name="nationalite" render={({ field }) => (<FormItem><FormLabel>Nationalité</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <h3 className="font-semibold pt-4">Adresse</h3>
                         <FormField control={collaboratorForm.control} name="adresse.rue" render={({ field }) => (<FormItem><FormLabel>Rue</FormLabel><FormControl><Input placeholder="1 Rue de la Paix" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                           <FormField control={collaboratorForm.control} name="adresse.code_postal" render={({ field }) => (<FormItem><FormLabel>Code Postal</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                           <FormField control={collaboratorForm.control} name="adresse.ville" render={({ field }) => (<FormItem><FormLabel>Ville</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                         </div>
@@ -1733,7 +1733,7 @@ const UserManagement: React.FC = () => {
                         <div className="space-y-4">
                           <FormField control={collaboratorForm.control} name="hire_date" render={({ field }) => (<FormItem><FormLabel>Date d'entrée</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>)} />
                           <FormField control={collaboratorForm.control} name="job_title" render={({ field }) => (<FormItem><FormLabel>Intitulé du poste</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <FormField
                               control={collaboratorForm.control}
                               name="contract_type"
@@ -1779,7 +1779,7 @@ const UserManagement: React.FC = () => {
                               )}
                             />
                           </div>
-                          <div className="grid grid-cols-2 gap-4 items-end">
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end">
                             <FormField control={collaboratorForm.control} name="duree_hebdomadaire" render={({ field }) => (<FormItem><FormLabel>Durée hebdo. (heures)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
                             <FormField
                               control={collaboratorForm.control}
@@ -1883,7 +1883,7 @@ const UserManagement: React.FC = () => {
                                   )}
                                 />
                               ) : (
-                                <div className="grid grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                                   <FormField 
                                     control={collaboratorForm.control}
                                     name="classification_conventionnelle.groupe_emploi" 
@@ -1936,7 +1936,7 @@ const UserManagement: React.FC = () => {
                               </FormItem>
                             )} 
                           />
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <FormField
                               control={collaboratorForm.control}
                               name="avantages_en_nature.logement.beneficie"
@@ -2090,7 +2090,7 @@ const UserManagement: React.FC = () => {
                                             <Trash2 className="h-4 w-4" />
                                           </Button>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                           <FormField control={collaboratorForm.control} name={`specificites_paie.mutuelle.lignes_specifiques.${index}.montant_salarial`} render={({ field }) => (<FormItem><FormLabel>Montant Salarial (€)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
                                           <FormField control={collaboratorForm.control} name={`specificites_paie.mutuelle.lignes_specifiques.${index}.montant_patronal`} render={({ field }) => (<FormItem><FormLabel>Montant Patronal (€)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
                                         </div>
@@ -2116,7 +2116,7 @@ const UserManagement: React.FC = () => {
                                     {prevoyanceFields.map((field, index) => (
                                       <div key={field.id} className="space-y-2 border-b pb-4 last:border-b-0">
                                         <FormField control={collaboratorForm.control} name={`specificites_paie.prevoyance.lignes_specifiques.${index}.libelle`} render={({ field }) => (<FormItem><FormLabel>Libellé</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                                        <div className="grid grid-cols-3 gap-4">
+                                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                                           <FormField control={collaboratorForm.control} name={`specificites_paie.prevoyance.lignes_specifiques.${index}.salarial`} render={({ field }) => (<FormItem><FormLabel>Taux Salarial (%)</FormLabel><FormControl><Input type="number" step="0.0001" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                           <FormField control={collaboratorForm.control} name={`specificites_paie.prevoyance.lignes_specifiques.${index}.patronal`} render={({ field }) => (<FormItem><FormLabel>Taux Patronal (%)</FormLabel><FormControl><Input type="number" step="0.0001" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                           <FormField control={collaboratorForm.control} name={`specificites_paie.prevoyance.lignes_specifiques.${index}.forfait_social`} render={({ field }) => (<FormItem><FormLabel>Forfait Social (%)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>)} />
@@ -2261,7 +2261,7 @@ const UserManagement: React.FC = () => {
                                     ) : (
                                       <p className="text-sm text-muted-foreground mb-2">Sélectionnez un template RH pré-enregistré ou l'option "Tout" pour toutes les permissions RH.</p>
                                     )}
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-4">
                                       {/* Option "Tout" : toutes les permissions RH */}
                                       <Button
                                         type="button"

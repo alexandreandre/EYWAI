@@ -702,7 +702,7 @@ export default function Dashboard() {
                 </Button>
               </div>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
               <div className="rounded-lg border bg-background px-3 py-2">
                 <p className="text-xs text-muted-foreground">Total à traiter</p>
                 <p className="text-xl font-bold tabular-nums">{urgentTotal}</p>
@@ -1523,7 +1523,7 @@ function RecruitmentKpisCard() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-3 gap-2 text-sm">
+        <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <p className="text-muted-foreground">Offres actives</p>
             <p className="font-bold text-foreground">{jobs.length}</p>
@@ -1647,7 +1647,7 @@ function EffectifCard({ kpis, absentsToday }: { kpis: KpiData, absentsToday: Tea
         <CardTitle className="text-lg font-semibold">Effectif</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {/* Effectif Actif */}
           <div className="text-center">
             <p className="text-xs text-muted-foreground font-medium mb-2">Effectif Actif</p>
@@ -1725,7 +1725,7 @@ function CoutsCard({ kpis, chartData }: { kpis: KpiData, chartData: ChartDataPoi
         {/* Masse Salariale du mois précédent */}
         <div>
           <h3 className="text-sm font-medium text-muted-foreground mb-3">Masse Salariale {kpis.currentMonth}</h3>
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div className="text-center">
               <p className="text-xs text-red-500 font-medium mb-1">Coût Total</p>
               <div className="text-2xl font-bold text-foreground">{kpis.coutTotal.toLocaleString('fr-FR')} €</div>

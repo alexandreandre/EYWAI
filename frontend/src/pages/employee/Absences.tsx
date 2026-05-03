@@ -239,15 +239,15 @@ export default function AbsencesPage() {
         <Button onClick={() => setIsModalOpen(true)}><PlusCircle className="mr-2 h-4 w-4" /> Faire une demande</Button>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
           <Card>
             <CardHeader><CardTitle>Mes Soldes</CardTitle></CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-4 text-center border-b pb-2"><p className="text-sm text-muted-foreground text-left">Type</p><p className="text-sm text-muted-foreground">Pris</p><p className="text-sm font-bold text-primary">Restant</p></div>
+              <div className="grid grid-cols-1 gap-4 border-b pb-2 text-center sm:grid-cols-3"><p className="text-left text-sm text-muted-foreground">Type</p><p className="text-sm text-muted-foreground">Pris</p><p className="text-sm font-bold text-primary">Restant</p></div>
               {isLoading ? <div className="flex justify-center items-center h-24"><Loader2 className="h-6 w-6 animate-spin" /></div>
                : balances.map(b => (
-                <div key={b.type} className="grid grid-cols-3 gap-4 text-center mt-2 p-2 rounded hover:bg-muted items-center">
+                <div key={b.type} className="mt-2 grid grid-cols-1 gap-4 rounded p-2 text-center hover:bg-muted sm:grid-cols-3 sm:items-center">
                   <p className="font-medium text-left">{b.type}</p>
                   <p className="text-muted-foreground">{b.taken} j</p>
                   {b.type === 'Événement familial' ? (

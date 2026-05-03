@@ -410,7 +410,7 @@ export default function PromotionDetail() {
 
       {/* Onglets */}
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-4">
           <TabsTrigger value="general">
             <User className="mr-2 h-4 w-4" />
             Informations
@@ -448,7 +448,7 @@ export default function PromotionDetail() {
                   )}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+              <div className="grid grid-cols-1 gap-4 border-t pt-4 sm:grid-cols-2">
                 <div>
                   <p className="text-sm text-muted-foreground">Type</p>
                   <PromotionBadge type={promotion.promotion_type} variant="type" />

@@ -870,7 +870,7 @@ export default function Planning() {
               <Button type="button" variant="outline" size="icon" onClick={goNextWeek}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
-              <span className="min-w-[200px] text-sm font-medium capitalize">
+              <span className="min-w-0 truncate text-sm font-medium capitalize">
                 {weekRangeLabel}
               </span>
             </>
@@ -882,7 +882,7 @@ export default function Planning() {
               <Button type="button" variant="outline" size="icon" onClick={goNextMonth}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
-              <span className="min-w-[200px] text-sm font-medium capitalize">
+              <span className="min-w-0 truncate text-sm font-medium capitalize">
                 {monthNavLabel}
               </span>
             </>
@@ -983,7 +983,7 @@ export default function Planning() {
               {apiErrorMessage(monthShiftsQuery.error)}
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-md border">
+            <div className="w-full overflow-x-auto rounded-md border">
               <div className="w-full min-w-[720px] text-sm">
                 <div className="grid grid-cols-7 border-b bg-muted/40">
                   {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((d, i) => (
@@ -1100,7 +1100,7 @@ export default function Planning() {
                   Aucune astreinte sur ce mois.
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-md border">
+                <div className="w-full overflow-x-auto rounded-md border">
                   <table className="w-full min-w-[720px] border-collapse text-sm">
                     <thead>
                       <tr className="border-b bg-muted/40">
@@ -1191,7 +1191,7 @@ export default function Planning() {
                   Aucun remplacement ce mois-ci.
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-md border">
+                <div className="w-full overflow-x-auto rounded-md border">
                   <table className="w-full min-w-[880px] border-collapse text-sm">
                     <thead>
                       <tr className="border-b bg-muted/40">
@@ -1293,7 +1293,7 @@ export default function Planning() {
                 onChange={(e) => setOnCallDate(e.target.value)}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="oncall-start">Heure début</Label>
                 <Input
@@ -1396,7 +1396,7 @@ export default function Planning() {
                 onChange={(e) => setRepDate(e.target.value)}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="rep-start">Heure début</Label>
                 <Input

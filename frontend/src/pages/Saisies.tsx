@@ -22,7 +22,7 @@ export default function Saisies() {
 
       {/* Onglets principaux */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2">
           <TabsTrigger value="primes" className="flex items-center gap-2">
             <Gift className="h-4 w-4" />
             Primes

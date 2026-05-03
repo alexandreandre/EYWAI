@@ -372,7 +372,7 @@ export default function CompanyDetails() {
       {/* Répartition par rôle */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">
         <h2 className="text-xl font-bold text-gray-900 mb-4">Répartition des utilisateurs par rôle</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           {Object.entries(company.stats.users_by_role).map(([role, count]) => (
             <div
               key={role}
@@ -423,7 +423,7 @@ export default function CompanyDetails() {
                       </p>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <p className="text-sm font-medium text-gray-500">IDCC</p>
                         <p className="text-sm font-semibold text-gray-900">
@@ -508,7 +508,7 @@ export default function CompanyDetails() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="w-full overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>

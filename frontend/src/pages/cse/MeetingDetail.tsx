@@ -234,7 +234,7 @@ export default function MeetingDetail() {
           <CardDescription>Date, lieu, participants</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
-          <dl className="grid gap-2 sm:grid-cols-2">
+          <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div>
               <dt className="text-muted-foreground">Date</dt>
               <dd className="font-medium">{formatDate(meeting.meeting_date)}</dd>

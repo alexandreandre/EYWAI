@@ -951,7 +951,7 @@ function FormationTrainingPanel({ employeeId }: { employeeId: string }) {
             Vous avez suivi toutes les formations disponibles.
           </p>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {catalogTrainings.map((t: TrainingCatalog) => {
               const blockingEnrollment = blockingEnrollmentByTrainingId.get(t.id);
               return (
@@ -1033,7 +1033,7 @@ function FormationLegalPanel({ employeeId }: { employeeId: string }) {
   const s = q.data;
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-2">
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Entretien professionnel (2 ans)</CardTitle>

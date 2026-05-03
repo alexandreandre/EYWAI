@@ -231,7 +231,7 @@ const UserProfile: React.FC = () => {
 
       {/* Onglets */}
       <Tabs defaultValue="identity" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-3">
           <TabsTrigger value="identity" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             Identité
@@ -253,7 +253,7 @@ const UserProfile: React.FC = () => {
               <CardDescription>Données d'identité et de contact</CardDescription>
             </CardHeader>
             <CardContent>
-              <dl className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 md:grid-cols-2">
                 <div>
                   <dt className="text-muted-foreground">Prénom</dt>
                   <dd className="font-medium">{userDetail.first_name}</dd>
@@ -355,7 +355,7 @@ const UserProfile: React.FC = () => {
                       <Shield className="h-4 w-4 text-primary" />
                       Résumé ({permissions.total_permissions} permission(s))
                     </h4>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                       {Object.entries(permissions.permissions_by_category || {}).map(([category, count]) => (
                         <div
                           key={category}

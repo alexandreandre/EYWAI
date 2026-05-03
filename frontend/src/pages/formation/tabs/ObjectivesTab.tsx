@@ -516,7 +516,7 @@ export default function ObjectivesTab() {
 
       {showRhActions ? (
         <div className="flex flex-wrap gap-3 md:items-end">
-          <div className="grid gap-1.5 min-w-[160px]">
+          <div className="grid gap-1.5 min-w-0">
             <Label>Collaborateur</Label>
             <Select value={filterEmployee} onValueChange={setFilterEmployee}>
               <SelectTrigger>
@@ -532,7 +532,7 @@ export default function ObjectivesTab() {
               </SelectContent>
             </Select>
           </div>
-          <div className="grid gap-1.5 min-w-[160px]">
+          <div className="grid gap-1.5 min-w-0">
             <Label>Service</Label>
             <Select value={filterService} onValueChange={setFilterService}>
               <SelectTrigger>
@@ -548,7 +548,7 @@ export default function ObjectivesTab() {
               </SelectContent>
             </Select>
           </div>
-          <div className="grid gap-1.5 w-[100px]">
+          <div className="grid min-w-0 gap-1.5">
             <Label>Année</Label>
             <Input
               type="number"
@@ -556,7 +556,7 @@ export default function ObjectivesTab() {
               onChange={(e) => setFilterYear(Number(e.target.value) || defaultYear)}
             />
           </div>
-          <div className="grid gap-1.5 min-w-[140px]">
+          <div className="grid gap-1.5 min-w-0">
             <Label>Type</Label>
             <Select value={filterType} onValueChange={setFilterType}>
               <SelectTrigger>
@@ -569,7 +569,7 @@ export default function ObjectivesTab() {
               </SelectContent>
             </Select>
           </div>
-          <div className="grid gap-1.5 min-w-[160px]">
+          <div className="grid gap-1.5 min-w-0">
             <Label>Statut</Label>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
               <SelectTrigger>
@@ -605,7 +605,7 @@ export default function ObjectivesTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="sticky left-0 z-10 bg-background min-w-[160px]">Collaborateur</TableHead>
+                <TableHead className="sticky left-0 z-10 bg-background min-w-0">Collaborateur</TableHead>
                 {matrix.objIds.map((oid) => {
                   const o = matrix.rows.find((r) => r.id === oid);
                   return (
@@ -730,7 +730,7 @@ export default function ObjectivesTab() {
             <Loader2 className="my-8 h-8 w-8 animate-spin text-muted-foreground" />
           ) : detailQuery.data ? (
             <div className="space-y-4 py-4 text-sm">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <span className="text-muted-foreground">Statut</span>
                 <span>{statusBadge(String(detailQuery.data.status))}</span>
                 <span className="text-muted-foreground">Collaborateur</span>
