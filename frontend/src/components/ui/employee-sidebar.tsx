@@ -5,7 +5,9 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Home, User, Wallet, Calendar, LogOut, Plane, DollarSign, Notebook, Settings, Handshake, Stethoscope, LifeBuoy, GraduationCap, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 import { ChangePasswordModal } from "@/components/ChangePasswordModal";
+import { NotificationBell } from "@/components/NotificationBell";
 import { useQuery } from "@tanstack/react-query";
 import { getMyElectedStatus } from "@/api/cse";
 import { getMedicalSettings } from "@/api/medicalFollowUp";
@@ -43,6 +45,8 @@ const baseNavItems = [
 
 export function EmployeeSidebar() {
   const { logout, user } = useAuth();
+  const { activeCompany } = useCompany();
+  const companyId = activeCompany?.company_id ?? "";
   const navigate = useNavigate();
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
@@ -143,6 +147,7 @@ export function EmployeeSidebar() {
       </SidebarContent>
 
       <SidebarFooter className={collapsed ? "p-2" : "p-4"}>
+        {companyId ? <NotificationBell companyId={companyId} /> : null}
         {!collapsed && <Separator className="mb-4" />}
         <SidebarMenu className={collapsed ? "mb-2 flex flex-col items-center gap-1" : "mb-2"}>
           <SidebarMenuItem>

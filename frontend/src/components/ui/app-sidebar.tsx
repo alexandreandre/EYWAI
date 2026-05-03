@@ -641,7 +641,9 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className={collapsed ? "p-2" : "p-4"}>
-        <NotificationBell companyId={activeCompany?.company_id ?? ''} />
+        {activeCompany?.company_id ? (
+          <NotificationBell companyId={activeCompany.company_id} />
+        ) : null}
         {!collapsed && <Separator className="mb-4" />}
         <SidebarMenu className={collapsed ? "mb-2 flex flex-col items-center gap-1" : "mb-2"}>
           <SidebarMenuItem>

@@ -1,5 +1,6 @@
-// src/contexts/AuthContext.tsx 
+// src/contexts/AuthContext.tsx
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/api/apiClient';
 import { CompanyAccess } from "./CompanyContext"; // utile si besoin futur
 
@@ -53,6 +54,7 @@ function normalizeUser(u: any): User {
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   console.log("%c[AuthContext] 🟣 AuthProvider rendu", "color: purple");
 
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -143,6 +145,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (err) {
       console.error('%c[AuthContext] ⚠️ Erreur révocation, mais on continue', 'color: orange');
     }
+
+    queryClient.clear();
+    console.log('%c[AuthContext] ✔️ Cache React Query vidé', 'color: green');
 
     setUser(null);
     localStorage.removeItem("authToken");
