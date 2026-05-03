@@ -113,6 +113,7 @@ const ManagerObjectives = lazy(() => import('./pages/manager/ManagerObjectives')
 const ManagerCompetences = lazy(() => import('./pages/manager/ManagerCompetences'));
 const RhDocumentsPage = lazy(() => import('./pages/Documents'));
 const AugmentationsCollectivesPage = lazy(() => import('./pages/AugmentationsCollectives'));
+const MeetingDetailPage = lazy(() => import('./pages/cse/MeetingDetail'));
 
 const supportRouteFallback = (
   <div className="flex min-h-[50vh] w-full items-center justify-center">
@@ -170,6 +171,14 @@ function SuspenseAugmentationsCollectivesPage() {
   return (
     <Suspense fallback={formationRouteFallback}>
       <AugmentationsCollectivesPage />
+    </Suspense>
+  );
+}
+
+function SuspenseMeetingDetailPage() {
+  return (
+    <Suspense fallback={formationRouteFallback}>
+      <MeetingDetailPage />
     </Suspense>
   );
 }
@@ -276,6 +285,7 @@ function ProtectedRoutes() {
           <Route path="/employee/documents" element={<EmployeeCollaboratorDocumentsPage />} />
           <Route path="/documents" element={<Navigate to="/employee/documents" replace />} />
           <Route path="/medical-follow-up" element={<EmployeeMedicalFollowUp />} />
+          <Route path="/cse/meetings/:meetingId" element={<SuspenseMeetingDetailPage />} />
           <Route path="/cse" element={<EmployeeCSE />} />
           <Route
             path="/employee/onboarding"
@@ -369,6 +379,7 @@ function ProtectedRoutes() {
                   <Route path="/employee/documents" element={<EmployeeCollaboratorDocumentsPage />} />
                   <Route path="/documents" element={<Navigate to="/employee/documents" replace />} />
                   <Route path="/medical-follow-up" element={<EmployeeMedicalFollowUp />} />
+                  <Route path="/cse/meetings/:meetingId" element={<SuspenseMeetingDetailPage />} />
                   <Route path="/cse" element={<EmployeeCSE />} />
                   <Route
                     path="/employee/onboarding"
@@ -456,6 +467,7 @@ function ProtectedRoutes() {
                   <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
                   <Route path="/promotions" element={<Promotions />} />
                   <Route path="/promotions/:promotionId" element={<PromotionDetail />} />
+                  <Route path="/cse/meetings/:meetingId" element={<SuspenseMeetingDetailPage />} />
                   <Route path="/cse" element={<CSE />} />
                   <Route path="/recruitment" element={<Recruitment />} />
                   <Route

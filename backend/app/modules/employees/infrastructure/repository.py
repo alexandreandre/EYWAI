@@ -34,6 +34,98 @@ def _valeur_salaire_row(row: Dict[str, Any]) -> float:
     return 0.0
 
 
+def _cse_role_label(role: Optional[str]) -> Optional[str]:
+    """Libellé français du rôle CSE pour la fiche salarié."""
+    if not role:
+        return None
+    mapping = {
+        "titulaire": "Titulaire",
+        "suppleant": "Suppléant",
+        "secretaire": "Secrétaire",
+        "tresorier": "Trésorier",
+        "autre": "Autre",
+    }
+    return mapping.get(str(role).lower(), str(role))
+
+
+def _enrich_employee_row_with_cse(
+    row: Dict[str, Any], company_id: str
+) -> Dict[str, Any]:
+    """
+    Ajoute college_electoral, statut_cse, heures_delegation_mensuelles
+    si mandat CSE actif (cse_elected_members).
+    """
+    employee_id = row.get("id")
+    if not employee_id:
+        return row
+
+    out = dict(row)
+    out.setdefault("college_electoral", None)
+    out.setdefault("statut_cse", None)
+    out.setdefault("heures_delegation_mensuelles", None)
+
+    try:
+        mandate_res = (
+            supabase.table("cse_elected_members")
+            .select("role, college")
+            .eq("company_id", company_id)
+            .eq("employee_id", employee_id)
+            .eq("is_active", True)
+            .gte("end_date", date.today().isoformat())
+            .order("end_date", desc=True)
+            .limit(1)
+            .execute()
+        )
+    except Exception:
+        return out
+
+    members = mandate_res.data or []
+    if not members:
+        return out
+
+    member = members[0]
+    out["college_electoral"] = member.get("college")
+    out["statut_cse"] = _cse_role_label(member.get("role"))
+
+    collective_agreement_id = row.get("collective_agreement_id")
+    if not collective_agreement_id:
+        try:
+            company_cc = (
+                supabase.table("company_collective_agreements")
+                .select("collective_agreement_id")
+                .eq("company_id", company_id)
+                .limit(1)
+                .execute()
+            )
+            if company_cc.data:
+                collective_agreement_id = company_cc.data[0].get(
+                    "collective_agreement_id"
+                )
+        except Exception:
+            collective_agreement_id = None
+
+    if not collective_agreement_id:
+        return out
+
+    try:
+        quota_res = (
+            supabase.table("cse_delegation_quotas")
+            .select("quota_hours_per_month")
+            .eq("company_id", company_id)
+            .eq("collective_agreement_id", collective_agreement_id)
+            .limit(1)
+            .execute()
+        )
+        if quota_res.data:
+            qh = quota_res.data[0].get("quota_hours_per_month")
+            if qh is not None:
+                out["heures_delegation_mensuelles"] = float(qh)
+    except Exception:
+        pass
+
+    return out
+
+
 def _statut_collectif_ok(statut_brut: Any, filtre: Optional[str]) -> bool:
     """Cadre / Non-Cadre / aucun filtre (normalisation espaces/tirets)."""
     if not filtre:
@@ -77,7 +169,7 @@ class EmployeeRepository(IEmployeeRepository):
         )
         if not response.data:
             return None
-        return dict(response.data)
+        return _enrich_employee_row_with_cse(dict(response.data), company_id)
 
     def get_by_id_only(self, employee_id: str) -> Optional[Dict[str, Any]]:
         response = (

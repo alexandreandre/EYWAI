@@ -51,6 +51,7 @@ import {
   type ContractualFieldDiff,
 } from "@/utils/employeeContractualWatch";
 import { useCompany } from "@/contexts/CompanyContext";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   appliquerAugmentation,
   getSalaryHistory,
@@ -90,6 +91,9 @@ interface Employee {
   annual_review_current_planned_date?: string | null;
   annual_review_current_completed_date?: string | null;
   collective_agreement_id?: string | null;
+  college_electoral?: string | null;
+  statut_cse?: string | null;
+  heures_delegation_mensuelles?: number | null;
   salaire_de_base?: unknown;
   duree_hebdomadaire?: unknown;
   lieu_travail?: unknown;
@@ -699,6 +703,9 @@ export default function EmployeeDetail() {
 
   const { activeCompany } = useCompany();
   const activeCompanyId = activeCompany?.company_id ?? "";
+  const { user } = useAuth();
+  const showEmployeeCSEBlock =
+    user?.role === "rh" || user?.role === "admin" || user?.role === "collaborateur_rh";
 
   const [augSimType, setAugSimType] = useState<"pourcentage" | "montant_fixe">("pourcentage");
   const [augValeur, setAugValeur] = useState("");
@@ -1479,8 +1486,15 @@ export default function EmployeeDetail() {
         </CardContent>
       </Card>
 
-      {/* Bloc CSE - Affiché uniquement si l'employé est élu */}
-      {employeeId && <EmployeeCSEBlock employeeId={employeeId} />}
+      {/* Bloc CSE — réservé RH / admin / collaborateur_rh (masqué pour manager) */}
+      {employeeId && showEmployeeCSEBlock && (
+        <EmployeeCSEBlock
+          employeeId={employeeId}
+          collegeElectoral={employee?.college_electoral}
+          statutCse={employee?.statut_cse}
+          heuresDelegationMensuelles={employee?.heures_delegation_mensuelles}
+        />
+      )}
       
       <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="calendrier" className="w-full">
         <TabsList className={cn("grid w-full", medicalModuleEnabled ? "grid-cols-7" : "grid-cols-6")}>

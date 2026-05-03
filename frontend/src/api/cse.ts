@@ -1,6 +1,7 @@
 // frontend/src/api/cse.ts
 // API pour le module CSE & Dialogue Social
 
+import axios from "axios";
 import apiClient from "./apiClient";
 
 // ============================================================================
@@ -381,6 +382,28 @@ export async function createMeeting(data: MeetingCreate): Promise<Meeting> {
 export async function getMeetingById(meetingId: string): Promise<Meeting> {
   const response = await apiClient.get(`/api/cse/meetings/${meetingId}`);
   return response.data;
+}
+
+/** Détail réunion CSE (alias explicite pour les écrans détail). */
+export async function getMeetingDetail(meetingId: string): Promise<Meeting> {
+  return getMeetingById(meetingId);
+}
+
+/** Retourne le chemin du PDF de PV si présent ; null si 404 ou absent. */
+export async function getMeetingMinutesPathIfAvailable(
+  meetingId: string
+): Promise<string | null> {
+  try {
+    const response = await apiClient.get<{ pdf_path: string }>(
+      `/api/cse/meetings/${meetingId}/minutes`
+    );
+    return response.data?.pdf_path ?? null;
+  } catch (e: unknown) {
+    if (axios.isAxiosError(e) && e.response?.status === 404) {
+      return null;
+    }
+    throw e;
+  }
 }
 
 export async function updateMeeting(

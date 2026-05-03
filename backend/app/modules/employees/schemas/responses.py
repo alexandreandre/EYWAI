@@ -120,6 +120,10 @@ class FullEmployee(BaseModel):
     service_id: str | None = None
     # Convention collective (optionnel: si null, utilise celle de l'entreprise)
     collective_agreement_id: str | None = None
+    # CSE (enrichi depuis cse_elected_members / quotas — pas de colonnes employees)
+    college_electoral: str | None = None
+    statut_cse: str | None = None
+    heures_delegation_mensuelles: float | None = None
 
     @field_validator("email", mode="before")
     @classmethod

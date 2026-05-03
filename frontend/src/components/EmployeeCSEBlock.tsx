@@ -18,6 +18,10 @@ import { useCompany } from "@/contexts/CompanyContext";
 
 interface EmployeeCSEBlockProps {
   employeeId: string;
+  /** Champs enrichis depuis FullEmployee (backend) — affichés si présents. */
+  collegeElectoral?: string | null;
+  statutCse?: string | null;
+  heuresDelegationMensuelles?: number | null;
 }
 
 function formatDate(dateString: string): string {
@@ -32,7 +36,12 @@ function formatDate(dateString: string): string {
   }
 }
 
-export function EmployeeCSEBlock({ employeeId }: EmployeeCSEBlockProps) {
+export function EmployeeCSEBlock({
+  employeeId,
+  collegeElectoral,
+  statutCse,
+  heuresDelegationMensuelles,
+}: EmployeeCSEBlockProps) {
   const { activeCompany } = useCompany();
   const companyId = activeCompany?.company_id;
 
@@ -125,6 +134,33 @@ export function EmployeeCSEBlock({ employeeId }: EmployeeCSEBlockProps) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {(collegeElectoral != null && collegeElectoral !== "") ||
+        (statutCse != null && statutCse !== "") ||
+        heuresDelegationMensuelles != null ? (
+          <div className="rounded-md border bg-background/80 p-3 text-sm space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Données CSE (fiche)
+            </p>
+            {collegeElectoral ? (
+              <p>
+                <span className="text-muted-foreground">Collège électoral : </span>
+                <span className="font-medium">{collegeElectoral}</span>
+              </p>
+            ) : null}
+            {statutCse ? (
+              <p>
+                <span className="text-muted-foreground">Statut CSE : </span>
+                <span className="font-medium">{statutCse}</span>
+              </p>
+            ) : null}
+            {heuresDelegationMensuelles != null ? (
+              <p>
+                <span className="text-muted-foreground">Heures de délégation (mensuel) : </span>
+                <span className="font-medium">{heuresDelegationMensuelles} h</span>
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         {/* Mandat en cours */}
         <div>
           <p className="text-sm font-medium text-muted-foreground mb-1">Mandat en cours</p>
