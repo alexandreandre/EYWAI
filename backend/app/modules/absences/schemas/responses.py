@@ -33,6 +33,10 @@ class AbsenceRequest(BaseModel):
     arret_type: str | None = None
     certificate_status: Optional[Literal["generated", "not_required", "pending"]] = None
     certificate_id: str | None = None
+    manager_approved_at: datetime | None = None
+    manager_rejected_at: datetime | None = None
+    manager_rejection_reason: str | None = None
+    workflow_step: str | None = None
 
 
 class SimpleEmployee(BaseModel):
@@ -41,6 +45,12 @@ class SimpleEmployee(BaseModel):
     id: str
     first_name: str
     last_name: str
+
+
+class AbsencePendingManagerItem(AbsenceRequest):
+    """Demande en attente manager avec libellé salarié (join employees)."""
+
+    employee: SimpleEmployee
 
 
 class AbsenceBalance(BaseModel):

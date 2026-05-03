@@ -111,6 +111,7 @@ const ManagerAnnualReviews = lazy(() => import('./pages/manager/ManagerAnnualRev
 const ManagerFormations = lazy(() => import('./pages/manager/ManagerFormations'));
 const ManagerObjectives = lazy(() => import('./pages/manager/ManagerObjectives'));
 const ManagerCompetences = lazy(() => import('./pages/manager/ManagerCompetences'));
+const LeaveRequests = lazy(() => import('./pages/manager/LeaveRequests'));
 const RhDocumentsPage = lazy(() => import('./pages/Documents'));
 const AugmentationsCollectivesPage = lazy(() => import('./pages/AugmentationsCollectives'));
 const MeetingDetailPage = lazy(() => import('./pages/cse/MeetingDetail'));
@@ -277,6 +278,7 @@ function ProtectedRoutes() {
           <Route path="/objectives" element={<ObjectivesPage />} />
           <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
           <Route path="/absences" element={<EmployeeAbsencesPage />} />
+          <Route path="/employee/leaves/new" element={<Navigate to="/absences" replace />} />
           {/* TODO: vérifier garde d’auth / permissions module planning côté API si besoin */}
           <Route path="/employee/planning" element={<EmployeePlanning />} />
           <Route path="/calendar" element={<EmployeeCalendarPage />} />
@@ -371,6 +373,7 @@ function ProtectedRoutes() {
                   <Route path="/objectives" element={<ObjectivesPage />} />
                   <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
                   <Route path="/absences" element={<EmployeeAbsencesPage />} />
+                  <Route path="/employee/leaves/new" element={<Navigate to="/absences" replace />} />
                   {/* TODO: vérifier garde d’auth / permissions module planning côté API si besoin */}
                   <Route path="/employee/planning" element={<EmployeePlanning />} />
                   <Route path="/calendar" element={<EmployeeCalendarPage />} />
@@ -417,6 +420,7 @@ function ProtectedRoutes() {
                   <Route path="/payroll/:employeeId" element={<PayrollDetail />} />
                   <Route path="/payslips/:payslipId/edit" element={<PayslipEdit />} />
                   <Route path="/leaves" element={<RhAbsencesPage />} />
+                  <Route path="/employee/leaves/new" element={<Navigate to="/leaves" replace />} />
                   {/* TODO: vérifier garde d’auth / permissions module planning (route /planning) côté API si besoin */}
                   <Route path="/planning" element={<Planning />} />
                   <Route path="/expenses" element={<RhExpensesPage />} />
@@ -456,6 +460,14 @@ function ProtectedRoutes() {
                     element={
                       <Suspense fallback={formationRouteFallback}>
                         <ManagerCompetences />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/leave-requests"
+                    element={
+                      <Suspense fallback={formationRouteFallback}>
+                        <LeaveRequests />
                       </Suspense>
                     }
                   />

@@ -31,6 +31,10 @@ export interface AbsenceRequest {
   comment: string | null;
   status: 'pending' | 'validated' | 'rejected' | 'cancelled';
   manager_id: string | null;
+  manager_approved_at?: string | null;
+  manager_rejected_at?: string | null;
+  manager_rejection_reason?: string | null;
+  workflow_step?: string | null;
   attachment_url: string | null;
   filename: string | null;
   event_subtype?: string | null;
@@ -45,6 +49,16 @@ export interface AbsenceRequest {
 export interface AbsenceRequestWithEmployee extends AbsenceRequest {
   employee: SimpleEmployee;
   event_familial_cycles_consumed?: number | null;  // Visible RH : nb fois cet événement consommé entièrement
+}
+
+/** Ligne renvoyée par GET /api/absences/pending-manager-approval (ne pas confondre avec @/api/training). */
+export interface AbsencePendingManagerItem extends AbsenceRequest {
+  employee: Pick<SimpleEmployee, 'id' | 'first_name' | 'last_name'>;
+}
+
+export interface ManagerApprovalPayload {
+  approved: boolean;
+  rejection_reason?: string | null;
 }
 
 export interface AbsenceBalance {
@@ -90,6 +104,24 @@ export interface AbsencePageData {
 export const getAbsenceRequests = (status?: 'pending' | 'validated' | 'rejected') => {
   const params = status ? { status } : {};
   return apiClient.get<AbsenceRequestWithEmployee[]>('/api/absences', { params });
+};
+
+/**
+ * Demandes d'absence en attente de validation manager (entreprise active = session).
+ * @param companyId utilisé pour la clé React Query / cohérence multi-entreprise côté UI.
+ */
+export const getPendingManagerApproval = (companyId: string) => {
+  void companyId;
+  return apiClient.get<AbsencePendingManagerItem[]>('/api/absences/pending-manager-approval');
+};
+
+export const managerApproveAbsence = (
+  absenceId: string,
+  companyId: string,
+  data: ManagerApprovalPayload,
+) => {
+  void companyId;
+  return apiClient.post<AbsenceRequest>(`/api/absences/${absenceId}/manager-approve`, data);
 };
 
 /**
