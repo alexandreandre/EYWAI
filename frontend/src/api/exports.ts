@@ -154,3 +154,137 @@ export async function downloadExport(exportId: string): Promise<{ download_url: 
   return response.data;
 }
 
+/** Types alignés sur EXPORT_TYPES_GENERATE (backend) — exports planifiés */
+export const SCHEDULABLE_EXPORT_TYPES: ExportType[] = [
+  "journal_paie",
+  "virement_salaires",
+  "od_salaires",
+  "od_charges_sociales",
+  "od_pas",
+  "od_globale",
+  "export_cabinet_generique",
+  "export_cabinet_quadra",
+  "export_cabinet_sage",
+  "dsn_mensuelle",
+];
+
+export const SCHEDULED_EXPORT_TYPE_LABELS: Partial<Record<ExportType, string>> = {
+  journal_paie: "Journal de paie",
+  virement_salaires: "Paiement des salaires (virement)",
+  od_salaires: "Écritures OD — Salaires",
+  od_charges_sociales: "Écritures OD — Charges sociales",
+  od_pas: "Écritures OD — PAS",
+  od_globale: "Écritures OD — Globale",
+  export_cabinet_generique: "Export cabinet (générique)",
+  export_cabinet_quadra: "Export cabinet Quadra",
+  export_cabinet_sage: "Export cabinet Sage",
+  dsn_mensuelle: "DSN mensuelle",
+};
+
+export type ScheduledExportFrequency = "daily" | "weekly" | "monthly";
+
+export interface ScheduledExport {
+  id: string;
+  company_id: string;
+  name: string;
+  export_type: string;
+  export_type_label: string;
+  frequency: ScheduledExportFrequency;
+  frequency_label: string;
+  day_of_week: number | null;
+  day_of_month: number | null;
+  hour_utc: number;
+  recipients: string[];
+  is_active: boolean;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  created_at: string;
+}
+
+export interface ScheduledExportCreate {
+  name: string;
+  export_type: string;
+  frequency: ScheduledExportFrequency;
+  day_of_week?: number;
+  day_of_month?: number;
+  hour_utc?: number;
+  recipients?: string[];
+}
+
+export type ScheduledExportUpdate = Partial<
+  Pick<
+    ScheduledExportCreate,
+    "name" | "export_type" | "frequency" | "day_of_week" | "day_of_month" | "hour_utc" | "recipients"
+  >
+> & { is_active?: boolean };
+
+function scheduledHeaders(companyId?: string | null): Record<string, string> | undefined {
+  if (!companyId) return undefined;
+  return { "X-Active-Company": companyId };
+}
+
+export async function getScheduledExports(
+  companyId: string | null | undefined,
+): Promise<ScheduledExport[]> {
+  const { data } = await apiClient.get<ScheduledExport[]>("/api/exports/scheduled", {
+    headers: scheduledHeaders(companyId),
+  });
+  return data;
+}
+
+export async function createScheduledExport(
+  companyId: string | null | undefined,
+  body: ScheduledExportCreate,
+): Promise<ScheduledExport> {
+  const { data } = await apiClient.post<ScheduledExport>(
+    "/api/exports/scheduled",
+    body,
+    { headers: scheduledHeaders(companyId) },
+  );
+  return data;
+}
+
+export async function updateScheduledExport(
+  scheduleId: string,
+  companyId: string | null | undefined,
+  body: ScheduledExportUpdate,
+): Promise<ScheduledExport> {
+  const { data } = await apiClient.patch<ScheduledExport>(
+    `/api/exports/scheduled/${scheduleId}`,
+    body,
+    { headers: scheduledHeaders(companyId) },
+  );
+  return data;
+}
+
+export async function deleteScheduledExport(
+  scheduleId: string,
+  companyId: string | null | undefined,
+): Promise<void> {
+  await apiClient.delete(`/api/exports/scheduled/${scheduleId}`, {
+    headers: scheduledHeaders(companyId),
+  });
+}
+
+export async function runScheduledExportNow(
+  scheduleId: string,
+  companyId: string | null | undefined,
+): Promise<{ export_id: string; message: string }> {
+  const { data } = await apiClient.post<{ export_id: string; message: string }>(
+    `/api/exports/scheduled/${scheduleId}/run-now`,
+    {},
+    { headers: scheduledHeaders(companyId) },
+  );
+  return data;
+}
+
+export async function getScheduledExportHistory(
+  scheduleId: string,
+  companyId: string | null | undefined,
+): Promise<ExportHistoryResponse> {
+  const { data } = await apiClient.get<ExportHistoryResponse>(
+    `/api/exports/scheduled/${scheduleId}/history`,
+    { headers: scheduledHeaders(companyId) },
+  );
+  return data;
+}

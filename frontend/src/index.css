@@ -153,6 +153,7 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground antialiased;
+    max-width: 100vw;
   }
 
   /* HR App specific styles */

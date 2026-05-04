@@ -17,7 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -82,11 +82,10 @@ export function OnboardingHubPage() {
 
 export function EmployeeOnboardingRedirect() {
   const navigate = useNavigate();
-  const { toast } = useToast();
   const { activeCompany } = useCompany();
   const companyId = activeCompany?.company_id ?? "";
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isPending, isError, isSuccess } = useQuery({
     queryKey: ["onboarding", "me", companyId],
     queryFn: () => getMyOnboarding(companyId),
     enabled: Boolean(companyId),
@@ -94,30 +93,59 @@ export function EmployeeOnboardingRedirect() {
   });
 
   useEffect(() => {
-    if (data?.employee_id) {
+    if (isSuccess && data?.employee_id) {
       navigate(`/onboarding/${data.employee_id}`, { replace: true });
     }
-  }, [data, navigate]);
+  }, [isSuccess, data?.employee_id, navigate]);
 
-  useEffect(() => {
-    if (isError) {
-      toast({
-        title: "Onboarding indisponible",
-        description: "Aucune checklist pour votre profil ou accès refusé.",
-        variant: "destructive",
-      });
-      navigate("/", { replace: true });
-    }
-  }, [isError, navigate, toast]);
+  if (!companyId) {
+    return (
+      <div className="mx-auto max-w-lg p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Onboarding</CardTitle>
+            <CardDescription>Sélectionnez une entreprise pour continuer.</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
 
-  if (isLoading) {
+  if (isPending) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center p-8">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
-  return null;
+
+  if (isError || !data?.employee_id) {
+    return (
+      <div className="mx-auto max-w-lg p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Onboarding</CardTitle>
+            <CardDescription>Checklist personnelle</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Votre checklist d&apos;onboarding n&apos;est pas encore disponible.
+            </p>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/employee/formation">Retour à Ma formation</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 p-8 text-muted-foreground">
+      <Loader2 className="h-8 w-8 animate-spin" />
+      <p className="text-sm">Ouverture de votre checklist…</p>
+    </div>
+  );
 }
 
 export default function OnboardingPage() {

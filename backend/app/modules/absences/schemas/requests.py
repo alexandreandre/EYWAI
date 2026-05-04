@@ -73,3 +73,10 @@ class AbsenceRequestStatusUpdate(BaseModel):
     """Schéma pour la mise à jour du statut d'une demande."""
 
     status: AbsenceStatus
+
+
+class ManagerApprovalRequest(BaseModel):
+    """Validation ou refus par le manager (étape avant RH)."""
+
+    approved: bool
+    rejection_reason: str | None = None

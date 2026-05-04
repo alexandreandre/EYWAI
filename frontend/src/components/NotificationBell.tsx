@@ -1,6 +1,15 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bell, FileCheck, Loader2 } from 'lucide-react';
+import {
+  AlertCircle,
+  Bell,
+  CheckCircle,
+  Clock,
+  FileCheck,
+  Loader2,
+  Stethoscope,
+  XCircle,
+} from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -145,6 +154,16 @@ export function NotificationBell({ companyId, enabled = true }: NotificationBell
                     >
                       {n.type === 'avenant_signe' ? (
                         <FileCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+                      ) : n.type === 'rappel_medical' ? (
+                        <Stethoscope className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" aria-hidden />
+                      ) : n.type === 'absence_soumise' ? (
+                        <Clock className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" aria-hidden />
+                      ) : n.type === 'absence_approuvee' ? (
+                        <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+                      ) : n.type === 'absence_refusee' ? (
+                        <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" aria-hidden />
+                      ) : n.type === 'absence_a_valider' ? (
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" aria-hidden />
                       ) : (
                         <Bell className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                       )}

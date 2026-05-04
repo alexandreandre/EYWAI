@@ -736,7 +736,7 @@ const UserCreation: React.FC = () => {
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Rôle de base *
                         </label>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                           {/* Rôles de base (admin, rh, salarie) */}
                           {company.can_create_roles
                             .filter((role) => role !== 'custom')

@@ -514,7 +514,7 @@ export default function AugmentationsCollectives() {
                 onChange={(e) => setAncienneteMinMois(e.target.value)}
               />
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="smin">Salaire min (€)</Label>
                 <Input
@@ -599,7 +599,7 @@ export default function AugmentationsCollectives() {
         <div className="space-y-6">
           {simResult && (
             <>
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <Card>
                   <CardHeader className="pb-2">
                     <CardDescription>Salariés concernés</CardDescription>
@@ -646,7 +646,7 @@ export default function AugmentationsCollectives() {
                     Appliquer aux salariés sélectionnés
                   </Button>
                 </CardHeader>
-                <CardContent className="overflow-x-auto">
+                <CardContent className="w-full overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -735,7 +735,7 @@ export default function AugmentationsCollectives() {
               </p>
             )}
             {!avenantsQuery.isLoading && !avenantsQuery.isError && rowsAvenants.length > 0 && (
-              <div className="overflow-x-auto">
+              <div className="w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>

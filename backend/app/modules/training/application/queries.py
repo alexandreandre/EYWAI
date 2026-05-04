@@ -6,7 +6,11 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 from app.modules.training.infrastructure.repository import training_repository
-from app.modules.training.schemas.responses import TrainingCatalog, TrainingEnrollment
+from app.modules.training.schemas.responses import (
+    TrainingCatalog,
+    TrainingEnrollment,
+    TrainingEvaluationSummaryItem,
+)
 
 
 def _parse_date(val: Any) -> Optional[date]:
@@ -74,6 +78,7 @@ def training_enrollment_from_row(
     r.pop("_employee_name", None)
     r.pop("_training_title", None)
     r.pop("_unit_cost_ht", None)
+    mgr_display = r.pop("_manager_display_name", None)
     return TrainingEnrollment(
         id=str(r["id"]),
         company_id=str(r["company_id"]),
@@ -90,7 +95,26 @@ def training_enrollment_from_row(
         unit_cost_ht=float(ucost) if ucost is not None else None,
         suggest_certification_creation=suggest,
         suggested_certification_id=suggested_certification_id,
+        requested_by=str(r["requested_by"]) if r.get("requested_by") else None,
+        manager_id=str(r["manager_id"]) if r.get("manager_id") else None,
+        manager_approved_at=_parse_dt(r.get("manager_approved_at")),
+        manager_rejected_at=_parse_dt(r.get("manager_rejected_at")),
+        manager_rejection_reason=r.get("manager_rejection_reason"),
+        rh_approved_at=_parse_dt(r.get("rh_approved_at")),
+        rh_rejected_at=_parse_dt(r.get("rh_rejected_at")),
+        rh_rejection_reason=r.get("rh_rejection_reason"),
+        manager_display_name=mgr_display,
+        rating=int(r["rating"]) if r.get("rating") is not None else None,
+        evaluation_comment=r.get("evaluation_comment"),
+        evaluated_at=_parse_dt(r.get("evaluated_at")),
+        certificate_url=r.get("certificate_url"),
+        certificate_uploaded_at=_parse_dt(r.get("certificate_uploaded_at")),
     )
+
+
+def get_evaluations_summary(company_id: str) -> List[TrainingEvaluationSummaryItem]:
+    rows = training_repository.get_evaluations_summary(company_id)
+    return [TrainingEvaluationSummaryItem(**dict(x)) for x in rows]
 
 
 def get_trainings(company_id: str, include_archived: bool = False) -> List[TrainingCatalog]:

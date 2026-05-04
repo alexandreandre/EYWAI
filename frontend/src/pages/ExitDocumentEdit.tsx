@@ -245,7 +245,7 @@ export default function ExitDocumentEdit() {
 
       {/* Onglets */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2">
           <TabsTrigger value="edit">Édition</TabsTrigger>
           <TabsTrigger value="notes">Notes et résumé</TabsTrigger>
         </TabsList>

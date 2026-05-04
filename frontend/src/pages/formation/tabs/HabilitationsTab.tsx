@@ -458,7 +458,7 @@ export default function HabilitationsTab() {
 
           <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
             {isRh ? (
-              <div className="grid gap-2 min-w-[200px]">
+              <div className="grid gap-2 min-w-0">
                 <Label>Collaborateur</Label>
                 <Select value={filterEmployeeId} onValueChange={setFilterEmployeeId}>
                   <SelectTrigger>
@@ -475,7 +475,7 @@ export default function HabilitationsTab() {
                 </Select>
               </div>
             ) : null}
-            <div className="grid gap-2 min-w-[200px]">
+            <div className="grid gap-2 min-w-0">
               <Label>Statut</Label>
               <Select
                 value={filterStatus}

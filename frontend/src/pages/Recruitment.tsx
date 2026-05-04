@@ -181,7 +181,7 @@ function RecruitmentAnalyticsSection({
           <CardTitle className="text-lg">Filtres</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
-          <div className="space-y-2 min-w-[200px]">
+          <div className="min-w-0 space-y-2">
             <Label>Poste</Label>
             <Select value={formJobId} onValueChange={setFormJobId}>
               <SelectTrigger className="w-[260px]">
@@ -217,7 +217,7 @@ function RecruitmentAnalyticsSection({
               onChange={(e) => setFormDateTo(e.target.value)}
             />
           </div>
-          <div className="space-y-2 flex-1 min-w-[160px] max-w-xs">
+          <div className="min-w-0 max-w-xs flex-1 space-y-2">
             <Label htmlFor="an-budget">Budget recrutement (€)</Label>
             <Input
               id="an-budget"
@@ -235,14 +235,14 @@ function RecruitmentAnalyticsSection({
       </Card>
 
       {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
             <Skeleton key={i} className="h-28 rounded-lg" />
           ))}
         </div>
       ) : (
         <>
-          <div className={cn("grid gap-4 sm:grid-cols-2", showCostCard ? "lg:grid-cols-5" : "lg:grid-cols-4")}>
+          <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2", showCostCard ? "lg:grid-cols-5" : "lg:grid-cols-4")}>
             <Card>
               <CardHeader className="pb-1">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Total candidatures</CardTitle>
@@ -292,7 +292,7 @@ function RecruitmentAnalyticsSection({
             ) : null}
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-1">
+          <div className="grid grid-cols-1 gap-6">
             <Card>
               <CardHeader>
                 <CardTitle>Efficacité des sources</CardTitle>
@@ -407,28 +407,30 @@ function RecruitmentAnalyticsSection({
               {!d?.time_to_hire_by_job?.length ? (
                 <p className="text-sm text-muted-foreground py-8 text-center">Aucune embauche sur la période sélectionnée</p>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Poste</TableHead>
-                      <TableHead className="text-right">Embauches</TableHead>
-                      <TableHead className="text-right">Moy. jours</TableHead>
-                      <TableHead className="text-right">Min</TableHead>
-                      <TableHead className="text-right">Max</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {d.time_to_hire_by_job.map((row) => (
-                      <TableRow key={row.job_id}>
-                        <TableCell className="font-medium">{row.job_title || "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">{row.nb_hired}</TableCell>
-                        <TableCell className="text-right tabular-nums">{row.avg_days.toFixed(1)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{row.min_days.toFixed(1)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{row.max_days.toFixed(1)}</TableCell>
+                <div className="w-full overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Poste</TableHead>
+                        <TableHead className="text-right">Embauches</TableHead>
+                        <TableHead className="text-right">Moy. jours</TableHead>
+                        <TableHead className="text-right">Min</TableHead>
+                        <TableHead className="text-right">Max</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {d.time_to_hire_by_job.map((row) => (
+                        <TableRow key={row.job_id}>
+                          <TableCell className="font-medium">{row.job_title || "—"}</TableCell>
+                          <TableCell className="text-right tabular-nums">{row.nb_hired}</TableCell>
+                          <TableCell className="text-right tabular-nums">{row.avg_days.toFixed(1)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{row.min_days.toFixed(1)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{row.max_days.toFixed(1)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -447,7 +449,7 @@ function CandidateCard({ candidate, onClick }: { candidate: Candidate; onClick: 
     <div
       onClick={onClick}
       className={cn(
-        "relative bg-white border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow group",
+        "relative w-full bg-white border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow group",
         ai != null && "pb-7",
       )}
     >
@@ -495,6 +497,7 @@ function KanbanColumn({
   onRename,
   onDelete,
   stageDragHandleProps,
+  compact = false,
 }: {
   stage: PipelineStage;
   candidates: Candidate[];
@@ -505,6 +508,8 @@ function KanbanColumn({
   onDelete?: () => void;
   /** Poignée @dnd-kit (icône ⋮⋮ uniquement — évite le conflit avec le renommage) */
   stageDragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
+  /** Colonnes nombreuses : padding / espacement réduits */
+  compact?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(stage.name);
@@ -541,7 +546,7 @@ function KanbanColumn({
 
   return (
     <div
-      className={`flex flex-col min-w-[260px] max-w-[300px] overflow-hidden rounded-lg border transition-colors duration-150 ${dragOver ? "ring-2 ring-primary/40 border-primary/40" : ""} ${bgColor}`}
+      className={`flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col overflow-hidden rounded-lg border transition-colors duration-150 ${dragOver ? "ring-2 ring-primary/40 border-primary/40" : ""} ${bgColor}`}
       onDragOver={isRh ? (e) => {
         if (e.dataTransfer.types.includes("candidateid")) {
           e.preventDefault();
@@ -566,7 +571,7 @@ function KanbanColumn({
       } : undefined}
     >
       {/* Header — réordonnancement via la poignée ⋮⋮ (@dnd-kit) */}
-      <div className="px-3 py-2 border-b flex items-center gap-1.5">
+      <div className={cn("border-b flex items-center gap-1.5", compact ? "px-2 py-1.5" : "px-3 py-2")}>
         {isRh && stageDragHandleProps && (
           <button
             type="button"
@@ -619,12 +624,13 @@ function KanbanColumn({
 
       <ScrollArea
         className={cn(
-          "flex-1 p-2 max-h-[calc(100vh-320px)]",
+          "flex-1 max-h-[calc(100vh-320px)]",
+          compact ? "p-1" : "p-2",
           scrollViewportTint,
           "[&_[data-radix-scroll-area-viewport]]:rounded-b-lg",
         )}
       >
-        <div className="space-y-2">
+        <div className={compact ? "space-y-1.5" : "space-y-2"}>
           {candidates.map((c) => (
             <div
               key={c.id}
@@ -706,6 +712,7 @@ function SortableStageColumn({
   isRh,
   onRename,
   onDelete,
+  compact = false,
 }: {
   stage: PipelineStage;
   candidates: Candidate[];
@@ -714,6 +721,7 @@ function SortableStageColumn({
   isRh: boolean;
   onRename?: (name: string) => void;
   onDelete?: () => void;
+  compact?: boolean;
 }) {
   const {
     attributes,
@@ -735,7 +743,7 @@ function SortableStageColumn({
       id={`recruitment-pipeline-stage-${stage.id}`}
       ref={setNodeRef}
       style={style}
-      className={cn("shrink-0", isDragging && "opacity-95")}
+      className={cn("min-w-0 flex-1", isDragging && "opacity-95")}
     >
       <KanbanColumn
         stage={stage}
@@ -745,6 +753,7 @@ function SortableStageColumn({
         isRh={isRh}
         onRename={onRename}
         onDelete={onDelete}
+        compact={compact}
         stageDragHandleProps={{ ...listeners, ...attributes }}
       />
     </div>
@@ -767,6 +776,7 @@ function AddStageColumn({ onAdd }: { onAdd: (name: string) => void }) {
   };
 
   return (
+    <div className="flex w-10 shrink-0 flex-col self-stretch sm:w-12">
     <Popover
       open={open}
       onOpenChange={(o) => {
@@ -776,10 +786,11 @@ function AddStageColumn({ onAdd }: { onAdd: (name: string) => void }) {
     >
       <PopoverTrigger asChild>
         <button
-          className="flex flex-col items-center justify-center min-w-[48px] max-w-[48px] rounded-lg border-2 border-dashed border-muted-foreground/25 hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer min-h-[120px]"
+          type="button"
+          className="flex h-full min-h-[120px] w-full min-w-0 max-w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 px-1 hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer"
           title="Ajouter une étape"
         >
-          <Plus className="h-5 w-5 text-muted-foreground" />
+          <Plus className="h-5 w-5 shrink-0 text-muted-foreground" />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64 p-3">
@@ -799,6 +810,7 @@ function AddStageColumn({ onAdd }: { onAdd: (name: string) => void }) {
         </div>
       </PopoverContent>
     </Popover>
+    </div>
   );
 }
 
@@ -2223,6 +2235,11 @@ export default function Recruitment() {
   }, [sortedPipelineStages]);
   const pipelineStageIds = useMemo(() => movableStandardStages.map((s) => s.id), [movableStandardStages]);
 
+  /** Slots horizontaux : étapes standard + bloc terminal (empilé) + colonne « ajouter » (RH). */
+  const kanbanHorizontalSlots =
+    standardStages.length + (terminalStages.length > 0 ? 1 : 0) + (isRh ? 1 : 0);
+  const kanbanCompactLayout = kanbanHorizontalSlots > 5;
+
   const stageReorderSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -2446,9 +2463,9 @@ export default function Recruitment() {
           </CardContent>
         </Card>
       ) : loadingStages || loadingCandidates ? (
-        <div className="flex gap-4 overflow-x-auto rounded-lg bg-muted/30 p-2 pb-4">
+        <div className="flex w-full min-w-0 gap-2 rounded-lg bg-muted/30 p-2 pb-3">
           {[1, 2, 3, 4, 5].map((i) => (
-            <Skeleton key={i} className="h-80 min-w-[260px]" />
+            <Skeleton key={i} className="h-80 min-h-0 min-w-0 flex-1 basis-0" />
           ))}
         </div>
       ) : viewMode === "kanban" ? (
@@ -2459,8 +2476,8 @@ export default function Recruitment() {
           />
           <div
             className={cn(
-              "flex overflow-x-auto scroll-smooth rounded-lg bg-muted/30 p-2 pb-4 items-stretch",
-              isRh && "gap-2",
+              "flex w-full min-w-0 items-stretch rounded-lg bg-muted/30",
+              kanbanCompactLayout ? "gap-2 p-2 pb-3" : "gap-4 p-2 pb-4",
             )}
           >
           {isRh ? (
@@ -2480,6 +2497,7 @@ export default function Recruitment() {
                         onCardClick={handleCardClick}
                         onCandidateDrop={handleDrop}
                         isRh={isRh}
+                        compact={kanbanCompactLayout}
                         onRename={(name) => renameStageMutation.mutate({ stageId: stage.id, name })}
                         onDelete={stage.stage_type === "standard" ? () => setDeleteStageTarget(stage) : undefined}
                       />
@@ -2487,7 +2505,7 @@ export default function Recruitment() {
                       <div
                         key={stage.id}
                         id={`recruitment-pipeline-stage-${stage.id}`}
-                        className="shrink-0"
+                        className="min-w-0 flex-1"
                       >
                         <KanbanColumn
                           stage={stage}
@@ -2495,6 +2513,7 @@ export default function Recruitment() {
                           onCardClick={handleCardClick}
                           onCandidateDrop={handleDrop}
                           isRh={isRh}
+                          compact={kanbanCompactLayout}
                           onRename={(name) => renameStageMutation.mutate({ stageId: stage.id, name })}
                           onDelete={stage.stage_type === "standard" ? () => setDeleteStageTarget(stage) : undefined}
                         />
@@ -2504,15 +2523,21 @@ export default function Recruitment() {
                 </SortableContext>
               </DndContext>
               {terminalStages.length > 0 && (
-                <div className="shrink-0 ml-2 border-l pl-2 space-y-3">
+                <div
+                  className={cn(
+                    "flex min-h-0 min-w-0 flex-1 flex-col border-l border-border pl-2",
+                    kanbanCompactLayout ? "gap-2" : "gap-3",
+                  )}
+                >
                   {terminalStages.map((stage) => (
-                    <div key={stage.id} id={`recruitment-pipeline-stage-${stage.id}`}>
+                    <div key={stage.id} className="flex min-h-0 min-w-0 flex-1 flex-col" id={`recruitment-pipeline-stage-${stage.id}`}>
                       <KanbanColumn
                         stage={stage}
                         candidates={candidatesByStage[stage.id] || []}
                         onCardClick={handleCardClick}
                         onCandidateDrop={handleDrop}
                         isRh={isRh}
+                        compact={kanbanCompactLayout}
                       />
                     </div>
                   ))}
@@ -2522,11 +2547,11 @@ export default function Recruitment() {
             </>
           ) : (
             <>
-              {standardStages.map((stage, idx) => (
+              {standardStages.map((stage) => (
                 <div
                   key={stage.id}
                   id={`recruitment-pipeline-stage-${stage.id}`}
-                  className={cn("shrink-0", idx > 0 && "ml-3")}
+                  className="min-w-0 flex-1"
                 >
                   <KanbanColumn
                     stage={stage}
@@ -2534,19 +2559,26 @@ export default function Recruitment() {
                     onCardClick={handleCardClick}
                     onCandidateDrop={handleDrop}
                     isRh={isRh}
+                    compact={kanbanCompactLayout}
                   />
                 </div>
               ))}
               {terminalStages.length > 0 && (
-                <div className="shrink-0 ml-3 border-l pl-3 space-y-3">
+                <div
+                  className={cn(
+                    "flex min-h-0 min-w-0 flex-1 flex-col border-l border-border pl-2",
+                    kanbanCompactLayout ? "gap-2" : "gap-3",
+                  )}
+                >
                   {terminalStages.map((stage) => (
-                    <div key={stage.id} id={`recruitment-pipeline-stage-${stage.id}`}>
+                    <div key={stage.id} className="flex min-h-0 min-w-0 flex-1 flex-col" id={`recruitment-pipeline-stage-${stage.id}`}>
                       <KanbanColumn
                         stage={stage}
                         candidates={candidatesByStage[stage.id] || []}
                         onCardClick={handleCardClick}
                         onCandidateDrop={handleDrop}
                         isRh={isRh}
+                        compact={kanbanCompactLayout}
                       />
                     </div>
                   ))}
@@ -2559,19 +2591,20 @@ export default function Recruitment() {
       ) : (
         /* LIST VIEW */
         <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Candidat</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Téléphone</TableHead>
-                <TableHead>Source</TableHead>
-                <TableHead>Étape</TableHead>
-                <TableHead>Date</TableHead>
-                {isRh && <TableHead className="text-right">Actions</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <div className="w-full overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Candidat</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Téléphone</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Étape</TableHead>
+                  <TableHead>Date</TableHead>
+                  {isRh && <TableHead className="text-right">Actions</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
               {candidates.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={isRh ? 7 : 6} className="text-center py-8 text-muted-foreground">
@@ -2632,6 +2665,7 @@ export default function Recruitment() {
               )}
             </TableBody>
           </Table>
+          </div>
         </Card>
       )}
 
@@ -2692,7 +2726,7 @@ export default function Recruitment() {
               <Label>Description</Label>
               <Textarea value={newJob.description} onChange={(e) => setNewJob({ ...newJob, description: e.target.value })} placeholder="Description du poste..." />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>Localisation</Label>
                 <Input value={newJob.location} onChange={(e) => setNewJob({ ...newJob, location: e.target.value })} placeholder="Paris" />
@@ -2730,7 +2764,7 @@ export default function Recruitment() {
             <DialogTitle>Nouveau candidat</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>Prénom *</Label>
                 <Input value={newCandidate.first_name} onChange={(e) => setNewCandidate({ ...newCandidate, first_name: e.target.value })} />
@@ -2839,7 +2873,7 @@ export default function Recruitment() {
               <Label>Intitulé du poste</Label>
               <Input value={hireData.job_title} onChange={(e) => setHireData({ ...hireData, job_title: e.target.value })} placeholder={selectedJobData?.title} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>Type de contrat</Label>
                 <Select value={hireData.contract_type} onValueChange={(v) => setHireData({ ...hireData, contract_type: v })}>

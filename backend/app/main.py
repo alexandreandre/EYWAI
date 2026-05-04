@@ -17,7 +17,43 @@ from app.modules.teams.api.router import router as teams_router
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="API SIRH (modular)", version="0.1.0")
+app = FastAPI(
+    title="EYWAI SIRH API",
+    description="""
+## API REST EYWAI
+
+API complète pour l'intégration du SIRH EYWAI
+dans votre Système d'Information.
+
+### Authentification
+Toutes les routes nécessitent un token JWT Bearer :
+`Authorization: Bearer {token}`
+
+### Multi-entreprises
+Spécifier l'entreprise active :
+`X-Active-Company: {company_id}`
+
+### Connecteurs BI
+Pour Power BI, Tableau et Metabase :
+- Endpoint analytics : `GET /api/dashboard/analytics`
+- Endpoint exports : `POST /api/exports/generate`
+- Données temps réel : `GET /api/dashboard/all`
+
+### Webhooks
+Abonnez-vous aux événements métier via
+`POST /api/webhooks`
+
+Événements disponibles :
+- employee.hired, employee.left, employee.salary_updated
+- payslip.validated, absence.approved
+- document.signed, recruitment.hired
+    """,
+    version="1.0.0",
+    contact={
+        "name": "EYWAI Support",
+        "email": "support@eywai.fr",
+    },
+)
 
 ALLOWED_ORIGINS = [
     "http://localhost:8080",

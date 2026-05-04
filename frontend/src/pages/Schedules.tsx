@@ -767,7 +767,7 @@ export default function Schedules() {
         </Card>
 
         {/* Grille des mois */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 12 }, (_, i) => renderMonth(i))}
         </div>
       </div>
@@ -1054,7 +1054,7 @@ export default function Schedules() {
         />
 
         <ScrollArea className="h-[calc(100vh-300px)]">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
             {filteredEmployees.map((employee) => {
               const stats = calendarStats[employee.id] || { heuresPrevues: 0, heuresFaites: 0 };
               return (
@@ -1106,20 +1106,20 @@ export default function Schedules() {
       <h1 className="text-3xl font-bold text-foreground">Gestion des calendriers</h1>
 
       <Tabs defaultValue="gestion" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2">
           <TabsTrigger value="gestion">Gestion des Calendriers</TabsTrigger>
           <TabsTrigger value="calendriers">Calendriers</TabsTrigger>
         </TabsList>
 
         <TabsContent value="gestion" className="mt-6">
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
         {/* === PANNEAU 1 : CIBLE === */}
         <Card className="glass-card border-0 shadow-soft">
           <CardHeader>
             <CardTitle className="text-blue-600">Cible (Qui & Quand)</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <Label>Mois</Label>
                 <Select
@@ -1228,7 +1228,7 @@ export default function Schedules() {
               </span>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="w-full overflow-x-auto">
               <Tabs
                 value={String(activeWeekTab)}
                 onValueChange={(v) => setActiveWeekTab(Number(v) as WeekNumber)}
@@ -1266,7 +1266,7 @@ export default function Schedules() {
                 const disabled = useForAllWeeks && activeWeekTab !== 1;
 
                 return (
-                  <div key={day} className="grid grid-cols-3 gap-3 items-center">
+                  <div key={day} className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:items-center">
                     <Label>{label}</Label>
                     <Select
                       value={conf.type}

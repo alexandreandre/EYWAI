@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import traceback
+from datetime import date as date_cls
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
@@ -18,6 +20,7 @@ from app.modules.planning.schemas.requests import (
     WeekLockRequest,
     WeekPublishRequest,
 )
+from app.modules.planning.schemas.responses import ShiftResponse, ShiftResponseRH
 from app.modules.users.schemas.responses import User
 
 router = APIRouter(prefix="/api/planning", tags=["Planning"])
@@ -57,6 +60,125 @@ async def get_week_planning(
     _require_rh(current_user, company_id)
     try:
         return app_queries.get_week_planning(company_id, week_start, is_rh=True)
+    except (ValueError, LookupError, PermissionError, RuntimeError) as e:
+        _handle_application_errors(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/month", response_model=List[ShiftResponseRH])
+async def get_month_planning(
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    current_user: User = Depends(get_current_user),
+):
+    """Tous les shifts du mois (entreprise active) — RH uniquement."""
+    company_id = _require_active_company(current_user)
+    _require_rh(current_user, company_id)
+    try:
+        return app_queries.list_company_shifts_month_rh(company_id, year, month)
+    except (ValueError, LookupError, PermissionError, RuntimeError) as e:
+        _handle_application_errors(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/on-call", response_model=List[ShiftResponseRH])
+async def get_on_call_schedule(
+    year: Optional[int] = Query(None, ge=2000, le=2100),
+    month: Optional[int] = Query(None, ge=1, le=12),
+    current_user: User = Depends(get_current_user),
+):
+    """Astreintes du mois (transverse_category astreinte ou on_call) — RH uniquement."""
+    company_id = _require_active_company(current_user)
+    _require_rh(current_user, company_id)
+    today = date_cls.today()
+    y = year if year is not None else today.year
+    m = month if month is not None else today.month
+    try:
+        return app_queries.list_company_on_call_month_rh(company_id, y, m)
+    except (ValueError, LookupError, PermissionError, RuntimeError) as e:
+        _handle_application_errors(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/on-call", status_code=201)
+async def create_on_call_shift(
+    data: ShiftCreate,
+    current_user: User = Depends(get_current_user),
+):
+    """Crée une astreinte (transverse_category = astreinte)."""
+    company_id = _require_active_company(current_user)
+    _require_rh(current_user, company_id)
+    if data.shift_type_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Pour une astreinte, ne pas fournir shift_type_id.",
+        )
+    forced = data.model_copy(
+        update={"shift_type_id": None, "transverse_category": "astreinte"}
+    )
+    try:
+        return commands.create_shift(forced, company_id, str(current_user.id))
+    except (ValueError, LookupError, PermissionError, RuntimeError) as e:
+        _handle_application_errors(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/replacements", response_model=List[ShiftResponseRH])
+async def list_replacements(
+    year: Optional[int] = Query(None, ge=2000, le=2100),
+    month: Optional[int] = Query(None, ge=1, le=12),
+    current_user: User = Depends(get_current_user),
+):
+    """Shifts de remplacement du mois — RH uniquement."""
+    company_id = _require_active_company(current_user)
+    _require_rh(current_user, company_id)
+    today = date_cls.today()
+    y = year if year is not None else today.year
+    m = month if month is not None else today.month
+    try:
+        return app_queries.list_company_replacements_month_rh(company_id, y, m)
+    except (ValueError, LookupError, PermissionError, RuntimeError) as e:
+        _handle_application_errors(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/replacements", status_code=201, response_model=ShiftResponseRH)
+async def create_replacement_shift(
+    data: ShiftCreate,
+    current_user: User = Depends(get_current_user),
+):
+    """Crée un shift de remplacement (RH)."""
+    company_id = _require_active_company(current_user)
+    _require_rh(current_user, company_id)
+    if not data.is_replacement:
+        raise HTTPException(
+            status_code=400, detail="is_replacement doit être true pour cet endpoint."
+        )
+    if not data.original_employee_id:
+        raise HTTPException(status_code=400, detail="original_employee_id requis.")
+    if not data.shift_type_id or data.transverse_category:
+        raise HTTPException(
+            status_code=400,
+            detail="Un remplacement requiert shift_type_id (sans transverse_category).",
+        )
+    forced = data.model_copy(
+        update={
+            "is_replacement": True,
+            "replacing_employee_id": data.replacing_employee_id or data.employee_id,
+        }
+    )
+    try:
+        return commands.create_shift(forced, company_id, str(current_user.id))
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
@@ -284,6 +406,27 @@ async def patch_settings_endpoint(
     _require_rh(current_user, company_id)
     try:
         return commands.update_company_settings(data, company_id)
+    except (ValueError, LookupError, PermissionError, RuntimeError) as e:
+        _handle_application_errors(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/me/month", response_model=List[ShiftResponse])
+async def get_my_planning_month(
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    current_user: User = Depends(get_current_user),
+):
+    """Shifts du mois pour le salarié connecté (semaines non brouillon)."""
+    company_id = _require_active_company(current_user)
+    try:
+        return app_queries.list_my_shifts_month(
+            str(current_user.id), company_id, year, month
+        )
+    except HTTPException:
+        raise
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:

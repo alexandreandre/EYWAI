@@ -283,7 +283,7 @@ export default function ReductionFillon() {
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
         <h2 className="text-xl font-bold text-gray-800 mb-4">📋 Paramètres du calcul</h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3">
           {/* Sélection employé */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -345,7 +345,7 @@ export default function ReductionFillon() {
         {selectedEmployee && (
           <div className="mt-4 p-4 bg-blue-50 rounded-lg">
             <h3 className="font-semibold text-blue-800 mb-2">Employé sélectionné</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-sm">
               <div><span className="text-gray-600">Poste:</span> {selectedEmployee.job_title || 'N/A'}</div>
               <div><span className="text-gray-600">Statut:</span> {selectedEmployee.statut}</div>
               <div><span className="text-gray-600">Salaire base:</span> {formatCurrency(selectedEmployee.salaire_base)}</div>
@@ -381,7 +381,7 @@ export default function ReductionFillon() {
             <h2 className="text-2xl font-bold text-gray-800 mb-4">
               {result.calcul_detail.eligible ? '✅ Éligible à la réduction' : '❌ Non éligible à la réduction'}
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
               <div className="bg-white p-4 rounded-lg shadow">
                 <p className="text-sm text-gray-600 mb-1">Coefficient C</p>
                 <p className="text-3xl font-bold text-blue-600">
@@ -405,7 +405,7 @@ export default function ReductionFillon() {
             {/* Récapitulatif des valeurs clés */}
             <div className="mt-4 p-4 bg-white rounded-lg border border-gray-300">
               <h3 className="font-semibold text-gray-800 mb-3 text-sm">📋 Récapitulatif des valeurs clés</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                 <div>
                   <span className="text-gray-600 block">Paramètre T:</span>
                   <span className="font-semibold">{formatPercent(result.calcul_detail.parametre_T)}</span>
@@ -445,7 +445,7 @@ export default function ReductionFillon() {
           {/* Données de l'employé */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-lg font-bold text-gray-800 mb-4">👤 Données de l'employé</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div className="p-3 bg-gray-50 rounded">
                 <span className="text-gray-500 block">Nom</span>
                 <span className="font-semibold">{result.employee_data.name}</span>
@@ -527,7 +527,7 @@ export default function ReductionFillon() {
                       {result.schedule_data.detail_jours_reel && result.schedule_data.detail_jours_reel.length > 0 && (
                         <div>
                           <h4 className="font-semibold text-gray-700 mb-2 text-sm">Heures réelles ({result.schedule_data.detail_jours_reel.length} jours)</h4>
-                          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 max-h-60 overflow-y-auto text-xs">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 max-h-60 overflow-y-auto text-xs">
                             {result.schedule_data.detail_jours_reel.map((jour, idx) => (
                               <div key={idx} className="p-2 bg-white rounded border border-gray-200">
                                 <div className="font-semibold text-gray-800">Jour {jour.date}</div>
@@ -541,7 +541,7 @@ export default function ReductionFillon() {
                       {result.schedule_data.detail_jours_prevu && result.schedule_data.detail_jours_prevu.length > 0 && (
                         <div>
                           <h4 className="font-semibold text-gray-700 mb-2 text-sm">Heures prévues ({result.schedule_data.detail_jours_prevu.length} jours)</h4>
-                          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 max-h-60 overflow-y-auto text-xs">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 max-h-60 overflow-y-auto text-xs">
                             {result.schedule_data.detail_jours_prevu.map((jour, idx) => (
                               <div key={idx} className="p-2 bg-white rounded border border-gray-200">
                                 <div className="font-semibold text-gray-800">Jour {jour.date}</div>
@@ -642,7 +642,7 @@ export default function ReductionFillon() {
           {/* Cumuls précédents */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-lg font-bold text-gray-800 mb-4">📊 Cumuls du mois précédent</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
               <div className="p-4 bg-gray-50 rounded-lg">
                 <span className="text-gray-500 block text-sm">Brut cumulé</span>
                 <span className="text-2xl font-bold text-gray-800">{formatCurrency(result.cumuls_precedents.brut_total)}</span>
@@ -668,7 +668,7 @@ export default function ReductionFillon() {
               
               {result.composition_brut && (
                 <>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-4">
                     <div className="p-3 bg-indigo-50 rounded border border-indigo-200">
                       <span className="text-gray-600 block text-xs mb-1">Salaire de base mensuel</span>
                       <span className="font-bold text-lg">{formatCurrency(result.composition_brut.salaire_base_mensuel)}</span>
@@ -714,7 +714,7 @@ export default function ReductionFillon() {
                   {/* Détail des heures */}
                   {result.schedule_data.source_heures_utilisees && (
                     <div className="mt-4 p-3 bg-blue-50 rounded border border-blue-200">
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                         <div>
                           <span className="text-gray-600 block">Source utilisée:</span>
                           <span className="font-semibold capitalize">{result.schedule_data.source_heures_utilisees.replace(/_/g, ' ')}</span>
@@ -743,7 +743,7 @@ export default function ReductionFillon() {
                           <summary className="cursor-pointer text-sm font-medium text-blue-700 hover:text-blue-800">
                             Voir le détail jour par jour des heures réelles ({result.schedule_data.detail_jours_reel.length} jours)
                           </summary>
-                          <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs max-h-40 overflow-y-auto">
+                          <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-xs max-h-40 overflow-y-auto">
                             {result.schedule_data.detail_jours_reel.map((jour, idx) => (
                               <div key={idx} className="p-2 bg-white rounded border">
                                 <div className="font-semibold">Jour {jour.date}</div>
@@ -858,7 +858,7 @@ export default function ReductionFillon() {
                   <span className="font-bold text-indigo-700 text-2xl">{formatPercent(result.calcul_detail.parametre_T)}</span>
                 </div>
                 {result.calcul_detail.calcul_T_detail && (
-                  <div className="grid grid-cols-3 gap-4 mt-3 text-xs text-gray-600">
+                  <div className="mt-3 grid grid-cols-1 gap-4 text-xs text-gray-600 sm:grid-cols-3">
                     <div>
                       <span className="block">Nombre de taux:</span>
                       <span className="font-semibold">{result.calcul_detail.calcul_T_detail.nombre_taux}</span>
@@ -883,7 +883,7 @@ export default function ReductionFillon() {
               {result.calcul_detail.calcul_smic && (
                 <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <h5 className="font-semibold text-blue-800 mb-3">4.1 - Calcul du SMIC de référence cumulé</h5>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                  <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 md:grid-cols-3">
                     <div className="p-3 bg-white rounded border border-blue-100">
                       <span className="text-gray-600 block text-xs mb-1">SMIC horaire (2025)</span>
                       <span className="font-bold text-lg">{formatCurrency(result.calcul_detail.calcul_smic.smic_horaire)}/h</span>
@@ -906,7 +906,7 @@ export default function ReductionFillon() {
               {result.calcul_detail.calcul_seuil && (
                 <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
                   <h5 className="font-semibold text-purple-800 mb-3">4.2 - Calcul du seuil d'éligibilité (1.6 × SMIC)</h5>
-                  <div className="grid grid-cols-2 md:grid-cols-2 gap-3 text-sm">
+                  <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                     <div className="p-3 bg-white rounded border border-purple-100">
                       <span className="text-gray-600 block text-xs mb-1">SMIC référence cumulé</span>
                       <span className="font-bold text-lg">{formatCurrency(result.calcul_detail.calcul_seuil.smic_reference)}</span>
@@ -993,7 +993,7 @@ export default function ReductionFillon() {
                         {result.calcul_detail.calcul_coefficient_C_detail.etape_1 && (
                           <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
                             <div className="font-semibold text-blue-800 mb-2">Étape 5.1 - Calcul de (T / 0.6)</div>
-                            <div className="grid grid-cols-3 gap-3 text-sm">
+                            <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
                               <div className="text-gray-600">Calcul:</div>
                               <div className="font-mono text-blue-700">{result.calcul_detail.calcul_coefficient_C_detail.etape_1.calcul}</div>
                               <div className="font-bold text-blue-700 text-lg">{result.calcul_detail.calcul_coefficient_C_detail.etape_1.resultat.toFixed(6)}</div>
@@ -1007,7 +1007,7 @@ export default function ReductionFillon() {
                         {result.calcul_detail.calcul_coefficient_C_detail.etape_2 && (
                           <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
                             <div className="font-semibold text-blue-800 mb-2">Étape 5.2 - Calcul du ratio (1.6 × SMIC / Brut)</div>
-                            <div className="grid grid-cols-3 gap-3 text-sm">
+                            <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
                               <div className="text-gray-600">Calcul:</div>
                               <div className="font-mono text-blue-700">{result.calcul_detail.calcul_coefficient_C_detail.etape_2.calcul}</div>
                               <div className="font-bold text-blue-700 text-lg">{result.calcul_detail.calcul_coefficient_C_detail.etape_2.resultat.toFixed(6)}</div>
@@ -1021,7 +1021,7 @@ export default function ReductionFillon() {
                         {result.calcul_detail.calcul_coefficient_C_detail.etape_3 && (
                           <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
                             <div className="font-semibold text-blue-800 mb-2">Étape 5.3 - Soustraction de 1</div>
-                            <div className="grid grid-cols-3 gap-3 text-sm">
+                            <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
                               <div className="text-gray-600">Calcul:</div>
                               <div className="font-mono text-blue-700">{result.calcul_detail.calcul_coefficient_C_detail.etape_3.calcul}</div>
                               <div className="font-bold text-blue-700 text-lg">{result.calcul_detail.calcul_coefficient_C_detail.etape_3.resultat.toFixed(6)}</div>
@@ -1035,7 +1035,7 @@ export default function ReductionFillon() {
                         {result.calcul_detail.calcul_coefficient_C_detail.etape_4 && (
                           <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-200">
                             <div className="font-semibold text-indigo-800 mb-2">Étape 5.4 - Produit final (avant bornage)</div>
-                            <div className="grid grid-cols-3 gap-3 text-sm">
+                            <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
                               <div className="text-gray-600">Calcul:</div>
                               <div className="font-mono text-indigo-700">{result.calcul_detail.calcul_coefficient_C_detail.etape_4.calcul}</div>
                               <div className="font-bold text-indigo-700 text-lg">{result.calcul_detail.calcul_coefficient_C_detail.etape_4.resultat.toFixed(6)}</div>
@@ -1053,7 +1053,7 @@ export default function ReductionFillon() {
                       {result.calcul_detail.calcul_coefficient_C_detail.bornage && (
                         <div className="p-4 bg-yellow-50 rounded-lg border-2 border-yellow-300 mb-4">
                           <div className="font-semibold text-yellow-800 mb-3">5.5 - Bornage du coefficient C</div>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-3">
                             <div className="p-2 bg-white rounded border">
                               <span className="text-gray-600 block text-xs">Avant bornage</span>
                               <span className="font-bold">{result.calcul_detail.calcul_coefficient_C_detail.bornage.avant_bornage.toFixed(6)}</span>

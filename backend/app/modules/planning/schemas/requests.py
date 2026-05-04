@@ -19,6 +19,10 @@ class ShiftCreate(BaseModel):
     location: Optional[str] = None
     comment_internal: Optional[str] = None
     comment_employee: Optional[str] = None
+    is_replacement: bool = False
+    replacing_employee_id: Optional[str] = None
+    replacement_reason: Optional[str] = None
+    original_employee_id: Optional[str] = None
 
     @model_validator(mode="after")
     def validate_category(self) -> ShiftCreate:
@@ -26,8 +30,19 @@ class ShiftCreate(BaseModel):
             raise ValueError("shift_type_id ou transverse_category requis")
         if self.shift_type_id and self.transverse_category:
             raise ValueError("shift_type_id et transverse_category mutuellement exclusifs")
-        if self.end_time <= self.start_time:
+        # Astreinte / permanence : chevauchement minuit (ex. 18h → 8h) autorisé
+        overnight_ok = self.transverse_category in ("astreinte", "on_call")
+        if not overnight_ok and self.end_time <= self.start_time:
             raise ValueError("end_time doit être après start_time")
+        return self
+
+    @model_validator(mode="after")
+    def validate_replacement(self) -> ShiftCreate:
+        if self.is_replacement:
+            if not self.original_employee_id:
+                raise ValueError("original_employee_id requis pour un remplacement")
+            if str(self.original_employee_id) == str(self.employee_id):
+                raise ValueError("Le remplaçant doit être différent du salarié remplacé")
         return self
 
 

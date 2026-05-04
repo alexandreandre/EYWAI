@@ -28,6 +28,12 @@ export interface Shift {
   comment_employee?: string;
   is_locked: boolean;
   source: string;
+  is_replacement?: boolean;
+  replacing_employee_id?: string | null;
+  replacement_reason?: string | null;
+  original_employee_id?: string | null;
+  replacing_employee_name?: string | null;
+  original_employee_name?: string | null;
 }
 
 export interface EmployeeForPlanning {
@@ -76,6 +82,10 @@ export interface ShiftCreatePayload {
   location?: string;
   comment_internal?: string;
   comment_employee?: string;
+  is_replacement?: boolean;
+  replacing_employee_id?: string | null;
+  replacement_reason?: string | null;
+  original_employee_id?: string | null;
 }
 
 export interface ShiftUpdatePayload {
@@ -117,6 +127,82 @@ export async function getWeekPlanning(weekStart: string): Promise<WeekPlanning> 
   const { data } = await apiClient.get<WeekPlanning>('/api/planning/week', {
     params: { week_start: weekStart },
   });
+  return data;
+}
+
+/** Shifts du mois (entreprise) — RH. `companyId` sert surtout aux clés React Query. */
+export async function getMonthPlanning(
+  _companyId: string,
+  year: number,
+  month: number
+): Promise<Shift[]> {
+  const { data } = await apiClient.get<Shift[]>('/api/planning/month', {
+    params: { year, month },
+  });
+  return data ?? [];
+}
+
+/** Shifts du mois pour le salarié connecté. */
+export async function getMyMonthPlanning(
+  _companyId: string,
+  year: number,
+  month: number
+): Promise<Shift[]> {
+  const { data } = await apiClient.get<Shift[]>('/api/planning/me/month', {
+    params: { year, month },
+  });
+  return data ?? [];
+}
+
+/** Astreintes du mois (RH). Année / mois omis → mois courant côté API. */
+export async function getOnCallSchedule(
+  _companyId: string,
+  year?: number,
+  month?: number
+): Promise<Shift[]> {
+  const params: { year?: number; month?: number } = {};
+  if (year !== undefined) params.year = year;
+  if (month !== undefined) params.month = month;
+  const { data } = await apiClient.get<Shift[]>('/api/planning/on-call', {
+    params: Object.keys(params).length ? params : undefined,
+  });
+  return data ?? [];
+}
+
+export async function createOnCallShift(
+  _companyId: string,
+  payload: ShiftCreatePayload
+): Promise<ShiftWithWarnings> {
+  const { data } = await apiClient.post<ShiftWithWarnings>(
+    '/api/planning/on-call',
+    payload
+  );
+  return data;
+}
+
+/** Remplacements du mois (RH). */
+export async function getReplacements(
+  _companyId: string,
+  year?: number,
+  month?: number
+): Promise<Shift[]> {
+  const params: { year?: number; month?: number } = {};
+  if (year !== undefined) params.year = year;
+  if (month !== undefined) params.month = month;
+  const { data } = await apiClient.get<Shift[]>('/api/planning/replacements', {
+    params: Object.keys(params).length ? params : undefined,
+  });
+  return data ?? [];
+}
+
+export async function createReplacement(
+  _companyId: string,
+  payload: ShiftCreatePayload
+): Promise<ShiftWithWarnings> {
+  const { data } = await apiClient.post<ShiftWithWarnings>(
+    '/api/planning/replacements',
+    payload
+  );
   return data;
 }
 

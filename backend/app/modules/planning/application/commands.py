@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 from app.core.database import supabase
 
 from app.modules.planning.domain.conflict_engine import run_all_checks
+from app.modules.planning.application import queries as planning_app_queries
 from app.modules.planning.infrastructure import queries as infra_queries
 from app.modules.planning.infrastructure.repository import planning_repository
 from app.modules.planning.schemas.requests import (
@@ -23,6 +24,23 @@ from app.modules.planning.schemas.requests import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _ensure_employee_ids_in_company(employee_ids: List[str], company_id: str) -> None:
+    ids = [str(x) for x in employee_ids if x]
+    if not ids:
+        return
+    r = (
+        supabase.table("employees")
+        .select("id")
+        .eq("company_id", company_id)
+        .in_("id", ids)
+        .execute()
+    )
+    found = {str(x["id"]) for x in (r.data or []) if x.get("id")}
+    for eid in ids:
+        if eid not in found:
+            raise ValueError("Salarié inconnu ou hors entreprise active.")
 
 
 def _week_start_iso(week_start: str) -> str:
@@ -103,6 +121,9 @@ def create_shift(data: ShiftCreate, company_id: str, created_by: str) -> dict:
     3. Appelle planning_repository.create_shift(insert_data).
     """
     shift_date_iso = data.shift_date.isoformat()
+    if data.is_replacement:
+        oid = str(data.original_employee_id or "")
+        _ensure_employee_ids_in_company([data.employee_id, oid], company_id)
     absence_row = infra_queries.check_absence_on_date(
         data.employee_id, shift_date_iso
     )
@@ -153,6 +174,9 @@ def create_shift(data: ShiftCreate, company_id: str, created_by: str) -> dict:
         if r.has_blocking_conflict:
             raise ValueError(r.message)
 
+    rep_id = (
+        (data.replacing_employee_id or data.employee_id) if data.is_replacement else None
+    )
     insert_data: Dict[str, Any] = {
         "company_id": company_id,
         "employee_id": data.employee_id,
@@ -167,16 +191,26 @@ def create_shift(data: ShiftCreate, company_id: str, created_by: str) -> dict:
         "comment_employee": data.comment_employee,
         "source": "manual",
         "created_by": created_by,
+        "is_replacement": bool(data.is_replacement),
+        "replacing_employee_id": rep_id,
+        "original_employee_id": data.original_employee_id if data.is_replacement else None,
+        "replacement_reason": data.replacement_reason if data.is_replacement else None,
     }
     created = planning_repository.create_shift(insert_data)
+    joined = infra_queries.get_shift_by_id_joined(str(created.get("id") or ""))
+    out: Dict[str, Any] = (
+        planning_app_queries.shift_row_to_response_rh(joined)
+        if joined
+        else dict(created)
+    )
     warnings = [
         {"type": r.conflict_type, "message": r.message, "details": r.details}
         for r in results
         if r.is_warning_only
     ]
     if warnings:
-        created = {**created, "conflict_warnings": warnings}
-    return created
+        out = {**out, "conflict_warnings": warnings}
+    return out
 
 
 def update_shift(shift_id: str, data: ShiftUpdate, company_id: str) -> dict:

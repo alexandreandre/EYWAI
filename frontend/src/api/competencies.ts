@@ -54,6 +54,31 @@ export type CompetencyMatrix = {
   gap_trainings: { competency_id: string; training_id: string; training_title: string }[];
 };
 
+export type MobilityRecommendedPosition = {
+  poste: string;
+  compatibilite: number;
+  points_forts: string[];
+  competences_a_developper: string[];
+};
+
+export type MobilityRecommendedTraining = {
+  training_id?: string | null;
+  titre: string;
+  priorite: "Haute" | "Moyenne" | "Faible";
+  competence_ciblee: string;
+  impact_estime: string;
+};
+
+export type MobilityAnalysis = {
+  employee_id: string;
+  mobilite_score: number;
+  potentiel_evolution: string;
+  postes_recommandes: MobilityRecommendedPosition[];
+  formations_recommandees: MobilityRecommendedTraining[];
+  synthese: string;
+  analyzed_at: string;
+};
+
 export type CompetencyRefCreate = {
   name: string;
   category: CompetencyCategory;
@@ -147,4 +172,15 @@ export async function exportMatrixExcel(params?: {
   a.download = filename;
   a.click();
   window.URL.revokeObjectURL(url);
+}
+
+/** Analyse mobilité IA (RH). L’entreprise active est lue via l’intercepteur (X-Active-Company). */
+export async function analyzeMobility(
+  employeeId: string,
+  _companyId?: string,
+): Promise<MobilityAnalysis> {
+  const res = await apiClient.post<MobilityAnalysis>(
+    `/api/competencies/employees/${encodeURIComponent(employeeId)}/analyze-mobility`,
+  );
+  return res.data;
 }

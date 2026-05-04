@@ -89,3 +89,38 @@ class DashboardData(BaseModel):
     teamPulse: TeamPulse
     employees: List[SimpleEmployee]
     payrollStatus: PayrollStatus
+
+
+class TurnoverStats(BaseModel):
+    taux_turnover_annuel: float
+    nb_departs_12_mois: int
+    nb_embauches_12_mois: int
+    taux_embauches: float
+    taux_departs: float
+
+
+class PyramideAge(BaseModel):
+    tranche: str
+    count: int
+    pourcentage: float
+
+
+class AbsentéismeDetail(BaseModel):
+    taux_global: float
+    taux_maladie: float
+    taux_at: float
+    taux_autres: float
+    jours_perdus_total: int
+    jours_perdus_maladie: int
+    jours_perdus_at: int
+    jours_perdus_autres: int
+    evolution_vs_mois_precedent: float
+
+
+class AnalyticsAvances(BaseModel):
+    turnover: TurnoverStats
+    pyramide_ages: List[PyramideAge]
+    absenteisme: AbsentéismeDetail
+    effectif_par_service: List[Dict]
+    effectif_par_contrat: List[Dict]
+    masse_salariale_par_service: List[Dict]

@@ -56,3 +56,28 @@ class CompetencyMatrix(BaseModel):
         default_factory=list,
         description="Formations catalogue liées (competency_id) pour les gaps",
     )
+
+
+class MobilityRecommendedPosition(BaseModel):
+    poste: str
+    compatibilite: int = Field(ge=0, le=100)
+    points_forts: List[str]
+    competences_a_developper: List[str]
+
+
+class MobilityRecommendedTraining(BaseModel):
+    training_id: str | None = None
+    titre: str
+    priorite: str
+    competence_ciblee: str
+    impact_estime: str
+
+
+class MobilityAnalysis(BaseModel):
+    employee_id: str
+    mobilite_score: int = Field(ge=0, le=100)
+    potentiel_evolution: str
+    postes_recommandes: List[MobilityRecommendedPosition]
+    formations_recommandees: List[MobilityRecommendedTraining]
+    synthese: str
+    analyzed_at: datetime

@@ -41,6 +41,7 @@ import {
   Target,
   BookOpen,
   GraduationCap,
+  BarChart2,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext"; // <-- IMPORTATION
 import { useRhSidebarTaskBadges } from "@/hooks/useRhSidebarTaskBadges";
@@ -93,6 +94,7 @@ const RH_HOME: SidebarLinkItem = {
 };
 
 const RH_TEAM_BASE: SidebarLinkItem[] = [
+  { title: "Analytics", url: "/analytics", icon: BarChart2 },
   { title: "Collaborateurs", url: "/employees", icon: Users },
   { title: "Équipes", url: "/teams", icon: Users },
   { title: "Départs & sorties", url: "/employee-exits", icon: UserMinus },
@@ -141,13 +143,26 @@ function withRhMedicalFollowUp(team: SidebarLinkItem[]): SidebarLinkItem[] {
   return next;
 }
 
-const rhTeamItems = withRhMedicalFollowUp(RH_TEAM_BASE);
+/** Vues « équipe » (manager) — aussi affichées dans le menu RH / admin. */
+const MANAGER_TEAM_NAV_LINKS: SidebarLinkItem[] = [
+  { title: "Entretiens équipe", url: "/manager/annual-reviews", icon: MessageSquare },
+  { title: "Formations équipe", url: "/manager/formations", icon: GraduationCap },
+  { title: "Objectifs équipe", url: "/manager/objectives", icon: Target },
+  { title: "Compétences équipe", url: "/manager/competences", icon: BarChart2 },
+];
+
+const rhTeamItems = [...withRhMedicalFollowUp(RH_TEAM_BASE), ...MANAGER_TEAM_NAV_LINKS];
 
 const menuItems = {
-  rh: [RH_HOME, ...rhTeamItems, ...RH_PAIE_ITEMS] satisfies SidebarLinkItem[],
+  rh: [
+    RH_HOME,
+    ...rhTeamItems,
+    ...RH_PAIE_ITEMS,
+  ] satisfies SidebarLinkItem[],
   manager: [
     { title: "Mon Équipe", url: "/team", icon: UsersRound },
     { title: "Demandes à valider", url: "/leave-requests", icon: ClipboardCheck },
+    ...MANAGER_TEAM_NAV_LINKS,
   ],
   employee: [
     { title: "Tableau de Bord", url: "/", icon: Home },
@@ -263,6 +278,9 @@ export function AppSidebar() {
     if (path === "/formation") {
       return currentPath.startsWith("/formation");
     }
+    if (path.startsWith("/manager/")) {
+      return currentPath === path || currentPath.startsWith(`${path}/`);
+    }
     return currentPath.startsWith(path);
   };
 
@@ -277,7 +295,9 @@ export function AppSidebar() {
 
   const isRhMenu =
     !!user &&
-    (user.role === "rh" || (isCollaborateurRh && viewMode === "rh"));
+    (user.role === "rh" ||
+      user.role === "admin" ||
+      (isCollaborateurRh && viewMode === "rh"));
   const { getCount, totalRhPending } = useRhSidebarTaskBadges(isRhMenu);
 
   const teamSectionHasTasks = rhTeamItems.some((i) => getCount(i.url) > 0);
@@ -306,7 +326,7 @@ export function AppSidebar() {
 
   // Déterminer quel menu afficher selon le rôle et la vue
   let userRole = user.role as keyof typeof menuItems;
-  let items = menuItems[userRole] || [];
+  let items: SidebarLinkItem[] = menuItems[userRole] ?? [];
 
   // Si collaborateur_rh et vue Collaborateur, afficher le menu collaborateur
   if (isCollaborateurRh && viewMode === 'collaborateur') {
@@ -314,6 +334,10 @@ export function AppSidebar() {
     items = menuItems.employee || [];
   } else if (isCollaborateurRh && viewMode === 'rh') {
     // Si collaborateur_rh et vue RH, afficher le menu RH
+    userRole = 'rh';
+    items = menuItems.rh || [];
+  } else if (user.role === 'admin') {
+    // Admin : même navigation que la RH (inclut les vues « équipe » manager)
     userRole = 'rh';
     items = menuItems.rh || [];
   }
@@ -622,7 +646,9 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className={collapsed ? "p-2" : "p-4"}>
-        <NotificationBell companyId={activeCompany?.company_id ?? ''} />
+        {activeCompany?.company_id ? (
+          <NotificationBell companyId={activeCompany.company_id} />
+        ) : null}
         {!collapsed && <Separator className="mb-4" />}
         <SidebarMenu className={collapsed ? "mb-2 flex flex-col items-center gap-1" : "mb-2"}>
           <SidebarMenuItem>

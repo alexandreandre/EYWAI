@@ -399,7 +399,7 @@ export default function Promotions() {
 
             {/* Onglets */}
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-3">
                 <TabsTrigger value="all">Toutes</TabsTrigger>
                 <TabsTrigger value="draft" className="flex items-center gap-2">
                   Brouillons

@@ -358,7 +358,7 @@ export default function DocumentsRhPage() {
           <CardDescription>Affinez la liste des documents générés.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
-          <div className="grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <div className="grid min-w-0 flex-1 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <div className="space-y-2">
               <Label>Collaborateur</Label>
               <Select value={employeeId || '__all__'} onValueChange={(v) => setEmployeeId(v === '__all__' ? '' : v)}>
@@ -449,7 +449,7 @@ export default function DocumentsRhPage() {
             <p className="py-12 text-center text-sm text-muted-foreground">Aucun document pour ces critères.</p>
           )}
           {!isLoading && !isError && rows.length > 0 && (
-            <div className="overflow-x-auto">
+            <div className="w-full overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>

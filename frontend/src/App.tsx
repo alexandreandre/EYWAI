@@ -107,8 +107,15 @@ const SupportPage = lazy(() => import('./pages/support/SupportPage'));
 const SupportConfirmationPage = lazy(() => import('./pages/support/SupportConfirmationPage'));
 const TicketsHistoryPage = lazy(() => import('./pages/support/TicketsHistoryPage'));
 const FormationPage = lazy(() => import('./pages/formation/FormationPage'));
+const ManagerAnnualReviews = lazy(() => import('./pages/manager/ManagerAnnualReviews'));
+const ManagerFormations = lazy(() => import('./pages/manager/ManagerFormations'));
+const ManagerObjectives = lazy(() => import('./pages/manager/ManagerObjectives'));
+const ManagerCompetences = lazy(() => import('./pages/manager/ManagerCompetences'));
+const LeaveRequests = lazy(() => import('./pages/manager/LeaveRequests'));
 const RhDocumentsPage = lazy(() => import('./pages/Documents'));
 const AugmentationsCollectivesPage = lazy(() => import('./pages/AugmentationsCollectives'));
+const MeetingDetailPage = lazy(() => import('./pages/cse/MeetingDetail'));
+const AnalyticsPage = lazy(() => import('./pages/Analytics'));
 
 const supportRouteFallback = (
   <div className="flex min-h-[50vh] w-full items-center justify-center">
@@ -170,6 +177,14 @@ function SuspenseAugmentationsCollectivesPage() {
   );
 }
 
+function SuspenseMeetingDetailPage() {
+  return (
+    <Suspense fallback={formationRouteFallback}>
+      <MeetingDetailPage />
+    </Suspense>
+  );
+}
+
 /**
  * Layout pour l'espace Salarié, avec sa propre barre de navigation.
  */
@@ -178,7 +193,7 @@ function EmployeeLayout() {
         <SidebarProvider>
             <div className="grid min-h-screen w-full md:grid-cols-[auto_1fr]">
                 <EmployeeSidebar />
-                <div className="flex flex-col flex-1">
+                <div className="flex min-w-0 flex-col flex-1">
                     {/* Header mobile avec bouton menu */}
                     <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 md:hidden">
                         <SidebarTrigger>
@@ -191,7 +206,7 @@ function EmployeeLayout() {
                             <img src="/Colorplast.png" alt="Logo Colorplast" className="h-8 w-auto" />
                         </div>
                     </header>
-                    <main className="flex-1 p-6 lg:p-8 overflow-auto"><Outlet /></main>
+                    <main className="min-w-0 flex-1 overflow-auto overflow-x-auto p-6 lg:p-8"><Outlet /></main>
                 </div>
             </div>
         </SidebarProvider>
@@ -264,6 +279,7 @@ function ProtectedRoutes() {
           <Route path="/objectives" element={<ObjectivesPage />} />
           <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
           <Route path="/absences" element={<EmployeeAbsencesPage />} />
+          <Route path="/employee/leaves/new" element={<Navigate to="/absences" replace />} />
           {/* TODO: vérifier garde d’auth / permissions module planning côté API si besoin */}
           <Route path="/employee/planning" element={<EmployeePlanning />} />
           <Route path="/calendar" element={<EmployeeCalendarPage />} />
@@ -272,12 +288,21 @@ function ProtectedRoutes() {
           <Route path="/employee/documents" element={<EmployeeCollaboratorDocumentsPage />} />
           <Route path="/documents" element={<Navigate to="/employee/documents" replace />} />
           <Route path="/medical-follow-up" element={<EmployeeMedicalFollowUp />} />
+          <Route path="/cse/meetings/:meetingId" element={<SuspenseMeetingDetailPage />} />
           <Route path="/cse" element={<EmployeeCSE />} />
           <Route
             path="/employee/onboarding"
             element={
               <Suspense fallback={<div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
                 <EmployeeOnboardingRedirect />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/onboarding/:employeeId"
+            element={
+              <Suspense fallback={<div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
+                <OnboardingPage />
               </Suspense>
             }
           />
@@ -308,7 +333,7 @@ function ProtectedRoutes() {
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-muted/40">
         <AppSidebar />
-        <div className="flex-1 flex flex-col">
+        <div className="flex min-w-0 flex-1 flex-col">
           {/* Header mobile avec bouton menu et sélecteur d'entreprise - Affiché seulement si plusieurs entreprises */}
           {showCompanySwitcher && (
             <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 md:hidden">
@@ -332,7 +357,7 @@ function ProtectedRoutes() {
               <CompanySwitcher />
             </div>
           )}
-          <main className="flex-1 bg-background p-6 lg:p-8 overflow-y-auto">
+          <main className="min-w-0 flex-1 overflow-x-auto overflow-y-auto bg-background p-6 lg:p-8">
             <Routes>
               {isCollaborateurRhView ? (
                 // Routes Collaborateur pour collaborateur_rh en vue Collaborateur
@@ -349,6 +374,7 @@ function ProtectedRoutes() {
                   <Route path="/objectives" element={<ObjectivesPage />} />
                   <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
                   <Route path="/absences" element={<EmployeeAbsencesPage />} />
+                  <Route path="/employee/leaves/new" element={<Navigate to="/absences" replace />} />
                   {/* TODO: vérifier garde d’auth / permissions module planning côté API si besoin */}
                   <Route path="/employee/planning" element={<EmployeePlanning />} />
                   <Route path="/calendar" element={<EmployeeCalendarPage />} />
@@ -357,12 +383,21 @@ function ProtectedRoutes() {
                   <Route path="/employee/documents" element={<EmployeeCollaboratorDocumentsPage />} />
                   <Route path="/documents" element={<Navigate to="/employee/documents" replace />} />
                   <Route path="/medical-follow-up" element={<EmployeeMedicalFollowUp />} />
+                  <Route path="/cse/meetings/:meetingId" element={<SuspenseMeetingDetailPage />} />
                   <Route path="/cse" element={<EmployeeCSE />} />
                   <Route
                     path="/employee/onboarding"
                     element={
                       <Suspense fallback={<div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
                         <EmployeeOnboardingRedirect />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/onboarding/:employeeId"
+                    element={
+                      <Suspense fallback={<div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
+                        <OnboardingPage />
                       </Suspense>
                     }
                   />
@@ -375,6 +410,14 @@ function ProtectedRoutes() {
                 // Routes RH pour rh, admin, collaborateur_rh en vue RH, custom avec permissions RH
                 <>
                   <Route path="/" element={<RhDashboard />} />
+                  <Route
+                    path="/analytics"
+                    element={
+                      <Suspense fallback={formationRouteFallback}>
+                        <AnalyticsPage />
+                      </Suspense>
+                    }
+                  />
                   <Route path="/employees" element={<Employees />} />
                   <Route path="/teams" element={<Teams />} />
                   <Route path="/employees/:employeeId" element={<EmployeeDetail />} />
@@ -386,6 +429,7 @@ function ProtectedRoutes() {
                   <Route path="/payroll/:employeeId" element={<PayrollDetail />} />
                   <Route path="/payslips/:payslipId/edit" element={<PayslipEdit />} />
                   <Route path="/leaves" element={<RhAbsencesPage />} />
+                  <Route path="/employee/leaves/new" element={<Navigate to="/leaves" replace />} />
                   {/* TODO: vérifier garde d’auth / permissions module planning (route /planning) côté API si besoin */}
                   <Route path="/planning" element={<Planning />} />
                   <Route path="/expenses" element={<RhExpensesPage />} />
@@ -396,6 +440,46 @@ function ProtectedRoutes() {
                   <Route path="/medical-follow-up" element={<ErrorBoundaryClass><MedicalFollowUp /></ErrorBoundaryClass>} />
                   <Route path="/annual-reviews" element={<AnnualReviews />} />
                   <Route path="/annual-reviews/:reviewId" element={<AnnualReviewDetail />} />
+                  <Route
+                    path="/manager/annual-reviews"
+                    element={
+                      <Suspense fallback={formationRouteFallback}>
+                        <ManagerAnnualReviews />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/manager/formations"
+                    element={
+                      <Suspense fallback={formationRouteFallback}>
+                        <ManagerFormations />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/manager/objectives"
+                    element={
+                      <Suspense fallback={formationRouteFallback}>
+                        <ManagerObjectives />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/manager/competences"
+                    element={
+                      <Suspense fallback={formationRouteFallback}>
+                        <ManagerCompetences />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/leave-requests"
+                    element={
+                      <Suspense fallback={formationRouteFallback}>
+                        <LeaveRequests />
+                      </Suspense>
+                    }
+                  />
                   <Route path="/formation" element={<SuspenseFormationPage />} />
                   <Route path="/documents" element={<SuspenseRhDocumentsPage />} />
                   <Route path="/augmentations-collectives" element={<SuspenseAugmentationsCollectivesPage />} />
@@ -404,6 +488,7 @@ function ProtectedRoutes() {
                   <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
                   <Route path="/promotions" element={<Promotions />} />
                   <Route path="/promotions/:promotionId" element={<PromotionDetail />} />
+                  <Route path="/cse/meetings/:meetingId" element={<SuspenseMeetingDetailPage />} />
                   <Route path="/cse" element={<CSE />} />
                   <Route path="/recruitment" element={<Recruitment />} />
                   <Route

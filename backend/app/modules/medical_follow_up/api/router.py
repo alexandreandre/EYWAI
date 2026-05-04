@@ -7,12 +7,17 @@ Appelle uniquement la couche application (queries, commands, service).
 Aucune logique métier ni accès DB. Comportement HTTP identique au legacy.
 """
 
-from typing import List, Optional
+from __future__ import annotations
+
+from collections import defaultdict
+from datetime import date, datetime, timedelta, timezone
+from typing import Dict, List, Optional, Set
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
 
 from app.core.security import get_current_user
-from app.modules.medical_follow_up.application import commands, queries
+from app.modules.medical_follow_up.application import commands, queries, reminders
 from app.modules.medical_follow_up.application.dto import ObligationListDTO
 from app.modules.medical_follow_up.application.service import (
     ensure_module_enabled,
@@ -30,6 +35,207 @@ from app.modules.medical_follow_up.schemas import (
 from app.modules.users.schemas.responses import User
 
 router = APIRouter(tags=["Medical Follow-up"])
+
+_ACTIVE_STATUSES = frozenset({"a_faire", "planifiee"})
+
+
+def _parse_iso_date(value: object) -> Optional[date]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str) and value.strip():
+        try:
+            return date.fromisoformat(value.strip()[:10])
+        except ValueError:
+            return None
+    return None
+
+
+def _is_compliant_obligation(d: ObligationListDTO) -> bool:
+    """Obligation considérée comme réalisée conforme (statuts terminaux + réalisée à temps)."""
+    st = (d.status or "").strip().lower()
+    if st in {"completed", "done", "realise", "completed_on_time"}:
+        return True
+    if st == "realisee":
+        due = _parse_iso_date(d.due_date)
+        comp = _parse_iso_date(d.completed_date)
+        if due is not None and comp is not None:
+            return comp <= due
+        return True
+    return False
+
+
+def _is_overdue_active(d: ObligationListDTO, today: date) -> bool:
+    st = (d.status or "").strip().lower()
+    if st not in _ACTIVE_STATUSES:
+        return False
+    due = _parse_iso_date(d.due_date)
+    if due is None:
+        return False
+    return due < today
+
+
+def _is_upcoming_window(
+    d: ObligationListDTO, today: date, end: date
+) -> bool:
+    st = (d.status or "").strip().lower()
+    if st not in _ACTIVE_STATUSES:
+        return False
+    due = _parse_iso_date(d.due_date)
+    if due is None:
+        return False
+    return today <= due <= end
+
+
+def _visit_label(visit_type: str) -> str:
+    return reminders.VISIT_TYPE_LABELS.get(
+        visit_type, visit_type.replace("_", " ")
+    )
+
+
+class VisitTypeComplianceItem(BaseModel):
+    visit_type: str
+    label: str
+    total: int
+    compliant: int
+    overdue: int
+    compliance_rate: float
+
+
+class EmployeeOverdueItem(BaseModel):
+    employee_id: str
+    employee_name: str
+    obligations_overdue: int
+    most_urgent_due_date: date
+    visit_types: List[str]
+
+
+class ComplianceReportResponse(BaseModel):
+    generated_at: datetime
+    total_employees: int
+    total_obligations: int
+    compliant: int
+    overdue: int
+    upcoming_30: int
+    upcoming_7: int
+    compliance_rate: float
+    by_visit_type: List[VisitTypeComplianceItem]
+    employees_overdue: List[EmployeeOverdueItem]
+
+
+def _build_compliance_report(
+    company_id: str, current_user: User
+) -> ComplianceReportResponse:
+    today = date.today()
+    end_30 = today + timedelta(days=30)
+    end_7 = today + timedelta(days=7)
+
+    dtos = queries.list_obligations(
+        company_id,
+        current_user,
+        employee_id=None,
+        visit_type=None,
+        status=None,
+        priority=None,
+        due_from=None,
+        due_to=None,
+    )
+
+    total_obligations = len(dtos)
+    distinct_employees: Set[str] = set()
+    compliant = 0
+    overdue = 0
+    upcoming_30 = 0
+    upcoming_7 = 0
+
+    for d in dtos:
+        distinct_employees.add(d.employee_id)
+        if _is_compliant_obligation(d):
+            compliant += 1
+        if _is_overdue_active(d, today):
+            overdue += 1
+        if _is_upcoming_window(d, today, end_30):
+            upcoming_30 += 1
+        if _is_upcoming_window(d, today, end_7):
+            upcoming_7 += 1
+
+    compliance_rate = (
+        round((compliant / total_obligations) * 100.0, 2)
+        if total_obligations
+        else 0.0
+    )
+
+    by_vt: Dict[str, Dict[str, int]] = defaultdict(
+        lambda: {"total": 0, "compliant": 0, "overdue": 0}
+    )
+    for d in dtos:
+        vt = d.visit_type or "inconnu"
+        by_vt[vt]["total"] += 1
+        if _is_compliant_obligation(d):
+            by_vt[vt]["compliant"] += 1
+        if _is_overdue_active(d, today):
+            by_vt[vt]["overdue"] += 1
+
+    by_visit_type_list: List[VisitTypeComplianceItem] = []
+    for vt, agg in by_vt.items():
+        tot = agg["total"]
+        comp = agg["compliant"]
+        ovd = agg["overdue"]
+        rate = round((comp / tot) * 100.0, 2) if tot else 0.0
+        by_visit_type_list.append(
+            VisitTypeComplianceItem(
+                visit_type=vt,
+                label=_visit_label(vt),
+                total=tot,
+                compliant=comp,
+                overdue=ovd,
+                compliance_rate=rate,
+            )
+        )
+    by_visit_type_list.sort(key=lambda x: x.compliance_rate)
+
+    overdue_by_emp: Dict[str, List[ObligationListDTO]] = defaultdict(list)
+    for d in dtos:
+        if _is_overdue_active(d, today):
+            overdue_by_emp[d.employee_id].append(d)
+
+    employees_overdue: List[EmployeeOverdueItem] = []
+    for eid, rows in overdue_by_emp.items():
+        due_dates = [_parse_iso_date(x.due_date) for x in rows]
+        due_dates_valid = [x for x in due_dates if x is not None]
+        most_urgent = min(due_dates_valid) if due_dates_valid else today
+        names = [
+            f"{(x.employee_first_name or '').strip()} {(x.employee_last_name or '').strip()}".strip()
+            for x in rows
+        ]
+        employee_name = next((n for n in names if n), eid)
+        vtypes = sorted({x.visit_type or "inconnu" for x in rows})
+        employees_overdue.append(
+            EmployeeOverdueItem(
+                employee_id=eid,
+                employee_name=employee_name,
+                obligations_overdue=len(rows),
+                most_urgent_due_date=most_urgent,
+                visit_types=vtypes,
+            )
+        )
+    employees_overdue.sort(key=lambda x: x.most_urgent_due_date)
+
+    return ComplianceReportResponse(
+        generated_at=datetime.now(timezone.utc),
+        total_employees=len(distinct_employees),
+        total_obligations=total_obligations,
+        compliant=compliant,
+        overdue=overdue,
+        upcoming_30=upcoming_30,
+        upcoming_7=upcoming_7,
+        compliance_rate=compliance_rate,
+        by_visit_type=by_visit_type_list,
+        employees_overdue=employees_overdue,
+    )
 
 
 def _company_id_rh(current_user: User = Depends(get_current_user)) -> str:
@@ -88,6 +294,52 @@ def list_obligations(
             due_to=due_to,
         )
     ]
+
+
+# --- GET /obligations/overdue (RH)
+@router.get("/obligations/overdue", response_model=List[ObligationListItem])
+def list_obligations_overdue(
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(_company_id_rh),
+):
+    """Obligations en retard (échéance passée, non réalisées)."""
+    rows = reminders.list_overdue_obligation_rows(company_id)
+    return [_to_list_item(ObligationListDTO.from_row(r)) for r in rows]
+
+
+# --- GET /obligations/upcoming (RH)
+@router.get("/obligations/upcoming", response_model=List[ObligationListItem])
+def list_obligations_upcoming(
+    days: int = Query(30, ge=1, le=365),
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(_company_id_rh),
+):
+    """Obligations à échéance dans les ``days`` prochains jours (non réalisées)."""
+    rows = reminders.list_upcoming_obligation_rows(company_id, days)
+    return [_to_list_item(ObligationListDTO.from_row(r)) for r in rows]
+
+
+# --- POST /send-reminders (RH)
+@router.post("/send-reminders")
+def send_medical_reminders_endpoint(
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(_company_id_rh),
+):
+    """Envoie des notifications in-app de rappel aux salariés concernés."""
+    result = reminders.send_medical_reminders(company_id)
+    sent = int(result.get("sent", 0))
+    message = f"{sent} rappel(s) envoyé(s)" if sent else "Aucun rappel envoyé"
+    return {**result, "message": message}
+
+
+# --- GET /compliance-report (RH)
+@router.get("/compliance-report", response_model=ComplianceReportResponse)
+def get_compliance_report(
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(_company_id_rh),
+):
+    """Rapport de conformité structuré (obligations actives et réalisées)."""
+    return _build_compliance_report(company_id, current_user)
 
 
 # --- GET /kpis (RH)

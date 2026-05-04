@@ -1309,7 +1309,7 @@ export default function Employees() {
                       <FormField control={form.control} name="nationalite" render={({ field }) => (<FormItem><FormLabel>Nationalité</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                       <h3 className="font-semibold pt-4">Adresse</h3>
                       <FormField control={form.control} name="adresse.rue" render={({ field }) => (<FormItem><FormLabel>Rue</FormLabel><FormControl><Input placeholder="1 Rue de la Paix" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <FormField control={form.control} name="adresse.code_postal" render={({ field }) => (<FormItem><FormLabel>Code Postal</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="adresse.ville" render={({ field }) => (<FormItem><FormLabel>Ville</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                       </div>
@@ -1357,11 +1357,11 @@ export default function Employees() {
                       <div className="space-y-4">
                         <FormField control={form.control} name="hire_date" render={({ field }) => (<FormItem><FormLabel>Date d'entrée</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="job_title" render={({ field }) => (<FormItem><FormLabel>Intitulé du poste</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                           <FormField control={form.control} name="contract_type" render={({ field }) => (<FormItem><FormLabel>Type de contrat</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                           <FormField control={form.control} name="statut" render={({ field }) => (<FormItem><FormLabel>Statut</FormLabel><FormControl><Input placeholder="Non-Cadre" {...field} /></FormControl><FormMessage /></FormItem>)} />
                         </div>
-                        <div className="grid grid-cols-2 gap-4 items-end">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end">
                           <FormField control={form.control} name="duree_hebdomadaire" render={({ field }) => (<FormItem><FormLabel>Durée hebdo. (heures)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
                           <FormField
                             control={form.control}
@@ -1465,7 +1465,7 @@ export default function Employees() {
                                 )}
                               />
                             ) : (
-                              <div className="grid grid-cols-3 gap-4">
+                              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                                 <FormField 
                                   control={form.control}
                                   name="classification_conventionnelle.groupe_emploi" 
@@ -1518,7 +1518,7 @@ export default function Employees() {
                             </FormItem>
                           )} 
                         />
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                           <FormField
                             control={form.control}
                             name="avantages_en_nature.logement.beneficie"
@@ -1672,7 +1672,7 @@ export default function Employees() {
                                           <Trash2 className="h-4 w-4" />
                                         </Button>
                                       </div>
-                                      <div className="grid grid-cols-2 gap-4">
+                                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                         <FormField control={form.control} name={`specificites_paie.mutuelle.lignes_specifiques.${index}.montant_salarial`} render={({ field }) => (<FormItem><FormLabel>Montant Salarial (€)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
                                         <FormField control={form.control} name={`specificites_paie.mutuelle.lignes_specifiques.${index}.montant_patronal`} render={({ field }) => (<FormItem><FormLabel>Montant Patronal (€)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
                                       </div>
@@ -1698,7 +1698,7 @@ export default function Employees() {
                                   {prevoyanceFields.map((field, index) => (
                                     <div key={field.id} className="space-y-2 border-b pb-4 last:border-b-0">
                                       <FormField control={form.control} name={`specificites_paie.prevoyance.lignes_specifiques.${index}.libelle`} render={({ field }) => (<FormItem><FormLabel>Libellé</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                                      <div className="grid grid-cols-3 gap-4">
+                                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                                         <FormField control={form.control} name={`specificites_paie.prevoyance.lignes_specifiques.${index}.salarial`} render={({ field }) => (<FormItem><FormLabel>Taux Salarial (%)</FormLabel><FormControl><Input type="number" step="0.0001" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                         <FormField control={form.control} name={`specificites_paie.prevoyance.lignes_specifiques.${index}.patronal`} render={({ field }) => (<FormItem><FormLabel>Taux Patronal (%)</FormLabel><FormControl><Input type="number" step="0.0001" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                         <FormField control={form.control} name={`specificites_paie.prevoyance.lignes_specifiques.${index}.forfait_social`} render={({ field }) => (<FormItem><FormLabel>Forfait Social (%)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>)} />
@@ -1777,7 +1777,7 @@ export default function Employees() {
                 className="pl-10"
               />
             </div>
-            <div className="w-[200px]">
+            <div className="w-full min-w-0 max-w-[200px]">
               <Select value={employmentStatusFilter} onValueChange={setEmploymentStatusFilter}>
                 <SelectTrigger>
                   <SelectValue placeholder="Statut" />

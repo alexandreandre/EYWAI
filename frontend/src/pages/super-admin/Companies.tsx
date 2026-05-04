@@ -340,7 +340,8 @@ export default function Companies() {
             </button>
           </div>
 
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="rounded-lg bg-white shadow">
+            <div className="w-full overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -403,6 +404,7 @@ export default function Companies() {
             </table>
           </div>
         </div>
+        </div>
       ))}
 
       {/* Entreprises indépendantes */}
@@ -415,7 +417,8 @@ export default function Companies() {
             </p>
           </div>
 
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="rounded-lg bg-white shadow">
+            <div className="w-full overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -479,6 +482,7 @@ export default function Companies() {
               </tbody>
             </table>
           </div>
+        </div>
         </div>
       )}
 

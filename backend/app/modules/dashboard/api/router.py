@@ -13,7 +13,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.core.security import get_current_user
 from app.modules.users.schemas.responses import User
 from app.modules.dashboard.application import queries
-from app.modules.dashboard.schemas.responses import DashboardData, ResidencePermitStats
+from app.modules.dashboard.application.service import build_analytics_avances
+from app.modules.dashboard.schemas.responses import (
+    AnalyticsAvances,
+    DashboardData,
+    ResidencePermitStats,
+)
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
 
@@ -58,3 +63,23 @@ def get_residence_permit_stats_route(
     """Retourne les statistiques agrégées des titres de séjour pour le dashboard RH."""
     company_id = _require_rh_company_context(current_user)
     return queries.get_residence_permit_stats(company_id)
+
+
+@router.get("/analytics", response_model=AnalyticsAvances)
+def get_dashboard_analytics_route(
+    current_user: User = Depends(get_current_user),
+):
+    """KPIs analytics avancés (turnover, pyramide d'âge, absentéisme, par service)."""
+    company_id = _require_rh_company_context(current_user)
+    try:
+        return build_analytics_avances(company_id)
+    except Exception as e:
+        logging.error(
+            "Erreur lors du calcul des analytics dashboard: %s",
+            e,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur interne du serveur: {str(e)}",
+        ) from e

@@ -290,7 +290,7 @@ const UserEdit: React.FC = () => {
               <p className="text-sm text-gray-500 mb-3">
                 Seuls les rôles que vous êtes autorisé à assigner sont disponibles. Les autres sont grisés.
               </p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 {(['admin', 'rh', 'collaborateur_rh', 'collaborateur', 'custom'] as const).map((role) => {
                   const isRoleAvailable = availableRoles.includes(role);
                   const isDisabled = !canEdit || !isRoleAvailable;

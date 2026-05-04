@@ -1,7 +1,9 @@
 // Page collaborateur unifiée « Ma formation » (Pack Talent T10) — lecture seule
 
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { isAxiosError } from "axios";
 import {
   CartesianGrid,
   Legend,
@@ -16,15 +18,25 @@ import { Check, ChevronDown, ExternalLink, FileText, Loader2, X } from "lucide-r
 
 import { getObjectives, type EmployeeObjective } from "@/api/objectives";
 import { getEmployeeCertifications, type ComputedStatus, type EmployeeCertification } from "@/api/certifications";
-import { getEnrollments, getTrainings, type TrainingCatalog, type TrainingEnrollment } from "@/api/training";
+import {
+  getEnrollments,
+  getTrainings,
+  requestEnrollment,
+  submitEvaluation,
+  uploadEnrollmentCertificate,
+  type TrainingCatalog,
+  type TrainingEnrollment,
+} from "@/api/training";
 import {
   getEmployeeStatus,
   type LegalObligationStatus,
   type ProfessionalInterviewStatus,
 } from "@/api/legalObligations";
 import { getEvaluations, type EmployeeCompetency } from "@/api/competencies";
+import { getMyOnboarding } from "@/api/onboarding";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Collapsible,
@@ -47,6 +59,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 import { cn } from "@/lib/utils";
@@ -115,13 +136,62 @@ function certStatusBadge(status: ComputedStatus) {
   return <Badge className={x.className}>{x.label}</Badge>;
 }
 
+function trainingAllowsFeedback(status: string): boolean {
+  const s = status.toLowerCase();
+  return s === "realise" || s === "approuve_rh" || s === "completed";
+}
+
+/** Inscription qui retire la formation du catalogue « disponible » (redemandable si annulée / refusée). */
+function enrollmentHidesTrainingFromCatalogAvailability(status: string): boolean {
+  const s = status.trim().toLowerCase();
+  const showAgain = new Set([
+    "annule",
+    "annulé",
+    "annulee",
+    "cancelled",
+    "rejete_manager",
+    "rejete_rh",
+  ]);
+  if (showAgain.has(s)) return false;
+  const hide = new Set([
+    "inscrit",
+    "en_cours",
+    "realise",
+    "completed",
+    "approuve_rh",
+    "approuve_manager",
+    "demande_salarie",
+    "in_progress",
+    "planned",
+  ]);
+  return hide.has(s);
+}
+
 function enrollmentStatusBadge(status: string) {
   const s = status.toLowerCase();
   const cfg: Record<string, { label: string; className: string }> = {
     planned: { label: "Planifié", className: "bg-blue-600 text-white hover:bg-blue-600" },
     in_progress: { label: "En cours", className: "bg-orange-500 text-white hover:bg-orange-500" },
+    en_cours: { label: "En cours", className: "bg-orange-500 text-white hover:bg-orange-500" },
+    inscrit: { label: "Inscrit", className: "bg-sky-600 text-white hover:bg-sky-600" },
     completed: { label: "Terminé", className: "bg-emerald-600 text-white hover:bg-emerald-600" },
+    realise: { label: "Réalisé", className: "bg-emerald-600 text-white hover:bg-emerald-600" },
     cancelled: { label: "Annulé", className: "bg-muted text-muted-foreground" },
+    annule: { label: "Annulé", className: "bg-muted text-muted-foreground" },
+    demande_salarie: {
+      label: "En attente manager",
+      className: "bg-amber-400 text-amber-950 hover:bg-amber-400",
+    },
+    approuve_manager: {
+      label: "En attente RH",
+      className: "bg-sky-600 text-white hover:bg-sky-600",
+    },
+    approuve_rh: { label: "Inscrit", className: "bg-emerald-600 text-white hover:bg-emerald-600" },
+    rejete_manager: {
+      label: "Refusé par le manager",
+      className: "bg-red-600 text-white hover:bg-red-600",
+    },
+    rejete_rh: { label: "Refusé par la RH", className: "bg-red-600 text-white hover:bg-red-600" },
   };
   const x = cfg[s] ?? { label: status, className: "bg-muted text-muted-foreground" };
   return <Badge className={x.className}>{x.label}</Badge>;
@@ -476,7 +546,230 @@ function FormationCertificationsPanel({ employeeId }: { employeeId: string }) {
   );
 }
 
+function StarsReadonly({ value }: { value: number }) {
+  const v = Math.round(value);
+  return (
+    <div className="flex gap-0.5 text-lg leading-none" aria-hidden>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <span key={i} className={i <= v ? "text-amber-500" : "text-muted-foreground/25"}>
+          ★
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function FormationEnrollmentCard({
+  e,
+  cat,
+  companyId,
+  employeeId,
+}: {
+  e: TrainingEnrollment;
+  cat: TrainingCatalog | undefined;
+  companyId: string;
+  employeeId: string;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [hoverStar, setHoverStar] = useState<number | null>(null);
+  const [pickedRating, setPickedRating] = useState<number | null>(null);
+  const [evalComment, setEvalComment] = useState("");
+
+  const showExtras = trainingAllowsFeedback(e.status);
+  const hasRating = e.rating != null && e.rating >= 1;
+  const displayPick = hoverStar ?? pickedRating;
+
+  const evalMut = useMutation({
+    mutationFn: () => {
+      const r = pickedRating;
+      if (r == null || r < 1) throw new Error("note");
+      return submitEvaluation(e.id, companyId, {
+        rating: r,
+        comment: evalComment.trim() || undefined,
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Merci — votre évaluation a bien été enregistrée." });
+      setPickedRating(null);
+      setEvalComment("");
+      void queryClient.invalidateQueries({ queryKey: ["formation-enrollments", employeeId] });
+    },
+    onError: (err: unknown) => {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        "Impossible d'enregistrer l'évaluation.";
+      toast({ title: "Erreur", description: String(detail), variant: "destructive" });
+    },
+  });
+
+  const uploadMut = useMutation({
+    mutationFn: (file: File) => uploadEnrollmentCertificate(e.id, companyId, file),
+    onSuccess: () => {
+      toast({ title: "Certificat enregistré" });
+      void queryClient.invalidateQueries({ queryKey: ["formation-enrollments", employeeId] });
+    },
+    onError: (err: unknown) => {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        "Échec de l'envoi du fichier.";
+      toast({ title: "Erreur", description: String(detail), variant: "destructive" });
+    },
+  });
+
+  const typeLabel = cat?.training_type
+    ? TRAINING_TYPE_LABELS[cat.training_type] ?? cat.training_type
+    : "—";
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <CardTitle className="text-base">{e.training_title ?? cat?.title ?? "—"}</CardTitle>
+            <CardDescription className="mt-1 flex flex-wrap items-center gap-2">
+              <Badge variant="secondary">{typeLabel}</Badge>
+              {enrollmentStatusBadge(e.status)}
+            </CardDescription>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {e.planned_date ? `Prévu : ${fmtDate(e.planned_date)}` : "—"}
+          </p>
+        </div>
+      </CardHeader>
+      {showExtras ? (
+        <CardContent className="space-y-6 border-t pt-4">
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold">Évaluation</h3>
+            {!hasRating ? (
+              <>
+                <p className="text-sm text-muted-foreground">Évaluer cette formation</p>
+                <div
+                  className="flex gap-1"
+                  onMouseLeave={() => setHoverStar(null)}
+                  role="group"
+                  aria-label="Note sur 5"
+                >
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      className={`rounded p-0.5 text-2xl leading-none transition-colors ${
+                        displayPick != null && n <= displayPick
+                          ? "text-amber-500"
+                          : "text-muted-foreground/25"
+                      } hover:text-amber-400`}
+                      onMouseEnter={() => setHoverStar(n)}
+                      onClick={() => setPickedRating(n)}
+                      aria-label={`${n} sur 5`}
+                    >
+                      ★
+                    </button>
+                  ))}
+                </div>
+                <Textarea
+                  placeholder="Commentaire (optionnel)"
+                  value={evalComment}
+                  onChange={(ev) => setEvalComment(ev.target.value)}
+                  rows={3}
+                  className="max-w-lg"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={evalMut.isPending || pickedRating == null || pickedRating < 1}
+                  onClick={() => evalMut.mutate()}
+                >
+                  {evalMut.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Envoi…
+                    </>
+                  ) : (
+                    "Envoyer mon évaluation"
+                  )}
+                </Button>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <StarsReadonly value={e.rating ?? 0} />
+                {e.evaluation_comment ? (
+                  <p className="text-sm text-foreground">{e.evaluation_comment}</p>
+                ) : null}
+                <p className="text-xs text-muted-foreground">
+                  Évaluée le{" "}
+                  {e.evaluated_at ? fmtDate(e.evaluated_at) : "—"}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold">Certificat</h3>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+              className="sr-only"
+              onChange={(ev) => {
+                const f = ev.target.files?.[0];
+                ev.target.value = "";
+                if (f) uploadMut.mutate(f);
+              }}
+            />
+            {e.certificate_url ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" size="sm" asChild>
+                  <a href={e.certificate_url} target="_blank" rel="noopener noreferrer">
+                    Télécharger mon certificat
+                  </a>
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={uploadMut.isPending}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  {uploadMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Remplacer"}
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={uploadMut.isPending}
+                onClick={() => fileRef.current?.click()}
+              >
+                {uploadMut.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Envoi…
+                  </>
+                ) : (
+                  "Uploader mon certificat"
+                )}
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      ) : null}
+    </Card>
+  );
+}
+
 function FormationTrainingPanel({ employeeId }: { employeeId: string }) {
+  const { activeCompany } = useCompany();
+  const companyId = activeCompany?.company_id ?? "";
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [selectedTraining, setSelectedTraining] = useState<TrainingCatalog | null>(null);
+  const [prefDate, setPrefDate] = useState("");
+  const [motivation, setMotivation] = useState("");
+
   const enrollQ = useQuery({
     queryKey: ["formation-enrollments", employeeId],
     queryFn: () => getEnrollments({ employee_id: employeeId }),
@@ -486,14 +779,138 @@ function FormationTrainingPanel({ employeeId }: { employeeId: string }) {
     queryFn: () => getTrainings(false),
   });
 
+  const requestMut = useMutation({
+    mutationFn: async () => {
+      if (!selectedTraining) throw new Error("missing");
+      return requestEnrollment(companyId, {
+        training_id: selectedTraining.id,
+        preferred_date: prefDate.trim() || undefined,
+        motivation: motivation.trim() || undefined,
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Demande envoyée — en attente de validation",
+      });
+      setRequestOpen(false);
+      setSelectedTraining(null);
+      setPrefDate("");
+      setMotivation("");
+      void queryClient.invalidateQueries({ queryKey: ["formation-enrollments", employeeId] });
+    },
+    onError: (err: unknown) => {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        "Impossible d'envoyer la demande.";
+      toast({ title: "Erreur", description: String(detail), variant: "destructive" });
+    },
+  });
+
   const catalogById = useMemo(() => {
     const m = new Map<string, TrainingCatalog>();
     for (const t of catalogQ.data ?? []) m.set(t.id, t);
     return m;
   }, [catalogQ.data]);
 
+  const catalogTrainings = catalogQ.data ?? [];
+
+  /** Dernière inscription « bloquante » par formation (pas de nouvelle demande depuis le catalogue). */
+  const blockingEnrollmentByTrainingId = useMemo(() => {
+    const cats = catalogQ.data ?? [];
+    const rows = enrollQ.data ?? [];
+    const m = new Map<string, TrainingEnrollment>();
+    for (const t of cats) {
+      const reps = rows.filter(
+        (e) =>
+          e.training_id === t.id && enrollmentHidesTrainingFromCatalogAvailability(e.status),
+      );
+      if (!reps.length) continue;
+      reps.sort((a, b) => {
+        const ta = new Date(a.updated_at || a.created_at || 0).getTime();
+        const tb = new Date(b.updated_at || b.created_at || 0).getTime();
+        return tb - ta;
+      });
+      m.set(t.id, reps[0]!);
+    }
+    return m;
+  }, [catalogQ.data, enrollQ.data]);
+
+  const catalogAllUnavailable =
+    catalogTrainings.length > 0 &&
+    catalogTrainings.every((t) => blockingEnrollmentByTrainingId.has(t.id));
+
+  const openRequest = (t: TrainingCatalog) => {
+    setSelectedTraining(t);
+    setPrefDate("");
+    setMotivation("");
+    setRequestOpen(true);
+  };
+
+  if (!companyId) {
+    return (
+      <p className="text-sm text-muted-foreground">Sélectionnez une entreprise pour gérer vos formations.</p>
+    );
+  }
+
   return (
     <div className="space-y-10">
+      <Dialog open={requestOpen} onOpenChange={setRequestOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Demander une inscription</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <p className="text-sm text-muted-foreground">Formation</p>
+              <p className="font-medium">{selectedTraining?.title ?? "—"}</p>
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="pref-date" className="text-sm font-medium">
+                Date souhaitée <span className="font-normal text-muted-foreground">(optionnel)</span>
+              </label>
+              <Input
+                id="pref-date"
+                type="date"
+                value={prefDate}
+                onChange={(e) => setPrefDate(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="motivation" className="text-sm font-medium">
+                Motivation <span className="font-normal text-muted-foreground">(optionnel)</span>
+              </label>
+              <Textarea
+                id="motivation"
+                value={motivation}
+                onChange={(e) => setMotivation(e.target.value)}
+                rows={3}
+                placeholder="Précisez le contexte ou vos attentes…"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setRequestOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              disabled={requestMut.isPending || !selectedTraining}
+              onClick={() => requestMut.mutate()}
+            >
+              {requestMut.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Envoi…
+                </>
+              ) : (
+                "Confirmer"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Mes inscriptions</h2>
         {enrollQ.isLoading ? (
@@ -506,33 +923,16 @@ function FormationTrainingPanel({ employeeId }: { employeeId: string }) {
         ) : (enrollQ.data ?? []).length === 0 ? (
           <p className="text-sm text-muted-foreground">Aucune inscription à une formation.</p>
         ) : (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Formation</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Date planifiée</TableHead>
-                  <TableHead>Statut</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(enrollQ.data ?? []).map((e: TrainingEnrollment) => {
-                  const cat = catalogById.get(e.training_id);
-                  const typeLabel = cat?.training_type
-                    ? TRAINING_TYPE_LABELS[cat.training_type] ?? cat.training_type
-                    : "—";
-                  return (
-                    <TableRow key={e.id}>
-                      <TableCell className="font-medium">{e.training_title ?? cat?.title ?? "—"}</TableCell>
-                      <TableCell>{typeLabel}</TableCell>
-                      <TableCell>{e.planned_date ? fmtDate(e.planned_date) : "—"}</TableCell>
-                      <TableCell>{enrollmentStatusBadge(e.status)}</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+          <div className="space-y-4">
+            {(enrollQ.data ?? []).map((e: TrainingEnrollment) => (
+              <FormationEnrollmentCard
+                key={e.id}
+                e={e}
+                cat={catalogById.get(e.training_id)}
+                companyId={companyId}
+                employeeId={employeeId}
+              />
+            ))}
           </div>
         )}
       </section>
@@ -546,52 +946,66 @@ function FormationTrainingPanel({ employeeId }: { employeeId: string }) {
           </div>
         ) : catalogQ.isError ? (
           <p className="text-sm text-destructive">Impossible de charger le catalogue.</p>
+        ) : catalogAllUnavailable ? (
+          <p className="rounded-md border border-dashed bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+            Vous avez suivi toutes les formations disponibles.
+          </p>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {(catalogQ.data ?? []).map((t: TrainingCatalog) => (
-              <Card key={t.id}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base leading-snug">{t.title}</CardTitle>
-                  <CardDescription>
-                    <Badge variant="secondary" className="mt-1">
-                      {TRAINING_TYPE_LABELS[t.training_type] ?? t.training_type}
-                    </Badge>
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  <p>
-                    <span className="text-muted-foreground">Organisme : </span>
-                    {t.provider ?? "—"}
-                  </p>
-                  <p>
-                    <span className="text-muted-foreground">Durée : </span>
-                    {t.duration_hours != null ? `${t.duration_hours} h` : "—"}
-                  </p>
-                  <p>
-                    <span className="text-muted-foreground">Coût HT : </span>
-                    {fmtMoney(t.unit_cost_ht)}
-                  </p>
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    {t.program_url && (
-                      <Button variant="outline" size="sm" asChild>
-                        <a href={t.program_url} target="_blank" rel="noopener noreferrer">
-                          <FileText className="mr-1 h-4 w-4" />
-                          Programme PDF
-                        </a>
-                      </Button>
-                    )}
-                    {t.external_link && (
-                      <Button variant="ghost" size="sm" asChild>
-                        <a href={t.external_link} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="mr-1 h-4 w-4" />
-                          Lien externe
-                        </a>
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {catalogTrainings.map((t: TrainingCatalog) => {
+              const blockingEnrollment = blockingEnrollmentByTrainingId.get(t.id);
+              return (
+                <Card key={t.id}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base leading-snug">{t.title}</CardTitle>
+                    <CardDescription>
+                      <Badge variant="secondary" className="mt-1">
+                        {TRAINING_TYPE_LABELS[t.training_type] ?? t.training_type}
+                      </Badge>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    <p>
+                      <span className="text-muted-foreground">Organisme : </span>
+                      {t.provider ?? "—"}
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">Durée : </span>
+                      {t.duration_hours != null ? `${t.duration_hours} h` : "—"}
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">Coût HT : </span>
+                      {fmtMoney(t.unit_cost_ht)}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 pt-2">
+                      {blockingEnrollment ? (
+                        enrollmentStatusBadge(blockingEnrollment.status)
+                      ) : (
+                        <Button type="button" size="sm" onClick={() => openRequest(t)}>
+                          Demander cette formation
+                        </Button>
+                      )}
+                      {t.program_url && (
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={t.program_url} target="_blank" rel="noopener noreferrer">
+                            <FileText className="mr-1 h-4 w-4" />
+                            Programme PDF
+                          </a>
+                        </Button>
+                      )}
+                      {t.external_link && (
+                        <Button variant="ghost" size="sm" asChild>
+                          <a href={t.external_link} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="mr-1 h-4 w-4" />
+                            Lien externe
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </section>
@@ -619,7 +1033,7 @@ function FormationLegalPanel({ employeeId }: { employeeId: string }) {
   const s = q.data;
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-2">
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Entretien professionnel (2 ans)</CardTitle>
@@ -725,6 +1139,72 @@ function FormationCompetenciesPanel({ employeeId }: { employeeId: string }) {
   );
 }
 
+function FormationOnboardingTabContent({ companyId }: { companyId: string }) {
+  const onboardingMe = useQuery({
+    queryKey: ["onboarding", "me", companyId],
+    queryFn: () => getMyOnboarding(companyId),
+    enabled: Boolean(companyId),
+    retry: false,
+  });
+
+  if (onboardingMe.isPending) {
+    return (
+      <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin shrink-0" />
+        Chargement…
+      </div>
+    );
+  }
+
+  if (onboardingMe.isError) {
+    const st = isAxiosError(onboardingMe.error) ? onboardingMe.error.response?.status : undefined;
+    if (st === 404) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle>Mon onboarding</CardTitle>
+            <CardDescription>Parcours d&apos;intégration</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Votre onboarding n&apos;est pas encore disponible.
+            </p>
+          </CardContent>
+        </Card>
+      );
+    }
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Mon onboarding</CardTitle>
+          <CardDescription>Parcours d&apos;intégration</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-destructive">
+            Impossible de vérifier l&apos;onboarding. Réessayez plus tard.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Mon onboarding</CardTitle>
+        <CardDescription>
+          Accédez à votre parcours d&apos;intégration et à votre checklist.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button asChild>
+          <Link to="/employee/onboarding">Ouvrir mon onboarding</Link>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function EmployeeFormationPage() {
   const { activeCompany } = useCompany();
   const { employee, isLoading, isError, notConfigured, error, refetch } = useCurrentEmployee();
@@ -793,6 +1273,7 @@ export default function EmployeeFormationPage() {
           <TabsTrigger value="formations">Mes formations</TabsTrigger>
           <TabsTrigger value="obligations">Obligations légales</TabsTrigger>
           <TabsTrigger value="competences">Mes compétences</TabsTrigger>
+          <TabsTrigger value="onboarding">Mon onboarding</TabsTrigger>
         </TabsList>
 
         <TabsContent value="entretiens" className="mt-0">
@@ -817,6 +1298,10 @@ export default function EmployeeFormationPage() {
 
         <TabsContent value="competences" className="mt-0">
           <FormationCompetenciesPanel employeeId={employeeId} />
+        </TabsContent>
+
+        <TabsContent value="onboarding" className="mt-0">
+          <FormationOnboardingTabContent companyId={activeCompany.company_id} />
         </TabsContent>
       </Tabs>
     </div>

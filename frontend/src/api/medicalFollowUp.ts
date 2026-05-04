@@ -95,3 +95,72 @@ export async function getMyObligations(): Promise<ObligationListItem[]> {
   const res = await apiClient.get<ObligationListItem[]>("/api/medical-follow-up/me");
   return res.data ?? [];
 }
+
+export interface SendMedicalRemindersResult {
+  sent: number;
+  errors: number;
+  message: string;
+}
+
+/** POST — envoie les notifications de rappel (entreprise active, accès RH). */
+export async function sendMedicalReminders(): Promise<SendMedicalRemindersResult> {
+  const res = await apiClient.post<SendMedicalRemindersResult>(
+    "/api/medical-follow-up/send-reminders"
+  );
+  return res.data;
+}
+
+/** Obligations en retard (GET, RH). */
+export async function getOverdueObligations(): Promise<ObligationListItem[]> {
+  const res = await apiClient.get<ObligationListItem[]>(
+    "/api/medical-follow-up/obligations/overdue"
+  );
+  return res.data ?? [];
+}
+
+/** Obligations à échéance dans les ``days`` prochains jours (GET, RH). */
+export async function getUpcomingObligations(days: number = 30): Promise<ObligationListItem[]> {
+  const res = await apiClient.get<ObligationListItem[]>(
+    "/api/medical-follow-up/obligations/upcoming",
+    { params: { days } }
+  );
+  return res.data ?? [];
+}
+
+export interface VisitTypeCompliance {
+  visit_type: string;
+  label: string;
+  total: number;
+  compliant: number;
+  overdue: number;
+  compliance_rate: number;
+}
+
+export interface EmployeeOverdue {
+  employee_id: string;
+  employee_name: string;
+  obligations_overdue: number;
+  most_urgent_due_date: string;
+  visit_types: string[];
+}
+
+export interface ComplianceReport {
+  generated_at: string;
+  total_employees: number;
+  total_obligations: number;
+  compliant: number;
+  overdue: number;
+  upcoming_30: number;
+  upcoming_7: number;
+  compliance_rate: number;
+  by_visit_type: VisitTypeCompliance[];
+  employees_overdue: EmployeeOverdue[];
+}
+
+/** Rapport de conformité (GET, RH, entreprise active). */
+export async function getComplianceReport(): Promise<ComplianceReport> {
+  const res = await apiClient.get<ComplianceReport>(
+    "/api/medical-follow-up/compliance-report"
+  );
+  return res.data;
+}

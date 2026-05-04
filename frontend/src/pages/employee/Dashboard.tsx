@@ -280,10 +280,10 @@ export default function EmployeeDashboard() {
 
       <PendingSignaturesWidget mode="employee" />
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
           {/* --- Cartes KPI --- */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
              <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Dernier Net à Payer</CardTitle><Wallet className="h-4 w-4 text-muted-foreground" /></CardHeader>
               <CardContent>

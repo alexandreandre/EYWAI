@@ -589,7 +589,7 @@ export default function CompanyGroupDetail() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="overflow-x-auto">
+                  <div className="w-full overflow-x-auto">
                     <table className="w-full">
                       <thead>
                         <tr className="border-b">
@@ -670,7 +670,7 @@ export default function CompanyGroupDetail() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
               {companies.map((company) => (
                 <Card
                   key={company.id}
@@ -865,7 +865,7 @@ export default function CompanyGroupDetail() {
           ) : (
             <Card>
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
+                <div className="w-full overflow-x-auto">
                   <table className="w-full">
                     <thead>
                       <tr className="border-b bg-muted/50">
@@ -873,7 +873,7 @@ export default function CompanyGroupDetail() {
                           Utilisateur
                         </th>
                         {companies.map((company) => (
-                          <th key={company.id} className="text-center p-4 font-medium min-w-[120px]">
+                          <th key={company.id} className="min-w-0 p-4 text-center font-medium">
                             <div className="text-sm">{company.company_name}</div>
                             {company.siret && (
                               <div className="text-xs text-muted-foreground font-mono font-normal">
@@ -976,7 +976,7 @@ export default function CompanyGroupDetail() {
                       </p>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="user-firstname">Prénom</Label>
                       <Input
