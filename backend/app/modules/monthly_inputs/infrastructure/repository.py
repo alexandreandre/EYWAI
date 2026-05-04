@@ -37,6 +37,26 @@ class SupabaseMonthlyInputsRepository(IMonthlyInputsRepository):
         )
         return response.data or []
 
+    def get_company_ids_by_employee_ids(
+        self, employee_ids: List[str]
+    ) -> Dict[str, str]:
+        """Retourne {employee_id: company_id} pour les employés trouvés (company_id non null)."""
+        if not employee_ids:
+            return {}
+        response = (
+            supabase.table("employees")
+            .select("id, company_id")
+            .in_("id", employee_ids)
+            .execute()
+        )
+        out: Dict[str, str] = {}
+        for row in response.data or []:
+            eid = row.get("id")
+            cid = row.get("company_id")
+            if eid is not None and cid is not None:
+                out[str(eid)] = str(cid)
+        return out
+
     def insert_batch(self, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         response = supabase.table("monthly_inputs").insert(rows).execute()
         return response.data or []

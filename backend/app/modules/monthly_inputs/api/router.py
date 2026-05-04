@@ -12,6 +12,7 @@ import traceback
 from typing import List
 
 from fastapi import APIRouter, HTTPException
+from postgrest.exceptions import APIError
 
 from app.modules.monthly_inputs.application import commands, queries
 from app.modules.monthly_inputs.schemas.requests import MonthlyInput, MonthlyInputCreate
@@ -37,6 +38,20 @@ def create_monthly_inputs(payload: List[MonthlyInput]):
     try:
         result = commands.create_monthly_inputs_batch(payload)
         return create_batch_response(result.inserted_count)
+    except APIError as e:
+        code = str(e.code) if e.code is not None else ""
+        msg = (e.message or "").lower()
+        if code == "23505" or "duplicate key" in msg:
+            raise HTTPException(
+                status_code=409,
+                detail="Une saisie existe déjà pour cet employé, ce mois et ce libellé. Supprimez l'entrée existante ou modifiez le nom.",
+            ) from e
+        print(f"❌ ERREUR PostgREST create_monthly_inputs : {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        raise HTTPException(
+            status_code=502,
+            detail=e.message or str(e),
+        ) from e
     except Exception as e:
         print(f"❌ ERREUR dans create_monthly_inputs : {e}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
@@ -63,6 +78,20 @@ def create_employee_monthly_inputs(employee_id: str, prime_data: MonthlyInputCre
     try:
         result = commands.create_employee_monthly_input(employee_id, prime_data)
         return create_single_response(result.inserted_data)
+    except APIError as e:
+        code = str(e.code) if e.code is not None else ""
+        msg = (e.message or "").lower()
+        if code == "23505" or "duplicate key" in msg:
+            raise HTTPException(
+                status_code=409,
+                detail="Une saisie existe déjà pour cet employé, ce mois et ce libellé. Supprimez l'entrée existante ou modifiez le nom.",
+            ) from e
+        print(f"❌ ERREUR PostgREST create_employee_monthly_inputs : {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        raise HTTPException(
+            status_code=502,
+            detail=e.message or str(e),
+        ) from e
     except Exception as e:
         print(f"❌ Erreur create_employee_monthly_inputs : {e}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)

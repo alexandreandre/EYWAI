@@ -54,16 +54,25 @@ class TestCreateMonthlyInputsBatch:
         with patch(
             "app.modules.monthly_inputs.application.commands.monthly_inputs_repository"
         ) as repo:
+            repo.get_company_ids_by_employee_ids.return_value = {
+                "550e8400-e29b-41d4-a716-446655440000": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            }
             repo.insert_batch.return_value = inserted_rows
             result = commands.create_monthly_inputs_batch(payload)
 
         assert result.inserted_count == 2
         repo.insert_batch.assert_called_once()
+        assert repo.get_company_ids_by_employee_ids.call_count == 1
+        assert set(repo.get_company_ids_by_employee_ids.call_args[0][0]) == {
+            "550e8400-e29b-41d4-a716-446655440000",
+        }
         call_arg = repo.insert_batch.call_args[0][0]
         assert len(call_arg) == 2
         assert call_arg[0]["name"] == "Prime"
         assert call_arg[0]["amount"] == 100.0
+        assert call_arg[0]["company_id"] == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
         assert call_arg[1]["name"] == "Acompte"
+        assert call_arg[1]["company_id"] == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 
     def test_empty_payload_returns_zero_inserted(self):
         """Liste vide → insert_batch avec [], retourne inserted_count=0."""
@@ -91,6 +100,9 @@ class TestCreateMonthlyInputsBatch:
         with patch(
             "app.modules.monthly_inputs.application.commands.monthly_inputs_repository"
         ) as repo:
+            repo.get_company_ids_by_employee_ids.return_value = {
+                "660e8400-e29b-41d4-a716-446655440001": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            }
             repo.insert_batch.return_value = [{"id": "new-1", "name": "Prime unique"}]
             result = commands.create_monthly_inputs_batch(payload)
 
@@ -100,6 +112,7 @@ class TestCreateMonthlyInputsBatch:
         assert call_arg[0]["year"] == 2025
         assert call_arg[0]["month"] == 6
         assert call_arg[0]["description"] == "Description"
+        assert call_arg[0]["company_id"] == "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 
 
 class TestCreateEmployeeMonthlyInput:
@@ -128,6 +141,9 @@ class TestCreateEmployeeMonthlyInput:
         with patch(
             "app.modules.monthly_inputs.application.commands.monthly_inputs_repository"
         ) as repo:
+            repo.get_company_ids_by_employee_ids.return_value = {
+                employee_id: "cccccccc-cccc-cccc-cccc-cccccccccccc",
+            }
             repo.insert_one.return_value = inserted
             result = commands.create_employee_monthly_input(employee_id, prime_data)
 
@@ -139,6 +155,7 @@ class TestCreateEmployeeMonthlyInput:
         assert call_row["month"] == 4
         assert call_row["name"] == "Prime employé"
         assert call_row["amount"] == 150.0
+        assert call_row["company_id"] == "cccccccc-cccc-cccc-cccc-cccccccccccc"
 
     def test_create_with_optional_description(self):
         """MonthlyInputCreate avec description optionnelle."""
@@ -152,11 +169,15 @@ class TestCreateEmployeeMonthlyInput:
         with patch(
             "app.modules.monthly_inputs.application.commands.monthly_inputs_repository"
         ) as repo:
+            repo.get_company_ids_by_employee_ids.return_value = {
+                "emp-1": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+            }
             repo.insert_one.return_value = {}
             commands.create_employee_monthly_input("emp-1", prime_data)
 
         call_row = repo.insert_one.call_args[0][0]
         assert call_row["description"] == "Acompte mai"
+        assert call_row["company_id"] == "dddddddd-dddd-dddd-dddd-dddddddddddd"
 
 
 class TestDeleteMonthlyInput:

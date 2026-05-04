@@ -224,6 +224,16 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
       year: currentYear,
       month: currentMonth,
     }));
+    for (const p of payloads) {
+      if (!Number.isFinite(p.amount)) {
+        toast({
+          title: "Erreur",
+          description: "Montant invalide : saisis un nombre (ex. 150 ou 150,50).",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     onSave(payloads);
   };
   
@@ -611,8 +621,20 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                 <Label>Montant (€) {isCalculating && <span className="text-muted-foreground">(calcul en cours...)</span>}</Label>
                 <Input
                   type="number"
-                  value={formData.amount}
-                  onChange={e => setFormData(p => ({ ...p, amount: e.target.value ? parseFloat(e.target.value) : '' }))}
+                  inputMode="decimal"
+                  value={formData.amount === "" ? "" : formData.amount}
+                  onChange={(e) => {
+                    const raw = e.target.value.trim().replace(",", ".");
+                    if (!raw) {
+                      setFormData((p) => ({ ...p, amount: "" }));
+                      return;
+                    }
+                    const n = parseFloat(raw);
+                    setFormData((p) => ({
+                      ...p,
+                      amount: Number.isFinite(n) ? n : p.amount,
+                    }));
+                  }}
                   disabled={isCalculating || (selectedBonusTypeId && bonusTypes.find(bt => bt.id === selectedBonusTypeId)?.type === "selon_heures")}
                 />
                 {selectedBonusTypeId && bonusTypes.find(bt => bt.id === selectedBonusTypeId)?.type === "selon_heures" && (

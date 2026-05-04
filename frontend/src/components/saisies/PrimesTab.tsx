@@ -18,6 +18,33 @@ import { SaisieModal } from "@/components/SaisieModal";
 import * as saisiesApi from '@/api/saisies';
 import apiClient from '@/api/apiClient';
 
+/** Extrait le message lisible d'une erreur Axios / FastAPI pour les toasts. */
+function describeApiError(error: unknown, fallback: string): string {
+  if (typeof error !== "object" || error === null || !("response" in error)) {
+    return fallback;
+  }
+  const res = (error as { response?: { data?: unknown } }).response;
+  const data = res?.data;
+  if (!data || typeof data !== "object" || !("detail" in data)) {
+    return fallback;
+  }
+  const detail = (data as { detail: unknown }).detail;
+  if (typeof detail === "string") {
+    return detail.length > 800 ? `${detail.slice(0, 800)}…` : detail;
+  }
+  if (Array.isArray(detail)) {
+    const parts = detail.map((item) => {
+      if (item && typeof item === "object" && "msg" in item) {
+        return String((item as { msg: unknown }).msg);
+      }
+      return JSON.stringify(item);
+    });
+    const joined = parts.filter(Boolean).join(" — ");
+    return joined.length > 0 ? (joined.length > 800 ? `${joined.slice(0, 800)}…` : joined) : fallback;
+  }
+  return fallback;
+}
+
 // --- Types & Interfaces ---
 interface Employee { id: string; first_name: string; last_name: string; job_title: string; }
 type MonthlyInput = saisiesApi.MonthlyInput;
@@ -86,7 +113,12 @@ export function PrimesTab({ selectedYear, selectedMonth, onYearChange, onMonthCh
       fetchData();
       setModalOpen(false);
     } catch (error) {
-      toast({ title: "Erreur", description: "Échec de l'ajout de la saisie.", variant: "destructive" });
+      console.error(error);
+      toast({
+        title: "Erreur",
+        description: describeApiError(error, "Échec de l'ajout de la saisie."),
+        variant: "destructive",
+      });
     }
   };
 
@@ -97,7 +129,12 @@ export function PrimesTab({ selectedYear, selectedMonth, onYearChange, onMonthCh
       toast({ title: "Supprimée", description: "La saisie a été supprimée." });
       fetchData();
     } catch (error) {
-      toast({ title: "Erreur", description: "Impossible de supprimer la saisie.", variant: "destructive" });
+      console.error(error);
+      toast({
+        title: "Erreur",
+        description: describeApiError(error, "Impossible de supprimer la saisie."),
+        variant: "destructive",
+      });
     }
   };
 

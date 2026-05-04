@@ -46,6 +46,9 @@ class TestMonthlyInputsWiring:
         with patch(
             "app.modules.monthly_inputs.application.commands.monthly_inputs_repository"
         ) as repo:
+            repo.get_company_ids_by_employee_ids.return_value = {
+                "550e8400-e29b-41d4-a716-446655440000": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            }
             repo.insert_batch.return_value = [
                 {
                     "id": "new-1",
@@ -77,6 +80,7 @@ class TestMonthlyInputsWiring:
         call_rows = repo.insert_batch.call_args[0][0]
         assert len(call_rows) == 1
         assert call_rows[0]["name"] == "Prime"
+        assert call_rows[0]["company_id"] == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 
     def test_delete_flow_uses_commands(self, client: TestClient):
         """DELETE /api/monthly-inputs/{id} : router -> commands.delete_monthly_input -> repo.delete_by_id."""
@@ -107,6 +111,9 @@ class TestMonthlyInputsWiring:
         with patch(
             "app.modules.monthly_inputs.application.commands.monthly_inputs_repository"
         ) as repo:
+            repo.get_company_ids_by_employee_ids.return_value = {
+                "emp-wiring": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+            }
             repo.insert_one.return_value = {
                 "id": "new-emp-1",
                 "employee_id": "emp-wiring",
@@ -133,6 +140,7 @@ class TestMonthlyInputsWiring:
         assert call_row["employee_id"] == "emp-wiring"
         assert call_row["year"] == 2025
         assert call_row["month"] == 7
+        assert call_row["company_id"] == "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
 
     def test_delete_employee_monthly_input_flow_uses_commands(self, client: TestClient):
         """DELETE /api/employees/{id}/monthly-inputs/{input_id} : commands.delete_employee_monthly_input."""
