@@ -10,6 +10,7 @@ import {
   User,
   LogOut,
   ClipboardEdit,
+  ClipboardList,
   Notebook,
   Plane,
   Settings,
@@ -79,6 +80,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { NotificationBell } from "@/components/NotificationBell";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import type { LucideIcon } from "lucide-react";
 
@@ -101,12 +103,14 @@ const RH_TEAM_BASE: SidebarLinkItem[] = [
   { title: "Entretiens", url: "/annual-reviews", icon: MessageSquare },
   { title: "Formation", url: "/formation", icon: GraduationCap },
   { title: "Documents", url: "/documents", icon: FileText },
+  { title: "Augmentations", url: "/augmentations-collectives", icon: TrendingUp },
   { title: "Habilitations", url: "/habilitations", icon: ShieldCheck },
   { title: "Objectifs & KPI", url: "/objectives", icon: Target },
   { title: "Catalogue formations", url: "/catalogue-formations", icon: BookOpen },
   { title: "Promotions", url: "/promotions", icon: Award },
   { title: "CSE & Dialogue Social", url: "/cse", icon: Handshake },
   { title: "Recrutement", url: "/recruitment", icon: UserPlus },
+  { title: "Onboarding", url: "/onboarding", icon: ClipboardList },
   { title: "Gestion des Utilisateurs", url: "/users", icon: UserCog },
 ];
 
@@ -618,6 +622,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className={collapsed ? "p-2" : "p-4"}>
+        <NotificationBell companyId={activeCompany?.company_id ?? ''} />
         {!collapsed && <Separator className="mb-4" />}
         <SidebarMenu className={collapsed ? "mb-2 flex flex-col items-center gap-1" : "mb-2"}>
           <SidebarMenuItem>

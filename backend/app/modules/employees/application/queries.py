@@ -167,3 +167,43 @@ def get_employee_rh_access(employee_id: str, company_id: str) -> Dict[str, Any]:
     return provider_get_employee_rh_access(
         employee_id=employee_id, company_id=company_id
     )
+
+
+def employee_belongs_to_company(employee_id: str, company_id: str) -> bool:
+    """Indique si l'employé appartient bien à l'entreprise (ex. contrôle d'accès onboarding)."""
+    cid = get_employee_company_id(employee_id)
+    return cid is not None and str(cid) == str(company_id)
+
+
+def get_employees_filtered(
+    company_id: str,
+    service_id: str | None = None,
+    statut: str | None = None,
+    contract_type: str | None = None,
+    anciennete_min_mois: int | None = None,
+    salaire_min: float | None = None,
+    salaire_max: float | None = None,
+) -> List[Dict[str, Any]]:
+    """Employés actifs filtrés (simulation / augmentation collective)."""
+    return _employee_repository.get_employees_filtered(
+        company_id,
+        service_id=service_id,
+        statut=statut,
+        contract_type=contract_type,
+        anciennete_min_mois=anciennete_min_mois,
+        salaire_min=salaire_min,
+        salaire_max=salaire_max,
+    )
+
+
+def get_employee_row(employee_id: str, company_id: str) -> Optional[Dict[str, Any]]:
+    """Ligne employé brute (salaire, etc.) sans enrichissement pour opérations RH."""
+    return _employee_repository.get_by_id(employee_id, company_id)
+
+
+def get_salary_history_rows(
+    employee_id: str,
+    company_id: str,
+) -> List[Dict[str, Any]]:
+    """Historique des salaires (table salary_history)."""
+    return _employee_repository.get_salary_history(employee_id, company_id)

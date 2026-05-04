@@ -1,23 +1,32 @@
 // frontend/src/pages/Recruitment.tsx
 // Page RH : Module Recrutement (ATS) — Pipeline Kanban + Vue Liste + Fiche candidat
 
-import { useState, useMemo, useRef, useCallback, type CSSProperties } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect, type CSSProperties } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getJobs, createJob, getPipelineStages, getCandidates, createCandidate,
-  moveCandidate, getCandidate, getNotes, createNote, getOpinions, createOpinion,
+  moveCandidate, getNotes, createNote, uploadNoteAudio, getOpinions, createOpinion,
   getInterviews, createInterview, getTimeline, hireCandidate, getRejectionReasons,
-  deleteCandidate, checkDuplicate,
+  checkDuplicate,
   createPipelineStage, updatePipelineStage, deletePipelineStage, reorderPipelineStages,
+  uploadCandidateCV, updateInterview,
+  scoreCandidateAI, getCandidateScore,
+  getRecruitmentAnalytics,
   type Job, type PipelineStage, type Candidate, type Note, type Opinion,
-  type Interview, type HireResult,
+  type Interview, type HireResult, type ScoringResult,
+  type RecruitmentAnalyticsParams, type RecruitmentAnalytics,
 } from "@/api/recruitment";
+import apiClient from "@/api/apiClient";
+import { listCompanyServices } from "@/api/objectives";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -37,7 +46,8 @@ import {
   Plus, Search, LayoutGrid, List, User, Mail, Phone, Calendar,
   Clock, MapPin, Link2, FileText, ThumbsUp, ThumbsDown,
   Loader2, Briefcase, X, ChevronRight, MessageSquare, AlertTriangle,
-  UserPlus, Check, GripVertical,
+  UserPlus, Check, GripVertical, Sparkles, RefreshCw, CheckCircle2, AlertCircle,
+  BarChart3, Mic, Square, Trash2,
 } from "lucide-react";
 import {
   DndContext,
@@ -57,14 +67,389 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  LabelList,
+  Legend,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+
+function recruitmentAiPalette(score: number) {
+  if (score >= 80) {
+    return {
+      bar: "bg-emerald-600",
+      badge: "bg-emerald-600 text-white border-emerald-700 shadow-sm",
+    };
+  }
+  if (score >= 60) {
+    return {
+      bar: "bg-blue-600",
+      badge: "bg-blue-600 text-white border-blue-700 shadow-sm",
+    };
+  }
+  if (score >= 40) {
+    return {
+      bar: "bg-orange-500",
+      badge: "bg-orange-500 text-white border-orange-600 shadow-sm",
+    };
+  }
+  return {
+    bar: "bg-red-600",
+    badge: "bg-red-600 text-white border-red-700 shadow-sm",
+  };
+}
+
+const eurFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+
+// ─── Analytics (RH) ─────────────────────────────────────────────────
+
+function RecruitmentAnalyticsSection({
+  companyId,
+  jobs,
+}: {
+  companyId: string;
+  jobs: Job[];
+}) {
+  const [formJobId, setFormJobId] = useState("__all__");
+  const [formDateFrom, setFormDateFrom] = useState("");
+  const [formDateTo, setFormDateTo] = useState("");
+  const [formBudget, setFormBudget] = useState("");
+  const [queryParams, setQueryParams] = useState<RecruitmentAnalyticsParams>({});
+
+  useEffect(() => {
+    setFormJobId("__all__");
+    setFormDateFrom("");
+    setFormDateTo("");
+    setFormBudget("");
+    setQueryParams({});
+  }, [companyId]);
+
+  const commitFilters = useCallback(() => {
+    const p: RecruitmentAnalyticsParams = {};
+    if (formJobId && formJobId !== "__all__") p.job_id = formJobId;
+    if (formDateFrom.trim()) p.date_from = formDateFrom.trim();
+    if (formDateTo.trim()) p.date_to = formDateTo.trim();
+    const raw = formBudget.trim().replace(/\s/g, "").replace(",", ".");
+    if (raw) {
+      const n = parseFloat(raw);
+      if (!Number.isNaN(n)) p.budget_total = n;
+    }
+    setQueryParams(p);
+  }, [formJobId, formDateFrom, formDateTo, formBudget]);
+
+  const { data: analyticsData, isLoading, isFetching } = useQuery({
+    queryKey: ["recruitment", "analytics", companyId, queryParams],
+    queryFn: () => getRecruitmentAnalytics(companyId, queryParams),
+    enabled: Boolean(companyId),
+  });
+
+  const loading = isLoading || isFetching;
+  const d = analyticsData;
+  const showCostCard = d != null && d.cost_per_hire != null;
+
+  const sourceChartData = useMemo(
+    () =>
+      (d?.source_stats ?? []).map((s) => ({
+        source: s.source.length > 28 ? `${s.source.slice(0, 28)}…` : s.source,
+        fullSource: s.source,
+        candidats: s.nb_candidates,
+        embauches: s.nb_hired,
+      })),
+    [d?.source_stats],
+  );
+
+  const stageChartData = useMemo(
+    () =>
+      (d?.stage_conversion ?? []).map((s) => ({
+        name: s.stage_name.length > 36 ? `${s.stage_name.slice(0, 36)}…` : s.stage_name,
+        fullName: s.stage_name,
+        candidats: s.nb_candidates,
+        conversion: Math.round(s.conversion_rate * 10) / 10,
+      })),
+    [d?.stage_conversion],
+  );
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">Filtres</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
+          <div className="space-y-2 min-w-[200px]">
+            <Label>Poste</Label>
+            <Select value={formJobId} onValueChange={setFormJobId}>
+              <SelectTrigger className="w-[260px]">
+                <SelectValue placeholder="Poste" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">Tous les postes</SelectItem>
+                {jobs.map((j) => (
+                  <SelectItem key={j.id} value={j.id}>
+                    {j.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="an-date-from">Du</Label>
+            <Input
+              id="an-date-from"
+              type="date"
+              className="w-[180px]"
+              value={formDateFrom}
+              onChange={(e) => setFormDateFrom(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="an-date-to">Au</Label>
+            <Input
+              id="an-date-to"
+              type="date"
+              className="w-[180px]"
+              value={formDateTo}
+              onChange={(e) => setFormDateTo(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2 flex-1 min-w-[160px] max-w-xs">
+            <Label htmlFor="an-budget">Budget recrutement (€)</Label>
+            <Input
+              id="an-budget"
+              inputMode="decimal"
+              placeholder="Optionnel"
+              value={formBudget}
+              onChange={(e) => setFormBudget(e.target.value)}
+            />
+          </div>
+          <Button type="button" onClick={commitFilters} disabled={!companyId} className="lg:mb-0.5">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Actualiser
+          </Button>
+        </CardContent>
+      </Card>
+
+      {loading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-28 rounded-lg" />
+          ))}
+        </div>
+      ) : (
+        <>
+          <div className={cn("grid gap-4 sm:grid-cols-2", showCostCard ? "lg:grid-cols-5" : "lg:grid-cols-4")}>
+            <Card>
+              <CardHeader className="pb-1">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total candidatures</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold tabular-nums">{d?.total_candidates ?? 0}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-1">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total embauches</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold tabular-nums">{d?.total_hired ?? 0}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-1">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Taux de conversion global</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold tabular-nums">
+                  {(d?.overall_conversion_rate ?? 0).toFixed(1)}%
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-1">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Temps moyen d&apos;embauche</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold tabular-nums">
+                  {(d?.avg_time_to_hire_days ?? 0).toFixed(1)}
+                  <span className="text-base font-normal text-muted-foreground ml-1">j</span>
+                </p>
+              </CardContent>
+            </Card>
+            {showCostCard && d?.cost_per_hire != null ? (
+              <Card>
+                <CardHeader className="pb-1">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Coût par embauche</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-bold tabular-nums">{eurFmt.format(d.cost_per_hire)}</p>
+                </CardContent>
+              </Card>
+            ) : null}
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-1">
+            <Card>
+              <CardHeader>
+                <CardTitle>Efficacité des sources</CardTitle>
+                <p className="text-sm text-muted-foreground">Candidatures vs embauches par canal</p>
+              </CardHeader>
+              <CardContent>
+                {!sourceChartData.length ? (
+                  <p className="text-sm text-muted-foreground py-8 text-center">Aucune donnée</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={Math.max(220, sourceChartData.length * 40)}>
+                    <BarChart
+                      layout="vertical"
+                      data={sourceChartData}
+                      margin={{ top: 8, right: 24, left: 8, bottom: 8 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis type="number" allowDecimals={false} className="text-xs" />
+                      <YAxis dataKey="source" type="category" width={100} tick={{ fontSize: 11 }} />
+                      <RechartsTooltip
+                        content={({ active, payload }) => {
+                          if (!active || !payload?.length) return null;
+                          const p = payload[0].payload as {
+                            fullSource?: string;
+                            candidats?: number;
+                            embauches?: number;
+                          };
+                          return (
+                            <div className="rounded-md border bg-background px-2 py-1.5 text-xs shadow-md">
+                              <p className="font-medium mb-1">{p.fullSource}</p>
+                              <p className="text-muted-foreground">Candidats : {p.candidats}</p>
+                              <p className="text-muted-foreground">Embauches : {p.embauches}</p>
+                            </div>
+                          );
+                        }}
+                      />
+                      <Legend />
+                      <Bar dataKey="candidats" name="Candidats" fill="#94a3b8" radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="embauches" name="Embauches" fill="#22c55e" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Conversion par étape</CardTitle>
+                <p className="text-sm text-muted-foreground">Candidats par étape et taux vers l&apos;étape suivante</p>
+              </CardHeader>
+              <CardContent>
+                {!stageChartData.length ? (
+                  <p className="text-sm text-muted-foreground py-8 text-center">Aucune donnée</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={Math.min(520, 120 + stageChartData.length * 48)}>
+                    <BarChart data={stageChartData} margin={{ top: 8, right: 16, left: 8, bottom: 80 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-35} textAnchor="end" height={90} />
+                      <YAxis allowDecimals={false} className="text-xs" />
+                      <RechartsTooltip
+                        content={({ active, payload }) => {
+                          if (!active || !payload?.length) return null;
+                          const p = payload[0].payload as {
+                            fullName?: string;
+                            candidats?: number;
+                            conversion?: number;
+                          };
+                          return (
+                            <div className="rounded-md border bg-background px-2 py-1.5 text-xs shadow-md">
+                              <p className="font-medium mb-1">{p.fullName}</p>
+                              <p className="text-muted-foreground">Candidats : {p.candidats}</p>
+                              <p className="text-muted-foreground">
+                                Conversion vers l&apos;étape suivante : {p.conversion ?? 0}%
+                              </p>
+                            </div>
+                          );
+                        }}
+                      />
+                      <Legend />
+                      <Bar dataKey="candidats" name="Candidats" fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                        <LabelList
+                          dataKey="conversion"
+                          position="top"
+                          formatter={(v: number) => (v > 0 ? `${v}%` : "")}
+                          className="fill-muted-foreground text-[10px]"
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+                {stageChartData.length > 0 && d?.stage_conversion?.length ? (
+                  <ul className="mt-4 space-y-1 text-xs text-muted-foreground border-t pt-3">
+                    {d.stage_conversion.map((s) => (
+                      <li key={`${s.stage_name}-${s.stage_position}`} className="flex justify-between gap-2">
+                        <span className="truncate" title={s.stage_name}>{s.stage_name}</span>
+                        <span className="tabular-nums shrink-0">
+                          {s.conversion_rate.toFixed(1)}% vers suivante · ~{s.avg_days_in_stage.toFixed(1)} j dans l&apos;étape
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Time-to-hire par poste</CardTitle>
+              <p className="text-sm text-muted-foreground">Délai moyen entre candidature et embauche</p>
+            </CardHeader>
+            <CardContent>
+              {!d?.time_to_hire_by_job?.length ? (
+                <p className="text-sm text-muted-foreground py-8 text-center">Aucune embauche sur la période sélectionnée</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Poste</TableHead>
+                      <TableHead className="text-right">Embauches</TableHead>
+                      <TableHead className="text-right">Moy. jours</TableHead>
+                      <TableHead className="text-right">Min</TableHead>
+                      <TableHead className="text-right">Max</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {d.time_to_hire_by_job.map((row) => (
+                      <TableRow key={row.job_id}>
+                        <TableCell className="font-medium">{row.job_title || "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{row.nb_hired}</TableCell>
+                        <TableCell className="text-right tabular-nums">{row.avg_days.toFixed(1)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{row.min_days.toFixed(1)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{row.max_days.toFixed(1)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+    </div>
+  );
+}
 
 // ─── Kanban Card ────────────────────────────────────────────────────
 
 function CandidateCard({ candidate, onClick }: { candidate: Candidate; onClick: () => void }) {
+  const ai = candidate.ai_score;
+  const pal = ai != null ? recruitmentAiPalette(ai) : null;
   return (
     <div
       onClick={onClick}
-      className="bg-white border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow group"
+      className={cn(
+        "relative bg-white border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow group",
+        ai != null && "pb-7",
+      )}
     >
       <div className="flex items-start gap-2">
         <Avatar className="h-8 w-8 flex-shrink-0 mt-0.5">
@@ -84,6 +469,17 @@ function CandidateCard({ candidate, onClick }: { candidate: Candidate; onClick: 
           )}
         </div>
       </div>
+      {ai != null && pal ? (
+        <span
+          className={cn(
+            "pointer-events-none absolute bottom-1.5 right-1.5 rounded border px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
+            pal.badge,
+          )}
+          aria-label={`Score IA ${ai}`}
+        >
+          {ai}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -406,6 +802,243 @@ function AddStageColumn({ onAdd }: { onAdd: (name: string) => void }) {
   );
 }
 
+// ─── Note audio (MediaRecorder) ─────────────────────────────────────
+
+type NoteRecorderUiState = "idle" | "recording" | "recorded" | "uploading";
+
+const NOTE_AUDIO_MAX_SECONDS = 300;
+
+function formatNoteRecSecs(total: number): string {
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function CandidateNoteAudioRecorder({
+  candidateId,
+  companyId,
+  audioUrl,
+  onAudioUrl,
+  disabled,
+}: {
+  candidateId: string;
+  companyId: string;
+  audioUrl: string | null;
+  onAudioUrl: (url: string | null) => void;
+  disabled?: boolean;
+}) {
+  const { toast } = useToast();
+  const [ui, setUi] = useState<NoteRecorderUiState>("idle");
+  const [seconds, setSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
+  const recordedBlobRef = useRef<Blob | null>(null);
+  const elapsedRef = useRef(0);
+
+  const stopTimer = () => {
+    if (timerRef.current != null) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const cleanupStream = () => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+  };
+
+  const revokePreview = () => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+  };
+
+  useEffect(
+    () => () => {
+      stopTimer();
+      cleanupStream();
+      revokePreview();
+      mediaRecorderRef.current = null;
+    },
+    [],
+  );
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      let mime = "audio/webm";
+      if (typeof MediaRecorder !== "undefined" && !MediaRecorder.isTypeSupported("audio/webm")) {
+        if (MediaRecorder.isTypeSupported("audio/ogg;codecs=opus")) {
+          mime = "audio/ogg;codecs=opus";
+        } else {
+          mime = "";
+        }
+      }
+      const options: MediaRecorderOptions | undefined = mime ? { mimeType: mime } : undefined;
+      const mr = new MediaRecorder(stream, options);
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      mr.onstop = () => {
+        stopTimer();
+        cleanupStream();
+        const blobType = mr.mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type: blobType });
+        recordedBlobRef.current = blob;
+        revokePreview();
+        const url = URL.createObjectURL(blob);
+        previewUrlRef.current = url;
+        setUi("recorded");
+      };
+      mediaRecorderRef.current = mr;
+      elapsedRef.current = 0;
+      setSeconds(0);
+      setUi("recording");
+      mr.start(1000);
+      timerRef.current = setInterval(() => {
+        elapsedRef.current += 1;
+        setSeconds(elapsedRef.current);
+        if (elapsedRef.current >= NOTE_AUDIO_MAX_SECONDS) {
+          mr.stop();
+        }
+      }, 1000);
+    } catch {
+      toast({
+        title: "Permission micro refusée",
+        description: "Autorisez l'accès au microphone pour enregistrer une note audio.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+  };
+
+  const discardRecording = () => {
+    revokePreview();
+    recordedBlobRef.current = null;
+    elapsedRef.current = 0;
+    setSeconds(0);
+    setUi("idle");
+  };
+
+  const confirmUpload = async () => {
+    const blob = recordedBlobRef.current;
+    if (!blob) return;
+    setUi("uploading");
+    try {
+      const { audio_url } = await uploadNoteAudio(candidateId, companyId, blob);
+      onAudioUrl(audio_url);
+      revokePreview();
+      recordedBlobRef.current = null;
+      elapsedRef.current = 0;
+      setSeconds(0);
+      setUi("idle");
+    } catch {
+      toast({
+        title: "Erreur",
+        description: "Impossible d'envoyer l'enregistrement.",
+        variant: "destructive",
+      });
+      setUi("recorded");
+    }
+  };
+
+  if (audioUrl) {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge className="bg-emerald-600 gap-1 font-normal">
+          Audio joint
+        </Badge>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7 shrink-0"
+          aria-label="Retirer l'audio"
+          disabled={disabled}
+          onClick={() => onAudioUrl(null)}
+        >
+          <X className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    );
+  }
+
+  if (ui === "uploading") {
+    return (
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Envoi de l&apos;audio…
+      </div>
+    );
+  }
+
+  if (ui === "recording") {
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="flex items-center gap-1.5 text-xs font-medium text-red-600">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-red-600" />
+          </span>
+          Enregistrement
+        </span>
+        <span className="text-sm tabular-nums text-muted-foreground">{formatNoteRecSecs(seconds)}</span>
+        <Button
+          type="button"
+          size="sm"
+          variant="destructive"
+          className="h-8 gap-1"
+          onClick={stopRecording}
+        >
+          <Square className="h-3.5 w-3.5 fill-current" />
+          Stop
+        </Button>
+      </div>
+    );
+  }
+
+  if (ui === "recorded" && previewUrlRef.current) {
+    return (
+      <div className="space-y-2 rounded-md border bg-background/80 p-2">
+        <audio src={previewUrlRef.current} controls className="h-8 w-full max-w-md" />
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" variant="outline" className="h-8 gap-1" onClick={discardRecording}>
+            <Trash2 className="h-3.5 w-3.5" />
+            Supprimer
+          </Button>
+          <Button type="button" size="sm" className="h-8" onClick={confirmUpload} disabled={disabled}>
+            Utiliser cet enregistrement
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      className="h-8 gap-1"
+      disabled={disabled}
+      onClick={startRecording}
+    >
+      <Mic className="h-3.5 w-3.5" />
+      Enregistrer un audio
+    </Button>
+  );
+}
+
 // ─── Candidate Slide-over ───────────────────────────────────────────
 
 function CandidateSlideOver({
@@ -418,6 +1051,8 @@ function CandidateSlideOver({
   onHire,
   onRequestReject,
   onScheduleInterview,
+  companyId,
+  onCandidateRefresh,
 }: {
   candidate: Candidate | null;
   open: boolean;
@@ -428,12 +1063,18 @@ function CandidateSlideOver({
   onHire: (candidateId: string) => void;
   onRequestReject: (candidateId: string) => void;
   onScheduleInterview: () => void;
+  companyId: string;
+  onCandidateRefresh: (c: Candidate) => void;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const cvFileInputRef = useRef<HTMLInputElement>(null);
   const [noteText, setNoteText] = useState("");
+  const [noteAudioUrl, setNoteAudioUrl] = useState<string | null>(null);
   const [opinionRating, setOpinionRating] = useState<"favorable" | "defavorable" | null>(null);
   const [opinionComment, setOpinionComment] = useState("");
+  const [interviewEditingId, setInterviewEditingId] = useState<string | null>(null);
+  const [interviewSummaryDraft, setInterviewSummaryDraft] = useState("");
   const candidateId = candidate?.id;
 
   const { data: notes = [], isLoading: loadingNotes } = useQuery({
@@ -460,12 +1101,22 @@ function CandidateSlideOver({
     enabled: !!candidateId,
   });
 
+  useEffect(() => {
+    setNoteAudioUrl(null);
+  }, [candidateId]);
+
   const addNoteMutation = useMutation({
-    mutationFn: (content: string) => createNote({ candidate_id: candidateId!, content }),
+    mutationFn: (payload: { content: string; audio_url?: string | null }) =>
+      createNote({
+        candidate_id: candidateId!,
+        content: payload.content,
+        ...(payload.audio_url ? { audio_url: payload.audio_url } : {}),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["recruitment", "notes", candidateId] });
       queryClient.invalidateQueries({ queryKey: ["recruitment", "timeline", candidateId] });
       setNoteText("");
+      setNoteAudioUrl(null);
       toast({ title: "Note ajoutée" });
     },
   });
@@ -479,6 +1130,80 @@ function CandidateSlideOver({
       setOpinionRating(null);
       setOpinionComment("");
       toast({ title: "Avis enregistré" });
+    },
+  });
+
+  const uploadCvMutation = useMutation({
+    mutationFn: (file: File) => uploadCandidateCV(candidateId!, companyId, file),
+    onSuccess: (data) => {
+      if (candidate) {
+        onCandidateRefresh({ ...candidate, cv_url: data.cv_url });
+      }
+      queryClient.invalidateQueries({ queryKey: ["recruitment", "candidates"] });
+      toast({ title: "CV téléversé" });
+      if (cvFileInputRef.current) cvFileInputRef.current.value = "";
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de téléverser le CV.", variant: "destructive" });
+    },
+  });
+
+  const updateInterviewSummaryMutation = useMutation({
+    mutationFn: ({ interviewId, summary }: { interviewId: string; summary: string }) =>
+      updateInterview(interviewId, { summary }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recruitment", "interviews", candidateId] });
+      queryClient.invalidateQueries({ queryKey: ["recruitment", "timeline", candidateId] });
+      setInterviewEditingId(null);
+      setInterviewSummaryDraft("");
+      toast({ title: "Compte-rendu enregistré" });
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible d'enregistrer le compte-rendu.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const { data: scoringDetail, isLoading: scoringDetailLoading } = useQuery({
+    queryKey: ["recruitment", "score", candidateId, companyId],
+    queryFn: () => getCandidateScore(candidateId!, companyId),
+    enabled: Boolean(
+      open && candidateId && companyId && isRh && candidate?.ai_score != null,
+    ),
+  });
+
+  const scoreAiMutation = useMutation({
+    mutationFn: () => scoreCandidateAI(candidateId!, companyId),
+    onSuccess: (data: ScoringResult) => {
+      if (candidate) {
+        onCandidateRefresh({
+          ...candidate,
+          ai_score: data.score,
+          ai_scored_at: data.scored_at,
+        });
+      }
+      queryClient.setQueryData(["recruitment", "score", candidateId, companyId], data);
+      queryClient.invalidateQueries({ queryKey: ["recruitment", "candidates"] });
+      toast({ title: "Analyse IA terminée" });
+    },
+    onError: (err: unknown) => {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 503) {
+        toast({
+          title: "Clé API IA non configurée",
+          description: "Configurez OPENAI_API_KEY sur le backend.",
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: "Erreur",
+        description: "Impossible de lancer l'analyse IA.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -501,6 +1226,11 @@ function CandidateSlideOver({
   const currentStandardIndex = standardStages.findIndex((s) => s.id === candidate.current_stage_id);
   const nextStandardStage =
     currentStandardIndex >= 0 ? standardStages[currentStandardIndex + 1] : null;
+
+  const scoringScoreDisplayed =
+    scoringDetail?.score ?? (candidate.ai_score != null ? candidate.ai_score : null);
+  const scoringPal =
+    scoringScoreDisplayed != null ? recruitmentAiPalette(scoringScoreDisplayed) : null;
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
@@ -665,6 +1395,144 @@ function CandidateSlideOver({
           </div>
         </div>
 
+        {(isRh && companyId) || candidate.ai_score != null ? (
+          <div
+            className="flex-shrink-0 border-b bg-muted/20 px-6 py-4 space-y-3"
+            aria-labelledby="candidate-section-ai-score"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 id="candidate-section-ai-score" className="text-sm font-semibold">
+                Scoring IA
+              </h3>
+              {isRh && companyId ? (
+                candidate.ai_score != null ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs"
+                    disabled={scoreAiMutation.isPending}
+                    onClick={() => scoreAiMutation.mutate()}
+                  >
+                    {scoreAiMutation.isPending ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                    )}
+                    Recalculer
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8 text-xs"
+                    disabled={scoreAiMutation.isPending}
+                    onClick={() => scoreAiMutation.mutate()}
+                  >
+                    {scoreAiMutation.isPending ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5 mr-1" />
+                    )}
+                    Analyser avec l&apos;IA
+                  </Button>
+                )
+              ) : null}
+            </div>
+            {candidate.ai_score != null && scoringPal ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className={cn("text-[11px] font-semibold border", scoringPal.badge)}>
+                  {(scoringDetail?.mention ?? "—")} · {candidate.ai_score}/100
+                </Badge>
+              </div>
+            ) : null}
+            {!isRh && candidate.ai_score != null && !scoringDetail ? (
+              <p className="text-xs text-muted-foreground">
+                Détail du scoring disponible pour les utilisateurs RH.
+              </p>
+            ) : null}
+            {isRh && companyId && candidate.ai_score != null && scoringDetailLoading ? (
+              <Skeleton className="h-28 w-full rounded-lg" />
+            ) : null}
+            {isRh && companyId && scoringDetail && scoringPal ? (
+              <div className="space-y-4 rounded-lg border bg-background/90 p-4 shadow-sm">
+                <div className="flex flex-wrap items-center gap-4">
+                  <div
+                    className={cn(
+                      "flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-4 bg-muted/40 text-lg font-bold tabular-nums",
+                      scoringScoreDisplayed != null &&
+                        scoringScoreDisplayed >= 80 &&
+                        "border-emerald-600 text-emerald-900",
+                      scoringScoreDisplayed != null &&
+                        scoringScoreDisplayed >= 60 &&
+                        scoringScoreDisplayed < 80 &&
+                        "border-blue-600 text-blue-900",
+                      scoringScoreDisplayed != null &&
+                        scoringScoreDisplayed >= 40 &&
+                        scoringScoreDisplayed < 60 &&
+                        "border-orange-500 text-orange-900",
+                      scoringScoreDisplayed != null &&
+                        scoringScoreDisplayed < 40 &&
+                        "border-red-600 text-red-900",
+                    )}
+                  >
+                    {scoringDetail.score}
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">Adéquation</p>
+                    <div className="h-2 w-full max-w-xs overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={cn("h-full rounded-full transition-all", scoringPal.bar)}
+                        style={{ width: `${Math.min(100, Math.max(0, scoringDetail.score))}%` }}
+                      />
+                    </div>
+                    <Badge className={cn("mt-1 text-[10px] font-semibold border", scoringPal.badge)}>
+                      {scoringDetail.mention}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-emerald-800 mb-2 flex items-center gap-1">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Points forts
+                  </p>
+                  <ul className="space-y-1 text-sm text-muted-foreground">
+                    {(scoringDetail.points_forts ?? []).map((p, i) => (
+                      <li key={i} className="flex gap-2">
+                        <span className="text-emerald-600 shrink-0">✓</span>
+                        <span>{p}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-orange-800 mb-2 flex items-center gap-1">
+                    <AlertCircle className="h-3.5 w-3.5" /> Points faibles
+                  </p>
+                  <ul className="space-y-1 text-sm text-muted-foreground">
+                    {(scoringDetail.points_faibles ?? []).map((p, i) => (
+                      <li key={i} className="flex gap-2">
+                        <span className="text-orange-600 shrink-0">!</span>
+                        <span>{p}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">Recommandation</p>
+                  <p className="text-sm italic text-foreground/90">{scoringDetail.recommandation}</p>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Analyse du{" "}
+                  {new Date(scoringDetail.scored_at).toLocaleString("fr-FR", {
+                    dateStyle: "short",
+                    timeStyle: "short",
+                  })}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         {/* Bloc C — Consultation (scroll) : dossier → notes → entretiens → activité */}
         <ScrollArea className="flex-1 min-h-0">
           <div className="px-6 py-4 space-y-8 pb-10">
@@ -674,24 +1542,63 @@ function CandidateSlideOver({
               </h3>
               <div>
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">CV</h4>
+                <input
+                  ref={cvFileInputRef}
+                  type="file"
+                  className="sr-only"
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f && candidateId && companyId) uploadCvMutation.mutate(f);
+                  }}
+                />
                 {candidate.cv_url ? (
-                  <a
-                    href={candidate.cv_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3 text-sm hover:bg-muted/50 transition-colors"
-                  >
-                    <FileText className="h-8 w-8 text-primary shrink-0" />
-                    <span className="font-medium text-primary underline-offset-4 hover:underline">Ouvrir le CV</span>
-                  </a>
+                  <div className="space-y-2">
+                    <a
+                      href={candidate.cv_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3 text-sm hover:bg-muted/50 transition-colors"
+                    >
+                      <FileText className="h-8 w-8 text-primary shrink-0" />
+                      <span className="font-medium text-primary underline-offset-4 hover:underline">
+                        Télécharger le CV
+                      </span>
+                    </a>
+                    {isRh && companyId ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs"
+                        disabled={uploadCvMutation.isPending}
+                        onClick={() => cvFileInputRef.current?.click()}
+                      >
+                        {uploadCvMutation.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                        Remplacer le CV
+                      </Button>
+                    ) : null}
+                  </div>
                 ) : (
-                  <div className="rounded-lg border border-dashed bg-muted/20 p-4 flex gap-3 items-start">
+                  <div className="rounded-lg border border-dashed bg-muted/20 p-4 flex flex-col gap-3 sm:flex-row sm:items-start">
                     <FileText className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                    <div className="min-w-0 space-y-1">
+                    <div className="min-w-0 space-y-2 flex-1">
                       <p className="text-sm font-medium">Aucun CV joint</p>
                       <p className="text-xs text-muted-foreground">
-                        Le lien vers le CV apparaîtra ici lorsqu&apos;il sera disponible côté serveur ou après import.
+                        Téléversez un fichier PDF ou Word pour l&apos;associer au dossier.
                       </p>
+                      {isRh && companyId ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-8 text-xs w-fit"
+                          disabled={uploadCvMutation.isPending}
+                          onClick={() => cvFileInputRef.current?.click()}
+                        >
+                          {uploadCvMutation.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                          Uploader un CV
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 )}
@@ -726,11 +1633,28 @@ function CandidateSlideOver({
                     value={noteText}
                     onChange={(e) => setNoteText(e.target.value)}
                   />
+                  {candidateId && companyId ? (
+                    <CandidateNoteAudioRecorder
+                      key={candidateId}
+                      candidateId={candidateId}
+                      companyId={companyId}
+                      audioUrl={noteAudioUrl}
+                      onAudioUrl={setNoteAudioUrl}
+                      disabled={addNoteMutation.isPending}
+                    />
+                  ) : null}
                   <Button
                     size="sm"
                     className="h-9 text-xs"
-                    disabled={!noteText.trim() || addNoteMutation.isPending}
-                    onClick={() => addNoteMutation.mutate(noteText.trim())}
+                    disabled={(!noteText.trim() && !noteAudioUrl) || addNoteMutation.isPending}
+                    onClick={() => {
+                      const text = noteText.trim();
+                      if (!text && !noteAudioUrl) return;
+                      addNoteMutation.mutate({
+                        content: text || "(Note vocale)",
+                        audio_url: noteAudioUrl ?? undefined,
+                      });
+                    }}
                   >
                     {addNoteMutation.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
                     Ajouter une note
@@ -751,6 +1675,9 @@ function CandidateSlideOver({
                           </span>
                         </div>
                         <p className="text-sm whitespace-pre-wrap">{n.content}</p>
+                        {n.audio_url ? (
+                          <audio src={n.audio_url} controls className="mt-2 h-8 w-full max-w-md" />
+                        ) : null}
                       </div>
                     ))}
                   </div>
@@ -811,9 +1738,83 @@ function CandidateSlideOver({
                             ))}
                           </div>
                         )}
-                        {i.summary && (
-                          <p className="text-xs mt-2 bg-muted/50 p-2 rounded">{i.summary}</p>
-                        )}
+                        <div className="mt-2 space-y-2">
+                          {interviewEditingId === i.id ? (
+                            <>
+                              <Textarea
+                                className="text-xs min-h-[88px]"
+                                value={interviewSummaryDraft}
+                                onChange={(e) => setInterviewSummaryDraft(e.target.value)}
+                                placeholder="Compte-rendu d'entretien…"
+                              />
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="h-8 text-xs"
+                                  disabled={updateInterviewSummaryMutation.isPending}
+                                  onClick={() =>
+                                    updateInterviewSummaryMutation.mutate({
+                                      interviewId: i.id,
+                                      summary: interviewSummaryDraft,
+                                    })
+                                  }
+                                >
+                                  {updateInterviewSummaryMutation.isPending && (
+                                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                  )}
+                                  Enregistrer
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 text-xs"
+                                  disabled={updateInterviewSummaryMutation.isPending}
+                                  onClick={() => {
+                                    setInterviewEditingId(null);
+                                    setInterviewSummaryDraft("");
+                                  }}
+                                >
+                                  Annuler
+                                </Button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              {i.summary ? (
+                                <div className="space-y-1">
+                                  <p className="text-xs bg-muted/50 p-2 rounded whitespace-pre-wrap">{i.summary}</p>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-[10px]"
+                                    onClick={() => {
+                                      setInterviewEditingId(i.id);
+                                      setInterviewSummaryDraft(i.summary || "");
+                                    }}
+                                  >
+                                    Modifier
+                                  </Button>
+                                </div>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 text-xs"
+                                  onClick={() => {
+                                    setInterviewEditingId(i.id);
+                                    setInterviewSummaryDraft("");
+                                  }}
+                                >
+                                  Ajouter un compte-rendu
+                                </Button>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -861,9 +1862,13 @@ function CandidateSlideOver({
 
 export default function Recruitment() {
   const { user } = useAuth();
+  const { activeCompany } = useCompany();
+  const companyId = activeCompany?.company_id ?? "";
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
+  const [mainSection, setMainSection] = useState<"pipeline" | "analytics">("pipeline");
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [searchText, setSearchText] = useState("");
@@ -882,16 +1887,57 @@ export default function Recruitment() {
   const [duplicateEmployeeInfo, setDuplicateEmployeeInfo] = useState<{
     id: string; first_name: string; last_name: string; email: string;
   } | null>(null);
+  const [hireSuccessEmployeeId, setHireSuccessEmployeeId] = useState<string | null>(null);
 
   // Forms state
   const [newJob, setNewJob] = useState({ title: "", description: "", location: "", contract_type: "CDI", status: "active" });
   const [newCandidate, setNewCandidate] = useState({ first_name: "", last_name: "", email: "", phone: "", source: "" });
-  const [hireData, setHireData] = useState({ hire_date: "", job_title: "", contract_type: "CDI", site: "", service: "" });
+  const [hireData, setHireData] = useState({
+    hire_date: "",
+    job_title: "",
+    contract_type: "CDI",
+    site: "",
+    service_id: "",
+  });
   const [rejectReason, setRejectReason] = useState("");
   const [rejectDetail, setRejectDetail] = useState("");
   const [interviewData, setInterviewData] = useState({ interview_type: "Entretien RH", scheduled_at: "", duration_minutes: 60, location: "", meeting_link: "" });
+  const [interviewParticipantIds, setInterviewParticipantIds] = useState<string[]>([]);
 
   const isRh = user?.role === "rh" || user?.role === "admin" || user?.role === "collaborateur_rh";
+
+  const servicesQuery = useQuery({
+    queryKey: ["recruitment-company-services", companyId],
+    queryFn: () => listCompanyServices(),
+    enabled: Boolean(companyId),
+  });
+
+  const { data: interviewCompanyUsers = [], isLoading: loadingInterviewCompanyUsers } = useQuery({
+    queryKey: ["recruitment-interview-company-users", companyId],
+    queryFn: async () => {
+      const res = await apiClient.get<
+        Array<{
+          id: string;
+          first_name?: string | null;
+          last_name?: string | null;
+          email?: string | null;
+        }>
+      >(`/api/users/company/${companyId}`, {
+        headers: { "X-Active-Company": companyId },
+      });
+      const rows = res.data ?? [];
+      return [...rows].sort((a, b) => {
+        const na = `${a.first_name ?? ""} ${a.last_name ?? ""}`.trim().toLowerCase();
+        const nb = `${b.first_name ?? ""} ${b.last_name ?? ""}`.trim().toLowerCase();
+        return na.localeCompare(nb, "fr");
+      });
+    },
+    enabled: Boolean(showInterviewModal && companyId && isRh),
+  });
+
+  useEffect(() => {
+    if (!showInterviewModal) setInterviewParticipantIds([]);
+  }, [showInterviewModal]);
 
   // Queries
   const { data: jobs = [], isLoading: loadingJobs } = useQuery({
@@ -989,8 +2035,26 @@ export default function Recruitment() {
   });
 
   const hireMutation = useMutation({
-    mutationFn: ({ candidateId, data, linkToEmployeeId, skipDuplicateCheck }: { candidateId: string; data: typeof hireData; linkToEmployeeId?: string; skipDuplicateCheck?: boolean }) =>
-      hireCandidate(candidateId, { ...data, link_to_employee_id: linkToEmployeeId, skip_duplicate_check: skipDuplicateCheck }),
+    mutationFn: ({
+      candidateId,
+      data,
+      linkToEmployeeId,
+      skipDuplicateCheck,
+    }: {
+      candidateId: string;
+      data: typeof hireData;
+      linkToEmployeeId?: string;
+      skipDuplicateCheck?: boolean;
+    }) =>
+      hireCandidate(candidateId, {
+        hire_date: data.hire_date,
+        job_title: data.job_title || undefined,
+        contract_type: data.contract_type,
+        site: data.site || undefined,
+        service: data.service_id.trim() || undefined,
+        link_to_employee_id: linkToEmployeeId,
+        skip_duplicate_check: skipDuplicateCheck,
+      }),
     onSuccess: (res: HireResult) => {
       if (res.requires_confirmation) {
         setDuplicateEmployeeInfo({
@@ -1006,8 +2070,11 @@ export default function Recruitment() {
       queryClient.invalidateQueries({ queryKey: ["recruitment"] });
       setShowHireModal(false);
       setHireCandidateId(null);
-      setHireData({ hire_date: "", job_title: "", contract_type: "CDI", site: "", service: "" });
+      setHireData({ hire_date: "", job_title: "", contract_type: "CDI", site: "", service_id: "" });
       toast({ title: "Embauche finalisée", description: res.message });
+      if (res.employee_id) {
+        setHireSuccessEmployeeId(res.employee_id);
+      }
     },
     onError: (err: any) => {
       toast({ title: "Erreur", description: err?.response?.data?.detail || "Impossible de finaliser l'embauche.", variant: "destructive" });
@@ -1023,12 +2090,16 @@ export default function Recruitment() {
         duration_minutes: interviewData.duration_minutes,
         location: interviewData.location || undefined,
         meeting_link: interviewData.meeting_link || undefined,
+        ...(interviewParticipantIds.length > 0
+          ? { participant_user_ids: interviewParticipantIds }
+          : {}),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["recruitment", "interviews"] });
       queryClient.invalidateQueries({ queryKey: ["recruitment", "timeline"] });
       setShowInterviewModal(false);
       setInterviewData({ interview_type: "Entretien RH", scheduled_at: "", duration_minutes: 60, location: "", meeting_link: "" });
+      setInterviewParticipantIds([]);
       toast({ title: "Entretien planifié" });
     },
     onError: () => toast({ title: "Erreur", description: "Impossible de planifier l'entretien.", variant: "destructive" }),
@@ -1305,25 +2376,51 @@ export default function Recruitment() {
           />
         </div>
 
-        {/* View toggle */}
-        <div className="flex border rounded-lg">
-          <Button
-            variant={viewMode === "kanban" ? "default" : "ghost"}
-            size="sm"
-            className="rounded-r-none h-9"
-            onClick={() => setViewMode("kanban")}
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={viewMode === "list" ? "default" : "ghost"}
-            size="sm"
-            className="rounded-l-none h-9"
-            onClick={() => setViewMode("list")}
-          >
-            <List className="h-4 w-4" />
-          </Button>
-        </div>
+        {isRh && (
+          <div className="flex border rounded-lg h-9 shrink-0">
+            <Button
+              type="button"
+              variant={mainSection === "pipeline" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-r-none h-9 px-3"
+              onClick={() => setMainSection("pipeline")}
+            >
+              Pipeline
+            </Button>
+            <Button
+              type="button"
+              variant={mainSection === "analytics" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-l-none h-9 px-3 gap-1"
+              onClick={() => setMainSection("analytics")}
+            >
+              <BarChart3 className="h-4 w-4" />
+              Analytics
+            </Button>
+          </div>
+        )}
+
+        {/* View toggle (pipeline uniquement) */}
+        {mainSection === "pipeline" && (
+          <div className="flex border rounded-lg h-9 shrink-0">
+            <Button
+              variant={viewMode === "kanban" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-r-none h-9"
+              onClick={() => setViewMode("kanban")}
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-l-none h-9"
+              onClick={() => setViewMode("list")}
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
 
         {isRh && effectiveJobId && (
           <Button onClick={() => setShowCreateCandidate(true)} size="sm">
@@ -1333,7 +2430,9 @@ export default function Recruitment() {
       </div>
 
       {/* Content */}
-      {!effectiveJobId ? (
+      {mainSection === "analytics" && isRh ? (
+        <RecruitmentAnalyticsSection companyId={companyId} jobs={jobs} />
+      ) : !effectiveJobId ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
             <Briefcase className="h-12 w-12 text-muted-foreground/50 mb-4" />
@@ -1550,6 +2649,8 @@ export default function Recruitment() {
         onHire={handleHireFromSlideOver}
         onRequestReject={handleRequestReject}
         onScheduleInterview={() => setShowInterviewModal(true)}
+        companyId={companyId}
+        onCandidateRefresh={(c) => setSelectedCandidate(c)}
       />
 
       {/* Confirmation : Supprimer une étape */}
@@ -1757,7 +2858,25 @@ export default function Recruitment() {
             </div>
             <div>
               <Label>Service / Département</Label>
-              <Input value={hireData.service} onChange={(e) => setHireData({ ...hireData, service: e.target.value })} placeholder="RH, Technique, Commercial..." />
+              <Select
+                value={hireData.service_id ? hireData.service_id : "__none__"}
+                onValueChange={(v) =>
+                  setHireData({ ...hireData, service_id: v === "__none__" ? "" : v })
+                }
+                disabled={servicesQuery.isLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Aucun service" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Aucun service</SelectItem>
+                  {(servicesQuery.data ?? []).map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
@@ -1773,6 +2892,39 @@ export default function Recruitment() {
             >
               {hireMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Créer le salarié
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!hireSuccessEmployeeId}
+        onOpenChange={(open) => {
+          if (!open) setHireSuccessEmployeeId(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Onboarding</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Une checklist d&apos;onboarding a été créée pour le nouveau collaborateur. Vous pouvez la
+            suivre depuis l&apos;espace dédié.
+          </p>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" type="button" onClick={() => setHireSuccessEmployeeId(null)}>
+              Fermer
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                if (hireSuccessEmployeeId) {
+                  navigate(`/onboarding/${hireSuccessEmployeeId}`);
+                  setHireSuccessEmployeeId(null);
+                }
+              }}
+            >
+              Voir l&apos;onboarding
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1874,6 +3026,54 @@ export default function Recruitment() {
             <div>
               <Label>Lien visioconférence</Label>
               <Input value={interviewData.meeting_link} onChange={(e) => setInterviewData({ ...interviewData, meeting_link: e.target.value })} placeholder="https://meet.google.com/..." />
+            </div>
+            <div className="space-y-2">
+              <Label>Participants</Label>
+              <p className="text-xs text-muted-foreground">
+                Utilisateurs invités comme intervieweurs (même liste que la gestion des utilisateurs).
+              </p>
+              <ScrollArea className="h-[200px] rounded-md border bg-muted/20">
+                <div className="p-3 space-y-2">
+                  {loadingInterviewCompanyUsers ? (
+                    <>
+                      <Skeleton className="h-9 w-full" />
+                      <Skeleton className="h-9 w-full" />
+                      <Skeleton className="h-9 w-full" />
+                    </>
+                  ) : interviewCompanyUsers.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-2">
+                      Aucun utilisateur chargé pour cette entreprise.
+                    </p>
+                  ) : (
+                    interviewCompanyUsers.map((u) => {
+                      const label =
+                        `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || u.email || u.id;
+                      return (
+                        <label
+                          key={u.id}
+                          htmlFor={`interview-participant-${u.id}`}
+                          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/80 cursor-pointer"
+                        >
+                          <Checkbox
+                            id={`interview-participant-${u.id}`}
+                            checked={interviewParticipantIds.includes(u.id)}
+                            onCheckedChange={(checked) => {
+                              setInterviewParticipantIds((prev) =>
+                                checked === true
+                                  ? prev.includes(u.id)
+                                    ? prev
+                                    : [...prev, u.id]
+                                  : prev.filter((id) => id !== u.id),
+                              );
+                            }}
+                          />
+                          <span className="truncate">{label}</span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              </ScrollArea>
             </div>
           </div>
           <DialogFooter>

@@ -5,9 +5,11 @@ Pas de logique métier lourde : auth, validation schémas, appel commands/querie
 Comportement HTTP identique au legacy api/routers/recruitment.py.
 """
 
+import json
+from datetime import datetime, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 
 from app.core.security import get_current_user
 from app.modules.users.schemas.responses import User
@@ -35,7 +37,9 @@ from app.modules.recruitment.schemas import (
     PipelineStageOut,
     PipelineStageUpdate,
     PipelineStagesReorderBody,
+    ScoringResult,
     TimelineEventOut,
+    RecruitmentAnalytics,
 )
 
 router = APIRouter(prefix="/api/recruitment", tags=["Recruitment"])
@@ -95,6 +99,32 @@ def _value_error_to_http(e: ValueError) -> HTTPException:
     return HTTPException(status_code=400, detail=msg)
 
 
+def _build_scoring_result(candidate_id: str, row: dict) -> ScoringResult:
+    detail_raw = row.get("ai_score_detail") or {}
+    detail = detail_raw if isinstance(detail_raw, dict) else {}
+    scored_raw = row.get("ai_scored_at")
+    if isinstance(scored_raw, datetime):
+        scored_at = (
+            scored_raw
+            if scored_raw.tzinfo
+            else scored_raw.replace(tzinfo=timezone.utc)
+        )
+    else:
+        s = str(scored_raw).replace("Z", "+00:00")
+        scored_at = datetime.fromisoformat(s)
+    pf = detail.get("points_forts") or []
+    pfb = detail.get("points_faibles") or []
+    return ScoringResult(
+        candidate_id=candidate_id,
+        score=int(row["ai_score"]),
+        mention=str(detail.get("mention", "")),
+        points_forts=[str(x) for x in pf] if isinstance(pf, list) else [],
+        points_faibles=[str(x) for x in pfb] if isinstance(pfb, list) else [],
+        recommandation=str(detail.get("recommandation", "")),
+        scored_at=scored_at,
+    )
+
+
 # ─── Settings ──────────────────────────────────────────────────────────
 
 
@@ -118,6 +148,26 @@ def list_jobs(
     _ensure_rh_access(current_user, company_id)
     data = queries.list_jobs(company_id, status)
     return [JobOut(**x) for x in data]
+
+
+@router.get("/analytics", response_model=RecruitmentAnalytics)
+def get_recruitment_analytics(
+    job_id: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    budget_total: Optional[float] = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    company_id = _ensure_module_enabled(current_user)
+    _ensure_rh_access(current_user, company_id)
+    data = queries.get_recruitment_analytics(
+        company_id,
+        job_id=job_id,
+        date_from=date_from,
+        date_to=date_to,
+        budget_total=budget_total,
+    )
+    return RecruitmentAnalytics(**data)
 
 
 @router.post("/jobs", response_model=JobOut)
@@ -317,6 +367,81 @@ def delete_candidate(
         raise _value_error_to_http(e)
 
 
+@router.post("/candidates/{candidate_id}/upload-cv")
+async def upload_candidate_cv(
+    candidate_id: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    company_id = _ensure_module_enabled(current_user)
+    _ensure_rh_access(current_user, company_id)
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Fichier vide.")
+    content_type = file.content_type or "application/octet-stream"
+    try:
+        url = commands.upload_candidate_cv(
+            candidate_id,
+            company_id,
+            content,
+            file.filename or "cv.pdf",
+            content_type,
+        )
+        return {"cv_url": url}
+    except ValueError as e:
+        raise _value_error_to_http(e)
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/candidates/{candidate_id}/score", response_model=ScoringResult)
+def score_candidate_ai(
+    candidate_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    company_id = _ensure_module_enabled(current_user)
+    _ensure_rh_access(current_user, company_id)
+    try:
+        row = commands.score_candidate_ai(candidate_id, company_id)
+        return _build_scoring_result(candidate_id, row)
+    except ValueError as e:
+        msg = str(e)
+        if "non trouvé" in msg:
+            raise HTTPException(status_code=404, detail=msg) from e
+        if "OPENAI_API_KEY" in msg:
+            raise HTTPException(
+                status_code=503,
+                detail="Clé API OpenAI non configurée (OPENAI_API_KEY).",
+            ) from e
+        raise HTTPException(status_code=400, detail=msg) from e
+    except json.JSONDecodeError as e:
+        raise HTTPException(
+            status_code=500,
+            detail="Impossible d'interpréter la réponse du modèle IA (JSON invalide).",
+        ) from e
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Erreur lors de l'enregistrement du score : {e!s}"
+        ) from e
+
+
+@router.get("/candidates/{candidate_id}/score", response_model=ScoringResult)
+def get_candidate_score(
+    candidate_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    company_id = _ensure_module_enabled(current_user)
+    _ensure_rh_access(current_user, company_id)
+    row = queries.get_candidate_score_row(candidate_id, company_id)
+    if not row or row.get("ai_score") is None:
+        raise HTTPException(
+            status_code=404, detail="Aucun score IA enregistré pour ce candidat."
+        )
+    return _build_scoring_result(candidate_id, row)
+
+
 @router.post("/candidates/{candidate_id}/move")
 def move_candidate(
     candidate_id: str,
@@ -486,6 +611,33 @@ def list_notes(
     _ensure_collab_or_rh(current_user, company_id, candidate_id)
     data = queries.list_notes(company_id, candidate_id)
     return [NoteOut(**x) for x in data]
+
+
+@router.post("/notes/upload-audio")
+async def upload_note_audio(
+    candidate_id: str = Query(...),
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    company_id = _ensure_module_enabled(current_user)
+    _ensure_collab_or_rh(current_user, company_id, candidate_id)
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Fichier audio vide.")
+    ct = file.content_type or "audio/webm"
+    try:
+        url = commands.upload_note_audio(
+            candidate_id,
+            company_id,
+            content,
+            file.filename or "note.webm",
+            ct,
+        )
+    except ValueError as e:
+        raise _value_error_to_http(e)
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    return {"audio_url": url}
 
 
 @router.post("/notes", response_model=NoteOut)
