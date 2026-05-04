@@ -389,7 +389,8 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
                 "payslip_data": payslip_json_data,
                 "pdf_storage_path": storage_path,
                 "url": pdf_url,
-            }
+            },
+            on_conflict="company_id,employee_id,year,month",
         ).execute()
 
         supabase.table("employee_schedules").update({"cumuls": new_cumuls_json}).match(

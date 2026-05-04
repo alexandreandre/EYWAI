@@ -477,7 +477,8 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
                     "pdf_storage_path": storage_path,
                     "url": pdf_url,
                     "company_id": company_id,
-                }
+                },
+                on_conflict="company_id,employee_id,year,month",
             )
             .execute()
         )
