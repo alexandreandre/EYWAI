@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import apiClient from '@/api/apiClient';
 import { useAuth } from "@/contexts/AuthContext";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { CopilotModalAgent } from "@/components/CopilotModalAgent";
 
 // --- Composants Shadcn/UI ---
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -17,6 +17,8 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartConfig } from "
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend, Tooltip as RechartsTooltip } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { cn } from "@/lib/utils";
 
 // --- Icônes Lucide ---
 import {
@@ -40,8 +42,24 @@ import {
   TrendingUp,
   Clock,
   Users,
+  UsersRound,
   SlidersHorizontal,
   GraduationCap,
+  Calculator,
+  MessageSquare,
+  UserMinus,
+  Building,
+  Calendar,
+  FileText,
+  ShieldCheck,
+  Target,
+  BookOpen,
+  Award,
+  Handshake,
+  UserCog,
+  ChevronDown,
+  ClipboardList,
+  Wallet,
 } from "lucide-react";
 
 // --- Formulaires (que tu as fournis) ---
@@ -65,6 +83,7 @@ import {
   getRecruitmentSettings,
 } from "@/api/recruitment";
 import { useQuery } from "@tanstack/react-query";
+import type { LucideIcon } from "lucide-react";
 import { useRhSidebarTaskBadges } from "@/hooks/useRhSidebarTaskBadges";
 import { getDashboardCounts } from "@/api/certifications";
 import { getOverdueCount } from "@/api/legalObligations";
@@ -126,6 +145,29 @@ type SimpleEmployee = {
   last_name: string;
 };
 
+interface PayrollVariablesSummary {
+  pending_expense_reports: number;
+  primes_saisies_count: number;
+  heures_sup_heures_reference_month: number;
+}
+
+interface PayrollAlertsSummary {
+  employees_without_iban: number;
+  payslips_negative_net: number;
+}
+
+interface SalaryAdvancesMonthSummary {
+  pending_count: number;
+  pending_requested_total_eur: number;
+  requested_in_calendar_month_count: number;
+  requested_in_calendar_month_total_eur: number;
+}
+
+interface HeuresSupMonthSummary {
+  hours_reference_month: number;
+  hours_previous_month: number;
+}
+
 interface DashboardData {
   kpis: KpiData;
   chartData: ChartDataPoint[];
@@ -141,6 +183,10 @@ interface DashboardData {
     step: number;
     totalSteps: number;
   };
+  payrollVariables: PayrollVariablesSummary;
+  payrollAlerts: PayrollAlertsSummary;
+  salaryAdvancesMonth: SalaryAdvancesMonthSummary;
+  heuresSupMonths: HeuresSupMonthSummary;
 }
 
 
@@ -156,6 +202,59 @@ interface ResidencePermitStats {
 type DashboardPriorityKey = string;
 const PRIORITY_DAY_STORAGE_KEY = "eywai.dashboard.priority-day.validated.v1";
 type PriorityValidationByCount = Record<string, number>;
+
+/**
+ * Poids pour le score de priorité : `score = count × poids` (plus haut = affiché avant).
+ * À égalité de score, l’ordre d’origine dans `mainFocusCandidates` sert de départage.
+ */
+const PRIORITY_SCORE_WEIGHTS: Record<string, number> = {
+  rates: 100,
+  rib: 92,
+  payroll: 88,
+  exports: 48,
+  saisies: 50,
+  "salary-seizures": 48,
+  "salary-advances": 46,
+  leaves: 78,
+  expenses: 72,
+  medical: 68,
+  residence: 64,
+  annualReviews: 52,
+  recruitment: 48,
+  employees: 42,
+  "employee-exits": 38,
+  promotions: 28,
+  simulation: 26,
+  schedules: 18,
+  "badgeuse-rh": 18,
+  company: 12,
+  cse: 14,
+  users: 14,
+};
+
+function priorityScore(key: string, count: number): number {
+  const w = PRIORITY_SCORE_WEIGHTS[key] ?? 15;
+  return count * w;
+}
+
+function sortFocusCandidatesByScore<T extends { key: string; count: number }>(
+  items: T[],
+  sourceOrder: { key: string }[],
+): T[] {
+  const orderIdx = new Map(sourceOrder.map((c, i) => [c.key, i]));
+  return [...items].sort((a, b) => {
+    const diff = priorityScore(b.key, b.count) - priorityScore(a.key, a.count);
+    if (diff !== 0) return diff;
+    return (orderIdx.get(a.key) ?? 999) - (orderIdx.get(b.key) ?? 999);
+  });
+}
+
+/** Tâches avec compteur > 0 triées par score, puis les entrées à 0 dans l’ordre d’origine (liste déroulante). */
+function splitCandidatesForSelect<T extends { key: string; count: number }>(candidates: T[]): T[] {
+  const positives = candidates.filter((c) => c.count > 0);
+  const zeros = candidates.filter((c) => c.count <= 0);
+  return [...sortFocusCandidatesByScore(positives, candidates), ...zeros];
+}
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -178,6 +277,7 @@ export default function Dashboard() {
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [selectedPriorityKey, setSelectedPriorityKey] = useState<DashboardPriorityKey | null>(null);
   const { getCount } = useRhSidebarTaskBadges(true);
+  const location = useLocation();
   const [validatedPriorityByCount, setValidatedPriorityByCount] = useState<PriorityValidationByCount>(() => {
     try {
       const raw = sessionStorage.getItem(PRIORITY_DAY_STORAGE_KEY);
@@ -213,6 +313,15 @@ export default function Dashboard() {
     };
     fetchDashboardData();
   }, []);
+
+  useEffect(() => {
+    if (loading || !data) return;
+    if (location.hash !== "#paie-gestion") return;
+    const timer = window.setTimeout(() => {
+      document.getElementById("paie-gestion")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [loading, data, location.hash]);
 
   useEffect(() => {
     const fetchResidencePermitStats = async () => {
@@ -586,9 +695,11 @@ export default function Dashboard() {
     },
   ];
   const availablePriorityItems = mainFocusCandidates.filter((item) => item.count > 0);
-  const pendingPriorityItems = availablePriorityItems.filter(
+  const pendingPriorityItemsRaw = availablePriorityItems.filter(
     (item) => validatedPriorityByCount[item.key] !== item.count,
   );
+  const pendingPriorityItems = sortFocusCandidatesByScore(pendingPriorityItemsRaw, mainFocusCandidates);
+  const prioritySelectOrdered = splitCandidatesForSelect(mainFocusCandidates);
   const selectedPriorityItem =
     pendingPriorityItems.find((item) => item.key === selectedPriorityKey) ||
     pendingPriorityItems[0] ||
@@ -612,37 +723,40 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-8 animate-fade-in motion-reduce:animate-none">
       <DashboardHeader
         firstName={user?.first_name || "Utilisateur"}
         onCopilotClick={() => setIsCopilotOpen(true)}
       />
-      <div className="space-y-6">
-        <Card className="border-primary/20 bg-gradient-to-r from-primary/5 via-background to-background shadow-sm">
-          <CardContent className="p-5">
+      <div className="space-y-8">
+        <Card className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+          <CardContent className="border-l-[3px] border-l-primary p-5 md:p-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div className="space-y-1">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Priorité du jour
                 </p>
                 {mainFocus ? (
                   <div className="flex flex-wrap items-center gap-2">
                     <mainFocus.icon className="h-5 w-5 text-primary" />
-                    <p className="text-lg font-semibold text-foreground">
+                    <p className="text-lg font-semibold tracking-tight text-foreground">
                       {mainFocus.label} ({mainFocus.count})
                     </p>
                     <Badge variant="secondary">{mainFocus.hint}</Badge>
                   </div>
                 ) : (
                   <div className="flex flex-wrap items-center gap-2">
-                    <PartyPopper className="h-5 w-5 text-emerald-600" />
-                    <p className="text-lg font-semibold text-foreground">
+                    <PartyPopper className="h-5 w-5 text-accent" aria-hidden />
+                    <p className="text-lg font-semibold tracking-tight text-foreground">
                       Aucun blocage prioritaire détecté
                     </p>
                   </div>
                 )}
-                <p className="text-sm text-muted-foreground">
-                  Vue synthétique du pilotage RH : commencez par l’action la plus critique.
+                <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
+                  Traitez d’abord ce qui bloque la paie, les demandes ou la conformité — le reste peut attendre.
+                  L’ordre affiché combine le <span className="font-medium text-foreground/90">nombre de dossiers</span> et une{" "}
+                  <span className="font-medium text-foreground/90">pondération métier</span> (taux et paie en tête, puis
+                  validations courantes, etc.).
                 </p>
                 {pendingPriorityItems.length > 0 && (
                   <div className="pt-1 max-w-md">
@@ -655,7 +769,7 @@ export default function Dashboard() {
                         <SelectValue placeholder="Choisir une tâche" />
                       </SelectTrigger>
                       <SelectContent>
-                        {mainFocusCandidates.map((task) => (
+                        {prioritySelectOrdered.map((task) => (
                           <SelectItem key={task.key} value={task.key} disabled={task.count <= 0}>
                             {task.label} ({task.count})
                           </SelectItem>
@@ -680,7 +794,7 @@ export default function Dashboard() {
                     </Button>
                     <Button
                       type="button"
-                      className="bg-emerald-600 hover:bg-emerald-700"
+                      className="bg-accent text-accent-foreground hover:bg-accent/90"
                       onClick={handleValidateAndNext}
                     >
                       Valider et passer à l'étape suivante
@@ -696,30 +810,35 @@ export default function Dashboard() {
                     Reprendre depuis le début
                   </Button>
                 )}
-                <Button variant="outline" type="button" onClick={() => setIsCopilotOpen(true)}>
-                  <Sparkles className="h-4 w-4 mr-1" />
+                <Button
+                  variant="ghost"
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => setIsCopilotOpen(true)}
+                >
+                  <Sparkles className="mr-1.5 h-4 w-4 text-primary" />
                   Aide IA
                 </Button>
               </div>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-              <div className="rounded-lg border bg-background px-3 py-2">
-                <p className="text-xs text-muted-foreground">Total à traiter</p>
-                <p className="text-xl font-bold tabular-nums">{urgentTotal}</p>
+            <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-border bg-border md:grid-cols-4">
+              <div className="bg-muted/40 px-3 py-3 md:px-4">
+                <p className="text-xs font-medium text-muted-foreground">Total à traiter</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{urgentTotal}</p>
               </div>
-              <div className="rounded-lg border bg-background px-3 py-2">
-                <p className="text-xs text-muted-foreground">Paie & conformité</p>
-                <p className="text-xl font-bold tabular-nums">
+              <div className="bg-muted/40 px-3 py-3 md:px-4">
+                <p className="text-xs font-medium text-muted-foreground">Paie &amp; conformité</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
                   {data.actions.pendingAbsences + data.actions.pendingExpenses + data.alerts.obsoleteRates}
                 </p>
               </div>
-              <div className="rounded-lg border bg-background px-3 py-2">
-                <p className="text-xs text-muted-foreground">Équipe</p>
-                <p className="text-xl font-bold tabular-nums">{teamPendingTotal}</p>
+              <div className="bg-muted/40 px-3 py-3 md:px-4">
+                <p className="text-xs font-medium text-muted-foreground">Équipe</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{teamPendingTotal}</p>
               </div>
-              <div className="rounded-lg border bg-background px-3 py-2">
-                <p className="text-xs text-muted-foreground">Admin RH</p>
-                <p className="text-xl font-bold tabular-nums">
+              <div className="bg-muted/40 px-3 py-3 md:px-4">
+                <p className="text-xs font-medium text-muted-foreground">Admin RH</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
                   {residencePendingTotal + ribAlertTotal + medicalPendingTotal}
                 </p>
               </div>
@@ -727,93 +846,128 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <PendingSignaturesWidget mode="rh" />
-
-        <section className="space-y-4 rounded-xl border bg-background p-4 md:p-5">
-          <div>
-            <h2 className="text-xl font-semibold">Centre d’actions</h2>
-            <p className="text-sm text-muted-foreground">
-              Ce qu’il faut traiter en premier pour faire avancer la journée.
+        {/* EYWAI Team : à traiter, accès modules, synthèse, formation (accordéon), pilotage, dialogue social */}
+        <section className="space-y-5 rounded-lg border border-border bg-card p-5 md:p-6">
+          <header className="space-y-1 border-b border-border/80 pb-4">
+            <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-foreground">
+              <Users className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+              EYWAI Team
+            </h2>
+            <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
+              Suivi des collaborateurs, validations, titres, suivi médical, formation et dialogue social.
             </p>
-          </div>
+          </header>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <ShortcutSimulationCard />
-            <ShortcutExportsCard />
+          <TeamSectionHeading
+            title="À traiter"
+            description="Demandes d’absences et de notes de frais, puis alertes RIB, titres de séjour et suivi des visites médicales. Les taux de cotisations obsolètes sont indiqués dans la zone EYWAI Paie."
+          />
+          <div className="space-y-4 rounded-lg border border-border/80 bg-muted/20 p-4 md:p-5">
+            <NotificationsCard actions={data.actions} alerts={data.alerts} showRatesLink={false} />
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <RibAlertsCard
+                alerts={ribAlerts}
+                loading={ribAlertsLoading}
+                onRefresh={() => {
+                  ribAlertsApi
+                    .getRibAlerts({ is_read: false, is_resolved: false, limit: 5 })
+                    .then((r) => {
+                      setRibAlerts(r.data.alerts || []);
+                      setRibAlertTotal(
+                        typeof r.data.total === "number" ? r.data.total : (r.data.alerts || []).length,
+                      );
+                    });
+                }}
+              />
+              <ResidencePermitCard stats={residencePermitStats} loading={residencePermitLoading} />
+            </div>
             {medicalModuleEnabled ? (
-              <MedicalVisitShortcutCard kpis={medicalKpis} loading={medicalKpisLoading} />
+              <MedicalFollowUpCard kpis={medicalKpis} loading={medicalKpisLoading} />
             ) : (
-              <MedicalVisitShortcutCard kpis={null} loading={false} />
+              <Card className="border-dashed">
+                <CardHeader>
+                  <CardTitle className="text-base">Suivi médical</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">Module non activé pour cette entreprise.</p>
+                </CardContent>
+              </Card>
             )}
           </div>
 
+          <TeamSectionHeading
+            title="Accès modules"
+            description="Raccourcis vers les écrans EYWAI Team, regroupés par pôle (administratif, temps et activité, développement, relations)."
+          />
+          <TeamQuickAccessCard />
+
+          <TeamSectionHeading
+            title="Synthèse collaborateurs"
+            description="Effectif actif et alertes administratives prioritaires sur la liste des collaborateurs."
+          />
+          <CollaborateursKpiCard kpis={data.kpis} alerts={data.alerts} />
+
           <FormationTalentsDashboardWidget />
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-4 space-y-6">
-              <PayrollCard
-                status={data.payrollStatus}
-                onGenerateClick={() => setIsGeneratePayrollModalOpen(true)}
-              />
-              <NotificationsCard actions={data.actions} alerts={data.alerts} />
-              <RibAlertsCard alerts={ribAlerts} loading={ribAlertsLoading} onRefresh={() => {
-                ribAlertsApi.getRibAlerts({ is_read: false, is_resolved: false, limit: 5 })
-                  .then((r) => {
-                    setRibAlerts(r.data.alerts || []);
-                    setRibAlertTotal(typeof r.data.total === "number" ? r.data.total : (r.data.alerts || []).length);
-                  });
-              }} />
+          <TeamSectionHeading
+            title="Pilotage équipe"
+            description="Répartition, effectif du jour, recrutement actif et analyses d’équipe."
+          />
+          <div className="space-y-6">
+            <EffectifCard kpis={data.kpis} absentsToday={data.teamPulse?.absentToday || []} />
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <GenderSplitCard kpis={data.kpis} />
+              <ContractSplitCard kpis={data.kpis} />
             </div>
+            <RecruitmentKpisCard />
+            <TeamAnalyticsSection />
+          </div>
 
-            <div className="lg:col-span-8 space-y-6">
-              <ResidencePermitCard stats={residencePermitStats} loading={residencePermitLoading} />
-              {medicalModuleEnabled ? (
-                <MedicalFollowUpCard kpis={medicalKpis} loading={medicalKpisLoading} />
-              ) : (
-                <Card className="border-dashed">
-                  <CardHeader>
-                    <CardTitle className="text-base">Suivi médical</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                      Module non activé pour cette entreprise.
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+          <TeamSectionHeading
+            title="Dialogue social et personnalisation"
+            description="Instance du personnel, CSE et réglages d’affichage de votre tableau de bord."
+          />
+          <div className="space-y-6">
+            <CSEDashboardBlock />
+            <DashboardPersonnalisationCard />
           </div>
         </section>
 
-        <section className="space-y-4 rounded-xl border bg-background p-4 md:p-5">
-          <div>
-            <h2 className="text-xl font-semibold">Suivi & pilotage RH</h2>
-            <p className="text-sm text-muted-foreground">
-              Lecture de tendance, performance et modules transverses.
+        {/* EYWAI Paie : gestion → blocages (signatures, taux, variables) → coûts & analyses → raccourcis */}
+        <section className="space-y-5 rounded-lg border border-border bg-card p-5 md:p-6">
+          <header className="space-y-1 border-b border-border/80 pb-4">
+            <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-foreground">
+              <Calculator className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+              EYWAI Paie
+            </h2>
+            <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
+              Cycle de paie, signatures et taux à jour, variables et alertes, puis pilotage des coûts et raccourcis en bas de page.
             </p>
+          </header>
+
+          <div id="paie-gestion" className="scroll-mt-24">
+            <PayrollCard
+              status={data.payrollStatus}
+              onGenerateClick={() => setIsGeneratePayrollModalOpen(true)}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <PendingSignaturesWidget mode="rh" />
+            <PaieRatesAlertCard obsoleteRates={data.alerts.obsoleteRates} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <PayrollVariablesCard data={data} />
+            <PayrollAlertsDashboardCard data={data} />
+            <SalaryAdvancesDashboardCard data={data} />
           </div>
 
           <div className="space-y-6">
             <CoutsCard kpis={data.kpis} chartData={data.chartData} />
-            <EffectifCard kpis={data.kpis} absentsToday={data.teamPulse?.absentToday || []} />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <GenderSplitCard kpis={data.kpis} />
-              <ContractSplitCard kpis={data.kpis} />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <HeuresSupKpiCard />
-              <RecruitmentKpisCard />
-            </div>
             <PrevisionMasseSalarialeCard kpis={data.kpis} />
-            <TeamAnalyticsSection />
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <CSEDashboardBlock />
-            <div className="space-y-6">
-              <ShortcutsCard />
-              <DashboardPersonnalisationCard />
-            </div>
+            <HeuresSupKpiCard hs={data.heuresSupMonths} variablesHsHours={data.payrollVariables.heures_sup_heures_reference_month} />
+            <ShortcutsCard />
           </div>
         </section>
       </div>
@@ -856,6 +1010,7 @@ function budgetGaugeFillClass(level: TrainingBudgetAlertLevel) {
 }
 
 function FormationTalentsDashboardWidget() {
+  const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const year = new Date().getFullYear();
 
@@ -901,22 +1056,38 @@ function FormationTalentsDashboardWidget() {
           : "text-red-600";
 
   return (
-    <Card className="border-primary/15 shadow-sm">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <GraduationCap className="h-5 w-5 text-primary" />
-          Formation &amp; Talents
-        </CardTitle>
-        <p className="text-xs text-muted-foreground">
-          Indicateurs Pack Talent — cliquez pour ouvrir le module.
-        </p>
-      </CardHeader>
-      <CardContent>
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <Card className="overflow-hidden border-border shadow-none">
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="flex w-full items-start justify-between gap-3 px-6 py-5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <div className="min-w-0 space-y-1">
+              <div className="flex items-center gap-2 text-base font-semibold tracking-tight text-foreground">
+                <GraduationCap className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+                Formation et talents
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Indicateurs Pack Talent — cliquez pour afficher ou masquer le détail, ou ouvrez le module formation.
+              </p>
+            </div>
+            <ChevronDown
+              className={cn(
+                "mt-0.5 h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200",
+                open && "rotate-180",
+              )}
+              aria-hidden
+            />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="border-t pt-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <button
             type="button"
             onClick={() => navigate("/formation#habilitations")}
-            className="flex flex-col rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted/60"
+            className="flex flex-col rounded-lg border border-border bg-background p-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <span className="text-xs font-medium text-muted-foreground">Habilitations expirées</span>
             {certsQuery.isLoading ? (
@@ -937,7 +1108,7 @@ function FormationTalentsDashboardWidget() {
           <button
             type="button"
             onClick={() => navigate("/formation#habilitations")}
-            className="flex flex-col rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted/60"
+            className="flex flex-col rounded-lg border border-border bg-background p-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <span className="text-xs font-medium text-muted-foreground">Habilitations à échéance</span>
             {certsQuery.isLoading ? (
@@ -958,7 +1129,7 @@ function FormationTalentsDashboardWidget() {
           <button
             type="button"
             onClick={() => navigate("/formation#budget")}
-            className="flex flex-col rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted/60"
+            className="flex flex-col rounded-lg border border-border bg-background p-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <span className="text-xs font-medium text-muted-foreground">Budget formation consommé</span>
             {budgetQuery.isLoading ? (
@@ -981,7 +1152,7 @@ function FormationTalentsDashboardWidget() {
           <button
             type="button"
             onClick={() => navigate("/formation#obligations")}
-            className="flex flex-col rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted/60"
+            className="flex flex-col rounded-lg border border-border bg-background p-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <span className="text-xs font-medium text-muted-foreground">Retard entretien prof.</span>
             {overdueQuery.isLoading ? (
@@ -1002,7 +1173,7 @@ function FormationTalentsDashboardWidget() {
           <button
             type="button"
             onClick={() => navigate("/formation#objectifs")}
-            className="flex flex-col rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted/60"
+            className="flex flex-col rounded-lg border border-border bg-background p-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <span className="text-xs font-medium text-muted-foreground">Taux d&apos;atteinte objectifs</span>
             {achievementQuery.isLoading ? (
@@ -1014,30 +1185,44 @@ function FormationTalentsDashboardWidget() {
             )}
           </button>
         </div>
-      </CardContent>
-    </Card>
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   );
 }
 
 // --- Section 1: Header & Copilote ---
-function DashboardHeader({ firstName, onCopilotClick }: { firstName: string, onCopilotClick: () => void }) {
+function DashboardHeader({ firstName, onCopilotClick }: { firstName: string; onCopilotClick: () => void }) {
+  const dateLabel = new Intl.DateTimeFormat("fr-FR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date());
+
   return (
-    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Bonjour {firstName},</h1>
-        <p className="text-muted-foreground mt-1">Voici votre cockpit de pilotage RH.</p>
+    <header className="flex flex-col gap-6 border-b border-border pb-6 sm:flex-row sm:items-end sm:justify-between">
+      <div className="space-y-1">
+        <p className="text-xs font-medium capitalize text-muted-foreground">{dateLabel}</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+          Bonjour {firstName}
+        </h1>
+        <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
+          Synthèse des tâches, alertes et indicateurs pour votre périmètre RH.
+        </p>
       </div>
       <Button
-        className="bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg rounded-lg flex items-center gap-2 px-5 py-2.5 border border-indigo-700"
-        size="lg"
+        variant="outline"
+        size="default"
+        className="shrink-0 gap-2 border-primary/25 bg-background hover:bg-primary/5 hover:border-primary/40"
         onClick={onCopilotClick}
       >
-        <Sparkles className="h-4 w-4 text-cyan-300 group-hover:text-cyan-200 transition-colors" />
-        <span className="font-semibold tracking-wide">Demander à l’IA</span>
+        <Sparkles className="h-4 w-4 text-primary" aria-hidden />
+        <span className="font-medium">Assistant IA</span>
+        <Kbd className="pointer-events-none hidden sm:inline-flex text-[10px]">⌘K</Kbd>
       </Button>
-
-
-    </div>
+    </header>
   );
 }
 
@@ -1045,75 +1230,491 @@ function DashboardHeader({ firstName, onCopilotClick }: { firstName: string, onC
 
 function PayrollCard({ status, onGenerateClick }: { status: DashboardData['payrollStatus'], onGenerateClick: () => void }) {
   return (
-    <Card className="shadow-lg border-primary/20">
-      <CardHeader>
-        <CardTitle>Gestion de la Paie</CardTitle>
+    <Card className="border-border shadow-none">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base font-semibold tracking-tight">Gestion de la paie</CardTitle>
       </CardHeader>
       <CardContent>
         <button
+          type="button"
           onClick={onGenerateClick}
-          className="w-full group relative overflow-hidden rounded-lg border-2 border-indigo-200 bg-white hover:border-indigo-400 transition-all duration-300 shadow-sm hover:shadow-md"
+          className="group flex w-full items-center justify-center gap-2 rounded-md border border-border bg-background px-4 py-3 transition-colors hover:border-primary/35 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
-          <div className="flex items-center justify-center py-3 px-4">
-            <Sparkles className="mr-2.5 h-5 w-5 text-indigo-500 group-hover:text-indigo-600 transition-colors" />
-            <span className="text-sm font-semibold text-gray-800 group-hover:text-indigo-900 transition-colors">
-              Générer la Paie
-            </span>
-          </div>
-          <div className="absolute inset-0 -z-10 bg-gradient-to-r from-indigo-50 to-purple-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          <Sparkles className="h-5 w-5 shrink-0 text-primary transition-colors group-hover:text-primary/90" aria-hidden />
+          <span className="text-sm font-medium text-foreground">Générer la paie</span>
         </button>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Période <span className="font-medium text-foreground">{status.currentMonth}</span>
+          {" · "}
+          Étape {status.step}/{status.totalSteps}
+        </p>
       </CardContent>
     </Card>
   );
 }
 
-function NotificationsCard({ actions, alerts }: { actions: ActionItems, alerts: AlertItems }) {
+function NotificationsCard({
+  actions,
+  alerts,
+  showRatesLink = true,
+}: {
+  actions: ActionItems;
+  alerts: AlertItems;
+  showRatesLink?: boolean;
+}) {
   const navigate = useNavigate();
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Notifications</CardTitle>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base font-semibold">Demandes à valider</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Absences et notes de frais en attente de validation. Les autres alertes (RIB, titres, visites médicales, taux de cotisations…) sont affichées dans ce bloc ou sous EYWAI Paie.
+        </p>
       </CardHeader>
       <CardContent className="space-y-3">
         <button
-          onClick={() => navigate('/leaves')}
-          className="w-full flex justify-between items-center p-3 rounded-lg hover:bg-muted transition-colors"
+          type="button"
+          onClick={() => navigate("/leaves")}
+          className="flex w-full items-center justify-between rounded-lg p-3 transition-colors hover:bg-muted"
         >
           <div className="flex items-center">
-            <CalendarCheck className={`h-5 w-5 mr-3 ${actions.pendingAbsences > 0 ? 'text-red-500' : 'text-foreground'}`} />
-            <span className={`font-medium ${actions.pendingAbsences > 0 ? 'text-red-500' : 'text-foreground'}`}>Demandes d'absences</span>
+            <CalendarCheck
+              className={`mr-3 h-5 w-5 ${actions.pendingAbsences > 0 ? "text-red-500" : "text-foreground"}`}
+            />
+            <span
+              className={`font-medium ${actions.pendingAbsences > 0 ? "text-red-500" : "text-foreground"}`}
+            >
+              Demandes d'absences
+            </span>
           </div>
           <div className="flex items-center">
-            <Badge className={actions.pendingAbsences > 0 ? 'bg-red-500 text-white' : 'bg-muted text-foreground'}>{actions.pendingAbsences}</Badge>
-            <ChevronRight className="h-4 w-4 text-muted-foreground ml-2" />
+            <Badge
+              className={actions.pendingAbsences > 0 ? "bg-red-500 text-white" : "bg-muted text-foreground"}
+            >
+              {actions.pendingAbsences}
+            </Badge>
+            <ChevronRight className="ml-2 h-4 w-4 text-muted-foreground" />
           </div>
         </button>
         <button
-          onClick={() => navigate('/expenses')}
-          className="w-full flex justify-between items-center p-3 rounded-lg hover:bg-muted transition-colors"
+          type="button"
+          onClick={() => navigate("/expenses")}
+          className="flex w-full items-center justify-between rounded-lg p-3 transition-colors hover:bg-muted"
         >
           <div className="flex items-center">
-            <CreditCard className={`h-5 w-5 mr-3 ${actions.pendingExpenses > 0 ? 'text-red-500' : 'text-foreground'}`} />
-            <span className={`font-medium ${actions.pendingExpenses > 0 ? 'text-red-500' : 'text-foreground'}`}>Notes de frais</span>
+            <CreditCard
+              className={`mr-3 h-5 w-5 ${actions.pendingExpenses > 0 ? "text-red-500" : "text-foreground"}`}
+            />
+            <span className={`font-medium ${actions.pendingExpenses > 0 ? "text-red-500" : "text-foreground"}`}>
+              Notes de frais
+            </span>
           </div>
           <div className="flex items-center">
-            <Badge className={actions.pendingExpenses > 0 ? 'bg-red-500 text-white' : 'bg-muted text-foreground'}>{actions.pendingExpenses}</Badge>
-            <ChevronRight className="h-4 w-4 text-muted-foreground ml-2" />
+            <Badge
+              className={actions.pendingExpenses > 0 ? "bg-red-500 text-white" : "bg-muted text-foreground"}
+            >
+              {actions.pendingExpenses}
+            </Badge>
+            <ChevronRight className="ml-2 h-4 w-4 text-muted-foreground" />
           </div>
+        </button>
+        {showRatesLink && (
+          <button
+            type="button"
+            onClick={() => navigate("/rates")}
+            className="flex w-full items-center justify-between rounded-lg p-3 transition-colors hover:bg-muted"
+          >
+            <div className="flex items-center">
+              <FileWarning
+                className={`mr-3 h-5 w-5 ${alerts.obsoleteRates > 0 ? "text-red-500" : "text-foreground"}`}
+              />
+              <span className={`font-medium ${alerts.obsoleteRates > 0 ? "text-red-500" : "text-foreground"}`}>
+                Taux de cotisations
+              </span>
+            </div>
+            <div className="flex items-center">
+              <Badge
+                className={alerts.obsoleteRates > 0 ? "bg-red-500 text-white" : "bg-muted text-foreground"}
+              >
+                {alerts.obsoleteRates}
+              </Badge>
+              <ChevronRight className="ml-2 h-4 w-4 text-muted-foreground" />
+            </div>
+          </button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Carte « taux obsolètes » — affichée dans EYWAI Paie lorsque les notifications Team masquent le lien taux. */
+function PaieRatesAlertCard({ obsoleteRates }: { obsoleteRates: number }) {
+  const navigate = useNavigate();
+  const hasAlert = obsoleteRates > 0;
+  const allUp = obsoleteRates <= 0;
+  return (
+    <Card
+      className={
+        hasAlert
+          ? "border-orange-200 bg-orange-50/30"
+          : allUp
+            ? "border-emerald-200 bg-emerald-50/35"
+            : ""
+      }
+    >
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base font-semibold">
+          <TrendingUp className="h-4 w-4 text-primary" aria-hidden />
+          Taux de cotisations
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          {allUp ? "Aucun taux obsolète détecté." : "Taux obsolètes à mettre à jour avant clôture."}
+        </p>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {allUp ? (
+          <p className="text-sm font-semibold text-emerald-800">Tout est à jour</p>
+        ) : (
+          <Badge className="w-fit bg-red-600 text-white">{obsoleteRates}</Badge>
+        )}
+        <Button type="button" size="sm" variant="outline" onClick={() => navigate("/rates")}>
+          Ouvrir le module
+          <ChevronRight className="ml-1 h-4 w-4" />
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function formatEurCompact(amount: number) {
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function PayrollVariablesCard({ data }: { data: DashboardData }) {
+  const navigate = useNavigate();
+  const v = data.payrollVariables;
+  const moisCourant = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(new Date());
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base font-semibold">
+          <ClipboardList className="h-4 w-4 text-primary" aria-hidden />
+          Variables de paie à suivre
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Notes de frais, primes saisies et heures sup. sur les bulletins du mois {data.kpis.currentMonth}.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <button
+          type="button"
+          onClick={() => navigate("/expenses")}
+          className="flex w-full items-center justify-between rounded-lg border border-border/80 bg-muted/20 px-3 py-2 text-left transition-colors hover:bg-muted/50"
+        >
+          <span className="text-muted-foreground">Notes de frais à valider</span>
+          <span className="font-semibold tabular-nums text-foreground">{v.pending_expense_reports}</span>
         </button>
         <button
-          onClick={() => navigate('/rates')}
-          className="w-full flex justify-between items-center p-3 rounded-lg hover:bg-muted transition-colors"
+          type="button"
+          onClick={() => navigate("/saisies")}
+          className="flex w-full items-center justify-between rounded-lg border border-border/80 bg-muted/20 px-3 py-2 text-left transition-colors hover:bg-muted/50"
         >
-          <div className="flex items-center">
-            <FileWarning className={`h-5 w-5 mr-3 ${alerts.obsoleteRates > 0 ? 'text-red-500' : 'text-foreground'}`} />
-            <span className={`font-medium ${alerts.obsoleteRates > 0 ? 'text-red-500' : 'text-foreground'}`}>Taux de cotisations</span>
-          </div>
-          <div className="flex items-center">
-            <Badge className={alerts.obsoleteRates > 0 ? 'bg-red-500 text-white' : 'bg-muted text-foreground'}>{alerts.obsoleteRates}</Badge>
-            <ChevronRight className="h-4 w-4 text-muted-foreground ml-2" />
-          </div>
+          <span className="text-muted-foreground">Primes saisies ({moisCourant})</span>
+          <span className="font-semibold tabular-nums text-foreground">{v.primes_saisies_count}</span>
         </button>
+        <div className="flex items-center justify-between rounded-lg border border-border/80 bg-muted/20 px-3 py-2">
+          <span className="text-muted-foreground">Heures sup. (bulletins {data.kpis.currentMonth})</span>
+          <span className="font-semibold tabular-nums text-foreground">
+            {v.heures_sup_heures_reference_month.toLocaleString("fr-FR", {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 1,
+            })}{" "}
+            h
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PayrollAlertsDashboardCard({ data }: { data: DashboardData }) {
+  const navigate = useNavigate();
+  const a = data.payrollAlerts;
+  const hasIssue = a.employees_without_iban > 0 || a.payslips_negative_net > 0;
+  return (
+    <Card className={hasIssue ? "border-red-200 bg-red-50/25" : ""}>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base font-semibold">
+          <AlertTriangle className={`h-4 w-4 ${hasIssue ? "text-red-600" : "text-muted-foreground"}`} aria-hidden />
+          Alertes paie
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">Points bloquants avant exports ou génération.</p>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <div className="flex items-center justify-between rounded-lg border border-border/80 px-3 py-2">
+          <span className="text-muted-foreground">Salariés sans RIB</span>
+          <span className={a.employees_without_iban > 0 ? "font-bold text-red-600 tabular-nums" : "font-semibold tabular-nums"}>
+            {a.employees_without_iban}
+          </span>
+        </div>
+        <div className="flex items-center justify-between rounded-lg border border-border/80 px-3 py-2">
+          <span className="text-muted-foreground">Bulletins au net négatif</span>
+          <span className={a.payslips_negative_net > 0 ? "font-bold text-red-600 tabular-nums" : "font-semibold tabular-nums"}>
+            {a.payslips_negative_net}
+          </span>
+        </div>
+        <Button type="button" size="sm" variant="outline" className="w-full" onClick={() => navigate("/exports")}>
+          Exports et anomalies
+          <ChevronRight className="ml-1 h-4 w-4" />
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SalaryAdvancesDashboardCard({ data }: { data: DashboardData }) {
+  const navigate = useNavigate();
+  const s = data.salaryAdvancesMonth;
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base font-semibold">
+          <Wallet className="h-4 w-4 text-primary" aria-hidden />
+          Acomptes et avances
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">Demandes en attente et volume demandé sur le mois civil.</p>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <div className="flex items-center justify-between rounded-lg border border-border/80 px-3 py-2">
+          <span className="text-muted-foreground">Demandes en attente</span>
+          <span className="font-semibold tabular-nums">{s.pending_count}</span>
+        </div>
+        <div className="flex items-center justify-between rounded-lg border border-border/80 px-3 py-2">
+          <span className="text-muted-foreground">Montant demandé (en attente)</span>
+          <span className="font-semibold tabular-nums">{formatEurCompact(s.pending_requested_total_eur)}</span>
+        </div>
+        <div className="flex items-center justify-between rounded-lg border border-border/80 px-3 py-2">
+          <span className="text-muted-foreground">Demandes créées ce mois</span>
+          <span className="font-semibold tabular-nums">
+            {s.requested_in_calendar_month_count} · {formatEurCompact(s.requested_in_calendar_month_total_eur)}
+          </span>
+        </div>
+        <Button type="button" size="sm" variant="outline" className="w-full" onClick={() => navigate("/salary-advances")}>
+          Ouvrir les avances sur salaire
+          <ChevronRight className="ml-1 h-4 w-4" />
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Synthèse collaborateurs alignée avec la sidebar (effectif + alertes contrats / fins d'essai). */
+function CollaborateursKpiCard({ kpis, alerts }: { kpis: KpiData; alerts: AlertItems }) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-col gap-3 space-y-0 pb-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <CardTitle className="text-lg font-semibold">Collaborateurs</CardTitle>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Effectif actif et alertes administratives (contrats, fins d&apos;essai).
+          </p>
+        </div>
+        <Button size="sm" asChild className="shrink-0">
+          <Link to="/employees">Voir la liste</Link>
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="rounded-lg border border-border bg-muted/30 px-3 py-3 text-center">
+            <p className="text-xs font-medium text-muted-foreground">Effectif actif</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{kpis.effectifActif}</p>
+          </div>
+          <div className="rounded-lg border border-border bg-muted/30 px-3 py-3 text-center">
+            <p className="text-xs font-medium text-muted-foreground">Contrats à surveiller</p>
+            <p
+              className={`mt-1 text-2xl font-semibold tabular-nums ${alerts.expiringContracts > 0 ? "text-orange-600" : "text-foreground"}`}
+            >
+              {alerts.expiringContracts}
+            </p>
+          </div>
+          <div className="rounded-lg border border-border bg-muted/30 px-3 py-3 text-center">
+            <p className="text-xs font-medium text-muted-foreground">Fins d&apos;essai</p>
+            <p
+              className={`mt-1 text-2xl font-semibold tabular-nums ${alerts.endOfTrialPeriods > 0 ? "text-orange-600" : "text-foreground"}`}
+            >
+              {alerts.endOfTrialPeriods}
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+type TeamQuickLink = { to: string; label: string; icon: LucideIcon };
+
+type TeamQuickAccessBlock =
+  | { type: "buttons"; links: TeamQuickLink[] }
+  | { type: "formationCatalogue"; label: string; links: [TeamQuickLink, TeamQuickLink] };
+
+type TeamQuickAccessPole = {
+  title: string;
+  description: string;
+  blocks: TeamQuickAccessBlock[];
+};
+
+const TEAM_QUICK_ACCESS_POLES: TeamQuickAccessPole[] = [
+  {
+    title: "Gestion administrative et vie du salarié",
+    description: "Identité, dossiers et mouvements de personnel (tâches de fond).",
+    blocks: [
+      {
+        type: "buttons",
+        links: [
+          { to: "/employees", label: "Collaborateurs", icon: Users },
+          { to: "/teams", label: "Équipes", icon: UsersRound },
+          { to: "/employee-exits", label: "Départs & sorties", icon: UserMinus },
+          { to: "/documents", label: "Documents", icon: FileText },
+          { to: "/company", label: "Mon entreprise", icon: Building },
+        ],
+      },
+    ],
+  },
+  {
+    title: "Temps, activité et opérationnel",
+    description: "Suivi du temps, des plannings et des habilitations au quotidien.",
+    blocks: [
+      {
+        type: "buttons",
+        links: [
+          { to: "/badgeuse-rh", label: "Badgeuse", icon: Clock },
+          { to: "/schedules", label: "Calendriers", icon: Calendar },
+          { to: "/habilitations", label: "Habilitations", icon: ShieldCheck },
+        ],
+      },
+    ],
+  },
+  {
+    title: "Développement et performance",
+    description: "Développement des compétences, pilotage de la performance et évolution des collaborateurs.",
+    blocks: [
+      {
+        type: "buttons",
+        links: [
+          { to: "/annual-reviews", label: "Entretiens", icon: MessageSquare },
+          { to: "/objectives", label: "Objectifs & KPI", icon: Target },
+        ],
+      },
+      {
+        type: "formationCatalogue",
+        label: "Formation et catalogue",
+        links: [
+          { to: "/formation", label: "Formation", icon: GraduationCap },
+          { to: "/catalogue-formations", label: "Catalogue formations", icon: BookOpen },
+        ],
+      },
+      {
+        type: "buttons",
+        links: [{ to: "/promotions", label: "Promotions", icon: Award }],
+      },
+    ],
+  },
+  {
+    title: "Relations et recrutement",
+    description: "Candidats, dialogue social et droits d’accès à la plateforme.",
+    blocks: [
+      {
+        type: "buttons",
+        links: [
+          { to: "/recruitment", label: "Recrutement", icon: UserPlus },
+          { to: "/cse", label: "CSE & Dialogue social", icon: Handshake },
+          { to: "/users", label: "Utilisateurs", icon: UserCog },
+        ],
+      },
+    ],
+  },
+];
+
+function TeamQuickLinkButton({ to, label, icon: Icon, navigate }: TeamQuickLink & { navigate: ReturnType<typeof useNavigate> }) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      className="h-auto justify-between gap-2 py-3 font-normal"
+      onClick={() => navigate(to)}
+    >
+      <span className="flex min-w-0 items-center gap-2">
+        <Icon className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+        <span className="truncate text-left text-sm font-medium">{label}</span>
+      </span>
+      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+    </Button>
+  );
+}
+
+function TeamSectionHeading({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="space-y-1 border-b border-border/60 pb-2">
+      <h3 className="text-sm font-semibold tracking-tight text-foreground">{title}</h3>
+      <p className="max-w-3xl text-xs leading-relaxed text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
+function TeamQuickAccessCard() {
+  const navigate = useNavigate();
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base font-semibold">Accès rapides équipe</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Raccourcis regroupés par pôle : administratif, temps et activité, développement, relations et recrutement.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-8">
+        {TEAM_QUICK_ACCESS_POLES.map((pole) => (
+          <div key={pole.title} className="space-y-3">
+            <div className="space-y-1">
+              <h4 className="text-sm font-semibold tracking-tight text-foreground">{pole.title}</h4>
+              <p className="max-w-3xl text-xs leading-relaxed text-muted-foreground">{pole.description}</p>
+            </div>
+            <div className="space-y-3">
+              {pole.blocks.map((block, blockIndex) => {
+                if (block.type === "formationCatalogue") {
+                  return (
+                    <div
+                      key={`${pole.title}-formation-${blockIndex}`}
+                      className="rounded-lg border border-border/80 bg-muted/20 p-3"
+                    >
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        {block.label}
+                      </p>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {block.links.map((link) => (
+                          <TeamQuickLinkButton key={link.to} {...link} navigate={navigate} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <div
+                    key={`${pole.title}-grid-${blockIndex}`}
+                    className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                  >
+                    {block.links.map((link) => (
+                      <TeamQuickLinkButton key={link.to} {...link} navigate={navigate} />
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </CardContent>
     </Card>
   );
@@ -1179,6 +1780,16 @@ function ResidencePermitCard({ stats, loading }: { stats: ResidencePermitStats |
           </div>
         )}
       </CardContent>
+      {!loading && (
+        <CardFooter className="border-t pt-4">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto" asChild>
+            <Link to="/residence-permits">
+              Ouvrir les titres et documents
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </Link>
+          </Button>
+        </CardFooter>
+      )}
     </Card>
   );
 }
@@ -1335,71 +1946,6 @@ function RibAlertsCard({
   );
 }
 
-// --- Raccourcis pilotage (ligne du haut, hauteur compacte identique) ---
-const shortcutCardClass = "hover:shadow-md transition-shadow cursor-pointer border-primary/20 h-[72px] flex";
-const shortcutContentClass = "px-3 py-2 flex items-center gap-3 w-full min-h-0 flex-1";
-
-function ShortcutSimulationCard() {
-  const navigate = useNavigate();
-  return (
-    <Card className={shortcutCardClass} onClick={() => navigate("/simulation")}>
-      <CardContent className={shortcutContentClass}>
-        <div className="p-2 rounded-lg bg-indigo-100 text-indigo-600 shrink-0">
-          <FlaskConical className="h-5 w-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold text-sm text-foreground leading-tight">Simulation bulletin de paie</p>
-          <p className="text-xs text-muted-foreground leading-tight">Calcul inverse & bulletin simulé</p>
-        </div>
-        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-      </CardContent>
-    </Card>
-  );
-}
-
-function ShortcutExportsCard() {
-  const navigate = useNavigate();
-  return (
-    <Card className={shortcutCardClass} onClick={() => navigate("/exports")}>
-      <CardContent className={shortcutContentClass}>
-        <div className="p-2 rounded-lg bg-emerald-100 text-emerald-600 shrink-0">
-          <FileDown className="h-5 w-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold text-sm text-foreground leading-tight">Export & détection anomalie</p>
-          <p className="text-xs text-muted-foreground leading-tight">Paie, variables, prévisualisation</p>
-        </div>
-        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-      </CardContent>
-    </Card>
-  );
-}
-
-function MedicalVisitShortcutCard({ kpis, loading }: { kpis: KPIs | null; loading: boolean }) {
-  const navigate = useNavigate();
-  const totalDue = (kpis?.overdue_count ?? 0) + (kpis?.due_within_30_count ?? 0);
-  return (
-    <Card className={shortcutCardClass} onClick={() => navigate("/medical-follow-up")}>
-      <CardContent className={shortcutContentClass}>
-        <div className="p-2 rounded-lg bg-teal-100 text-teal-600 shrink-0">
-          <Stethoscope className="h-5 w-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold text-sm text-foreground leading-tight">Suivi visites médicales</p>
-          {loading ? (
-            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-          ) : (
-            <p className="text-xs font-bold text-teal-700 leading-tight">
-              {totalDue > 0 ? `${totalDue} visite${totalDue > 1 ? "s" : ""} à venir` : "À jour"}
-            </p>
-          )}
-        </div>
-        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-      </CardContent>
-    </Card>
-  );
-}
-
 // --- Répartition Homme / Femme ---
 function GenderSplitCard({ kpis }: { kpis: KpiData }) {
   const hommes = kpis.hommesCount ?? null;
@@ -1487,19 +2033,55 @@ function ContractSplitCard({ kpis }: { kpis: KpiData }) {
   );
 }
 
-// --- KPI Coût heures sup (placeholder) ---
-function HeuresSupKpiCard() {
+// --- KPI Heures sup. (volume sur bulletins, comparaison M vs M-1) ---
+function HeuresSupKpiCard({
+  hs,
+  variablesHsHours,
+}: {
+  hs: HeuresSupMonthSummary;
+  variablesHsHours: number;
+}) {
+  const ref = hs.hours_reference_month;
+  const prev = hs.hours_previous_month;
+  const diff = ref - prev;
+  const pct = prev !== 0 ? (diff / prev) * 100 : null;
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <Clock className="h-4 w-4 text-muted-foreground" />
-          Coût heures sup.
+          Heures supplémentaires (bulletins)
         </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Somme des heures sur les lignes « heures suppl. » des bulletins — même base que la carte variables.
+        </p>
       </CardHeader>
-      <CardContent>
-        <p className="text-2xl font-bold text-foreground">—</p>
-        <p className="text-xs text-muted-foreground mt-1">Mois précédent (à venir)</p>
+      <CardContent className="space-y-2">
+        <p className="text-2xl font-bold tabular-nums text-foreground">
+          {ref.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} h
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Mois précédent (M-1) :{" "}
+          <span className="font-medium text-foreground">
+            {prev.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} h
+          </span>
+          {pct != null && Number.isFinite(pct) ? (
+            <>
+              {" "}
+              · variation{" "}
+              <span className={diff > 0 ? "text-orange-600" : diff < 0 ? "text-emerald-700" : "text-foreground"}>
+                {diff >= 0 ? "+" : ""}
+                {pct.toFixed(0)} %
+              </span>
+            </>
+          ) : prev === 0 && ref > 0 ? (
+            <span className="text-orange-600"> · nouveau volume sur M-1</span>
+          ) : null}
+        </p>
+        <p className="text-[11px] text-muted-foreground">
+          Recoupement variables : {variablesHsHours.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} h (mois
+          KPI).
+        </p>
       </CardContent>
     </Card>
   );
@@ -1509,11 +2091,21 @@ function HeuresSupKpiCard() {
 function RecruitmentKpisCard() {
   const navigate = useNavigate();
   const { data: settings } = useQuery({ queryKey: ["recruitment", "settings"], queryFn: getRecruitmentSettings });
-  const { data: jobs = [] } = useQuery({ queryKey: ["recruitment", "jobs"], queryFn: () => getJobs("active"), enabled: !!settings?.enabled });
-  const { data: candidates = [] } = useQuery({ queryKey: ["recruitment", "candidates"], queryFn: () => getCandidates(), enabled: !!settings?.enabled });
+  const enabled = !!settings?.enabled;
+  const { data: jobs = [], isSuccess: jobsOk } = useQuery({
+    queryKey: ["recruitment", "jobs"],
+    queryFn: () => getJobs("active"),
+    enabled,
+  });
+  const { data: candidates = [], isSuccess: candidatesOk } = useQuery({
+    queryKey: ["recruitment", "candidates"],
+    queryFn: () => getCandidates(),
+    enabled,
+  });
   const inProgress = candidates.filter((c) => c.current_stage_type !== "hired" && c.current_stage_type !== "rejected").length;
   const hired = candidates.filter((c) => c.current_stage_type === "hired").length;
   if (!settings?.enabled) return null;
+  if (jobsOk && candidatesOk && jobs.length === 0 && candidates.length === 0) return null;
   return (
     <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/recruitment")}>
       <CardHeader className="pb-2">
@@ -1576,40 +2168,45 @@ function ShortcutsCard() {
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <SlidersHorizontal className="h-4 w-4" />
-          Raccourcis
+          Raccourcis paie
         </CardTitle>
-        <p className="text-xs text-muted-foreground mt-1">Accès rapides paie & exports</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Simulation, saisie bulletin, exports. Les taux de cotisations sont rappelés dans le bloc du dessus.
+        </p>
       </CardHeader>
-      <CardContent className="grid grid-cols-1 gap-3">
+      <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <button
+          type="button"
           onClick={() => navigate("/simulation")}
-          className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors text-left"
+          className="flex w-full items-center justify-between rounded-lg border border-border/60 p-3 text-left transition-colors hover:bg-muted"
         >
           <span className="flex items-center gap-2">
-            <FlaskConical className="h-4 w-4 text-indigo-500" />
+            <FlaskConical className="h-4 w-4 shrink-0 text-indigo-500" />
             <span className="font-medium text-sm">Simulation bulletin</span>
           </span>
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
         </button>
         <button
+          type="button"
           onClick={() => navigate("/payroll")}
-          className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors text-left"
+          className="flex w-full items-center justify-between rounded-lg border border-border/60 p-3 text-left transition-colors hover:bg-muted"
         >
           <span className="flex items-center gap-2">
-            <CreditCard className="h-4 w-4 text-cyan-500" />
-            <span className="font-medium text-sm">Ajouter une saisie paie</span>
+            <CreditCard className="h-4 w-4 shrink-0 text-cyan-500" />
+            <span className="font-medium text-sm">Saisie paie</span>
           </span>
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
         </button>
         <button
+          type="button"
           onClick={() => navigate("/exports")}
-          className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors text-left"
+          className="flex w-full items-center justify-between rounded-lg border border-border/60 p-3 text-left transition-colors hover:bg-muted"
         >
           <span className="flex items-center gap-2">
-            <FileDown className="h-4 w-4 text-emerald-500" />
-            <span className="font-medium text-sm">Exports & anomalies</span>
+            <FileDown className="h-4 w-4 shrink-0 text-emerald-500" />
+            <span className="font-medium text-sm">Exports et anomalies</span>
           </span>
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
         </button>
       </CardContent>
     </Card>

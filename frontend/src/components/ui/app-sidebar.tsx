@@ -501,7 +501,7 @@ export function AppSidebar() {
                         </SidebarMenuSub>
                         <div className="mx-3.5 border-l border-sidebar-border px-2.5 py-1.5">
                           <Button size="sm" className="w-full gap-2 shadow-sm" asChild>
-                            <NavLink to="/payroll">
+                            <NavLink to="/#paie-gestion">
                               <Rocket className="h-4 w-4 shrink-0" />
                               Lancer la paie
                             </NavLink>
