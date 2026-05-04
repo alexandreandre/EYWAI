@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from app.modules.dashboard.application.dto import ABSENCE_TYPE_LABELS, MONTH_NAMES_FR
 from app.modules.dashboard.schemas.responses import (
@@ -17,6 +17,7 @@ from app.modules.dashboard.schemas.responses import (
     TeamPulseEmployee,
     TeamPulseEvent,
 )
+from app.modules.repos_compensateur.domain.rules import extraire_heures_hs_du_bulletin
 
 
 def to_team_pulse_employees(
@@ -123,3 +124,37 @@ def to_simple_employees(employees: List[dict]) -> List[SimpleEmployee]:
         )
         for e in employees
     ]
+
+
+def aggregate_hs_hours_by_year_month(payslips: List[dict]) -> Dict[Tuple[int, int], float]:
+    """Somme des heures sup. (quantités lignes bulletin) par (année, mois)."""
+    out: Dict[Tuple[int, int], float] = defaultdict(float)
+    for row in payslips:
+        y_raw, m_raw = row.get("year"), row.get("month")
+        if y_raw is None or m_raw is None:
+            continue
+        try:
+            yi, mi = int(y_raw), int(m_raw)
+        except (TypeError, ValueError):
+            continue
+        pd = row.get("payslip_data")
+        if isinstance(pd, dict):
+            out[(yi, mi)] += float(extraire_heures_hs_du_bulletin(pd))
+    return dict(out)
+
+
+def count_negative_net_payslips(payslips: List[dict]) -> int:
+    """Bulletins dont le net à payer est strictement négatif."""
+    n = 0
+    for row in payslips:
+        pd = row.get("payslip_data")
+        if not isinstance(pd, dict):
+            continue
+        raw = pd.get("net_a_payer")
+        try:
+            val = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if val < 0:
+            n += 1
+    return n

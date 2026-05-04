@@ -13,7 +13,9 @@ from datetime import date, timedelta
 from app.modules.dashboard.application.dto import MONTH_NAMES_FR
 from app.modules.dashboard.domain import rules as domain_rules
 from app.modules.dashboard.infrastructure.mappers import (
+    aggregate_hs_hours_by_year_month,
     aggregate_payslip_costs_and_net,
+    count_negative_net_payslips,
     to_chart_data_points,
     to_simple_employees,
     to_team_pulse_employees,
@@ -27,9 +29,13 @@ from app.modules.dashboard.schemas.responses import (
     ActionItems,
     AlertItems,
     DashboardData,
+    HeuresSupMonthSummary,
     KpiData,
+    PayrollAlertsSummary,
     PayrollStatus,
+    PayrollVariablesSummary,
     ResidencePermitStats,
+    SalaryAdvancesMonthSummary,
     TeamPulse,
 )
 
@@ -191,6 +197,24 @@ def build_full_dashboard(company_id: str) -> DashboardData:
         totalSteps=4,
     )
 
+    hs_by_ym = aggregate_hs_hours_by_year_month(payslips)
+    payslips_negative_net = count_negative_net_payslips(payslips)
+    employees_without_iban = repo.count_employees_missing_iban(company_id)
+    primes_saisies_mois = repo.count_monthly_inputs_for_company(
+        company_id, today.year, today.month
+    )
+    (
+        adv_pending_n,
+        adv_pending_sum,
+        adv_month_n,
+        adv_month_sum,
+    ) = repo.salary_advances_summary_for_company(company_id, today.year, today.month)
+
+    mid_kpi = date(prev_year, prev_month_num, min(today.day, 28))
+    prev_kpi_m, prev_kpi_y = domain_rules.get_previous_month(mid_kpi)
+    hours_ref = round(float(hs_by_ym.get((prev_year, prev_month_num), 0.0)), 2)
+    hours_prev = round(float(hs_by_ym.get((prev_kpi_y, prev_kpi_m), 0.0)), 2)
+
     return DashboardData(
         kpis=kpis,
         chartData=chart_data,
@@ -205,4 +229,23 @@ def build_full_dashboard(company_id: str) -> DashboardData:
         ),
         employees=simple_employees_list,
         payrollStatus=payroll_status,
+        payrollVariables=PayrollVariablesSummary(
+            pending_expense_reports=expenses_count,
+            primes_saisies_count=primes_saisies_mois,
+            heures_sup_heures_reference_month=hours_ref,
+        ),
+        payrollAlerts=PayrollAlertsSummary(
+            employees_without_iban=employees_without_iban,
+            payslips_negative_net=payslips_negative_net,
+        ),
+        salaryAdvancesMonth=SalaryAdvancesMonthSummary(
+            pending_count=adv_pending_n,
+            pending_requested_total_eur=adv_pending_sum,
+            requested_in_calendar_month_count=adv_month_n,
+            requested_in_calendar_month_total_eur=adv_month_sum,
+        ),
+        heuresSupMonths=HeuresSupMonthSummary(
+            hours_reference_month=hours_ref,
+            hours_previous_month=hours_prev,
+        ),
     )

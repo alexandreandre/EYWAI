@@ -74,6 +74,37 @@ class PayrollStatus(BaseModel):
     totalSteps: int
 
 
+class PayrollVariablesSummary(BaseModel):
+    """Variables de paie à suivre (frais en attente, primes saisies, HS sur bulletins du mois de réf.)."""
+
+    pending_expense_reports: int
+    primes_saisies_count: int
+    heures_sup_heures_reference_month: float
+
+
+class PayrollAlertsSummary(BaseModel):
+    """Alertes bloquantes avant export / génération."""
+
+    employees_without_iban: int
+    payslips_negative_net: int
+
+
+class SalaryAdvancesMonthSummary(BaseModel):
+    """Avances sur salaire : demandes en attente et volume du mois civil."""
+
+    pending_count: int
+    pending_requested_total_eur: float
+    requested_in_calendar_month_count: int
+    requested_in_calendar_month_total_eur: float
+
+
+class HeuresSupMonthSummary(BaseModel):
+    """Heures sup. agrégées bulletins : mois de référence KPI vs mois précédent."""
+
+    hours_reference_month: float
+    hours_previous_month: float
+
+
 class ResidencePermitStats(BaseModel):
     total_expire: int
     total_a_renouveler: int
@@ -89,3 +120,7 @@ class DashboardData(BaseModel):
     teamPulse: TeamPulse
     employees: List[SimpleEmployee]
     payrollStatus: PayrollStatus
+    payrollVariables: PayrollVariablesSummary
+    payrollAlerts: PayrollAlertsSummary
+    salaryAdvancesMonth: SalaryAdvancesMonthSummary
+    heuresSupMonths: HeuresSupMonthSummary

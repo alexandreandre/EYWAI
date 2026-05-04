@@ -14,7 +14,11 @@ from app.modules.dashboard.application.service import (
 )
 from app.modules.dashboard.schemas.responses import (
     DashboardData,
+    HeuresSupMonthSummary,
+    PayrollAlertsSummary,
+    PayrollVariablesSummary,
     ResidencePermitStats,
+    SalaryAdvancesMonthSummary,
 )
 
 
@@ -118,6 +122,14 @@ class TestBuildFullDashboard:
         mock_repo.get_absence_requests_validated_today.return_value = []
         mock_repo.get_payslips_by_company.return_value = []
         mock_repo.get_absence_requests_for_absenteeism.return_value = []
+        mock_repo.count_employees_missing_iban.return_value = 0
+        mock_repo.count_monthly_inputs_for_company.return_value = 0
+        mock_repo.salary_advances_summary_for_company.return_value = (
+            0,
+            0.0,
+            0,
+            0.0,
+        )
         mock_get_repo.return_value = mock_repo
 
         result = build_full_dashboard(COMPANY_ID)
@@ -132,6 +144,10 @@ class TestBuildFullDashboard:
         assert result.employees[0].first_name == "Jean"
         assert result.employees[0].last_name == "Dupont"
         assert result.teamPulse.absentToday == []
+        assert isinstance(result.payrollVariables, PayrollVariablesSummary)
+        assert isinstance(result.payrollAlerts, PayrollAlertsSummary)
+        assert isinstance(result.salaryAdvancesMonth, SalaryAdvancesMonthSummary)
+        assert isinstance(result.heuresSupMonths, HeuresSupMonthSummary)
         mock_repo.get_employees_for_dashboard.assert_called_once_with(COMPANY_ID)
 
     @patch("app.modules.dashboard.application.service.get_dashboard_repository")
@@ -148,6 +164,14 @@ class TestBuildFullDashboard:
         mock_repo.get_absence_requests_validated_today.return_value = []
         mock_repo.get_payslips_by_company.return_value = []
         mock_repo.get_absence_requests_for_absenteeism.return_value = []
+        mock_repo.count_employees_missing_iban.return_value = 0
+        mock_repo.count_monthly_inputs_for_company.return_value = 0
+        mock_repo.salary_advances_summary_for_company.return_value = (
+            0,
+            0.0,
+            0,
+            0.0,
+        )
         mock_get_repo.return_value = mock_repo
 
         result = build_full_dashboard(COMPANY_ID)

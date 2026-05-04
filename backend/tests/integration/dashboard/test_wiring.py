@@ -74,9 +74,13 @@ class TestDashboardFlowE2E:
             AlertItems,
             ChartDataPoint,
             DashboardData,
+            HeuresSupMonthSummary,
             KpiData,
+            PayrollAlertsSummary,
             PayrollStatus,
+            PayrollVariablesSummary,
             ResidencePermitStats,
+            SalaryAdvancesMonthSummary,
             TeamPulse,
         )
 
@@ -100,6 +104,25 @@ class TestDashboardFlowE2E:
             employees=[],
             payrollStatus=PayrollStatus(
                 currentMonth="January 2025", step=1, totalSteps=4
+            ),
+            payrollVariables=PayrollVariablesSummary(
+                pending_expense_reports=0,
+                primes_saisies_count=0,
+                heures_sup_heures_reference_month=0.0,
+            ),
+            payrollAlerts=PayrollAlertsSummary(
+                employees_without_iban=0,
+                payslips_negative_net=0,
+            ),
+            salaryAdvancesMonth=SalaryAdvancesMonthSummary(
+                pending_count=0,
+                pending_requested_total_eur=0.0,
+                requested_in_calendar_month_count=0,
+                requested_in_calendar_month_total_eur=0.0,
+            ),
+            heuresSupMonths=HeuresSupMonthSummary(
+                hours_reference_month=0.0,
+                hours_previous_month=0.0,
             ),
         )
         mock_stats.return_value = ResidencePermitStats(
@@ -139,8 +162,12 @@ class TestDashboardFlowE2E:
             AlertItems,
             ChartDataPoint,
             DashboardData,
+            HeuresSupMonthSummary,
             KpiData,
+            PayrollAlertsSummary,
             PayrollStatus,
+            PayrollVariablesSummary,
+            SalaryAdvancesMonthSummary,
             TeamPulse,
         )
 
@@ -164,6 +191,25 @@ class TestDashboardFlowE2E:
             employees=[],
             payrollStatus=PayrollStatus(
                 currentMonth="January 2025", step=1, totalSteps=4
+            ),
+            payrollVariables=PayrollVariablesSummary(
+                pending_expense_reports=0,
+                primes_saisies_count=0,
+                heures_sup_heures_reference_month=0.0,
+            ),
+            payrollAlerts=PayrollAlertsSummary(
+                employees_without_iban=0,
+                payslips_negative_net=0,
+            ),
+            salaryAdvancesMonth=SalaryAdvancesMonthSummary(
+                pending_count=0,
+                pending_requested_total_eur=0.0,
+                requested_in_calendar_month_count=0,
+                requested_in_calendar_month_total_eur=0.0,
+            ),
+            heuresSupMonths=HeuresSupMonthSummary(
+                hours_reference_month=0.0,
+                hours_previous_month=0.0,
             ),
         )
         from app.core.security import get_current_user
