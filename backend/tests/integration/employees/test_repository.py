@@ -63,7 +63,16 @@ class TestEmployeeRepository:
         result = repo.get_by_company("c1")
         assert result == []
 
-    def test_get_by_id_returns_single_employee_when_found(self, mock_supabase):
+    @patch(
+        "app.modules.employees.infrastructure.repository._enrich_employee_row_with_cse",
+        side_effect=lambda r, _company_id: {
+            **r,
+            "college_electoral": None,
+            "statut_cse": None,
+            "heures_delegation_mensuelles": None,
+        },
+    )
+    def test_get_by_id_returns_single_employee_when_found(self, _mock_enrich, mock_supabase):
         row = {"id": "e1", "first_name": "Jean", "company_id": "c1"}
         mock_table = MagicMock()
         chain = MagicMock()
@@ -75,7 +84,12 @@ class TestEmployeeRepository:
 
         repo = EmployeeRepository()
         result = repo.get_by_id("e1", "c1")
-        assert result == row
+        assert result == {
+            **row,
+            "college_electoral": None,
+            "statut_cse": None,
+            "heures_delegation_mensuelles": None,
+        }
         chain.eq.assert_any_call("id", "e1")
         chain.eq.return_value.eq.assert_called_with("company_id", "c1")
 

@@ -91,7 +91,13 @@ class TestAbsencesCreateRequestWiring:
         }
         with patch(
             "app.modules.absences.api.router.commands.create_absence_request"
-        ) as create_cmd:
+        ) as create_cmd, patch(
+            "app.modules.absences.api.router.absence_repository.get_team_manager_employee_id_for_employee",
+            return_value=None,
+        ), patch(
+            "app.modules.absences.api.router.absence_repository.update",
+            side_effect=lambda rid, payload: {**created, **payload},
+        ):
             create_cmd.return_value = created
             response = client.post(
                 "/api/absences/requests",
