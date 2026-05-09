@@ -4,16 +4,29 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-import { FileText, CalendarDays, Receipt, ArrowRight, Wallet, TrendingUp, Hourglass, CircleX, Loader2, Info, Euro, CheckCircle } from 'lucide-react';
+import {
+  FileText,
+  CalendarDays,
+  Receipt,
+  Wallet,
+  TrendingUp,
+  Hourglass,
+  CircleX,
+  Loader2,
+  Info,
+  Euro,
+  CheckCircle,
+  GraduationCap,
+  IdCard,
+  FolderOpen,
+} from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Calendar } from '@/components/ui/calendar'; // Renommé ShadCalendar en Calendar
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import apiClient from '@/api/apiClient';
-import { DayPickerSingleProps } from 'react-day-picker'; // Pour typer les modifiers
-import { fr } from 'date-fns/locale';
 import type * as absencesApi from '@/api/absences'; // Import types
-import { PendingSignaturesWidget } from '@/components/dashboard/PendingSignaturesWidget';
+import { EmployeePriorityFocus } from '@/components/dashboard/EmployeePriorityFocus';
 
 // --- Interfaces (simplifiées pour le dashboard) ---
 interface PayslipInfo {
@@ -262,140 +275,152 @@ export default function EmployeeDashboard() {
     weekend: 'text-muted-foreground opacity-80',
   };
 
-  // --- LE JSX RESTE LE MÊME que dans ma réponse précédente, ---
-  // --- mais les sections Soldes et Calendrier vont maintenant s'afficher ---
-  // --- si les données sont chargées correctement. ---
   return (
     <div className="space-y-6">
-      {/* ... (En-tête, Affichage Erreur Globale) ... */}
-       <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Bonjour, {user?.first_name || 'Utilisateur'} !</h1>
+          <h1 className="text-3xl font-bold">Bonjour, {user?.first_name || "Utilisateur"} !</h1>
           <p className="text-muted-foreground">Votre tableau de bord personnel.</p>
         </div>
       </div>
+
+      <EmployeePriorityFocus />
+
+      <Card className="border-primary/20 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Accès rapides</CardTitle>
+          <CardDescription className="text-xs sm:text-sm">
+            Raccourcis vers les actions les plus courantes
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Button
+            asChild
+            variant="secondary"
+            className="h-auto min-h-[3.25rem] justify-start gap-3 border border-transparent px-4 py-3 text-left text-sm shadow-none transition-all hover:border-primary/30 hover:bg-secondary"
+          >
+            <Link to="/absences" className="flex w-full items-center gap-3">
+              <CalendarDays className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+              <span className="font-medium leading-snug">Demander une absence</span>
+            </Link>
+          </Button>
+          <Button
+            asChild
+            variant="secondary"
+            className="h-auto min-h-[3.25rem] justify-start gap-3 border border-transparent px-4 py-3 text-left text-sm shadow-none transition-all hover:border-primary/30 hover:bg-secondary"
+          >
+            <Link to="/expenses" className="flex w-full items-center gap-3">
+              <Receipt className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+              <span className="font-medium leading-snug">Déclarer une note</span>
+            </Link>
+          </Button>
+          <Button
+            asChild
+            variant="secondary"
+            className="h-auto min-h-[3.25rem] justify-start gap-3 border border-transparent px-4 py-3 text-left text-sm shadow-none transition-all hover:border-primary/30 hover:bg-secondary"
+          >
+            <Link to="/payslips" className="flex w-full items-center gap-3">
+              <FileText className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+              <span className="font-medium leading-snug">Voir mes bulletins</span>
+            </Link>
+          </Button>
+          <Button
+            asChild
+            variant="secondary"
+            className="h-auto min-h-[3.25rem] justify-start gap-3 border border-transparent px-4 py-3 text-left text-sm shadow-none transition-all hover:border-primary/30 hover:bg-secondary"
+          >
+            <Link to="/employee/formation" className="flex w-full items-center gap-3">
+              <GraduationCap className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+              <span className="font-medium leading-snug">Ma formation</span>
+            </Link>
+          </Button>
+          <Button
+            asChild
+            variant="secondary"
+            className="h-auto min-h-[3.25rem] justify-start gap-3 border border-transparent px-4 py-3 text-left text-sm shadow-none transition-all hover:border-primary/30 hover:bg-secondary"
+          >
+            <Link to="/badgeuse" className="flex w-full items-center gap-3">
+              <IdCard className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+              <span className="font-medium leading-snug">Ma badgeuse</span>
+            </Link>
+          </Button>
+          <Button
+            asChild
+            variant="secondary"
+            className="h-auto min-h-[3.25rem] justify-start gap-3 border border-transparent px-4 py-3 text-left text-sm shadow-none transition-all hover:border-primary/30 hover:bg-secondary"
+          >
+            <Link to="/employee/documents" className="flex w-full items-center gap-3">
+              <FolderOpen className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+              <span className="font-medium leading-snug">Mes documents</span>
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+
       {error && !isLoading && (
-          <Card className="border-destructive bg-destructive/10"><CardContent className="pt-6 text-destructive text-sm font-medium flex items-center gap-2"><Info className="h-4 w-4"/> {error}</CardContent></Card>
+        <Card className="border-destructive bg-destructive/10">
+          <CardContent className="flex items-center gap-2 pt-6 text-sm font-medium text-destructive">
+            <Info className="h-4 w-4 shrink-0" aria-hidden />
+            {error}
+          </CardContent>
+        </Card>
       )}
 
-      <PendingSignaturesWidget mode="employee" />
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
-          {/* --- Cartes KPI --- */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Dernier Net à Payer</CardTitle><Wallet className="h-4 w-4 text-muted-foreground" /></CardHeader>
-              <CardContent>
-                {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
-                  <>
-                    <div className="text-2xl font-bold">{latestPayslip?.net_a_payer ? formatCurrency(latestPayslip.net_a_payer) : 'N/A'}</div>
-                    <p className="text-xs text-muted-foreground capitalize">
-                      {latestPayslip ? `${formatMonthYear(latestPayslip.month, latestPayslip.year)} (M-1)` : 'Mois précédent (M-1)'}
-                    </p>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Net Imposable Annuel</CardTitle><TrendingUp className="h-4 w-4 text-muted-foreground" /></CardHeader>
-              <CardContent>
-                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
-                   <>
-                    <div className="text-2xl font-bold">{formatCurrency(cumuls?.cumuls?.net_imposable)}</div>
-                    <p className="text-xs text-muted-foreground">Année {cumuls?.periode?.annee_en_cours || new Date().getFullYear()}</p>
-                   </>
-                 )}
-              </CardContent>
-            </Card>
-             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Salaire de Base</CardTitle><Euro className="h-4 w-4 text-muted-foreground" /></CardHeader>
-              <CardContent>
-                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
-                   <>
-                    <div className="text-2xl font-bold">{formatCurrency(employeeInfo?.salaire_de_base?.valeur)}</div>
-                    <p className="text-xs text-muted-foreground">Mensuel brut</p>
-                   </>
-                 )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* --- Accès Rapides --- */}
-          <Card>
-              <CardHeader><CardTitle className="text-lg">Accès Rapides</CardTitle></CardHeader>
-              <CardContent className="grid gap-4 sm:grid-cols-3">
-                  <Button asChild variant="secondary" className="h-20 text-sm flex-col gap-1 border-2 border-transparent transition-all duration-200 hover:border-primary hover:scale-[1.02]">
-                      <Link to="/absences"><CalendarDays className="h-5 w-5 mb-1"/> Demander une absence</Link>
-                  </Button>
-                  <Button asChild variant="secondary" className="h-20 text-sm flex-col gap-1 border-2 border-transparent transition-all duration-200 hover:border-primary hover:scale-[1.02]">
-                      <Link to="/expenses"><Receipt className="h-5 w-5 mb-1"/> Déclarer une note</Link>
-                  </Button>
-                  <Button asChild variant="secondary" className="h-20 text-sm flex-col gap-1 border-2 border-transparent transition-all duration-200 hover:border-primary hover:scale-[1.02]">
-                      <Link to="/payslips"><FileText className="h-5 w-5 mb-1"/> Voir mes bulletins</Link>
-                  </Button>
-              </CardContent>
-          </Card>
-
-          {/* --- Statut Notes de Frais --- */}
-          <Card>
-            <CardHeader><CardTitle className="text-lg">Mes Notes de Frais</CardTitle></CardHeader>
-            <CardContent>
-               {isLoading ? ( <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Chargement...</div> ) : (
-                <div className="flex flex-col sm:flex-row gap-4 justify-around">
-                    {/* TODO: Ajuster le lien si la page Expenses gère le filtrage par status */}
-                    <Link to="/expenses" className="flex items-center gap-2 p-3 rounded-md hover:bg-muted justify-center text-center">
-                        <Hourglass className="h-5 w-5 text-amber-500"/>
-                        <div><p className="text-xl font-bold">{pendingExpensesCount}</p><p className="text-xs text-muted-foreground">En attente</p></div>
-                    </Link>
-                    <Link to="/expenses" className="flex items-center gap-2 p-3 rounded-md hover:bg-muted justify-center text-center">
-                        <CircleX className="h-5 w-5 text-destructive"/>
-                        <div><p className="text-xl font-bold">{rejectedExpensesCount}</p><p className="text-xs text-muted-foreground">Refusée(s)</p></div>
-                    </Link>
-                    <Link to="/expenses" className="flex items-center gap-2 p-3 rounded-md hover:bg-muted justify-center text-center">
-                        <CheckCircle className="h-5 w-5 text-green-600"/>
-                        <div><p className="text-xl font-bold">{validatedExpensesCount}</p><p className="text-xs text-muted-foreground">Acceptée(s)</p></div>
-                    </Link>
+      <section className="space-y-3" aria-labelledby="gestion-temps-heading">
+        <h2 id="gestion-temps-heading" className="text-base font-semibold tracking-tight text-foreground">
+          Gestion du temps
+        </h2>
+        <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
+          <Card className="flex min-h-0 flex-col">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Mes soldes</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-1 flex-col space-y-3">
+              {isLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  Chargement…
                 </div>
-               )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* --- Colonne Latérale (1/3) --- */}
-        <div className="space-y-6">
-          {/* --- Soldes Congés (Réactivé) --- */}
-          <Card>
-            <CardHeader><CardTitle className="text-lg">Mes Soldes</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              {isLoading ? ( <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Chargement...</div>
-              ) : leaveBalances && leaveBalances.length > 0 ? ( // Vérifie si leaveBalances existe et n'est pas vide
-                leaveBalances.map(balance => (
-                  <div key={balance.type} className="flex justify-between items-baseline">
-                    <span className="text-muted-foreground">{balance.type || 'Type inconnu'}</span>
-                    <strong className="text-2xl font-bold">
-                        {/* Gère 'N/A' pour Congé sans solde */}
-                        {typeof balance.remaining === 'number' ? `${balance.remaining.toFixed(1)} j` : balance.remaining}
-                    </strong>
-                  </div>
-                ))
-              ) : !error ? ( // N'affiche "non dispo" que s'il n'y a pas d'erreur globale
+              ) : leaveBalances && leaveBalances.length > 0 ? (
+                <ul className="space-y-3">
+                  {leaveBalances.map((balance) => (
+                    <li
+                      key={balance.type}
+                      className="flex items-baseline justify-between gap-3 border-b border-border/60 pb-3 last:border-0 last:pb-0"
+                    >
+                      <span className="text-sm text-muted-foreground">{balance.type || "Type inconnu"}</span>
+                      <strong className="text-lg font-semibold tabular-nums">
+                        {typeof balance.remaining === "number"
+                          ? `${balance.remaining.toFixed(1)} j`
+                          : balance.remaining}
+                      </strong>
+                    </li>
+                  ))}
+                </ul>
+              ) : !error ? (
                 <p className="text-sm text-muted-foreground">Soldes non disponibles.</p>
-              ) : null }
-              {!isLoading && ( // N'affiche le bouton qu'après le chargement
-                <Button variant="link" size="sm" asChild className="p-0 h-auto text-xs mt-2">
-                      <Link to="/absences">Voir détails / Faire une demande</Link>
+              ) : null}
+              {!isLoading && (
+                <Button variant="link" size="sm" asChild className="mt-auto h-auto justify-start p-0 text-xs">
+                  <Link to="/absences">Voir détails / Faire une demande</Link>
                 </Button>
               )}
             </CardContent>
           </Card>
 
-          
-          <Card className="relative">
-            <CardHeader><CardTitle className="text-lg">Mon Calendrier</CardTitle></CardHeader>
-            <CardContent className="flex flex-col items-center">
-              {isLoading && <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10 rounded-lg"><Loader2 className="h-6 w-6 animate-spin" /></div>}
-
+          <Card className="relative flex min-h-0 flex-col">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Mon calendrier</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-1 flex-col items-center">
+              {isLoading && (
+                <div
+                  className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/50"
+                  aria-busy
+                >
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden />
+                </div>
+              )}
               <Calendar
                 mode="single"
                 month={currentMonth}
@@ -405,19 +430,132 @@ export default function EmployeeDashboard() {
                 modifiers={modifiers}
                 modifiersClassNames={modifiersClassNames}
               />
-              {/* Légende */}
-              <div className="w-full mt-4 space-y-2 border-t pt-4">
+              <div className="mt-4 w-full space-y-2 border-t pt-4">
                 {Object.entries(calendarLegend).map(([key, { label, color }]) => (
-                    <div key={key} className="flex items-center text-sm">
-                        <span className={`w-3 h-3 rounded-full mr-2 ${color}`}></span>
-                        <span>{label}</span>
-                    </div>
+                  <div key={key} className="flex items-center text-sm">
+                    <span className={`mr-2 h-3 w-3 shrink-0 rounded-full ${color}`} aria-hidden />
+                    <span>{label}</span>
+                  </div>
                 ))}
               </div>
             </CardContent>
           </Card>
         </div>
-      </div>
+      </section>
+
+      <section className="space-y-3" aria-labelledby="suivi-admin-heading">
+        <h2 id="suivi-admin-heading" className="text-base font-semibold tracking-tight text-foreground">
+          Suivi administratif
+        </h2>
+        <div className="grid gap-4 lg:grid-cols-12 lg:items-stretch">
+          <Card className="lg:col-span-7 xl:col-span-8">
+            <CardHeader className="space-y-0 pb-3 pt-4">
+              <CardTitle className="text-sm font-semibold">Rémunération</CardTitle>
+              <CardDescription className="text-xs">Indicateurs de paie (M-1 et cumuls)</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2 pb-4 pt-0">
+              <div className="grid gap-2 sm:grid-cols-3">
+                <div className="flex items-center gap-3 rounded-lg border border-border/70 bg-muted/25 px-3 py-2.5">
+                  <Wallet className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-medium leading-tight text-muted-foreground">Dernier net à payer</p>
+                    <p className="truncate text-[11px] text-muted-foreground/90 capitalize">
+                      {latestPayslip
+                        ? `${formatMonthYear(latestPayslip.month, latestPayslip.year)} (M-1)`
+                        : "Mois précédent (M-1)"}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    {isLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />
+                    ) : (
+                      <p className="text-sm font-semibold tabular-nums">
+                        {latestPayslip?.net_a_payer != null ? formatCurrency(latestPayslip.net_a_payer) : "N/A"}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 rounded-lg border border-border/70 bg-muted/25 px-3 py-2.5">
+                  <TrendingUp className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-medium leading-tight text-muted-foreground">Net imposable annuel</p>
+                    <p className="text-[11px] text-muted-foreground/90">
+                      Année {cumuls?.periode?.annee_en_cours || new Date().getFullYear()}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    {isLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />
+                    ) : (
+                      <p className="text-sm font-semibold tabular-nums">
+                        {formatCurrency(cumuls?.cumuls?.net_imposable)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 rounded-lg border border-border/70 bg-muted/25 px-3 py-2.5 sm:col-span-1">
+                  <Euro className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-medium leading-tight text-muted-foreground">Salaire de base</p>
+                    <p className="text-[11px] text-muted-foreground/90">Mensuel brut</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    {isLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />
+                    ) : (
+                      <p className="text-sm font-semibold tabular-nums">
+                        {formatCurrency(employeeInfo?.salaire_de_base?.valeur)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="flex flex-col lg:col-span-5 xl:col-span-4">
+            <CardHeader className="space-y-0 pb-3 pt-4">
+              <CardTitle className="text-sm font-semibold">Notes de frais</CardTitle>
+              <CardDescription className="text-xs">Statut de vos demandes</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-1 flex-col pb-4 pt-0">
+              {isLoading ? (
+                <div className="flex flex-1 items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  Chargement…
+                </div>
+              ) : (
+                <div className="grid flex-1 grid-cols-3 gap-2 sm:gap-3">
+                  <Link
+                    to="/expenses"
+                    className="flex flex-col items-center justify-center gap-1 rounded-lg border border-border/60 bg-background px-2 py-3 text-center transition-colors hover:bg-muted/80"
+                  >
+                    <Hourglass className="h-4 w-4 text-amber-500" aria-hidden />
+                    <p className="text-lg font-semibold tabular-nums leading-none">{pendingExpensesCount}</p>
+                    <p className="text-[10px] font-medium text-muted-foreground sm:text-xs">En attente</p>
+                  </Link>
+                  <Link
+                    to="/expenses"
+                    className="flex flex-col items-center justify-center gap-1 rounded-lg border border-border/60 bg-background px-2 py-3 text-center transition-colors hover:bg-muted/80"
+                  >
+                    <CircleX className="h-4 w-4 text-destructive" aria-hidden />
+                    <p className="text-lg font-semibold tabular-nums leading-none">{rejectedExpensesCount}</p>
+                    <p className="text-[10px] font-medium text-muted-foreground sm:text-xs">Refusée(s)</p>
+                  </Link>
+                  <Link
+                    to="/expenses"
+                    className="flex flex-col items-center justify-center gap-1 rounded-lg border border-border/60 bg-background px-2 py-3 text-center transition-colors hover:bg-muted/80"
+                  >
+                    <CheckCircle className="h-4 w-4 text-green-600" aria-hidden />
+                    <p className="text-lg font-semibold tabular-nums leading-none">{validatedExpensesCount}</p>
+                    <p className="text-[10px] font-medium text-muted-foreground sm:text-xs">Acceptée(s)</p>
+                  </Link>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </section>
     </div>
   );
 }

@@ -1,8 +1,27 @@
 // src/components/ui/employee-sidebar.tsx
 
-import { useState } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Home, User, Wallet, Calendar, LogOut, Plane, DollarSign, Notebook, Settings, Handshake, Stethoscope, LifeBuoy, GraduationCap, FileText } from "lucide-react";
+import { useEffect, useState } from "react";
+import { NavLink, useLocation } from "react-router-dom";
+import {
+  Home,
+  User,
+  Wallet,
+  Calendar,
+  LogOut,
+  Plane,
+  DollarSign,
+  Notebook,
+  Settings,
+  Handshake,
+  Stethoscope,
+  LifeBuoy,
+  GraduationCap,
+  FileText,
+  CalendarCheck,
+  IdCard,
+  ChevronRight,
+  type LucideIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { ChangePasswordModal } from "@/components/ChangePasswordModal";
@@ -18,32 +37,54 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarHeader,
   SidebarFooter,
+  SidebarSeparator,
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
 
-const baseNavItems = [
-  { to: "/", label: "Tableau de Bord", icon: Home },
-  { to: "/payslips", label: "Rémunération", icon: DollarSign },
-  { to: "/employee/formation", label: "Ma formation", icon: GraduationCap },
-  { to: "/employee/documents", label: "Mes documents", icon: FileText },
+function matchEmployeeNavPath(currentPath: string, path: string): boolean {
+  if (path === "/") return currentPath === "/";
+  if (path === "/employee/formation") return currentPath.startsWith("/employee/formation");
+  if (path === "/employee/documents") return currentPath.startsWith("/employee/documents");
+  if (path === "/employee/planning") return currentPath.startsWith("/employee/planning");
+  return currentPath.startsWith(path);
+}
+
+type NavItem = { to: string; label: string; icon: LucideIcon };
+
+const dashboardNavItem: NavItem = { to: "/", label: "Tableau de Bord", icon: Home };
+
+const monTempsNavItems: NavItem[] = [
   { to: "/calendar", label: "Calendrier", icon: Calendar },
   { to: "/absences", label: "Congés & Absences", icon: Plane },
-  { to: "/employee/planning", label: "Mon planning", icon: Calendar },
+  { to: "/employee/planning", label: "Mon planning", icon: CalendarCheck },
+  { to: "/badgeuse", label: "Ma badgeuse", icon: IdCard },
+];
+
+const mesFinancesNavItems: NavItem[] = [
+  { to: "/payslips", label: "Rémunération", icon: DollarSign },
   { to: "/expenses", label: "Notes de Frais", icon: Notebook },
   { to: "/salary-advances", label: "Avances sur salaire", icon: Wallet },
-  { to: "/badgeuse", label: "Ma badgeuse", icon: Calendar },
+];
+
+const monDossierNavItemsBase: NavItem[] = [
+  { to: "/employee/formation", label: "Ma formation", icon: GraduationCap },
+  { to: "/employee/documents", label: "Mes documents", icon: FileText },
   { to: "/profile", label: "Profil", icon: User },
 ];
 
 export function EmployeeSidebar() {
   const { logout, user } = useAuth();
-  const navigate = useNavigate();
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
@@ -64,34 +105,46 @@ export function EmployeeSidebar() {
     enabled: !!user,
   });
 
-  // Construire la liste des items de navigation avec CSE si élu et Suivi médical si activé
-  const navItems = [
-    ...baseNavItems,
-    ...(medicalSettings?.enabled ? [{ to: "/medical-follow-up", label: "Mon suivi médical", icon: Stethoscope }] : []),
-    ...(electedStatus?.is_elected
-      ? [{ to: "/cse", label: "CSE/BDES", icon: Handshake }]
+  const dossierItems: NavItem[] = [
+    ...monDossierNavItemsBase,
+    ...(medicalSettings?.enabled
+      ? [{ to: "/medical-follow-up", label: "Mon suivi médical", icon: Stethoscope }]
       : []),
   ];
+
+  const cseSection: { label: string; items: NavItem[] } | null = electedStatus?.is_elected
+    ? { label: "Représentation", items: [{ to: "/cse", label: "CSE/BDES", icon: Handshake }] }
+    : null;
+
+  const [tempsOpen, setTempsOpen] = useState(() =>
+    monTempsNavItems.some((i) => matchEmployeeNavPath(currentPath, i.to)),
+  );
+  const [financesOpen, setFinancesOpen] = useState(() =>
+    mesFinancesNavItems.some((i) => matchEmployeeNavPath(currentPath, i.to)),
+  );
+  const [dossierOpen, setDossierOpen] = useState(() =>
+    dossierItems.some((i) => matchEmployeeNavPath(currentPath, i.to)),
+  );
+  const [representationOpen, setRepresentationOpen] = useState(() =>
+    Boolean(cseSection?.items.some((i) => matchEmployeeNavPath(currentPath, i.to))),
+  );
+
+  useEffect(() => {
+    if (monTempsNavItems.some((i) => matchEmployeeNavPath(currentPath, i.to))) setTempsOpen(true);
+    if (mesFinancesNavItems.some((i) => matchEmployeeNavPath(currentPath, i.to))) setFinancesOpen(true);
+    const dossierPaths = [
+      ...monDossierNavItemsBase.map((i) => i.to),
+      ...(medicalSettings?.enabled ? ["/medical-follow-up"] : []),
+    ];
+    if (dossierPaths.some((p) => matchEmployeeNavPath(currentPath, p))) setDossierOpen(true);
+    if (electedStatus?.is_elected && matchEmployeeNavPath(currentPath, "/cse")) setRepresentationOpen(true);
+  }, [currentPath, medicalSettings?.enabled, electedStatus?.is_elected]);
 
   if (!user) {
     return null;
   }
 
-  const isActive = (path: string) => {
-    if (path === "/") {
-      return currentPath === "/";
-    }
-    if (path === "/employee/formation") {
-      return currentPath.startsWith("/employee/formation");
-    }
-    if (path === "/employee/documents") {
-      return currentPath.startsWith("/employee/documents");
-    }
-    if (path === "/employee/planning") {
-      return currentPath.startsWith("/employee/planning");
-    }
-    return currentPath.startsWith(path);
-  };
+  const isActive = (path: string) => matchEmployeeNavPath(currentPath, path);
 
   const getNavClassName = (path: string) => {
     const baseClasses = collapsed
@@ -101,6 +154,15 @@ export function EmployeeSidebar() {
       ? `${baseClasses} bg-primary text-primary-foreground shadow-sm`
       : `${baseClasses} text-muted-foreground hover:text-foreground`;
   };
+
+  const flatNavItems: NavItem[] = [
+    ...monTempsNavItems,
+    ...mesFinancesNavItems,
+    ...dossierItems,
+    ...(cseSection?.items ?? []),
+  ];
+
+  const showEmployeeAccordion = !collapsed;
 
   return (
     <Sidebar className={collapsed ? "w-16" : "w-64"} collapsible="icon">
@@ -121,25 +183,195 @@ export function EmployeeSidebar() {
       </SidebarHeader>
 
       <SidebarContent className={collapsed ? "px-2" : "px-4"}>
-        <SidebarGroup>
-          <SidebarGroupLabel className={collapsed ? "sr-only" : ""}>
-            Navigation
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu className={collapsed ? "flex flex-col items-center gap-1" : ""}>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.label}>
-                  <SidebarMenuButton asChild tooltip={collapsed ? item.label : undefined}>
-                    <NavLink to={item.to} className={getNavClassName(item.to)} end={item.to === "/"}>
-                      <item.icon className="h-5 w-5 flex-shrink-0" />
-                      {!collapsed && <span className="font-medium">{item.label}</span>}
+        {showEmployeeAccordion ? (
+          <>
+            <SidebarGroup>
+              <SidebarGroupLabel>Accueil</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={dashboardNavItem.to}
+                        className={getNavClassName(dashboardNavItem.to)}
+                        end={dashboardNavItem.to === "/"}
+                      >
+                        <dashboardNavItem.icon className="h-5 w-5 flex-shrink-0" />
+                        <span className="font-medium">{dashboardNavItem.label}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarSeparator className="mx-0" />
+
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <SidebarMenu className="gap-0.5">
+                  <Collapsible open={tempsOpen} onOpenChange={setTempsOpen} className="group/collapsible">
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton className="w-full">
+                          <Calendar className="h-5 w-5 shrink-0" />
+                          <span className="font-medium">Mon Temps</span>
+                          <ChevronRight
+                            className={cn(
+                              "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
+                              "group-data-[state=open]/collapsible:rotate-90",
+                            )}
+                          />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          {monTempsNavItems.map((item) => (
+                            <SidebarMenuSubItem key={item.to}>
+                              <SidebarMenuSubButton asChild isActive={isActive(item.to)} size="sm">
+                                <NavLink to={item.to} end={item.to === "/"}>
+                                  <item.icon className="h-4 w-4 shrink-0" />
+                                  <span>{item.label}</span>
+                                </NavLink>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </SidebarMenuItem>
+                  </Collapsible>
+
+                  <Collapsible open={financesOpen} onOpenChange={setFinancesOpen} className="group/collapsible">
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton className="w-full">
+                          <DollarSign className="h-5 w-5 shrink-0" />
+                          <span className="font-medium">Mes Finances</span>
+                          <ChevronRight
+                            className={cn(
+                              "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
+                              "group-data-[state=open]/collapsible:rotate-90",
+                            )}
+                          />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          {mesFinancesNavItems.map((item) => (
+                            <SidebarMenuSubItem key={item.to}>
+                              <SidebarMenuSubButton asChild isActive={isActive(item.to)} size="sm">
+                                <NavLink to={item.to} end={item.to === "/"}>
+                                  <item.icon className="h-4 w-4 shrink-0" />
+                                  <span>{item.label}</span>
+                                </NavLink>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </SidebarMenuItem>
+                  </Collapsible>
+
+                  <Collapsible open={dossierOpen} onOpenChange={setDossierOpen} className="group/collapsible">
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton className="w-full">
+                          <FileText className="h-5 w-5 shrink-0" />
+                          <span className="font-medium">Mon Dossier</span>
+                          <ChevronRight
+                            className={cn(
+                              "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
+                              "group-data-[state=open]/collapsible:rotate-90",
+                            )}
+                          />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          {dossierItems.map((item) => (
+                            <SidebarMenuSubItem key={item.to}>
+                              <SidebarMenuSubButton asChild isActive={isActive(item.to)} size="sm">
+                                <NavLink to={item.to} end={item.to === "/"}>
+                                  <item.icon className="h-4 w-4 shrink-0" />
+                                  <span>{item.label}</span>
+                                </NavLink>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </SidebarMenuItem>
+                  </Collapsible>
+
+                  {cseSection ? (
+                    <Collapsible
+                      open={representationOpen}
+                      onOpenChange={setRepresentationOpen}
+                      className="group/collapsible"
+                    >
+                      <SidebarMenuItem>
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton className="w-full">
+                            <Handshake className="h-5 w-5 shrink-0" />
+                            <span className="font-medium">{cseSection.label}</span>
+                            <ChevronRight
+                              className={cn(
+                                "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
+                                "group-data-[state=open]/collapsible:rotate-90",
+                              )}
+                            />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <SidebarMenuSub>
+                            {cseSection.items.map((item) => (
+                              <SidebarMenuSubItem key={item.to}>
+                                <SidebarMenuSubButton asChild isActive={isActive(item.to)} size="sm">
+                                  <NavLink to={item.to} end={item.to === "/"}>
+                                    <item.icon className="h-4 w-4 shrink-0" />
+                                    <span>{item.label}</span>
+                                  </NavLink>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            ))}
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </SidebarMenuItem>
+                    </Collapsible>
+                  ) : null}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        ) : (
+          <SidebarGroup>
+            <SidebarGroupLabel className="sr-only">Navigation</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu className="flex flex-col items-center gap-1">
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip={dashboardNavItem.label}>
+                    <NavLink
+                      to={dashboardNavItem.to}
+                      className={getNavClassName(dashboardNavItem.to)}
+                      end={dashboardNavItem.to === "/"}
+                    >
+                      <dashboardNavItem.icon className="h-5 w-5 flex-shrink-0" />
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                {flatNavItems.map((item) => (
+                  <SidebarMenuItem key={item.to}>
+                    <SidebarMenuButton asChild tooltip={item.label}>
+                      <NavLink to={item.to} className={getNavClassName(item.to)} end={item.to === "/"}>
+                        <item.icon className="h-5 w-5 flex-shrink-0" />
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter className={collapsed ? "p-2" : "p-4"}>
