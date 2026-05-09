@@ -8,9 +8,12 @@ Comportement strictement identique.
 """
 
 from datetime import date, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.modules.medical_follow_up.infrastructure.database import get_supabase
+
+# Statuts considérés comme « ouverts » pour la détection de doublons
+_OPEN_OBLIGATION_STATUSES = frozenset({"a_faire", "planifiee"})
 
 # Périodicités et seuils (alignés migration 35 / legacy)
 VIP_PERIOD_YEARS = 5
@@ -155,15 +158,65 @@ def _existing_obligations(
     return list(req.data or [])
 
 
+def _normalize_trigger(trigger: Any) -> str:
+    if trigger is None:
+        return ""
+    return str(trigger).strip()
+
+
 def _dedupe_key(
-    visit_type: str,
-    trigger_type: str,
+    visit_type: Optional[str],
+    trigger_type: Optional[str],
     due_date: date,
     request_date: Optional[date] = None,
-):
-    if visit_type == "demande" and request_date:
-        return (visit_type, trigger_type, request_date.isoformat())
-    return (visit_type, trigger_type, due_date.isoformat())
+) -> Tuple[str, str, str]:
+    vt = visit_type or ""
+    tt = _normalize_trigger(trigger_type)
+    if vt == "demande" and request_date:
+        return (vt, tt, request_date.isoformat())
+    return (vt, tt, due_date.isoformat())
+
+
+def _annul_duplicate_open_obligations(
+    supabase: Any, company_id: str, employee_id: str
+) -> None:
+    """
+    Annule les doublons parmi les obligations encore ouvertes : même type de visite,
+    même déclencheur (normalisé) et même date d'échéance. Conserve la ligne la plus
+    ancienne (id minimal) et met les autres en « annulee ».
+
+    Corrige notamment les séries d'insertions répétées (courses parallèles ou ancien bug
+    de clé de dédup incohérente sur la VIP « embauche »).
+    """
+    rows = _existing_obligations(supabase, company_id, employee_id)
+    open_rows = [r for r in rows if r.get("status") in _OPEN_OBLIGATION_STATUSES]
+    buckets: Dict[Tuple[str, str, str], List[Dict[str, Any]]] = {}
+    for r in open_rows:
+        vd = _parse_date(r.get("due_date"))
+        if vd is None:
+            continue
+        key = _dedupe_key(
+            r.get("visit_type"),
+            r.get("trigger_type"),
+            vd,
+            _parse_date(r.get("request_date")),
+        )
+        buckets.setdefault(key, []).append(r)
+
+    for group in buckets.values():
+        if len(group) <= 1:
+            continue
+        group.sort(key=lambda x: str(x.get("id") or ""))
+        for dup in group[1:]:
+            dup_id = dup.get("id")
+            if not dup_id:
+                continue
+            supabase.table("medical_follow_up_obligations").update(
+                {
+                    "status": "annulee",
+                    "justification": "Doublon consolidé automatiquement.",
+                }
+            ).eq("id", dup_id).eq("company_id", company_id).execute()
 
 
 def compute_obligations_for_employee(
@@ -192,6 +245,8 @@ def compute_obligations_for_employee(
     employment_status = (data.get("employment_status") or "actif").strip().lower()
     if employment_status not in ("actif", "en_sortie"):
         return []
+
+    _annul_duplicate_open_obligations(supabase, company_id, employee_id)
 
     hire_date = _parse_date(data.get("hire_date"))
     birth_date = _parse_date(data.get("date_naissance"))
@@ -304,6 +359,7 @@ def compute_obligations_for_employee(
     last_vip = (
         supabase.table("medical_follow_up_obligations")
         .select("completed_date, due_date")
+        .eq("company_id", company_id)
         .eq("employee_id", employee_id)
         .eq("visit_type", "vip")
         .eq("status", "realisee")
@@ -334,7 +390,9 @@ def compute_obligations_for_employee(
     elif hire_date:
         next_due = hire_date.replace(year=hire_date.year + vip_years)
         if next_due > today:
-            key = _dedupe_key("vip", "periodicite_vip", next_due)
+            # Clé alignée sur trigger_type « embauche » (sinon la dédup ne voit jamais
+            # les lignes déjà en base → une nouvelle VIP à chaque recalcul).
+            key = _dedupe_key("vip", "embauche", next_due)
             if key not in existing_keys:
                 to_insert.append(
                     {
@@ -355,6 +413,7 @@ def compute_obligations_for_employee(
     last_sir = (
         supabase.table("medical_follow_up_obligations")
         .select("completed_date, due_date")
+        .eq("company_id", company_id)
         .eq("employee_id", employee_id)
         .eq("visit_type", "sir")
         .eq("status", "realisee")
