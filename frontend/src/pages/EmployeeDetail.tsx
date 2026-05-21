@@ -1505,11 +1505,11 @@ export default function EmployeeDetail() {
           <TabsTrigger value="documents"><FileText className="mr-2 h-4 w-4"/>Documents</TabsTrigger>
           <TabsTrigger
             value={TAB_AUGMENTATIONS_PROMOTIONS}
-            className="min-w-0 gap-1.5 overflow-hidden px-2 sm:px-3"
+            className="min-w-0 gap-1 px-1.5 text-xs leading-tight sm:px-2"
             title="Augmentations et Promotions"
           >
-            <TrendingUp className="h-4 w-4 shrink-0" aria-hidden />
-            <span className="truncate">Augmentations et Promotions</span>
+            <TrendingUp className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="whitespace-nowrap">Augmentations et Promotions</span>
           </TabsTrigger>
           <TabsTrigger value="saisie"><ClipboardEdit className="mr-2 h-4 w-4"/>Primes et autres</TabsTrigger>
           <TabsTrigger value="entretiens"><MessageSquare className="mr-2 h-4 w-4"/>Entretiens</TabsTrigger>
