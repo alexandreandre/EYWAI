@@ -532,6 +532,31 @@ def build_analytics_avances(company_id: str) -> AnalyticsAvances:
         )
     masse_rows.sort(key=lambda r: -float(r["masse_salariale_brute"]))
     masse_salariale_par_service: List[Dict] = masse_rows
+    masse_salariale_brute_totale = round(
+        sum(float(r["masse_salariale_brute"]) for r in masse_rows),
+        2,
+    )
+
+    ages: List[int] = []
+    tenures_years: List[float] = []
+    for e in active_emps:
+        bday = _parse_date(e.get("date_naissance"))
+        if bday:
+            age = today.year - bday.year - (
+                (today.month, today.day) < (bday.month, bday.day)
+            )
+            if age >= 0:
+                ages.append(age)
+        hd = _parse_date(e.get("hire_date"))
+        if hd and hd <= today:
+            tenure_days = (today - hd).days
+            if tenure_days >= 0:
+                tenures_years.append(tenure_days / 365.25)
+
+    age_moyen = round(sum(ages) / len(ages), 1) if ages else 0.0
+    anciennete_moyenne_annees = (
+        round(sum(tenures_years) / len(tenures_years), 1) if tenures_years else 0.0
+    )
 
     return AnalyticsAvances(
         turnover=turnover,
@@ -540,4 +565,8 @@ def build_analytics_avances(company_id: str) -> AnalyticsAvances:
         effectif_par_service=effectif_par_service,
         effectif_par_contrat=effectif_par_contrat,
         masse_salariale_par_service=masse_salariale_par_service,
+        effectif_actif=effectif_actif,
+        age_moyen=age_moyen,
+        anciennete_moyenne_annees=anciennete_moyenne_annees,
+        masse_salariale_brute_totale=masse_salariale_brute_totale,
     )

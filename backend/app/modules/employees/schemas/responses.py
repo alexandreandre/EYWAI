@@ -118,6 +118,8 @@ class FullEmployee(BaseModel):
     annual_review_current_completed_date: date | None = None
     # Service (objectifs & KPI — optionnel si colonne présente en base)
     service_id: str | None = None
+    # Équipe (FK teams — assignation via PATCH /api/teams/employees/{id}/team)
+    team_id: str | None = None
     # Convention collective (optionnel: si null, utilise celle de l'entreprise)
     collective_agreement_id: str | None = None
     # CSE (enrichi depuis cse_elected_members / quotas — pas de colonnes employees)

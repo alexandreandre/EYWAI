@@ -124,3 +124,7 @@ class AnalyticsAvances(BaseModel):
     effectif_par_service: List[Dict]
     effectif_par_contrat: List[Dict]
     masse_salariale_par_service: List[Dict]
+    effectif_actif: int = 0
+    age_moyen: float = 0.0
+    anciennete_moyenne_annees: float = 0.0
+    masse_salariale_brute_totale: float = 0.0
