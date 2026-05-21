@@ -113,3 +113,9 @@ export function triggerSignedDocumentDownload(
   a.click();
   document.body.removeChild(a);
 }
+
+/** Ouvre le PDF dans un nouvel onglet (aperçu navigateur). */
+export async function openDocumentPreview(id: string): Promise<void> {
+  const res = await downloadDocument(id);
+  window.open(res.signed_url, '_blank', 'noopener,noreferrer');
+}

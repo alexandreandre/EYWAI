@@ -43,7 +43,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { assignEmployeeTeam, getTeams } from "@/api/teams";
 import { generateDocument } from "@/api/documents";
 import { DOCUMENT_TYPE_LABELS, getTemplates, type DocumentTemplate } from "@/api/documentLibrary";
-import { EmployeeDetailDocumentsRhSection } from "@/components/employee-detail/EmployeeDetailDocumentsRhSection";
+import { EmployeeDetailDocumentsTab } from "@/components/employee-detail/EmployeeDetailDocumentsTab";
 import {
   diffWatchedSnapshots,
   extractWatchedSnapshot,
@@ -60,7 +60,16 @@ import {
 } from "@/api/augmentations";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
 
+const TAB_AUGMENTATIONS_PROMOTIONS = "augmentations-promotions";
+
+function normalizeEmployeeDetailTab(tabParam: string | null | undefined, fallback = "calendrier"): string {
+  const tab = tabParam ?? fallback;
+  if (tab === "bulletins") return "documents";
+  if (tab === "augmentation" || tab === "promotions") return TAB_AUGMENTATIONS_PROMOTIONS;
+  return tab;
+}
 
 // --- Imports FullCalendar ---
 // import FullCalendar, { DayCellContentArg } from '@fullcalendar/react';
@@ -102,8 +111,6 @@ interface Employee {
   weekly_hours?: unknown;
   team_id?: string | null;
 }
-interface Payslip { id: string; name: string; url: string; month: number; year: number; }
-
 function formatEuroAmount(n: number): string {
   return `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 }
@@ -670,9 +677,6 @@ export default function EmployeeDetail() {
     updateSelection,
     isForfaitJour,
   } = useCalendar(employeeId, employeeStatut);
-  const [payslips, setPayslips] = useState<Payslip[]>([]);
-  const [contractUrl, setContractUrl] = useState<string | null>(null);
-  const [identityDocumentUrl, setIdentityDocumentUrl] = useState<string | null>(null);
   const [credentialsPdfUrl, setCredentialsPdfUrl] = useState<string | null>(null);
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [saisieModalOpen, setSaisieModalOpen] = useState(false);
@@ -686,18 +690,14 @@ export default function EmployeeDetail() {
   // État pour l'onglet actif (détecte depuis l'URL si on vient de la fiche entretien)
   const [activeTab, setActiveTab] = useState<string>(() => {
     const params = new URLSearchParams(location.search);
-    const tabParam = params.get('tab') || 'calendrier';
-    // Rediriger l'ancien onglet "bulletins" vers "documents"
-    return tabParam === 'bulletins' ? 'documents' : tabParam;
+    return normalizeEmployeeDetailTab(params.get("tab"));
   });
-  
-  // Mettre à jour l'onglet actif quand l'URL change
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const tabParam = params.get('tab');
+    const tabParam = params.get("tab");
     if (tabParam) {
-      // Rediriger l'ancien onglet "bulletins" vers "documents"
-      setActiveTab(tabParam === 'bulletins' ? 'documents' : tabParam);
+      setActiveTab(normalizeEmployeeDetailTab(tabParam));
     }
   }, [location.search]);
 
@@ -705,6 +705,8 @@ export default function EmployeeDetail() {
   const activeCompanyId = activeCompany?.company_id ?? "";
   const { user } = useAuth();
   const showEmployeeCSEBlock =
+    user?.role === "rh" || user?.role === "admin" || user?.role === "collaborateur_rh";
+  const canDeleteReview =
     user?.role === "rh" || user?.role === "admin" || user?.role === "collaborateur_rh";
 
   const [augSimType, setAugSimType] = useState<"pourcentage" | "montant_fixe">("pourcentage");
@@ -729,7 +731,9 @@ export default function EmployeeDetail() {
   const salaryHistoryQuery = useQuery({
     queryKey: ["salary-history", employeeId, activeCompanyId],
     queryFn: () => getSalaryHistory(employeeId!, activeCompanyId),
-    enabled: Boolean(employeeId && activeCompanyId && activeTab === "augmentation"),
+    enabled: Boolean(
+      employeeId && activeCompanyId && activeTab === TAB_AUGMENTATIONS_PROMOTIONS,
+    ),
   });
 
   // Entretiens
@@ -744,7 +748,7 @@ export default function EmployeeDetail() {
   const [collectiveAgreementId, setCollectiveAgreementId] = useState<string | null>(null);
   const [isSavingCC, setIsSavingCC] = useState(false);
 
-  const [teamEditorOpen, setTeamEditorOpen] = useState(false);
+  const [deletingReviewId, setDeletingReviewId] = useState<string | null>(null);
   const [draftTeamId, setDraftTeamId] = useState<string>("__none__");
   const [savingTeam, setSavingTeam] = useState(false);
 
@@ -760,13 +764,6 @@ export default function EmployeeDetail() {
       ),
     [teamsActiveQuery.data?.teams],
   );
-  const resolvedTeam = useMemo(() => {
-    if (!employee?.team_id || !teamsActiveQuery.data?.teams) return null;
-    return (
-      teamsActiveQuery.data.teams.find((t) => t.id === employee.team_id) ?? null
-    );
-  }, [employee?.team_id, teamsActiveQuery.data?.teams]);
-
   const queryClient = useQueryClient();
   const contractualBaselineSeededRef = useRef(false);
   const contractualInitialWatchRef = useRef<ReturnType<typeof extractWatchedSnapshot> | null>(null);
@@ -783,24 +780,30 @@ export default function EmployeeDetail() {
   }, [employeeId]);
 
   useEffect(() => {
-    if (teamEditorOpen) return;
     if (employee?.team_id) setDraftTeamId(employee.team_id);
     else setDraftTeamId("__none__");
-  }, [employee?.team_id, teamEditorOpen]);
+  }, [employee?.team_id]);
+
+  const savedTeamSelectValue = employee?.team_id ? employee.team_id : "__none__";
+  const teamAssignmentDirty = draftTeamId !== savedTeamSelectValue;
 
   useEffect(() => {
     if (!employee || contractualBaselineSeededRef.current) return;
-    contractualInitialWatchRef.current = extractWatchedSnapshot(employee as Record<string, unknown>);
+    contractualInitialWatchRef.current = extractWatchedSnapshot(
+      employee as unknown as Record<string, unknown>,
+    );
     contractualBaselineSeededRef.current = true;
   }, [employee, employeeId]);
 
   const resetContractualBaselineFromEmployee = useCallback((emp: Employee) => {
-    contractualInitialWatchRef.current = extractWatchedSnapshot(emp as Record<string, unknown>);
+    contractualInitialWatchRef.current = extractWatchedSnapshot(
+      emp as unknown as Record<string, unknown>,
+    );
   }, []);
 
   const evaluateContractualAfterPersist = useCallback((nextEmployee: Employee) => {
     if (!contractualInitialWatchRef.current) return;
-    const cur = extractWatchedSnapshot(nextEmployee as Record<string, unknown>);
+    const cur = extractWatchedSnapshot(nextEmployee as unknown as Record<string, unknown>);
     const diffs = diffWatchedSnapshots(contractualInitialWatchRef.current, cur);
     if (diffs.length === 0) return;
     setContractualDiffs(diffs);
@@ -1034,10 +1037,15 @@ export default function EmployeeDetail() {
       window.open(url, '_blank');
       // Ne pas révoquer immédiatement l'URL pour permettre l'ouverture dans un nouvel onglet
       setTimeout(() => window.URL.revokeObjectURL(url), 100);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const detail =
+        error && typeof error === "object" && "response" in error
+          ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
       toast({
         title: "Erreur",
-        description: error?.response?.data?.detail || "Impossible d'ouvrir le PDF.",
+        description:
+          typeof detail === "string" && detail ? detail : "Impossible d'ouvrir le PDF.",
         variant: "destructive",
       });
     }
@@ -1059,12 +1067,41 @@ export default function EmployeeDetail() {
         title: "PDF téléchargé",
         description: "Le PDF de l'entretien a été téléchargé avec succès.",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const detail =
+        error && typeof error === "object" && "response" in error
+          ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
       toast({
         title: "Erreur",
-        description: error?.response?.data?.detail || "Impossible de télécharger le PDF.",
+        description:
+          typeof detail === "string" && detail ? detail : "Impossible de télécharger le PDF.",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleDeleteAnnualReview = async (reviewId: string) => {
+    setDeletingReviewId(reviewId);
+    try {
+      await annualReviewsApi.deleteAnnualReview(reviewId);
+      toast({
+        title: "Entretien supprimé",
+        description: "L'entretien planifié a été supprimé.",
+      });
+      fetchAnnualReviews();
+      if (employeeId) {
+        const employeeRes = await apiClient.get<Employee>(`/api/employees/${employeeId}`);
+        setEmployee(employeeRes.data);
+        evaluateContractualAfterPersist(employeeRes.data);
+      }
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        "Impossible de supprimer l'entretien.";
+      toast({ title: "Erreur", description: msg, variant: "destructive" });
+    } finally {
+      setDeletingReviewId(null);
     }
   };
 
@@ -1109,32 +1146,12 @@ export default function EmployeeDetail() {
     const fetchPageData = async () => {
       setIsPageLoading(true);
       try {
-        const [employeeRes, payslipsRes, contractRes, identityDocRes, credentialsPdfRes] = await Promise.all([
+        const [employeeRes, credentialsPdfRes] = await Promise.all([
           apiClient.get(`/api/employees/${employeeId}`),
-          apiClient.get(`/api/employees/${employeeId}/payslips`),
-          apiClient.get(`/api/employees/${employeeId}/contract`),
-          apiClient.get(`/api/employees/${employeeId}/identity-document`),
           apiClient.get(`/api/employees/${employeeId}/credentials-pdf`),
         ]);
         setEmployee(employeeRes.data);
-        setPayslips(payslipsRes.data);
 
-        // 'contractRes.data.url' EST déjà l'URL signée complète et fonctionnelle.
-        // On l'utilise directement.
-        if (contractRes.data.url) {
-          setContractUrl(contractRes.data.url);
-        } else {
-          setContractUrl(null); // Gère le cas où aucun contrat n'est trouvé
-        }
-
-        // Pièce d'identité (carte d'identité, passeport ou titre de séjour)
-        if (identityDocRes.data.url) {
-          setIdentityDocumentUrl(identityDocRes.data.url);
-        } else {
-          setIdentityDocumentUrl(null);
-        }
-
-        // PDF de création de compte
         if (credentialsPdfRes.data.url) {
           setCredentialsPdfUrl(credentialsPdfRes.data.url);
         } else {
@@ -1235,10 +1252,22 @@ export default function EmployeeDetail() {
         description: "Le collaborateur et son compte utilisateur ont été supprimés avec succès.",
       });
       navigate("/employees");
-    } catch (error: any) {
-      console.error("Erreur lors de la suppression du collaborateur", error);
-      const errorMessage = error.response?.data?.detail || "Une erreur est survenue.";
-      toast({ title: "Erreur de suppression", description: errorMessage, variant: "destructive" });
+    } catch (error: unknown) {
+      if (import.meta.env.DEV) {
+        console.error("Erreur lors de la suppression du collaborateur", error);
+      }
+      const errorMessage =
+        error && typeof error === "object" && "response" in error
+          ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast({
+        title: "Erreur de suppression",
+        description:
+          typeof errorMessage === "string" && errorMessage
+            ? errorMessage
+            : "Une erreur est survenue.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -1248,10 +1277,10 @@ export default function EmployeeDetail() {
     try {
       const nextId = draftTeamId === "__none__" ? null : draftTeamId;
       await assignEmployeeTeam(employeeId, nextId);
+      setEmployee((prev) => (prev ? { ...prev, team_id: nextId } : prev));
       const employeeRes = await apiClient.get<Employee>(`/api/employees/${employeeId}`);
       setEmployee(employeeRes.data);
       void queryClient.invalidateQueries({ queryKey: ["employee", employeeId] });
-      setTeamEditorOpen(false);
       toast({ title: "Équipe mise à jour" });
     } catch (error: unknown) {
       const err = error as { response?: { data?: { detail?: string } } };
@@ -1365,94 +1394,69 @@ export default function EmployeeDetail() {
                 <div><strong>Statut:</strong> {employee.statut}</div>
                 <div><strong>Date d'entrée:</strong> {new Date(employee.hire_date).toLocaleDateString('fr-FR')}</div>
                 <div className="flex flex-wrap items-center gap-2 basis-full sm:basis-auto">
-                  <strong>Équipe :</strong>
-                  {!teamEditorOpen ? (
-                    <>
-                      {employee.team_id && resolvedTeam ? (
-                        <span className="inline-flex items-center gap-2 text-foreground">
-                          <span
-                            className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-border"
-                            style={{ backgroundColor: resolvedTeam.color }}
-                            aria-hidden
-                          />
-                          {resolvedTeam.name}
-                        </span>
-                      ) : employee.team_id && teamsActiveQuery.isLoading ? (
-                        <span className="text-muted-foreground text-sm">Chargement…</span>
-                      ) : employee.team_id && !resolvedTeam ? (
-                        <span className="text-muted-foreground text-sm">Équipe (référence)</span>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-8"
-                        onClick={() => {
-                          setDraftTeamId(
-                            employee.team_id ? employee.team_id : "__none__",
-                          );
-                          setTeamEditorOpen(true);
-                        }}
+                  <strong className="shrink-0">Équipe :</strong>
+                  <div className="inline-flex min-w-0 flex-nowrap items-center gap-2">
+                    <Select
+                      value={draftTeamId}
+                      onValueChange={setDraftTeamId}
+                      disabled={teamsActiveQuery.isLoading || savingTeam}
+                    >
+                      <SelectTrigger
+                        className="h-8 w-auto shrink-0 gap-1.5 px-2.5 [&>span]:line-clamp-none [&>span]:whitespace-nowrap"
+                        aria-label="Équipe du collaborateur"
                       >
-                        Modifier l&apos;équipe
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Select
-                        value={draftTeamId}
-                        onValueChange={setDraftTeamId}
-                        disabled={teamsActiveQuery.isLoading || savingTeam}
-                      >
-                        <SelectTrigger className="w-[min(100%,280px)]">
-                          <SelectValue placeholder="Choisir une équipe" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">Aucune équipe</SelectItem>
-                          {activeTeamsSorted.map((t) => (
-                            <SelectItem key={t.id} value={t.id}>
-                              <span className="flex items-center gap-2">
-                                <span
-                                  className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-border"
-                                  style={{ backgroundColor: t.color }}
-                                  aria-hidden
-                                />
-                                {t.name}
-                              </span>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={savingTeam}
-                        onClick={() => void handleSaveTeamAssignment()}
-                      >
-                        {savingTeam ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          "Enregistrer"
-                        )}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        disabled={savingTeam}
-                        onClick={() => {
-                          setTeamEditorOpen(false);
-                          setDraftTeamId(
-                            employee.team_id ? employee.team_id : "__none__",
-                          );
-                        }}
-                      >
-                        Annuler
-                      </Button>
-                    </>
-                  )}
+                        <SelectValue
+                          placeholder={
+                            employee.team_id && teamsActiveQuery.isLoading
+                              ? "Chargement…"
+                              : "Aucune équipe"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent position="popper" className="z-[100]">
+                        <SelectItem value="__none__">Aucune équipe</SelectItem>
+                        {activeTeamsSorted.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            <span className="flex items-center gap-2">
+                              <span
+                                className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-border"
+                                style={{ backgroundColor: t.color }}
+                                aria-hidden
+                              />
+                              {t.name}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {teamAssignmentDirty && (
+                      <>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-8 shrink-0"
+                          disabled={savingTeam}
+                          onClick={() => void handleSaveTeamAssignment()}
+                        >
+                          {savingTeam ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            "Enregistrer"
+                          )}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 shrink-0"
+                          disabled={savingTeam}
+                          onClick={() => setDraftTeamId(savedTeamSelectValue)}
+                        >
+                          Annuler
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
                 <ResidencePermitBadge 
                   data={{
@@ -1466,10 +1470,10 @@ export default function EmployeeDetail() {
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <strong>Convention collective:</strong>
                   <Select value={collectiveAgreementId ?? "__aucune__"} onValueChange={(v) => setCollectiveAgreementId(v === "__aucune__" ? null : v)}>
-                    <SelectTrigger className="w-[240px]">
+                    <SelectTrigger className="h-8 w-auto shrink-0 gap-1.5 px-2.5 [&>span]:line-clamp-none [&>span]:whitespace-nowrap">
                       <SelectValue placeholder="Aucune" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper" className="z-[100]">
                       <SelectItem value="__aucune__">Aucune</SelectItem>
                       {companyAgreements.map(a => (
                         <SelectItem key={a.id} value={a.collective_agreement_id}>
@@ -1497,142 +1501,43 @@ export default function EmployeeDetail() {
       )}
       
       <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="calendrier" className="w-full">
-        <TabsList className={cn("grid w-full", medicalModuleEnabled ? "grid-cols-7" : "grid-cols-6")}>
+        <TabsList className={cn("grid w-full", medicalModuleEnabled ? "grid-cols-6" : "grid-cols-5")}>
           <TabsTrigger value="documents"><FileText className="mr-2 h-4 w-4"/>Documents</TabsTrigger>
-          <TabsTrigger value="augmentation"><Calculator className="mr-2 h-4 w-4"/>Augmentation</TabsTrigger>
-          <TabsTrigger value="saisie"><ClipboardEdit className="mr-2 h-4 w-4"/>Saisie du mois</TabsTrigger>
+          <TabsTrigger
+            value={TAB_AUGMENTATIONS_PROMOTIONS}
+            className="min-w-0 gap-1.5 overflow-hidden px-2 sm:px-3"
+            title="Augmentations et Promotions"
+          >
+            <TrendingUp className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="truncate">Augmentations et Promotions</span>
+          </TabsTrigger>
+          <TabsTrigger value="saisie"><ClipboardEdit className="mr-2 h-4 w-4"/>Primes et autres</TabsTrigger>
           <TabsTrigger value="entretiens"><MessageSquare className="mr-2 h-4 w-4"/>Entretiens</TabsTrigger>
-          <TabsTrigger value="promotions"><TrendingUp className="mr-2 h-4 w-4"/>Promotions</TabsTrigger>
           {medicalModuleEnabled && <TabsTrigger value="suivi_medical"><Stethoscope className="mr-2 h-4 w-4"/>Suivi médical</TabsTrigger>}
           <TabsTrigger value="calendrier"><CalendarIcon className="mr-2 h-4 w-4"/>Calendrier</TabsTrigger>
         </TabsList>
 
-        {/* --- Onglet Documents : Contrat, Pièce d'Identité et Bulletins de Paie --- */}
-        <TabsContent value="documents" className="mt-4 space-y-4">
-          {employeeId && (
-            <EmployeeDetailDocumentsRhSection employeeId={employeeId} employee={employee} />
+        {/* --- Onglet Documents (explorateur par dossiers) --- */}
+        <TabsContent value="documents" className="mt-4">
+          {employeeId && employee && (
+            <EmployeeDetailDocumentsTab
+              employeeId={employeeId}
+              employee={employee}
+              credentialsPdfUrl={credentialsPdfUrl}
+            />
           )}
-          {/* Section Contrat de Travail */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Contrat de Travail</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isPageLoading ? (
-                <p className="text-sm text-muted-foreground p-3">Chargement...</p>
-              ) : contractUrl ? (
-                <ul className="space-y-1">
-                  <li className="flex items-center justify-between p-3 rounded-md hover:bg-muted">
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-5 w-5 text-muted-foreground" />
-                      <p className="font-medium">Contrat de travail.pdf</p>
-                    </div>
-                    <Button variant="ghost" size="icon" asChild>
-                      <a 
-                        href={contractUrl} 
-                        download={`Contrat_${employee?.first_name}_${employee?.last_name}.pdf`}
-                      >
-                        <Download className="h-4 w-4" />
-                      </a>
-                    </Button>
-                  </li>
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground p-3">Aucun fichier de contrat trouvé.</p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Section Pièce d'Identité / Titre de séjour */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Pièce d'identité ou Titre de séjour</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isPageLoading ? (
-                <p className="text-sm text-muted-foreground p-3">Chargement...</p>
-              ) : identityDocumentUrl ? (
-                <ul className="space-y-2">
-                  <li className="flex items-center justify-between p-3 rounded-md hover:bg-muted">
-                    <div className="flex flex-col gap-1 flex-1">
-                      <div className="flex items-center gap-3">
-                        <FileText className="h-5 w-5 text-muted-foreground" />
-                        <p className="font-medium">
-                          {employee?.is_subject_to_residence_permit 
-                            ? "Titre de séjour" 
-                            : "Carte d'identité / Passeport"}
-                        </p>
-                      </div>
-                      {employee?.is_subject_to_residence_permit && employee?.residence_permit_type && (
-                        <p className="text-sm text-muted-foreground ml-8">
-                          Type: {employee.residence_permit_type}
-                          {employee.residence_permit_number && ` • N° ${employee.residence_permit_number}`}
-                        </p>
-                      )}
-                      {employee?.is_subject_to_residence_permit && employee?.residence_permit_expiry_date && (
-                        <p className="text-sm text-muted-foreground ml-8">
-                          Expire le: {new Date(employee.residence_permit_expiry_date).toLocaleDateString('fr-FR')}
-                        </p>
-                      )}
-                    </div>
-                    <Button variant="ghost" size="icon" asChild>
-                      <a 
-                        href={identityDocumentUrl} 
-                        download={`${employee?.is_subject_to_residence_permit ? 'Titre_sejour' : 'Piece_identite'}_${employee?.first_name}_${employee?.last_name}`}
-                      >
-                        <Download className="h-4 w-4" />
-                      </a>
-                    </Button>
-                  </li>
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground p-3">
-                  {employee?.is_subject_to_residence_permit 
-                    ? "Aucun titre de séjour trouvé." 
-                    : "Aucune pièce d'identité trouvée."}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Section Bulletins de Paie */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Bulletins de Paie</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2">
-                {payslips.length > 0 ? payslips.map(p => (
-                  <li key={p.id} className="flex justify-between items-center p-2 rounded-md hover:bg-muted">
-                    <span className="capitalize">
-                      {new Date(p.year, p.month - 1).toLocaleString('fr-FR', { month: 'long', year: 'numeric' })}
-                    </span>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" asChild>
-                        <Link to={`/payslips/${p.id}/edit`}>
-                          <Edit className="mr-2 h-4 w-4"/> Modifier
-                        </Link>
-                      </Button>
-                      <Button variant="outline" size="sm" asChild>
-                        <a href={p.url} download={p.name}><Download className="mr-2 h-4 w-4"/> Télécharger</a>
-                      </Button>
-                    </div>
-                  </li>
-                )) : <p className="text-sm text-muted-foreground">Aucun bulletin de paie trouvé.</p>}
-              </ul>
-            </CardContent>
-          </Card>
         </TabsContent>
 
-        <TabsContent value="augmentation" className="mt-4 space-y-6">
+        <TabsContent value={TAB_AUGMENTATIONS_PROMOTIONS} className="mt-4 space-y-8">
+          <div className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Calculator className="h-5 w-5 text-muted-foreground" />
-                Simulateur d&apos;augmentation
+                Augmentation juste
               </CardTitle>
               <CardDescription>
-                Salaire brut mensuel actuel (lecture seule) :{" "}
+                Salaire brut mensuel :{" "}
                 <span className="font-medium text-foreground">
                   {formatEuroAmount(valeurSalaireBrut(employee?.salaire_de_base))}
                 </span>
@@ -1954,13 +1859,120 @@ export default function EmployeeDetail() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row justify-between items-center">
+              <div>
+                <CardTitle>Promotions</CardTitle>
+                <CardDescription>
+                  Historique des promotions et évolutions de carrière de {employee.first_name} {employee.last_name}.
+                </CardDescription>
+              </div>
+              <Button onClick={() => setPromotionModalOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Nouvelle promotion
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {promotions.length === 0 ? (
+                <div className="text-center py-8">
+                  <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Aucune promotion enregistrée.
+                  </p>
+                  <Button onClick={() => setPromotionModalOpen(true)} variant="outline">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Créer une promotion
+                  </Button>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Évolution</TableHead>
+                      <TableHead>Date d'effet</TableHead>
+                      <TableHead>Statut</TableHead>
+                      <TableHead className="w-[100px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {promotions.map((promo) => {
+                      const evolutionText = [
+                        promo.new_job_title,
+                        promo.new_salary
+                          ? `${promo.new_salary.valeur.toLocaleString("fr-FR")} ${promo.new_salary.devise || "EUR"}`
+                          : null,
+                        promo.new_statut,
+                      ]
+                        .filter(Boolean)
+                        .join(" • ") || "—";
+
+                      return (
+                        <TableRow
+                          key={promo.id}
+                          className="cursor-pointer hover:bg-muted/50 transition-colors"
+                          onClick={() =>
+                            navigate(
+                              `/promotions/${promo.id}?returnTo=employee&employeeId=${employeeId}&tab=${TAB_AUGMENTATIONS_PROMOTIONS}`
+                            )
+                          }
+                        >
+                          <TableCell>
+                            <PromotionBadge
+                              type={promo.promotion_type}
+                              variant="type"
+                              compact
+                            />
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {evolutionText}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {new Date(promo.effective_date).toLocaleDateString("fr-FR", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </TableCell>
+                          <TableCell>
+                            <PromotionBadge status={promo.status} compact />
+                          </TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                navigate(
+                                  `/promotions/${promo.id}?returnTo=employee&employeeId=${employeeId}&tab=${TAB_AUGMENTATIONS_PROMOTIONS}`
+                                )
+                              }
+                              className="h-8 w-8 p-0"
+                              title="Voir les détails"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+          </div>
         </TabsContent>
-        
+
         <TabsContent value="saisie" className="mt-4">
           <Card>
             <CardHeader className="flex flex-row justify-between items-center">
               <div>
-                <CardTitle>Saisies de {new Date(selectedDate.year, selectedDate.month - 1).toLocaleString("fr-FR", { month: "long" })}</CardTitle>
+                <CardTitle>Primes de {new Date(selectedDate.year, selectedDate.month - 1).toLocaleString("fr-FR", { month: "long" })}</CardTitle>
                 <CardDescription>Primes, acomptes et autres variables pour la paie de ce mois.</CardDescription>
               </div>
               <Button onClick={() => setSaisieModalOpen(true)}>+ Ajouter une saisie</Button>
@@ -2023,21 +2035,29 @@ export default function EmployeeDetail() {
                       <TableHead>Date</TableHead>
                       <TableHead>Statut</TableHead>
                       <TableHead className="w-[100px]">PDF</TableHead>
+                      {canDeleteReview && (
+                        <TableHead className="w-[80px] text-right">Actions</TableHead>
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {annualReviews.map((r) => {
-                      const displayDate = r.completed_date 
+                      const displayDate = r.completed_date
                         ? new Date(r.completed_date).toLocaleDateString("fr-FR")
-                        : r.planned_date 
-                        ? new Date(r.planned_date).toLocaleDateString("fr-FR")
-                        : r.year;
-                      
+                        : r.planned_date
+                          ? new Date(r.planned_date).toLocaleDateString("fr-FR")
+                          : r.year;
+                      const canDeletePlanned = r.status === "planifie";
+
                       return (
-                        <TableRow 
+                        <TableRow
                           key={r.id}
                           className="cursor-pointer hover:bg-muted/50 transition-colors"
-                          onClick={() => navigate(`/annual-reviews/${r.id}?returnTo=employee&employeeId=${employeeId}&tab=entretiens`)}
+                          onClick={() =>
+                            navigate(
+                              `/annual-reviews/${r.id}?returnTo=employee&employeeId=${employeeId}&tab=entretiens`,
+                            )
+                          }
                         >
                           <TableCell>{displayDate}</TableCell>
                           <TableCell>
@@ -2069,110 +2089,56 @@ export default function EmployeeDetail() {
                               <span className="text-muted-foreground text-xs">—</span>
                             )}
                           </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="promotions" className="mt-4">
-          <Card>
-            <CardHeader className="flex flex-row justify-between items-center">
-              <div>
-                <CardTitle>Promotions</CardTitle>
-                <CardDescription>
-                  Historique des promotions et évolutions de carrière de {employee.first_name} {employee.last_name}.
-                </CardDescription>
-              </div>
-              <Button onClick={() => setPromotionModalOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Nouvelle promotion
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {promotions.length === 0 ? (
-                <div className="text-center py-8">
-                  <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Aucune promotion enregistrée.
-                  </p>
-                  <Button onClick={() => setPromotionModalOpen(true)} variant="outline">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Créer une promotion
-                  </Button>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Évolution</TableHead>
-                      <TableHead>Date d'effet</TableHead>
-                      <TableHead>Statut</TableHead>
-                      <TableHead className="w-[100px]">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {promotions.map((promo) => {
-                      const evolutionText = [
-                        promo.new_job_title,
-                        promo.new_salary
-                          ? `${promo.new_salary.valeur.toLocaleString("fr-FR")} ${promo.new_salary.devise || "EUR"}`
-                          : null,
-                        promo.new_statut,
-                      ]
-                        .filter(Boolean)
-                        .join(" • ") || "—";
-
-                      return (
-                        <TableRow
-                          key={promo.id}
-                          className="cursor-pointer hover:bg-muted/50 transition-colors"
-                          onClick={() =>
-                            navigate(
-                              `/promotions/${promo.id}?returnTo=employee&employeeId=${employeeId}&tab=promotions`
-                            )
-                          }
-                        >
-                          <TableCell>
-                            <PromotionBadge
-                              type={promo.promotion_type}
-                              variant="type"
-                              compact
-                            />
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {evolutionText}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {new Date(promo.effective_date).toLocaleDateString("fr-FR", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            })}
-                          </TableCell>
-                          <TableCell>
-                            <PromotionBadge status={promo.status} compact />
-                          </TableCell>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                navigate(
-                                  `/promotions/${promo.id}?returnTo=employee&employeeId=${employeeId}&tab=promotions`
-                                )
-                              }
-                              className="h-8 w-8 p-0"
-                              title="Voir les détails"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
+                          {canDeleteReview && (
+                            <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                              {canDeletePlanned ? (
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                      title="Supprimer l'entretien"
+                                      aria-label="Supprimer l'entretien"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Supprimer l&apos;entretien</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Êtes-vous sûr de vouloir supprimer cet entretien
+                                        {r.planned_date
+                                          ? ` du ${new Date(r.planned_date).toLocaleDateString("fr-FR")}`
+                                          : ""}
+                                        ? Cette action est irréversible.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Annuler</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDeleteAnnualReview(r.id)}
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        disabled={deletingReviewId === r.id}
+                                      >
+                                        {deletingReviewId === r.id ? (
+                                          <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Suppression...
+                                          </>
+                                        ) : (
+                                          "Supprimer"
+                                        )}
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
+                            </TableCell>
+                          )}
                         </TableRow>
                       );
                     })}

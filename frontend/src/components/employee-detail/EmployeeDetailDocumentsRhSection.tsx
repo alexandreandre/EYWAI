@@ -1,9 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -12,21 +11,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { toast } from '@/components/ui/use-toast';
 import {
+  deleteDocument,
   downloadDocument,
+  openDocumentPreview,
   triggerSignedDocumentDownload,
   generateDocument,
   getDocuments,
@@ -35,9 +34,10 @@ import {
 } from '@/api/documents';
 import { DOCUMENT_TYPE_LABELS, getTemplates, type DocumentTemplate } from '@/api/documentLibrary';
 import { cn } from '@/lib/utils';
-import { FileText, Loader2, RefreshCw, Settings2 } from 'lucide-react';
+import { ArrowDownToLine, ChevronDown, Eye, Loader2, Plus, Settings2, Trash2 } from 'lucide-react';
 
-const QK_DOCS = (employeeId: string) => ['employee-generated-documents', employeeId] as const;
+export const QK_EMPLOYEE_GENERATED_DOCS = (employeeId: string) =>
+  ['employee-generated-documents', employeeId] as const;
 
 const CONTRACT_TYPES = ['cdi', 'cdd', 'convention_stage', 'contrat_alternance'] as const;
 const AVENANT_TYPES = [
@@ -48,7 +48,6 @@ const AVENANT_TYPES = [
   'avenant_general',
 ] as const;
 
-/** Attestations courantes (+ retraite) — génération PDF category attestation_courante */
 const ATTESTATION_COURANTE_TYPES = [
   'attestation_emploi',
   'attestation_presence',
@@ -61,7 +60,7 @@ const ATTESTATION_COURANTE_TYPES = [
   'attestation_retraite',
 ] as const;
 
-function statusBadge(status: string) {
+export function documentStatusBadge(status: string) {
   const map: Record<string, { className: string; label: string }> = {
     brouillon: { className: 'bg-amber-100 text-amber-900 border-amber-200', label: 'Brouillon' },
     envoye: { className: 'bg-blue-100 text-blue-900 border-blue-200', label: 'Envoyé' },
@@ -76,7 +75,7 @@ function statusBadge(status: string) {
   );
 }
 
-function formatDate(iso: string): string {
+export function formatGeneratedDocDate(iso: string): string {
   try {
     return new Date(iso).toLocaleString('fr-FR', {
       day: '2-digit',
@@ -101,18 +100,29 @@ export interface EmployeeDetailDocumentsRhEmployee {
   workplace?: unknown;
   poste?: string | null;
   weekly_hours?: unknown;
+  is_subject_to_residence_permit?: boolean | null;
+  residence_permit_type?: string | null;
+  residence_permit_number?: string | null;
+  residence_permit_expiry_date?: string | null;
 }
 
 type GenMode = 'contrat' | 'avenant' | 'attestation' | null;
 
-export function EmployeeDetailDocumentsRhSection({
-  employeeId,
-  employee,
-}: {
-  employeeId: string;
-  employee: EmployeeDetailDocumentsRhEmployee;
-}) {
-  const navigate = useNavigate();
+export interface EmployeeDocumentGenerationHandlers {
+  openContrat: () => void;
+  openAvenant: (preset?: { document_type: string; template_id: string | null }) => void;
+  openAttestation: () => void;
+  handleView: (id: string) => Promise<void>;
+  handleDownload: (id: string, fileName?: string | null) => Promise<void>;
+  handleDelete: (id: string) => void;
+  deletingId: string | null;
+  loadingAction: { id: string; kind: 'view' | 'download' } | null;
+}
+
+export function useEmployeeDocumentGeneration(
+  employeeId: string,
+  employee: EmployeeDetailDocumentsRhEmployee
+) {
   const queryClient = useQueryClient();
   const displayName = `${employee.last_name} ${employee.first_name}`.trim();
 
@@ -122,9 +132,13 @@ export function EmployeeDetailDocumentsRhSection({
   const [genDateEffet, setGenDateEffet] = useState('');
   const [genMotif, setGenMotif] = useState('');
   const [eywaiBanner, setEywaiBanner] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<{
+    id: string;
+    kind: 'view' | 'download';
+  } | null>(null);
 
-  const { data: rows = [], isLoading, isError, refetch } = useQuery({
-    queryKey: QK_DOCS(employeeId),
+  const { data: rows = [], isLoading, isError, refetch, isFetching } = useQuery({
+    queryKey: QK_EMPLOYEE_GENERATED_DOCS(employeeId),
     queryFn: () => getDocuments({ employee_id: employeeId }),
   });
 
@@ -144,8 +158,27 @@ export function EmployeeDetailDocumentsRhSection({
   );
 
   const invalidateDocs = () => {
-    queryClient.invalidateQueries({ queryKey: QK_DOCS(employeeId) });
+    queryClient.invalidateQueries({ queryKey: QK_EMPLOYEE_GENERATED_DOCS(employeeId) });
   };
+
+  const deleteMut = useMutation({
+    mutationFn: deleteDocument,
+    onSuccess: () => {
+      invalidateDocs();
+      toast({ title: 'Document supprimé' });
+    },
+    onError: (e: unknown) => {
+      const msg =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast({
+        title: 'Suppression impossible',
+        description: typeof msg === 'string' ? msg : 'Erreur serveur.',
+        variant: 'destructive',
+      });
+    },
+  });
 
   const genMut = useMutation({
     mutationFn: generateDocument,
@@ -229,70 +262,56 @@ export function EmployeeDetailDocumentsRhSection({
     });
   };
 
+  const handleView = async (id: string) => {
+    setLoadingAction({ id, kind: 'view' });
+    try {
+      await openDocumentPreview(id);
+    } catch {
+      toast({
+        title: 'Aperçu indisponible',
+        description: 'Impossible d’ouvrir le document.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
   const handleDownload = async (id: string, fileName?: string | null) => {
+    setLoadingAction({ id, kind: 'download' });
     try {
       const res = await downloadDocument(id);
       triggerSignedDocumentDownload(res, fileName || 'document.pdf');
     } catch {
       toast({ title: 'Téléchargement', description: 'Lien indisponible.', variant: 'destructive' });
+    } finally {
+      setLoadingAction(null);
     }
   };
 
-  const handleRegenerate = (row: GeneratedDocument) => {
-    if (row.document_type.startsWith('avenant')) {
-      openAvenant({
-        document_type: row.document_type,
-        template_id: row.is_eywai_template ? null : row.template_id,
-      });
-    } else {
-      setGenMode('contrat');
-      setGenDocType(row.document_type);
-      setGenTemplate(row.is_eywai_template ? '__eywai__' : row.template_id || '__eywai__');
-      setGenDateEffet('');
-      setGenMotif('');
-      setEywaiBanner(false);
-    }
+  const handleDelete = (id: string) => {
+    if (!window.confirm('Supprimer ce document ? Cette action est irréversible.')) return;
+    deleteMut.mutate(id);
   };
 
   const canSubmitContrat = genMode === 'contrat' && !!genDocType && !!genDateEffet;
   const canSubmitAvenant = genMode === 'avenant' && !!genDocType && !!genDateEffet;
   const canSubmitAttestation = genMode === 'attestation' && !!genDocType;
 
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="secondary" size="sm" onClick={openContrat}>
-          Générer un contrat
-        </Button>
-        <Button type="button" variant="secondary" size="sm" onClick={() => openAvenant()}>
-          Générer un avenant
-        </Button>
-        <Button type="button" variant="secondary" size="sm" onClick={openAttestation}>
-          Générer une attestation
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => navigate('/company#bibliotheque')}
-        >
-          <Settings2 className="mr-2 h-4 w-4" />
-          Gérer les modèles
-        </Button>
-      </div>
+  const handlers: EmployeeDocumentGenerationHandlers = {
+    openContrat,
+    openAvenant,
+    openAttestation,
+    handleView,
+    handleDownload,
+    handleDelete,
+    deletingId: deleteMut.isPending ? (deleteMut.variables as string) : null,
+    loadingAction,
+  };
 
-      {eywaiBanner && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-          Générée avec le modèle standard EYWAI.
-        </div>
-      )}
-
-      <Dialog
-        open={genMode === 'contrat'}
-        onOpenChange={(o) => {
-          if (!o) setGenMode(null);
-        }}
-      >
+  const dialogs = (
+    <>
+      <Dialog open={genMode === 'contrat'} onOpenChange={(o) => !o && setGenMode(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Générer un contrat</DialogTitle>
@@ -347,12 +366,7 @@ export function EmployeeDetailDocumentsRhSection({
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={genMode === 'avenant'}
-        onOpenChange={(o) => {
-          if (!o) setGenMode(null);
-        }}
-      >
+      <Dialog open={genMode === 'avenant'} onOpenChange={(o) => !o && setGenMode(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Générer un avenant</DialogTitle>
@@ -411,12 +425,7 @@ export function EmployeeDetailDocumentsRhSection({
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={genMode === 'attestation'}
-        onOpenChange={(o) => {
-          if (!o) setGenMode(null);
-        }}
-      >
+      <Dialog open={genMode === 'attestation'} onOpenChange={(o) => !o && setGenMode(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
@@ -468,77 +477,160 @@ export function EmployeeDetailDocumentsRhSection({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </>
+  );
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <FileText className="h-4 w-4" />
-            Documents générés
-          </CardTitle>
-          <CardDescription>PDF générés via le module Documents (hors contrat uploadé).</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading && (
-            <div className="space-y-2">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          )}
-          {isError && (
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
-              Réessayer
-            </Button>
-          )}
-          {!isLoading && !isError && rows.length === 0 && (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Aucun document généré pour ce salarié.
-            </p>
-          )}
-          {!isLoading && !isError && rows.length > 0 && (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Date génération</TableHead>
-                    <TableHead>Modèle utilisé</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((d) => (
-                    <TableRow key={d.id}>
-                      <TableCell>{DOCUMENT_TYPE_LABELS[d.document_type] ?? d.document_type}</TableCell>
-                      <TableCell className="whitespace-nowrap text-sm">{formatDate(d.created_at)}</TableCell>
-                      <TableCell>
-                        {d.is_eywai_template ? 'Standard EYWAI' : d.template_name || '—'}
-                      </TableCell>
-                      <TableCell>{statusBadge(d.status)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={!d.file_url}
-                            onClick={() => handleDownload(d.id, d.file_name)}
-                          >
-                            Télécharger
-                          </Button>
-                          <Button variant="secondary" size="sm" onClick={() => handleRegenerate(d)}>
-                            <RefreshCw className="mr-1 h-3 w-3" />
-                            Regénérer
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+  return {
+    rows,
+    isLoading,
+    isError,
+    isFetching,
+    refetch,
+    eywaiBanner,
+    handlers,
+    dialogs,
+    genMut,
+  };
+}
+
+export function EmployeeDocumentAddMenu({
+  handlers,
+  onManageTemplates,
+  menuAlign = 'start',
+}: {
+  handlers: EmployeeDocumentGenerationHandlers;
+  onManageTemplates: () => void;
+  menuAlign?: 'start' | 'end';
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" size="sm" className="shrink-0">
+          <Plus className="mr-2 h-4 w-4" />
+          Ajouter un document
+          <ChevronDown className="ml-2 h-4 w-4 opacity-70" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align={menuAlign} className="w-56">
+        <DropdownMenuItem onClick={handlers.openContrat}>Générer un contrat</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => handlers.openAvenant()}>Générer un avenant</DropdownMenuItem>
+        <DropdownMenuItem onClick={handlers.openAttestation}>Générer une attestation</DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={onManageTemplates}>
+          <Settings2 className="mr-2 h-4 w-4" />
+          Gérer les modèles
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** @deprecated Utiliser EmployeeDetailDocumentsTab — conservé pour compatibilité imports */
+export function EmployeeDetailDocumentsRhSection({
+  employeeId,
+  employee,
+}: {
+  employeeId: string;
+  employee: EmployeeDetailDocumentsRhEmployee;
+}) {
+  const navigate = useNavigate();
+  const { handlers, dialogs, eywaiBanner } = useEmployeeDocumentGeneration(employeeId, employee);
+
+  return (
+    <div className="space-y-4">
+      <EmployeeDocumentAddMenu handlers={handlers} onManageTemplates={() => navigate('/company#bibliotheque')} />
+      {eywaiBanner && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          Générée avec le modèle standard EYWAI.
+        </div>
+      )}
+      {dialogs}
     </div>
+  );
+}
+
+export function GeneratedDocActions({
+  doc,
+  handlers,
+}: {
+  doc: GeneratedDocument;
+  handlers: EmployeeDocumentGenerationHandlers;
+}) {
+  const hasFile = Boolean(doc.file_url);
+  const canDelete = doc.status === 'brouillon';
+  const viewLoading =
+    handlers.loadingAction?.id === doc.id && handlers.loadingAction.kind === 'view';
+  const downloadLoading =
+    handlers.loadingAction?.id === doc.id && handlers.loadingAction.kind === 'download';
+  const isDeleting = handlers.deletingId === doc.id;
+
+  return (
+    <div className="flex items-center gap-0.5">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        disabled={!hasFile || viewLoading || downloadLoading || isDeleting}
+        title="Visualiser le document"
+        onClick={() => void handlers.handleView(doc.id)}
+      >
+        {viewLoading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Eye className="h-4 w-4" />
+        )}
+        <span className="sr-only">Visualiser</span>
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        disabled={!hasFile || viewLoading || downloadLoading || isDeleting}
+        title="Télécharger"
+        onClick={() => void handlers.handleDownload(doc.id, doc.file_name)}
+      >
+        {downloadLoading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <ArrowDownToLine className="h-4 w-4" />
+        )}
+        <span className="sr-only">Télécharger</span>
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 text-destructive hover:text-destructive"
+        disabled={!canDelete || viewLoading || downloadLoading || isDeleting}
+        title={
+          canDelete
+            ? 'Supprimer'
+            : 'Suppression réservée aux documents au statut brouillon'
+        }
+        onClick={() => handlers.handleDelete(doc.id)}
+      >
+        {isDeleting ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Trash2 className="h-4 w-4" />
+        )}
+        <span className="sr-only">Supprimer</span>
+      </Button>
+    </div>
+  );
+}
+
+export function GeneratedDocMeta({ doc }: { doc: GeneratedDocument }): ReactNode {
+  return (
+    <>
+      {documentStatusBadge(doc.status)}
+      <span className="text-xs text-muted-foreground">
+        {formatGeneratedDocDate(doc.created_at)}
+        {' · '}
+        {doc.is_eywai_template ? 'Standard EYWAI' : doc.template_name || 'Modèle personnalisé'}
+      </span>
+    </>
   );
 }
