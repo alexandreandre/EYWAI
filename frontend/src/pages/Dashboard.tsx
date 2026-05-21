@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import apiClient from '@/api/apiClient';
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 import { Link, useNavigate } from "react-router-dom";
 import { CopilotModalAgent } from "@/components/CopilotModalAgent";
 
@@ -159,6 +160,8 @@ type PriorityValidationByCount = Record<string, number>;
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { activeCompany } = useCompany();
+  const companyId = activeCompany?.company_id;
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -177,7 +180,7 @@ export default function Dashboard() {
   const [isGeneratePayrollModalOpen, setIsGeneratePayrollModalOpen] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [selectedPriorityKey, setSelectedPriorityKey] = useState<DashboardPriorityKey | null>(null);
-  const { getCount } = useRhSidebarTaskBadges(true);
+  const { getCount } = useRhSidebarTaskBadges(Boolean(companyId));
   const [validatedPriorityByCount, setValidatedPriorityByCount] = useState<PriorityValidationByCount>(() => {
     try {
       const raw = sessionStorage.getItem(PRIORITY_DAY_STORAGE_KEY);
@@ -198,21 +201,31 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
+    if (!companyId) return;
+
+    let cancelled = false;
+
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
         setError(null);
         const response = await apiClient.get<DashboardData>('/api/dashboard/all');
-        setData(response.data);
+        if (!cancelled) setData(response.data);
       } catch (e: any) {
-        const errorMsg = e.response?.data?.detail || e.message || "Une erreur est survenue.";
-        setError(errorMsg);
+        if (!cancelled) {
+          const errorMsg = e.response?.data?.detail || e.message || "Une erreur est survenue.";
+          setError(errorMsg);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
+
     fetchDashboardData();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId]);
 
   useEffect(() => {
     const fetchResidencePermitStats = async () => {
@@ -342,6 +355,16 @@ export default function Dashboard() {
   }, []) // Le tableau de dépendances est vide, il est global
 
   // --- Rendu des États (Chargement, Erreur, Vide) ---
+  if (!companyId) {
+    return (
+      <div className="flex flex-col justify-center items-center h-64 text-muted-foreground">
+        <Inbox className="h-10 w-10" />
+        <span className="mt-4 text-lg font-medium">Aucune entreprise active</span>
+        <span className="text-sm">Sélectionnez une entreprise pour afficher le tableau de bord.</span>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-[calc(100vh-200px)]">
@@ -495,14 +518,6 @@ export default function Dashboard() {
       href: "/schedules",
       icon: Clock,
       hint: "Planning & suivi",
-    },
-    {
-      key: "badgeuse-rh",
-      label: "Badgeuse",
-      count: getCount("/badgeuse-rh"),
-      href: "/badgeuse-rh",
-      icon: Clock,
-      hint: "Pointages à vérifier",
     },
     {
       key: "company",

@@ -1,6 +1,11 @@
 // src/api/apiClient.ts
 
-import axios from 'axios';
+import axios, { type AxiosError } from 'axios';
+import {
+  retryAxiosRequest,
+  shouldRetryRequest,
+  type RetryAxiosRequestConfig,
+} from './apiRetry';
 
 /**
  * URL de l’API : injectée au build via VITE_API_URL (Docker / GitHub Actions).
@@ -79,12 +84,24 @@ apiClient.interceptors.request.use(
 
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
-    console.error('❌ ERREUR DE RÉPONSE:', {
-      message: error.message,
-      status: error.response?.status,
-      data: error.response?.data,
-    });
+  async (error: AxiosError) => {
+    const config = error.config as RetryAxiosRequestConfig | undefined;
+
+    if (config && shouldRetryRequest(error)) {
+      try {
+        return await retryAxiosRequest((cfg) => apiClient.request(cfg), config);
+      } catch (retryError) {
+        error = retryError as AxiosError;
+      }
+    }
+
+    if (import.meta.env.DEV) {
+      console.error('[apiClient] Erreur HTTP:', {
+        message: error.message,
+        status: error.response?.status,
+        url: config?.url,
+      });
+    }
     return Promise.reject(error);
   },
 );

@@ -33,13 +33,9 @@ import {
   Stethoscope,
   UserPlus,
   ChevronRight,
-  Sparkles,
   Rocket,
-  Lock,
   LifeBuoy,
-  ShieldCheck,
   Target,
-  BookOpen,
   GraduationCap,
   BarChart2,
 } from "lucide-react";
@@ -94,21 +90,17 @@ const RH_HOME: SidebarLinkItem = {
 };
 
 const RH_TEAM_BASE: SidebarLinkItem[] = [
-  { title: "Analytics", url: "/analytics", icon: BarChart2 },
+  { title: "Analytics Team", url: "/analytics", icon: BarChart2 },
   { title: "Collaborateurs", url: "/employees", icon: Users },
   { title: "Équipes", url: "/teams", icon: Users },
   { title: "Départs & sorties", url: "/employee-exits", icon: UserMinus },
   { title: "Titres & documents", url: "/residence-permits", icon: FileCheck },
   { title: "Calendriers", url: "/schedules", icon: Calendar },
-  { title: "Badgeuse", url: "/badgeuse-rh", icon: Calendar },
   { title: "Mon Entreprise", url: "/company", icon: Building },
   { title: "Entretiens", url: "/annual-reviews", icon: MessageSquare },
-  { title: "Formation", url: "/formation", icon: GraduationCap },
+  { title: "Formation & talents", url: "/formation", icon: GraduationCap },
   { title: "Documents", url: "/documents", icon: FileText },
   { title: "Augmentations", url: "/augmentations-collectives", icon: TrendingUp },
-  { title: "Habilitations", url: "/habilitations", icon: ShieldCheck },
-  { title: "Objectifs & KPI", url: "/objectives", icon: Target },
-  { title: "Catalogue formations", url: "/catalogue-formations", icon: BookOpen },
   { title: "Promotions", url: "/promotions", icon: Award },
   { title: "CSE & Dialogue Social", url: "/cse", icon: Handshake },
   { title: "Recrutement", url: "/recruitment", icon: UserPlus },
@@ -168,16 +160,13 @@ const menuItems = {
     { title: "Tableau de Bord", url: "/", icon: Home },
     { title: "Rémunération", url: "/payslips", icon: DollarSign },
     { title: "Mes Entretiens", url: "/annual-reviews", icon: MessageSquare },
-    { title: "Mes habilitations", url: "/habilitations", icon: ShieldCheck },
-    { title: "Mes objectifs", url: "/objectives", icon: Target },
-    { title: "Formations", url: "/catalogue-formations", icon: BookOpen },
+    { title: "Ma formation", url: "/employee/formation", icon: GraduationCap },
     { title: "Calendrier", url: "/calendar", icon: Calendar },
     { title: "Congés & Absences", url: "/absences", icon: Plane },
     { title: "Mon planning", url: "/employee/planning", icon: Calendar },
     { title: "Notes de Frais", url: "/expenses", icon: Notebook },
     { title: "Avances sur salaire", url: "/salary-advances", icon: Wallet },
     { title: "Mes Documents", url: "/documents", icon: FolderKanban },
-    { title: "Ma badgeuse", url: "/badgeuse", icon: Calendar },
     { title: "Profil", url: "/profile", icon: User },
   ]
 };
@@ -276,7 +265,20 @@ export function AppSidebar() {
       return currentPath === "/";
     }
     if (path === "/formation") {
-      return currentPath.startsWith("/formation");
+      return (
+        currentPath.startsWith("/formation") ||
+        currentPath === "/habilitations" ||
+        currentPath === "/objectives" ||
+        currentPath === "/catalogue-formations"
+      );
+    }
+    if (path === "/employee/formation") {
+      return (
+        currentPath.startsWith("/employee/formation") ||
+        currentPath === "/habilitations" ||
+        currentPath === "/objectives" ||
+        currentPath === "/catalogue-formations"
+      );
     }
     if (path.startsWith("/manager/")) {
       return currentPath === path || currentPath.startsWith(`${path}/`);
@@ -305,7 +307,6 @@ export function AppSidebar() {
 
   const [teamOpen, setTeamOpen] = useState(() => rhTeamItems.some((i) => isActive(i.url)));
   const [paieOpen, setPaieOpen] = useState(() => RH_PAIE_ITEMS.some((i) => isActive(i.url)));
-  const [plusOpen, setPlusOpen] = useState(false);
 
   useEffect(() => {
     const pathMatches = (path: string) => {
@@ -535,38 +536,6 @@ export function AppSidebar() {
                             </NavLink>
                           </Button>
                         </div>
-                      </CollapsibleContent>
-                    </SidebarMenuItem>
-                  </Collapsible>
-
-                  <Collapsible open={plusOpen} onOpenChange={setPlusOpen} className="group/collapsible">
-                    <SidebarMenuItem>
-                      <CollapsibleTrigger asChild>
-                        <SidebarMenuButton className="w-full">
-                          <Sparkles className="h-5 w-5 flex-shrink-0" />
-                          <span className="font-medium">EYWAI+</span>
-                          <ChevronRight
-                            className={cn(
-                              "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
-                              "group-data-[state=open]/collapsible:rotate-90",
-                            )}
-                          />
-                        </SidebarMenuButton>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <SidebarMenuSub>
-                          <SidebarMenuSubItem>
-                            <span className="flex h-7 min-w-0 items-center gap-2 rounded-md px-2 text-xs text-muted-foreground">
-                              Modules selon votre offre
-                            </span>
-                          </SidebarMenuSubItem>
-                          <SidebarMenuSubItem>
-                            <span className="flex h-7 min-w-0 items-center gap-2 rounded-md px-2 text-xs text-muted-foreground">
-                              <Lock className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
-                              À découvrir
-                            </span>
-                          </SidebarMenuSubItem>
-                        </SidebarMenuSub>
                       </CollapsibleContent>
                     </SidebarMenuItem>
                   </Collapsible>
