@@ -39,7 +39,6 @@ const baseNavItems = [
   { to: "/employee/planning", label: "Mon planning", icon: Calendar },
   { to: "/expenses", label: "Notes de Frais", icon: Notebook },
   { to: "/salary-advances", label: "Avances sur salaire", icon: Wallet },
-  { to: "/badgeuse", label: "Ma badgeuse", icon: Calendar },
   { to: "/profile", label: "Profil", icon: User },
 ];
 
@@ -86,7 +85,12 @@ export function EmployeeSidebar() {
       return currentPath === "/";
     }
     if (path === "/employee/formation") {
-      return currentPath.startsWith("/employee/formation");
+      return (
+        currentPath.startsWith("/employee/formation") ||
+        currentPath === "/habilitations" ||
+        currentPath === "/objectives" ||
+        currentPath === "/catalogue-formations"
+      );
     }
     if (path === "/employee/documents") {
       return currentPath.startsWith("/employee/documents");

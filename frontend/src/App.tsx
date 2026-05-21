@@ -44,9 +44,10 @@ import MedicalFollowUp from './pages/MedicalFollowUp';
 import { ErrorBoundaryClass } from '@/components/ErrorBoundary';
 import AnnualReviews from './pages/AnnualReviews';
 import AnnualReviewDetail from './pages/AnnualReviewDetail';
-import HabilitationsPage from './pages/Habilitations';
-import ObjectivesPage from './pages/Objectives';
-import CatalogueFormationsPage from './pages/CatalogueFormations';
+import {
+  EmployeeFormationLegacyRedirect,
+  RhFormationLegacyRedirect,
+} from './pages/formation/formationRedirects';
 import Promotions from './pages/Promotions';
 import PromotionDetail from './pages/PromotionDetail';
 import CSE from './pages/CSE';
@@ -230,7 +231,7 @@ function ProtectedRoutesWithView() {
  */
 function ProtectedRoutes() {
   const { user, isLoading } = useAuth();
-  const { accessibleCompanies } = useCompany();
+  const { accessibleCompanies, isLoading: isCompanyLoading } = useCompany();
   const { viewMode, isCollaborateurRh } = useView();
 
   console.log('%c[ProtectedRoutes] 🔍 Rendu du composant', 'background: #222; color: #bada55; font-weight: bold');
@@ -261,6 +262,16 @@ function ProtectedRoutes() {
     first_name: user.first_name
   });
 
+  const isSuperAdmin = user.is_super_admin === true || user.role === 'super_admin';
+  if (!isSuperAdmin && isCompanyLoading) {
+    console.log('%c[ProtectedRoutes] ⏳ Chargement du contexte entreprise...', 'color: orange');
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   // 3. Si l'utilisateur est un Collaborateur (sans accès RH), afficher l'interface Collaborateur uniquement
   if (user.role === 'collaborateur') {
     console.log('%c[ProtectedRoutes] 👤 Rôle COLLABORATEUR détecté - Affichage EmployeeLayout', 'background: blue; color: white; font-weight: bold');
@@ -275,9 +286,9 @@ function ProtectedRoutes() {
           <Route path="/annual-reviews" element={<EmployeeAnnualReviews />} />
           <Route path="/annual-reviews/:reviewId" element={<EmployeeAnnualReviewDetail />} />
           <Route path="/employee/formation" element={<EmployeeFormationPage />} />
-          <Route path="/habilitations" element={<HabilitationsPage />} />
-          <Route path="/objectives" element={<ObjectivesPage />} />
-          <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
+          <Route path="/habilitations" element={<EmployeeFormationLegacyRedirect />} />
+          <Route path="/objectives" element={<EmployeeFormationLegacyRedirect />} />
+          <Route path="/catalogue-formations" element={<EmployeeFormationLegacyRedirect />} />
           <Route path="/absences" element={<EmployeeAbsencesPage />} />
           <Route path="/employee/leaves/new" element={<Navigate to="/absences" replace />} />
           {/* TODO: vérifier garde d’auth / permissions module planning côté API si besoin */}
@@ -370,9 +381,9 @@ function ProtectedRoutes() {
                   <Route path="/annual-reviews" element={<EmployeeAnnualReviews />} />
                   <Route path="/annual-reviews/:reviewId" element={<EmployeeAnnualReviewDetail />} />
                   <Route path="/employee/formation" element={<EmployeeFormationPage />} />
-                  <Route path="/habilitations" element={<HabilitationsPage />} />
-                  <Route path="/objectives" element={<ObjectivesPage />} />
-                  <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
+                  <Route path="/habilitations" element={<EmployeeFormationLegacyRedirect />} />
+                  <Route path="/objectives" element={<EmployeeFormationLegacyRedirect />} />
+                  <Route path="/catalogue-formations" element={<EmployeeFormationLegacyRedirect />} />
                   <Route path="/absences" element={<EmployeeAbsencesPage />} />
                   <Route path="/employee/leaves/new" element={<Navigate to="/absences" replace />} />
                   {/* TODO: vérifier garde d’auth / permissions module planning côté API si besoin */}
@@ -483,9 +494,9 @@ function ProtectedRoutes() {
                   <Route path="/formation" element={<SuspenseFormationPage />} />
                   <Route path="/documents" element={<SuspenseRhDocumentsPage />} />
                   <Route path="/augmentations-collectives" element={<SuspenseAugmentationsCollectivesPage />} />
-                  <Route path="/habilitations" element={<HabilitationsPage />} />
-                  <Route path="/objectives" element={<ObjectivesPage />} />
-                  <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
+                  <Route path="/habilitations" element={<RhFormationLegacyRedirect />} />
+                  <Route path="/objectives" element={<RhFormationLegacyRedirect />} />
+                  <Route path="/catalogue-formations" element={<RhFormationLegacyRedirect />} />
                   <Route path="/promotions" element={<Promotions />} />
                   <Route path="/promotions/:promotionId" element={<PromotionDetail />} />
                   <Route path="/cse/meetings/:meetingId" element={<SuspenseMeetingDetailPage />} />

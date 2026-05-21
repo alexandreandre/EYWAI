@@ -577,7 +577,7 @@ export default function AnnualReviews() {
               </Select>
               {templatesForType.length === 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Aucun modèle actif pour ce type. Vous pouvez en créer dans l&apos;onglet Formation (Ticket 12).
+                  Aucun modèle actif pour ce type. Vous pouvez en créer dans l&apos;onglet Trames de Formation &amp; talents.
                 </p>
               )}
             </div>

@@ -191,7 +191,7 @@ export default function CatalogueTab() {
     setMainTab("inscriptions");
     params.delete("enrollTraining");
     const qs = params.toString();
-    navigate({ pathname: "/catalogue-formations", search: qs ? `?${qs}` : "" }, { replace: true });
+    navigate({ pathname: "/formation", hash: "catalogue", search: qs ? `?${qs}` : "" }, { replace: true });
   }, [navigate]);
 
   const [catType, setCatType] = useState<string>("all");

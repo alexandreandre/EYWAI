@@ -655,7 +655,11 @@ export default function CompetencesTab() {
                             {f.training_id ? (
                               <Button variant="outline" size="sm" asChild className="shrink-0">
                                 <Link
-                                  to={`/catalogue-formations?enrollTraining=${encodeURIComponent(f.training_id)}`}
+                                  to={{
+                                    pathname: "/formation",
+                                    hash: "catalogue",
+                                    search: `?enrollTraining=${encodeURIComponent(f.training_id)}`,
+                                  }}
                                 >
                                   Voir dans le catalogue
                                 </Link>
@@ -732,7 +736,11 @@ export default function CompetencesTab() {
                                 <span className="text-sm">{tr.training_title}</span>
                                 <Button variant="outline" size="sm" asChild>
                                   <Link
-                                    to={`/catalogue-formations?enrollTraining=${encodeURIComponent(tr.training_id)}`}
+                                    to={{
+                                      pathname: "/formation",
+                                      hash: "catalogue",
+                                      search: `?enrollTraining=${encodeURIComponent(tr.training_id)}`,
+                                    }}
                                   >
                                     Inscrire
                                   </Link>
