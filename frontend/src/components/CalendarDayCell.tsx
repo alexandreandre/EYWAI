@@ -1,112 +1,272 @@
 // src/components/CalendarDayCell.tsx
 
+import { useState, useEffect, useRef } from 'react';
 import { DayCellContentArg } from '@fullcalendar/core';
 import { PlannedEventData, ActualHoursData } from '@/api/calendar';
 import { DayData } from '@/components/ScheduleModal';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { Calendar, Clock } from 'lucide-react';
-import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Button } from '@/components/ui/button';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+import { Calendar, Clock, Copy } from 'lucide-react';
+import { isFrenchPublicHoliday } from '@/lib/frenchPublicHolidays';
 
 interface CalendarDayCellProps {
   arg: DayCellContentArg;
   plannedCalendar: PlannedEventData[];
   actualHours: ActualHoursData[];
   updateDayData: (day: Partial<DayData>) => void;
-  // --- NOUVELLES PROPS POUR LA SÉLECTION ---
   selectedDays?: number[];
-  onDaySelect?: (dayNumber: number, isCtrlOrMetaKey: boolean) => void;
+  onDaySelect?: (dayNumber: number) => void;
   selectedDate: { month: number; year: number };
-  // --- PROP POUR LE MODE FORFAIT JOUR ---
   isForfaitJour?: boolean;
+  onCopyPlannedToActual?: (dayNumber: number) => void;
 }
 
-const typeColors: { [key: string]: string } = {
-  travail: "bg-transparent text-foreground",
-  conge: "bg-blue-100 text-blue-800",
-  ferie: "bg-purple-100 text-purple-800",
-  arret_maladie: "bg-amber-100 text-amber-800",
-  weekend: "bg-gray-100 text-gray-500",
+const typeBarColors: Record<string, string> = {
+  travail: 'bg-sky-500',
+  conge: 'bg-blue-500',
+  ferie: 'bg-purple-500',
+  arret_maladie: 'bg-amber-500',
+  weekend: 'bg-slate-400',
 };
 
-export function CalendarDayCell({ arg, plannedCalendar, actualHours, updateDayData, selectedDays = [], onDaySelect, selectedDate, isForfaitJour = false }: CalendarDayCellProps) {
+const typeLabels: Record<string, string> = {
+  travail: 'Travail',
+  conge: 'Congé',
+  ferie: 'Férié',
+  arret_maladie: 'Arrêt',
+  weekend: 'Week-end',
+};
+
+const EDITABLE_TYPES = [
+  { value: 'travail', label: 'Travail' },
+  { value: 'conge', label: 'Congé' },
+  { value: 'ferie', label: 'Férié' },
+  { value: 'arret_maladie', label: 'Arrêt maladie' },
+  { value: 'weekend', label: 'Week-end' },
+] as const;
+
+const DEFAULT_SCALE_HOURS = 10;
+
+function dayNeedsInput(
+  heuresPrevues: number | null | undefined,
+  heuresFaites: number | null | undefined
+): boolean {
+  return heuresPrevues === null && heuresFaites === null;
+}
+
+function HourGauges({
+  planned,
+  actual,
+  isForfaitJour,
+}: {
+  planned: number | null | undefined;
+  actual: number | null | undefined;
+  isForfaitJour: boolean;
+}) {
+  const hasPlanned = planned !== null && planned !== undefined;
+  const hasActual = actual !== null && actual !== undefined;
+
+  if (!hasPlanned && !hasActual) {
+    return (
+      <p className="text-[10px] text-muted-foreground/80 italic px-2 pl-3 pb-2">
+        Aucune saisie
+      </p>
+    );
+  }
+
+  if (isForfaitJour) {
+    const pVal = hasPlanned ? (planned === 1 ? 1 : 0) : null;
+    const aVal = hasActual ? (actual === 1 ? 1 : 0) : null;
+    return (
+      <div className="flex flex-col gap-2 flex-1 px-2 pl-3 pb-2.5">
+        <DayGaugeRow
+          label="Prévu"
+          value={pVal}
+          filled={pVal === 1}
+          barClass="bg-sky-500"
+          trackClass="bg-sky-100"
+          textClass="text-sky-800"
+          unit="jour"
+        />
+        <DayGaugeRow
+          label="Réel"
+          value={aVal}
+          filled={aVal === 1}
+          barClass="bg-teal-500"
+          trackClass="bg-teal-100"
+          textClass="text-teal-800"
+          unit="jour"
+        />
+      </div>
+    );
+  }
+
+  const p = hasPlanned ? planned! : 0;
+  const a = hasActual ? actual! : 0;
+  const max = Math.max(DEFAULT_SCALE_HOURS, p, a, 1);
+  const pPct = hasPlanned ? Math.min(100, (p / max) * 100) : 0;
+  const aPct = hasActual ? Math.min(100, (a / max) * 100) : 0;
+
+  return (
+    <div className="flex flex-col gap-2 flex-1 px-2 pl-3 pb-2.5">
+      <DayGaugeRow
+        label="Prévu"
+        value={hasPlanned ? p : null}
+        percent={pPct}
+        barClass="bg-sky-500"
+        trackClass="bg-sky-100/90"
+        textClass="text-sky-800 dark:text-sky-300"
+        unit="h"
+        showBar
+      />
+      <DayGaugeRow
+        label="Réel"
+        value={hasActual ? a : null}
+        percent={aPct}
+        barClass="bg-teal-500"
+        trackClass="bg-teal-100/90"
+        textClass="text-teal-800 dark:text-teal-300"
+        unit="h"
+        showBar
+      />
+    </div>
+  );
+}
+
+function DayGaugeRow({
+  label,
+  value,
+  filled,
+  percent = 0,
+  barClass,
+  trackClass,
+  textClass,
+  unit,
+  showBar = false,
+}: {
+  label: string;
+  value: number | null;
+  filled?: boolean;
+  percent?: number;
+  barClass: string;
+  trackClass: string;
+  textClass: string;
+  unit: string;
+  showBar?: boolean;
+}) {
+  const display =
+    value === null
+      ? '–'
+      : unit === 'jour'
+        ? value === 1
+          ? 'Oui'
+          : 'Non'
+        : `${value}${unit === 'h' ? ' h' : ''}`;
+
+  const barWidth = showBar ? percent : filled ? 100 : 0;
+
+  return (
+    <div className="space-y-0.5">
+      <div className="flex items-baseline justify-between gap-1">
+        <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </span>
+        <span className={cn('text-base font-bold tabular-nums leading-none', textClass)}>
+          {display}
+        </span>
+      </div>
+      <div className={cn('h-3 w-full rounded-full overflow-hidden shadow-inner', trackClass)}>
+        <div
+          className={cn('h-full rounded-full transition-all duration-300', barClass)}
+          style={{ width: `${barWidth}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+export function CalendarDayCell({
+  arg,
+  plannedCalendar,
+  actualHours,
+  updateDayData,
+  selectedDays = [],
+  onDaySelect,
+  selectedDate,
+  isForfaitJour = false,
+  onCopyPlannedToActual,
+}: CalendarDayCellProps) {
   const dayNumber = arg.date.getDate();
+  const cellRef = useRef<HTMLDivElement>(null);
+  const plannedInputRef = useRef<HTMLInputElement>(null);
+  const actualInputRef = useRef<HTMLInputElement>(null);
 
-  const plannedDay = plannedCalendar.find(d => d.jour === dayNumber);
-  const actualDay = actualHours.find(d => d.jour === dayNumber);
+  const plannedDay = plannedCalendar.find((d) => d.jour === dayNumber);
+  const actualDay = actualHours.find((d) => d.jour === dayNumber);
 
-  // Vérifie si le jour de la cellule appartient au mois actuellement sélectionné.
-  const isCurrentMonth = arg.date.getMonth() + 1 === selectedDate.month && arg.date.getFullYear() === selectedDate.year;
+  const isCurrentMonth =
+    arg.date.getMonth() + 1 === selectedDate.month &&
+    arg.date.getFullYear() === selectedDate.year;
 
+  const [isEditing, setIsEditing] = useState(false);
+  const [typePopoverOpen, setTypePopoverOpen] = useState(false);
+
+  const isToday = arg.isToday;
   const isSelected = isCurrentMonth && selectedDays.includes(dayNumber);
+  const isHoliday = isFrenchPublicHoliday(
+    selectedDate.year,
+    selectedDate.month,
+    dayNumber
+  );
 
-  // Pour les jours hors du mois courant, on affiche juste le numéro grisé.
+  const hasHourValues =
+    (plannedDay?.heures_prevues !== null && plannedDay?.heures_prevues !== undefined) ||
+    (actualDay?.heures_faites !== null && actualDay?.heures_faites !== undefined);
+
+  useEffect(() => {
+    if (isToday && isCurrentMonth && cellRef.current) {
+      cellRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [isToday, isCurrentMonth, selectedDate.month, selectedDate.year]);
+
+  useEffect(() => {
+    if (isEditing && !isForfaitJour) {
+      const t = window.setTimeout(() => {
+        plannedInputRef.current?.focus();
+        plannedInputRef.current?.select();
+      }, 0);
+      return () => window.clearTimeout(t);
+    }
+  }, [isEditing, isForfaitJour]);
+
+  const commitHourEditing = () => {
+    setIsEditing(false);
+    plannedInputRef.current?.blur();
+    actualInputRef.current?.blur();
+  };
+
+  const handleEditingKeyDownCapture = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    e.stopPropagation();
+    commitHourEditing();
+  };
+
   if (!isCurrentMonth) {
     return (
       <div className="flex h-full items-start justify-start p-2">
         <span className="text-muted-foreground/30">{arg.dayNumberText}</span>
-      </div>);
+      </div>
+    );
   }
 
-  const handleTypeChange = (newType: string) => {
-    // Si le jour n'existe pas encore dans le calendrier, on le crée
-    const currentPlanned = plannedCalendar.find(d => d.jour === dayNumber);
-    const currentActual = actualHours.find(d => d.jour === dayNumber);
-    if (!currentPlanned || !currentActual) {
-      // On peut initialiser avec des valeurs par défaut si besoin
-    }
-
-    const isWorkDay = newType === 'travail';
-    // Pour le mode forfait jour : 1 = jour travaillé, sinon 0
-    // Pour le mode normal : valeur par défaut 8 heures ou valeur existante
-    const defaultHours = isForfaitJour 
-      ? (isWorkDay ? 1 : 0)
-      : (isWorkDay ? (plannedDay.heures_prevues ?? 8) : null);
-    
-    updateDayData({
-      jour: dayNumber,
-      type: newType,
-      heures_prevues: defaultHours,
-    });
-  };
-
-  const handlePlannedHoursChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    updateDayData({
-      jour: dayNumber,
-      heures_prevues: value ? parseFloat(value) : null,
-    });
-  };
-
-  const handleForfaitJourPrevuChange = (checked: boolean) => {
-    // Pour le mode forfait jour : 1 = jour prévu, 0 = jour non prévu
-    updateDayData({
-      jour: dayNumber,
-      heures_prevues: checked ? 1 : 0,
-    });
-  };
-
-  const handleForfaitJourFaitChange = (checked: boolean) => {
-    // Pour le mode forfait jour : 1 = jour travaillé, 0 = jour non travaillé
-    updateDayData({
-      jour: dayNumber,
-      heures_faites: checked ? 1 : 0,
-    });
-  };
-
-  const handleActualHoursChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    updateDayData({
-      jour: dayNumber,
-      heures_faites: value ? parseFloat(value) : null,
-    });
-  };
-
-  const isToday = arg.isToday;
-
-  // Si les données ne sont pas chargées pour ce jour (cas improbable mais sécuritaire)
   if (!plannedDay || !actualDay) {
     return (
       <div className="flex h-full items-start justify-start p-2">
@@ -115,113 +275,210 @@ export function CalendarDayCell({ arg, plannedCalendar, actualHours, updateDayDa
     );
   }
 
+  const needsInput = dayNeedsInput(plannedDay.heures_prevues, actualDay.heures_faites);
+
+  const handleTypeChange = (newType: string) => {
+    const preserved = plannedDay.heures_prevues;
+    let defaultHours: number | null = preserved ?? null;
+
+    if (preserved === null || preserved === undefined) {
+      if (isForfaitJour) {
+        defaultHours = newType === 'travail' ? 1 : 0;
+      } else if (newType === 'travail') {
+        defaultHours = 8;
+      }
+    }
+
+    updateDayData({
+      jour: dayNumber,
+      type: newType,
+      heures_prevues: defaultHours,
+    });
+    setTypePopoverOpen(false);
+  };
+
+  const barColor = typeBarColors[plannedDay.type] ?? 'bg-gray-300';
+
   return (
     <div
+      ref={cellRef}
       className={cn(
-        "flex flex-col h-full w-full p-2 rounded-2xl border bg-gradient-to-br from-white/90 to-slate-50/70 dark:from-slate-900/60 dark:to-slate-800/60",
-        "hover:shadow-md hover:scale-[1.01] transition-all duration-200"
+        'group relative flex h-full min-h-[7.5rem] w-full flex-col rounded-2xl border bg-card transition-all duration-200',
+        'hover:shadow-md',
+        isSelected && 'ring-2 ring-primary ring-offset-1',
+        isToday && 'ring-2 ring-primary/60',
+        needsInput && 'border-dashed border-amber-400/80',
+        hasHourValues && !isEditing && 'border-sky-200/60 bg-gradient-to-b from-card to-sky-50/30 dark:to-sky-950/20',
+        isEditing && 'ring-1 ring-primary shadow-md z-10'
       )}
+      onClick={() => setIsEditing(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          setIsEditing(false);
+        }
+      }}
     >
-      <div className="flex items-center justify-between mb-1">
-        <div className={cn(
-          "font-semibold text-xs rounded-full h-6 w-6 flex items-center justify-center",
-          isToday ? "bg-primary text-white shadow-sm" : "text-muted-foreground"
-        )}>
+      <div className={cn('absolute left-0 top-2 bottom-2 w-1.5 rounded-full', barColor)} />
 
-          {arg.dayNumberText}
+      <div className="flex items-start justify-between gap-1 p-2 pl-3 shrink-0">
+        <div className="flex flex-col min-w-0">
+          <span
+            className={cn(
+              'text-xs font-semibold tabular-nums',
+              isToday && 'text-primary'
+            )}
+          >
+            {arg.dayNumberText}
+          </span>
+          {isToday && (
+            <span className="text-[9px] font-medium text-primary leading-none">Aujourd&apos;hui</span>
+          )}
         </div>
-        <Select value={plannedDay.type} onValueChange={handleTypeChange}>
-            <SelectTrigger className="h-6 text-xs focus:ring-0 focus:ring-offset-0 border-0 bg-transparent hover:bg-muted/50 rounded-md w-auto p-0">
-              <SelectValue asChild>
-                <Badge variant="outline" className={cn("text-xs font-normal border-0", typeColors[plannedDay.type])}>
-                  {plannedDay.type === 'travail' ? 'Travail' : plannedDay.type === 'conge' ? 'Congé' : plannedDay.type === 'ferie' ? 'Férié' : plannedDay.type === 'arret_maladie' ? 'Arrêt' : 'Weekend'}
-                </Badge>
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="travail">Travail</SelectItem>
-              <SelectItem value="conge">Congé</SelectItem>
-              <SelectItem value="ferie">Férié</SelectItem>
-              <SelectItem value="arret_maladie">Arrêt Maladie</SelectItem>
-              <SelectItem value="weekend">Weekend</SelectItem>
-            </SelectContent>
-          </Select>
+
+        <div className="flex items-center gap-0.5">
+          {onCopyPlannedToActual && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+              title="Coller le prévu en réel"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCopyPlannedToActual(dayNumber);
+              }}
+            >
+              <Copy className="h-3 w-3" />
+            </Button>
+          )}
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={() => onDaySelect?.(dayNumber)}
+            aria-label={`Sélectionner le jour ${dayNumber}`}
+            className="h-4 w-4"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
       </div>
 
-      <div className="flex-grow flex flex-col justify-end gap-1.5 mt-1">
-        {/* Champ "heures prévues" ou "Jour prévu" selon le mode */}
-        {isForfaitJour ? (
-          // Mode forfait jour : Checkbox pour jour prévu (0/1)
-          <div className="relative flex items-center gap-2 group/input">
-            <Calendar className="h-3 w-3 text-muted-foreground group-hover/input:text-primary" />
-            <div className="flex items-center gap-2 flex-1">
-              <Checkbox
-                id={`planned-${dayNumber}`}
-                checked={plannedDay.heures_prevues === 1}
-                onCheckedChange={handleForfaitJourPrevuChange}
-                disabled={plannedDay.type !== 'travail'}
-                className="h-4 w-4"
-              />
-              <label 
-                htmlFor={`planned-${dayNumber}`}
+      <div className="px-2 pl-3 pb-1 shrink-0">
+        <Popover open={typePopoverOpen} onOpenChange={setTypePopoverOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="text-[10px] font-medium text-muted-foreground hover:text-foreground truncate max-w-full text-left"
+              onClick={(e) => {
+                e.stopPropagation();
+                setTypePopoverOpen(true);
+              }}
+            >
+              {typeLabels[plannedDay.type] ?? plannedDay.type}
+              {isHoliday && plannedDay.type !== 'ferie' && (
+                <span className="text-purple-600 ml-0.5">(férié)</span>
+              )}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-40 p-1" align="start" onClick={(e) => e.stopPropagation()}>
+            {EDITABLE_TYPES.map((t) => (
+              <button
+                key={t.value}
+                type="button"
                 className={cn(
-                  "text-xs cursor-pointer",
-                  plannedDay.type !== 'travail' && "opacity-40 cursor-not-allowed"
+                  'w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted',
+                  plannedDay.type === t.value && 'bg-muted font-medium'
                 )}
+                onClick={() => handleTypeChange(t.value)}
               >
+                {t.label}
+              </button>
+            ))}
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      {isEditing ? (
+        <div
+          className="flex flex-col gap-1.5 px-2 pl-3 pb-2 flex-1"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDownCapture={handleEditingKeyDownCapture}
+        >
+          {isForfaitJour ? (
+            <>
+              <label className="flex items-center gap-2 text-xs">
+                <Checkbox
+                  checked={plannedDay.heures_prevues === 1}
+                  onCheckedChange={(c) =>
+                    updateDayData({
+                      jour: dayNumber,
+                      heures_prevues: c === true ? 1 : 0,
+                    })
+                  }
+                  className="h-3.5 w-3.5"
+                />
                 Jour prévu
               </label>
-            </div>
-          </div>
-        ) : (
-          // Mode normal : Input numérique pour les heures
-          <div className="relative flex items-center group/input">
-            <Calendar className="absolute left-1 h-3 w-3 text-muted-foreground group-hover/input:text-primary" />
-            <Input id={`planned-${dayNumber}`} type="number" placeholder="–" value={plannedDay.heures_prevues ?? ''} onChange={handlePlannedHoursChange} disabled={plannedDay.type !== 'travail'} 
-              className="h-7 text-xs p-1 pl-5 bg-transparent border-0 rounded-md focus-visible:ring-1 focus-visible:ring-primary/50 focus-visible:ring-offset-0 disabled:opacity-40 disabled:cursor-not-allowed" 
-            />
-          </div>
-        )}
-
-        {/* Champ "heures faites" ou "Jour travaillé" selon le mode */}
-        {isForfaitJour ? (
-          // Mode forfait jour : Checkbox pour jour travaillé (0/1)
-          <div className="relative flex items-center gap-2 group/input">
-            <Clock className="h-3 w-3 text-muted-foreground group-hover/input:text-teal-500" />
-            <div className="flex items-center gap-2 flex-1">
-              <Checkbox
-                id={`actual-${dayNumber}`}
-                checked={actualDay.heures_faites === 1}
-                onCheckedChange={handleForfaitJourFaitChange}
-                className="h-4 w-4"
-              />
-              <label 
-                htmlFor={`actual-${dayNumber}`}
-                className="text-xs cursor-pointer"
-              >
+              <label className="flex items-center gap-2 text-xs">
+                <Checkbox
+                  checked={actualDay.heures_faites === 1}
+                  onCheckedChange={(c) =>
+                    updateDayData({
+                      jour: dayNumber,
+                      heures_faites: c === true ? 1 : 0,
+                    })
+                  }
+                  className="h-3.5 w-3.5"
+                />
                 Jour travaillé
               </label>
-            </div>
-          </div>
-        ) : (
-          // Mode normal : Input numérique pour les heures
-          <div className="relative flex items-center group/input">
-            <Clock className="absolute left-1 h-3 w-3 text-muted-foreground group-hover/input:text-teal-500" />
-            <Input id={`actual-${dayNumber}`} type="number" placeholder="–" value={actualDay.heures_faites ?? ''} onChange={handleActualHoursChange} 
-              className="h-7 text-xs p-1 pl-5 bg-teal-500/5 border-0 rounded-md focus-visible:bg-background focus-visible:ring-1 focus-visible:ring-teal-500 focus-visible:ring-offset-0" 
-            />
-          </div>
-        )}
-      </div>
-
-      <div className="flex justify-end pt-1">
-        <Checkbox
-          checked={isSelected}
-          onCheckedChange={() => onDaySelect?.(dayNumber, false)}
-          aria-label={`Sélectionner le jour ${dayNumber}`}
-          className="h-4 w-4"
+            </>
+          ) : (
+            <>
+              <div className="relative flex items-center">
+                <Calendar className="absolute left-1 h-3 w-3 text-sky-600" />
+                <Input
+                  ref={plannedInputRef}
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  placeholder="H. prévues"
+                  value={plannedDay.heures_prevues ?? ''}
+                  onChange={(e) =>
+                    updateDayData({
+                      jour: dayNumber,
+                      heures_prevues: e.target.value ? parseFloat(e.target.value) : null,
+                    })
+                  }
+                  className="h-8 text-sm pl-5 font-medium"
+                />
+              </div>
+              <div className="relative flex items-center">
+                <Clock className="absolute left-1 h-3 w-3 text-teal-600" />
+                <Input
+                  ref={actualInputRef}
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  placeholder="H. faites"
+                  value={actualDay.heures_faites ?? ''}
+                  onChange={(e) =>
+                    updateDayData({
+                      jour: dayNumber,
+                      heures_faites: e.target.value ? parseFloat(e.target.value) : null,
+                    })
+                  }
+                  className="h-8 text-sm pl-5 font-medium"
+                />
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        <HourGauges
+          planned={plannedDay.heures_prevues}
+          actual={actualDay.heures_faites}
+          isForfaitJour={isForfaitJour}
         />
-      </div>
+      )}
     </div>
   );
 }

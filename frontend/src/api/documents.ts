@@ -48,6 +48,35 @@ export interface GenerateDocumentPayload {
   nouveau_salaire?: number | null;
 }
 
+export interface ExplorerPayslipItem {
+  id: string;
+  employee_id: string;
+  employee_name: string;
+  name: string;
+  url: string;
+  month: number;
+  year: number;
+}
+
+export interface ExplorerStorageItem {
+  employee_id: string;
+  employee_name: string;
+  kind: 'contract' | 'identity' | 'credentials';
+  url: string;
+  label: string;
+}
+
+export interface DocumentsExplorerResponse {
+  generated: GeneratedDocument[];
+  payslips: ExplorerPayslipItem[];
+  storage: ExplorerStorageItem[];
+}
+
+export async function getDocumentsExplorer(): Promise<DocumentsExplorerResponse> {
+  const response = await apiClient.get<DocumentsExplorerResponse>('/api/documents/explorer');
+  return response.data;
+}
+
 export async function getDocuments(filters?: DocumentsFilters): Promise<GeneratedDocument[]> {
   const raw = filters ?? {};
   const params = Object.fromEntries(
@@ -112,4 +141,10 @@ export function triggerSignedDocumentDownload(
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+}
+
+/** Ouvre le PDF dans un nouvel onglet (aperçu navigateur). */
+export async function openDocumentPreview(id: string): Promise<void> {
+  const res = await downloadDocument(id);
+  window.open(res.signed_url, '_blank', 'noopener,noreferrer');
 }

@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import {
   BarChart3,
+  ChevronDown,
   Eye,
   Loader2,
   Pencil,
@@ -22,6 +23,11 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 import apiClient from "@/api/apiClient";
 import {
@@ -140,7 +146,15 @@ function rateCellClass(rate: number | null | undefined): string {
   return "bg-red-600/90 text-white";
 }
 
-export default function ObjectivesTab() {
+export type ObjectivesTabProps = {
+  simplifiedFilters?: boolean;
+  collapseReportingDefault?: boolean;
+};
+
+export default function ObjectivesTab({
+  simplifiedFilters = false,
+  collapseReportingDefault = false,
+}: ObjectivesTabProps = {}) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -165,6 +179,8 @@ export default function ObjectivesTab() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [includeInactive, setIncludeInactive] = useState(false);
   const [reportingMode, setReportingMode] = useState(false);
+  const [analysisOpen, setAnalysisOpen] = useState(!collapseReportingDefault);
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -500,12 +516,6 @@ export default function ObjectivesTab() {
         )}
         <div className="flex flex-wrap gap-2">
           {showRhActions ? (
-            <Button variant={reportingMode ? "secondary" : "outline"} onClick={() => setReportingMode(!reportingMode)}>
-              <BarChart3 className="mr-2 h-4 w-4" />
-              {reportingMode ? "Vue liste" : "Vue reporting"}
-            </Button>
-          ) : null}
-          {showRhActions ? (
             <Button onClick={openCreate}>
               <Plus className="mr-2 h-4 w-4" />
               Définir des objectifs
@@ -514,40 +524,36 @@ export default function ObjectivesTab() {
         </div>
       </div>
 
+      {showRhActions && collapseReportingDefault ? (
+        <Collapsible open={analysisOpen} onOpenChange={setAnalysisOpen}>
+          <CollapsibleTrigger asChild>
+            <Button type="button" variant="outline" className="w-full justify-between sm:w-auto">
+              <span className="inline-flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Analyse (matrice de reporting)
+              </span>
+              <ChevronDown className="h-4 w-4 [[data-state=open]_&]:rotate-180" />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-3">
+            <Button
+              variant={reportingMode ? "secondary" : "outline"}
+              size="sm"
+              onClick={() => setReportingMode(!reportingMode)}
+            >
+              {reportingMode ? "Afficher la liste" : "Afficher la matrice"}
+            </Button>
+          </CollapsibleContent>
+        </Collapsible>
+      ) : showRhActions ? (
+        <Button variant={reportingMode ? "secondary" : "outline"} onClick={() => setReportingMode(!reportingMode)}>
+          <BarChart3 className="mr-2 h-4 w-4" />
+          {reportingMode ? "Vue liste" : "Vue reporting"}
+        </Button>
+      ) : null}
+
       {showRhActions ? (
         <div className="flex flex-wrap gap-3 md:items-end">
-          <div className="grid gap-1.5 min-w-0">
-            <Label>Collaborateur</Label>
-            <Select value={filterEmployee} onValueChange={setFilterEmployee}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous</SelectItem>
-                {(employeesQuery.data ?? []).map((e) => (
-                  <SelectItem key={e.id} value={e.id}>
-                    {e.first_name} {e.last_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-1.5 min-w-0">
-            <Label>Service</Label>
-            <Select value={filterService} onValueChange={setFilterService}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous</SelectItem>
-                {(servicesQuery.data ?? []).map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           <div className="grid min-w-0 gap-1.5">
             <Label>Année</Label>
             <Input
@@ -555,19 +561,6 @@ export default function ObjectivesTab() {
               value={filterYear}
               onChange={(e) => setFilterYear(Number(e.target.value) || defaultYear)}
             />
-          </div>
-          <div className="grid gap-1.5 min-w-0">
-            <Label>Type</Label>
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous</SelectItem>
-                <SelectItem value="quantitative">Quantitatif</SelectItem>
-                <SelectItem value="qualitative">Qualitatif</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
           <div className="grid gap-1.5 min-w-0">
             <Label>Statut</Label>
@@ -586,10 +579,119 @@ export default function ObjectivesTab() {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-center gap-2 pb-1">
-            <Switch checked={includeInactive} onCheckedChange={(c) => setIncludeInactive(Boolean(c))} id="inc" />
-            <Label htmlFor="inc">Inclure inactifs</Label>
-          </div>
+          {simplifiedFilters ? (
+            <Collapsible open={moreFiltersOpen} onOpenChange={setMoreFiltersOpen}>
+              <CollapsibleTrigger asChild>
+                <Button type="button" variant="outline" size="sm" className="self-end">
+                  Plus de filtres
+                  <ChevronDown className="ml-2 h-4 w-4 [[data-state=open]_&]:rotate-180" />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="flex flex-wrap gap-3 pt-3 md:items-end">
+                <div className="grid gap-1.5 min-w-0">
+                  <Label>Collaborateur</Label>
+                  <Select value={filterEmployee} onValueChange={setFilterEmployee}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous</SelectItem>
+                      {(employeesQuery.data ?? []).map((e) => (
+                        <SelectItem key={e.id} value={e.id}>
+                          {e.first_name} {e.last_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5 min-w-0">
+                  <Label>Service</Label>
+                  <Select value={filterService} onValueChange={setFilterService}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous</SelectItem>
+                      {(servicesQuery.data ?? []).map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5 min-w-0">
+                  <Label>Type</Label>
+                  <Select value={filterType} onValueChange={setFilterType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous</SelectItem>
+                      <SelectItem value="quantitative">Quantitatif</SelectItem>
+                      <SelectItem value="qualitative">Qualitatif</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2 pb-1">
+                  <Switch checked={includeInactive} onCheckedChange={(c) => setIncludeInactive(Boolean(c))} id="inc" />
+                  <Label htmlFor="inc">Inclure inactifs</Label>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          ) : (
+            <>
+              <div className="grid gap-1.5 min-w-0">
+                <Label>Collaborateur</Label>
+                <Select value={filterEmployee} onValueChange={setFilterEmployee}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous</SelectItem>
+                    {(employeesQuery.data ?? []).map((e) => (
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.first_name} {e.last_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5 min-w-0">
+                <Label>Service</Label>
+                <Select value={filterService} onValueChange={setFilterService}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous</SelectItem>
+                    {(servicesQuery.data ?? []).map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5 min-w-0">
+                <Label>Type</Label>
+                <Select value={filterType} onValueChange={setFilterType}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous</SelectItem>
+                    <SelectItem value="quantitative">Quantitatif</SelectItem>
+                    <SelectItem value="qualitative">Qualitatif</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2 pb-1">
+                <Switch checked={includeInactive} onCheckedChange={(c) => setIncludeInactive(Boolean(c))} id="inc" />
+                <Label htmlFor="inc">Inclure inactifs</Label>
+              </div>
+            </>
+          )}
         </div>
       ) : null}
 

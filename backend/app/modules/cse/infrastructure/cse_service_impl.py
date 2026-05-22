@@ -412,6 +412,53 @@ def get_mandate_alerts(company_id: str, months_before: int = 3) -> List[MandateA
 # ============================================================================
 
 
+def _recording_summary_from_nested(recordings: Any) -> tuple[Optional[str], bool]:
+    """Extrait statut d'enregistrement et présence d'un PV depuis la relation Supabase."""
+    if not recordings:
+        return None, False
+    rec: Optional[Dict[str, Any]] = None
+    if isinstance(recordings, list) and len(recordings) > 0:
+        rec = recordings[0]
+    elif isinstance(recordings, dict):
+        rec = recordings
+    if not rec:
+        return None, False
+    return rec.get("status"), bool(rec.get("minutes_pdf_path"))
+
+
+def _build_meeting_list_item(meeting: Dict[str, Any]) -> MeetingListItem:
+    """Construit un MeetingListItem à partir d'une ligne Supabase."""
+    participant_count = 0
+    if "cse_meeting_participants" in meeting:
+        participants_data = meeting["cse_meeting_participants"]
+        if isinstance(participants_data, list):
+            participant_count = len(participants_data)
+        elif isinstance(participants_data, dict) and "count" in participants_data:
+            participant_count = participants_data["count"]
+
+    recording_status, has_minutes = _recording_summary_from_nested(
+        meeting.get("cse_meeting_recordings")
+    )
+
+    return MeetingListItem(
+        id=meeting["id"],
+        title=meeting["title"],
+        meeting_date=datetime.fromisoformat(meeting["meeting_date"]).date()
+        if isinstance(meeting["meeting_date"], str)
+        else meeting["meeting_date"],
+        meeting_time=_parse_time(meeting.get("meeting_time")),
+        location=meeting.get("location"),
+        meeting_type=meeting["meeting_type"],
+        status=meeting["status"],
+        participant_count=participant_count,
+        recording_status=recording_status,
+        has_minutes=has_minutes,
+        created_at=datetime.fromisoformat(meeting["created_at"])
+        if isinstance(meeting["created_at"], str)
+        else meeting["created_at"],
+    )
+
+
 def get_meetings(
     company_id: str,
     status: Optional[MeetingStatus] = None,
@@ -435,9 +482,14 @@ def get_meetings(
                 title,
                 meeting_date,
                 meeting_time,
+                location,
                 meeting_type,
                 status,
-                created_at
+                created_at,
+                cse_meeting_recordings(
+                    status,
+                    minutes_pdf_path
+                )
             )
             """
             )
@@ -460,10 +512,15 @@ def get_meetings(
             title,
             meeting_date,
             meeting_time,
+            location,
             meeting_type,
             status,
             created_at,
-            cse_meeting_participants(count)
+            cse_meeting_participants(count),
+            cse_meeting_recordings(
+                status,
+                minutes_pdf_path
+            )
             """
             )
             .eq("company_id", company_id)
@@ -484,35 +541,7 @@ def get_meetings(
         response = query.execute()
         meetings = response.data or []
 
-    result = []
-    for meeting in meetings:
-        # Compter les participants
-        participant_count = 0
-        if "cse_meeting_participants" in meeting:
-            participants_data = meeting["cse_meeting_participants"]
-            if isinstance(participants_data, list):
-                participant_count = len(participants_data)
-            elif isinstance(participants_data, dict) and "count" in participants_data:
-                participant_count = participants_data["count"]
-
-        result.append(
-            MeetingListItem(
-                id=meeting["id"],
-                title=meeting["title"],
-                meeting_date=datetime.fromisoformat(meeting["meeting_date"]).date()
-                if isinstance(meeting["meeting_date"], str)
-                else meeting["meeting_date"],
-                meeting_time=_parse_time(meeting.get("meeting_time")),
-                meeting_type=meeting["meeting_type"],
-                status=meeting["status"],
-                participant_count=participant_count,
-                created_at=datetime.fromisoformat(meeting["created_at"])
-                if isinstance(meeting["created_at"], str)
-                else meeting["created_at"],
-            )
-        )
-
-    return result
+    return [_build_meeting_list_item(meeting) for meeting in meetings]
 
 
 def create_meeting(
@@ -1549,3 +1578,68 @@ def get_election_alerts(company_id: str) -> List[ElectionAlert]:
         )
 
     return alerts
+
+
+def complete_election_timeline_step(
+    cycle_id: str, step_id: str, company_id: str
+) -> ElectionTimelineStepRead:
+    """Marque une étape de timeline électorale comme terminée."""
+    _check_module_active(company_id)
+
+    cycle_resp = (
+        supabase.table("cse_election_cycles")
+        .select("id")
+        .eq("id", cycle_id)
+        .eq("company_id", company_id)
+        .execute()
+    )
+    if not cycle_resp.data:
+        raise HTTPException(status_code=404, detail="Cycle électoral non trouvé")
+
+    step_resp = (
+        supabase.table("cse_election_timeline")
+        .select("*")
+        .eq("id", step_id)
+        .eq("election_cycle_id", cycle_id)
+        .execute()
+    )
+    if not step_resp.data:
+        raise HTTPException(status_code=404, detail="Étape de timeline non trouvée")
+
+    now = datetime.utcnow()
+    update_resp = (
+        supabase.table("cse_election_timeline")
+        .update(
+            {
+                "status": "completed",
+                "completed_at": now.isoformat(),
+                "updated_at": now.isoformat(),
+            }
+        )
+        .eq("id", step_id)
+        .execute()
+    )
+    if not update_resp.data:
+        raise HTTPException(status_code=500, detail="Erreur lors de la mise à jour de l'étape")
+
+    step = update_resp.data[0]
+    return ElectionTimelineStepRead(
+        id=step["id"],
+        election_cycle_id=step["election_cycle_id"],
+        step_name=step["step_name"],
+        step_order=step["step_order"],
+        due_date=datetime.fromisoformat(step["due_date"]).date()
+        if isinstance(step["due_date"], str)
+        else step["due_date"],
+        completed_at=datetime.fromisoformat(step["completed_at"])
+        if step.get("completed_at") and isinstance(step["completed_at"], str)
+        else step.get("completed_at"),
+        status=step["status"],
+        notes=step.get("notes"),
+        created_at=datetime.fromisoformat(step["created_at"])
+        if isinstance(step["created_at"], str)
+        else step["created_at"],
+        updated_at=datetime.fromisoformat(step["updated_at"])
+        if isinstance(step["updated_at"], str)
+        else step["updated_at"],
+    )

@@ -4,7 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
-import { Loader2, Pencil, Plus, RefreshCw, Sparkles } from "lucide-react";
+import { ChevronDown, Loader2, Pencil, Plus, RefreshCw } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 import apiClient from "@/api/apiClient";
 import {
@@ -108,7 +113,19 @@ function prioriteBadgeClass(p: string) {
   return "bg-orange-500 hover:bg-orange-500";
 }
 
-export default function CompetencesTab() {
+export type CompetencesTabProps = {
+  referentialOnly?: boolean;
+  hideReferential?: boolean;
+  defaultSub?: "matrice" | "gaps" | "referentiel";
+  collapseMobilityDefault?: boolean;
+};
+
+export default function CompetencesTab({
+  referentialOnly = false,
+  hideReferential = false,
+  defaultSub = "matrice",
+  collapseMobilityDefault = false,
+}: CompetencesTabProps = {}) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -126,7 +143,10 @@ export default function CompetencesTab() {
   );
 
   const companyKey = activeCompany?.company_id ?? "none";
-  const [sub, setSub] = useState<"matrice" | "gaps" | "referentiel">("matrice");
+  const [sub, setSub] = useState<"matrice" | "gaps" | "referentiel">(
+    referentialOnly ? "referentiel" : defaultSub,
+  );
+  const [mobilityOpen, setMobilityOpen] = useState(!collapseMobilityDefault);
   const [svc, setSvc] = useState<string>("all");
   const [cat, setCat] = useState<string>("all");
   const [mobilityEmpId, setMobilityEmpId] = useState<string>("");
@@ -406,15 +426,39 @@ export default function CompetencesTab() {
     );
   }
 
+  const showRefSub = !hideReferential || referentialOnly;
+  const tabsValue = referentialOnly ? "referentiel" : sub;
+
   return (
     <div className="space-y-4">
-      <Tabs value={sub} onValueChange={(v) => setSub(v as typeof sub)}>
-        <TabsList>
-          <TabsTrigger value="matrice">Matrice</TabsTrigger>
-          <TabsTrigger value="gaps">Gaps</TabsTrigger>
-          <TabsTrigger value="referentiel">Référentiel</TabsTrigger>
-        </TabsList>
+      <Tabs
+        value={tabsValue}
+        onValueChange={(v) => {
+          if (!referentialOnly) setSub(v as typeof sub);
+        }}
+      >
+        {!referentialOnly ? (
+          <TabsList
+            className={cn(
+              "grid h-11 w-full gap-1",
+              showRefSub && !hideReferential ? "grid-cols-3" : "grid-cols-2",
+            )}
+          >
+            <TabsTrigger value="gaps" className="w-full">
+              Écarts
+            </TabsTrigger>
+            <TabsTrigger value="matrice" className="w-full">
+              Matrice
+            </TabsTrigger>
+            {showRefSub && !hideReferential ? (
+              <TabsTrigger value="referentiel" className="w-full">
+                Référentiel
+              </TabsTrigger>
+            ) : null}
+          </TabsList>
+        ) : null}
 
+        {!referentialOnly ? (
         <TabsContent value="matrice" className="space-y-4">
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1">
@@ -522,8 +566,18 @@ export default function CompetencesTab() {
           )}
 
           {matrix && !matrixQuery.isLoading && (
-            <div className="space-y-4 border-t pt-6">
-              <h3 className="text-lg font-semibold">Analyse de mobilité IA</h3>
+            <Collapsible open={mobilityOpen} onOpenChange={setMobilityOpen} className="border-t pt-6">
+              <CollapsibleTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="flex w-full items-center justify-between px-0 py-2 h-auto font-semibold"
+                >
+                  <span>Analyse de mobilité interne</span>
+                  <ChevronDown className="h-4 w-4 shrink-0 transition-transform [[data-state=open]_&]:rotate-180" />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4 pt-2">
               <div className="flex flex-wrap items-end gap-3">
                 <div className="space-y-1">
                   <Label>Collaborateur</Label>
@@ -547,9 +601,7 @@ export default function CompetencesTab() {
                 >
                   {mobilityMut.isPending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="mr-2 h-4 w-4" />
-                  )}
+                  ) : null}
                   Analyser le potentiel de mobilité
                 </Button>
               </div>
@@ -655,7 +707,11 @@ export default function CompetencesTab() {
                             {f.training_id ? (
                               <Button variant="outline" size="sm" asChild className="shrink-0">
                                 <Link
-                                  to={`/catalogue-formations?enrollTraining=${encodeURIComponent(f.training_id)}`}
+                                  to={{
+                                    pathname: "/formation",
+                                    hash: "formations",
+                                    search: `?sub=inscriptions&enrollTraining=${encodeURIComponent(f.training_id)}`,
+                                  }}
                                 >
                                   Voir dans le catalogue
                                 </Link>
@@ -685,10 +741,13 @@ export default function CompetencesTab() {
                   </div>
                 </div>
               )}
-            </div>
+              </CollapsibleContent>
+            </Collapsible>
           )}
         </TabsContent>
+        ) : null}
 
+        {!referentialOnly ? (
         <TabsContent value="gaps" className="space-y-4">
           {matrixQuery.isLoading && <Skeleton className="h-48 w-full" />}
           {matrixQuery.isError && (
@@ -732,7 +791,11 @@ export default function CompetencesTab() {
                                 <span className="text-sm">{tr.training_title}</span>
                                 <Button variant="outline" size="sm" asChild>
                                   <Link
-                                    to={`/catalogue-formations?enrollTraining=${encodeURIComponent(tr.training_id)}`}
+                                    to={{
+                                      pathname: "/formation",
+                                    hash: "formations",
+                                    search: `?sub=inscriptions&enrollTraining=${encodeURIComponent(tr.training_id)}`,
+                                    }}
                                   >
                                     Inscrire
                                   </Link>
@@ -751,7 +814,9 @@ export default function CompetencesTab() {
             </div>
           )}
         </TabsContent>
+        ) : null}
 
+        {showRefSub ? (
         <TabsContent value="referentiel" className="space-y-4">
           <Button type="button" onClick={openRefCreate}>
             <Plus className="mr-2 h-4 w-4" />
@@ -803,6 +868,7 @@ export default function CompetencesTab() {
             </div>
           )}
         </TabsContent>
+        ) : null}
       </Tabs>
 
       <Sheet open={evalSheet} onOpenChange={setEvalSheet}>

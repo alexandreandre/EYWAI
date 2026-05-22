@@ -69,5 +69,8 @@ def row_to_list_item(row: Dict[str, Any]) -> AnnualReviewListItem:
         status=row["status"],
         planned_date=row.get("planned_date"),
         completed_date=row.get("completed_date"),
+        interview_type=row.get("interview_type") or "annual_performance",
+        employee_acceptance_status=row.get("employee_acceptance_status"),
+        signature_status=row.get("signature_status"),
         created_at=row.get("created_at"),
     )

@@ -46,7 +46,7 @@ DEFAULT_CHECKLIST_ITEMS: List[Dict[str, Any]] = [
     {
         "item_code": "final_payslip",
         "item_label": "Génération du bulletin de paie de solde",
-        "item_description": "Bulletin incluant les indemnités de sortie",
+        "item_description": "Bulletin incluant les indemnités de départ",
         "item_category": "administratif",
         "is_required": True,
         "display_order": 4,

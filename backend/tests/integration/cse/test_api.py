@@ -816,6 +816,35 @@ class TestCSEElectionCyclesAPI:
         assert response.status_code == 200
         assert response.json()["id"] == "cycle-1"
 
+    def test_complete_election_timeline_step_200(self, client: TestClient):
+        from app.core.security import get_current_user
+
+        step = {
+            "id": "step-1",
+            "election_cycle_id": "cycle-1",
+            "step_name": "Dépôt des listes",
+            "step_order": 2,
+            "due_date": "2026-06-01",
+            "completed_at": "2026-05-15T10:00:00",
+            "status": "completed",
+            "notes": None,
+            "created_at": "2024-01-01T10:00:00",
+            "updated_at": "2026-05-15T10:00:00",
+        }
+        app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+        try:
+            with patch(
+                "app.modules.cse.api.router.commands.complete_election_timeline_step",
+                return_value=step,
+            ):
+                response = client.post(
+                    f"{PREFIX}/election-cycles/cycle-1/timeline/step-1/complete",
+                )
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 200
+        assert response.json()["status"] == "completed"
+
 
 # --- Exports ---
 

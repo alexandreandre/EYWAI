@@ -60,10 +60,36 @@ class TestCreateAnnualReview:
                 repository=repo,
             )
 
+    def test_creates_even_when_another_review_exists_for_same_year(self):
+        """Plusieurs entretiens par année : pas de blocage métier à la création."""
+        repo = _mock_repo()
+        repo.get_employee_company_id.return_value = "co-1"
+        repo.get_my_current.return_value = {
+            "id": "rev-existing",
+            "employee_id": "emp-1",
+            "company_id": "co-1",
+            "year": 2026,
+        }
+        repo.create.return_value = {
+            "id": "rev-new",
+            "employee_id": "emp-1",
+            "year": 2026,
+        }
+
+        commands.create_annual_review(
+            company_id="co-1",
+            data={"employee_id": "emp-1", "year": 2026},
+            repository=repo,
+        )
+
+        repo.create.assert_called_once()
+        repo.get_my_current.assert_not_called()
+
     def test_creates_with_default_status_and_returns_row(self):
         """Crée avec statut en_attente_acceptation et retourne la ligne."""
         repo = _mock_repo()
         repo.get_employee_company_id.return_value = "co-1"
+        repo.get_my_current.return_value = None
         created_row = {
             "id": "rev-new",
             "employee_id": "emp-1",
@@ -97,6 +123,7 @@ class TestCreateAnnualReview:
         """Crée avec planned_date et rh_preparation_template si fournis."""
         repo = _mock_repo()
         repo.get_employee_company_id.return_value = "co-1"
+        repo.get_my_current.return_value = None
         planned = date(2024, 6, 15)
         repo.create.return_value = {"id": "rev-1"}
 

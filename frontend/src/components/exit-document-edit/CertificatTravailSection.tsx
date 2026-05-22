@@ -138,7 +138,7 @@ export default function CertificatTravailSection({ data, onChange }: CertificatT
         <CardHeader>
           <CardTitle>Dates du contrat</CardTitle>
           <CardDescription>
-            Dates d'entrée et de sortie
+            Dates d'entrée et de départ
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

@@ -1,7 +1,7 @@
 // Page collaborateur unifiée « Ma formation » (Pack Talent T10) — lecture seule
 
-import { useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import {
@@ -1205,9 +1205,70 @@ function FormationOnboardingTabContent({ companyId }: { companyId: string }) {
   );
 }
 
+type EmployeeFormationTabId =
+  | "entretiens"
+  | "objectifs"
+  | "habilitations"
+  | "formations"
+  | "obligations"
+  | "competences"
+  | "onboarding";
+
+const EMPLOYEE_FORMATION_TAB_IDS: EmployeeFormationTabId[] = [
+  "entretiens",
+  "objectifs",
+  "habilitations",
+  "formations",
+  "obligations",
+  "competences",
+  "onboarding",
+];
+
+const EMPLOYEE_HASH_BY_TAB: Record<EmployeeFormationTabId, string> = {
+  entretiens: "entretiens",
+  objectifs: "objectifs",
+  habilitations: "habilitations",
+  formations: "formations",
+  obligations: "obligations",
+  competences: "competences",
+  onboarding: "onboarding",
+};
+
+const EMPLOYEE_TAB_BY_HASH: Record<string, EmployeeFormationTabId> = Object.fromEntries(
+  EMPLOYEE_FORMATION_TAB_IDS.map((id) => [EMPLOYEE_HASH_BY_TAB[id], id]),
+) as Record<string, EmployeeFormationTabId>;
+
+function parseEmployeeFormationHashTab(): EmployeeFormationTabId {
+  const raw = window.location.hash.replace(/^#/, "").trim().toLowerCase();
+  if (raw && EMPLOYEE_TAB_BY_HASH[raw]) return EMPLOYEE_TAB_BY_HASH[raw];
+  return "entretiens";
+}
+
 export default function EmployeeFormationPage() {
+  const navigate = useNavigate();
+  const [tab, setTab] = useState<EmployeeFormationTabId>(() => parseEmployeeFormationHashTab());
   const { activeCompany } = useCompany();
   const { employee, isLoading, isError, notConfigured, error, refetch } = useCurrentEmployee();
+
+  const syncTabFromLocation = useCallback(() => {
+    setTab(parseEmployeeFormationHashTab());
+  }, []);
+
+  useEffect(() => {
+    syncTabFromLocation();
+  }, [syncTabFromLocation]);
+
+  useEffect(() => {
+    window.addEventListener("hashchange", syncTabFromLocation);
+    return () => window.removeEventListener("hashchange", syncTabFromLocation);
+  }, [syncTabFromLocation]);
+
+  const handleTabChange = (value: string) => {
+    const next = value as EmployeeFormationTabId;
+    if (!EMPLOYEE_FORMATION_TAB_IDS.includes(next)) return;
+    setTab(next);
+    navigate({ pathname: "/employee/formation", hash: EMPLOYEE_HASH_BY_TAB[next] }, { replace: true });
+  };
 
   if (!activeCompany?.company_id) {
     return (
@@ -1265,7 +1326,7 @@ export default function EmployeeFormationPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="entretiens" className="w-full">
+      <Tabs value={tab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="mb-4 flex h-auto w-full flex-wrap justify-start gap-1">
           <TabsTrigger value="entretiens">Mes entretiens</TabsTrigger>
           <TabsTrigger value="objectifs">Mes objectifs</TabsTrigger>
@@ -1276,33 +1337,47 @@ export default function EmployeeFormationPage() {
           <TabsTrigger value="onboarding">Mon onboarding</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="entretiens" className="mt-0">
-          <EmployeeAnnualReviews embedded />
-        </TabsContent>
+        {tab === "entretiens" && (
+          <TabsContent value="entretiens" className="mt-0">
+            <EmployeeAnnualReviews embedded />
+          </TabsContent>
+        )}
 
-        <TabsContent value="objectifs" className="mt-0">
-          <FormationObjectivesPanel employeeId={employeeId} />
-        </TabsContent>
+        {tab === "objectifs" && (
+          <TabsContent value="objectifs" className="mt-0">
+            <FormationObjectivesPanel employeeId={employeeId} />
+          </TabsContent>
+        )}
 
-        <TabsContent value="habilitations" className="mt-0">
-          <FormationCertificationsPanel employeeId={employeeId} />
-        </TabsContent>
+        {tab === "habilitations" && (
+          <TabsContent value="habilitations" className="mt-0">
+            <FormationCertificationsPanel employeeId={employeeId} />
+          </TabsContent>
+        )}
 
-        <TabsContent value="formations" className="mt-0">
-          <FormationTrainingPanel employeeId={employeeId} />
-        </TabsContent>
+        {tab === "formations" && (
+          <TabsContent value="formations" className="mt-0">
+            <FormationTrainingPanel employeeId={employeeId} />
+          </TabsContent>
+        )}
 
-        <TabsContent value="obligations" className="mt-0">
-          <FormationLegalPanel employeeId={employeeId} />
-        </TabsContent>
+        {tab === "obligations" && (
+          <TabsContent value="obligations" className="mt-0">
+            <FormationLegalPanel employeeId={employeeId} />
+          </TabsContent>
+        )}
 
-        <TabsContent value="competences" className="mt-0">
-          <FormationCompetenciesPanel employeeId={employeeId} />
-        </TabsContent>
+        {tab === "competences" && (
+          <TabsContent value="competences" className="mt-0">
+            <FormationCompetenciesPanel employeeId={employeeId} />
+          </TabsContent>
+        )}
 
-        <TabsContent value="onboarding" className="mt-0">
-          <FormationOnboardingTabContent companyId={activeCompany.company_id} />
-        </TabsContent>
+        {tab === "onboarding" && (
+          <TabsContent value="onboarding" className="mt-0">
+            <FormationOnboardingTabContent companyId={activeCompany.company_id} />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

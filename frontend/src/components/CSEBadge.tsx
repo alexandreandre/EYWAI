@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Users, Calendar, Clock } from "lucide-react";
 import type { ElectedMemberRole } from "@/api/cse";
+import { ROLE_LABELS, ROLE_BADGE_CLASSES } from "@/lib/cseLabels";
 
 interface CSEBadgeProps {
   role: ElectedMemberRole;
@@ -20,22 +21,6 @@ interface CSEBadgeProps {
   daysRemaining?: number | null;
   compact?: boolean;
 }
-
-const ROLE_LABELS: Record<ElectedMemberRole, string> = {
-  titulaire: "Titulaire",
-  suppleant: "Suppléant",
-  secretaire: "Secrétaire",
-  tresorier: "Trésorier",
-  autre: "Autre",
-};
-
-const ROLE_CLASSES: Record<ElectedMemberRole, string> = {
-  titulaire: "bg-blue-100 text-blue-800 border-blue-200",
-  suppleant: "bg-green-100 text-green-800 border-green-200",
-  secretaire: "bg-purple-100 text-purple-800 border-purple-200",
-  tresorier: "bg-orange-100 text-orange-800 border-orange-200",
-  autre: "bg-gray-100 text-gray-800 border-gray-200",
-};
 
 function formatDate(dateString: string): string {
   try {
@@ -61,7 +46,7 @@ export function CSEBadge({
   const isExpired = daysRemaining !== null && daysRemaining < 0;
 
   const badgeContent = (
-    <Badge className={ROLE_CLASSES[role] || ROLE_CLASSES.autre}>
+    <Badge className={ROLE_BADGE_CLASSES[role] || ROLE_BADGE_CLASSES.autre}>
       <Users className="h-3 w-3 mr-1" />
       {compact ? ROLE_LABELS[role] : `Élu CSE - ${ROLE_LABELS[role]}`}
       {college && !compact && ` (${college})`}

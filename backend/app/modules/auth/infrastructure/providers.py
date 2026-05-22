@@ -23,9 +23,26 @@ class SupabaseAuthProvider(IAuthProvider):
         res = auth_client.auth.sign_in_with_password(
             {"email": email, "password": password}
         )
+        session = res.session
         return {
-            "access_token": res.session.access_token,
+            "access_token": session.access_token,
+            "refresh_token": session.refresh_token,
+            "expires_in": session.expires_in,
+            "expires_at": session.expires_at,
             "user": res.user,
+        }
+
+    def refresh_session(self, refresh_token: str) -> dict:
+        auth_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        res = auth_client.auth.refresh_session(refresh_token)
+        session = res.session
+        if not session or not session.access_token:
+            raise ValueError("Session de rafraîchissement invalide")
+        return {
+            "access_token": session.access_token,
+            "refresh_token": session.refresh_token,
+            "expires_in": session.expires_in,
+            "expires_at": session.expires_at,
         }
 
     def sign_out(self) -> None:

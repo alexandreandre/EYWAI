@@ -18,7 +18,12 @@ class TestLoginWithEmail:
 
     def test_email_and_valid_password_returns_token_and_user(self):
         """Email + mot de passe valide → access_token, token_type, user."""
-        fake_session = {"access_token": "jwt-xyz-123"}
+        fake_session = {
+            "access_token": "jwt-xyz-123",
+            "refresh_token": "refresh-xyz",
+            "expires_in": 3600,
+            "expires_at": 9999999999,
+        }
         fake_user = MagicMock()
         fake_user.is_super_admin = False
 
@@ -32,6 +37,8 @@ class TestLoginWithEmail:
             result = login("user@example.com", "SecretP@ss")
 
         assert result["access_token"] == "jwt-xyz-123"
+        assert result["refresh_token"] == "refresh-xyz"
+        assert result["expires_in"] == 3600
         assert result["token_type"] == "bearer"
         assert result["user"] is fake_user
         auth.sign_in_with_password.assert_called_once_with(

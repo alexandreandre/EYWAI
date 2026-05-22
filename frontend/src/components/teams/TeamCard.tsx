@@ -7,7 +7,7 @@ import type { Team } from '@/api/teams';
 
 export type TeamCardProps = {
   team: Team;
-  onEdit: (team: Team) => void;
+  onEdit: (team: Team, options?: { focusMembers?: boolean }) => void;
   onArchive: (team: Team) => void;
   onReactivate: (team: Team) => void;
   onDelete: (team: Team) => void;
@@ -41,25 +41,39 @@ export function TeamCard({
       onClick={() => onEdit(team)}
     >
       <TableCell>
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <span
             className="h-3 w-3 shrink-0 rounded-full ring-1 ring-border"
             style={{ backgroundColor: team.color }}
             aria-hidden
           />
-          <span className="font-medium">{team.name}</span>
+          <div className="min-w-0">
+            <span className="font-medium">{team.name}</span>
+            {team.description?.trim() ? (
+              <p className="truncate text-xs text-muted-foreground">
+                {team.description.trim()}
+              </p>
+            ) : null}
+          </div>
         </div>
       </TableCell>
       <TableCell className="text-muted-foreground">{managerLabel(team)}</TableCell>
-      <TableCell>
-        <span className="inline-flex items-center gap-1.5 tabular-nums">
+      <TableCell onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1.5 rounded-md tabular-nums text-sm hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={() => onEdit(team, { focusMembers: true })}
+          title="Voir les membres de l’équipe"
+        >
           <Users className="h-4 w-4 text-muted-foreground" aria-hidden />
           {team.employee_count}
-        </span>
+        </button>
       </TableCell>
       <TableCell>
         {isActive ? (
-          <Badge className="bg-emerald-600 hover:bg-emerald-600/90">Actif</Badge>
+          <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-600/90">
+            Actif
+          </Badge>
         ) : (
           <Badge variant="secondary">Archivé</Badge>
         )}

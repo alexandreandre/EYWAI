@@ -72,7 +72,7 @@ def create_employee_exit(
     if employee["employment_status"] in ("en_sortie", "parti"):
         raise EmployeeExitApplicationError(
             400,
-            f"L'employé a déjà un processus de sortie actif (statut: {employee['employment_status']})",
+            f"L'employé a déjà un processus de départ actif (statut: {employee['employment_status']})",
         )
 
     exit_type = exit_data["exit_type"]
@@ -372,7 +372,7 @@ def update_employee_exit(
     exit_repo = EmployeeExitRepository(sb)
     existing = exit_repo.get_by_id(exit_id, company_id)
     if not existing:
-        raise EmployeeExitApplicationError(404, "Sortie non trouvée")
+        raise EmployeeExitApplicationError(404, "Départ non trouvé")
     if not update_data:
         return existing
     updated = exit_repo.update(exit_id, company_id, update_data)
@@ -392,7 +392,7 @@ def update_exit_status(
     exit_repo = EmployeeExitRepository(sb)
     exit_data = exit_repo.get_by_id(exit_id, company_id)
     if not exit_data:
-        raise EmployeeExitApplicationError(404, "Sortie non trouvée")
+        raise EmployeeExitApplicationError(404, "Départ non trouvé")
     current_status = exit_data["status"]
     exit_type = exit_data["exit_type"]
     valid = get_valid_status_transitions(exit_type, current_status)
@@ -452,7 +452,7 @@ def delete_employee_exit(
     exit_repo = EmployeeExitRepository(sb)
     existing = exit_repo.get_by_id(exit_id, company_id)
     if not existing:
-        raise EmployeeExitApplicationError(404, "Sortie non trouvée")
+        raise EmployeeExitApplicationError(404, "Départ non trouvé")
     employee_id = existing["employee_id"]
     paths = get_exit_documents_storage_paths(exit_id, company_id, sb)
     if paths:
@@ -481,7 +481,7 @@ def create_exit_document(
     exit_repo = EmployeeExitRepository(sb)
     doc_repo = ExitDocumentRepository(sb)
     if not exit_repo.get_by_id(exit_id, company_id):
-        raise EmployeeExitApplicationError(404, "Sortie non trouvée")
+        raise EmployeeExitApplicationError(404, "Départ non trouvé")
     doc_record = {
         "exit_id": exit_id,
         "company_id": company_id,
@@ -520,7 +520,7 @@ def generate_exit_document(
         "id, first_name, last_name, date_naissance, job_title, hire_date",
     )
     if not exit_data:
-        raise EmployeeExitApplicationError(404, "Sortie non trouvée")
+        raise EmployeeExitApplicationError(404, "Départ non trouvé")
     employee_data = exit_data.get("employees") or {}
     company_data = get_company_by_id(company_id, sb)
     if not company_data:
@@ -601,7 +601,7 @@ def add_checklist_item(
     exit_repo = EmployeeExitRepository(sb)
     checklist_repo = ExitChecklistRepository(sb)
     if not exit_repo.get_by_id(exit_id, company_id):
-        raise EmployeeExitApplicationError(404, "Sortie non trouvée")
+        raise EmployeeExitApplicationError(404, "Départ non trouvé")
     item_record = {
         "exit_id": exit_id,
         "company_id": company_id,
@@ -696,7 +696,7 @@ def edit_exit_document(
     current_version = doc.get("version", 1)
     exit_data = exit_repo.get_by_id(exit_id, company_id)
     if not exit_data:
-        raise EmployeeExitApplicationError(404, "Sortie non trouvée")
+        raise EmployeeExitApplicationError(404, "Départ non trouvé")
     emp_id = exit_data.get("employee_id")
     employee_data = get_employee_full(str(emp_id), sb) if emp_id else {}
     company_data = get_company_by_id(company_id, sb) or {}
@@ -797,7 +797,7 @@ def publish_exit_documents(
         exit_id, company_id, "id, first_name, last_name"
     )
     if not exit_data:
-        raise EmployeeExitApplicationError(404, "Sortie non trouvée")
+        raise EmployeeExitApplicationError(404, "Départ non trouvé")
     employee_id = exit_data["employee_id"]
     all_docs = doc_repo.list_by_exit(exit_id, company_id)
     if document_ids:

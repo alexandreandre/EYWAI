@@ -4,14 +4,17 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.security import get_current_user
 from app.modules.documents.application.queries import get_employee_id_for_user_scope
 from app.modules.employees.application import queries as employee_queries
 from app.modules.onboarding.application import commands as onboarding_commands
 from app.modules.onboarding.application import queries as onboarding_queries
-from app.modules.onboarding.schemas.responses import OnboardingChecklistOut
+from app.modules.onboarding.schemas.responses import (
+    OnboardingChecklistOut,
+    OnboardingHubListOut,
+)
 from app.modules.users.schemas.responses import User
 
 router = APIRouter(prefix="/api/onboarding", tags=["Onboarding"])
@@ -54,6 +57,23 @@ def _ensure_rh_only(current_user: User, company_id: str) -> None:
             status_code=403,
             detail="Seuls les utilisateurs RH peuvent modifier les tâches d'onboarding.",
         )
+
+
+@router.get("", response_model=OnboardingHubListOut)
+def list_company_onboarding(
+    lookback_days: int = Query(
+        90,
+        ge=1,
+        le=365,
+        description="Nombre de jours depuis l'embauche pour inclure un collaborateur",
+    ),
+    current_user: User = Depends(get_current_user),
+):
+    """Tableau de bord RH : intégrations récentes avec progression et retards."""
+    company_id = _ensure_company(current_user)
+    _ensure_rh_only(current_user, company_id)
+    data = onboarding_queries.list_hub_summaries(company_id, lookback_days)
+    return OnboardingHubListOut(**data)
 
 
 @router.get("/me", response_model=OnboardingChecklistOut)

@@ -33,6 +33,10 @@ export interface AnalyticsAvances {
   effectif_par_service: Array<Record<string, unknown>>;
   effectif_par_contrat: Array<Record<string, unknown>>;
   masse_salariale_par_service: Array<Record<string, unknown>>;
+  effectif_actif: number;
+  age_moyen: number;
+  anciennete_moyenne_annees: number;
+  masse_salariale_brute_totale: number;
 }
 
 export async function getAnalyticsAvances(
@@ -145,124 +149,5 @@ export async function getAuditLogs(
       offset: params?.offset ?? 0,
     },
   });
-  return data;
-}
-
-// --- Webhooks (intégrations / BI) ---
-
-export const WEBHOOK_EVENTS: string[] = [
-  "employee.hired",
-  "employee.left",
-  "employee.salary_updated",
-  "payslip.validated",
-  "absence.approved",
-  "document.signed",
-  "recruitment.hired",
-];
-
-export interface WebhookConfig {
-  id: string;
-  company_id: string;
-  name: string;
-  url: string;
-  events: string[];
-  is_active: boolean;
-  last_triggered_at: string | null;
-  last_status_code: number | null;
-  created_at: string;
-}
-
-export interface WebhookLog {
-  id: string;
-  webhook_id: string;
-  event_type: string;
-  response_status: number | null;
-  duration_ms: number | null;
-  created_at: string;
-}
-
-export type WebhookCreatePayload = {
-  name: string;
-  url: string;
-  secret?: string | null;
-  events: string[];
-};
-
-export type WebhookUpdatePayload = {
-  name?: string;
-  url?: string;
-  secret?: string | null;
-  events?: string[];
-  is_active?: boolean;
-};
-
-function webhookHeaders(companyId: string | null | undefined) {
-  if (!companyId) {
-    throw new Error("companyId requis");
-  }
-  return { "X-Active-Company": companyId };
-}
-
-export async function getWebhooks(
-  companyId: string | null | undefined,
-): Promise<WebhookConfig[]> {
-  const { data } = await apiClient.get<WebhookConfig[]>("/api/webhooks", {
-    headers: webhookHeaders(companyId),
-  });
-  return data;
-}
-
-export async function createWebhook(
-  companyId: string | null | undefined,
-  body: WebhookCreatePayload,
-): Promise<WebhookConfig> {
-  const { data } = await apiClient.post<WebhookConfig>("/api/webhooks", body, {
-    headers: webhookHeaders(companyId),
-  });
-  return data;
-}
-
-export async function updateWebhook(
-  id: string,
-  companyId: string | null | undefined,
-  body: WebhookUpdatePayload,
-): Promise<WebhookConfig> {
-  const { data } = await apiClient.patch<WebhookConfig>(
-    `/api/webhooks/${id}`,
-    body,
-    { headers: webhookHeaders(companyId) },
-  );
-  return data;
-}
-
-export async function deleteWebhook(
-  id: string,
-  companyId: string | null | undefined,
-): Promise<void> {
-  await apiClient.delete(`/api/webhooks/${id}`, {
-    headers: webhookHeaders(companyId),
-  });
-}
-
-export async function testWebhook(
-  id: string,
-  companyId: string | null | undefined,
-): Promise<{ status_code: number; success: boolean }> {
-  const { data } = await apiClient.post<{ status_code: number; success: boolean }>(
-    `/api/webhooks/${id}/test`,
-    {},
-    { headers: webhookHeaders(companyId) },
-  );
-  return data;
-}
-
-export async function getWebhookLogs(
-  id: string,
-  companyId: string | null | undefined,
-): Promise<WebhookLog[]> {
-  const { data } = await apiClient.get<WebhookLog[]>(
-    `/api/webhooks/${id}/logs`,
-    { headers: webhookHeaders(companyId) },
-  );
   return data;
 }

@@ -8,12 +8,14 @@ Comportement HTTP identique au router legacy.
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.security import get_current_user
 from app.modules.users.schemas.responses import User
 from app.modules.dashboard.application import queries
+from app.modules.dashboard.application.analytics_gestion import build_analytics_gestion
 from app.modules.dashboard.application.service import build_analytics_avances
+from app.modules.dashboard.schemas.analytics_gestion import AnalyticsGestionResponse
 from app.modules.dashboard.schemas.responses import (
     AnalyticsAvances,
     DashboardData,
@@ -76,6 +78,28 @@ def get_dashboard_analytics_route(
     except Exception as e:
         logging.error(
             "Erreur lors du calcul des analytics dashboard: %s",
+            e,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur interne du serveur: {str(e)}",
+        ) from e
+
+
+@router.get("/analytics-gestion", response_model=AnalyticsGestionResponse)
+def get_dashboard_analytics_gestion_route(
+    period_start: str = Query(..., description="Début de période (YYYY-MM-DD)"),
+    period_end: str = Query(..., description="Fin de période (YYYY-MM-DD)"),
+    current_user: User = Depends(get_current_user),
+):
+    """Cockpit Analytics Gestion : entretiens, formation, calendriers, médical, carrière, CSE."""
+    company_id = _require_rh_company_context(current_user)
+    try:
+        return build_analytics_gestion(company_id, period_start, period_end)
+    except Exception as e:
+        logging.error(
+            "Erreur lors du calcul des analytics gestion: %s",
             e,
             exc_info=True,
         )

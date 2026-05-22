@@ -136,7 +136,7 @@ class TestGetEmployeeExit:
         with pytest.raises(EmployeeExitApplicationError) as exc_info:
             queries.get_employee_exit(EXIT_ID, COMPANY_ID, supabase_client=MagicMock())
         assert exc_info.value.status_code == 404
-        assert "Sortie non trouvée" in exc_info.value.detail
+        assert "Départ non trouvé" in exc_info.value.detail
 
 
 @patch("app.modules.employee_exits.application.queries.get_indemnity_calculator")

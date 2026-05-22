@@ -42,6 +42,7 @@ import {
   type ElectedMemberUpdate,
   type ElectedMemberListItem,
 } from "@/api/cse";
+import { Switch } from "@/components/ui/switch";
 import { Loader2, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import apiClient from "@/api/apiClient";
@@ -65,6 +66,7 @@ export function ElectedMemberModal({
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [isActive, setIsActive] = useState(true);
   const [employees, setEmployees] = useState<Array<{ id: string; first_name: string; last_name: string }>>([]);
   const [employeePopoverOpen, setEmployeePopoverOpen] = useState(false);
 
@@ -75,6 +77,7 @@ export function ElectedMemberModal({
       setCollege(member.college || "");
       setStartDate(member.start_date.split('T')[0]);
       setEndDate(member.end_date.split('T')[0]);
+      setIsActive(member.is_active);
     } else {
       setEmployeeId("");
       setRole("titulaire");
@@ -82,6 +85,7 @@ export function ElectedMemberModal({
       setStartDate("");
       setEndDate("");
       setNotes("");
+      setIsActive(true);
     }
   }, [member, open]);
 
@@ -166,6 +170,7 @@ export function ElectedMemberModal({
           start_date: startDate,
           end_date: endDate,
           notes: notes || null,
+          is_active: isActive,
         },
       });
     } else {
@@ -294,6 +299,19 @@ export function ElectedMemberModal({
               rows={3}
             />
           </div>
+          {member && (
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label htmlFor="is-active" className="cursor-pointer">
+                  Mandat actif
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Désactivez pour clôturer le mandat sans supprimer l&apos;historique.
+                </p>
+              </div>
+              <Switch id="is-active" checked={isActive} onCheckedChange={setIsActive} />
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

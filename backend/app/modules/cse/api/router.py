@@ -31,6 +31,7 @@ from app.modules.cse.schemas import (
     DelegationSummary,
     ElectionCycleCreate,
     ElectionCycleRead,
+    ElectionTimelineStepRead,
     ElectionAlert,
     ElectedMemberCreate,
     ElectedMemberRead,
@@ -563,6 +564,22 @@ def get_election_cycle_endpoint(
     company_id = _get_company_id(current_user)
     queries.check_module_active(company_id)
     return queries.get_election_cycle_by_id(cycle_id, company_id)
+
+
+@router.post(
+    "/election-cycles/{cycle_id}/timeline/{step_id}/complete",
+    response_model=ElectionTimelineStepRead,
+)
+def complete_election_timeline_step_endpoint(
+    cycle_id: str,
+    step_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Marque une étape du calendrier électoral comme terminée. RH uniquement."""
+    _require_rh(current_user)
+    company_id = _get_company_id(current_user)
+    queries.check_module_active(company_id)
+    return commands.complete_election_timeline_step(cycle_id, step_id, company_id)
 
 
 # ---------------------------------------------------------------------------

@@ -26,6 +26,13 @@ class ICompanyRepository(ABC):
         """Met à jour la colonne settings pour une entreprise."""
         ...
 
+    @abstractmethod
+    def update_company(
+        self, company_id: str, update_data: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """Met à jour les champs administratifs de l'entreprise."""
+        ...
+
 
 class ICompanyDetailsProvider(ABC):
     """

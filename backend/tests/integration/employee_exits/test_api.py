@@ -190,7 +190,7 @@ class TestEmployeeExitsWithRhUser:
 
         with patch("app.modules.employee_exits.api.router.queries") as mock_queries:
             mock_queries.get_employee_exit.side_effect = EmployeeExitApplicationError(
-                404, "Sortie non trouvée"
+                404, "Départ non trouvé"
             )
             response = client_with_rh.get(f"/api/employee-exits/{EXIT_ID}")
         assert response.status_code == 404

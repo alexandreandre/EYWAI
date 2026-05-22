@@ -161,7 +161,17 @@ type CertSuggestion = {
   trainingTitle: string;
 };
 
-export default function CatalogueTab() {
+export type CatalogueTabProps = {
+  /** Force un seul sous-écran (wrapper Formations). */
+  forcedMainTab?: "catalogue" | "inscriptions";
+  /** Affiche le catalogue en table plutôt qu’en cartes. */
+  catalogueTableView?: boolean;
+};
+
+export default function CatalogueTab({
+  forcedMainTab,
+  catalogueTableView = false,
+}: CatalogueTabProps = {}) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -180,7 +190,13 @@ export default function CatalogueTab() {
   );
 
   const defaultYear = new Date().getFullYear();
-  const [mainTab, setMainTab] = useState<"catalogue" | "inscriptions">("catalogue");
+  const [mainTab, setMainTab] = useState<"catalogue" | "inscriptions">(
+    forcedMainTab ?? "inscriptions",
+  );
+
+  useEffect(() => {
+    if (forcedMainTab) setMainTab(forcedMainTab);
+  }, [forcedMainTab]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -191,7 +207,10 @@ export default function CatalogueTab() {
     setMainTab("inscriptions");
     params.delete("enrollTraining");
     const qs = params.toString();
-    navigate({ pathname: "/catalogue-formations", search: qs ? `?${qs}` : "" }, { replace: true });
+    navigate(
+      { pathname: "/formation", hash: "formations", search: qs ? `?sub=inscriptions&${qs}` : "?sub=inscriptions" },
+      { replace: true },
+    );
   }, [navigate]);
 
   const [catType, setCatType] = useState<string>("all");
@@ -256,7 +275,7 @@ export default function CatalogueTab() {
   const consumedQuery = useQuery({
     queryKey: ["training", "consumed", defaultYear],
     queryFn: () => getTotalConsumed(defaultYear),
-    enabled: showRhActions && mainTab === "catalogue",
+    enabled: showRhActions && (mainTab === "catalogue" || forcedMainTab === "catalogue"),
   });
 
   const enrollmentsQuery = useQuery({
@@ -267,7 +286,7 @@ export default function CatalogueTab() {
         employee_id: enEmp === "all" ? undefined : enEmp,
         status: enStatus === "all" ? undefined : enStatus,
       }),
-    enabled: showRhActions && mainTab === "inscriptions",
+    enabled: showRhActions && (mainTab === "inscriptions" || forcedMainTab === "inscriptions"),
   });
 
   const filteredCatalog = useMemo(() => {
@@ -510,11 +529,24 @@ export default function CatalogueTab() {
         </p>
       ) : null}
 
-      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "catalogue" | "inscriptions")}>
-        <TabsList>
-          <TabsTrigger value="catalogue">Catalogue</TabsTrigger>
-          {showRhActions ? <TabsTrigger value="inscriptions">Inscriptions</TabsTrigger> : null}
-        </TabsList>
+      <Tabs
+        value={forcedMainTab ?? mainTab}
+        onValueChange={(v) => {
+          if (!forcedMainTab) setMainTab(v as "catalogue" | "inscriptions");
+        }}
+      >
+        {!forcedMainTab && showRhActions ? (
+          <TabsList className="grid h-11 w-full grid-cols-2 gap-1">
+            <TabsTrigger value="inscriptions" className="w-full">
+              Inscriptions
+            </TabsTrigger>
+            {showRhActions ? (
+              <TabsTrigger value="catalogue" className="w-full">
+                Catalogue
+              </TabsTrigger>
+            ) : null}
+          </TabsList>
+        ) : null}
 
         <TabsContent value="catalogue" className="space-y-4 pt-4">
           <div className="flex flex-wrap items-end gap-3">
@@ -558,7 +590,7 @@ export default function CatalogueTab() {
                   checked={includeArchived}
                   onCheckedChange={(c) => setIncludeArchived(Boolean(c))}
                 />
-                <Label htmlFor="arch">Inclure archivées (API)</Label>
+                <Label htmlFor="arch">Afficher les formations archivées</Label>
               </div>
             ) : null}
             {showRhActions ? (
@@ -580,6 +612,70 @@ export default function CatalogueTab() {
           ) : filteredCatalog.length === 0 ? (
             <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
               Aucune formation.
+            </div>
+          ) : catalogueTableView ? (
+            <div className="overflow-x-auto rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Titre</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Durée</TableHead>
+                    <TableHead>Coût HT</TableHead>
+                    <TableHead>Inscrits</TableHead>
+                    <TableHead>Statut</TableHead>
+                    {showRhActions ? <TableHead className="text-right">Actions</TableHead> : null}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredCatalog.map((t) => (
+                    <TableRow key={t.id}>
+                      <TableCell className="font-medium">{t.title}</TableCell>
+                      <TableCell>
+                        <Badge className={cn("border-0", typeBadgeClass(t.training_type))}>
+                          {TYPE_LABELS[t.training_type] ?? t.training_type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{t.duration_hours != null ? `${t.duration_hours} h` : "—"}</TableCell>
+                      <TableCell>{t.unit_cost_ht != null ? `${t.unit_cost_ht} €` : "—"}</TableCell>
+                      <TableCell>{t.enrolled_count}</TableCell>
+                      <TableCell>
+                        {t.status === "archived" ? (
+                          <Badge variant="secondary">Archivée</Badge>
+                        ) : (
+                          <Badge className="border-0 bg-emerald-600 text-white">Active</Badge>
+                        )}
+                      </TableCell>
+                      {showRhActions ? (
+                        <TableCell className="text-right space-x-1 whitespace-nowrap">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={t.status !== "active"}
+                            onClick={() => {
+                              setEnTrainId(t.id);
+                              setEnrollOpen(true);
+                            }}
+                          >
+                            Inscrire
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => openEditSheet(t)}>
+                            Modifier
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={t.status === "archived"}
+                            onClick={() => setArchiveTarget(t)}
+                          >
+                            Archiver
+                          </Button>
+                        </TableCell>
+                      ) : null}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -617,24 +713,6 @@ export default function CatalogueTab() {
                       <span className="font-medium text-foreground">Inscrits : </span>
                       {t.enrolled_count}
                     </p>
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {t.program_url ? (
-                        <Button variant="link" className="h-auto p-0" asChild>
-                          <a href={t.program_url} target="_blank" rel="noreferrer">
-                            <FileText className="mr-1 h-3.5 w-3.5" />
-                            Programme
-                          </a>
-                        </Button>
-                      ) : null}
-                      {t.external_link ? (
-                        <Button variant="link" className="h-auto p-0" asChild>
-                          <a href={t.external_link} target="_blank" rel="noreferrer">
-                            <ExternalLink className="mr-1 h-3.5 w-3.5" />
-                            Lien externe
-                          </a>
-                        </Button>
-                      ) : null}
-                    </div>
                   </CardContent>
                   {showRhActions ? (
                     <CardFooter className="flex flex-wrap gap-2 border-t pt-4">

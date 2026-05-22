@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import apiClient from '@/api/apiClient';
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 import { Link, useNavigate } from "react-router-dom";
 import { CopilotModalAgent } from "@/components/CopilotModalAgent";
 
@@ -8,15 +9,20 @@ import { CopilotModalAgent } from "@/components/CopilotModalAgent";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Kbd } from "@/components/ui/kbd";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartConfig } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend, Tooltip as RechartsTooltip } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Progress } from "@/components/ui/progress";
 
 // --- Icônes Lucide ---
 import {
@@ -35,19 +41,16 @@ import {
   HeartPulse,
   Landmark,
   Stethoscope,
-  FlaskConical,
-  FileDown,
   TrendingUp,
-  Clock,
   Users,
-  SlidersHorizontal,
   GraduationCap,
+  Mail,
+  BarChart3,
 } from "lucide-react";
 
-// --- Formulaires (que tu as fournis) ---
-import { NewEmployeeForm } from "@/components/forms/NewEmployeeForm";
 // --- Alertes RIB ---
 import * as ribAlertsApi from "@/api/ribAlerts";
+import { getPendingSignaturesRH } from "@/api/signatures";
 import { CSEDashboardBlock } from "@/components/CSEDashboardBlock";
 import { PendingSignaturesWidget } from "@/components/dashboard/PendingSignaturesWidget";
 import TeamAnalyticsSection from "@/components/dashboard/TeamAnalyticsSection";
@@ -65,7 +68,6 @@ import {
   getRecruitmentSettings,
 } from "@/api/recruitment";
 import { useQuery } from "@tanstack/react-query";
-import { useRhSidebarTaskBadges } from "@/hooks/useRhSidebarTaskBadges";
 import { getDashboardCounts } from "@/api/certifications";
 import { getOverdueCount } from "@/api/legalObligations";
 import { getBudget, type TrainingBudgetAlertLevel } from "@/api/trainingBudget";
@@ -159,6 +161,8 @@ type PriorityValidationByCount = Record<string, number>;
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { activeCompany } = useCompany();
+  const companyId = activeCompany?.company_id;
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -177,7 +181,12 @@ export default function Dashboard() {
   const [isGeneratePayrollModalOpen, setIsGeneratePayrollModalOpen] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [selectedPriorityKey, setSelectedPriorityKey] = useState<DashboardPriorityKey | null>(null);
-  const { getCount } = useRhSidebarTaskBadges(true);
+  const { data: pendingSignaturesData } = useQuery({
+    queryKey: ["pending-signatures", "rh"],
+    queryFn: getPendingSignaturesRH,
+    enabled: Boolean(companyId),
+  });
+  const pendingSignaturesCount = pendingSignaturesData?.total ?? 0;
   const [validatedPriorityByCount, setValidatedPriorityByCount] = useState<PriorityValidationByCount>(() => {
     try {
       const raw = sessionStorage.getItem(PRIORITY_DAY_STORAGE_KEY);
@@ -198,21 +207,31 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
+    if (!companyId) return;
+
+    let cancelled = false;
+
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
         setError(null);
         const response = await apiClient.get<DashboardData>('/api/dashboard/all');
-        setData(response.data);
+        if (!cancelled) setData(response.data);
       } catch (e: any) {
-        const errorMsg = e.response?.data?.detail || e.message || "Une erreur est survenue.";
-        setError(errorMsg);
+        if (!cancelled) {
+          const errorMsg = e.response?.data?.detail || e.message || "Une erreur est survenue.";
+          setError(errorMsg);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
+
     fetchDashboardData();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId]);
 
   useEffect(() => {
     const fetchResidencePermitStats = async () => {
@@ -342,6 +361,16 @@ export default function Dashboard() {
   }, []) // Le tableau de dépendances est vide, il est global
 
   // --- Rendu des États (Chargement, Erreur, Vide) ---
+  if (!companyId) {
+    return (
+      <div className="flex flex-col justify-center items-center h-64 text-muted-foreground">
+        <Inbox className="h-10 w-10" />
+        <span className="mt-4 text-lg font-medium">Aucune entreprise active</span>
+        <span className="text-sm">Sélectionnez une entreprise pour afficher le tableau de bord.</span>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-[calc(100vh-200px)]">
@@ -384,19 +413,6 @@ export default function Dashboard() {
     medicalModuleEnabled && medicalKpis
       ? medicalKpis.overdue_count + medicalKpis.due_within_30_count
       : 0;
-  const teamPendingTotal =
-    data.alerts.expiringContracts + data.alerts.endOfTrialPeriods;
-  const urgentTotal =
-    data.actions.pendingAbsences +
-    data.actions.pendingExpenses +
-    data.alerts.obsoleteRates +
-    teamPendingTotal +
-    residencePendingTotal +
-    annualReviewsUpcomingCount +
-    recruitmentPendingCount +
-    medicalPendingTotal +
-    ribAlertTotal;
-
   const mainFocusCandidates: Array<{
     key: DashboardPriorityKey;
     label: string;
@@ -449,7 +465,7 @@ export default function Dashboard() {
       key: "annualReviews",
       label: "Entretiens planifiés",
       count: annualReviewsUpcomingCount,
-      href: "/annual-reviews",
+      href: "/annual-reviews?focus=upcoming",
       icon: CalendarCheck,
       hint: `Planifiés dans ${ANNUAL_REVIEW_PRIORITY_WINDOW_DAYS} jours`,
     },
@@ -471,118 +487,13 @@ export default function Dashboard() {
       icon: TrendingUp,
       hint: "Mises à jour nécessaires",
     },
-    // Sous-parties connectées (même avec 0) pour préparer l’extension complète sidebar -> priorité du jour.
     {
-      key: "employees",
-      label: "Collaborateurs",
-      count: getCount("/employees"),
-      href: "/employees",
-      icon: Users,
-      hint: "Suivi des collaborateurs",
-    },
-    {
-      key: "employee-exits",
-      label: "Départs & sorties",
-      count: getCount("/employee-exits"),
-      href: "/employee-exits",
-      icon: Users,
-      hint: "Sorties à traiter",
-    },
-    {
-      key: "schedules",
-      label: "Calendriers",
-      count: getCount("/schedules"),
-      href: "/schedules",
-      icon: Clock,
-      hint: "Planning & suivi",
-    },
-    {
-      key: "badgeuse-rh",
-      label: "Badgeuse",
-      count: getCount("/badgeuse-rh"),
-      href: "/badgeuse-rh",
-      icon: Clock,
-      hint: "Pointages à vérifier",
-    },
-    {
-      key: "company",
-      label: "Mon Entreprise",
-      count: getCount("/company"),
-      href: "/company",
-      icon: Briefcase,
-      hint: "Paramètres société",
-    },
-    {
-      key: "promotions",
-      label: "Promotions",
-      count: getCount("/promotions"),
-      href: "/promotions",
-      icon: TrendingUp,
-      hint: "Dossiers de promotion",
-    },
-    {
-      key: "cse",
-      label: "CSE & Dialogue Social",
-      count: getCount("/cse"),
-      href: "/cse",
-      icon: Users,
-      hint: "Sujets sociaux",
-    },
-    {
-      key: "users",
-      label: "Gestion des Utilisateurs",
-      count: getCount("/users"),
-      href: "/users",
-      icon: Users,
-      hint: "Comptes et accès",
-    },
-    {
-      key: "saisies",
-      label: "Primes",
-      count: getCount("/saisies"),
-      href: "/saisies",
-      icon: CreditCard,
-      hint: "Éléments variables",
-    },
-    {
-      key: "salary-seizures",
-      label: "Saisies sur salaire",
-      count: getCount("/salary-seizures"),
-      href: "/salary-seizures",
-      icon: CreditCard,
-      hint: "Dossiers de saisies",
-    },
-    {
-      key: "salary-advances",
-      label: "Avances sur salaire",
-      count: getCount("/salary-advances"),
-      href: "/salary-advances",
-      icon: CreditCard,
-      hint: "Demandes d’avances",
-    },
-    {
-      key: "simulation",
-      label: "Simulation",
-      count: getCount("/simulation"),
-      href: "/simulation",
-      icon: FlaskConical,
-      hint: "Simulations bulletin",
-    },
-    {
-      key: "exports",
-      label: "Exports",
-      count: getCount("/exports"),
-      href: "/exports",
-      icon: FileDown,
-      hint: "Exports paie/RH",
-    },
-    {
-      key: "payroll",
-      label: "Paie",
-      count: getCount("/payroll"),
-      href: "/payroll",
-      icon: CreditCard,
-      hint: "Cycle de paie",
+      key: "pendingSignatures",
+      label: "Signatures en attente",
+      count: pendingSignaturesCount,
+      href: "/annual-reviews?signature_status=pending",
+      icon: Mail,
+      hint: "Procédures à relancer",
     },
   ];
   const availablePriorityItems = mainFocusCandidates.filter((item) => item.count > 0);
@@ -595,6 +506,22 @@ export default function Dashboard() {
     null;
   const mainFocus = selectedPriorityItem;
   const remainingMainFocus = pendingPriorityItems.length > 1 ? pendingPriorityItems.length - 1 : 0;
+  const priorityProgressTotal = availablePriorityItems.length;
+  const priorityProgressDone = availablePriorityItems.filter(
+    (item) => validatedPriorityByCount[item.key] === item.count,
+  ).length;
+  const priorityProgressPct =
+    priorityProgressTotal > 0
+      ? Math.round((priorityProgressDone / priorityProgressTotal) * 100)
+      : 100;
+  const todayLabelRaw = new Date().toLocaleDateString("fr-FR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const todayLabel =
+    todayLabelRaw.charAt(0).toUpperCase() + todayLabelRaw.slice(1);
 
   const handleValidateAndNext = () => {
     if (!selectedPriorityItem) return;
@@ -615,64 +542,89 @@ export default function Dashboard() {
     <div className="space-y-6 animate-fade-in">
       <DashboardHeader
         firstName={user?.first_name || "Utilisateur"}
+        dateLabel={todayLabel}
         onCopilotClick={() => setIsCopilotOpen(true)}
+        onGeneratePayrollClick={() => setIsGeneratePayrollModalOpen(true)}
       />
       <div className="space-y-6">
-        <Card className="border-primary/20 bg-gradient-to-r from-primary/5 via-background to-background shadow-sm">
+        <Card className="border-l-4 border-l-primary shadow-sm">
           <CardContent className="p-5">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="space-y-1">
+              <div className="space-y-2 min-w-0 flex-1">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Priorité du jour
                 </p>
                 {mainFocus ? (
                   <div className="flex flex-wrap items-center gap-2">
-                    <mainFocus.icon className="h-5 w-5 text-primary" />
+                    <mainFocus.icon className="h-5 w-5 text-primary shrink-0" />
                     <p className="text-lg font-semibold text-foreground">
                       {mainFocus.label} ({mainFocus.count})
                     </p>
-                    <Badge variant="secondary">{mainFocus.hint}</Badge>
+                    <Badge variant="secondary" className="max-w-full truncate">
+                      {mainFocus.hint}
+                    </Badge>
                   </div>
                 ) : (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <PartyPopper className="h-5 w-5 text-emerald-600" />
-                    <p className="text-lg font-semibold text-foreground">
-                      Aucun blocage prioritaire détecté
-                    </p>
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <PartyPopper className="h-5 w-5 text-emerald-600 shrink-0" />
+                      <p className="text-lg font-semibold text-foreground">
+                        Aucun blocage prioritaire détecté
+                      </p>
+                    </div>
+                    <Button variant="link" className="h-auto p-0 text-sm" asChild>
+                      <Link to="/analytics">Voir les indicateurs de pilotage →</Link>
+                    </Button>
                   </div>
                 )}
-                <p className="text-sm text-muted-foreground">
-                  Vue synthétique du pilotage RH : commencez par l’action la plus critique.
-                </p>
                 {pendingPriorityItems.length > 0 && (
-                  <div className="pt-1 max-w-md">
-                    <Label className="text-xs text-muted-foreground">Voir toutes les tâches</Label>
-                    <Select
-                      value={selectedPriorityItem?.key}
-                      onValueChange={(value) => setSelectedPriorityKey(value as DashboardPriorityKey)}
-                    >
-                      <SelectTrigger className="mt-1 h-9">
-                        <SelectValue placeholder="Choisir une tâche" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {mainFocusCandidates.map((task) => (
-                          <SelectItem key={task.key} value={task.key} disabled={task.count <= 0}>
-                            {task.label} ({task.count})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="max-w-md space-y-2">
+                    <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                      <span>
+                        {priorityProgressDone}/{priorityProgressTotal} tâches traitées
+                      </span>
+                      {remainingMainFocus > 0 && (
+                        <span>
+                          Reste : {remainingMainFocus} tâche{remainingMainFocus > 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </div>
+                    <Progress value={priorityProgressPct} className="h-1.5" />
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Changer de tâche</Label>
+                      <Select
+                        value={selectedPriorityItem?.key}
+                        onValueChange={(value) =>
+                          setSelectedPriorityKey(value as DashboardPriorityKey)
+                        }
+                      >
+                        <SelectTrigger className="mt-1 h-9">
+                          <SelectValue placeholder="Choisir une tâche" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {pendingPriorityItems.map((task) => (
+                            <SelectItem key={task.key} value={task.key}>
+                              {task.label} ({task.count})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 )}
-                {mainFocus && (
-                  <p className="text-xs text-muted-foreground pt-1">
-                    {remainingMainFocus > 0
-                      ? `${remainingMainFocus} étape${remainingMainFocus > 1 ? "s" : ""} restante${remainingMainFocus > 1 ? "s" : ""}.`
-                      : "Dernière étape restante."}
-                  </p>
-                )}
+                {availablePriorityItems.length > 0 &&
+                  Object.keys(validatedPriorityByCount).length > 0 &&
+                  !mainFocus && (
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+                      onClick={handleResetPriorities}
+                    >
+                      Reprendre la file depuis le début
+                    </button>
+                  )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
                 {mainFocus ? (
                   <>
                     <Button asChild>
@@ -680,141 +632,100 @@ export default function Dashboard() {
                     </Button>
                     <Button
                       type="button"
-                      className="bg-emerald-600 hover:bg-emerald-700"
+                      variant="secondary"
                       onClick={handleValidateAndNext}
                     >
-                      Valider et passer à l'étape suivante
+                      Valider et passer à l&apos;étape suivante
                     </Button>
                   </>
-                ) : (
-                  <Button variant="outline" type="button" onClick={handleResetPriorities}>
-                    Réinitialiser les priorités
-                  </Button>
-                )}
-                {availablePriorityItems.length > 0 && Object.keys(validatedPriorityByCount).length > 0 && (
-                  <Button variant="ghost" type="button" onClick={handleResetPriorities}>
-                    Reprendre depuis le début
-                  </Button>
-                )}
-                <Button variant="outline" type="button" onClick={() => setIsCopilotOpen(true)}>
-                  <Sparkles className="h-4 w-4 mr-1" />
-                  Aide IA
-                </Button>
-              </div>
-            </div>
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
-              <div className="rounded-lg border bg-background px-3 py-2">
-                <p className="text-xs text-muted-foreground">Total à traiter</p>
-                <p className="text-xl font-bold tabular-nums">{urgentTotal}</p>
-              </div>
-              <div className="rounded-lg border bg-background px-3 py-2">
-                <p className="text-xs text-muted-foreground">Paie & conformité</p>
-                <p className="text-xl font-bold tabular-nums">
-                  {data.actions.pendingAbsences + data.actions.pendingExpenses + data.alerts.obsoleteRates}
-                </p>
-              </div>
-              <div className="rounded-lg border bg-background px-3 py-2">
-                <p className="text-xs text-muted-foreground">Équipe</p>
-                <p className="text-xl font-bold tabular-nums">{teamPendingTotal}</p>
-              </div>
-              <div className="rounded-lg border bg-background px-3 py-2">
-                <p className="text-xs text-muted-foreground">Admin RH</p>
-                <p className="text-xl font-bold tabular-nums">
-                  {residencePendingTotal + ribAlertTotal + medicalPendingTotal}
-                </p>
+                ) : null}
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <PendingSignaturesWidget mode="rh" />
-
         <section className="space-y-4 rounded-xl border bg-background p-4 md:p-5">
           <div>
-            <h2 className="text-xl font-semibold">Centre d’actions</h2>
+            <h2 className="text-xl font-semibold">À traiter aujourd&apos;hui</h2>
             <p className="text-sm text-muted-foreground">
-              Ce qu’il faut traiter en premier pour faire avancer la journée.
+              Détail des dossiers à traiter — signatures, alertes et conformité.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <ShortcutSimulationCard />
-            <ShortcutExportsCard />
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <PendingSignaturesWidget mode="rh" />
+            <RibAlertsCard
+              alerts={ribAlerts}
+              loading={ribAlertsLoading}
+              onRefresh={() => {
+                ribAlertsApi
+                  .getRibAlerts({ is_read: false, is_resolved: false, limit: 5 })
+                  .then((r) => {
+                    setRibAlerts(r.data.alerts || []);
+                    setRibAlertTotal(
+                      typeof r.data.total === "number"
+                        ? r.data.total
+                        : (r.data.alerts || []).length,
+                    );
+                  });
+              }}
+            />
             {medicalModuleEnabled ? (
-              <MedicalVisitShortcutCard kpis={medicalKpis} loading={medicalKpisLoading} />
+              <MedicalFollowUpCard kpis={medicalKpis} loading={medicalKpisLoading} />
             ) : (
-              <MedicalVisitShortcutCard kpis={null} loading={false} />
+              <Card className="border-dashed">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Stethoscope className="h-5 w-5 text-muted-foreground" />
+                    Suivi médical
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    Module non activé pour cette entreprise.
+                  </p>
+                </CardContent>
+              </Card>
             )}
           </div>
 
-          <FormationTalentsDashboardWidget />
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-4 space-y-6">
-              <PayrollCard
-                status={data.payrollStatus}
-                onGenerateClick={() => setIsGeneratePayrollModalOpen(true)}
-              />
-              <NotificationsCard actions={data.actions} alerts={data.alerts} />
-              <RibAlertsCard alerts={ribAlerts} loading={ribAlertsLoading} onRefresh={() => {
-                ribAlertsApi.getRibAlerts({ is_read: false, is_resolved: false, limit: 5 })
-                  .then((r) => {
-                    setRibAlerts(r.data.alerts || []);
-                    setRibAlertTotal(typeof r.data.total === "number" ? r.data.total : (r.data.alerts || []).length);
-                  });
-              }} />
-            </div>
-
-            <div className="lg:col-span-8 space-y-6">
-              <ResidencePermitCard stats={residencePermitStats} loading={residencePermitLoading} />
-              {medicalModuleEnabled ? (
-                <MedicalFollowUpCard kpis={medicalKpis} loading={medicalKpisLoading} />
-              ) : (
-                <Card className="border-dashed">
-                  <CardHeader>
-                    <CardTitle className="text-base">Suivi médical</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                      Module non activé pour cette entreprise.
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </div>
+          <ResidencePermitCard stats={residencePermitStats} loading={residencePermitLoading} />
         </section>
+
+        <FormationTalentsDashboardWidget />
 
         <section className="space-y-4 rounded-xl border bg-background p-4 md:p-5">
           <div>
-            <h2 className="text-xl font-semibold">Suivi & pilotage RH</h2>
+            <h2 className="text-xl font-semibold">Pilotage</h2>
             <p className="text-sm text-muted-foreground">
-              Lecture de tendance, performance et modules transverses.
+              Masse salariale, effectif et tendances pour piloter l&apos;entreprise.
             </p>
           </div>
 
           <div className="space-y-6">
             <CoutsCard kpis={data.kpis} chartData={data.chartData} />
-            <EffectifCard kpis={data.kpis} absentsToday={data.teamPulse?.absentToday || []} />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <GenderSplitCard kpis={data.kpis} />
-              <ContractSplitCard kpis={data.kpis} />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <HeuresSupKpiCard />
-              <RecruitmentKpisCard />
-            </div>
-            <PrevisionMasseSalarialeCard kpis={data.kpis} />
-            <TeamAnalyticsSection />
+            <EffectifPanorama
+              kpis={data.kpis}
+              absentsToday={data.teamPulse?.absentToday || []}
+              upcomingEvents={data.teamPulse?.upcomingEvents || []}
+            />
+            <RecruitmentKpisCard />
+            <Accordion type="single" collapsible defaultValue="">
+              <AccordionItem value="team-analytics" className="border rounded-lg px-4">
+                <AccordionTrigger className="text-base font-semibold hover:no-underline py-4">
+                  <span className="flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                    Analytics par équipe
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="pb-4">
+                  <TeamAnalyticsSection />
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <CSEDashboardBlock />
-            <div className="space-y-6">
-              <ShortcutsCard />
-              <DashboardPersonnalisationCard />
-            </div>
-          </div>
+          <CSEDashboardBlock />
         </section>
       </div>
 
@@ -915,7 +826,9 @@ function FormationTalentsDashboardWidget() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <button
             type="button"
-            onClick={() => navigate("/formation#habilitations")}
+            onClick={() =>
+              navigate({ pathname: "/formation", hash: "conformite", search: "?sub=habilitations" })
+            }
             className="flex flex-col rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted/60"
           >
             <span className="text-xs font-medium text-muted-foreground">Habilitations expirées</span>
@@ -936,7 +849,9 @@ function FormationTalentsDashboardWidget() {
 
           <button
             type="button"
-            onClick={() => navigate("/formation#habilitations")}
+            onClick={() =>
+              navigate({ pathname: "/formation", hash: "conformite", search: "?sub=habilitations" })
+            }
             className="flex flex-col rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted/60"
           >
             <span className="text-xs font-medium text-muted-foreground">Habilitations à échéance</span>
@@ -957,7 +872,9 @@ function FormationTalentsDashboardWidget() {
 
           <button
             type="button"
-            onClick={() => navigate("/formation#budget")}
+            onClick={() =>
+              navigate({ pathname: "/formation", hash: "formations", search: "?sub=budget" })
+            }
             className="flex flex-col rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted/60"
           >
             <span className="text-xs font-medium text-muted-foreground">Budget formation consommé</span>
@@ -980,7 +897,9 @@ function FormationTalentsDashboardWidget() {
 
           <button
             type="button"
-            onClick={() => navigate("/formation#obligations")}
+            onClick={() =>
+              navigate({ pathname: "/formation", hash: "conformite", search: "?sub=obligations" })
+            }
             className="flex flex-col rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted/60"
           >
             <span className="text-xs font-medium text-muted-foreground">Retard entretien prof.</span>
@@ -1001,7 +920,9 @@ function FormationTalentsDashboardWidget() {
 
           <button
             type="button"
-            onClick={() => navigate("/formation#objectifs")}
+            onClick={() =>
+              navigate({ pathname: "/formation", hash: "developpement", search: "?sub=objectifs" })
+            }
             className="flex flex-col rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted/60"
           >
             <span className="text-xs font-medium text-muted-foreground">Taux d&apos;atteinte objectifs</span>
@@ -1020,105 +941,37 @@ function FormationTalentsDashboardWidget() {
 }
 
 // --- Section 1: Header & Copilote ---
-function DashboardHeader({ firstName, onCopilotClick }: { firstName: string, onCopilotClick: () => void }) {
+function DashboardHeader({
+  firstName,
+  dateLabel,
+  onCopilotClick,
+  onGeneratePayrollClick,
+}: {
+  firstName: string;
+  dateLabel: string;
+  onCopilotClick: () => void;
+  onGeneratePayrollClick: () => void;
+}) {
   return (
     <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
       <div>
         <h1 className="text-3xl font-bold text-foreground">Bonjour {firstName},</h1>
-        <p className="text-muted-foreground mt-1">Voici votre cockpit de pilotage RH.</p>
+        <p className="text-muted-foreground mt-1">{dateLabel}</p>
+        <p className="text-sm text-muted-foreground">Cockpit de pilotage RH</p>
       </div>
-      <Button
-        className="bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg rounded-lg flex items-center gap-2 px-5 py-2.5 border border-indigo-700"
-        size="lg"
-        onClick={onCopilotClick}
-      >
-        <Sparkles className="h-4 w-4 text-cyan-300 group-hover:text-cyan-200 transition-colors" />
-        <span className="font-semibold tracking-wide">Demander à l’IA</span>
-      </Button>
-
-
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" onClick={onGeneratePayrollClick}>
+          <Sparkles className="h-4 w-4 mr-2" />
+          Générer la paie
+        </Button>
+        <Button onClick={onCopilotClick}>
+          <Sparkles className="h-4 w-4 mr-2" />
+          Demander à l&apos;IA
+        </Button>
+      </div>
     </div>
   );
 }
-
-// --- Section 2: Centre d'Actions ---
-
-function PayrollCard({ status, onGenerateClick }: { status: DashboardData['payrollStatus'], onGenerateClick: () => void }) {
-  return (
-    <Card className="shadow-lg border-primary/20">
-      <CardHeader>
-        <CardTitle>Gestion de la Paie</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <button
-          onClick={onGenerateClick}
-          className="w-full group relative overflow-hidden rounded-lg border-2 border-indigo-200 bg-white hover:border-indigo-400 transition-all duration-300 shadow-sm hover:shadow-md"
-        >
-          <div className="flex items-center justify-center py-3 px-4">
-            <Sparkles className="mr-2.5 h-5 w-5 text-indigo-500 group-hover:text-indigo-600 transition-colors" />
-            <span className="text-sm font-semibold text-gray-800 group-hover:text-indigo-900 transition-colors">
-              Générer la Paie
-            </span>
-          </div>
-          <div className="absolute inset-0 -z-10 bg-gradient-to-r from-indigo-50 to-purple-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-        </button>
-      </CardContent>
-    </Card>
-  );
-}
-
-function NotificationsCard({ actions, alerts }: { actions: ActionItems, alerts: AlertItems }) {
-  const navigate = useNavigate();
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Notifications</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <button
-          onClick={() => navigate('/leaves')}
-          className="w-full flex justify-between items-center p-3 rounded-lg hover:bg-muted transition-colors"
-        >
-          <div className="flex items-center">
-            <CalendarCheck className={`h-5 w-5 mr-3 ${actions.pendingAbsences > 0 ? 'text-red-500' : 'text-foreground'}`} />
-            <span className={`font-medium ${actions.pendingAbsences > 0 ? 'text-red-500' : 'text-foreground'}`}>Demandes d'absences</span>
-          </div>
-          <div className="flex items-center">
-            <Badge className={actions.pendingAbsences > 0 ? 'bg-red-500 text-white' : 'bg-muted text-foreground'}>{actions.pendingAbsences}</Badge>
-            <ChevronRight className="h-4 w-4 text-muted-foreground ml-2" />
-          </div>
-        </button>
-        <button
-          onClick={() => navigate('/expenses')}
-          className="w-full flex justify-between items-center p-3 rounded-lg hover:bg-muted transition-colors"
-        >
-          <div className="flex items-center">
-            <CreditCard className={`h-5 w-5 mr-3 ${actions.pendingExpenses > 0 ? 'text-red-500' : 'text-foreground'}`} />
-            <span className={`font-medium ${actions.pendingExpenses > 0 ? 'text-red-500' : 'text-foreground'}`}>Notes de frais</span>
-          </div>
-          <div className="flex items-center">
-            <Badge className={actions.pendingExpenses > 0 ? 'bg-red-500 text-white' : 'bg-muted text-foreground'}>{actions.pendingExpenses}</Badge>
-            <ChevronRight className="h-4 w-4 text-muted-foreground ml-2" />
-          </div>
-        </button>
-        <button
-          onClick={() => navigate('/rates')}
-          className="w-full flex justify-between items-center p-3 rounded-lg hover:bg-muted transition-colors"
-        >
-          <div className="flex items-center">
-            <FileWarning className={`h-5 w-5 mr-3 ${alerts.obsoleteRates > 0 ? 'text-red-500' : 'text-foreground'}`} />
-            <span className={`font-medium ${alerts.obsoleteRates > 0 ? 'text-red-500' : 'text-foreground'}`}>Taux de cotisations</span>
-          </div>
-          <div className="flex items-center">
-            <Badge className={alerts.obsoleteRates > 0 ? 'bg-red-500 text-white' : 'bg-muted text-foreground'}>{alerts.obsoleteRates}</Badge>
-            <ChevronRight className="h-4 w-4 text-muted-foreground ml-2" />
-          </div>
-        </button>
-      </CardContent>
-    </Card>
-  );
-}
-
 
 function ResidencePermitCard({ stats, loading }: { stats: ResidencePermitStats | null, loading: boolean }) {
   const displayStats = stats || {
@@ -1335,107 +1188,6 @@ function RibAlertsCard({
   );
 }
 
-// --- Raccourcis pilotage (ligne du haut, hauteur compacte identique) ---
-const shortcutCardClass = "hover:shadow-md transition-shadow cursor-pointer border-primary/20 h-[72px] flex";
-const shortcutContentClass = "px-3 py-2 flex items-center gap-3 w-full min-h-0 flex-1";
-
-function ShortcutSimulationCard() {
-  const navigate = useNavigate();
-  return (
-    <Card className={shortcutCardClass} onClick={() => navigate("/simulation")}>
-      <CardContent className={shortcutContentClass}>
-        <div className="p-2 rounded-lg bg-indigo-100 text-indigo-600 shrink-0">
-          <FlaskConical className="h-5 w-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold text-sm text-foreground leading-tight">Simulation bulletin de paie</p>
-          <p className="text-xs text-muted-foreground leading-tight">Calcul inverse & bulletin simulé</p>
-        </div>
-        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-      </CardContent>
-    </Card>
-  );
-}
-
-function ShortcutExportsCard() {
-  const navigate = useNavigate();
-  return (
-    <Card className={shortcutCardClass} onClick={() => navigate("/exports")}>
-      <CardContent className={shortcutContentClass}>
-        <div className="p-2 rounded-lg bg-emerald-100 text-emerald-600 shrink-0">
-          <FileDown className="h-5 w-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold text-sm text-foreground leading-tight">Export & détection anomalie</p>
-          <p className="text-xs text-muted-foreground leading-tight">Paie, variables, prévisualisation</p>
-        </div>
-        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-      </CardContent>
-    </Card>
-  );
-}
-
-function MedicalVisitShortcutCard({ kpis, loading }: { kpis: KPIs | null; loading: boolean }) {
-  const navigate = useNavigate();
-  const totalDue = (kpis?.overdue_count ?? 0) + (kpis?.due_within_30_count ?? 0);
-  return (
-    <Card className={shortcutCardClass} onClick={() => navigate("/medical-follow-up")}>
-      <CardContent className={shortcutContentClass}>
-        <div className="p-2 rounded-lg bg-teal-100 text-teal-600 shrink-0">
-          <Stethoscope className="h-5 w-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold text-sm text-foreground leading-tight">Suivi visites médicales</p>
-          {loading ? (
-            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-          ) : (
-            <p className="text-xs font-bold text-teal-700 leading-tight">
-              {totalDue > 0 ? `${totalDue} visite${totalDue > 1 ? "s" : ""} à venir` : "À jour"}
-            </p>
-          )}
-        </div>
-        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-      </CardContent>
-    </Card>
-  );
-}
-
-// --- Répartition Homme / Femme ---
-function GenderSplitCard({ kpis }: { kpis: KpiData }) {
-  const hommes = kpis.hommesCount ?? null;
-  const femmes = kpis.femmesCount ?? null;
-  const hasData = hommes != null && femmes != null;
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Users className="h-4 w-4 text-muted-foreground" />
-          Répartition Homme / Femme
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {!hasData ? (
-          <p className="text-sm text-muted-foreground">Non renseigné</p>
-        ) : (
-          <div className="flex gap-6">
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-blue-500" />
-              <span className="text-sm font-medium">Hommes</span>
-              <span className="font-bold text-foreground">{hommes}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-pink-500" />
-              <span className="text-sm font-medium">Femmes</span>
-              <span className="font-bold text-foreground">{femmes}</span>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// --- Répartition CDD / CDI / Alternant / Stagiaire / Handicapé ---
 const CONTRACT_LABELS: Record<string, string> = {
   CDI: "CDI",
   CDD: "CDD",
@@ -1445,65 +1197,6 @@ const CONTRACT_LABELS: Record<string, string> = {
   Freelance: "Freelance",
   Autre: "Autre",
 };
-
-function ContractSplitCard({ kpis }: { kpis: KpiData }) {
-  const dist = kpis.contractDistribution || {};
-  const handicap = kpis.handicapesCount ?? 0;
-  const types = ["CDI", "CDD", "Alternance", "Stage"].filter((t) => (dist[t] ?? 0) > 0);
-  const otherKeys = Object.keys(dist).filter((k) => !["CDI", "CDD", "Alternance", "Stage"].includes(k));
-  const hasAny = types.length > 0 || otherKeys.length > 0 || handicap > 0;
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Briefcase className="h-4 w-4 text-muted-foreground" />
-          Répartition contrats
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {!hasAny ? (
-          <p className="text-sm text-muted-foreground">Aucune donnée</p>
-        ) : (
-          <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
-            {types.map((t) => (
-              <span key={t} className="font-medium text-foreground">
-                {CONTRACT_LABELS[t] ?? t}: <span className="font-bold">{dist[t] ?? 0}</span>
-              </span>
-            ))}
-            {otherKeys.map((t) => (
-              <span key={t} className="font-medium text-foreground">
-                {CONTRACT_LABELS[t] ?? t}: <span className="font-bold">{dist[t] ?? 0}</span>
-              </span>
-            ))}
-            {handicap > 0 && (
-              <span className="font-medium text-foreground">
-                Handicapé: <span className="font-bold">{handicap}</span>
-              </span>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// --- KPI Coût heures sup (placeholder) ---
-function HeuresSupKpiCard() {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Clock className="h-4 w-4 text-muted-foreground" />
-          Coût heures sup.
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-2xl font-bold text-foreground">—</p>
-        <p className="text-xs text-muted-foreground mt-1">Mois précédent (à venir)</p>
-      </CardContent>
-    </Card>
-  );
-}
 
 // --- KPIs Recrutement ---
 function RecruitmentKpisCard() {
@@ -1545,158 +1238,167 @@ function RecruitmentKpisCard() {
   );
 }
 
-// --- Prévision masse salariale ---
-function PrevisionMasseSalarialeCard({ kpis }: { kpis: KpiData }) {
-  const navigate = useNavigate();
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base flex items-center gap-2">
-          <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          Prévision masse salariale
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground mb-2">
-          Évolution et pilotage de la masse salariale (effectif, coûts).
-        </p>
-        <Button variant="outline" size="sm" onClick={() => navigate("/company")}>
-          Voir la fiche entreprise
-          <ChevronRight className="h-4 w-4 ml-1" />
-        </Button>
-      </CardContent>
-    </Card>
+function EffectifPanorama({
+  kpis,
+  absentsToday,
+  upcomingEvents,
+}: {
+  kpis: KpiData;
+  absentsToday: TeamPulseEmployee[];
+  upcomingEvents: TeamPulseEvent[];
+}) {
+  const hommes = kpis.hommesCount ?? null;
+  const femmes = kpis.femmesCount ?? null;
+  const hasGenderData = hommes != null && femmes != null;
+  const dist = kpis.contractDistribution || {};
+  const handicap = kpis.handicapesCount ?? 0;
+  const contractTypes = ["CDI", "CDD", "Alternance", "Stage"].filter((t) => (dist[t] ?? 0) > 0);
+  const otherContractKeys = Object.keys(dist).filter(
+    (k) => !["CDI", "CDD", "Alternance", "Stage"].includes(k),
   );
-}
+  const hasContractData =
+    contractTypes.length > 0 || otherContractKeys.length > 0 || handicap > 0;
 
-function ShortcutsCard() {
-  const navigate = useNavigate();
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <SlidersHorizontal className="h-4 w-4" />
-          Raccourcis
-        </CardTitle>
-        <p className="text-xs text-muted-foreground mt-1">Accès rapides paie & exports</p>
-      </CardHeader>
-      <CardContent className="grid grid-cols-1 gap-3">
-        <button
-          onClick={() => navigate("/simulation")}
-          className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors text-left"
-        >
-          <span className="flex items-center gap-2">
-            <FlaskConical className="h-4 w-4 text-indigo-500" />
-            <span className="font-medium text-sm">Simulation bulletin</span>
-          </span>
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-        </button>
-        <button
-          onClick={() => navigate("/payroll")}
-          className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors text-left"
-        >
-          <span className="flex items-center gap-2">
-            <CreditCard className="h-4 w-4 text-cyan-500" />
-            <span className="font-medium text-sm">Ajouter une saisie paie</span>
-          </span>
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-        </button>
-        <button
-          onClick={() => navigate("/exports")}
-          className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors text-left"
-        >
-          <span className="flex items-center gap-2">
-            <FileDown className="h-4 w-4 text-emerald-500" />
-            <span className="font-medium text-sm">Exports & anomalies</span>
-          </span>
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-        </button>
-      </CardContent>
-    </Card>
-  );
-}
-
-// --- Personnalisation dashboard ---
-function DashboardPersonnalisationCard() {
-  return (
-    <Card className="border-dashed">
-      <CardContent className="p-4 flex items-center gap-3">
-        <SlidersHorizontal className="h-5 w-5 text-muted-foreground" />
-        <div>
-          <p className="font-medium text-sm text-foreground">Personnalisation du dashboard</p>
-          <p className="text-xs text-muted-foreground">Choisir les blocs affichés (bientôt)</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// --- Section 3: Carte Effectif condensée ---
-
-function EffectifCard({ kpis, absentsToday }: { kpis: KpiData, absentsToday: TeamPulseEmployee[] }) {
   const getAbsenceIcon = (status: string) => {
-    if (status.includes('Maladie')) return <HeartPulse className="h-3 w-3 text-red-500" />;
-    if (status.includes('Congé')) return <Plane className="h-3 w-3 text-blue-500" />;
-    if (status.includes('RTT')) return <CalendarCheck className="h-3 w-3 text-purple-500" />;
-    return <CalendarCheck className="h-3 w-3 text-gray-500" />;
+    if (status.includes("Maladie")) return <HeartPulse className="h-3 w-3 text-red-500" />;
+    if (status.includes("Congé")) return <Plane className="h-3 w-3 text-blue-500" />;
+    if (status.includes("RTT")) return <CalendarCheck className="h-3 w-3 text-purple-500" />;
+    return <CalendarCheck className="h-3 w-3 text-muted-foreground" />;
+  };
+
+  const getEventIcon = (type: TeamPulseEvent["type"]) => {
+    if (type === "birthday") return <PartyPopper className="h-4 w-4 text-pink-500" />;
+    return <Briefcase className="h-4 w-4 text-primary" />;
   };
 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg font-semibold">Effectif</CardTitle>
+        <CardTitle className="text-lg font-semibold">Effectif &amp; absentéisme</CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {/* Effectif Actif */}
-          <div className="text-center">
-            <p className="text-xs text-muted-foreground font-medium mb-2">Effectif Actif</p>
-            <div className="text-3xl font-bold">{kpis.effectifActif}</div>
-            {/* Répartition CDI/CDD */}
-            <div className="flex items-center justify-center gap-3 pt-2 mt-2 border-t">
-              <div className="text-center">
-                <p className="text-[10px] text-muted-foreground font-medium">CDI</p>
-                <p className="text-sm font-bold text-blue-600">{kpis.cdiCount}</p>
-              </div>
-              <div className="h-6 w-px bg-border"></div>
-              <div className="text-center">
-                <p className="text-[10px] text-muted-foreground font-medium">CDD</p>
-                <p className="text-sm font-bold text-orange-600">{kpis.cddCount}</p>
-              </div>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-lg border bg-muted/20 p-4 text-center">
+            <p className="text-xs font-medium text-muted-foreground mb-1">Effectif actif</p>
+            <p className="text-3xl font-bold tabular-nums">{kpis.effectifActif}</p>
+            <div className="mt-2 flex justify-center gap-4 text-xs text-muted-foreground border-t pt-2">
+              <span>
+                CDI <span className="font-bold text-foreground">{kpis.cdiCount}</span>
+              </span>
+              <span>
+                CDD <span className="font-bold text-foreground">{kpis.cddCount}</span>
+              </span>
             </div>
           </div>
 
-          {/* Absents Aujourd'hui */}
-          <div className="text-center">
-            <p className="text-xs text-muted-foreground font-medium mb-2">Absents Aujourd'hui</p>
-            <div className={`text-3xl font-bold ${absentsToday.length > 0 ? 'text-red-500' : 'text-green-600'}`}>
+          <div className="rounded-lg border bg-muted/20 p-4">
+            <p className="text-xs font-medium text-muted-foreground mb-2 text-center">
+              Répartition H / F
+            </p>
+            {!hasGenderData ? (
+              <p className="text-sm text-muted-foreground text-center">Non renseigné</p>
+            ) : (
+              <div className="flex flex-col gap-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-blue-500" />
+                    Hommes
+                  </span>
+                  <span className="font-bold tabular-nums">{hommes}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-pink-500" />
+                    Femmes
+                  </span>
+                  <span className="font-bold tabular-nums">{femmes}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border bg-muted/20 p-4">
+            <p className="text-xs font-medium text-muted-foreground mb-2 text-center">Contrats</p>
+            {!hasContractData ? (
+              <p className="text-sm text-muted-foreground text-center">Aucune donnée</p>
+            ) : (
+              <div className="space-y-1 text-xs">
+                {contractTypes.map((t) => (
+                  <div key={t} className="flex justify-between">
+                    <span className="text-muted-foreground">{CONTRACT_LABELS[t] ?? t}</span>
+                    <span className="font-bold tabular-nums">{dist[t] ?? 0}</span>
+                  </div>
+                ))}
+                {otherContractKeys.map((t) => (
+                  <div key={t} className="flex justify-between">
+                    <span className="text-muted-foreground">{CONTRACT_LABELS[t] ?? t}</span>
+                    <span className="font-bold tabular-nums">{dist[t] ?? 0}</span>
+                  </div>
+                ))}
+                {handicap > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">RQTH</span>
+                    <span className="font-bold tabular-nums">{handicap}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border bg-muted/20 p-4 text-center">
+            <p className="text-xs font-medium text-muted-foreground mb-1">Absentéisme (30j)</p>
+            <p
+              className={`text-3xl font-bold tabular-nums ${
+                kpis.tauxAbsenteisme > 5 ? "text-amber-600" : "text-foreground"
+              }`}
+            >
+              {kpis.tauxAbsenteisme.toFixed(1)}%
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-1">Seuil d&apos;alerte : 5 %</p>
+            <p className="text-xs font-medium text-muted-foreground mt-3 mb-1">
+              Absents aujourd&apos;hui
+            </p>
+            <p
+              className={`text-xl font-bold tabular-nums ${
+                absentsToday.length > 0 ? "text-red-600" : "text-emerald-600"
+              }`}
+            >
               {absentsToday.length}
-            </div>
+            </p>
             {absentsToday.length > 0 && absentsToday.length <= 2 && (
-              <div className="space-y-1 pt-2 mt-2 border-t">
+              <div className="mt-2 space-y-1 border-t pt-2">
                 {absentsToday.map((emp) => (
-                  <div key={emp.id} className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground">
+                  <div
+                    key={emp.id}
+                    className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground"
+                  >
                     {getAbsenceIcon(emp.status)}
-                    <span className="font-medium">{emp.first_name} {emp.last_name}</span>
+                    <span>
+                      {emp.first_name} {emp.last_name}
+                    </span>
                   </div>
                 ))}
               </div>
             )}
-            {absentsToday.length > 2 && (
-              <div className="text-[10px] text-muted-foreground pt-2 mt-2 border-t">
-                {absentsToday.slice(0, 2).map((emp) => emp.first_name).join(', ')}...
-              </div>
-            )}
-          </div>
-
-          {/* Absentéisme (30j) */}
-          <div className="text-center col-span-2">
-            <p className="text-xs text-muted-foreground font-medium mb-2">Absentéisme (30j)</p>
-            <div className={`text-3xl font-bold ${kpis.tauxAbsenteisme > 5 ? 'text-amber-500' : 'text-foreground'}`}>
-              {kpis.tauxAbsenteisme.toFixed(1)}%
-            </div>
           </div>
         </div>
+
+        {upcomingEvents.length > 0 && (
+          <div className="rounded-lg border border-dashed p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">
+              Cette semaine
+            </p>
+            <ul className="space-y-2">
+              {upcomingEvents.slice(0, 3).map((event) => (
+                <li key={event.id} className="flex items-center gap-2 text-sm">
+                  {getEventIcon(event.type)}
+                  <span className="font-medium">{event.employee_name}</span>
+                  <span className="text-muted-foreground text-xs">— {event.detail}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -1715,24 +1417,58 @@ const chartConfig = {
 
 // --- Grande carte Coûts combinant Masse Salariale et Evolution ---
 
-function CoutsCard({ kpis, chartData }: { kpis: KpiData, chartData: ChartDataPoint[] }) {
+function formatMonthOverMonthDelta(pct: number | null): string | null {
+  if (pct == null || Number.isNaN(pct)) return null;
+  const sign = pct > 0 ? "+" : "";
+  return `${sign}${pct.toFixed(1)} % vs mois précédent`;
+}
+
+function CoutsCard({ kpis, chartData }: { kpis: KpiData; chartData: ChartDataPoint[] }) {
+  let coutDeltaPct: number | null = null;
+  let netDeltaPct: number | null = null;
+  if (chartData.length >= 2) {
+    const prev = chartData[chartData.length - 2];
+    const last = chartData[chartData.length - 1];
+    const prevCout = prev.Net_Verse + prev.Charges;
+    const lastCout = last.Net_Verse + last.Charges;
+    if (prevCout > 0) {
+      coutDeltaPct = ((lastCout - prevCout) / prevCout) * 100;
+    }
+    if (prev.Net_Verse > 0) {
+      netDeltaPct = ((last.Net_Verse - prev.Net_Verse) / prev.Net_Verse) * 100;
+    }
+  }
+  const coutDeltaLabel = formatMonthOverMonthDelta(coutDeltaPct);
+  const netDeltaLabel = formatMonthOverMonthDelta(netDeltaPct);
+
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-lg font-semibold">Coûts</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Masse Salariale du mois précédent */}
         <div>
-          <h3 className="text-sm font-medium text-muted-foreground mb-3">Masse Salariale {kpis.currentMonth}</h3>
+          <h3 className="text-sm font-medium text-muted-foreground mb-3">
+            Masse salariale {kpis.currentMonth}
+          </h3>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div className="text-center">
-              <p className="text-xs text-red-500 font-medium mb-1">Coût Total</p>
-              <div className="text-2xl font-bold text-foreground">{kpis.coutTotal.toLocaleString('fr-FR')} €</div>
+              <p className="text-xs text-muted-foreground font-medium mb-1">Coût total</p>
+              <div className="text-2xl font-bold text-foreground tabular-nums">
+                {kpis.coutTotal.toLocaleString("fr-FR")} €
+              </div>
+              {coutDeltaLabel && (
+                <p className="text-xs text-muted-foreground mt-1">{coutDeltaLabel}</p>
+              )}
             </div>
             <div className="text-center">
-              <p className="text-xs text-green-600 font-medium mb-1">Net Versé</p>
-              <div className="text-2xl font-bold text-foreground">{kpis.netVerse.toLocaleString('fr-FR')} €</div>
+              <p className="text-xs text-muted-foreground font-medium mb-1">Net versé</p>
+              <div className="text-2xl font-bold text-foreground tabular-nums">
+                {kpis.netVerse.toLocaleString("fr-FR")} €
+              </div>
+              {netDeltaLabel && (
+                <p className="text-xs text-muted-foreground mt-1">{netDeltaLabel}</p>
+              )}
             </div>
           </div>
         </div>
@@ -1776,68 +1512,6 @@ function CoutsCard({ kpis, chartData }: { kpis: KpiData, chartData: ChartDataPoi
             </BarChart>
           </ChartContainer>
         </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// --- Section 4: Pouls de l'Équipe ---
-
-function AbsenteesCard({ employees }: { employees: TeamPulseEmployee[] }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Absents Aujourd'hui</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {employees.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucun absent aujourd'hui.</p>
-        ) : (
-          employees.map(emp => (
-            <div key={emp.id} className="flex items-center gap-3">
-              <Avatar className="h-9 w-9">
-                {/* ✅ CORRECTION: AvatarImage supprimé, Fallback utilisé */}
-                <AvatarFallback>{emp.first_name[0]}{emp.last_name[0]}</AvatarFallback>
-              </Avatar>
-              <div>
-                <p className="font-medium text-sm">{emp.first_name} {emp.last_name}</p>
-                <Badge variant="outline" className="text-xs">
-                  {emp.status === 'Maladie' ? <HeartPulse className="h-3 w-3 mr-1 text-red-500" /> : <Plane className="h-3 w-3 mr-1 text-blue-500" />}
-                  {emp.status}
-                </Badge>
-              </div>
-            </div>
-          ))
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function EventsCard({ events }: { events: TeamPulseEvent[] }) {
-  const getIcon = (type: TeamPulseEvent['type']) => {
-    if (type === 'birthday') return <PartyPopper className="h-5 w-5 text-pink-500" />;
-    return <Briefcase className="h-5 w-5 text-indigo-500" />;
-  };
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Événements & Anniversaires (7j)</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {events.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucun événement à venir.</p>
-        ) : (
-          events.map(event => (
-            <div key={event.id} className="flex items-center gap-3">
-              <div className="p-2 bg-muted rounded-full">{getIcon(event.type)}</div>
-              <div>
-                <p className="font-medium text-sm">{event.employee_name}</p>
-                <p className="text-xs text-muted-foreground">{event.detail}</p>
-              </div>
-            </div>
-          ))
-        )}
       </CardContent>
     </Card>
   );

@@ -9,9 +9,23 @@ from app.modules.users.schemas import User
 class Token(BaseModel):
     access_token: str
     token_type: str
+    refresh_token: str | None = None
+    expires_in: int | None = None
+    expires_at: int | None = None
 
 
 class TokenWithUser(BaseModel):
     access_token: str
     token_type: str
+    refresh_token: str | None = None
+    expires_in: int | None = None
+    expires_at: int | None = None
     user: User
+
+
+class RefreshTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    refresh_token: str | None = None
+    expires_in: int | None = None
+    expires_at: int | None = None

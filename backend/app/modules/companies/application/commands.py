@@ -39,3 +39,24 @@ def update_company_settings(
         ),
         settings=current_settings,
     )
+
+
+def update_company_details(
+    company_id: str,
+    update_data: Dict[str, Any],
+    current_user: Any,
+) -> Dict[str, Any]:
+    """
+    Met à jour les champs administratifs de l'entreprise active.
+    L'appelant doit vérifier has_rh_access_in_company(company_id).
+    """
+    if not update_data:
+        row = company_repository.get_by_id(company_id)
+        if not row:
+            raise LookupError("Entreprise non trouvée.")
+        return row
+
+    updated = company_repository.update_company(company_id, update_data)
+    if not updated:
+        raise LookupError("Entreprise non trouvée.")
+    return updated

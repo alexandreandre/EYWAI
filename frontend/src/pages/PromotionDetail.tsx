@@ -236,7 +236,7 @@ export default function PromotionDetail() {
     if (returnTo === "employee" && employeeId) {
       navigate(`/employees/${employeeId}${tab ? `?tab=${tab}` : ""}`);
     } else {
-      navigate("/promotions");
+      navigate("/augmentations-et-promotions");
     }
   };
 

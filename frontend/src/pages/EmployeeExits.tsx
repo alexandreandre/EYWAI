@@ -40,8 +40,8 @@ const EmployeeExitsPage = () => {
       const data = await getEmployeeExits(params);
       setExits(data);
     } catch (error: any) {
-      console.error('Erreur lors du chargement des sorties:', error);
-      toast.error('Erreur lors du chargement des sorties');
+      console.error('Erreur lors du chargement des départs:', error);
+      toast.error('Erreur lors du chargement des départs');
     } finally {
       setLoading(false);
     }
@@ -50,11 +50,11 @@ const EmployeeExitsPage = () => {
   const handleExitCreated = () => {
     setShowCreateDialog(false);
     fetchExits();
-    toast.success('Processus de sortie créé avec succès');
+    toast.success('Processus de départ créé avec succès');
   };
 
   const handleDeleteExit = async (exitId: string, employeeName: string) => {
-    const confirmMessage = `Êtes-vous sûr de vouloir supprimer la sortie de ${employeeName} ?\n\nCette action est irréversible et :\n- Supprimera tous les documents associés\n- Supprimera la checklist\n- Remettra l'employé en statut "actif"`;
+    const confirmMessage = `Êtes-vous sûr de vouloir supprimer le départ de ${employeeName} ?\n\nCette action est irréversible et :\n- Supprimera tous les documents associés\n- Supprimera la checklist\n- Remettra l'employé en statut "actif"`;
 
     if (!confirm(confirmMessage)) {
       return;
@@ -62,11 +62,11 @@ const EmployeeExitsPage = () => {
 
     try {
       await deleteEmployeeExit(exitId);
-      toast.success('La sortie a été supprimée avec succès. L\'employé est maintenant en statut "actif".');
+      toast.success('Le départ a été supprimé avec succès. L\'employé est maintenant en statut "actif".');
       fetchExits();
     } catch (error: any) {
       console.error('Erreur lors de la suppression:', error);
-      toast.error(error.response?.data?.detail || 'Impossible de supprimer la sortie');
+      toast.error(error.response?.data?.detail || 'Impossible de supprimer le départ');
     }
   };
 
@@ -79,14 +79,14 @@ const EmployeeExitsPage = () => {
       {/* En-tête */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Sortie du collaborateur</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Départs</h1>
           <p className="text-gray-600 mt-1">
-            Gérez les processus de sortie des collaborateurs (démissions, ruptures conventionnelles, licenciements)
+            Gérez les processus de départ des collaborateurs (démissions, ruptures conventionnelles, licenciements)
           </p>
         </div>
         <Button onClick={() => setShowCreateDialog(true)}>
           <PlusCircle className="mr-2 h-4 w-4" />
-          Nouvelle sortie
+          Nouveau départ
         </Button>
       </div>
 
@@ -94,7 +94,7 @@ const EmployeeExitsPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Total sorties</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Total des départs</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{exits.length}</div>
@@ -132,7 +132,7 @@ const EmployeeExitsPage = () => {
         </Card>
       </div>
 
-      {/* Tabs par type de sortie */}
+      {/* Tabs par type de départ */}
       <Tabs value={selectedExitType} onValueChange={setSelectedExitType}>
         <TabsList>
           <TabsTrigger value="all">Toutes ({exits.length})</TabsTrigger>
@@ -150,7 +150,7 @@ const EmployeeExitsPage = () => {
         <TabsContent value={selectedExitType} className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Liste des sorties</CardTitle>
+              <CardTitle>Liste des départs</CardTitle>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -161,8 +161,8 @@ const EmployeeExitsPage = () => {
               ) : exits.length === 0 ? (
                 <div className="text-center py-12 text-gray-500">
                   <UsersIcon className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                  <p className="text-lg font-medium mb-2">Aucune sortie enregistrée</p>
-                  <p className="text-sm">Cliquez sur "Nouvelle sortie" pour commencer</p>
+                  <p className="text-lg font-medium mb-2">Aucun départ enregistré</p>
+                  <p className="text-sm">Cliquez sur « Nouveau départ » pour commencer</p>
                 </div>
               ) : (
                 <div className="w-full overflow-x-auto">
@@ -170,7 +170,7 @@ const EmployeeExitsPage = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Collaborateur</TableHead>
-                        <TableHead>Type de sortie</TableHead>
+                        <TableHead>Type de départ</TableHead>
                         <TableHead>Statut</TableHead>
                         <TableHead>Date demande</TableHead>
                         <TableHead>Dernier jour</TableHead>

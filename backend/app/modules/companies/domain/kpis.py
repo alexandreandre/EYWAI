@@ -90,7 +90,7 @@ def compute_company_kpis(
     )
 
     sorted_months = sorted([k for k in monthly_data.keys() if k < current_month_key])[
-        -12:
+        -24:
     ]
     evolution_data = []
     for month_key in sorted_months:
@@ -106,13 +106,27 @@ def compute_company_kpis(
                 "cout_total_employeur": round(data["cout_total_employeur"], 2),
             }
         )
-    kpis["evolution_12_months"] = evolution_data
+    kpis["evolution_12_months"] = evolution_data[-12:]
+    kpis["evolution_24_months"] = evolution_data
+
+    last_12_keys = sorted_months[-12:]
+    prev_12_keys = sorted_months[-24:-12] if len(sorted_months) >= 24 else []
 
     kpis["annual_gross_salary"] = round(
-        sum(monthly_data[k]["masse_salariale_brute"] for k in sorted_months), 2
+        sum(monthly_data[k]["masse_salariale_brute"] for k in last_12_keys), 2
     )
     kpis["annual_total_cost"] = round(
-        sum(monthly_data[k]["cout_total_employeur"] for k in sorted_months), 2
+        sum(monthly_data[k]["cout_total_employeur"] for k in last_12_keys), 2
+    )
+
+    def _sum_field(keys: List[str], field: str) -> float:
+        return sum(monthly_data[k][field] for k in keys if k in monthly_data)
+
+    kpis["previous_year_gross_salary"] = round(
+        _sum_field(prev_12_keys, "masse_salariale_brute"), 2
+    )
+    kpis["previous_year_total_cost"] = round(
+        _sum_field(prev_12_keys, "cout_total_employeur"), 2
     )
 
     contract_distribution: Dict[str, int] = {}

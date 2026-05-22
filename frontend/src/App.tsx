@@ -44,10 +44,11 @@ import MedicalFollowUp from './pages/MedicalFollowUp';
 import { ErrorBoundaryClass } from '@/components/ErrorBoundary';
 import AnnualReviews from './pages/AnnualReviews';
 import AnnualReviewDetail from './pages/AnnualReviewDetail';
-import HabilitationsPage from './pages/Habilitations';
-import ObjectivesPage from './pages/Objectives';
-import CatalogueFormationsPage from './pages/CatalogueFormations';
-import Promotions from './pages/Promotions';
+import {
+  EmployeeFormationLegacyRedirect,
+  RhFormationLegacyRedirect,
+} from './pages/formation/formationRedirects';
+import AugmentationsEtPromotions from './pages/AugmentationsEtPromotions';
 import PromotionDetail from './pages/PromotionDetail';
 import CSE from './pages/CSE';
 import Recruitment from './pages/Recruitment';
@@ -107,15 +108,12 @@ const SupportPage = lazy(() => import('./pages/support/SupportPage'));
 const SupportConfirmationPage = lazy(() => import('./pages/support/SupportConfirmationPage'));
 const TicketsHistoryPage = lazy(() => import('./pages/support/TicketsHistoryPage'));
 const FormationPage = lazy(() => import('./pages/formation/FormationPage'));
-const ManagerAnnualReviews = lazy(() => import('./pages/manager/ManagerAnnualReviews'));
-const ManagerFormations = lazy(() => import('./pages/manager/ManagerFormations'));
-const ManagerObjectives = lazy(() => import('./pages/manager/ManagerObjectives'));
-const ManagerCompetences = lazy(() => import('./pages/manager/ManagerCompetences'));
 const LeaveRequests = lazy(() => import('./pages/manager/LeaveRequests'));
 const RhDocumentsPage = lazy(() => import('./pages/Documents'));
-const AugmentationsCollectivesPage = lazy(() => import('./pages/AugmentationsCollectives'));
 const MeetingDetailPage = lazy(() => import('./pages/cse/MeetingDetail'));
 const AnalyticsPage = lazy(() => import('./pages/Analytics'));
+const AnalyticsPaiePage = lazy(() => import('./pages/AnalyticsPaie'));
+const AnalyticsGestionPage = lazy(() => import('./pages/AnalyticsGestion'));
 
 const supportRouteFallback = (
   <div className="flex min-h-[50vh] w-full items-center justify-center">
@@ -165,14 +163,6 @@ function SuspenseRhDocumentsPage() {
   return (
     <Suspense fallback={formationRouteFallback}>
       <RhDocumentsPage />
-    </Suspense>
-  );
-}
-
-function SuspenseAugmentationsCollectivesPage() {
-  return (
-    <Suspense fallback={formationRouteFallback}>
-      <AugmentationsCollectivesPage />
     </Suspense>
   );
 }
@@ -230,7 +220,7 @@ function ProtectedRoutesWithView() {
  */
 function ProtectedRoutes() {
   const { user, isLoading } = useAuth();
-  const { accessibleCompanies } = useCompany();
+  const { accessibleCompanies, isLoading: isCompanyLoading } = useCompany();
   const { viewMode, isCollaborateurRh } = useView();
 
   console.log('%c[ProtectedRoutes] 🔍 Rendu du composant', 'background: #222; color: #bada55; font-weight: bold');
@@ -261,6 +251,16 @@ function ProtectedRoutes() {
     first_name: user.first_name
   });
 
+  const isSuperAdmin = user.is_super_admin === true || user.role === 'super_admin';
+  if (!isSuperAdmin && isCompanyLoading) {
+    console.log('%c[ProtectedRoutes] ⏳ Chargement du contexte entreprise...', 'color: orange');
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   // 3. Si l'utilisateur est un Collaborateur (sans accès RH), afficher l'interface Collaborateur uniquement
   if (user.role === 'collaborateur') {
     console.log('%c[ProtectedRoutes] 👤 Rôle COLLABORATEUR détecté - Affichage EmployeeLayout', 'background: blue; color: white; font-weight: bold');
@@ -275,9 +275,9 @@ function ProtectedRoutes() {
           <Route path="/annual-reviews" element={<EmployeeAnnualReviews />} />
           <Route path="/annual-reviews/:reviewId" element={<EmployeeAnnualReviewDetail />} />
           <Route path="/employee/formation" element={<EmployeeFormationPage />} />
-          <Route path="/habilitations" element={<HabilitationsPage />} />
-          <Route path="/objectives" element={<ObjectivesPage />} />
-          <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
+          <Route path="/habilitations" element={<EmployeeFormationLegacyRedirect />} />
+          <Route path="/objectives" element={<EmployeeFormationLegacyRedirect />} />
+          <Route path="/catalogue-formations" element={<EmployeeFormationLegacyRedirect />} />
           <Route path="/absences" element={<EmployeeAbsencesPage />} />
           <Route path="/employee/leaves/new" element={<Navigate to="/absences" replace />} />
           {/* TODO: vérifier garde d’auth / permissions module planning côté API si besoin */}
@@ -370,9 +370,9 @@ function ProtectedRoutes() {
                   <Route path="/annual-reviews" element={<EmployeeAnnualReviews />} />
                   <Route path="/annual-reviews/:reviewId" element={<EmployeeAnnualReviewDetail />} />
                   <Route path="/employee/formation" element={<EmployeeFormationPage />} />
-                  <Route path="/habilitations" element={<HabilitationsPage />} />
-                  <Route path="/objectives" element={<ObjectivesPage />} />
-                  <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
+                  <Route path="/habilitations" element={<EmployeeFormationLegacyRedirect />} />
+                  <Route path="/objectives" element={<EmployeeFormationLegacyRedirect />} />
+                  <Route path="/catalogue-formations" element={<EmployeeFormationLegacyRedirect />} />
                   <Route path="/absences" element={<EmployeeAbsencesPage />} />
                   <Route path="/employee/leaves/new" element={<Navigate to="/absences" replace />} />
                   {/* TODO: vérifier garde d’auth / permissions module planning côté API si besoin */}
@@ -418,6 +418,22 @@ function ProtectedRoutes() {
                       </Suspense>
                     }
                   />
+                  <Route
+                    path="/analytics-paie"
+                    element={
+                      <Suspense fallback={formationRouteFallback}>
+                        <AnalyticsPaiePage />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/analytics-gestion"
+                    element={
+                      <Suspense fallback={formationRouteFallback}>
+                        <AnalyticsGestionPage />
+                      </Suspense>
+                    }
+                  />
                   <Route path="/employees" element={<Employees />} />
                   <Route path="/teams" element={<Teams />} />
                   <Route path="/employees/:employeeId" element={<EmployeeDetail />} />
@@ -441,38 +457,6 @@ function ProtectedRoutes() {
                   <Route path="/annual-reviews" element={<AnnualReviews />} />
                   <Route path="/annual-reviews/:reviewId" element={<AnnualReviewDetail />} />
                   <Route
-                    path="/manager/annual-reviews"
-                    element={
-                      <Suspense fallback={formationRouteFallback}>
-                        <ManagerAnnualReviews />
-                      </Suspense>
-                    }
-                  />
-                  <Route
-                    path="/manager/formations"
-                    element={
-                      <Suspense fallback={formationRouteFallback}>
-                        <ManagerFormations />
-                      </Suspense>
-                    }
-                  />
-                  <Route
-                    path="/manager/objectives"
-                    element={
-                      <Suspense fallback={formationRouteFallback}>
-                        <ManagerObjectives />
-                      </Suspense>
-                    }
-                  />
-                  <Route
-                    path="/manager/competences"
-                    element={
-                      <Suspense fallback={formationRouteFallback}>
-                        <ManagerCompetences />
-                      </Suspense>
-                    }
-                  />
-                  <Route
                     path="/leave-requests"
                     element={
                       <Suspense fallback={formationRouteFallback}>
@@ -482,11 +466,12 @@ function ProtectedRoutes() {
                   />
                   <Route path="/formation" element={<SuspenseFormationPage />} />
                   <Route path="/documents" element={<SuspenseRhDocumentsPage />} />
-                  <Route path="/augmentations-collectives" element={<SuspenseAugmentationsCollectivesPage />} />
-                  <Route path="/habilitations" element={<HabilitationsPage />} />
-                  <Route path="/objectives" element={<ObjectivesPage />} />
-                  <Route path="/catalogue-formations" element={<CatalogueFormationsPage />} />
-                  <Route path="/promotions" element={<Promotions />} />
+                  <Route path="/augmentations-et-promotions" element={<AugmentationsEtPromotions />} />
+                  <Route path="/augmentations-collectives" element={<Navigate to="/augmentations-et-promotions" replace />} />
+                  <Route path="/habilitations" element={<RhFormationLegacyRedirect />} />
+                  <Route path="/objectives" element={<RhFormationLegacyRedirect />} />
+                  <Route path="/catalogue-formations" element={<RhFormationLegacyRedirect />} />
+                  <Route path="/promotions" element={<Navigate to="/augmentations-et-promotions" replace />} />
                   <Route path="/promotions/:promotionId" element={<PromotionDetail />} />
                   <Route path="/cse/meetings/:meetingId" element={<SuspenseMeetingDetailPage />} />
                   <Route path="/cse" element={<CSE />} />

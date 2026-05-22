@@ -106,6 +106,11 @@ export const getAbsenceRequests = (status?: 'pending' | 'validated' | 'rejected'
   return apiClient.get<AbsenceRequestWithEmployee[]>('/api/absences', { params });
 };
 
+/** Absences d'un collaborateur (lecture seule, fiche RH). */
+export const getAbsencesForEmployee = (employeeId: string) => {
+  return apiClient.get<AbsenceRequest[]>(`/api/absences/employees/${employeeId}`);
+};
+
 /**
  * Demandes d'absence en attente de validation manager (entreprise active = session).
  * @param companyId utilisé pour la clé React Query / cohérence multi-entreprise côté UI.

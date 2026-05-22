@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,8 @@ export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const sessionExpired = searchParams.get('session') === 'expired';
 
   const from = location.state?.from?.pathname || "/";
 
@@ -55,8 +57,13 @@ export default function LoginPage() {
       console.log('👤 [FRONTEND] Utilisateur:', response.data.user);
       console.log('👑 [FRONTEND] Super admin:', response.data.user?.is_super_admin);
 
-      // 2. On passe le token à la fonction login du contexte, qui s'occupe du reste
-      await login(response.data.access_token);
+      // 2. Session complète (access + refresh) pour renouvellement silencieux
+      await login({
+        access_token: response.data.access_token,
+        refresh_token: response.data.refresh_token,
+        expires_in: response.data.expires_in,
+        expires_at: response.data.expires_at,
+      });
 
       console.log('✅ [FRONTEND] Login contexte terminé, redirection...');
 
@@ -93,29 +100,51 @@ export default function LoginPage() {
           <CardDescription>Entrez vos identifiants pour accéder à votre espace.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-4"
+            method="post"
+            autoComplete="on"
+          >
+            {sessionExpired && (
+              <p className="text-sm text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-md px-3 py-2">
+                Votre session a expiré après une longue période d&apos;inactivité.
+                Reconnectez-vous pour reprendre là où vous en étiez.
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Email ou nom d&apos;utilisateur (ex. prenom.nom), puis votre mot de passe.
+            </p>
             <div className="grid gap-2">
-              <Label htmlFor="identifier">Email ou Nom d'utilisateur</Label>
+              <Label htmlFor="login-username">Email ou nom d&apos;utilisateur</Label>
               <Input
-                id="identifier"
+                id="login-username"
+                name="username"
                 type="text"
+                inputMode="email"
+                autoComplete="username"
                 placeholder="prenom.nom ou email@example.com"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 required
               />
-              <p className="text-xs text-muted-foreground">
-                Vous pouvez vous connecter avec votre email ou votre nom d'utilisateur (prenom.nom)
-              </p>
             </div>
             <div className="grid gap-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password">Mot de passe</Label>
+                <Label htmlFor="login-password">Mot de passe</Label>
                 <Link to="/forgot-password" className="text-xs text-primary hover:underline">
                   Mot de passe oublié ?
                 </Link>
               </div>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <Input
+                id="login-password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full" disabled={isSubmitting}>

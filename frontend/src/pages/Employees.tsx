@@ -1785,7 +1785,7 @@ export default function Employees() {
                 <SelectContent>
                   <SelectItem value="all">Tous</SelectItem>
                   <SelectItem value="actif">Actifs</SelectItem>
-                  <SelectItem value="en_sortie">En sortie</SelectItem>
+                  <SelectItem value="en_sortie">En départ</SelectItem>
                   <SelectItem value="parti">Partis</SelectItem>
                   <SelectItem value="archive">Archivés</SelectItem>
                 </SelectContent>
@@ -1814,7 +1814,7 @@ export default function Employees() {
                           {employee.employment_status === 'en_sortie' && (
                             <Badge variant="outline" className="text-xs flex items-center gap-1">
                               <UserMinus className="h-3 w-3" />
-                              En sortie
+                              En départ
                             </Badge>
                           )}
                           {employee.employment_status === 'parti' && (

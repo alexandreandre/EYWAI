@@ -30,6 +30,9 @@ class TestListAllAnnualReviews:
                 "status": "accepte",
                 "planned_date": None,
                 "completed_date": None,
+                "interview_type": "annual_performance",
+                "employee_acceptance_status": "accepte",
+                "signature_status": "pending",
                 "created_at": "2024-01-01T00:00:00",
                 "employees": {
                     "first_name": "Jean",
@@ -49,6 +52,9 @@ class TestListAllAnnualReviews:
         assert result[0].job_title == "Dev"
         assert result[0].year == 2024
         assert result[0].status == "accepte"
+        assert result[0].interview_type == "annual_performance"
+        assert result[0].employee_acceptance_status == "accepte"
+        assert result[0].signature_status == "pending"
         repo.list_by_company.assert_called_once_with("co-1", year=None, status=None)
 
     def test_passes_year_and_status_filters(self):
