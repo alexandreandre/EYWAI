@@ -16,3 +16,9 @@ def get_or_create_checklist(employee_id: str, company_id: str) -> Dict[str, Any]
     if not data:
         data = onboarding_repository.create_checklist(employee_id, company_id)
     return data
+
+
+def list_hub_summaries(
+    company_id: str, lookback_days: int = 90
+) -> Dict[str, Any]:
+    return onboarding_repository.list_hub_summaries(company_id, lookback_days)

@@ -24,6 +24,7 @@ class AnnualReviewQuery(IAnnualReviewQuery):
             .eq("employee_id", employee_id)
             .eq("company_id", company_id)
             .eq("year", year)
+            .order("created_at", desc=True)
             .limit(1)
             .execute()
         )

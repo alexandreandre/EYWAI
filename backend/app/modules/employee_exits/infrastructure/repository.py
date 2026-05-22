@@ -27,7 +27,7 @@ class EmployeeExitRepository(IEmployeeExitRepository):
     def create(self, data: Dict[str, Any]) -> Dict[str, Any]:
         response = self._sb.table("employee_exits").insert(data).execute()
         if not response.data:
-            raise RuntimeError("Échec de la création du processus de sortie")
+            raise RuntimeError("Échec de la création du processus de départ")
         return response.data[0]
 
     def get_by_id(self, exit_id: str, company_id: str) -> Optional[Dict[str, Any]]:

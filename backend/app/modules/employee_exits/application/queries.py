@@ -77,7 +77,7 @@ def get_employee_exit(
         exit_id, company_id, "id, first_name, last_name, email, job_title, hire_date"
     )
     if not exit_record:
-        raise EmployeeExitApplicationError(404, "Sortie non trouvée")
+        raise EmployeeExitApplicationError(404, "Départ non trouvé")
     enrich_exit_with_documents_and_checklist(exit_record, 3600, sb)
     return exit_record
 
@@ -97,7 +97,7 @@ def calculate_exit_indemnities(
         "id, first_name, last_name, hire_date, salaire_de_base, job_title",
     )
     if not exit_data:
-        raise EmployeeExitApplicationError(404, "Sortie non trouvée")
+        raise EmployeeExitApplicationError(404, "Départ non trouvé")
     employee_data = exit_data.get("employees") or {}
     try:
         indemnities = calculator.calculate(employee_data, exit_data, sb)
@@ -134,7 +134,7 @@ def get_document_upload_url(
     sb = supabase_client or supabase
     exit_repo = EmployeeExitRepository(sb)
     if not exit_repo.get_by_id(exit_id, company_id):
-        raise EmployeeExitApplicationError(404, "Sortie non trouvée")
+        raise EmployeeExitApplicationError(404, "Départ non trouvé")
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     storage_path = f"exits/{exit_id}/{ts}_{filename}"
     try:
@@ -187,7 +187,7 @@ def get_exit_document_details(
     if not document_data:
         exit_data = exit_repo.get_by_id(exit_id, company_id)
         if not exit_data:
-            raise EmployeeExitApplicationError(404, "Sortie non trouvée")
+            raise EmployeeExitApplicationError(404, "Départ non trouvé")
         emp_id = exit_data.get("employee_id")
         employee_data = get_employee_full(str(emp_id), sb) if emp_id else {}
         company_data = get_company_by_id(company_id, sb) or {}

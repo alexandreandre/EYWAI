@@ -21,6 +21,11 @@ from app.modules.company_groups.infrastructure.mappers import (
     row_to_group_with_companies,
     rows_to_groups_with_companies,
 )
+from app.modules.company_groups.application.aggregates import (
+    _month_range,
+    aggregate_consolidated_dashboards,
+    resolve_comparison_period,
+)
 from app.modules.company_groups.infrastructure.providers import (
     call_get_group_company_comparison,
     call_get_group_consolidated_dashboard,
@@ -91,11 +96,43 @@ def get_group_details(group_id: str, current_user: Any) -> GroupWithCompaniesDto
     return _to_group_with_companies_dto(g)
 
 
+def _fetch_consolidated_for_period(
+    company_ids: List[str],
+    start_year: int,
+    start_month: int,
+    end_year: int,
+    end_month: int,
+) -> Any:
+    """Charge et agrège les stats sur une plage de mois."""
+    if (start_year, start_month) == (end_year, end_month):
+        return call_get_group_consolidated_dashboard(
+            company_ids, end_year, end_month
+        )
+
+    monthly: List[Any] = []
+    for y, m in _month_range(start_year, start_month, end_year, end_month):
+        payload = call_get_group_consolidated_dashboard(company_ids, y, m)
+        if payload:
+            monthly.append(payload)
+    return aggregate_consolidated_dashboards(
+        monthly,
+        start_year=start_year,
+        start_month=start_month,
+        end_year=end_year,
+        end_month=end_month,
+    )
+
+
 def get_group_consolidated_stats(
     group_id: str,
     current_user: Any,
     year: Optional[int] = None,
     month: Optional[int] = None,
+    start_year: Optional[int] = None,
+    start_month: Optional[int] = None,
+    end_year: Optional[int] = None,
+    end_month: Optional[int] = None,
+    compare_to: Optional[str] = None,
 ) -> Any:
     """Statistiques consolidées (RPC get_group_consolidated_dashboard)."""
     companies = company_group_repository.get_companies_for_group_stats(group_id)
@@ -104,7 +141,40 @@ def get_group_consolidated_stats(
     company_ids = get_company_ids_for_group(group_id, current_user)
     if not company_ids:
         raise PermissionError("Vous n'avez accès à aucune entreprise de ce groupe")
-    return call_get_group_consolidated_dashboard(company_ids, year, month)
+
+    if start_year is not None and start_month is not None and end_year is not None and end_month is not None:
+        sy, sm, ey, em = start_year, start_month, end_year, end_month
+    elif year is not None and month is not None:
+        sy, sm, ey, em = year, month, year, month
+    else:
+        from datetime import datetime
+
+        now = datetime.now()
+        sy, sm, ey, em = now.year, now.month, now.year, now.month
+
+    result = _fetch_consolidated_for_period(company_ids, sy, sm, ey, em)
+
+    comparison_bounds = resolve_comparison_period(
+        compare_to or "off",
+        year=year,
+        month=month,
+        start_year=start_year,
+        start_month=start_month,
+        end_year=end_year,
+        end_month=end_month,
+    )
+    if comparison_bounds:
+        csy, csm, cey, cem = comparison_bounds
+        comparison = _fetch_consolidated_for_period(company_ids, csy, csm, cey, cem)
+        result = {
+            **result,
+            "comparison": {
+                "totals": comparison.get("totals", {}),
+                "by_company": comparison.get("by_company", []),
+            },
+        }
+
+    return result
 
 
 def get_group_employees_stats(group_id: str, current_user: Any) -> Any:

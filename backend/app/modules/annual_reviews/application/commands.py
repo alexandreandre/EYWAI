@@ -34,11 +34,12 @@ def create_annual_review(
     if not emp_company_id or emp_company_id != company_id:
         raise LookupError("Employé non trouvé.")
 
+    year = data["year"]
     planned_date = data.get("planned_date")
     insert_data = {
         "employee_id": employee_id,
         "company_id": company_id,
-        "year": data["year"],
+        "year": year,
         "status": domain_rules.DEFAULT_STATUS_ON_CREATE,
         "planned_date": _serialize_date(planned_date),
         "rh_preparation_template": data.get("rh_preparation_template"),

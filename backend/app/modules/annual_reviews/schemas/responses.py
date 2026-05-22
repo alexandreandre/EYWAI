@@ -65,6 +65,9 @@ class AnnualReviewListItem(BaseModel):
     status: AnnualReviewStatus
     planned_date: Optional[date] = None
     completed_date: Optional[date] = None
+    interview_type: str = "annual_performance"
+    employee_acceptance_status: Optional[Literal["accepte", "refuse"]] = None
+    signature_status: Optional[str] = None
     created_at: Optional[datetime] = None
 
     class Config:

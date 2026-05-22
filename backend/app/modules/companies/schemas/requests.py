@@ -60,6 +60,28 @@ class CompanyCreateWithAdmin(BaseModel):
     admin_last_name: Optional[str] = None
 
 
+class CompanyDetailsUpdate(BaseModel):
+    """Mise à jour administrative depuis Mon Entreprise (RH / admin)."""
+
+    company_name: Optional[str] = None
+    raison_sociale: Optional[str] = None
+    siret: Optional[str] = None
+    siren: Optional[str] = None
+    code_naf: Optional[str] = None
+    naf_ape: Optional[str] = None
+    legal_form: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    website: Optional[str] = None
+    urssaf_number: Optional[str] = None
+    adresse_rue: Optional[str] = None
+    adresse_code_postal: Optional[str] = None
+    adresse_ville: Optional[str] = None
+
+    def to_update_dict(self) -> Dict[str, Any]:
+        return self.model_dump(exclude_none=True)
+
+
 class CompanyUpdate(BaseModel):
     """Mise à jour partielle d'une entreprise."""
 

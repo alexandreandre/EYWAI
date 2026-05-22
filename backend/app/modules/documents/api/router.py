@@ -13,6 +13,8 @@ from app.modules.documents.schemas.requests import (
     GenerateDocumentRequest,
     UpdateDocumentStatusRequest,
 )
+from app.modules.documents.application.explorer_queries import get_documents_explorer
+from app.modules.documents.schemas.explorer import DocumentsExplorerResponse
 from app.modules.documents.schemas.responses import DownloadUrlResponse, GeneratedDocument
 from app.modules.users.schemas.responses import User
 from app.modules.webhooks.infrastructure.repository import webhook_repository
@@ -86,6 +88,25 @@ def _row_to_generated(row: dict) -> GeneratedDocument:
         employee_name=row.get("employee_name"),
         template_name=row.get("template_name"),
     )
+
+
+@router.get("/explorer", response_model=DocumentsExplorerResponse)
+def list_documents_explorer_route(
+    current_user: User = Depends(get_current_user),
+) -> DocumentsExplorerResponse:
+    """Vue agrégée (contrats, identité, bulletins, documents générés) pour l'explorateur RH."""
+    cid = _company_id(current_user)
+    _require_rh(current_user, cid)
+    try:
+        payload = get_documents_explorer(cid)
+        return DocumentsExplorerResponse(
+            generated=[_row_to_generated(r) for r in payload["generated"]],
+            payslips=payload["payslips"],
+            storage=payload["storage"],
+        )
+    except Exception as e:
+        traceback.print_exc()
+        _handle_application_errors(e)
 
 
 @router.get("/", response_model=List[GeneratedDocument])

@@ -65,7 +65,7 @@ def _check_exit_permission(user: User, company_id: str, _permission: str) -> Non
         return
     raise HTTPException(
         status_code=403,
-        detail="Vous n'avez pas les permissions pour cette action sur les sorties de salariés",
+        detail="Vous n'avez pas les permissions pour cette action sur les départs de collaborateurs",
     )
 
 
@@ -84,7 +84,7 @@ def _check_publish_permission(user: User, company_id: str) -> None:
         pass
     raise HTTPException(
         status_code=403,
-        detail="Vous n'avez pas les permissions pour publier des documents de sortie",
+        detail="Vous n'avez pas les permissions pour publier des documents de départ",
     )
 
 

@@ -22,3 +22,15 @@ class CompanySettingsResultDto:
 
     medical_follow_up_enabled: bool
     settings: Dict[str, Any]
+
+
+@dataclass
+class CompanyOverviewDto:
+    """Résultat de get_company_overview."""
+
+    demographics: Dict[str, Any]
+    movements: Dict[str, Any]
+    absenteeism: Dict[str, Any]
+    alerts: list
+    compliance: Dict[str, Any]
+    cdd_ending_within_30_days: int

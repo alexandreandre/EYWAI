@@ -221,3 +221,67 @@ class TestDashboardResidencePermitStats:
             assert data["total_valide"] == 5
         finally:
             app.dependency_overrides.pop(get_current_user, None)
+
+
+class TestDashboardAnalyticsGestion:
+    """GET /api/dashboard/analytics-gestion."""
+
+    def test_without_auth_returns_401(self, client: TestClient):
+        response = client.get(
+            "/api/dashboard/analytics-gestion",
+            params={"period_start": "2026-01-01", "period_end": "2026-01-31"},
+        )
+        assert response.status_code == 401
+
+    @patch("app.modules.dashboard.application.analytics_gestion.build_analytics_gestion")
+    def test_with_rh_user_returns_200_and_shape(
+        self, mock_build, client: TestClient
+    ):
+        from app.modules.dashboard.schemas.analytics_gestion import (
+            AnalyticsGestionPeriod,
+            AnalyticsGestionResponse,
+            CalendriersAnalytics,
+            CarriereAnalytics,
+            ConformiteAnalytics,
+            CseAnalytics,
+            EntretiensAnalytics,
+            FormationAnalytics,
+            MedicalAnalytics,
+            ObjectivesAnalytics,
+        )
+
+        mock_build.return_value = AnalyticsGestionResponse(
+            period=AnalyticsGestionPeriod(
+                period_start="2026-01-01",
+                period_end="2026-01-31",
+                year=2026,
+                calendar_year=2026,
+                calendar_month=1,
+            ),
+            entretiens=EntretiensAnalytics(actionable_count=2, overdue_count=1),
+            conformite=ConformiteAnalytics(certifications_expired=1),
+            formation=FormationAnalytics(budget_consumption_pct=45.0),
+            calendriers=CalendriersAnalytics(total=10, a_saisir=3),
+            medical=MedicalAnalytics(overdue_count=2),
+            objectives=ObjectivesAnalytics(achievement_rate_pct=78.5),
+            carriere=CarriereAnalytics(total_promotions=4),
+            cse=CseAnalytics(mandate_alerts_count=1),
+        )
+
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+        try:
+            response = client.get(
+                "/api/dashboard/analytics-gestion",
+                params={"period_start": "2026-01-01", "period_end": "2026-01-31"},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["entretiens"]["actionable_count"] == 2
+            assert data["calendriers"]["a_saisir"] == 3
+            assert "medical" in data
+            assert "cse" in data
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)

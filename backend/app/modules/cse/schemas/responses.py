@@ -162,9 +162,12 @@ class MeetingListItem(BaseModel):
     title: str
     meeting_date: date_type
     meeting_time: Optional[time] = None
+    location: Optional[str] = None
     meeting_type: MeetingType
     status: MeetingStatus
     participant_count: int = 0
+    recording_status: Optional[RecordingStatus] = None
+    has_minutes: bool = False
     created_at: datetime
 
     class Config:

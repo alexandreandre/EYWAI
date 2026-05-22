@@ -40,6 +40,14 @@ class SupabaseCompanyRepository(ICompanyRepository):
             "id", company_id
         ).execute()
 
+    def update_company(
+        self, company_id: str, update_data: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        if not update_data:
+            return self.get_by_id(company_id)
+        supabase.table("companies").update(update_data).eq("id", company_id).execute()
+        return self.get_by_id(company_id)
+
 
 # Instance partagée (injection future possible)
 company_repository = SupabaseCompanyRepository()

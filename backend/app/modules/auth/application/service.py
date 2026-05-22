@@ -78,6 +78,9 @@ def login(username_or_email: str, password: str) -> dict:
         return {
             "access_token": access_token,
             "token_type": "bearer",
+            "refresh_token": session.get("refresh_token"),
+            "expires_in": session.get("expires_in"),
+            "expires_at": session.get("expires_at"),
             "user": user_info,
         }
 

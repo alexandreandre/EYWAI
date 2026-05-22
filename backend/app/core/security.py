@@ -18,7 +18,11 @@ from typing import Annotated, Optional
 
 from fastapi import Depends, HTTPException, Header, status
 from fastapi.security import OAuth2PasswordBearer
-from gotrue.errors import AuthApiError
+
+try:
+    from supabase_auth.errors import AuthApiError
+except ImportError:  # compat anciennes installs
+    from gotrue.errors import AuthApiError  # type: ignore[no-redef]
 
 from app.core.database import supabase
 from app.modules.users.schemas.responses import CompanyAccess, User
@@ -236,9 +240,14 @@ def get_current_user(
         raise
     except AuthApiError as e:
         print(f"--- ❌ [get_current_user] Erreur d'API Supabase Auth: {e}")
+        detail = getattr(e, "message", None) or str(e)
+        if "expired" in detail.lower():
+            detail = "Session expirée. Veuillez vous reconnecter."
+        else:
+            detail = f"Token invalide ou expiré : {detail}"
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Token invalide ou expiré: {e.message}",
+            detail=detail,
         )
     except Exception as e:
         print(f"--- ❌ [get_current_user] Erreur inattendue: {e}")

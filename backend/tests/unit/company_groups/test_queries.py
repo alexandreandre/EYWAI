@@ -201,6 +201,97 @@ class TestGetGroupConsolidatedStats:
             )
         assert result == dashboard_data
 
+    def test_aggregates_multi_month_range(self):
+        """Plage multi-mois : plusieurs appels RPC puis agrégation."""
+        mock_repo = MagicMock()
+        mock_repo.get_companies_for_group_stats.return_value = [{"id": "c1"}]
+        user = _make_user(is_super_admin=True)
+        month_a = {
+            "metadata": {"reference_year": 2024, "reference_month": 1, "company_count": 1},
+            "totals": {},
+            "by_company": [
+                {
+                    "company_id": "c1",
+                    "company_name": "Co",
+                    "total_employee_count": 10,
+                    "employee_count": 9,
+                    "rh_count": 1,
+                    "payslip_count": 1,
+                    "gross_salary": 1000,
+                    "net_salary": 750,
+                    "employer_charges": 400,
+                }
+            ],
+        }
+        month_b = {
+            "metadata": {"reference_year": 2024, "reference_month": 2, "company_count": 1},
+            "totals": {},
+            "by_company": [
+                {
+                    "company_id": "c1",
+                    "company_name": "Co",
+                    "total_employee_count": 20,
+                    "employee_count": 18,
+                    "rh_count": 2,
+                    "payslip_count": 1,
+                    "gross_salary": 2000,
+                    "net_salary": 1500,
+                    "employer_charges": 800,
+                }
+            ],
+        }
+        with (
+            patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo),
+            patch(f"{MODULE_QUERIES}.get_company_ids_for_group", return_value=["c1"]),
+            patch(
+                f"{MODULE_QUERIES}.call_get_group_consolidated_dashboard",
+                side_effect=[month_a, month_b],
+            ),
+        ):
+            result = queries.get_group_consolidated_stats(
+                "g1",
+                user,
+                start_year=2024,
+                start_month=1,
+                end_year=2024,
+                end_month=2,
+            )
+        assert len(result["by_company"]) == 1
+        assert result["by_company"][0]["gross_salary"] == 3000
+        assert result["by_company"][0]["total_employee_count"] == 15
+
+    def test_includes_comparison_block(self):
+        mock_repo = MagicMock()
+        mock_repo.get_companies_for_group_stats.return_value = [{"id": "c1"}]
+        user = _make_user(is_super_admin=True)
+        current = {
+            "metadata": {"reference_year": 2024, "reference_month": 6, "company_count": 1},
+            "totals": {"total_gross_salary": 5000},
+            "by_company": [],
+        }
+        previous = {
+            "metadata": {"reference_year": 2024, "reference_month": 5, "company_count": 1},
+            "totals": {"total_gross_salary": 4000},
+            "by_company": [],
+        }
+        with (
+            patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo),
+            patch(f"{MODULE_QUERIES}.get_company_ids_for_group", return_value=["c1"]),
+            patch(
+                f"{MODULE_QUERIES}.call_get_group_consolidated_dashboard",
+                side_effect=[current, previous],
+            ),
+        ):
+            result = queries.get_group_consolidated_stats(
+                "g1",
+                user,
+                year=2024,
+                month=6,
+                compare_to="previous_month",
+            )
+        assert "comparison" in result
+        assert result["comparison"]["totals"]["total_gross_salary"] == 4000
+
 
 class TestGetGroupEmployeesStats:
     """Query get_group_employees_stats."""

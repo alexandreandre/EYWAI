@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
+from app.modules.onboarding.domain.overdue import (
+    count_overdue_tasks,
+    days_since_hire as compute_days_since_hire,
+    parse_hire_date,
+    summarize_tasks,
+)
 
 DEFAULT_ONBOARDING_TASKS: List[Dict[str, Any]] = [
     {
@@ -213,6 +219,128 @@ class OnboardingRepository:
         )
         task_rows = (tres.data or []) if tres else []
         return _build_checklist_payload(checklist_row, task_rows)
+
+    def list_hub_summaries(
+        self, company_id: str, lookback_days: int = 90
+    ) -> Dict[str, Any]:
+        """
+        Résumés onboarding pour le hub RH : embauches récentes + progression agrégée.
+        """
+        lookback_days = max(1, min(int(lookback_days), 365))
+        today = date.today()
+        cutoff = today - timedelta(days=lookback_days)
+
+        emp_res = (
+            supabase.table("employees")
+            .select(
+                "id, first_name, last_name, job_title, hire_date, "
+                "employment_status, current_exit_id"
+            )
+            .eq("company_id", company_id)
+            .gte("hire_date", cutoff.isoformat())
+            .order("hire_date", desc=True)
+            .execute()
+        )
+        employees = [
+            dict(row)
+            for row in (emp_res.data or [])
+            if self._is_active_employee_row(row)
+        ]
+
+        cl_res = (
+            supabase.table("onboarding_checklists")
+            .select("*")
+            .eq("company_id", company_id)
+            .execute()
+        )
+        checklist_by_employee: Dict[str, Dict[str, Any]] = {}
+        checklist_ids: List[str] = []
+        for row in cl_res.data or []:
+            eid = str(row["employee_id"])
+            checklist_by_employee[eid] = dict(row)
+            checklist_ids.append(str(row["id"]))
+
+        tasks_by_checklist: Dict[str, List[Dict[str, Any]]] = {}
+        if checklist_ids:
+            task_res = (
+                supabase.table("onboarding_tasks")
+                .select("*")
+                .eq("company_id", company_id)
+                .execute()
+            )
+            for t in task_res.data or []:
+                cid = str(t["checklist_id"])
+                tasks_by_checklist.setdefault(cid, []).append(dict(t))
+
+        items: List[Dict[str, Any]] = []
+        in_progress = 0
+        overdue_tasks = 0
+        completed_this_month = 0
+        month_start = today.replace(day=1)
+
+        for emp in employees:
+            eid = str(emp["id"])
+            hire = parse_hire_date(emp.get("hire_date"))
+            cl = checklist_by_employee.get(eid)
+            task_rows: List[Dict[str, Any]] = []
+            if cl:
+                task_rows = tasks_by_checklist.get(str(cl["id"]), [])
+            nb_completed, nb_total, progress_pct = summarize_tasks(task_rows)
+            nb_overdue = count_overdue_tasks(hire, task_rows, today)
+            completed_at = _parse_ts(cl.get("completed_at")) if cl else None
+            checklist_created_at = _parse_ts(cl.get("created_at")) if cl else None
+
+            is_done = completed_at is not None or (
+                nb_total > 0 and progress_pct >= 100.0
+            )
+            if is_done and completed_at:
+                if (
+                    completed_at.date() >= month_start
+                    and completed_at.date() <= today
+                ):
+                    completed_this_month += 1
+            if not is_done:
+                in_progress += 1
+
+            overdue_tasks += nb_overdue
+
+            items.append(
+                {
+                    "employee_id": eid,
+                    "first_name": str(emp.get("first_name") or ""),
+                    "last_name": str(emp.get("last_name") or ""),
+                    "job_title": emp.get("job_title"),
+                    "hire_date": hire,
+                    "days_since_hire": compute_days_since_hire(hire, today),
+                    "checklist_id": str(cl["id"]) if cl else None,
+                    "has_checklist": bool(cl),
+                    "progress_pct": progress_pct,
+                    "nb_total": nb_total,
+                    "nb_completed": nb_completed,
+                    "nb_overdue": nb_overdue,
+                    "completed_at": completed_at,
+                    "checklist_created_at": checklist_created_at,
+                }
+            )
+
+        return {
+            "items": items,
+            "kpis": {
+                "in_progress": in_progress,
+                "overdue_tasks": overdue_tasks,
+                "completed_this_month": completed_this_month,
+            },
+            "lookback_days": lookback_days,
+        }
+
+    @staticmethod
+    def _is_active_employee_row(row: Dict[str, Any]) -> bool:
+        if row.get("current_exit_id"):
+            return False
+        status = str(row.get("employment_status") or "").lower()
+        if not status:
+            return True
+        return status in ("actif", "active")
 
     def complete_task(
         self,

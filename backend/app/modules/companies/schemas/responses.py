@@ -5,7 +5,7 @@ Définitions canoniques : détails + KPIs, settings.
 Contrat identique à l'existant (GET/PATCH /api/company/details, /settings).
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -50,3 +50,14 @@ class CompanyDetailsResponse(BaseModel):
             "evolution_12_months, contract_distribution, job_distribution, etc."
         ),
     )
+
+
+class CompanyOverviewResponse(BaseModel):
+    """Réponse GET /overview : indicateurs RH consolidés."""
+
+    demographics: Dict[str, Any] = Field(default_factory=dict)
+    movements: Dict[str, Any] = Field(default_factory=dict)
+    absenteeism: Dict[str, Any] = Field(default_factory=dict)
+    alerts: List[Dict[str, Any]] = Field(default_factory=list)
+    compliance: Dict[str, bool] = Field(default_factory=dict)
+    cdd_ending_within_30_days: int = Field(0, description="Nombre de CDD finissant sous 30j")

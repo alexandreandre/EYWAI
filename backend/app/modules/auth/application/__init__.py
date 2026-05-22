@@ -8,6 +8,7 @@ from app.modules.auth.application.commands import (
 )
 from app.modules.auth.application.dto import VerifyResetTokenResult
 from app.modules.auth.application.queries import get_me, verify_reset_token
+from app.modules.auth.application.refresh import refresh_tokens
 from app.modules.auth.application.service import login
 
 __all__ = [
@@ -15,6 +16,7 @@ __all__ = [
     "get_me",
     "login",
     "logout",
+    "refresh_tokens",
     "request_password_reset",
     "reset_password",
     "verify_reset_token",

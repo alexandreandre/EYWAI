@@ -96,6 +96,16 @@ def create_election_cycle(company_id: str, data: Any) -> Any:
     return _create(company_id, data)
 
 
+def complete_election_timeline_step(
+    cycle_id: str, step_id: str, company_id: str
+) -> Any:
+    from app.modules.cse.infrastructure.cse_service_impl import (
+        complete_election_timeline_step as _complete,
+    )
+
+    return _complete(cycle_id, step_id, company_id)
+
+
 def process_recording(meeting_id: str) -> dict:
     from app.modules.cse.infrastructure.cse_ai_impl import process_recording as _process
 

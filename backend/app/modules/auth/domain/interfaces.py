@@ -12,7 +12,12 @@ class IAuthProvider(ABC):
 
     @abstractmethod
     def sign_in_with_password(self, email: str, password: str) -> dict[str, Any]:
-        """Retourne session (access_token, user)."""
+        """Retourne session (access_token, refresh_token, expires_in, expires_at, user)."""
+        ...
+
+    @abstractmethod
+    def refresh_session(self, refresh_token: str) -> dict[str, Any]:
+        """Renouvelle access_token à partir du refresh_token."""
         ...
 
     @abstractmethod

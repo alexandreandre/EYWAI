@@ -39,6 +39,22 @@ class TestAuthLogin:
         assert "detail" in data
 
 
+class TestAuthRefresh:
+    """POST /api/auth/refresh"""
+
+    def test_refresh_without_body_returns_422(self, client: TestClient):
+        response = client.post("/api/auth/refresh", json={})
+        assert response.status_code == 422
+
+    def test_refresh_with_invalid_token_returns_401(self, client: TestClient):
+        response = client.post(
+            "/api/auth/refresh",
+            json={"refresh_token": "invalid-refresh-token"},
+        )
+        assert response.status_code == 401
+        assert "expirée" in response.json().get("detail", "").lower()
+
+
 class TestAuthMe:
     """GET /api/auth/me — utilisateur connecté."""
 

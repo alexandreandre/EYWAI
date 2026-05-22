@@ -126,14 +126,30 @@ def get_group_details(
 @router.get("/{group_id}/consolidated-stats")
 def get_group_consolidated_stats(
     group_id: str,
-    year: Optional[int] = Query(None, description="Année de référence"),
-    month: Optional[int] = Query(None, description="Mois de référence"),
+    year: Optional[int] = Query(None, description="Année de référence (mensuel)"),
+    month: Optional[int] = Query(None, description="Mois de référence (mensuel)"),
+    start_year: Optional[int] = Query(None, description="Année de début (plage)"),
+    start_month: Optional[int] = Query(None, description="Mois de début (plage)"),
+    end_year: Optional[int] = Query(None, description="Année de fin (plage)"),
+    end_month: Optional[int] = Query(None, description="Mois de fin (plage)"),
+    compare_to: Optional[str] = Query(
+        None,
+        description="Comparaison: previous_month, previous_year, ytd_previous_year",
+    ),
     current_user: CurrentUserForCompanyGroups = Depends(get_current_user),
 ):
     """Statistiques consolidées pour les entreprises du groupe."""
     try:
         return queries.get_group_consolidated_stats(
-            group_id, current_user, year=year, month=month
+            group_id,
+            current_user,
+            year=year,
+            month=month,
+            start_year=start_year,
+            start_month=start_month,
+            end_year=end_year,
+            end_month=end_month,
+            compare_to=compare_to,
         )
     except Exception as e:
         _handle_application_errors(e, "Erreur lors du calcul des statistiques")

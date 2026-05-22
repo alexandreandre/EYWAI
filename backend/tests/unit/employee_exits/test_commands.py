@@ -160,7 +160,7 @@ class TestCreateEmployeeExit:
                 supabase_client=MagicMock(),
             )
         assert exc_info.value.status_code == 400
-        assert "processus de sortie actif" in exc_info.value.detail
+        assert "processus de départ actif" in exc_info.value.detail
 
     def test_raises_404_when_employee_other_company(
         self,
@@ -216,7 +216,7 @@ class TestUpdateEmployeeExit:
                 EXIT_ID, COMPANY_ID, {"exit_reason": "x"}, supabase_client=MagicMock()
             )
         assert exc_info.value.status_code == 404
-        assert "Sortie non trouvée" in exc_info.value.detail
+        assert "Départ non trouvé" in exc_info.value.detail
 
     def test_returns_existing_when_update_data_empty(self, mock_repo_class):
         existing = _make_exit_record()

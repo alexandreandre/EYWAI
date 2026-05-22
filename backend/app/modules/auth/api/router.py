@@ -10,6 +10,7 @@ from app.modules.auth.application import (
     get_me,
     login,
     logout,
+    refresh_tokens,
     request_password_reset,
     reset_password,
     verify_reset_token,
@@ -18,6 +19,8 @@ from app.modules.auth.schemas import (
     PasswordChange,
     PasswordResetConfirm,
     PasswordResetRequest,
+    RefreshTokenRequest,
+    RefreshTokenResponse,
     TokenWithUser,
 )
 from app.modules.users.schemas import User
@@ -29,6 +32,12 @@ router = APIRouter()
 def login_route(form_data: OAuth2PasswordRequestForm = Depends()):
     """Connexion : email ou username + mot de passe. Retourne token + user."""
     return login(form_data.username, form_data.password)
+
+
+@router.post("/refresh", response_model=RefreshTokenResponse)
+def refresh_route(request: RefreshTokenRequest):
+    """Renouvelle le JWT d'accès à partir du refresh token (sans ressaisir le mot de passe)."""
+    return refresh_tokens(request.refresh_token)
 
 
 @router.get("/me", response_model=User)
