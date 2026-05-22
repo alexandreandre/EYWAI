@@ -1,15 +1,11 @@
 import { Navigate, useLocation } from "react-router-dom";
 
-const RH_LEGACY_HASH: Record<string, string> = {
-  "/habilitations": "habilitations",
-  "/objectives": "objectifs",
-  "/catalogue-formations": "catalogue",
-};
+import { RH_LEGACY_PATH_TO_HASH } from "@/pages/formation/formationTabRouting";
 
 /** Anciennes routes RH → /formation#<onglet> */
 export function RhFormationLegacyRedirect() {
   const { pathname, search } = useLocation();
-  const hash = RH_LEGACY_HASH[pathname] ?? "habilitations";
+  const hash = RH_LEGACY_PATH_TO_HASH[pathname] ?? "pilotage";
   return <Navigate to={{ pathname: "/formation", hash, search }} replace />;
 }
 

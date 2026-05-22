@@ -9,29 +9,18 @@ import {
   getMeetingMinutesPathIfAvailable,
   getBDESDocuments,
   processRecording,
-  type MeetingStatus,
-  type MeetingType,
 } from "@/api/cse";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Calendar, MapPin, Users, FileText, Download, Sparkles, Loader2 } from "lucide-react";
+import {
+  MEETING_STATUS_LABELS,
+  MEETING_TYPE_LABELS,
+} from "@/lib/cseLabels";
+import { ArrowLeft, Calendar, MapPin, Users, FileText, Download, Sparkles, Loader2, ChevronRight } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-
-const STATUS_LABELS: Record<MeetingStatus, string> = {
-  a_venir: "Planifiée",
-  en_cours: "En cours",
-  terminee: "Terminée",
-};
-
-const TYPE_LABELS: Record<MeetingType, string> = {
-  ordinaire: "Ordinaire",
-  extraordinaire: "Extraordinaire",
-  cssct: "CSSCT",
-  autre: "Autre",
-};
 
 const RECORDING_STATUS_LABELS: Record<string, string> = {
   not_started: "Non démarré",
@@ -206,24 +195,56 @@ export default function MeetingDetail() {
     );
   }
 
+  function formatParticipantDate(iso: string | null | undefined): string {
+    if (!iso) return "—";
+    try {
+      return new Date(iso).toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return iso;
+    }
+  }
+
   return (
     <div className="mx-auto max-w-4xl space-y-8 pb-10">
+      <nav className="flex items-center gap-1 text-sm text-muted-foreground">
+        <Link to="/cse?tab=meetings" className="hover:text-foreground">
+          CSE & Dialogue Social
+        </Link>
+        <ChevronRight className="h-4 w-4" />
+        <Link to="/cse?tab=meetings" className="hover:text-foreground">
+          Réunions
+        </Link>
+        <ChevronRight className="h-4 w-4" />
+        <span className="text-foreground font-medium truncate max-w-[200px]">
+          {meeting.title}
+        </span>
+      </nav>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-2">
           <Button variant="ghost" size="sm" className="w-fit -ml-2" asChild>
-            <Link to="/cse">
+            <Link to="/cse?tab=meetings">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Retour
+              Retour aux réunions
             </Link>
           </Button>
           <h1 className="text-2xl font-bold tracking-tight">{meeting.title}</h1>
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <Badge variant="secondary">{STATUS_LABELS[meeting.status]}</Badge>
+            <Badge variant="secondary">
+              {MEETING_STATUS_LABELS[meeting.status]}
+            </Badge>
             <span className="inline-flex items-center gap-1">
               <Calendar className="h-4 w-4" />
               {formatDate(meeting.meeting_date)} à {formatTime(meeting.meeting_time)}
             </span>
-            <Badge variant="outline">{TYPE_LABELS[meeting.meeting_type]}</Badge>
+            <Badge variant="outline">
+              {MEETING_TYPE_LABELS[meeting.meeting_type]}
+            </Badge>
           </div>
         </div>
       </div>
@@ -252,11 +273,11 @@ export default function MeetingDetail() {
             </div>
             <div>
               <dt className="text-muted-foreground">Type</dt>
-              <dd className="font-medium">{TYPE_LABELS[meeting.meeting_type]}</dd>
+              <dd className="font-medium">{MEETING_TYPE_LABELS[meeting.meeting_type]}</dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Statut</dt>
-              <dd className="font-medium">{STATUS_LABELS[meeting.status]}</dd>
+              <dd className="font-medium">{MEETING_STATUS_LABELS[meeting.status]}</dd>
             </div>
           </dl>
           <div>
@@ -264,19 +285,48 @@ export default function MeetingDetail() {
               <Users className="h-4 w-4" />
               Participants ({meeting.participants?.length ?? meeting.participant_count ?? 0})
             </p>
-            <ul className="list-inside list-disc space-y-1 pl-1">
-              {(meeting.participants ?? []).map((p) => (
-                <li key={p.employee_id}>
-                  {[p.first_name, p.last_name].filter(Boolean).join(" ") || p.employee_id}
-                  {p.job_title ? (
-                    <span className="text-muted-foreground"> — {p.job_title}</span>
-                  ) : null}
-                </li>
-              ))}
-              {(!meeting.participants || meeting.participants.length === 0) && (
-                <li className="text-muted-foreground list-none pl-0">Aucun participant renseigné.</li>
-              )}
-            </ul>
+            {(meeting.participants ?? []).length > 0 ? (
+              <div className="overflow-x-auto rounded-md border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50 text-left">
+                      <th className="p-2 font-medium">Nom</th>
+                      <th className="p-2 font-medium">Confirmé</th>
+                      <th className="p-2 font-medium">Présent</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(meeting.participants ?? []).map((p) => (
+                      <tr key={p.employee_id} className="border-b last:border-0">
+                        <td className="p-2">
+                          {[p.first_name, p.last_name].filter(Boolean).join(" ") ||
+                            p.employee_id}
+                          {p.job_title ? (
+                            <span className="text-muted-foreground block text-xs">
+                              {p.job_title}
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="p-2 text-muted-foreground">
+                          {formatParticipantDate(p.confirmed_at)}
+                        </td>
+                        <td className="p-2">
+                          {p.attended ? (
+                            <Badge variant="outline" className="text-green-700 border-green-200">
+                              Oui
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">Non</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Aucun participant renseigné.</p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -358,14 +408,14 @@ export default function MeetingDetail() {
                 ) : (
                   <Sparkles className="h-4 w-4 mr-2" />
                 )}
-                Générer le PV
+                Générer le PV à partir de l’enregistrement
               </Button>
             ) : null}
           </div>
           {!pdfPath && !showGeneratePv && rhActions && (
             <p className="text-xs text-muted-foreground">
-              Pour générer un PV, l’enregistrement doit être terminé et traitable (POST /recording/process,
-              réservé aux accès RH).
+              Pour générer un procès-verbal, terminez l’enregistrement de la réunion puis lancez la
+              génération lorsque le traitement est disponible.
             </p>
           )}
         </CardContent>

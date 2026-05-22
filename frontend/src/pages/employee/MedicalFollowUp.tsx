@@ -5,33 +5,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { getMyObligations, type ObligationListItem } from "@/api/medicalFollowUp";
+import {
+  formatMedicalDate as formatDate,
+  getNextObligation,
+  STATUS_LABELS,
+  statusBadgeVariant,
+  VISIT_TYPE_LABELS,
+} from "@/lib/medicalFollowUpLabels";
 import { Loader2, Stethoscope } from "lucide-react";
-
-const VISIT_TYPE_LABELS: Record<string, string> = {
-  aptitude_sir_avant_affectation: "Aptitude SIR avant affectation",
-  vip_avant_affectation_mineur_nuit: "VIP avant affectation (mineur/nuit)",
-  reprise: "Reprise",
-  vip: "VIP",
-  sir: "SIR",
-  mi_carriere_45: "Mi-carrière (45 ans)",
-  demande: "À la demande",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  a_faire: "À faire",
-  planifiee: "Planifiée",
-  realisee: "Réalisée",
-  annulee: "Annulée",
-};
-
-function formatDate(s: string | null | undefined): string {
-  if (!s) return "—";
-  try {
-    return new Date(s).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
-  } catch {
-    return s;
-  }
-}
 
 export default function EmployeeMedicalFollowUp() {
   const [obligations, setObligations] = useState<ObligationListItem[]>([]);
@@ -72,8 +53,12 @@ export default function EmployeeMedicalFollowUp() {
     );
   }
 
-  const nextObligation = obligations.find((o) => o.status !== "realisee");
-  const isOverdue = nextObligation?.due_date && new Date(nextObligation.due_date) < new Date();
+  const nextObligation = getNextObligation(obligations);
+  const isOverdue =
+    nextObligation?.due_date &&
+    nextObligation.status !== "realisee" &&
+    nextObligation.status !== "annulee" &&
+    new Date(nextObligation.due_date) < new Date();
 
   return (
     <div className="space-y-6">
@@ -148,7 +133,7 @@ export default function EmployeeMedicalFollowUp() {
                       <TableCell>{VISIT_TYPE_LABELS[o.visit_type] ?? o.visit_type}</TableCell>
                       <TableCell>{formatDate(o.due_date)}</TableCell>
                       <TableCell>
-                        <Badge variant={o.status === "realisee" ? "secondary" : o.due_date && new Date(o.due_date) < new Date() ? "destructive" : "outline"}>
+                        <Badge variant={statusBadgeVariant(o.status, o.due_date)}>
                           {STATUS_LABELS[o.status] ?? o.status}
                         </Badge>
                       </TableCell>

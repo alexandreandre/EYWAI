@@ -108,7 +108,11 @@ function criteriaSummary(row: LegalObligationStatus) {
   return bits.join(", ");
 }
 
-export default function ObligationsLegalesTab() {
+export type ObligationsLegalesTabProps = {
+  compactTable?: boolean;
+};
+
+export default function ObligationsLegalesTab({ compactTable = false }: ObligationsLegalesTabProps = {}) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -335,11 +339,11 @@ export default function ObligationsLegalesTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>Collaborateur</TableHead>
-                <TableHead>Ancienneté</TableHead>
-                <TableHead>Entretien prof. (2 ans)</TableHead>
-                <TableHead>Prochain entretien</TableHead>
+                {!compactTable ? <TableHead>Ancienneté</TableHead> : null}
+                <TableHead>Entretien prof.</TableHead>
+                <TableHead>Prochaine échéance</TableHead>
                 <TableHead>Bilan 6 ans</TableHead>
-                <TableHead>Critères</TableHead>
+                {!compactTable ? <TableHead>Critères</TableHead> : null}
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -347,13 +351,15 @@ export default function ObligationsLegalesTab() {
               {(listQuery.data ?? []).map((row) => (
                 <TableRow key={row.employee_id}>
                   <TableCell className="font-medium">{row.employee_name}</TableCell>
-                  <TableCell>{seniority(row.hire_date)}</TableCell>
+                  {!compactTable ? <TableCell>{seniority(row.hire_date)}</TableCell> : null}
                   <TableCell>{profBadge(row.professional_interview_status)}</TableCell>
                   <TableCell>{fmtDate(row.professional_interview_next_due)}</TableCell>
                   <TableCell>{sixBadge(row.six_year_review_status)}</TableCell>
-                  <TableCell className="max-w-[200px] text-muted-foreground">
-                    {criteriaSummary(row)}
-                  </TableCell>
+                  {!compactTable ? (
+                    <TableCell className="max-w-[200px] text-muted-foreground">
+                      {criteriaSummary(row)}
+                    </TableCell>
+                  ) : null}
                   <TableCell className="text-right">
                     <Button type="button" variant="outline" size="sm" onClick={() => openSheet(row)}>
                       Gérer les critères

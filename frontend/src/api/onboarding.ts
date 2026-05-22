@@ -28,6 +28,46 @@ export interface OnboardingChecklist {
   progress_pct: number;
 }
 
+export interface OnboardingHubItem {
+  employee_id: string;
+  first_name: string;
+  last_name: string;
+  job_title?: string | null;
+  hire_date?: string | null;
+  days_since_hire?: number | null;
+  checklist_id?: string | null;
+  has_checklist: boolean;
+  progress_pct: number;
+  nb_total: number;
+  nb_completed: number;
+  nb_overdue: number;
+  completed_at?: string | null;
+  checklist_created_at?: string | null;
+}
+
+export interface OnboardingHubKpis {
+  in_progress: number;
+  overdue_tasks: number;
+  completed_this_month: number;
+}
+
+export interface OnboardingHubList {
+  items: OnboardingHubItem[];
+  kpis: OnboardingHubKpis;
+  lookback_days: number;
+}
+
+export async function listOnboardingHub(
+  companyId: string,
+  lookbackDays = 90,
+): Promise<OnboardingHubList> {
+  const res = await apiClient.get<OnboardingHubList>("/api/onboarding", {
+    headers: { "X-Active-Company": companyId },
+    params: { lookback_days: lookbackDays },
+  });
+  return res.data;
+}
+
 export async function getOnboarding(
   employeeId: string,
   companyId: string

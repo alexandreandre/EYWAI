@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
 import { Loader2, Save, User, Shield, AlertCircle, ArrowLeft } from 'lucide-react';
 import {
   getUserDetail,
@@ -12,21 +12,20 @@ import {
 } from '../api/permissions';
 import PermissionsMatrix from '../components/PermissionsMatrix';
 import { cn } from '../lib/utils';
+import { useCompany } from '../contexts/CompanyContext';
+import { AppUserRole, getRoleDisplayLabel } from '../lib/userRoleLabels';
 
 const UserEdit: React.FC = () => {
-  console.log('[UserEdit] 🎬 Component MOUNTING');
-
   const navigate = useNavigate();
   const { userId } = useParams<{ userId: string }>();
+  const [searchParams] = useSearchParams();
+  const { activeCompany } = useCompany();
 
-  console.log('[UserEdit] 📝 userId from useParams:', userId);
-  console.log('[UserEdit] 📦 localStorage keys:', Object.keys(localStorage));
-
-  // FIX: Utiliser 'activeCompanyId' (camelCase) au lieu de 'active_company_id'
-  const companyId = localStorage.getItem('activeCompanyId') || '';
-
-  console.log('[UserEdit] ✨ companyId resolved to:', companyId);
-  console.log('[UserEdit] 🎯 Will call loadUserData?', !!(userId && companyId));
+  const companyId =
+    searchParams.get('company_id') ||
+    activeCompany?.company_id ||
+    localStorage.getItem('activeCompanyId') ||
+    '';
 
   // États
   const [loading, setLoading] = useState(true);
@@ -182,13 +181,6 @@ const UserEdit: React.FC = () => {
     }
   };
 
-  const roleLabels: { [key: string]: string } = {
-    admin: 'Administrateur',
-    rh: 'Ressources Humaines',
-    salarie: 'Salarié',
-    custom: 'Personnalisé',
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -316,7 +308,9 @@ const UserEdit: React.FC = () => {
                           selectedRole === role ? 'text-blue-600' : 'text-gray-400'
                         )}
                       />
-                      <div className="font-medium text-sm text-gray-900">{roleLabels[role]}</div>
+                      <div className="font-medium text-sm text-gray-900">
+                        {getRoleDisplayLabel(role as AppUserRole)}
+                      </div>
                     </button>
                   );
                 })}

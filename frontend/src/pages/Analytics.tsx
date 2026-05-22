@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -15,7 +15,6 @@ import {
   YAxis,
 } from "recharts";
 import {
-  AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
@@ -26,11 +25,14 @@ import {
   RefreshCw,
   Users,
 } from "lucide-react";
+import { EmptyChartState } from "@/components/analytics/EmptyChartState";
+import { KpiCard } from "@/components/analytics/KpiCard";
+import { SectionHeading } from "@/components/analytics/SectionHeading";
+import { SectionSkeleton } from "@/components/analytics/SectionSkeleton";
 
 import {
   ACTIONS_LABELS,
   getAnalyticsAvances,
-  getAnomaliesPayslips,
   getAuditLogs,
   type AnalyticsAvances,
   type AuditLogEntry,
@@ -71,33 +73,16 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
+  ABSENCE_COLORS,
+  CHART_CONTRACT_COLORS,
+  CHART_PYRAMID_COLORS,
+} from "@/lib/analyticsChartColors";
+import {
   buildPeriodBounds,
   defaultPeriodSelection,
   type PeriodSelection,
 } from "@/lib/analyticsPeriod";
-
-const CHART_PYRAMID_COLORS = [
-  "hsl(var(--primary))",
-  "hsl(var(--primary) / 0.88)",
-  "hsl(var(--primary) / 0.76)",
-  "hsl(var(--primary) / 0.64)",
-  "hsl(var(--primary) / 0.52)",
-  "hsl(var(--primary) / 0.4)",
-];
-
-const CHART_CONTRACT_COLORS = [
-  "hsl(var(--primary))",
-  "hsl(var(--primary) / 0.75)",
-  "hsl(var(--primary) / 0.55)",
-  "hsl(var(--primary) / 0.4)",
-  "hsl(var(--muted-foreground) / 0.5)",
-];
-
-const ABSENCE_COLORS = {
-  maladie: "hsl(var(--primary))",
-  at: "hsl(var(--primary) / 0.6)",
-  autres: "hsl(var(--muted-foreground) / 0.45)",
-};
+import { exportAnalyticsTeamCsv } from "@/lib/exportAnalyticsCsv";
 
 const eur = new Intl.NumberFormat("fr-FR", {
   style: "currency",
@@ -115,163 +100,6 @@ function turnoverBadge(taux: number): { label: string; className: string } {
   return { label: "Élevé", className: "bg-red-600 hover:bg-red-600" };
 }
 
-function SectionSkeleton(): JSX.Element {
-  return (
-    <Card>
-      <CardHeader className="p-4 pb-2">
-        <Skeleton className="h-5 w-48" />
-        <Skeleton className="mt-1 h-3 w-full max-w-md" />
-      </CardHeader>
-      <CardContent className="space-y-2 p-4 pt-0">
-        <Skeleton className="h-[220px] w-full" />
-      </CardContent>
-    </Card>
-  );
-}
-
-function SectionHeading({
-  title,
-  subtitle,
-  right,
-}: {
-  title: string;
-  subtitle?: string;
-  right?: ReactNode;
-}): JSX.Element {
-  return (
-    <div className="mb-3 flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <h2 className="text-lg font-semibold leading-tight tracking-tight">{title}</h2>
-        {subtitle ? (
-          <p className="text-muted-foreground line-clamp-2 text-sm">{subtitle}</p>
-        ) : null}
-      </div>
-      {right ? <div className="shrink-0">{right}</div> : null}
-    </div>
-  );
-}
-
-function EmptyChartState({
-  icon: Icon,
-  title,
-  description,
-}: {
-  icon: typeof BarChart3;
-  title: string;
-  description: string;
-}): JSX.Element {
-  return (
-    <div
-      className="flex h-[220px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-muted/30 px-4 text-center"
-      role="status"
-    >
-      <Icon className="text-muted-foreground h-8 w-8" aria-hidden />
-      <p className="text-sm font-medium">{title}</p>
-      <p className="text-muted-foreground max-w-xs text-xs">{description}</p>
-    </div>
-  );
-}
-
-function KpiCard({
-  label,
-  value,
-  hint,
-  badge,
-  delta,
-}: {
-  label: string;
-  value: ReactNode;
-  hint?: string;
-  badge?: ReactNode;
-  delta?: { value: number; worseIfPositive: boolean };
-}): JSX.Element {
-  const evoNeutral = delta != null && Math.abs(delta.value) < 0.05;
-  const evoWorse =
-    delta != null && !evoNeutral && (delta.worseIfPositive ? delta.value > 0 : delta.value < 0);
-
-  return (
-    <Card className="overflow-hidden">
-      <CardContent className="flex flex-col gap-1 p-4">
-        <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
-          {label}
-        </p>
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <p className="text-2xl font-bold tabular-nums leading-none">{value}</p>
-          {badge}
-        </div>
-        {hint ? <p className="text-muted-foreground text-xs">{hint}</p> : null}
-        {delta != null ? (
-          <div
-            className={`flex items-center gap-1 text-xs font-medium ${
-              evoNeutral
-                ? "text-muted-foreground"
-                : evoWorse
-                  ? "text-red-600"
-                  : "text-emerald-600"
-            }`}
-          >
-            {!evoNeutral ? (
-              delta.value > 0 ? (
-                <ArrowUpRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              ) : (
-                <ArrowDownRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              )
-            ) : null}
-            <span>
-              {delta.value > 0 ? "+" : ""}
-              {delta.value.toLocaleString("fr-FR", { maximumFractionDigits: 1 })}% vs période préc.
-            </span>
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
-}
-
-function exportAnalyticsCsv(
-  companyName: string,
-  period: string,
-  data: AnalyticsAvances | undefined,
-  anomaliesCount: { bloquants: number; avertissements: number },
-): void {
-  const rows: string[][] = [
-    ["Rapport Analytics Team", companyName, period],
-    [],
-    ["Indicateur", "Valeur"],
-  ];
-  if (data) {
-    rows.push(
-      ["Effectif actif", String(data.effectif_actif)],
-      [
-        "Turnover annuel (%)",
-        data.turnover.taux_turnover_annuel.toLocaleString("fr-FR", { maximumFractionDigits: 1 }),
-      ],
-      ["Embauches 12 mois", String(data.turnover.nb_embauches_12_mois)],
-      ["Départs 12 mois", String(data.turnover.nb_departs_12_mois)],
-      [
-        "Absentéisme 30j (%)",
-        data.absenteisme.taux_global.toLocaleString("fr-FR", { maximumFractionDigits: 2 }),
-      ],
-      ["Masse salariale brute", String(data.masse_salariale_brute_totale)],
-      ["Âge moyen", String(data.age_moyen)],
-      ["Ancienneté moyenne (ans)", String(data.anciennete_moyenne_annees)],
-    );
-  }
-  rows.push(
-    [],
-    ["Anomalies paie bloquantes", String(anomaliesCount.bloquants)],
-    ["Anomalies paie avertissements", String(anomaliesCount.avertissements)],
-  );
-  const csv = rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n");
-  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `analytics-team-${period}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 export default function Analytics(): JSX.Element {
   const { activeCompany } = useCompany();
   const companyId = activeCompany?.company_id ?? null;
@@ -283,9 +111,6 @@ export default function Analytics(): JSX.Element {
     () => buildPeriodBounds(periodSelection),
     [periodSelection],
   );
-  const payrollYear = periodBounds.payrollYear;
-  const payrollMonth = periodBounds.payrollMonth;
-
   const [auditResourceType, setAuditResourceType] = useState<string>("");
   const [auditSince, setAuditSince] = useState(periodBounds.start);
   const [auditUntil, setAuditUntil] = useState(periodBounds.end);
@@ -308,20 +133,6 @@ export default function Analytics(): JSX.Element {
     queryKey: ["dashboard-analytics", companyId],
     queryFn: () => getAnalyticsAvances(companyId),
     enabled: Boolean(companyId),
-  });
-
-  const {
-    data: anomaliesData,
-    isLoading: anomaliesLoading,
-    isFetching: anomaliesFetching,
-    error: anomaliesError,
-    refetch: refetchAnomalies,
-  } = useQuery({
-    queryKey: ["payslips-anomalies", companyId, periodBounds.exportKey],
-    queryFn: () => getAnomaliesPayslips(companyId, payrollYear, payrollMonth),
-    enabled: Boolean(companyId),
-    staleTime: 0,
-    placeholderData: (previous) => previous,
   });
 
   const {
@@ -350,19 +161,6 @@ export default function Analytics(): JSX.Element {
     enabled: Boolean(companyId) && auditOpen,
   });
 
-  const anomaliesSummary = useMemo(() => {
-    if (!anomaliesData) {
-      return { bloquants: 0, avertissements: 0 };
-    }
-    let b = 0;
-    let a = 0;
-    for (const x of anomaliesData.anomalies) {
-      if (x.severite === "bloquant") b += 1;
-      else a += 1;
-    }
-    return { bloquants: b, avertissements: a };
-  }, [anomaliesData]);
-
   const insufficient = useMemo(() => {
     if (!data) return false;
     const totalAge = data.pyramide_ages.reduce((s, p) => s + p.count, 0);
@@ -384,14 +182,6 @@ export default function Analytics(): JSX.Element {
     return data.effectif_par_contrat.map((row) => ({
       type: String(row.type ?? "—"),
       count: Number(row.count ?? 0),
-    }));
-  }, [data]);
-
-  const masseChartData = useMemo(() => {
-    if (!data?.masse_salariale_par_service?.length) return [];
-    return data.masse_salariale_par_service.map((row) => ({
-      service: String(row.service ?? "—"),
-      masse: Number(row.masse_salariale_brute ?? 0),
     }));
   }, [data]);
 
@@ -428,14 +218,6 @@ export default function Analytics(): JSX.Element {
 
   const periodLabel = periodBounds.label;
 
-  const anomaliesPeriodHint = useMemo(() => {
-    if (periodSelection.granularity === "monthly") return null;
-    if (periodSelection.granularity === "weekly") {
-      return "Anomalies de paie : mois contenant le début de la semaine sélectionnée.";
-    }
-    return "Anomalies de paie : dernier mois disponible de l'année (ou mois en cours si année courante).";
-  }, [periodSelection.granularity]);
-
   if (!companyId) {
     return (
       <div className="container max-w-6xl py-8">
@@ -455,7 +237,6 @@ export default function Analytics(): JSX.Element {
 
   const handleRefresh = () => {
     void refetch();
-    void refetchAnomalies();
     if (auditOpen) void refetchAudit();
   };
 
@@ -492,11 +273,10 @@ export default function Analytics(): JSX.Element {
               className="h-9"
               disabled={!data}
               onClick={() =>
-                exportAnalyticsCsv(
+                exportAnalyticsTeamCsv(
                   activeCompany?.company_name ?? "entreprise",
                   periodBounds.exportKey,
                   data,
-                  anomaliesSummary,
                 )
               }
             >
@@ -597,29 +377,6 @@ export default function Analytics(): JSX.Element {
             hint="depuis la date d'embauche"
           />
         </div>
-      ) : null}
-
-      {/* Alert banner */}
-      {!anomaliesLoading && anomaliesSummary.bloquants > 0 ? (
-        <Alert variant="destructive" id="alertes-paie">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>
-            {anomaliesSummary.bloquants} anomalie
-            {anomaliesSummary.bloquants > 1 ? "s" : ""} bloquante
-            {anomaliesSummary.bloquants > 1 ? "s" : ""} — {periodLabel}
-          </AlertTitle>
-          <AlertDescription className="flex flex-wrap items-center gap-2">
-            <span>
-              Des bulletins nécessitent une correction avant validation de la paie.
-              {anomaliesSummary.avertissements > 0
-                ? ` ${anomaliesSummary.avertissements} avertissement(s) en plus.`
-                : ""}
-            </span>
-            <Button variant="outline" size="sm" className="h-8 border-destructive/40" asChild>
-              <a href="#anomalies-paie">Voir le détail</a>
-            </Button>
-          </AlertDescription>
-        </Alert>
       ) : null}
 
       {showInitialSkeleton ? (
@@ -978,217 +735,36 @@ export default function Analytics(): JSX.Element {
             </Card>
           </section>
 
-          {/* Section 4 — Paie */}
+          {/* Section 4 — Paie (lien vers Analytics Paie) */}
           <section aria-labelledby="section-paie" className="mt-6">
             <SectionHeading
-              title="Masse salariale"
+              title="Paie"
               subtitle={
                 data
-                  ? `Total brut mensuel de base : ${eur.format(data.masse_salariale_brute_totale)}`
-                  : "Répartition par service"
+                  ? `Masse contractuelle de base : ${eur.format(data.masse_salariale_brute_totale)} — pilotage détaillé sur la page dédiée`
+                  : "Pilotage du cycle de paie et anomalies"
               }
             />
             <Card>
-              <CardHeader className="p-4 pb-0">
-                <CardTitle className="text-base">Masse salariale par service</CardTitle>
-                <CardDescription>Somme des salaires de base (brut mensuel)</CardDescription>
-              </CardHeader>
-              <CardContent className="p-4 pt-2">
-                {data && masseChartData.length > 0 ? (
-                  <div
-                    className="h-[280px] w-full min-w-0"
-                    aria-label="Masse salariale par service"
-                  >
-                    <ResponsiveContainer width="100%" height={280}>
-                      <BarChart
-                        data={masseChartData}
-                        margin={{ bottom: 56, left: 4, right: 8, top: 4 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis
-                          dataKey="service"
-                          angle={-35}
-                          textAnchor="end"
-                          height={64}
-                          interval={0}
-                          tick={{ fontSize: 9 }}
-                        />
-                        <YAxis
-                          width={48}
-                          tick={{ fontSize: 9 }}
-                          tickFormatter={(v) =>
-                            Number(v).toLocaleString("fr-FR", { maximumFractionDigits: 0 })
-                          }
-                        />
-                        <RechartsTooltip
-                          formatter={(v: number) => [eur.format(v), "Masse brute"]}
-                        />
-                        <Bar
-                          dataKey="masse"
-                          fill="hsl(var(--primary))"
-                          name="Masse"
-                          radius={[4, 4, 0, 0]}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <EmptyChartState
-                    icon={BarChart3}
-                    title="Masse salariale indisponible"
-                    description="Renseignez les salaires de base et les services sur les fiches salariés."
-                  />
-                )}
+              <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium">Analytics Paie</p>
+                  <p className="text-muted-foreground text-sm">
+                    Cycle de paie, évolution sur 12 mois, anomalies bulletins, éléments à intégrer
+                    et conformité exports.
+                  </p>
+                </div>
+                <Button asChild>
+                  <Link to="/analytics-paie">
+                    Ouvrir Analytics Paie
+                    <ExternalLink className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
           </section>
 
-          {/* Section 5 — Anomalies paie */}
-          <section id="anomalies-paie" aria-labelledby="section-anomalies" className="mt-6">
-            <SectionHeading
-              title="Anomalies de paie"
-              subtitle={`Contrôles automatiques — ${periodLabel}`}
-              right={
-                anomaliesFetching && !anomaliesLoading ? (
-                  <RefreshCw
-                    className="text-muted-foreground h-4 w-4 animate-spin"
-                    aria-label="Mise à jour des anomalies"
-                  />
-                ) : null
-              }
-            />
-            {anomaliesPeriodHint ? (
-              <p className="text-muted-foreground -mt-2 mb-2 text-xs">{anomaliesPeriodHint}</p>
-            ) : null}
-            <Card
-              className={
-                anomaliesFetching && anomaliesData
-                  ? "opacity-80 transition-opacity duration-150"
-                  : undefined
-              }
-            >
-              <CardContent className="space-y-3 p-4">
-                {anomaliesError ? (
-                  <Alert variant="destructive">
-                    <AlertTitle>Anomalies</AlertTitle>
-                    <AlertDescription>
-                      {anomaliesError instanceof Error
-                        ? anomaliesError.message
-                        : "Erreur de chargement."}
-                    </AlertDescription>
-                  </Alert>
-                ) : null}
-                {anomaliesLoading ? (
-                  <Skeleton className="h-24 w-full" />
-                ) : anomaliesData ? (
-                  <>
-                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                      <Card>
-                        <CardContent className="p-3">
-                          <p className="text-2xl font-bold tabular-nums">
-                            {anomaliesData.total_bulletins}
-                          </p>
-                          <p className="text-muted-foreground text-xs">Bulletins analysés</p>
-                        </CardContent>
-                      </Card>
-                      <Card>
-                        <CardContent className="p-3">
-                          <p className="text-2xl font-bold tabular-nums">
-                            {anomaliesData.bulletins_avec_anomalies}
-                          </p>
-                          <p className="text-muted-foreground text-xs">Avec anomalies</p>
-                        </CardContent>
-                      </Card>
-                      <Card>
-                        <CardContent className="p-3">
-                          <p className="text-2xl font-bold tabular-nums text-red-600">
-                            {anomaliesSummary.bloquants}
-                          </p>
-                          <p className="text-muted-foreground text-xs">Bloquants</p>
-                        </CardContent>
-                      </Card>
-                      <Card>
-                        <CardContent className="p-3">
-                          <p className="text-2xl font-bold tabular-nums text-amber-600">
-                            {anomaliesSummary.avertissements}
-                          </p>
-                          <p className="text-muted-foreground text-xs">Avertissements</p>
-                        </CardContent>
-                      </Card>
-                    </div>
-                    {anomaliesData.anomalies.length === 0 ? (
-                      <p className="text-muted-foreground py-4 text-center text-sm">
-                        Aucune anomalie détectée pour {periodLabel}.
-                      </p>
-                    ) : (
-                      <div className="w-full overflow-x-auto rounded-md border">
-                        <Table className="text-sm [&_td]:px-3 [&_td]:py-2 [&_th]:px-3 [&_th]:py-2">
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Salarié</TableHead>
-                              <TableHead>Type</TableHead>
-                              <TableHead>Sévérité</TableHead>
-                              <TableHead>Détail</TableHead>
-                              <TableHead className="text-right">Action</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {anomaliesData.anomalies.map((row, idx) => (
-                              <TableRow key={`${row.payslip_id}-${row.type}-${idx}`}>
-                                <TableCell className="max-w-[10rem] truncate font-medium">
-                                  {row.employee_name}
-                                </TableCell>
-                                <TableCell className="max-w-[6rem] truncate text-muted-foreground text-xs">
-                                  {row.type}
-                                </TableCell>
-                                <TableCell>
-                                  <Badge
-                                    variant="secondary"
-                                    className={
-                                      row.severite === "bloquant"
-                                        ? "bg-red-600 text-white hover:bg-red-600"
-                                        : "bg-amber-600 text-white hover:bg-amber-600"
-                                    }
-                                  >
-                                    {row.severite === "bloquant"
-                                      ? "Bloquant"
-                                      : "Avertissement"}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="max-w-[220px] text-xs">
-                                  <span className="line-clamp-2" title={row.message}>
-                                    {row.message}
-                                  </span>
-                                  {row.valeur_detectee ? (
-                                    <span className="text-muted-foreground block truncate">
-                                      {row.valeur_detectee}
-                                    </span>
-                                  ) : null}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <Button variant="ghost" size="sm" className="h-8" asChild>
-                                    <Link
-                                      to={`/payslips/${row.payslip_id}/edit`}
-                                      title="Ouvrir le bulletin"
-                                    >
-                                      <ExternalLink className="mr-1 h-3.5 w-3.5" />
-                                      Bulletin
-                                    </Link>
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-                  </>
-                ) : null}
-              </CardContent>
-            </Card>
-          </section>
-
-          {/* Section 6 — Journal d'activité */}
+          {/* Section 5 — Journal d'activité */}
           <section aria-labelledby="section-audit" className="mt-6">
             <Collapsible open={auditOpen} onOpenChange={setAuditOpen}>
               <Card>

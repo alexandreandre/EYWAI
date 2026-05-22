@@ -21,6 +21,18 @@ export interface TeamListResponse {
   archived_count: number;
 }
 
+export interface TeamMemberItem {
+  id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  job_title?: string | null;
+}
+
+export interface TeamDetailResponse {
+  team: Team;
+  members: TeamMemberItem[];
+}
+
 export interface TeamAnalyticsItem {
   team_id?: string;
   team_name: string;
@@ -83,6 +95,13 @@ export async function getTeams(
 
 export async function createTeam(payload: TeamCreatePayload): Promise<Team> {
   const { data } = await apiClient.post<Team>('/api/teams', payload);
+  return data;
+}
+
+export async function getTeamDetail(teamId: string): Promise<TeamDetailResponse> {
+  const { data } = await apiClient.get<TeamDetailResponse>(
+    `/api/teams/${teamId}`,
+  );
   return data;
 }
 

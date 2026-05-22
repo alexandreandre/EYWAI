@@ -116,9 +116,12 @@ export interface MeetingListItem {
   title: string;
   meeting_date: string;
   meeting_time: string | null;
+  location?: string | null;
   meeting_type: MeetingType;
   status: MeetingStatus;
   participant_count: number;
+  recording_status?: RecordingStatus | null;
+  has_minutes?: boolean;
   created_at: string;
 }
 
@@ -574,6 +577,16 @@ export async function getElectionCycleById(cycleId: string): Promise<ElectionCyc
 
 export async function getElectionAlerts(): Promise<ElectionAlert[]> {
   const response = await apiClient.get("/api/cse/election-cycles/alerts");
+  return response.data;
+}
+
+export async function completeElectionTimelineStep(
+  cycleId: string,
+  stepId: string,
+): Promise<ElectionTimelineStep> {
+  const response = await apiClient.post(
+    `/api/cse/election-cycles/${cycleId}/timeline/${stepId}/complete`,
+  );
   return response.data;
 }
 

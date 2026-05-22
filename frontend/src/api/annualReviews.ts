@@ -73,6 +73,9 @@ export interface AnnualReviewListItem {
   status: AnnualReviewStatus;
   planned_date: string | null;
   completed_date: string | null;
+  interview_type?: InterviewType | string;
+  employee_acceptance_status?: "accepte" | "refuse" | null;
+  signature_status?: string | null;
   created_at: string | null;
 }
 

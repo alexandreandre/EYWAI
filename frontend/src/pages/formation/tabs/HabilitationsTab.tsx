@@ -109,7 +109,20 @@ function addMonthsIso(isoDate: string, months: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-export default function HabilitationsTab() {
+export type HabilitationsTabProps = {
+  /** Affiche uniquement le référentiel (Paramètres). */
+  referentialOnly?: boolean;
+  /** Filtre par défaut : expirées + expire bientôt. */
+  defaultAlertFilter?: boolean;
+  /** Masque l’onglet référentiel (Conformité opérationnelle). */
+  hideReferential?: boolean;
+};
+
+export default function HabilitationsTab({
+  referentialOnly = false,
+  defaultAlertFilter = false,
+  hideReferential = false,
+}: HabilitationsTabProps = {}) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -126,16 +139,23 @@ export default function HabilitationsTab() {
     isRh && !(viewOpt?.isCollaborateurRh && viewOpt.viewMode === "collaborateur"),
   );
 
-  const [mainTab, setMainTab] = useState<"collaborateurs" | "referentiel">("collaborateurs");
+  const [mainTab, setMainTab] = useState<"collaborateurs" | "referentiel">(
+    referentialOnly ? "referentiel" : "collaborateurs",
+  );
 
   useEffect(() => {
+    if (referentialOnly) {
+      setMainTab("referentiel");
+      return;
+    }
     if (!showReferentialTab && mainTab === "referentiel") {
       setMainTab("collaborateurs");
     }
-  }, [showReferentialTab, mainTab]);
+  }, [showReferentialTab, mainTab, referentialOnly]);
 
   const [filterEmployeeId, setFilterEmployeeId] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<"all" | ComputedStatus>("all");
+  const [alertsOnly, setAlertsOnly] = useState(defaultAlertFilter);
   const [includeArchived, setIncludeArchived] = useState(false);
 
   const [empSheetOpen, setEmpSheetOpen] = useState(false);
@@ -200,11 +220,15 @@ export default function HabilitationsTab() {
 
   const filteredEmployeeCerts = useMemo(() => {
     let rows = employeeCertsQuery.data ?? [];
-    if (filterStatus !== "all") {
+    if (alertsOnly) {
+      rows = rows.filter(
+        (r) => r.computed_status === "expired" || r.computed_status === "expiring_soon",
+      );
+    } else if (filterStatus !== "all") {
       rows = rows.filter((r) => r.computed_status === filterStatus);
     }
     return rows;
-  }, [employeeCertsQuery.data, filterStatus]);
+  }, [employeeCertsQuery.data, filterStatus, alertsOnly]);
 
   const openCreateEmployee = () => {
     setEmpSheetMode("create");
@@ -435,15 +459,21 @@ export default function HabilitationsTab() {
   const loadingCerts = employeeCertsQuery.isLoading;
   const errorCerts = employeeCertsQuery.isError;
 
-  return (
-    <div className="space-y-4">
-      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "collaborateurs" | "referentiel")}>
-        <TabsList className={cn(!showReferentialTab && "grid w-full max-w-md grid-cols-1")}>
-          <TabsTrigger value="collaborateurs">Habilitations collaborateurs</TabsTrigger>
-          {showReferentialTab ? <TabsTrigger value="referentiel">Référentiel</TabsTrigger> : null}
-        </TabsList>
+  if (referentialOnly && !showReferentialTab) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Le référentiel habilitations est réservé aux équipes RH.
+      </p>
+    );
+  }
 
-        <TabsContent value="collaborateurs" className="space-y-4 pt-2">
+  const showRefTab = showReferentialTab && (!hideReferential || referentialOnly);
+  const showCollaborateursPanel = !referentialOnly;
+  const showTabBar = showCollaborateursPanel && showRefTab && !hideReferential;
+  const tabsValue = referentialOnly ? "referentiel" : mainTab;
+
+  const collaborateursPanel = showCollaborateursPanel ? (
+        <div className="space-y-4 pt-2">
           {showReferentialTab && dashboardQuery.data ? (
             <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
               <span>
@@ -475,24 +505,35 @@ export default function HabilitationsTab() {
                 </Select>
               </div>
             ) : null}
-            <div className="grid gap-2 min-w-0">
-              <Label>Statut</Label>
-              <Select
-                value={filterStatus}
-                onValueChange={(v) => setFilterStatus(v as typeof filterStatus)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_FILTER_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {alertsOnly ? (
+              <Button type="button" variant="outline" onClick={() => setAlertsOnly(false)}>
+                Voir tout
+              </Button>
+            ) : (
+              <div className="grid gap-2 min-w-0">
+                <Label>Statut</Label>
+                <Select
+                  value={filterStatus}
+                  onValueChange={(v) => setFilterStatus(v as typeof filterStatus)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_FILTER_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {defaultAlertFilter && !alertsOnly ? (
+              <Button type="button" variant="secondary" onClick={() => setAlertsOnly(true)}>
+                Alertes uniquement
+              </Button>
+            ) : null}
             <div className="flex items-center gap-2 pb-2">
               <Switch
                 id="arch"
@@ -581,10 +622,11 @@ export default function HabilitationsTab() {
               </Table>
             </div>
           )}
-        </TabsContent>
+        </div>
+  ) : null;
 
-        {showReferentialTab ? (
-          <TabsContent value="referentiel" className="space-y-4 pt-2">
+  const referentielPanel = showRefTab ? (
+          <div className="space-y-4 pt-2">
             <div className="flex justify-end">
               <Button onClick={openRefCreate}>
                 <Plus className="mr-2 h-4 w-4" />
@@ -654,9 +696,32 @@ export default function HabilitationsTab() {
                 </Table>
               </div>
             )}
-          </TabsContent>
-        ) : null}
-      </Tabs>
+          </div>
+  ) : null;
+
+  return (
+    <div className="space-y-4">
+      {showTabBar ? (
+        <Tabs
+          value={tabsValue}
+          onValueChange={(v) => setMainTab(v as "collaborateurs" | "referentiel")}
+        >
+          <TabsList className="grid h-11 w-full grid-cols-2 gap-1">
+            <TabsTrigger value="collaborateurs" className="w-full">
+              Habilitations collaborateurs
+            </TabsTrigger>
+            <TabsTrigger value="referentiel" className="w-full">
+              Référentiel
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="collaborateurs">{collaborateursPanel}</TabsContent>
+          <TabsContent value="referentiel">{referentielPanel}</TabsContent>
+        </Tabs>
+      ) : referentialOnly ? (
+        referentielPanel
+      ) : (
+        collaborateursPanel
+      )}
 
       <Sheet open={empSheetOpen} onOpenChange={setEmpSheetOpen}>
         <SheetContent className="sm:max-w-lg overflow-y-auto">

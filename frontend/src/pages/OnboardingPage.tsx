@@ -2,9 +2,20 @@
  * Checklist d'onboarding d'un salarié (RH ou collaborateur concerné).
  */
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  ArrowLeft,
+  FileText,
+  GraduationCap,
+  Key,
+  Loader2,
+  Monitor,
+  Printer,
+  Users,
+} from "lucide-react";
+
 import {
   completeTask,
   getMyOnboarding,
@@ -13,42 +24,40 @@ import {
   type OnboardingTask,
 } from "@/api/onboarding";
 import apiClient from "@/api/apiClient";
+import { OnboardingHubPage } from "@/components/onboarding/OnboardingHubPage";
+import { OnboardingKpiBand } from "@/components/onboarding/OnboardingKpiBand";
+import { OnboardingTaskItem } from "@/components/onboarding/OnboardingTaskItem";
+import { OnboardingTimeline } from "@/components/onboarding/OnboardingTimeline";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
-import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useToast } from "@/components/ui/use-toast";
-import { cn } from "@/lib/utils";
 import {
-  FileText,
-  GraduationCap,
-  Key,
-  Loader2,
-  Monitor,
-  Users,
-} from "lucide-react";
+  buildTimelineMilestones,
+  countTaskStats,
+  filterTasks,
+  formatEmployeeMetaLine,
+  sortTasksByUrgency,
+  type OnboardingEmployeeHeader,
+  type TaskFilter,
+} from "@/lib/onboardingUtils";
+
+export { OnboardingHubPage };
 
 const CATEGORY_ORDER = ["administratif", "materiel", "acces", "formation", "social"] as const;
 
-const CATEGORY_META: Record<
-  string,
-  { label: string; icon: typeof FileText }
-> = {
+const CATEGORY_META: Record<string, { label: string; icon: typeof FileText }> = {
   administratif: { label: "Administratif", icon: FileText },
   materiel: { label: "Matériel", icon: Monitor },
   acces: { label: "Accès", icon: Key },
   formation: { label: "Formation", icon: GraduationCap },
   social: { label: "Social", icon: Users },
-};
-
-type EmployeeHeader = {
-  first_name: string;
-  last_name: string;
-  job_title?: string | null;
 };
 
 function groupTasksByCategory(tasks: OnboardingTask[]) {
@@ -58,26 +67,7 @@ function groupTasksByCategory(tasks: OnboardingTask[]) {
     if (!map.has(c)) map.set(c, []);
     map.get(c)!.push(t);
   }
-  for (const arr of map.values()) {
-    arr.sort((a, b) => a.position - b.position);
-  }
   return map;
-}
-
-export function OnboardingHubPage() {
-  return (
-    <div className="space-y-4 p-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold">Onboarding</h1>
-      <p className="text-muted-foreground text-sm leading-relaxed">
-        Les checklists sont créées automatiquement à l&apos;embauche. Pour consulter celle d&apos;un
-        salarié, ouvrez-la depuis le module Recrutement après une embauche réussie, ou depuis la
-        fiche du collaborateur.
-      </p>
-      <Button asChild variant="default">
-        <Link to="/recruitment">Aller au recrutement</Link>
-      </Button>
-    </div>
-  );
 }
 
 export function EmployeeOnboardingRedirect() {
@@ -104,7 +94,9 @@ export function EmployeeOnboardingRedirect() {
         <Card>
           <CardHeader>
             <CardTitle>Onboarding</CardTitle>
-            <CardDescription>Sélectionnez une entreprise pour continuer.</CardDescription>
+            <p className="text-sm text-muted-foreground">
+              Sélectionnez une entreprise pour continuer.
+            </p>
           </CardHeader>
         </Card>
       </div>
@@ -125,7 +117,7 @@ export function EmployeeOnboardingRedirect() {
         <Card>
           <CardHeader>
             <CardTitle>Onboarding</CardTitle>
-            <CardDescription>Checklist personnelle</CardDescription>
+            <p className="text-sm text-muted-foreground">Checklist personnelle</p>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground leading-relaxed">
@@ -155,11 +147,14 @@ export default function OnboardingPage() {
   const companyId = activeCompany?.company_id ?? "";
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [taskFilter, setTaskFilter] = useState<TaskFilter>("all");
 
   const isRh =
     user?.role === "rh" ||
     user?.role === "admin" ||
     user?.role === "collaborateur_rh";
+
+  const isEmployeeView = !isRh;
 
   const {
     data: checklist,
@@ -178,24 +173,48 @@ export default function OnboardingPage() {
   const { data: employee } = useQuery({
     queryKey: ["employee-header", employeeId, companyId],
     queryFn: async () => {
-      const res = await apiClient.get<EmployeeHeader>(`/api/employees/${employeeId}`);
+      const res = await apiClient.get<OnboardingEmployeeHeader>(
+        `/api/employees/${employeeId}`,
+      );
       return res.data;
     },
     enabled: Boolean(employeeId && companyId && checklist),
   });
 
+  const hireDate = employee?.hire_date ?? null;
+
+  const filteredTasks = useMemo(() => {
+    if (!checklist) return [];
+    return filterTasks(checklist.tasks, taskFilter, hireDate);
+  }, [checklist, taskFilter, hireDate]);
+
   const byCategory = useMemo(
-    () => (checklist ? groupTasksByCategory(checklist.tasks) : new Map()),
-    [checklist],
+    () => groupTasksByCategory(filteredTasks),
+    [filteredTasks],
+  );
+
+  const taskStats = useMemo(
+    () => (checklist ? countTaskStats(checklist.tasks, hireDate) : { todo: 0, overdue: 0, done: 0 }),
+    [checklist, hireDate],
+  );
+
+  const timelineMilestones = useMemo(
+    () => (checklist ? buildTimelineMilestones(checklist.tasks, hireDate) : []),
+    [checklist, hireDate],
   );
 
   const completeMut = useMutation({
     mutationFn: (taskId: string) => completeTask(employeeId!, taskId, companyId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["onboarding", employeeId, companyId] });
+      queryClient.invalidateQueries({ queryKey: ["onboarding", "hub", companyId] });
     },
     onError: () => {
-      toast({ title: "Erreur", description: "Impossible de valider la tâche.", variant: "destructive" });
+      toast({
+        title: "Erreur",
+        description: "Impossible de valider la tâche.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -203,11 +222,23 @@ export default function OnboardingPage() {
     mutationFn: (taskId: string) => uncompleteTask(employeeId!, taskId, companyId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["onboarding", employeeId, companyId] });
+      queryClient.invalidateQueries({ queryKey: ["onboarding", "hub", companyId] });
     },
     onError: () => {
-      toast({ title: "Erreur", description: "Impossible de réinitialiser la tâche.", variant: "destructive" });
+      toast({
+        title: "Erreur",
+        description: "Impossible de réinitialiser la tâche.",
+        variant: "destructive",
+      });
     },
   });
+
+  const toggling = completeMut.isPending || uncompleteMut.isPending;
+
+  const handleTaskToggle = (taskId: string, checked: boolean) => {
+    if (checked) completeMut.mutate(taskId);
+    else uncompleteMut.mutate(taskId);
+  };
 
   if (!employeeId) {
     return (
@@ -242,7 +273,7 @@ export default function OnboardingPage() {
     const message =
       detail ??
       (status === 404
-        ? "Cette checklist n’existe pas ou vous n’y avez pas accès."
+        ? "Cette checklist n'existe pas ou vous n'y avez pas accès."
         : status === 403
           ? "Accès refusé à cette checklist."
           : "Impossible de charger la checklist (réseau ou serveur). Réessayez dans un instant.");
@@ -269,9 +300,15 @@ export default function OnboardingPage() {
                   "Réessayer"
                 )}
               </Button>
-              <Button variant="outline" asChild>
-                <Link to="/recruitment">Retour au recrutement</Link>
-              </Button>
+              {isRh ? (
+                <Button variant="outline" asChild>
+                  <Link to="/onboarding">Tous les onboardings</Link>
+                </Button>
+              ) : (
+                <Button variant="outline" asChild>
+                  <Link to="/employee/formation">Retour à Ma formation</Link>
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -282,112 +319,139 @@ export default function OnboardingPage() {
   const fullName = employee
     ? `${employee.first_name} ${employee.last_name}`.trim()
     : "Salarié";
-  const jobTitle = employee?.job_title;
+  const metaLine = employee ? formatEmployeeMetaLine(employee) : null;
+  const pageTitle = isEmployeeView ? "Mon parcours d'intégration" : fullName;
 
   return (
-    <div className="space-y-6 p-6 max-w-4xl mx-auto pb-12">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+    <div className="space-y-6 p-6 max-w-4xl mx-auto pb-12 print:p-4">
+      {isRh ? (
+        <div className="print:hidden">
+          <Button variant="ghost" size="sm" className="-ml-2 h-8 text-muted-foreground" asChild>
+            <Link to="/onboarding">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Tous les onboardings
+            </Link>
+          </Button>
+        </div>
+      ) : null}
+
+      {isEmployeeView ? (
+        <Alert className="print:hidden border-primary/20 bg-primary/5">
+          <AlertDescription className="text-sm leading-relaxed">
+            Vous voyez ici toutes les étapes prévues pour votre intégration. Certaines actions
+            sont réalisées par les équipes RH, IT ou votre manager — vous pouvez suivre
+            l&apos;avancement sans les modifier.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between print:block">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{fullName}</h1>
-          {jobTitle ? (
-            <p className="text-muted-foreground text-sm mt-1">{jobTitle}</p>
+          <h1 className="text-2xl font-bold tracking-tight">{pageTitle}</h1>
+          {!isEmployeeView && employee?.job_title ? (
+            <p className="text-muted-foreground text-sm mt-1">{employee.job_title}</p>
+          ) : null}
+          {metaLine ? (
+            <p className="text-xs text-muted-foreground mt-2 leading-relaxed max-w-2xl">
+              {metaLine}
+            </p>
           ) : null}
         </div>
-        {checklist.completed_at ? (
-          <Badge className="bg-emerald-600 hover:bg-emerald-600 shrink-0 w-fit">Terminé 🎉</Badge>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2 shrink-0 print:hidden">
+          {checklist.completed_at ? (
+            <Badge className="bg-emerald-600 hover:bg-emerald-600">Terminé</Badge>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => window.print()}
+          >
+            <Printer className="mr-2 h-4 w-4" />
+            Imprimer
+          </Button>
+        </div>
       </div>
 
-      <Card>
+      <Card className="print:shadow-none print:border">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Progression globale</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-4">
+          <OnboardingKpiBand stats={taskStats} />
+          <OnboardingTimeline milestones={timelineMilestones} />
           <Progress value={checklist.progress_pct} className="h-2" />
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground tabular-nums">
             {checklist.nb_completed} / {checklist.nb_total} tâches complétées (
             {checklist.progress_pct.toFixed(0)}%)
           </p>
         </CardContent>
       </Card>
 
+      <div className="print:hidden">
+        <ToggleGroup
+          type="single"
+          value={taskFilter}
+          onValueChange={(v) => {
+            if (v) setTaskFilter(v as TaskFilter);
+          }}
+          className="flex flex-wrap justify-start"
+        >
+          <ToggleGroupItem value="all">Toutes</ToggleGroupItem>
+          <ToggleGroupItem value="todo">À faire</ToggleGroupItem>
+          <ToggleGroupItem value="overdue">En retard</ToggleGroupItem>
+          <ToggleGroupItem value="done">Faites</ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+
+      {filteredTasks.length === 0 && taskFilter !== "all" ? (
+        <p className="text-sm text-muted-foreground print:hidden">
+          Aucune tâche ne correspond à ce filtre.
+        </p>
+      ) : null}
+
       {CATEGORY_ORDER.map((cat) => {
         const tasks = byCategory.get(cat);
         if (!tasks?.length) return null;
+        const sorted = sortTasksByUrgency(tasks, hireDate);
         const meta = CATEGORY_META[cat] ?? { label: cat, icon: FileText };
         const Icon = meta.icon;
         const done = tasks.filter((t) => t.is_completed).length;
         return (
-          <section key={cat} className="space-y-3">
+          <section key={cat} className="space-y-3 print:break-inside-avoid-page">
             <h2 className="text-sm font-semibold flex items-center gap-2 border-b pb-2">
               <Icon className="h-4 w-4 text-muted-foreground" />
               {meta.label}{" "}
-              <span className="text-muted-foreground font-normal">
+              <span className="text-muted-foreground font-normal tabular-nums">
                 {done}/{tasks.length}
               </span>
             </h2>
             <ul className="space-y-2">
-              {tasks.map((t) => (
-                <li
+              {sorted.map((t) => (
+                <OnboardingTaskItem
                   key={t.id}
-                  className="flex gap-3 rounded-lg border bg-card p-3 text-sm items-start"
-                >
-                  {isRh ? (
-                    <Checkbox
-                      checked={t.is_completed}
-                      disabled={completeMut.isPending || uncompleteMut.isPending}
-                      onCheckedChange={(v) => {
-                        if (v === true) completeMut.mutate(t.id);
-                        else if (v === false) uncompleteMut.mutate(t.id);
-                      }}
-                      className="mt-0.5"
-                      aria-label={t.title}
-                    />
-                  ) : (
-                    <span
-                      className={cn(
-                        "mt-0.5 h-4 w-4 rounded border flex-shrink-0 flex items-center justify-center text-[10px]",
-                        t.is_completed ? "bg-primary text-primary-foreground border-primary" : "border-muted",
-                      )}
-                    >
-                      {t.is_completed ? "✓" : ""}
-                    </span>
-                  )}
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={cn(
-                          "font-medium",
-                          t.is_completed && "line-through text-muted-foreground",
-                        )}
-                      >
-                        {t.title}
-                      </span>
-                      {t.due_days != null && t.due_days !== undefined ? (
-                        <Badge variant="outline" className="text-[10px] h-5">
-                          J+{t.due_days}
-                        </Badge>
-                      ) : null}
-                    </div>
-                    {t.description ? (
-                      <p className="text-xs text-muted-foreground">{t.description}</p>
-                    ) : null}
-                    {t.is_completed && t.completed_at ? (
-                      <p className="text-[11px] text-muted-foreground">
-                        Complété le{" "}
-                        {new Date(t.completed_at).toLocaleString("fr-FR", {
-                          dateStyle: "short",
-                          timeStyle: "short",
-                        })}
-                      </p>
-                    ) : null}
-                  </div>
-                </li>
+                  task={t}
+                  employeeId={employeeId}
+                  hireDate={hireDate}
+                  isRh={isRh}
+                  onToggle={handleTaskToggle}
+                  toggling={toggling}
+                />
               ))}
             </ul>
           </section>
         );
       })}
+
+      {checklist.created_at ? (
+        <p className="text-[11px] text-muted-foreground text-center pt-4 border-t">
+          Checklist créée le{" "}
+          {new Date(checklist.created_at).toLocaleString("fr-FR", {
+            dateStyle: "long",
+            timeStyle: "short",
+          })}
+        </p>
+      ) : null}
     </div>
   );
 }

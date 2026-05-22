@@ -15,7 +15,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SaisieModal } from "@/components/SaisieModal";
-import { Download, Calendar as CalendarIcon, FileText, Loader2, ArrowLeft, Save, ClipboardEdit, ChevronLeft, ChevronRight, UserPlus, Grid3x3, CalendarDays, Edit, MessageSquare, Play, CheckCircle, FileText as FileTextIcon, FileDown, Eye, TrendingUp, Plus, Trash2, ArrowRight, Stethoscope, Calculator } from "lucide-react";
+import { Download, Calendar as CalendarIcon, FileText, Loader2, ArrowLeft, Save, ClipboardEdit, ChevronLeft, ChevronRight, UserPlus, Grid3x3, CalendarDays, Edit, MessageSquare, Play, CheckCircle, FileText as FileTextIcon, FileDown, Eye, TrendingUp, Plus, Trash2, ArrowRight, Stethoscope, Calculator, Copy, Award, ClipboardList } from "lucide-react";
+import { isRecentHire } from "@/lib/onboardingUtils";
+import { CalendarKpiBand } from "@/components/employee-detail/CalendarKpiBand";
+import { CalendarAbsencesHint } from "@/components/employee-detail/CalendarAbsencesHint";
+import { computeMonthStats } from "@/lib/calendarStats";
+import {
+  loadSavedWeekTemplates,
+  saveWeekTemplate,
+  type SavedWeekTemplate,
+} from "@/lib/weekTemplateStorage";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"; // prettier-ignore
 import * as saisiesApi from "@/api/saisies"; // ✅ On importe le nouveau type
 import { useCalendar, WeekTemplate } from "@/hooks/useCalendar"; // ✅ On importe le nouveau type
@@ -30,15 +40,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ResidencePermitBadge } from "@/components/ResidencePermitBadge";
-import { AnnualReviewBadge } from "@/components/AnnualReviewBadge";
-import * as annualReviewsApi from "@/api/annualReviews";
+import {
+  EmployeeDetailAnnualReviewsTab,
+  annualReviewsEmployeeQueryKey,
+} from "@/components/employee-detail/EmployeeDetailAnnualReviewsTab";
+import { getEmployeeAnnualReviews } from "@/api/annualReviews";
+import { hasAnnualReviewTabAlert } from "@/lib/annualReviewLabels";
 import * as collectiveAgreementsApi from "@/api/collectiveAgreements";
 import { PromotionModal } from "@/components/PromotionModal";
 import { PromotionBadge } from "@/components/PromotionBadge";
 import { EmployeeCSEBlock } from "@/components/EmployeeCSEBlock";
 import { getEmployeePromotions } from "@/api/promotions";
 import type { PromotionListItem } from "@/api/promotions";
-import { getMedicalSettings, getObligationsForEmployee, type ObligationListItem } from "@/api/medicalFollowUp";
+import { getMedicalSettings, getObligationsForEmployee } from "@/api/medicalFollowUp";
+import {
+  EmployeeDetailMedicalTab,
+  medicalEmployeeQueryKey,
+} from "@/components/employee-detail/EmployeeDetailMedicalTab";
+import { hasMedicalOverdue } from "@/lib/medicalFollowUpLabels";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { assignEmployeeTeam, getTeams } from "@/api/teams";
 import { generateDocument } from "@/api/documents";
@@ -60,14 +79,14 @@ import {
 } from "@/api/augmentations";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
 
 const TAB_AUGMENTATIONS_PROMOTIONS = "augmentations-promotions";
 
-function normalizeEmployeeDetailTab(tabParam: string | null | undefined, fallback = "calendrier"): string {
+function normalizeEmployeeDetailTab(tabParam: string | null | undefined, fallback = "documents"): string {
   const tab = tabParam ?? fallback;
   if (tab === "bulletins") return "documents";
   if (tab === "augmentation" || tab === "promotions") return TAB_AUGMENTATIONS_PROMOTIONS;
+  if (tab === "suivi_medical" || tab === "suivi-medical" || tab === "medical") return "suivi_medical";
   return tab;
 }
 
@@ -140,18 +159,34 @@ interface WeekTemplateFormProps {
   setTemplate: React.Dispatch<React.SetStateAction<WeekTemplate>>;
   onApply: () => void;
   onApplyAndSave: () => void;
+  onCopyPreviousMonth: () => void;
   isSaving: boolean;
+  isCopyingPrevMonth?: boolean;
   isForfaitJour?: boolean;
+  companyId: string;
+  daysInMonth: number;
 }
 
-function WeekTemplateForm({ 
-  template, 
-  setTemplate, 
-  onApply, 
-  onApplyAndSave, 
+function WeekTemplateForm({
+  template,
+  setTemplate,
+  onApply,
+  onApplyAndSave,
+  onCopyPreviousMonth,
   isSaving,
-  isForfaitJour = false
+  isCopyingPrevMonth = false,
+  isForfaitJour = false,
+  companyId,
+  daysInMonth,
 }: WeekTemplateFormProps) {
+  const [savedTemplates, setSavedTemplates] = useState<SavedWeekTemplate[]>(() =>
+    loadSavedWeekTemplates(companyId)
+  );
+  const [saveTemplateName, setSaveTemplateName] = useState("");
+
+  useEffect(() => {
+    setSavedTemplates(loadSavedWeekTemplates(companyId));
+  }, [companyId]);
   const days = [
     { label: 'Lundi', key: 1 }, { label: 'Mardi', key: 2 }, { label: 'Mercredi', key: 3 },
     { label: 'Jeudi', key: 4 }, { label: 'Vendredi', key: 5 },
@@ -212,19 +247,86 @@ function WeekTemplateForm({
           ))}
         </div>
         
-        {/* ✅ NOUVEAU : Bouton "Appliquer et Enregistrer" */}
-        <Button 
-          onClick={onApplyAndSave}
-          disabled={isSaving}
-          className="w-full md:w-auto mt-4 md:mt-0 bg-green-600 text-white hover:bg-green-700"
-        >
-          {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
-          Appliquer et Enregistrer
-        </Button>
-        <Button onClick={onApply} disabled={isSaving} className="w-full md:w-auto mt-4 md:mt-0">
-          <ArrowRight className="mr-2 h-4 w-4"/>
-          Appliquer au mois
-        </Button>
+        <div className="flex flex-col gap-2 w-full md:w-auto mt-4 md:mt-0">
+          <Button onClick={onApply} disabled={isSaving} className="w-full">
+            <ArrowRight className="mr-2 h-4 w-4" />
+            Appliquer au mois
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" disabled={isSaving} className="w-full">
+                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Appliquer et enregistrer
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Appliquer le modèle et enregistrer ?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Cela écrasera les valeurs prévues des jours ouvrés du mois ({daysInMonth} jours)
+                  et lancera immédiatement l&apos;enregistrement et le calcul paie.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Annuler</AlertDialogCancel>
+                <AlertDialogAction onClick={onApplyAndSave}>Confirmer</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <Button
+            variant="secondary"
+            onClick={onCopyPreviousMonth}
+            disabled={isSaving || isCopyingPrevMonth}
+            className="w-full"
+          >
+            {isCopyingPrevMonth ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Copy className="mr-2 h-4 w-4" />
+            )}
+            Copier le mois précédent
+          </Button>
+        </div>
+      </CardContent>
+      <CardContent className="pt-0 border-t">
+        <div className="flex flex-wrap items-end gap-2">
+          {savedTemplates.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {savedTemplates.map((st) => (
+                <Button
+                  key={st.name}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => setTemplate(st.template)}
+                >
+                  {st.name}
+                </Button>
+              ))}
+            </div>
+          )}
+          <Input
+            className="h-8 w-36 text-xs"
+            placeholder="Nom du modèle"
+            value={saveTemplateName}
+            onChange={(e) => setSaveTemplateName(e.target.value)}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs"
+            disabled={!saveTemplateName.trim()}
+            onClick={() => {
+              setSavedTemplates(saveWeekTemplate(companyId, saveTemplateName, template));
+              setSaveTemplateName("");
+              toast({ title: "Modèle enregistré", description: "Jusqu'à 3 modèles par société." });
+            }}
+          >
+            Mémoriser
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -238,17 +340,40 @@ interface BulkActionPanelProps {
   onBulkUpdate: (data: Partial<Omit<DayData, 'jour'>>) => void;
   updateSelection: (mode: 'all' | 'weekdays' | 'none') => void;
   onBulkUpdateAndSave: (data: Partial<Omit<DayData, 'jour'>>) => void;
+  onBulkCopyPlannedToActual: () => void;
   isSaving: boolean;
   isForfaitJour?: boolean;
 }
 
-function BulkActionPanel({ 
-  selectedCount, 
-  onBulkUpdate, 
+function buildBulkPreview(
+  selectedCount: number,
+  type: string,
+  plannedHours: string,
+  actualHours: string,
+  actualHoursForfaitJour: string,
+  isForfaitJour: boolean
+): string {
+  const parts: string[] = [`${selectedCount} jour${selectedCount > 1 ? 's' : ''}`];
+  if (type) parts.push(`Type → ${type}`);
+  if (isForfaitJour) {
+    if (plannedHours) parts.push(`J. prévus → ${plannedHours === '1' ? 'oui' : 'non'}`);
+    if (actualHoursForfaitJour)
+      parts.push(`J. travaillés → ${actualHoursForfaitJour === '1' ? 'oui' : 'non'}`);
+  } else {
+    if (plannedHours) parts.push(`H. prévues → ${plannedHours}`);
+    if (actualHours) parts.push(`H. faites → ${actualHours}`);
+  }
+  return parts.join(' • ');
+}
+
+function BulkActionPanel({
+  selectedCount,
+  onBulkUpdate,
   updateSelection,
-  onBulkUpdateAndSave, 
+  onBulkUpdateAndSave,
+  onBulkCopyPlannedToActual,
   isSaving,
-  isForfaitJour = false
+  isForfaitJour = false,
 }: BulkActionPanelProps) {
   const [type, setType] = useState('');
   const [plannedHours, setPlannedHours] = useState('');
@@ -263,9 +388,6 @@ function BulkActionPanel({
 
     if (type) {
       updateData.type = type;
-      if (type !== 'travail') {
-        updateData.heures_prevues = null;
-      }
       hasUpdate = true;
     }
 
@@ -318,10 +440,23 @@ function BulkActionPanel({
     }
   };
 
+  const preview = buildBulkPreview(
+    selectedCount,
+    type,
+    plannedHours,
+    actualHours,
+    actualHoursForfaitJour,
+    isForfaitJour
+  );
+
+  const hasFieldChanges =
+    Boolean(type) ||
+    (isForfaitJour ? Boolean(plannedHours || actualHoursForfaitJour) : Boolean(plannedHours || actualHours));
+
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-card p-3 border rounded-lg shadow-2xl flex items-center gap-4 animate-in fade-in-90 slide-in-from-bottom-10">
-      
-      {/* --- ✅ DÉBUT DE LA MODIFICATION DE L'UI --- */}
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-card p-3 border rounded-lg shadow-2xl flex flex-col gap-2 max-w-[95vw] animate-in fade-in-90 slide-in-from-bottom-10">
+      <p className="text-xs text-muted-foreground px-1">{preview}</p>
+      <div className="flex flex-wrap items-center gap-3">
       <div className="flex flex-col pr-4 border-r">
         <p className="text-sm font-medium">{selectedCount} jours sélectionnés</p>
         <div className="flex items-center gap-1.5 mt-1">
@@ -349,9 +484,32 @@ function BulkActionPanel({
             <SelectItem value="conge">Congé</SelectItem>
             <SelectItem value="ferie">Férié</SelectItem>
             <SelectItem value="arret_maladie">Arrêt Maladie</SelectItem>
-            <SelectItem value="weekend">Weekend</SelectItem>
           </SelectContent>
         </Select>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs"
+          onClick={() => {
+            setType("conge");
+            setPlannedHours(isForfaitJour ? "0" : "0");
+          }}
+        >
+          Tout congé
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs"
+          onClick={() => {
+            setType("travail");
+            setPlannedHours(isForfaitJour ? "1" : "8");
+          }}
+        >
+          {isForfaitJour ? "Tout travail" : "Travail 8 h"}
+        </Button>
         <Label htmlFor="bulk-planned-hours" className="text-xs">
           {isForfaitJour ? "J. prévus:" : "H. prévues:"}
         </Label>
@@ -392,21 +550,47 @@ function BulkActionPanel({
         )}
       </div>
 
-      <Button 
-        size="sm" 
-        onClick={() => buildUpdateDataAndCall(onBulkUpdateAndSave)}
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        onClick={onBulkCopyPlannedToActual}
         disabled={isSaving}
-        className="bg-green-600 text-white hover:bg-green-700"
       >
-        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
-        Appliquer et Enregistrer
+        <Copy className="mr-1 h-3.5 w-3.5" />
+        Prévu → réel
       </Button>
-      <Button size="sm" onClick={() => buildUpdateDataAndCall(onBulkUpdate)} disabled={isSaving}>
+      <Button
+        size="sm"
+        onClick={() => buildUpdateDataAndCall(onBulkUpdate)}
+        disabled={isSaving || !hasFieldChanges}
+      >
         Appliquer
       </Button>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button size="sm" variant="outline" disabled={isSaving || !hasFieldChanges}>
+            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Appliquer et enregistrer
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Modifier {selectedCount} jours et enregistrer ?</AlertDialogTitle>
+            <AlertDialogDescription>{preview}. L&apos;enregistrement lancera le calcul paie.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={() => buildUpdateDataAndCall(onBulkUpdateAndSave)}>
+              Confirmer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <Button size="sm" variant="ghost" onClick={() => updateSelection('none')} disabled={isSaving}>
         Annuler
       </Button>
+      </div>
     </div>
   );
 }
@@ -420,9 +604,16 @@ type ActualHoursData = { jour: number; heures_faites: number | null };
 interface YearCalendarViewProps {
   year: number;
   employeeId: string;
+  isForfaitJour?: boolean;
+  onMonthClick?: (month: number) => void;
 }
 
-function YearCalendarView({ year, employeeId }: YearCalendarViewProps) {
+function YearCalendarView({
+  year,
+  employeeId,
+  isForfaitJour = false,
+  onMonthClick,
+}: YearCalendarViewProps) {
   const [yearData, setYearData] = useState<{
     [month: number]: {
       planned: PlannedEventData[];
@@ -573,8 +764,25 @@ function YearCalendarView({ year, employeeId }: YearCalendarViewProps) {
       );
     }
 
+    const monthStats = computeMonthStats(monthData.planned, monthData.actual, isForfaitJour);
+
     return (
-      <Card key={monthIndex} className="p-3">
+      <Card
+        key={monthIndex}
+        className={cn(
+          "p-3 transition-colors",
+          onMonthClick && "cursor-pointer hover:border-primary/50 hover:shadow-md"
+        )}
+        role={onMonthClick ? "button" : undefined}
+        tabIndex={onMonthClick ? 0 : undefined}
+        onClick={() => onMonthClick?.(month)}
+        onKeyDown={(e) => {
+          if (onMonthClick && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault();
+            onMonthClick(month);
+          }
+        }}
+      >
         <CardTitle className="text-sm font-semibold mb-2 text-center">
           {monthNames[monthIndex]}
         </CardTitle>
@@ -586,9 +794,44 @@ function YearCalendarView({ year, employeeId }: YearCalendarViewProps) {
         <div className="grid grid-cols-7 gap-0.5">
           {days}
         </div>
+        <p className="mt-2 text-[10px] text-center text-muted-foreground leading-snug">
+          Travail : {monthStats.joursTravailles} j • Congés : {monthStats.conges} j • Arrêt : {monthStats.arrets} j
+          {!isForfaitJour && (
+            <>
+              <br />
+              {monthStats.heuresPrevues.toFixed(0)} h prév. / {monthStats.heuresFaites.toFixed(0)} h faites
+            </>
+          )}
+        </p>
       </Card>
     );
   };
+
+  const yearTotals = useMemo(() => {
+    let heuresPrevues = 0;
+    let heuresFaites = 0;
+    let conges = 0;
+    let arrets = 0;
+    let feriels = 0;
+
+    Object.values(yearData).forEach((monthData) => {
+      const stats = computeMonthStats(monthData.planned, monthData.actual, isForfaitJour);
+      heuresPrevues += stats.heuresPrevues;
+      heuresFaites += stats.heuresFaites;
+      conges += stats.conges;
+      arrets += stats.arrets;
+      feriels += stats.feriels;
+    });
+
+    return {
+      heuresPrevues,
+      heuresFaites,
+      ecart: heuresFaites - heuresPrevues,
+      conges,
+      arrets,
+      feriels,
+    };
+  }, [yearData, isForfaitJour]);
 
   if (isLoadingYear) {
     return (
@@ -600,6 +843,51 @@ function YearCalendarView({ year, employeeId }: YearCalendarViewProps) {
 
   return (
     <div className="space-y-4 p-4">
+      <Card className="p-4">
+        <CardTitle className="text-sm font-semibold mb-2">Synthèse {year}</CardTitle>
+        <div className="flex flex-wrap gap-4 text-sm">
+          {isForfaitJour ? (
+            <>
+              <span>
+                <span className="text-muted-foreground">Jours prévus (année) :</span>{' '}
+                <strong>{Object.values(yearData).reduce((a, m) => a + computeMonthStats(m.planned, m.actual, true).joursPrevus, 0)}</strong>
+              </span>
+              <span>
+                <span className="text-muted-foreground">Jours travaillés :</span>{' '}
+                <strong>{Object.values(yearData).reduce((a, m) => a + computeMonthStats(m.planned, m.actual, true).joursTravaillesForfait, 0)}</strong>
+              </span>
+            </>
+          ) : (
+            <>
+              <span>
+                <span className="text-muted-foreground">H. prévues :</span>{' '}
+                <strong>{yearTotals.heuresPrevues.toFixed(1)} h</strong>
+              </span>
+              <span>
+                <span className="text-muted-foreground">H. faites :</span>{' '}
+                <strong>{yearTotals.heuresFaites.toFixed(1)} h</strong>
+              </span>
+              <span>
+                <span className="text-muted-foreground">Écart :</span>{' '}
+                <strong className={yearTotals.ecart < 0 ? 'text-destructive' : ''}>
+                  {yearTotals.ecart >= 0 ? '+' : ''}
+                  {yearTotals.ecart.toFixed(1)} h
+                </strong>
+              </span>
+            </>
+          )}
+          <span>
+            <span className="text-muted-foreground">Congés :</span> <strong>{yearTotals.conges} j</strong>
+          </span>
+          <span>
+            <span className="text-muted-foreground">Arrêts :</span> <strong>{yearTotals.arrets} j</strong>
+          </span>
+          <span>
+            <span className="text-muted-foreground">Fériés :</span> <strong>{yearTotals.feriels} j</strong>
+          </span>
+        </div>
+      </Card>
+
       {/* Légende */}
       <Card className="p-4 bg-muted/40">
         <div className="flex flex-wrap gap-x-6 gap-y-2 justify-center text-sm">
@@ -676,6 +964,11 @@ export default function EmployeeDetail() {
     bulkUpdateDaysAndSave,
     updateSelection,
     isForfaitJour,
+    monthCompletionStatus,
+    copyPreviousMonthPlanned,
+    copyPlannedToActualForDay,
+    bulkCopyPlannedToActual,
+    isCopyingPrevMonth,
   } = useCalendar(employeeId, employeeStatut);
   const [credentialsPdfUrl, setCredentialsPdfUrl] = useState<string | null>(null);
   const [isPageLoading, setIsPageLoading] = useState(true);
@@ -736,19 +1029,10 @@ export default function EmployeeDetail() {
     ),
   });
 
-  // Entretiens
-  const [annualReviews, setAnnualReviews] = useState<import("@/api/annualReviews").AnnualReview[]>([]);
-  const [planningModalOpen, setPlanningModalOpen] = useState(false);
-  const [planningDate, setPlanningDate] = useState("");
-  const [editingReview, setEditingReview] = useState<import("@/api/annualReviews").AnnualReview | null>(null);
-  const [editStatus, setEditStatus] = useState<string>("");
-  const [editPlannedDate, setEditPlannedDate] = useState<string>("");
-  const [editCompletedDate, setEditCompletedDate] = useState<string>("");
   const [companyAgreements, setCompanyAgreements] = useState<collectiveAgreementsApi.CompanyCollectiveAgreementWithDetails[]>([]);
   const [collectiveAgreementId, setCollectiveAgreementId] = useState<string | null>(null);
   const [isSavingCC, setIsSavingCC] = useState(false);
 
-  const [deletingReviewId, setDeletingReviewId] = useState<string | null>(null);
   const [draftTeamId, setDraftTeamId] = useState<string>("__none__");
   const [savingTeam, setSavingTeam] = useState(false);
 
@@ -884,49 +1168,60 @@ export default function EmployeeDetail() {
 
   // Promotions
   const [promotions, setPromotions] = useState<PromotionListItem[]>([]);
+  const [promotionsLoading, setPromotionsLoading] = useState(false);
   const [promotionModalOpen, setPromotionModalOpen] = useState(false);
 
   // Suivi médical (module optionnel)
-  const [medicalModuleEnabled, setMedicalModuleEnabled] = useState(false);
-  const [medicalObligations, setMedicalObligations] = useState<ObligationListItem[]>([]);
+  const medicalSettingsQuery = useQuery({
+    queryKey: ["medical-follow-up", "settings", "employee-detail"],
+    queryFn: getMedicalSettings,
+  });
+  const medicalModuleEnabled = medicalSettingsQuery.data?.enabled === true;
 
-  const fetchAnnualReviews = useCallback(async () => {
+  const medicalTabBadgeQuery = useQuery({
+    queryKey: employeeId ? medicalEmployeeQueryKey(employeeId) : ["medical-follow-up", "employee", "none"],
+    queryFn: () => getObligationsForEmployee(employeeId!),
+    enabled: medicalModuleEnabled && !!employeeId,
+    staleTime: 60_000,
+  });
+  const medicalTabHasOverdue = hasMedicalOverdue(medicalTabBadgeQuery.data ?? []);
+
+  const annualReviewsTabBadgeQuery = useQuery({
+    queryKey: employeeId ? annualReviewsEmployeeQueryKey(employeeId) : ["annual-reviews", "employee", "none"],
+    queryFn: async () => {
+      const res = await getEmployeeAnnualReviews(employeeId!);
+      return res.data ?? [];
+    },
+    enabled: !!employeeId,
+    staleTime: 60_000,
+  });
+  const annualReviewTabHasAlert = hasAnnualReviewTabAlert(annualReviewsTabBadgeQuery.data ?? []);
+
+  const refreshEmployeeSnapshot = useCallback(async () => {
     if (!employeeId) return;
-    try {
-      const res = await annualReviewsApi.getEmployeeAnnualReviews(employeeId);
-      setAnnualReviews(res.data || []);
-    } catch (err) {
-      console.error("Erreur chargement entretiens", err);
-    }
-  }, [employeeId]);
-
-  useEffect(() => {
-    if (employeeId) fetchAnnualReviews();
-  }, [employeeId, fetchAnnualReviews]);
+    const employeeRes = await apiClient.get<Employee>(`/api/employees/${employeeId}`);
+    setEmployee(employeeRes.data);
+    evaluateContractualAfterPersist(employeeRes.data);
+  }, [employeeId, evaluateContractualAfterPersist]);
 
   // Charger les promotions de l'employé
   const fetchPromotions = useCallback(async () => {
     if (!employeeId) return;
+    setPromotionsLoading(true);
     try {
       const res = await getEmployeePromotions(employeeId);
       setPromotions(res.data || []);
     } catch (err) {
       console.error("Erreur chargement promotions", err);
       setPromotions([]);
+    } finally {
+      setPromotionsLoading(false);
     }
   }, [employeeId]);
 
   useEffect(() => {
     if (employeeId) fetchPromotions();
   }, [employeeId, fetchPromotions]);
-
-  useEffect(() => {
-    getMedicalSettings().then((r) => setMedicalModuleEnabled(r.enabled)).catch(() => setMedicalModuleEnabled(false));
-  }, []);
-  useEffect(() => {
-    if (!medicalModuleEnabled || !employeeId) return;
-    getObligationsForEmployee(employeeId).then(setMedicalObligations).catch(() => setMedicalObligations([]));
-  }, [medicalModuleEnabled, employeeId]);
 
   useEffect(() => {
     collectiveAgreementsApi.getMyCompanyAgreements()
@@ -954,154 +1249,6 @@ export default function EmployeeDetail() {
       toast({ title: "Erreur", description: msg, variant: "destructive" });
     } finally {
       setIsSavingCC(false);
-    }
-  };
-
-  const handlePlanAnnualReview = async () => {
-    if (!employeeId) return;
-    try {
-      // Calculer l'année automatiquement : depuis la date prévue ou année courante
-      const year = planningDate 
-        ? new Date(planningDate).getFullYear()
-        : new Date().getFullYear();
-      
-      await annualReviewsApi.createAnnualReview({
-        employee_id: employeeId,
-        year: year,
-        planned_date: planningDate ? planningDate : null,
-      });
-      toast({ title: "Entretien planifié", description: "L'entretien a été créé." });
-      setPlanningModalOpen(false);
-      setPlanningDate("");
-      fetchAnnualReviews();
-      // Rafraîchir l'employé pour mettre à jour le badge
-      const employeeRes = await apiClient.get<Employee>(`/api/employees/${employeeId}`);
-      setEmployee(employeeRes.data);
-      evaluateContractualAfterPersist(employeeRes.data);
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Erreur";
-      toast({ title: "Erreur", description: msg, variant: "destructive" });
-    }
-  };
-
-  const handleEditReview = (review: import("@/api/annualReviews").AnnualReview) => {
-    setEditingReview(review);
-    setEditStatus(review.status);
-    setEditPlannedDate(review.planned_date ? review.planned_date.split('T')[0] : "");
-    setEditCompletedDate(review.completed_date ? review.completed_date.split('T')[0] : "");
-  };
-
-  const handleUpdateReview = async () => {
-    if (!editingReview) return;
-    try {
-      await annualReviewsApi.updateAnnualReview(editingReview.id, {
-        status: editStatus as import("@/api/annualReviews").AnnualReviewStatus,
-        planned_date: editPlannedDate || null,
-        completed_date: editCompletedDate || null,
-      });
-      toast({ title: "Entretien mis à jour", description: "Les modifications ont été enregistrées." });
-      setEditingReview(null);
-      setEditStatus("");
-      setEditPlannedDate("");
-      setEditCompletedDate("");
-      fetchAnnualReviews();
-      // Rafraîchir l'employé pour mettre à jour le badge
-      if (employeeId) {
-        const employeeRes = await apiClient.get<Employee>(`/api/employees/${employeeId}`);
-        setEmployee(employeeRes.data);
-        evaluateContractualAfterPersist(employeeRes.data);
-      }
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Erreur";
-      toast({ title: "Erreur", description: msg, variant: "destructive" });
-    }
-  };
-
-
-  const handleMarkCompleted = async (reviewId: string) => {
-    try {
-      await annualReviewsApi.markAsCompleted(reviewId);
-      toast({ title: "Entretien marqué comme réalisé", description: "Vous pouvez maintenant remplir la fiche." });
-      fetchAnnualReviews();
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Erreur";
-      toast({ title: "Erreur", description: msg, variant: "destructive" });
-    }
-  };
-
-  const handleViewPdf = async (reviewId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      const blob = await annualReviewsApi.downloadAnnualReviewPdf(reviewId);
-      const url = window.URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      // Ne pas révoquer immédiatement l'URL pour permettre l'ouverture dans un nouvel onglet
-      setTimeout(() => window.URL.revokeObjectURL(url), 100);
-    } catch (error: unknown) {
-      const detail =
-        error && typeof error === "object" && "response" in error
-          ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
-          : undefined;
-      toast({
-        title: "Erreur",
-        description:
-          typeof detail === "string" && detail ? detail : "Impossible d'ouvrir le PDF.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleDownloadPdf = async (reviewId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      const blob = await annualReviewsApi.downloadAnnualReviewPdf(reviewId);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `entretien_${reviewId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      toast({
-        title: "PDF téléchargé",
-        description: "Le PDF de l'entretien a été téléchargé avec succès.",
-      });
-    } catch (error: unknown) {
-      const detail =
-        error && typeof error === "object" && "response" in error
-          ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
-          : undefined;
-      toast({
-        title: "Erreur",
-        description:
-          typeof detail === "string" && detail ? detail : "Impossible de télécharger le PDF.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleDeleteAnnualReview = async (reviewId: string) => {
-    setDeletingReviewId(reviewId);
-    try {
-      await annualReviewsApi.deleteAnnualReview(reviewId);
-      toast({
-        title: "Entretien supprimé",
-        description: "L'entretien planifié a été supprimé.",
-      });
-      fetchAnnualReviews();
-      if (employeeId) {
-        const employeeRes = await apiClient.get<Employee>(`/api/employees/${employeeId}`);
-        setEmployee(employeeRes.data);
-        evaluateContractualAfterPersist(employeeRes.data);
-      }
-    } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-        "Impossible de supprimer l'entretien.";
-      toast({ title: "Erreur", description: msg, variant: "destructive" });
-    } finally {
-      setDeletingReviewId(null);
     }
   };
 
@@ -1351,6 +1498,14 @@ export default function EmployeeDetail() {
             <CardDescription>{employee.job_title}</CardDescription>
           </div>
           <div className="ml-auto flex gap-2">
+            {isRecentHire(employee.hire_date) ? (
+              <Button variant="outline" size="sm" asChild>
+                <Link to={`/onboarding/${employee.id}`}>
+                  <ClipboardList className="mr-2 h-4 w-4" />
+                  Voir l&apos;onboarding
+                </Link>
+              </Button>
+            ) : null}
             {credentialsPdfUrl && (
               <Button
                 variant="outline"
@@ -1500,21 +1655,57 @@ export default function EmployeeDetail() {
         />
       )}
       
-      <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="calendrier" className="w-full">
-        <TabsList className={cn("grid w-full", medicalModuleEnabled ? "grid-cols-6" : "grid-cols-5")}>
-          <TabsTrigger value="documents"><FileText className="mr-2 h-4 w-4"/>Documents</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="documents" className="w-full">
+        <TabsList
+          className={cn(
+            "grid h-auto min-h-10 w-full gap-0.5 p-1",
+            medicalModuleEnabled
+              ? "grid-cols-[minmax(0,0.9fr)_minmax(0,1.16fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.9fr)]"
+              : "grid-cols-[minmax(0,0.92fr)_minmax(0,1.2fr)_minmax(0,0.92fr)_minmax(0,0.92fr)_minmax(0,0.92fr)]",
+          )}
+        >
+          <TabsTrigger value="documents" className="px-2 py-1.5 text-[13px]">
+            <FileText className="mr-1.5 h-4 w-4 shrink-0" />
+            Documents
+          </TabsTrigger>
           <TabsTrigger
             value={TAB_AUGMENTATIONS_PROMOTIONS}
-            className="min-w-0 gap-1 px-1.5 text-xs leading-tight sm:px-2"
+            className="min-w-0 px-2 py-1.5 text-[13px] leading-snug"
             title="Augmentations et Promotions"
           >
-            <TrendingUp className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <TrendingUp className="mr-1.5 h-4 w-4 shrink-0" aria-hidden />
             <span className="whitespace-nowrap">Augmentations et Promotions</span>
           </TabsTrigger>
-          <TabsTrigger value="saisie"><ClipboardEdit className="mr-2 h-4 w-4"/>Primes et autres</TabsTrigger>
-          <TabsTrigger value="entretiens"><MessageSquare className="mr-2 h-4 w-4"/>Entretiens</TabsTrigger>
-          {medicalModuleEnabled && <TabsTrigger value="suivi_medical"><Stethoscope className="mr-2 h-4 w-4"/>Suivi médical</TabsTrigger>}
-          <TabsTrigger value="calendrier"><CalendarIcon className="mr-2 h-4 w-4"/>Calendrier</TabsTrigger>
+          <TabsTrigger value="saisie" className="px-2 py-1.5 text-[13px]">
+            <ClipboardEdit className="mr-1.5 h-4 w-4 shrink-0" />
+            Primes et autres
+          </TabsTrigger>
+          <TabsTrigger value="entretiens" className="relative gap-1.5 px-2 py-1.5 text-[13px]">
+            <MessageSquare className="h-4 w-4 shrink-0" aria-hidden />
+            Entretiens
+            {annualReviewTabHasAlert && (
+              <span
+                className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-amber-500"
+                aria-label="Entretien à traiter"
+              />
+            )}
+          </TabsTrigger>
+          {medicalModuleEnabled && (
+            <TabsTrigger value="suivi_medical" className="relative gap-1.5 px-2 py-1.5 text-[13px]">
+              <Stethoscope className="h-4 w-4 shrink-0" aria-hidden />
+              Suivi médical
+              {medicalTabHasOverdue && (
+                <span
+                  className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-destructive"
+                  aria-label="Visite en retard"
+                />
+              )}
+            </TabsTrigger>
+          )}
+          <TabsTrigger value="calendrier" className="px-2 py-1.5 text-[13px]">
+            <CalendarIcon className="mr-1.5 h-4 w-4 shrink-0" />
+            Calendrier
+          </TabsTrigger>
         </TabsList>
 
         {/* --- Onglet Documents (explorateur par dossiers) --- */}
@@ -1528,13 +1719,14 @@ export default function EmployeeDetail() {
           )}
         </TabsContent>
 
-        <TabsContent value={TAB_AUGMENTATIONS_PROMOTIONS} className="mt-4 space-y-8">
-          <div className="space-y-6">
+        <TabsContent value={TAB_AUGMENTATIONS_PROMOTIONS} className="mt-4">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-0">
+          <div className="space-y-6 min-w-0 lg:pr-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Calculator className="h-5 w-5 text-muted-foreground" />
-                Augmentation juste
+                Augmentation simple
               </CardTitle>
               <CardDescription>
                 Salaire brut mensuel :{" "}
@@ -1861,110 +2053,118 @@ export default function EmployeeDetail() {
           </Dialog>
           </div>
 
-          <Separator />
-
-          <div className="space-y-4">
+          <div className="space-y-6 min-w-0 lg:border-l-2 lg:border-muted-foreground/35 lg:pl-6">
           <Card>
-            <CardHeader className="flex flex-row justify-between items-center">
+            <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4">
               <div>
-                <CardTitle>Promotions</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Award className="h-5 w-5 text-muted-foreground" />
+                  Promotions
+                </CardTitle>
                 <CardDescription>
-                  Historique des promotions et évolutions de carrière de {employee.first_name} {employee.last_name}.
+                  Évolutions de poste, salaire ou statut pour {employee.first_name} {employee.last_name}.
                 </CardDescription>
               </div>
-              <Button onClick={() => setPromotionModalOpen(true)}>
+              <Button onClick={() => setPromotionModalOpen(true)} className="shrink-0">
                 <Plus className="mr-2 h-4 w-4" />
                 Nouvelle promotion
               </Button>
             </CardHeader>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Historique des promotions</CardTitle>
+              <CardDescription>
+                Promotions et évolutions de carrière enregistrées pour ce collaborateur.
+              </CardDescription>
+            </CardHeader>
             <CardContent>
-              {promotions.length === 0 ? (
-                <div className="text-center py-8">
-                  <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Aucune promotion enregistrée.
-                  </p>
-                  <Button onClick={() => setPromotionModalOpen(true)} variant="outline">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Créer une promotion
-                  </Button>
+              {promotionsLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : promotions.length > 0 ? (
+                <div className="w-full overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Évolution</TableHead>
+                        <TableHead>Date d&apos;effet</TableHead>
+                        <TableHead>Statut</TableHead>
+                        <TableHead className="w-[100px]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {promotions.map((promo) => {
+                        const evolutionText = [
+                          promo.new_job_title,
+                          promo.new_salary
+                            ? `${promo.new_salary.valeur.toLocaleString("fr-FR")} ${promo.new_salary.devise || "EUR"}`
+                            : null,
+                          promo.new_statut,
+                        ]
+                          .filter(Boolean)
+                          .join(" • ") || "—";
+
+                        return (
+                          <TableRow
+                            key={promo.id}
+                            className="cursor-pointer hover:bg-muted/50 transition-colors"
+                            onClick={() =>
+                              navigate(
+                                `/promotions/${promo.id}?returnTo=employee&employeeId=${employeeId}&tab=${TAB_AUGMENTATIONS_PROMOTIONS}`
+                              )
+                            }
+                          >
+                            <TableCell>
+                              <PromotionBadge
+                                type={promo.promotion_type}
+                                variant="type"
+                                compact
+                              />
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {evolutionText}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {formatDateFR(promo.effective_date)}
+                            </TableCell>
+                            <TableCell>
+                              <PromotionBadge status={promo.status} compact />
+                            </TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  navigate(
+                                    `/promotions/${promo.id}?returnTo=employee&employeeId=${employeeId}&tab=${TAB_AUGMENTATIONS_PROMOTIONS}`
+                                  )
+                                }
+                                className="h-8 w-8 p-0"
+                                title="Voir les détails"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Évolution</TableHead>
-                      <TableHead>Date d'effet</TableHead>
-                      <TableHead>Statut</TableHead>
-                      <TableHead className="w-[100px]">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {promotions.map((promo) => {
-                      const evolutionText = [
-                        promo.new_job_title,
-                        promo.new_salary
-                          ? `${promo.new_salary.valeur.toLocaleString("fr-FR")} ${promo.new_salary.devise || "EUR"}`
-                          : null,
-                        promo.new_statut,
-                      ]
-                        .filter(Boolean)
-                        .join(" • ") || "—";
-
-                      return (
-                        <TableRow
-                          key={promo.id}
-                          className="cursor-pointer hover:bg-muted/50 transition-colors"
-                          onClick={() =>
-                            navigate(
-                              `/promotions/${promo.id}?returnTo=employee&employeeId=${employeeId}&tab=${TAB_AUGMENTATIONS_PROMOTIONS}`
-                            )
-                          }
-                        >
-                          <TableCell>
-                            <PromotionBadge
-                              type={promo.promotion_type}
-                              variant="type"
-                              compact
-                            />
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {evolutionText}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {new Date(promo.effective_date).toLocaleDateString("fr-FR", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            })}
-                          </TableCell>
-                          <TableCell>
-                            <PromotionBadge status={promo.status} compact />
-                          </TableCell>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                navigate(
-                                  `/promotions/${promo.id}?returnTo=employee&employeeId=${employeeId}&tab=${TAB_AUGMENTATIONS_PROMOTIONS}`
-                                )
-                              }
-                              className="h-8 w-8 p-0"
-                              title="Voir les détails"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                <p className="text-sm text-muted-foreground py-6 text-center">
+                  Aucune promotion enregistrée.
+                </p>
               )}
             </CardContent>
           </Card>
+          </div>
           </div>
         </TabsContent>
 
@@ -2015,220 +2215,55 @@ export default function EmployeeDetail() {
         </TabsContent>
 
         <TabsContent value="entretiens" className="mt-4">
-          <Card>
-            <CardHeader className="flex flex-row justify-between items-center">
-              <div>
-                <CardTitle>Entretiens</CardTitle>
-                <CardDescription>Historique et suivi des entretiens de {employee.first_name} {employee.last_name}.</CardDescription>
-              </div>
-              <Button onClick={() => { setPlanningDate(""); setPlanningModalOpen(true); }}>
-                + Planifier un entretien
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {annualReviews.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4">Aucun entretien enregistré.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Statut</TableHead>
-                      <TableHead className="w-[100px]">PDF</TableHead>
-                      {canDeleteReview && (
-                        <TableHead className="w-[80px] text-right">Actions</TableHead>
-                      )}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {annualReviews.map((r) => {
-                      const displayDate = r.completed_date
-                        ? new Date(r.completed_date).toLocaleDateString("fr-FR")
-                        : r.planned_date
-                          ? new Date(r.planned_date).toLocaleDateString("fr-FR")
-                          : r.year;
-                      const canDeletePlanned = r.status === "planifie";
-
-                      return (
-                        <TableRow
-                          key={r.id}
-                          className="cursor-pointer hover:bg-muted/50 transition-colors"
-                          onClick={() =>
-                            navigate(
-                              `/annual-reviews/${r.id}?returnTo=employee&employeeId=${employeeId}&tab=entretiens`,
-                            )
-                          }
-                        >
-                          <TableCell>{displayDate}</TableCell>
-                          <TableCell>
-                            <AnnualReviewBadge status={r.status} compact />
-                          </TableCell>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            {r.status === "cloture" ? (
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => handleViewPdf(r.id, e)}
-                                  className="h-8 w-8 p-0"
-                                  title="Voir le PDF"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => handleDownloadPdf(r.id, e)}
-                                  className="h-8 w-8 p-0"
-                                  title="Télécharger le PDF"
-                                >
-                                  <FileDown className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground text-xs">—</span>
-                            )}
-                          </TableCell>
-                          {canDeleteReview && (
-                            <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                              {canDeletePlanned ? (
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                      title="Supprimer l'entretien"
-                                      aria-label="Supprimer l'entretien"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Supprimer l&apos;entretien</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Êtes-vous sûr de vouloir supprimer cet entretien
-                                        {r.planned_date
-                                          ? ` du ${new Date(r.planned_date).toLocaleDateString("fr-FR")}`
-                                          : ""}
-                                        ? Cette action est irréversible.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Annuler</AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() => handleDeleteAnnualReview(r.id)}
-                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                        disabled={deletingReviewId === r.id}
-                                      >
-                                        {deletingReviewId === r.id ? (
-                                          <>
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                            Suppression...
-                                          </>
-                                        ) : (
-                                          "Supprimer"
-                                        )}
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">—</span>
-                              )}
-                            </TableCell>
-                          )}
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          {employeeId && (
+            <EmployeeDetailAnnualReviewsTab
+              employeeId={employeeId}
+              employeeName={`${employee.first_name} ${employee.last_name}`}
+              canDeleteReview={canDeleteReview}
+              onEmployeeRefresh={refreshEmployeeSnapshot}
+            />
+          )}
         </TabsContent>
 
-        {medicalModuleEnabled && (
-        <TabsContent value="suivi_medical" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Stethoscope className="h-5 w-5 text-teal-600" /> Suivi médical</CardTitle>
-              <CardDescription>Prochaine obligation et historique des visites médicales.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {medicalObligations.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Aucune obligation de suivi médical pour le moment.</p>
-              ) : (
-                <>
-                  <div>
-                    <h4 className="text-sm font-medium mb-2">Prochaine obligation</h4>
-                    {(() => {
-                      const next = medicalObligations.find((o) => o.status !== "realisee");
-                      if (!next) {
-                        return <p className="text-sm text-muted-foreground">Toutes les obligations sont réalisées.</p>;
-                      }
-                      const typeLabel = { aptitude_sir_avant_affectation: "Aptitude SIR", vip_avant_affectation_mineur_nuit: "VIP avant affectation", reprise: "Reprise", vip: "VIP", sir: "SIR", mi_carriere_45: "Mi-carrière 45 ans", demande: "À la demande" }[next.visit_type] ?? next.visit_type;
-                      const statusLabel = { a_faire: "À faire", planifiee: "Planifiée", realisee: "Réalisée", annulee: "Annulée" }[next.status] ?? next.status;
-                      const isOverdue = next.due_date && new Date(next.due_date) < new Date() && next.status !== "realisee";
-                      return (
-                        <div className={cn("rounded-lg border p-4", isOverdue && "border-red-500 bg-red-500/5")}>
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="font-medium">{typeLabel}</p>
-                              <p className="text-sm text-muted-foreground">Date limite : {next.due_date ? new Date(next.due_date).toLocaleDateString("fr-FR") : "—"}</p>
-                              <p className="text-sm">Statut : {statusLabel}</p>
-                              {next.justification && <p className="text-sm text-muted-foreground mt-1">{next.justification}</p>}
-                            </div>
-                            {isOverdue && <span className="text-xs font-medium text-red-600 bg-red-100 px-2 py-1 rounded">En retard</span>}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium mb-2">Historique</h4>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Date limite</TableHead>
-                          <TableHead>Statut</TableHead>
-                          <TableHead>Planifiée</TableHead>
-                          <TableHead>Réalisée</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {medicalObligations.map((o) => {
-                          const typeLabel = { aptitude_sir_avant_affectation: "Aptitude SIR", vip_avant_affectation_mineur_nuit: "VIP avant affectation", reprise: "Reprise", vip: "VIP", sir: "SIR", mi_carriere_45: "Mi-carrière 45 ans", demande: "À la demande" }[o.visit_type] ?? o.visit_type;
-                          const statusLabel = { a_faire: "À faire", planifiee: "Planifiée", realisee: "Réalisée", annulee: "Annulée" }[o.status] ?? o.status;
-                          return (
-                            <TableRow key={o.id}>
-                              <TableCell>{typeLabel}</TableCell>
-                              <TableCell>{o.due_date ? new Date(o.due_date).toLocaleDateString("fr-FR") : "—"}</TableCell>
-                              <TableCell>{statusLabel}</TableCell>
-                              <TableCell>{o.planned_date ? new Date(o.planned_date).toLocaleDateString("fr-FR") : "—"}</TableCell>
-                              <TableCell>{o.completed_date ? new Date(o.completed_date).toLocaleDateString("fr-FR") : "—"}</TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+        {medicalModuleEnabled && employeeId && (
+          <TabsContent value="suivi_medical" className="mt-4">
+            <EmployeeDetailMedicalTab
+              employeeId={employeeId}
+              employeeName={
+                employee ? `${employee.first_name} ${employee.last_name}` : undefined
+              }
+            />
+          </TabsContent>
         )}
 
         <TabsContent value="calendrier" className="mt-4">
+          {isForfaitJour && employee && (
+            <div className="mb-2 rounded-md border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+              <span className="font-medium">Saisie en jours (forfait jour)</span>
+              {employee.statut ? (
+                <span className="text-muted-foreground"> — statut : {employee.statut}</span>
+              ) : null}
+            </div>
+          )}
+          {!isForfaitJour && (
+            <div className="mb-2 rounded-md border bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">
+              Saisie en heures
+            </div>
+          )}
           <Card className="mt-3">
              <CardHeader className="flex flex-row justify-between items-center">
                 <div className="flex items-center gap-4">
                   <div>
-                    <CardTitle className="text-xl font-semibold text-foreground">
+                    <CardTitle className="text-xl font-semibold text-foreground flex flex-wrap items-center gap-2">
                       Calendrier de {employee.first_name} {employee.last_name}
+                      {calendarView === 'month' && (
+                        <Badge
+                          variant={monthCompletionStatus === 'saisi' ? 'secondary' : 'outline'}
+                          className="text-xs font-normal"
+                        >
+                          {monthCompletionStatus === 'saisi' ? 'Saisi' : 'À saisir'}
+                        </Badge>
+                      )}
                     </CardTitle>
 
                     <CardDescription className="flex items-center gap-3 mt-0">
@@ -2298,26 +2333,24 @@ export default function EmployeeDetail() {
                 </div>
 
                 {/* ✅ MODIFIÉ : Le bouton principal, avec la parenthèse manquante corrigée */}
-                <Button
-                  onClick={saveAllCalendarData}
-                  disabled={isSaving || !isDirty}
-                  className={cn(
-                    "transition-all",
-                    "bg-green-600 text-white", // Couleur de base verte
-                    // Le hover ne s'applique que si le bouton est actif (dirty)
-                    isDirty && !isSaving ? "hover:bg-green-700" : "",
-                    // L'état 'disabled' (géré par shadcn) ajoutera automatiquement
-                    // l'opacité pour les états "Enregistré" et "Enregistrement..."
+                <div className="flex items-center gap-2">
+                  {!isDirty && !isSaving && (
+                    <Badge variant="outline" className="text-xs font-normal text-muted-foreground">
+                      À jour
+                    </Badge>
                   )}
-                >
-                  {isSaving ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
-                  ) : (
-                    <Save className="mr-2 h-4 w-4"/>
-                  )}
-
-                  {isSaving ? "Enregistrement..." : isDirty ? "Enregistrer" : "Enregistré"}
-                </Button>
+                  <Button
+                    onClick={saveAllCalendarData}
+                    disabled={isSaving || !isDirty}
+                  >
+                    {isSaving ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="mr-2 h-4 w-4" />
+                    )}
+                    {isSaving ? "Enregistrement..." : "Enregistrer"}
+                  </Button>
+                </div>
              </CardHeader>
              {calendarView === 'month' && (
                <CardDescription className="mt-1 ml-6 text-sm text-muted-foreground">
@@ -2327,15 +2360,32 @@ export default function EmployeeDetail() {
 
 
              <CardContent className="p-0 md:p-2 pb-48">
-                {/* ✅ MODIFIÉ : On passe les nouvelles props à WeekTemplateForm - uniquement en vue mensuelle */}
+                {calendarView === 'month' && employeeId && (
+                  <CalendarAbsencesHint
+                    employeeId={employeeId}
+                    year={selectedDate.year}
+                    month={selectedDate.month}
+                  />
+                )}
+                {calendarView === 'month' && !isCalendarLoading && (
+                  <CalendarKpiBand
+                    plannedCalendar={plannedCalendar}
+                    actualHours={actualHours}
+                    isForfaitJour={isForfaitJour}
+                  />
+                )}
                 {calendarView === 'month' && (
                   <WeekTemplateForm
                     template={weekTemplate}
                     setTemplate={setWeekTemplate}
                     onApply={applyWeekTemplate}
                     onApplyAndSave={applyWeekTemplateAndSave}
+                    onCopyPreviousMonth={() => void copyPreviousMonthPlanned()}
                     isSaving={isSaving}
+                    isCopyingPrevMonth={isCopyingPrevMonth}
                     isForfaitJour={isForfaitJour}
+                    companyId={activeCompanyId}
+                    daysInMonth={new Date(selectedDate.year, selectedDate.month, 0).getDate()}
                   />
                 )}
                 {isCalendarLoading ? <div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div> : (
@@ -2369,7 +2419,7 @@ export default function EmployeeDetail() {
                           days.push(
                             <div
                               key={day}
-                              className="aspect-square rounded-2xl bg-white dark:bg-slate-900/40 shadow-sm hover:shadow-md transition-all"
+                              className="min-h-[8.5rem] rounded-2xl bg-white dark:bg-slate-900/40 shadow-sm hover:shadow-md transition-all"
                             >
                               <CalendarDayCell
                                 arg={arg}
@@ -2380,6 +2430,7 @@ export default function EmployeeDetail() {
                                 onDaySelect={handleDaySelection}
                                 selectedDate={selectedDate}
                                 isForfaitJour={isForfaitJour}
+                                onCopyPlannedToActual={copyPlannedToActualForDay}
                               />
                             </div>
                           );
@@ -2392,6 +2443,11 @@ export default function EmployeeDetail() {
                       <YearCalendarView
                         year={selectedDate.year}
                         employeeId={employeeId!}
+                        isForfaitJour={isForfaitJour}
+                        onMonthClick={(month) => {
+                          setSelectedDate({ year: selectedDate.year, month });
+                          setCalendarView('month');
+                        }}
                       />
                     )}
                   </>
@@ -2408,64 +2464,11 @@ export default function EmployeeDetail() {
           onBulkUpdate={bulkUpdateDays}
           updateSelection={updateSelection}
           onBulkUpdateAndSave={bulkUpdateDaysAndSave}
+          onBulkCopyPlannedToActual={bulkCopyPlannedToActual}
           isSaving={isSaving}
           isForfaitJour={isForfaitJour}
         />
       )}
-
-      <Dialog open={planningModalOpen} onOpenChange={setPlanningModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Planifier un entretien</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label>Date prévue</Label>
-              <Input type="date" value={planningDate} onChange={(e) => setPlanningDate(e.target.value)} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPlanningModalOpen(false)}>Annuler</Button>
-            <Button onClick={handlePlanAnnualReview}>Planifier</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={editingReview !== null} onOpenChange={(open) => !open && setEditingReview(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Modifier l'entretien</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label>Statut</Label>
-              <Select value={editStatus} onValueChange={setEditStatus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="planifie">Planifié</SelectItem>
-                  <SelectItem value="en_attente_acceptation">En attente d'acceptation</SelectItem>
-                  <SelectItem value="accepte">Accepté</SelectItem>
-                  <SelectItem value="refuse">Refusé</SelectItem>
-                  <SelectItem value="realise">Réalisé</SelectItem>
-                  <SelectItem value="cloture">Clôturé</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label>Date prévue</Label>
-              <Input type="date" value={editPlannedDate} onChange={(e) => setEditPlannedDate(e.target.value)} />
-            </div>
-            <div className="grid gap-2">
-              <Label>Date réalisée</Label>
-              <Input type="date" value={editCompletedDate} onChange={(e) => setEditCompletedDate(e.target.value)} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingReview(null)}>Annuler</Button>
-            <Button onClick={handleUpdateReview}>Enregistrer</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog
         open={contractualOpen}

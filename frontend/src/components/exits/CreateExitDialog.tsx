@@ -126,7 +126,7 @@ export function CreateExitDialog({ open, onOpenChange, onSuccess }: CreateExitDi
 
       toast({
         title: 'Succès',
-        description: 'Le processus de sortie a été créé avec succès',
+        description: 'Le processus de départ a été créé avec succès',
       });
 
       // Reset form
@@ -145,7 +145,7 @@ export function CreateExitDialog({ open, onOpenChange, onSuccess }: CreateExitDi
       console.error('Erreur lors de la création de la sortie:', error);
       toast({
         title: 'Erreur',
-        description: error.response?.data?.detail || 'Impossible de créer le processus de sortie',
+        description: error.response?.data?.detail || 'Impossible de créer le processus de départ',
         variant: 'destructive',
       });
     } finally {
@@ -157,9 +157,9 @@ export function CreateExitDialog({ open, onOpenChange, onSuccess }: CreateExitDi
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nouvelle sortie de collaborateur</DialogTitle>
+          <DialogTitle>Nouveau départ de collaborateur</DialogTitle>
           <DialogDescription>
-            Créer un nouveau processus de sortie (démission, rupture conventionnelle ou licenciement)
+            Créer un nouveau processus de départ (démission, rupture conventionnelle ou licenciement)
           </DialogDescription>
         </DialogHeader>
 
@@ -183,7 +183,7 @@ export function CreateExitDialog({ open, onOpenChange, onSuccess }: CreateExitDi
 
           {/* Type de sortie */}
           <div className="space-y-2">
-            <Label htmlFor="exit_type">Type de sortie *</Label>
+            <Label htmlFor="exit_type">Type de départ *</Label>
             <Select value={exitType} onValueChange={(value) => setExitType(value as ExitType)}>
               <SelectTrigger id="exit_type">
                 <SelectValue />
@@ -268,10 +268,10 @@ export function CreateExitDialog({ open, onOpenChange, onSuccess }: CreateExitDi
 
           {/* Motif de sortie */}
           <div className="space-y-2">
-            <Label htmlFor="exit_reason">Motif de sortie</Label>
+            <Label htmlFor="exit_reason">Motif de départ</Label>
             <Textarea
               id="exit_reason"
-              placeholder="Raison de la sortie (optionnel)"
+              placeholder="Raison du départ (optionnel)"
               value={exitReason}
               onChange={(e) => setExitReason(e.target.value)}
               rows={3}
@@ -290,7 +290,7 @@ export function CreateExitDialog({ open, onOpenChange, onSuccess }: CreateExitDi
             </Button>
             <Button type="submit" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Créer la sortie
+              Créer le départ
             </Button>
           </div>
         </form>

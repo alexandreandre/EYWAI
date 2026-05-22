@@ -1,8 +1,9 @@
 // Page RH : Suivi médical des salariés (obligations VIP, SIR, reprise, mi-carrière)
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -40,8 +41,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
   getObligations,
@@ -58,224 +72,56 @@ import {
   type ComplianceReport,
 } from "@/api/medicalFollowUp";
 import apiClient from "@/api/apiClient";
-import { Loader2, PlusCircle, FileDown, Bell, RefreshCw } from "lucide-react";
-
-const VISIT_TYPE_LABELS: Record<string, string> = {
-  aptitude_sir_avant_affectation: "Aptitude SIR avant affectation",
-  vip_avant_affectation_mineur_nuit: "VIP avant affectation (mineur/nuit)",
-  reprise: "Reprise",
-  vip: "VIP",
-  sir: "SIR",
-  mi_carriere_45: "Mi-carrière (45 ans)",
-  demande: "À la demande",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  a_faire: "À faire",
-  planifiee: "Planifiée",
-  realisee: "Réalisée",
-  annulee: "Annulée",
-};
+import {
+  Loader2,
+  PlusCircle,
+  FileDown,
+  Bell,
+  RefreshCw,
+  MoreHorizontal,
+  ArrowUpDown,
+  Search,
+  X,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  formatMedicalDate as formatDate,
+  STATUS_LABELS,
+  statusBadgeVariant,
+  VISIT_TYPE_LABELS,
+  formatTriggerType,
+  formatPriorityLabel,
+  getDueDateRelativeLabel,
+  isObligationOverdue,
+  isDueWithinDays,
+  sortObligationsForDisplay,
+  countMedicalObligations,
+  obligationMessage,
+} from "@/lib/medicalFollowUpLabels";
 
 const ALL_FILTER = "__all__";
 
-function formatDate(s: string | null | undefined): string {
-  if (!s) return "—";
-  try {
-    return new Date(s).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
-  } catch {
-    return s;
-  }
-}
-
-function statusBadgeVariant(status: string, dueDate: string): "default" | "secondary" | "destructive" | "outline" {
-  if (status === "realisee") return "secondary";
-  const today = new Date().toISOString().slice(0, 10);
-  if (dueDate < today) return "destructive";
-  const d30 = new Date();
-  d30.setDate(d30.getDate() + 30);
-  if (dueDate <= d30.toISOString().slice(0, 10)) return "outline";
-  return "default";
-}
+type MedTab = "pilotage" | "conformite";
+type ClientKpiFilter = "overdue" | "upcoming30" | null;
+type SortColumn = "due_date" | "employee" | "status";
+type SortDir = "asc" | "desc";
 
 function globalComplianceTextClass(rate: number): string {
-  if (rate >= 80) return "text-green-600";
-  if (rate >= 60) return "text-orange-600";
+  if (rate >= 80) return "text-foreground";
+  if (rate >= 60) return "text-muted-foreground";
   return "text-destructive";
 }
 
 function globalComplianceBarClass(rate: number): string {
-  if (rate >= 80) return "bg-green-600";
-  if (rate >= 60) return "bg-orange-500";
+  if (rate >= 80) return "bg-primary";
+  if (rate >= 60) return "bg-muted-foreground/60";
   return "bg-destructive";
 }
 
 function visitTypeBarClass(rate: number): string {
-  if (rate >= 80) return "bg-green-600";
-  if (rate >= 60) return "bg-orange-500";
+  if (rate >= 80) return "bg-primary/80";
+  if (rate >= 60) return "bg-muted-foreground/50";
   return "bg-destructive";
-}
-
-function MedicalCompliancePanels({ cr }: { cr: ComplianceReport }) {
-  const rate = cr.compliance_rate;
-  return (
-    <>
-      <div>
-        <h3 className="text-sm font-medium text-muted-foreground mb-3">Score global</h3>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Taux de conformité global
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className={`text-4xl font-bold tabular-nums ${globalComplianceTextClass(rate)}`}>
-                {rate.toFixed(1)} %
-              </p>
-              <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className={`h-full rounded-full transition-all ${globalComplianceBarClass(rate)}`}
-                  style={{ width: `${Math.min(100, Math.max(0, rate))}%` }}
-                />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Visites conformes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold tabular-nums">
-                {cr.compliant}
-                <span className="text-muted-foreground text-base font-normal">
-                  {" "}
-                  / {cr.total_obligations}
-                </span>
-              </p>
-            </CardContent>
-          </Card>
-          <Card className={cr.overdue > 0 ? "border-destructive/40" : ""}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">En retard</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p
-                className={`text-2xl font-bold tabular-nums ${
-                  cr.overdue > 0 ? "text-destructive" : "text-muted-foreground"
-                }`}
-              >
-                {cr.overdue}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="border-orange-500/30">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">À venir 30 j.</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold tabular-nums text-orange-600">{cr.upcoming_30}</p>
-              <p className="text-xs text-muted-foreground mt-1">Dont {cr.upcoming_7} sous 7 jours</p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      <div>
-        <h3 className="text-sm font-medium text-muted-foreground mb-3">Par type de visite</h3>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="w-full overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Type de visite</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-right">Conformes</TableHead>
-                    <TableHead className="text-right">En retard</TableHead>
-                    <TableHead>Taux de conformité</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                {cr.by_visit_type.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                      Aucune obligation par type.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  cr.by_visit_type.map((v) => (
-                    <TableRow key={v.visit_type}>
-                      <TableCell className="font-medium">{v.label}</TableCell>
-                      <TableCell className="text-right tabular-nums">{v.total}</TableCell>
-                      <TableCell className="text-right tabular-nums">{v.compliant}</TableCell>
-                      <TableCell className="text-right tabular-nums">{v.overdue}</TableCell>
-                      <TableCell>
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span className="text-sm tabular-nums w-12">{v.compliance_rate.toFixed(0)}%</span>
-                          <div className="h-2 flex-1 max-w-[120px] overflow-hidden rounded-full bg-muted">
-                            <div
-                              className={`h-full rounded-full ${visitTypeBarClass(v.compliance_rate)}`}
-                              style={{ width: `${Math.min(100, Math.max(0, v.compliance_rate))}%` }}
-                            />
-                          </div>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div>
-        <h3 className="text-sm font-medium text-muted-foreground mb-3">Salariés en retard</h3>
-        <Card>
-          <CardContent className="pt-6">
-            {cr.employees_overdue.length === 0 ? (
-              <p className="text-center text-sm text-muted-foreground py-10">
-                ✅ Tous les salariés sont à jour.
-              </p>
-            ) : (
-              <div className="w-full overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Salarié</TableHead>
-                      <TableHead className="text-right">Nb obligations en retard</TableHead>
-                      <TableHead>Plus urgent</TableHead>
-                      <TableHead>Types de visites</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                  {cr.employees_overdue.map((e) => (
-                    <TableRow key={e.employee_id}>
-                      <TableCell className="font-medium">{e.employee_name}</TableCell>
-                      <TableCell className="text-right">
-                        <Badge variant="destructive" className="tabular-nums">
-                          {e.obligations_overdue}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-destructive font-medium tabular-nums">
-                        {formatDate(e.most_urgent_due_date)}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {e.visit_types.map((vt) => VISIT_TYPE_LABELS[vt] ?? vt).join(", ")}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </>
-  );
 }
 
 function formatComplianceGeneratedAtFrench(iso: string): string {
@@ -295,18 +141,56 @@ function formatComplianceGeneratedAtFrench(iso: string): string {
   }
 }
 
+function formatLastAction(o: ObligationListItem): string {
+  if (o.status === "realisee" && o.completed_date) {
+    return `Réal. le ${formatDate(o.completed_date)}`;
+  }
+  if (o.planned_date) {
+    return `Plan. le ${formatDate(o.planned_date)}`;
+  }
+  return "—";
+}
+
+const STATUS_SORT: Record<string, number> = {
+  a_faire: 0,
+  planifiee: 1,
+  realisee: 2,
+  annulee: 3,
+};
+
+function sortObligationsByColumn(
+  list: ObligationListItem[],
+  column: SortColumn,
+  dir: SortDir
+): ObligationListItem[] {
+  const sorted = [...list];
+  const mul = dir === "asc" ? 1 : -1;
+  sorted.sort((a, b) => {
+    if (column === "due_date") {
+      return mul * (a.due_date ?? "").localeCompare(b.due_date ?? "");
+    }
+    if (column === "employee") {
+      const na = `${a.employee_last_name ?? ""} ${a.employee_first_name ?? ""}`.trim();
+      const nb = `${b.employee_last_name ?? ""} ${b.employee_first_name ?? ""}`.trim();
+      return mul * na.localeCompare(nb, "fr");
+    }
+    const sa = STATUS_SORT[a.status] ?? 9;
+    const sb = STATUS_SORT[b.status] ?? 9;
+    return mul * (sa - sb);
+  });
+  return sorted;
+}
+
 function exportComplianceReportToCsv(r: ComplianceReport): void {
   const esc = (c: string) => `"${String(c).replace(/"/g, '""')}"`;
   const lines: string[] = [];
   const fileDate = new Date().toISOString().slice(0, 10);
 
-  // Section 1 — RAPPORT DE CONFORMITÉ MÉDICAL
   lines.push(esc("Section 1 — RAPPORT DE CONFORMITÉ MÉDICAL"));
   lines.push(esc(`Généré le : ${formatComplianceGeneratedAtFrench(r.generated_at)}`));
   lines.push([esc("Entreprise :"), esc("")].join(";"));
   lines.push("");
 
-  // Section 2 — INDICATEURS GLOBAUX
   lines.push(esc("Section 2 — INDICATEURS GLOBAUX"));
   lines.push(["Libellé", "Valeur"].map(esc).join(";"));
   lines.push([esc("Total salariés concernés"), esc(String(r.total_employees))].join(";"));
@@ -318,7 +202,6 @@ function exportComplianceReportToCsv(r: ComplianceReport): void {
   lines.push([esc("Taux de conformité"), esc(`${Number(r.compliance_rate).toFixed(2)} %`)].join(";"));
   lines.push("");
 
-  // Section 3 — PAR TYPE DE VISITE
   lines.push(esc("Section 3 — PAR TYPE DE VISITE"));
   lines.push(
     ["Type de visite", "Total", "Conformes", "En retard", "Taux de conformité"].map(esc).join(";")
@@ -338,7 +221,6 @@ function exportComplianceReportToCsv(r: ComplianceReport): void {
   }
   lines.push("");
 
-  // Section 4 — SALARIÉS EN RETARD
   lines.push(esc("Section 4 — SALARIÉS EN RETARD"));
   lines.push(
     ["Salarié", "Nb obligations en retard", "Date la plus urgente", "Types de visites"].map(esc).join(";")
@@ -346,12 +228,7 @@ function exportComplianceReportToCsv(r: ComplianceReport): void {
   for (const e of r.employees_overdue) {
     const typesFr = e.visit_types.map((vt) => VISIT_TYPE_LABELS[vt] ?? vt).join(", ");
     lines.push(
-      [
-        e.employee_name,
-        String(e.obligations_overdue),
-        formatDate(e.most_urgent_due_date),
-        typesFr,
-      ]
+      [e.employee_name, String(e.obligations_overdue), formatDate(e.most_urgent_due_date), typesFr]
         .map(esc)
         .join(";")
     );
@@ -367,16 +244,365 @@ function exportComplianceReportToCsv(r: ComplianceReport): void {
   URL.revokeObjectURL(url);
 }
 
+function exportObligationsToCsv(rows: ObligationListItem[]): void {
+  const headers = [
+    "Salarié",
+    "Type de visite",
+    "Déclencheur",
+    "Date limite",
+    "Priorité",
+    "Statut",
+    "Justification",
+    "Date planifiée",
+    "Date réalisée",
+  ];
+  const csvRows = rows.map((o) => [
+    `${o.employee_first_name ?? ""} ${o.employee_last_name ?? ""}`.trim(),
+    VISIT_TYPE_LABELS[o.visit_type] ?? o.visit_type,
+    formatTriggerType(o.trigger_type),
+    o.due_date,
+    formatPriorityLabel(o.priority),
+    STATUS_LABELS[o.status] ?? o.status,
+    o.justification ?? "",
+    o.planned_date ?? "",
+    o.completed_date ?? "",
+  ]);
+  const csv = [
+    headers.join(";"),
+    ...csvRows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";")),
+  ].join("\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `suivi-medical-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+interface MedicalCompliancePanelsProps {
+  cr: ComplianceReport;
+  onVisitTypeClick?: (visitType: string) => void;
+  onEmployeeProfileClick?: (employeeId: string) => void;
+  onViewEmployeeObligations?: (employeeId: string) => void;
+}
+
+function MedicalCompliancePanels({
+  cr,
+  onVisitTypeClick,
+  onEmployeeProfileClick,
+  onViewEmployeeObligations,
+}: MedicalCompliancePanelsProps) {
+  const rate = cr.compliance_rate;
+
+  const topOverdueVisitType = useMemo(() => {
+    if (!cr.by_visit_type.length) return null;
+    return [...cr.by_visit_type].sort((a, b) => b.overdue - a.overdue || a.compliance_rate - b.compliance_rate)[0];
+  }, [cr.by_visit_type]);
+
+  const visitTypesSorted = useMemo(
+    () => [...cr.by_visit_type].sort((a, b) => a.compliance_rate - b.compliance_rate),
+    [cr.by_visit_type]
+  );
+
+  return (
+    <>
+      <div>
+        <h3 className="mb-3 text-sm font-medium text-muted-foreground">Synthèse</h3>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Taux de conformité
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className={cn("text-3xl font-semibold tabular-nums", globalComplianceTextClass(rate))}>
+                {rate.toFixed(1)} %
+              </p>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className={cn("h-full rounded-full transition-all", globalComplianceBarClass(rate))}
+                  style={{ width: `${Math.min(100, Math.max(0, rate))}%` }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Couverture</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-semibold tabular-nums">
+                {cr.compliant}
+                <span className="text-base font-normal text-muted-foreground">
+                  {" "}
+                  / {cr.total_obligations}
+                </span>
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {cr.total_employees} salarié{cr.total_employees > 1 ? "s" : ""} concerné
+                {cr.total_employees > 1 ? "s" : ""}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Type le plus en retard
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {topOverdueVisitType && topOverdueVisitType.overdue > 0 ? (
+                <>
+                  <p className="text-sm font-medium leading-snug">{topOverdueVisitType.label}</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-destructive">
+                    {topOverdueVisitType.overdue}
+                    <span className="text-sm font-normal text-muted-foreground"> en retard</span>
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">Aucun retard par type.</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      <div>
+        <h3 className="mb-3 text-sm font-medium text-muted-foreground">Par type de visite</h3>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="w-full overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Type de visite</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-right">Conformes</TableHead>
+                    <TableHead className="text-right">En retard</TableHead>
+                    <TableHead>Taux de conformité</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visitTypesSorted.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                        Aucune obligation par type.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    visitTypesSorted.map((v) => (
+                      <TableRow
+                        key={v.visit_type}
+                        className={onVisitTypeClick ? "cursor-pointer hover:bg-muted/50" : undefined}
+                        onClick={() => onVisitTypeClick?.(v.visit_type)}
+                      >
+                        <TableCell className="font-medium">{v.label}</TableCell>
+                        <TableCell className="text-right tabular-nums">{v.total}</TableCell>
+                        <TableCell className="text-right tabular-nums">{v.compliant}</TableCell>
+                        <TableCell className="text-right tabular-nums">{v.overdue}</TableCell>
+                        <TableCell>
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="w-12 text-sm tabular-nums">
+                              {v.compliance_rate.toFixed(0)}%
+                            </span>
+                            <div className="h-2 max-w-[120px] flex-1 overflow-hidden rounded-full bg-muted">
+                              <div
+                                className={cn("h-full rounded-full", visitTypeBarClass(v.compliance_rate))}
+                                style={{ width: `${Math.min(100, Math.max(0, v.compliance_rate))}%` }}
+                              />
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div>
+        <h3 className="mb-3 text-sm font-medium text-muted-foreground">Salariés en retard</h3>
+        <Card>
+          <CardContent className="pt-4">
+            {cr.employees_overdue.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">
+                Aucun salarié en retard.
+              </p>
+            ) : (
+              <div className="w-full overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Salarié</TableHead>
+                      <TableHead className="text-right">En retard</TableHead>
+                      <TableHead>Plus urgent</TableHead>
+                      <TableHead>Types de visites</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {cr.employees_overdue.map((e) => (
+                      <TableRow key={e.employee_id}>
+                        <TableCell className="font-medium">
+                          {onEmployeeProfileClick ? (
+                            <Link
+                              to={`/employees/${e.employee_id}?tab=suivi_medical`}
+                              className="text-primary hover:underline"
+                              onClick={(ev) => ev.stopPropagation()}
+                            >
+                              {e.employee_name}
+                            </Link>
+                          ) : (
+                            e.employee_name
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="destructive" className="tabular-nums">
+                            {e.obligations_overdue}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-medium tabular-nums text-destructive">
+                          {formatDate(e.most_urgent_due_date)}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {e.visit_types.map((vt) => VISIT_TYPE_LABELS[vt] ?? vt).join(", ")}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {onViewEmployeeObligations ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 text-xs"
+                              onClick={() => onViewEmployeeObligations(e.employee_id)}
+                            >
+                              Voir les obligations
+                            </Button>
+                          ) : null}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </>
+  );
+}
+
+function SortableHead({
+  label,
+  column,
+  activeColumn,
+  dir,
+  onSort,
+  className,
+}: {
+  label: string;
+  column: SortColumn;
+  activeColumn: SortColumn;
+  dir: SortDir;
+  onSort: (col: SortColumn) => void;
+  className?: string;
+}) {
+  const active = activeColumn === column;
+  return (
+    <TableHead className={className}>
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 font-medium hover:text-foreground"
+        onClick={() => onSort(column)}
+      >
+        {label}
+        <ArrowUpDown className={cn("h-3.5 w-3.5", active ? "opacity-100" : "opacity-40")} />
+        {active ? (
+          <span className="sr-only">{dir === "asc" ? "croissant" : "décroissant"}</span>
+        ) : null}
+      </button>
+    </TableHead>
+  );
+}
+
 export default function MedicalFollowUp() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const employeeFromUrl = searchParams.get("employee");
+  const visitTypeFromUrl = searchParams.get("visit_type");
+  const statusFromUrl = searchParams.get("status");
+  const tabFromUrl = searchParams.get("tab");
+
   const [obligations, setObligations] = useState<ObligationListItem[]>([]);
   const [kpis, setKpis] = useState<KPIs | null>(null);
   const [loading, setLoading] = useState(true);
-  const [filterEmployee, setFilterEmployee] = useState<string>(ALL_FILTER);
-  const [filterVisitType, setFilterVisitType] = useState<string>(ALL_FILTER);
-  const [filterStatus, setFilterStatus] = useState<string>(ALL_FILTER);
+  const [filterEmployee, setFilterEmployee] = useState<string>(
+    employeeFromUrl && employeeFromUrl.length > 0 ? employeeFromUrl : ALL_FILTER
+  );
+  const [filterVisitType, setFilterVisitType] = useState<string>(
+    visitTypeFromUrl && visitTypeFromUrl.length > 0 ? visitTypeFromUrl : ALL_FILTER
+  );
+  const [filterStatus, setFilterStatus] = useState<string>(
+    statusFromUrl && statusFromUrl.length > 0 ? statusFromUrl : ALL_FILTER
+  );
   const [employees, setEmployees] = useState<{ id: string; first_name: string; last_name: string }[]>([]);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [clientKpiFilter, setClientKpiFilter] = useState<ClientKpiFilter>(null);
+  const [sortColumn, setSortColumn] = useState<SortColumn>("due_date");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [userSorted, setUserSorted] = useState(false);
+
+  const [planifiedModal, setPlanifiedModal] = useState<ObligationListItem | null>(null);
+  const [planifiedDate, setPlanifiedDate] = useState("");
+  const [planifiedComment, setPlanifiedComment] = useState("");
+  const [completedModal, setCompletedModal] = useState<ObligationListItem | null>(null);
+  const [completedDate, setCompletedDate] = useState("");
+  const [completedComment, setCompletedComment] = useState("");
+  const [onDemandOpen, setOnDemandOpen] = useState(false);
+  const [onDemandEmployee, setOnDemandEmployee] = useState("");
+  const [onDemandMotif, setOnDemandMotif] = useState("");
+  const [onDemandDate, setOnDemandDate] = useState(new Date().toISOString().slice(0, 10));
+  const [saving, setSaving] = useState(false);
+  const [remindersConfirmOpen, setRemindersConfirmOpen] = useState(false);
+  const [medTab, setMedTab] = useState<MedTab>(
+    tabFromUrl === "conformite" ? "conformite" : "pilotage"
+  );
+
+  const syncUrlParams = useCallback(
+    (patch: {
+      employee?: string;
+      visit_type?: string;
+      status?: string;
+      tab?: MedTab;
+    }) => {
+      const next = new URLSearchParams(searchParams);
+      const emp = patch.employee ?? filterEmployee;
+      const vt = patch.visit_type ?? filterVisitType;
+      const st = patch.status ?? filterStatus;
+      const tab = patch.tab ?? medTab;
+
+      if (emp && emp !== ALL_FILTER) next.set("employee", emp);
+      else next.delete("employee");
+      if (vt && vt !== ALL_FILTER) next.set("visit_type", vt);
+      else next.delete("visit_type");
+      if (st && st !== ALL_FILTER) next.set("status", st);
+      else next.delete("status");
+      if (tab === "conformite") next.set("tab", "conformite");
+      else next.delete("tab");
+
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, filterEmployee, filterVisitType, filterStatus, medTab, setSearchParams]
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -397,14 +623,15 @@ export default function MedicalFollowUp() {
         "active_total" in kpisRes;
       setKpis(validKpis ? (kpisRes as KPIs) : null);
       void queryClient.invalidateQueries({ queryKey: ["medical-follow-up", "compliance-report"] });
-    } catch (e: any) {
-      const raw = e.response?.data?.detail;
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: unknown } }; message?: string };
+      const raw = err.response?.data?.detail;
       const msg =
         typeof raw === "string"
           ? raw
-          : Array.isArray(raw) && raw[0]?.msg
-            ? raw[0].msg
-            : e.message ?? "Erreur chargement";
+          : Array.isArray(raw) && raw[0] && typeof raw[0] === "object" && "msg" in raw[0]
+            ? String((raw[0] as { msg: string }).msg)
+            : err.message ?? "Erreur chargement";
       toast({ title: "Erreur", description: String(msg), variant: "destructive" });
     } finally {
       setLoading(false);
@@ -416,30 +643,43 @@ export default function MedicalFollowUp() {
   }, [load]);
 
   useEffect(() => {
-    apiClient.get("/api/employees").then((r) => {
-      const list = (r.data as any[]) ?? [];
-      setEmployees(list.map((e: any) => ({ id: e.id, first_name: e.first_name, last_name: e.last_name })));
-    }).catch(() => {});
-  }, []);
+    if (employeeFromUrl && employeeFromUrl.length > 0) {
+      setFilterEmployee(employeeFromUrl);
+    }
+  }, [employeeFromUrl]);
 
-  const [planifiedModal, setPlanifiedModal] = useState<ObligationListItem | null>(null);
-  const [planifiedDate, setPlanifiedDate] = useState("");
-  const [planifiedComment, setPlanifiedComment] = useState("");
-  const [completedModal, setCompletedModal] = useState<ObligationListItem | null>(null);
-  const [completedDate, setCompletedDate] = useState("");
-  const [completedComment, setCompletedComment] = useState("");
-  const [onDemandOpen, setOnDemandOpen] = useState(false);
-  const [onDemandEmployee, setOnDemandEmployee] = useState("");
-  const [onDemandMotif, setOnDemandMotif] = useState("");
-  const [onDemandDate, setOnDemandDate] = useState(new Date().toISOString().slice(0, 10));
-  const [saving, setSaving] = useState(false);
-  const [remindersConfirmOpen, setRemindersConfirmOpen] = useState(false);
-  const [medTab, setMedTab] = useState<"pilotage" | "conformite">("pilotage");
+  useEffect(() => {
+    if (visitTypeFromUrl && visitTypeFromUrl.length > 0) {
+      setFilterVisitType(visitTypeFromUrl);
+    }
+  }, [visitTypeFromUrl]);
+
+  useEffect(() => {
+    if (statusFromUrl && statusFromUrl.length > 0) {
+      setFilterStatus(statusFromUrl);
+    }
+  }, [statusFromUrl]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setSearchQuery(searchInput.trim().toLowerCase()), 200);
+    return () => window.clearTimeout(t);
+  }, [searchInput]);
+
+  useEffect(() => {
+    apiClient
+      .get("/api/employees")
+      .then((r) => {
+        const list = (r.data as { id: string; first_name: string; last_name: string }[]) ?? [];
+        setEmployees(
+          list.map((e) => ({ id: e.id, first_name: e.first_name, last_name: e.last_name }))
+        );
+      })
+      .catch(() => {});
+  }, []);
 
   const complianceQuery = useQuery({
     queryKey: ["medical-follow-up", "compliance-report"],
     queryFn: getComplianceReport,
-    enabled: medTab === "conformite",
   });
 
   const overdueQuery = useQuery({
@@ -459,6 +699,52 @@ export default function MedicalFollowUp() {
     return ids.size;
   }, [overdueQuery.data, upcoming30Query.data]);
 
+  const upcoming7Count = useMemo(() => {
+    if (complianceQuery.data?.upcoming_7 != null) {
+      return complianceQuery.data.upcoming_7;
+    }
+    return (upcoming30Query.data ?? []).filter((o) => isDueWithinDays(o.due_date, 7)).length;
+  }, [complianceQuery.data?.upcoming_7, upcoming30Query.data]);
+
+  const obligationCounts = useMemo(() => countMedicalObligations(obligations), [obligations]);
+
+  const displayedObligations = useMemo(() => {
+    let list = [...obligations];
+
+    if (searchQuery) {
+      list = list.filter((o) => {
+        const name = `${o.employee_first_name ?? ""} ${o.employee_last_name ?? ""}`
+          .trim()
+          .toLowerCase();
+        return name.includes(searchQuery);
+      });
+    }
+
+    if (clientKpiFilter === "overdue") {
+      list = list.filter((o) => isObligationOverdue(o));
+    } else if (clientKpiFilter === "upcoming30") {
+      list = list.filter(
+        (o) =>
+          o.status !== "realisee" &&
+          o.status !== "annulee" &&
+          !isObligationOverdue(o) &&
+          isDueWithinDays(o.due_date, 30)
+      );
+    }
+
+    if (userSorted) {
+      return sortObligationsByColumn(list, sortColumn, sortDir);
+    }
+    return sortObligationsForDisplay(list);
+  }, [obligations, searchQuery, clientKpiFilter, userSorted, sortColumn, sortDir]);
+
+  const hasActiveFilters =
+    filterEmployee !== ALL_FILTER ||
+    filterVisitType !== ALL_FILTER ||
+    filterStatus !== ALL_FILTER ||
+    searchQuery.length > 0 ||
+    clientKpiFilter !== null;
+
   const sendRemindersMutation = useMutation({
     mutationFn: sendMedicalReminders,
     onSuccess: (data) => {
@@ -471,50 +757,109 @@ export default function MedicalFollowUp() {
       setRemindersConfirmOpen(false);
       void load();
     },
-    onError: (e: any) => {
+    onError: (e: unknown) => {
+      const err = e as { response?: { data?: { detail?: string } }; message?: string };
       toast({
         title: "Erreur",
-        description: e.response?.data?.detail ?? e.message ?? "Envoi impossible",
+        description: err.response?.data?.detail ?? err.message ?? "Envoi impossible",
         variant: "destructive",
       });
     },
   });
 
-  const exportCSV = () => {
-    const headers = ["Salarié", "Type de visite", "Déclencheur", "Date limite", "Priorité", "Statut", "Justification", "Date planifiée", "Date réalisée"];
-    const rows = (Array.isArray(obligations) ? obligations : []).map((o) => [
-      `${o.employee_first_name ?? ""} ${o.employee_last_name ?? ""}`.trim(),
-      VISIT_TYPE_LABELS[o.visit_type] ?? o.visit_type,
-      o.trigger_type,
-      o.due_date,
-      String(o.priority),
-      STATUS_LABELS[o.status] ?? o.status,
-      o.justification ?? "",
-      o.planned_date ?? "",
-      o.completed_date ?? "",
-    ]);
-    const csv = [headers.join(";"), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";"))].join("\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `suivi-medical-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const resetFilters = () => {
+    setFilterEmployee(ALL_FILTER);
+    setFilterVisitType(ALL_FILTER);
+    setFilterStatus(ALL_FILTER);
+    setSearchInput("");
+    setSearchQuery("");
+    setClientKpiFilter(null);
+    syncUrlParams({ employee: ALL_FILTER, visit_type: ALL_FILTER, status: ALL_FILTER });
+  };
+
+  const applyFilterEmployee = (id: string) => {
+    setFilterEmployee(id);
+    syncUrlParams({ employee: id });
+  };
+
+  const applyFilterVisitType = (vt: string) => {
+    setFilterVisitType(vt);
+    syncUrlParams({ visit_type: vt });
+  };
+
+  const applyFilterStatus = (st: string) => {
+    setFilterStatus(st);
+    syncUrlParams({ status: st });
+  };
+
+  const goToPilotageWithVisitType = (visitType: string) => {
+    setMedTab("pilotage");
+    setClientKpiFilter(null);
+    applyFilterVisitType(visitType);
+    syncUrlParams({ tab: "pilotage", visit_type: visitType });
+  };
+
+  const goToPilotageWithEmployee = (employeeId: string) => {
+    setMedTab("pilotage");
+    setClientKpiFilter(null);
+    applyFilterEmployee(employeeId);
+    syncUrlParams({ tab: "pilotage", employee: employeeId });
+  };
+
+  const handleKpiOverdueClick = () => {
+    setClientKpiFilter("overdue");
+    setFilterStatus(ALL_FILTER);
+    syncUrlParams({ status: ALL_FILTER });
+  };
+
+  const handleKpiUpcomingClick = () => {
+    setClientKpiFilter("upcoming30");
+    setFilterStatus(ALL_FILTER);
+    syncUrlParams({ status: ALL_FILTER });
+  };
+
+  const handleKpiCompletedClick = () => {
+    setClientKpiFilter(null);
+    applyFilterStatus("realisee");
+  };
+
+  const handleSort = (col: SortColumn) => {
+    setUserSorted(true);
+    if (sortColumn === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(col);
+      setSortDir("asc");
+    }
+  };
+
+  const openOnDemandDialog = () => {
+    if (filterEmployee !== ALL_FILTER) {
+      setOnDemandEmployee(filterEmployee);
+    }
+    setOnDemandOpen(true);
   };
 
   const handleMarkPlanified = async () => {
     if (!planifiedModal) return;
     setSaving(true);
     try {
-      await markPlanified(planifiedModal.id, { planned_date: planifiedDate, justification: planifiedComment || undefined });
+      await markPlanified(planifiedModal.id, {
+        planned_date: planifiedDate,
+        justification: planifiedComment || undefined,
+      });
       toast({ title: "Succès", description: "Obligation marquée comme planifiée." });
       setPlanifiedModal(null);
       setPlanifiedDate("");
       setPlanifiedComment("");
       load();
-    } catch (e: any) {
-      toast({ title: "Erreur", description: e.response?.data?.detail ?? e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } }; message?: string };
+      toast({
+        title: "Erreur",
+        description: err.response?.data?.detail ?? err.message,
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -524,14 +869,22 @@ export default function MedicalFollowUp() {
     if (!completedModal) return;
     setSaving(true);
     try {
-      await markCompleted(completedModal.id, { completed_date: completedDate, justification: completedComment || undefined });
+      await markCompleted(completedModal.id, {
+        completed_date: completedDate,
+        justification: completedComment || undefined,
+      });
       toast({ title: "Succès", description: "Obligation marquée comme réalisée." });
       setCompletedModal(null);
       setCompletedDate("");
       setCompletedComment("");
       load();
-    } catch (e: any) {
-      toast({ title: "Erreur", description: e.response?.data?.detail ?? e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } }; message?: string };
+      toast({
+        title: "Erreur",
+        description: err.response?.data?.detail ?? err.message,
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -539,480 +892,679 @@ export default function MedicalFollowUp() {
 
   const handleCreateOnDemand = async () => {
     if (!onDemandEmployee || !onDemandMotif || !onDemandDate) {
-      toast({ title: "Champs requis", description: "Salarié, motif et date sont obligatoires.", variant: "destructive" });
+      toast({
+        title: "Champs requis",
+        description: "Salarié, motif et date sont obligatoires.",
+        variant: "destructive",
+      });
       return;
     }
     setSaving(true);
     try {
-      await createOnDemand({ employee_id: onDemandEmployee, request_motif: onDemandMotif, request_date: onDemandDate });
+      await createOnDemand({
+        employee_id: onDemandEmployee,
+        request_motif: onDemandMotif,
+        request_date: onDemandDate,
+      });
       toast({ title: "Succès", description: "Visite à la demande créée." });
       setOnDemandOpen(false);
       setOnDemandEmployee("");
       setOnDemandMotif("");
       setOnDemandDate(new Date().toISOString().slice(0, 10));
       load();
-    } catch (e: any) {
-      toast({ title: "Erreur", description: e.response?.data?.detail ?? e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } }; message?: string };
+      toast({
+        title: "Erreur",
+        description: err.response?.data?.detail ?? err.message,
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
   };
 
+  const planifiedBeyondDue =
+    planifiedModal &&
+    planifiedDate &&
+    planifiedModal.due_date &&
+    planifiedDate > planifiedModal.due_date;
+
+  const overduePct =
+    kpis && kpis.active_total > 0
+      ? Math.round((kpis.overdue_count / kpis.active_total) * 100)
+      : 0;
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Suivi médical</h1>
-        <p className="text-muted-foreground mt-1">
-          Pilotage des obligations légales de suivi médical
-        </p>
-      </div>
-
-      <Tabs value={medTab} onValueChange={(v) => setMedTab(v as "pilotage" | "conformite")} className="w-full">
-        <TabsList className="grid w-full max-w-lg grid-cols-1 gap-1 sm:grid-cols-2">
-          <TabsTrigger value="pilotage">Pilotage</TabsTrigger>
-          <TabsTrigger value="conformite">Tableau de conformité</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="pilotage" className="mt-4 space-y-6">
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold tracking-tight">Rappels et alertes</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-2">
-          <Card className="border-destructive/30">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Visites en retard</CardTitle>
-              <CardDescription>Échéance dépassée, obligations non réalisées</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {overdueQuery.isLoading ? (
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              ) : (
-                <>
-                  <p className="text-3xl font-bold text-destructive tabular-nums">
-                    {overdueQuery.data?.length ?? 0}
-                  </p>
-                  <ul className="space-y-2 text-sm border-t pt-3">
-                    {(overdueQuery.data ?? []).slice(0, 5).map((o) => (
-                      <li key={o.id} className="flex flex-col gap-0.5">
-                        <span className="font-medium">
-                          {o.employee_first_name} {o.employee_last_name}
-                        </span>
-                        <span className="text-muted-foreground">
-                          {VISIT_TYPE_LABELS[o.visit_type] ?? o.visit_type} — échéance {formatDate(o.due_date)}
-                        </span>
-                      </li>
-                    ))}
-                    {(overdueQuery.data?.length ?? 0) === 0 ? (
-                      <li className="text-muted-foreground">Aucune visite en retard.</li>
-                    ) : null}
-                  </ul>
-                </>
-              )}
-            </CardContent>
-          </Card>
-          <Card className="border-orange-500/40">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Visites dans les 30 jours</CardTitle>
-              <CardDescription>À venir (hors retards)</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {upcoming30Query.isLoading ? (
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              ) : (
-                <>
-                  <p className="text-3xl font-bold text-orange-600 tabular-nums">
-                    {upcoming30Query.data?.length ?? 0}
-                  </p>
-                  <ul className="space-y-2 text-sm border-t pt-3">
-                    {(upcoming30Query.data ?? []).slice(0, 5).map((o) => (
-                      <li key={o.id} className="flex flex-col gap-0.5">
-                        <span className="font-medium">
-                          {o.employee_first_name} {o.employee_last_name}
-                        </span>
-                        <span className="text-muted-foreground">
-                          {VISIT_TYPE_LABELS[o.visit_type] ?? o.visit_type} — échéance {formatDate(o.due_date)}
-                        </span>
-                      </li>
-                    ))}
-                    {(upcoming30Query.data?.length ?? 0) === 0 ? (
-                      <li className="text-muted-foreground">Aucune échéance dans les 30 prochains jours.</li>
-                    ) : null}
-                  </ul>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="default"
-            size="sm"
-            className="gap-2"
-            onClick={() => setRemindersConfirmOpen(true)}
-            disabled={sendRemindersMutation.isPending}
-          >
-            {sendRemindersMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Bell className="h-4 w-4" />
-            )}
-            Envoyer les rappels aux salariés
-          </Button>
-        </div>
-      </div>
-
-      <AlertDialog open={remindersConfirmOpen} onOpenChange={setRemindersConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Envoyer les rappels ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Envoyer des notifications à {salarieConcerneCount} salarié(s) concerné(s) ? Les rappels
-              portent sur les obligations actives dont l&apos;échéance est passée ou dans les 30 prochains
-              jours.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => sendRemindersMutation.mutate()}
+    <TooltipProvider>
+      <div className="space-y-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Suivi médical</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Pilotage des obligations légales de suivi médical
+            </p>
+            {complianceQuery.data?.generated_at ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Mis à jour le {formatComplianceGeneratedAtFrench(complianceQuery.data.generated_at)}
+              </p>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" size="sm" className="gap-1.5" onClick={openOnDemandDialog}>
+              <PlusCircle className="h-4 w-4" />
+              Visite à la demande
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setRemindersConfirmOpen(true)}
               disabled={sendRemindersMutation.isPending}
             >
-              Confirmer l&apos;envoi
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {kpis && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card className="border-l-4 border-l-red-500">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">En retard</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">{kpis.overdue_count}</div>
-            </CardContent>
-          </Card>
-          <Card className="border-l-4 border-l-orange-500">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Échéance &lt; 30 jours</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{kpis.due_within_30_count}</div>
-            </CardContent>
-          </Card>
-          <Card className="border-l-4 border-l-blue-500">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total actives</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{kpis.active_total}</div>
-            </CardContent>
-          </Card>
-          <Card className="border-l-4 border-l-green-500">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Réalisées ce mois</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{kpis.completed_this_month}</div>
-            </CardContent>
-          </Card>
+              {sendRemindersMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Bell className="h-4 w-4" />
+              )}
+              Rappels
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline" size="sm" className="gap-1.5">
+                  <FileDown className="h-4 w-4" />
+                  Exporter
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportObligationsToCsv(displayedObligations)}>
+                  CSV obligations (filtre actuel)
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!complianceQuery.data}
+                  onClick={() => {
+                    if (complianceQuery.data) exportComplianceReportToCsv(complianceQuery.data);
+                  }}
+                >
+                  CSV rapport de conformité
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
-      )}
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle>Obligations</CardTitle>
-          <div className="flex items-center gap-2">
-            <Select value={filterEmployee} onValueChange={setFilterEmployee}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Tous les salariés" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_FILTER}>Tous les salariés</SelectItem>
-                {Array.isArray(employees) &&
-                  employees.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>{e.first_name} {e.last_name}</SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-            <Select value={filterVisitType} onValueChange={setFilterVisitType}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Type de visite" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_FILTER}>Tous types</SelectItem>
-                {Object.entries(VISIT_TYPE_LABELS).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>{v}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Statut" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_FILTER}>Tous</SelectItem>
-                {Object.entries(STATUS_LABELS).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>{v}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button onClick={() => setOnDemandOpen(true)} variant="outline" size="sm">
-              <PlusCircle className="h-4 w-4 mr-1" /> Créer visite à la demande
-            </Button>
-            <Button onClick={exportCSV} variant="outline" size="sm">
-              <FileDown className="h-4 w-4 mr-1" /> Export CSV
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <div className="w-full overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Salarié</TableHead>
-                    <TableHead>Type de visite</TableHead>
-                    <TableHead>Déclencheur</TableHead>
-                    <TableHead>Date limite</TableHead>
-                    <TableHead>Priorité</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead>Justification</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                {(!Array.isArray(obligations) || obligations.length === 0) ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                      Aucune obligation pour les filtres sélectionnés.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  obligations.map((o) => (
-                    <TableRow key={o.id}>
-                      <TableCell>
-                        {o.employee_first_name} {o.employee_last_name}
-                      </TableCell>
-                      <TableCell>{VISIT_TYPE_LABELS[o.visit_type] ?? o.visit_type}</TableCell>
-                      <TableCell>{o.trigger_type}</TableCell>
-                      <TableCell>{formatDate(o.due_date)}</TableCell>
-                      <TableCell>{o.priority}</TableCell>
-                      <TableCell>
-                        <Badge variant={statusBadgeVariant(o.status, o.due_date)}>
-                          {STATUS_LABELS[o.status] ?? o.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="max-w-[200px] truncate">{o.justification ?? "—"}</TableCell>
-                      <TableCell className="text-right">
-                        {o.status !== "realisee" && (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="mr-1"
-                              onClick={() => {
-                                setPlanifiedModal(o);
-                                setPlanifiedDate(o.planned_date || new Date().toISOString().slice(0, 10));
-                                setPlanifiedComment(o.justification || "");
-                              }}
-                            >
-                              Planifiée
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setCompletedModal(o);
-                                setCompletedDate(o.completed_date || new Date().toISOString().slice(0, 10));
-                                setCompletedComment(o.justification || "");
-                              }}
-                            >
-                              Réalisée
-                            </Button>
-                          </>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-        </TabsContent>
+        <Tabs
+          value={medTab}
+          onValueChange={(v) => {
+            const tab = v as MedTab;
+            setMedTab(tab);
+            syncUrlParams({ tab });
+          }}
+          className="w-full"
+        >
+          <TabsList>
+            <TabsTrigger value="pilotage" className="gap-2">
+              Pilotage
+              {kpis && kpis.overdue_count > 0 ? (
+                <Badge variant="destructive" className="h-5 px-1.5 text-xs tabular-nums">
+                  {kpis.overdue_count}
+                </Badge>
+              ) : null}
+            </TabsTrigger>
+            <TabsTrigger value="conformite" className="gap-2">
+              Conformité
+              {complianceQuery.data ? (
+                <Badge variant="secondary" className="h-5 px-1.5 text-xs tabular-nums">
+                  {complianceQuery.data.compliance_rate.toFixed(0)} %
+                </Badge>
+              ) : complianceQuery.isLoading ? (
+                <Loader2 className="h-3 w-3 animate-spin opacity-50" />
+              ) : null}
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="conformite" className="mt-4 space-y-8">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold tracking-tight">Tableau de conformité</h2>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                onClick={() => void complianceQuery.refetch()}
-                disabled={complianceQuery.isFetching}
-              >
-                {complianceQuery.isFetching ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                Actualiser
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                disabled={!complianceQuery.data}
-                onClick={() => {
-                  if (complianceQuery.data) exportComplianceReportToCsv(complianceQuery.data);
-                }}
-              >
-                <FileDown className="h-4 w-4" />
-                Exporter le rapport
-              </Button>
-            </div>
-          </div>
-
-          {complianceQuery.isLoading ? (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {[0, 1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-28 w-full" />
-                ))}
+          <TabsContent value="pilotage" className="mt-4 space-y-4">
+            {kpis ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={handleKpiOverdueClick}
+                  className={cn(
+                    "rounded-lg border bg-card p-4 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    clientKpiFilter === "overdue" && "ring-2 ring-ring"
+                  )}
+                >
+                  <p className="text-sm font-medium text-muted-foreground">En retard</p>
+                  <p
+                    className={cn(
+                      "mt-1 text-2xl font-semibold tabular-nums",
+                      kpis.overdue_count > 0 ? "text-destructive" : "text-foreground"
+                    )}
+                  >
+                    {kpis.overdue_count}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {overduePct} % du total actif ({kpis.active_total})
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleKpiUpcomingClick}
+                  className={cn(
+                    "rounded-lg border bg-card p-4 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    clientKpiFilter === "upcoming30" && "ring-2 ring-ring"
+                  )}
+                >
+                  <p className="text-sm font-medium text-muted-foreground">À venir 30 j.</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+                    {kpis.due_within_30_count}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Dont {upcoming7Count} sous 7 jours
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleKpiCompletedClick}
+                  className={cn(
+                    "rounded-lg border bg-card p-4 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    filterStatus === "realisee" && clientKpiFilter === null && "ring-2 ring-ring"
+                  )}
+                >
+                  <p className="text-sm font-medium text-muted-foreground">Réalisées ce mois</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+                    {kpis.completed_this_month}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">Cliquer pour filtrer la liste</p>
+                </button>
               </div>
-              <Skeleton className="h-48 w-full" />
-              <Skeleton className="h-48 w-full" />
-            </div>
-          ) : complianceQuery.isError ? (
-            <p className="text-sm text-destructive">Impossible de charger le rapport de conformité.</p>
-          ) : complianceQuery.data ? (
-            <MedicalCompliancePanels cr={complianceQuery.data} />
-          ) : null}
-        </TabsContent>
-      </Tabs>
+            ) : null}
 
-      <Dialog open={!!planifiedModal} onOpenChange={(open) => !open && setPlanifiedModal(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Marquer comme planifiée</DialogTitle>
-            <DialogDescription>Indiquez la date de planification et un commentaire optionnel.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label>Date de planification</Label>
-              <Input
-                type="date"
-                value={planifiedDate}
-                onChange={(e) => setPlanifiedDate(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>Commentaire (optionnel)</Label>
-              <Input
-                value={planifiedComment}
-                onChange={(e) => setPlanifiedComment(e.target.value)}
-                placeholder="Commentaire"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPlanifiedModal(null)}>Annuler</Button>
-            <Button onClick={handleMarkPlanified} disabled={saving || !planifiedDate}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enregistrer"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <div className="space-y-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="text-base font-semibold tracking-tight">Obligations</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {displayedObligations.length} résultat{displayedObligations.length !== 1 ? "s" : ""}{" "}
+                    — {obligationCounts.active} active{obligationCounts.active !== 1 ? "s" : ""},{" "}
+                    {obligationCounts.overdue} en retard
+                  </p>
+                </div>
+              </div>
 
-      <Dialog open={!!completedModal} onOpenChange={(open) => !open && setCompletedModal(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Marquer comme réalisée</DialogTitle>
-            <DialogDescription>Indiquez la date de réalisation et un commentaire optionnel.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label>Date réelle</Label>
-              <Input
-                type="date"
-                value={completedDate}
-                onChange={(e) => setCompletedDate(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>Commentaire (optionnel)</Label>
-              <Input
-                value={completedComment}
-                onChange={(e) => setCompletedComment(e.target.value)}
-                placeholder="Commentaire"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCompletedModal(null)}>Annuler</Button>
-            <Button onClick={handleMarkCompleted} disabled={saving || !completedDate}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enregistrer"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="h-9 pl-8"
+                    placeholder="Rechercher un salarié…"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                  />
+                </div>
+                <Select
+                  value={filterEmployee}
+                  onValueChange={(v) => {
+                    applyFilterEmployee(v);
+                    setClientKpiFilter(null);
+                  }}
+                >
+                  <SelectTrigger className="h-9 w-[160px]">
+                    <SelectValue placeholder="Salarié" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_FILTER}>Tous les salariés</SelectItem>
+                    {employees.map((e) => (
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.first_name} {e.last_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={filterVisitType}
+                  onValueChange={(v) => {
+                    applyFilterVisitType(v);
+                    setClientKpiFilter(null);
+                  }}
+                >
+                  <SelectTrigger className="h-9 w-[180px]">
+                    <SelectValue placeholder="Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_FILTER}>Tous types</SelectItem>
+                    {Object.entries(VISIT_TYPE_LABELS).map(([k, v]) => (
+                      <SelectItem key={k} value={k}>
+                        {v}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={filterStatus}
+                  onValueChange={(v) => {
+                    applyFilterStatus(v);
+                    setClientKpiFilter(null);
+                  }}
+                >
+                  <SelectTrigger className="h-9 w-[130px]">
+                    <SelectValue placeholder="Statut" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_FILTER}>Tous</SelectItem>
+                    {Object.entries(STATUS_LABELS).map(([k, v]) => (
+                      <SelectItem key={k} value={k}>
+                        {v}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {hasActiveFilters ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 gap-1 text-muted-foreground"
+                    onClick={resetFilters}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Réinitialiser
+                  </Button>
+                ) : null}
+              </div>
 
-      <Dialog open={onDemandOpen} onOpenChange={setOnDemandOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Créer une visite à la demande</DialogTitle>
-            <DialogDescription>Sélectionnez le salarié, le motif et la date de demande.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label>Salarié</Label>
-              <Select value={onDemandEmployee} onValueChange={setOnDemandEmployee}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choisir un salarié" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>{e.first_name} {e.last_name}</SelectItem>
+              <Card>
+                <CardContent className="p-0">
+                  {loading ? (
+                    <div className="flex justify-center py-10">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : (
+                    <div className="w-full overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <SortableHead
+                              label="Salarié"
+                              column="employee"
+                              activeColumn={sortColumn}
+                              dir={sortDir}
+                              onSort={handleSort}
+                            />
+                            <TableHead>Type de visite</TableHead>
+                            <SortableHead
+                              label="Échéance"
+                              column="due_date"
+                              activeColumn={sortColumn}
+                              dir={sortDir}
+                              onSort={handleSort}
+                            />
+                            <SortableHead
+                              label="Statut"
+                              column="status"
+                              activeColumn={sortColumn}
+                              dir={sortDir}
+                              onSort={handleSort}
+                            />
+                            <TableHead>Dernière action</TableHead>
+                            <TableHead className="w-12 text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {displayedObligations.length === 0 ? (
+                            <TableRow>
+                              <TableCell
+                                colSpan={6}
+                                className="py-10 text-center text-sm text-muted-foreground"
+                              >
+                                Aucune obligation pour les filtres sélectionnés.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            displayedObligations.map((o) => {
+                              const relative = getDueDateRelativeLabel(o.due_date, o.status);
+                              const overdue = isObligationOverdue(o);
+                              const secondary = [
+                                formatTriggerType(o.trigger_type),
+                                formatPriorityLabel(o.priority),
+                              ];
+                              const msg = obligationMessage(o);
+                              if (msg && msg !== "—") secondary.push(msg);
+
+                              return (
+                                <TableRow key={o.id} className="text-sm">
+                                  <TableCell>
+                                    <div className="font-medium">
+                                      {o.employee_first_name} {o.employee_last_name}
+                                    </div>
+                                    <p className="mt-0.5 max-w-[220px] truncate text-xs text-muted-foreground">
+                                      {secondary.join(" · ")}
+                                    </p>
+                                  </TableCell>
+                                  <TableCell className="max-w-[180px]">
+                                    <span className="line-clamp-2">
+                                      {VISIT_TYPE_LABELS[o.visit_type] ?? o.visit_type}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="tabular-nums">{formatDate(o.due_date)}</div>
+                                    {relative ? (
+                                      <p
+                                        className={cn(
+                                          "text-xs",
+                                          overdue ? "text-destructive" : "text-muted-foreground"
+                                        )}
+                                      >
+                                        {relative}
+                                      </p>
+                                    ) : null}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant={statusBadgeVariant(o.status, o.due_date)}>
+                                      {STATUS_LABELS[o.status] ?? o.status}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground tabular-nums">
+                                    {formatLastAction(o)}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {o.status !== "realisee" && o.status !== "annulee" ? (
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8"
+                                            aria-label="Mettre à jour"
+                                          >
+                                            <MoreHorizontal className="h-4 w-4" />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                          <DropdownMenuItem
+                                            onClick={() => {
+                                              setPlanifiedModal(o);
+                                              setPlanifiedDate(
+                                                o.planned_date || new Date().toISOString().slice(0, 10)
+                                              );
+                                              setPlanifiedComment(o.justification || "");
+                                            }}
+                                          >
+                                            Marquer planifiée
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onClick={() => {
+                                              setCompletedModal(o);
+                                              setCompletedDate(
+                                                o.completed_date ||
+                                                  new Date().toISOString().slice(0, 10)
+                                              );
+                                              setCompletedComment(o.justification || "");
+                                            }}
+                                          >
+                                            Marquer réalisée
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground">—</span>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="conformite" className="mt-4 space-y-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              {complianceQuery.data ? (
+                <p className="max-w-2xl text-sm text-muted-foreground">
+                  Photo de la conformité au{" "}
+                  <span className="text-foreground">
+                    {formatComplianceGeneratedAtFrench(complianceQuery.data.generated_at)}
+                  </span>
+                  . {complianceQuery.data.total_employees} salarié
+                  {complianceQuery.data.total_employees > 1 ? "s" : ""} concerné
+                  {complianceQuery.data.total_employees > 1 ? "s" : ""},{" "}
+                  {complianceQuery.data.total_obligations} obligations suivies.
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">Chargement du rapport…</p>
+              )}
+              <div className="flex gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => void complianceQuery.refetch()}
+                      disabled={complianceQuery.isFetching}
+                    >
+                      {complianceQuery.isFetching ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      <span className="sr-only">Actualiser</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Actualiser</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={!complianceQuery.data}
+                      onClick={() => {
+                        if (complianceQuery.data) exportComplianceReportToCsv(complianceQuery.data);
+                      }}
+                    >
+                      <FileDown className="h-4 w-4" />
+                      <span className="sr-only">Exporter le rapport</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Exporter le rapport</TooltipContent>
+                </Tooltip>
+              </div>
+            </div>
+
+            {complianceQuery.isLoading ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {[0, 1, 2].map((i) => (
+                    <Skeleton key={i} className="h-24 w-full" />
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label>Motif</Label>
-              <Input
-                value={onDemandMotif}
-                onChange={(e) => setOnDemandMotif(e.target.value)}
-                placeholder="Motif de la demande"
+                </div>
+                <Skeleton className="h-40 w-full" />
+                <Skeleton className="h-40 w-full" />
+              </div>
+            ) : complianceQuery.isError ? (
+              <p className="text-sm text-destructive">
+                Impossible de charger le rapport de conformité.
+              </p>
+            ) : complianceQuery.data ? (
+              <MedicalCompliancePanels
+                cr={complianceQuery.data}
+                onVisitTypeClick={goToPilotageWithVisitType}
+                onViewEmployeeObligations={goToPilotageWithEmployee}
               />
+            ) : null}
+          </TabsContent>
+        </Tabs>
+
+        <AlertDialog open={remindersConfirmOpen} onOpenChange={setRemindersConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Envoyer les rappels ?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Envoyer des notifications à {salarieConcerneCount} salarié(s) concerné(s) ? Les
+                rappels portent sur les obligations actives dont l&apos;échéance est passée ou dans
+                les 30 prochains jours.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annuler</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => sendRemindersMutation.mutate()}
+                disabled={sendRemindersMutation.isPending}
+              >
+                Confirmer l&apos;envoi
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <Dialog open={!!planifiedModal} onOpenChange={(open) => !open && setPlanifiedModal(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Marquer comme planifiée</DialogTitle>
+              <DialogDescription>
+                Indiquez la date de planification et un commentaire optionnel.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label>Date de planification</Label>
+                <Input
+                  type="date"
+                  value={planifiedDate}
+                  onChange={(e) => setPlanifiedDate(e.target.value)}
+                />
+                {planifiedBeyondDue ? (
+                  <p className="text-xs text-orange-600 dark:text-orange-400">
+                    Date au-delà de l&apos;échéance — risque de non-conformité
+                  </p>
+                ) : null}
+              </div>
+              <div className="grid gap-2">
+                <Label>Commentaire (optionnel)</Label>
+                <Textarea
+                  rows={3}
+                  value={planifiedComment}
+                  onChange={(e) => setPlanifiedComment(e.target.value)}
+                  placeholder="Commentaire"
+                />
+              </div>
             </div>
-            <div className="grid gap-2">
-              <Label>Date demande</Label>
-              <Input
-                type="date"
-                value={onDemandDate}
-                onChange={(e) => setOnDemandDate(e.target.value)}
-              />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPlanifiedModal(null)}>
+                Annuler
+              </Button>
+              <Button onClick={handleMarkPlanified} disabled={saving || !planifiedDate}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enregistrer"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!completedModal} onOpenChange={(open) => !open && setCompletedModal(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Marquer comme réalisée</DialogTitle>
+              <DialogDescription>
+                Indiquez la date de réalisation et un commentaire optionnel.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label>Date réelle</Label>
+                <Input
+                  type="date"
+                  value={completedDate}
+                  onChange={(e) => setCompletedDate(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Commentaire (optionnel)</Label>
+                <Textarea
+                  rows={3}
+                  value={completedComment}
+                  onChange={(e) => setCompletedComment(e.target.value)}
+                  placeholder="Commentaire"
+                />
+              </div>
             </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOnDemandOpen(false)}>Annuler</Button>
-            <Button onClick={handleCreateOnDemand} disabled={saving || !onDemandEmployee || !onDemandMotif || !onDemandDate}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Créer"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCompletedModal(null)}>
+                Annuler
+              </Button>
+              <Button onClick={handleMarkCompleted} disabled={saving || !completedDate}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enregistrer"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={onDemandOpen} onOpenChange={setOnDemandOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Créer une visite à la demande</DialogTitle>
+              <DialogDescription>
+                Sélectionnez le salarié, le motif et la date de demande.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label>Salarié</Label>
+                <Select value={onDemandEmployee} onValueChange={setOnDemandEmployee}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choisir un salarié" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.map((e) => (
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.first_name} {e.last_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Motif</Label>
+                <Input
+                  value={onDemandMotif}
+                  onChange={(e) => setOnDemandMotif(e.target.value)}
+                  placeholder="Motif de la demande"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Date demande</Label>
+                <Input
+                  type="date"
+                  value={onDemandDate}
+                  onChange={(e) => setOnDemandDate(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOnDemandOpen(false)}>
+                Annuler
+              </Button>
+              <Button
+                onClick={handleCreateOnDemand}
+                disabled={saving || !onDemandEmployee || !onDemandMotif || !onDemandDate}
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Créer"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </TooltipProvider>
   );
 }

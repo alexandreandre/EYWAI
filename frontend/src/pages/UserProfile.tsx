@@ -2,7 +2,7 @@
 // Fiche utilisateur complète : consultation des informations, accès entreprises et permissions.
 
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Loader2,
   ArrowLeft,
@@ -35,22 +35,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
-
-const roleLabels: Record<string, string> = {
-  admin: 'Administrateur',
-  rh: 'Ressources Humaines',
-  collaborateur_rh: 'Collaborateur RH',
-  collaborateur: 'Collaborateur',
-  custom: 'Personnalisé',
-};
-
-const roleColors: Record<string, string> = {
-  admin: 'bg-purple-100 text-purple-800 border-purple-200',
-  rh: 'bg-blue-100 text-blue-800 border-blue-200',
-  collaborateur_rh: 'bg-green-100 text-green-800 border-green-200',
-  collaborateur: 'bg-gray-100 text-gray-800 border-gray-200',
-  custom: 'bg-orange-100 text-orange-800 border-orange-200',
-};
+import {
+  AppUserRole,
+  getRoleDisplayLabel,
+  ROLE_BADGE_CLASS,
+} from '@/lib/userRoleLabels';
 
 interface CompanyAccessItem {
   company_id: string;
@@ -78,9 +67,15 @@ interface UserDetailData {
 const UserProfile: React.FC = () => {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { activeCompany } = useCompany();
 
-  const companyId = activeCompany?.company_id ?? localStorage.getItem('activeCompanyId') ?? '';
+  const companyIdFromQuery = searchParams.get('company_id') ?? '';
+  const companyId =
+    companyIdFromQuery ||
+    activeCompany?.company_id ||
+    localStorage.getItem('activeCompanyId') ||
+    '';
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -176,10 +171,12 @@ const UserProfile: React.FC = () => {
     );
   }
 
-  const displayRole = userDetail.role === 'custom' && userDetail.role_template_name
-    ? userDetail.role_template_name
-    : roleLabels[userDetail.role] ?? userDetail.role;
-  const roleColor = roleColors[userDetail.role] ?? roleColors.custom;
+  const displayRole = getRoleDisplayLabel(
+    userDetail.role as AppUserRole,
+    userDetail.role_template_name,
+  );
+  const roleColor =
+    ROLE_BADGE_CLASS[userDetail.role as AppUserRole] ?? ROLE_BADGE_CLASS.custom;
   const fullName = `${userDetail.first_name} ${userDetail.last_name}`;
 
   return (
@@ -301,8 +298,14 @@ const UserProfile: React.FC = () => {
                       <TableRow key={acc.company_id}>
                         <TableCell className="font-medium">{acc.company_name}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={cn('text-xs', roleColors[acc.role] ?? roleColors.custom)}>
-                            {roleLabels[acc.role] ?? acc.role}
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              'text-xs',
+                              ROLE_BADGE_CLASS[acc.role as AppUserRole] ?? ROLE_BADGE_CLASS.custom,
+                            )}
+                          >
+                            {getRoleDisplayLabel(acc.role as AppUserRole)}
                           </Badge>
                         </TableCell>
                         <TableCell>

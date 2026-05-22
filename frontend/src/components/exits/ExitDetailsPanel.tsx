@@ -140,7 +140,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
       console.error('Erreur lors du chargement des détails:', error);
       toast({
         title: 'Erreur',
-        description: 'Impossible de charger les détails de la sortie',
+        description: 'Impossible de charger les détails du départ',
         variant: 'destructive',
       });
     } finally {
@@ -553,7 +553,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                   <div>
                     <CardTitle>Documents</CardTitle>
                     <CardDescription>
-                      Les documents obligatoires sont générés automatiquement lors de l'initiation de la sortie
+                      Les documents obligatoires sont générés automatiquement lors de l'initiation du départ
                     </CardDescription>
                   </div>
                   {hasPublishPermission && documents.filter(d => d.document_category === 'generated').length > 0 && (
@@ -800,7 +800,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
             )}
           >
           <DialogHeader>
-            <DialogTitle>Publier les documents de sortie</DialogTitle>
+            <DialogTitle>Publier les documents de départ</DialogTitle>
             <DialogDescription>
               Les documents suivants seront envoyés dans l'espace Documents du collaborateur (section "Autres") :
             </DialogDescription>
