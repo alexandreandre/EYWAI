@@ -62,6 +62,8 @@ Sans brief exploitable (palette, typo, radius, ton clair/sombre), **demander** d
 
 ## Workflow (ordre obligatoire)
 
+> Phases : 0 cadrage → 1 tokens → 2 primitives ui → 3 sweep couleurs → 4 graphiques → **5 cohérence inter-composants** → 6 vérif finale → 7 livrable.
+
 ### Phase 0 — Cadrage
 
 1. Lire le brief DA et le résumer en 5–10 lignes (palette, typo, radius, ombres, motion).
@@ -112,7 +114,74 @@ Documenter dans la synthèse le nombre de fichiers touchés et toute **exception
 - `components/ui/chart.tsx` : couleurs de grille, tooltip, légende → tokens.
 - Composants `*Chart*`, `chart-container`, pages `Analytics` / `Dashboard` : séries avec `hsl(var(--primary))` ou palette dérivée du brief (max 5–6 teintes harmonisées, pas arc-en-ciel par défaut).
 
-### Phase 5 — Vérification de cohérence
+### Phase 5 — Cohérence inter-composants (obligatoire)
+
+Objectif : **deux éléments qui font la même chose se ressemblent partout**. C’est ici que la refonte cesse d’être un patchwork.
+
+#### 5.1 — Inventaire des familles d’éléments
+
+Construire mentalement (ou en notes courtes) la liste des **familles fonctionnelles** présentes dans l’app, et vérifier qu’une famille = **un seul style** :
+
+| Famille | Doit être identique partout |
+|---------|------------------------------|
+| Boutons primaires (CTA principal) | même couleur, radius, hauteur, typo, ombre, hover, focus |
+| Boutons secondaires / outline | idem |
+| Boutons destructifs | idem (et seul style « rouge » autorisé) |
+| Boutons icône seul | même taille, même hit area |
+| Liens cliquables | même couleur + hover (souligné/non), tous les écrans |
+| Inputs / selects / textarea | même hauteur, bordure, focus ring, padding, état erreur |
+| Champs en erreur | même bordure, même couleur d’aide |
+| Badges de statut | même mapping sémantique : succès = vert thème, warning = ambre, danger = rouge thème — jamais `green-500` à un endroit et `success` ailleurs |
+| Cards / panneaux | même fond, bordure, radius, ombre, espacement intérieur |
+| Tableaux | même header, lignes zébrées ou non, hover row, pagination |
+| Modales / dialogs / sheets | même padding, header, footer d’actions (ordre boutons : annuler à gauche / valider à droite, ou choix unique appliqué partout) |
+| Toasts / alertes | même structure, même couleur par sévérité |
+| Tabs / sous-navigation | même indicateur actif (couleur, soulignement, fond) |
+| Avatars, chips, KPI cards | mêmes tailles/variantes |
+| Sidebar / topbar | item actif, hover, focus identiques sur sidebar admin / employé / super-admin |
+| Pages d’erreur / vide / loading | même illustration ou pattern, même copie tonale |
+
+#### 5.2 — Sweep de cohérence
+
+Pour chaque famille, faire une recherche transverse et **uniformiser** :
+
+```bash
+# Boutons définis ou ré-stylés ailleurs que via la primitive ui/button
+rg -n '<button[^>]*className=' frontend/src
+rg -n 'className="[^"]*(rounded|h-(8|9|10|11|12)|px-(3|4|5|6))[^"]*"[^>]*>' frontend/src/pages frontend/src/components --glob '!**/ui/**'
+
+# Inputs faits main qui contournent ui/input
+rg -n '<input[^>]*className=' frontend/src --glob '!**/ui/**'
+
+# Status / badges artisanaux
+rg -n 'rounded-full[^"]*(bg-|text-)' frontend/src
+```
+
+Règle : si un écran ré-implémente un bouton, un badge ou un input à la main, **le remplacer par la primitive** `components/ui/*` (variant adapté). On uniformise le rendu via le design system, pas avec des classes parallèles.
+
+#### 5.3 — Variants : peu, mais clairs
+
+- Compter les variants effectivement utilisés par primitive (ex. `Button`: `default | secondary | outline | ghost | destructive | link`). Si une page utilise un 7e style « custom », le ramener vers un variant existant ou ajouter **un seul** variant nommé au design system.
+- Pas de tailles aléatoires : `Button` doit avoir un nombre fini de hauteurs (`sm | default | lg | icon`). Les `h-9`/`h-11` random dans des pages sont à supprimer.
+
+#### 5.4 — Gabarit de page
+
+Vérifier qu’un type de page a **toujours** le même gabarit :
+
+- titre + breadcrumb + actions à droite → même hauteur et alignement
+- bandeau KPI → même nombre de colonnes responsive et même card
+- listes / tableaux → mêmes filtres en tête, mêmes pagination/footers
+- pages détail employé / formation / annual review → mêmes onglets visuellement
+
+Pas de réorganisation de contenu — juste **harmonisation** des paddings/headers/bandeaux entre pages sœurs.
+
+#### 5.5 — Mode sombre cohérent
+
+- Aucune surface en `#000` pur si le brief dit « pas de noir pur ».
+- Bordures visibles en dark sur **toutes** les cards, pas seulement certaines.
+- Primary lisible sur fond dark partout (mêmes paires de couleurs).
+
+### Phase 6 — Vérification finale
 
 Exécuter la checklist complète : [verification.md](verification.md).
 
@@ -120,9 +189,11 @@ Minimum avant clôture :
 
 - `npm run lint` dans `frontend/` (corriger erreurs introduites).
 - Re-scan `rg` : **aucune** classe `*-500` / `blue-600` etc. restante sauf exceptions documentées.
-- Parcours visuel rapide : login, dashboard RH, fiche employé, sidebar, mode sombre si activé, toast/alert/dialog.
+- Re-scan cohérence (5.2) : zéro `<button>` ou `<input>` natif stylé hors primitive sans justification.
+- Parcours visuel comparatif : ouvrir **deux** pages différentes côte à côte (ex. `Employees` et `Recruitment`) et vérifier que **boutons, cards, tableaux, modales** sont visuellement identiques pour la même fonction.
+- Mode sombre si activé : même check.
 
-### Phase 6 — Livrable utilisateur (français)
+### Phase 7 — Livrable utilisateur (français)
 
 1. Résumé du brief appliqué.
 2. Fichiers clés modifiés (tokens, ui, top pages).

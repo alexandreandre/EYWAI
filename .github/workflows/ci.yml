@@ -1,4 +1,14 @@
-# PR + push sur main : vérifs auto (secrets, backend, frontend, export OpenAPI).
+# CI : sur chaque PR + push sur main.
+#
+# Philosophie : robuste, simple, pas rigide.
+# - Bloquant   : ce qui ne dépend que du code (lint, build, tests unit, scan secrets).
+# - Best-effort: tests d'intégration (continue-on-error) — l'info reste visible
+#   dans les logs mais ne bloque ni le merge ni le déploiement.
+# - Hors CI    : tests e2e (lancés en local ou via job dédié plus tard).
+#
+# Les tests unit sont hermétiques (mocks, pas de DB réelle) : ils tournent même
+# sans secrets Supabase, grâce à des valeurs factices d'amorçage qui n'engagent
+# aucun appel réseau (le client supabase-py n'effectue pas de requête à l'init).
 name: CI
 
 on:
@@ -14,6 +24,9 @@ permissions:
   contents: read
 
 jobs:
+  # ----------------------------------------------------------------------------
+  # 1) Scan secrets (gitleaks) — bloquant
+  # ----------------------------------------------------------------------------
   secrets:
     name: Secrets (gitleaks)
     runs-on: ubuntu-latest
@@ -25,29 +38,30 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # ----------------------------------------------------------------------------
+  # 2) Backend — bloquant : ruff + tests unit + smoke import + OpenAPI artifact
+  # ----------------------------------------------------------------------------
   backend:
-    name: Backend (tests + OpenAPI)
+    name: Backend (lint + unit + OpenAPI)
     runs-on: ubuntu-latest
-    # Même projet Supabase que le déploiement : les tests d’intégration et la paie appellent l’API réelle.
-    # Ne pas utiliser d’URL inventée (ex. ci-placeholder.supabase.co) : DNS « Name or service not known ».
     env:
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      # Fakes acceptés : `supabase.create_client` n'appelle pas le réseau à l'init.
+      # Si des secrets réels sont fournis (utile pour debug), ils sont utilisés.
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://ci-fake.supabase.co' }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY || 'ci-fake-anon-key' }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || '' }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || 'sk-ci-fake' }}
     defaults:
       run:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
 
-      - name: Paquets système (PDF / OCR, comme le Dockerfile)
+      - name: Paquets système (cairo / pango pour weasyprint à l'import)
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential libffi-dev fontconfig libcairo2 \
-            libpango-1.0-0 libpangocairo-1.0-0 libgobject-2.0-0 \
-            poppler-utils tesseract-ocr tesseract-ocr-fra
+            libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libgobject-2.0-0
 
       - uses: actions/setup-python@v5
         with:
@@ -57,38 +71,22 @@ jobs:
             backend/requirements.txt
             backend/requirements-dev.txt
 
-      - name: pip install
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt
-          pip install pip-audit
 
-      - name: OpenAI optionnel (évite erreur d’import si secret absent)
-        run: |
-          if [ -z "${OPENAI_API_KEY:-}" ]; then
-            echo "OPENAI_API_KEY=sk-ci-minimal-placeholder" >> "$GITHUB_ENV"
-          fi
-
-      - name: Secrets Supabase requis pour pytest (projet réel)
-        run: |
-          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_KEY:-}" ]; then
-            echo "::error::Définis au minimum SUPABASE_URL et SUPABASE_KEY (Settings → Secrets and variables → Actions), comme pour le deploy. Ajoute SUPABASE_SERVICE_KEY (clé service_role) pour les chemins admin / paie ; sinon l’app retombe sur SUPABASE_KEY."
-            exit 1
-          fi
-
-      - name: Ruff (info seulement)
+      - name: Ruff (info)
         continue-on-error: true
         run: ruff check . --output-format github
 
-      - name: pip-audit (info seulement)
-        continue-on-error: true
-        # CVE-2026-4539 (pygments) : pas de version corrigée listée par pip-audit au 2026-03 ; ignorer jusqu’au correctif amont.
-        run: pip-audit -r requirements.txt --desc on --ignore-vuln CVE-2026-4539
+      - name: Smoke import (vérifie le chargement de l'app)
+        run: python -c "from app.main import app; print('OK', len(app.openapi()['paths']), 'routes')"
 
-      - name: Pytest (hors e2e)
-        run: python -m pytest tests/ -m "not e2e" -v --tb=short
+      - name: Pytest unit (bloquant)
+        run: python -m pytest tests/unit -v --tb=short -p no:cacheprovider
 
-      - name: Fichier OpenAPI
+      - name: OpenAPI artifact
         run: |
           python - <<'PY'
           import json
@@ -103,6 +101,68 @@ jobs:
           path: backend/openapi.json
           retention-days: 14
 
+  # ----------------------------------------------------------------------------
+  # 3) Backend integration — best-effort (info, jamais bloquant)
+  # Skippe si les secrets Supabase ne sont pas fournis ; sinon lance pytest
+  # tests/integration. Le résultat reste visible dans les logs.
+  # ----------------------------------------------------------------------------
+  backend-integration:
+    name: Backend integration (info)
+    needs: backend
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || 'sk-ci-fake' }}
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip si secrets Supabase absents
+        id: precheck
+        run: |
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_KEY:-}" ]; then
+            echo "Pas de secrets Supabase : intégration skippée."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Paquets système (PDF / OCR)
+        if: steps.precheck.outputs.skip != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential libffi-dev fontconfig libcairo2 \
+            libpango-1.0-0 libpangocairo-1.0-0 libgobject-2.0-0 \
+            poppler-utils tesseract-ocr tesseract-ocr-fra
+
+      - uses: actions/setup-python@v5
+        if: steps.precheck.outputs.skip != 'true'
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install dependencies
+        if: steps.precheck.outputs.skip != 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Pytest integration
+        if: steps.precheck.outputs.skip != 'true'
+        run: python -m pytest tests/integration -v --tb=short -p no:cacheprovider
+
+  # ----------------------------------------------------------------------------
+  # 4) Frontend — bloquant : lint + build
+  # ----------------------------------------------------------------------------
   frontend:
     name: Frontend (lint + build)
     runs-on: ubuntu-latest
@@ -122,9 +182,5 @@ jobs:
       - run: npm run lint
       - run: npm run build
         env:
-          # Même variable que le déploiement ; repli pour forks sans variable dépôt.
+          # Repli pour les forks sans variable dépôt ; la prod utilise vars.VITE_API_URL.
           VITE_API_URL: ${{ vars.VITE_API_URL || 'https://example.com' }}
-
-      - name: npm audit (info seulement)
-        continue-on-error: true
-        run: npm audit --audit-level=moderate

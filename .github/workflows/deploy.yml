@@ -1,6 +1,9 @@
-# Déploiement après une CI verte sur main, ou déclenchement manuel.
-# Le push seul sur main ne déploie plus : il faut que le workflow « CI » ait réussi (push → CI → ce workflow).
-# Variables / secrets : voir .github/workflows/GUIDE_SIMPLE.md
+# Déploiement Cloud Run après une CI verte sur main, ou via Run workflow.
+#
+# Enchaînement : push main → CI verte → Deploy → staging → (gate) → production.
+# Le checkout et les tags d'image utilisent le SHA du run CI qui vient de réussir.
+#
+# Variables / secrets requis : voir .github/workflows/GUIDE_SIMPLE.md
 name: Deploy
 
 on:
@@ -24,60 +27,56 @@ env:
   FRONTEND_SERVICE_NAME: ${{ vars.FRONTEND_SERVICE_NAME || 'sirh-frontend' }}
 
 jobs:
-  build-and-push:
-    name: Docker build + push GCR
+  # ----------------------------------------------------------------------------
+  # 1) Build + push images Docker → GCR
+  # ----------------------------------------------------------------------------
+  build:
+    name: Build & push images
     runs-on: ubuntu-latest
     if: |
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.conclusion == 'success')
     outputs:
-      backend_image: ${{ steps.meta-backend.outputs.image }}
-      frontend_image: ${{ steps.meta-frontend.outputs.image }}
+      backend_image: ${{ steps.images.outputs.backend }}
+      frontend_image: ${{ steps.images.outputs.frontend }}
     env:
-      # workflow_run : même commit que la CI qui vient de réussir (pas github.sha du run Deploy)
       DEPLOY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
-      - name: GCP_PROJECT_ID requis
+      - name: Vérifier variables et secrets requis
         run: |
-          if [ -z "${{ vars.GCP_PROJECT_ID }}" ]; then
-            echo "::error::Variable dépôt GCP_PROJECT_ID manquante."
+          missing=""
+          [ -z "${{ vars.GCP_PROJECT_ID }}" ] && missing="$missing GCP_PROJECT_ID(var)"
+          [ -z "${{ vars.VITE_API_URL }}" ]   && missing="$missing VITE_API_URL(var)"
+          [ -z "${{ secrets.GCP_SA_KEY }}" ]  && missing="$missing GCP_SA_KEY(secret)"
+          [ -z "${{ secrets.SUPABASE_URL }}" ] && missing="$missing SUPABASE_URL(secret)"
+          [ -z "${{ secrets.SUPABASE_KEY }}" ] && missing="$missing SUPABASE_KEY(secret)"
+          if [ -n "$missing" ]; then
+            echo "::error::Manquant dans Settings → Secrets and variables → Actions :$missing"
             exit 1
           fi
 
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
-
       - uses: google-github-actions/setup-gcloud@v2
       - run: gcloud auth configure-docker --quiet
 
-      - id: meta-backend
+      - id: images
         run: |
           P="${{ vars.GCP_PROJECT_ID }}"
-          echo "image=gcr.io/${P}/sirh-backend:${DEPLOY_SHA}" >> "$GITHUB_OUTPUT"
+          echo "backend=gcr.io/${P}/sirh-backend:${DEPLOY_SHA}" >> "$GITHUB_OUTPUT"
+          echo "frontend=gcr.io/${P}/sirh-frontend:${DEPLOY_SHA}" >> "$GITHUB_OUTPUT"
 
       - uses: docker/build-push-action@v6
         with:
           context: ./backend
           push: true
-          tags: ${{ steps.meta-backend.outputs.image }}
-
-      - id: meta-frontend
-        run: |
-          P="${{ vars.GCP_PROJECT_ID }}"
-          echo "image=gcr.io/${P}/sirh-frontend:${DEPLOY_SHA}" >> "$GITHUB_OUTPUT"
-
-      - name: VITE_API_URL requis pour le build frontend
-        run: |
-          if [ -z "${{ vars.VITE_API_URL }}" ]; then
-            echo "::error::Variable dépôt VITE_API_URL manquante. Ajoute-la dans Settings → Secrets and variables → Actions → Variables (URL HTTPS publique du backend, ex. Cloud Run)."
-            exit 1
-          fi
+          tags: ${{ steps.images.outputs.backend }}
 
       - uses: docker/build-push-action@v6
         with:
@@ -85,12 +84,14 @@ jobs:
           push: true
           build-args: |
             VITE_API_URL=${{ vars.VITE_API_URL }}
-          tags: ${{ steps.meta-frontend.outputs.image }}
+          tags: ${{ steps.images.outputs.frontend }}
 
+  # ----------------------------------------------------------------------------
+  # 2) Staging — déploiement automatique
+  # ----------------------------------------------------------------------------
   staging:
-    name: Cloud Run staging
-    needs: [build-and-push]
-    if: needs.build-and-push.result == 'success'
+    name: Deploy staging
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: google-github-actions/auth@v2
@@ -100,23 +101,12 @@ jobs:
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
 
-      # Le backend importe Supabase au chargement ; sans ces variables le conteneur ne bind jamais le PORT.
-      - name: Secrets Supabase requis pour le backend
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: |
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_KEY" ]; then
-            echo "::error::Ajoute les secrets SUPABASE_URL et SUPABASE_KEY (Settings → Secrets and variables → Actions). Même valeur que sur Cloud Run / ton .env backend."
-            exit 1
-          fi
-
       - uses: google-github-actions/deploy-cloudrun@v2
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
           service: ${{ env.BACKEND_SERVICE_NAME }}
           region: ${{ env.GCP_REGION }}
-          image: ${{ needs.build-and-push.outputs.backend_image }}
+          image: ${{ needs.build.outputs.backend_image }}
           env_vars: |-
             SUPABASE_URL=${{ secrets.SUPABASE_URL }}
             SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
@@ -127,20 +117,31 @@ jobs:
           project_id: ${{ vars.GCP_PROJECT_ID }}
           service: ${{ env.FRONTEND_SERVICE_NAME }}
           region: ${{ env.GCP_REGION }}
-          image: ${{ needs.build-and-push.outputs.frontend_image }}
+          image: ${{ needs.build.outputs.frontend_image }}
 
-      - name: Santé backend /health
+      - name: Smoke tests staging
         run: |
-          URL=$(gcloud run services describe "${BACKEND_SERVICE_NAME}" \
+          BACK=$(gcloud run services describe "${BACKEND_SERVICE_NAME}" \
             --region "${GCP_REGION}" --format 'value(status.url)')
-          curl -fsS --retry 5 --retry-delay 5 --retry-all-errors "${URL}/health"
+          FRONT=$(gcloud run services describe "${FRONTEND_SERVICE_NAME}" \
+            --region "${GCP_REGION}" --format 'value(status.url)')
+          echo "Backend : $BACK ; Frontend : $FRONT"
+          curl -fsS --retry 5 --retry-delay 5 --retry-all-errors "${BACK}/health"
+          curl -fsS --retry 5 --retry-delay 5 --retry-all-errors -o /dev/null "${BACK}/openapi.json"
+          curl -fsS --retry 5 --retry-delay 5 --retry-all-errors -o /dev/null "${FRONT}/"
 
+  # ----------------------------------------------------------------------------
+  # 3) Production — gate via environnement GitHub `production`
+  # ----------------------------------------------------------------------------
   production:
-    name: Cloud Run production
-    needs: [staging, build-and-push]
-    if: needs.build-and-push.result == 'success' && needs.staging.result == 'success'
+    name: Deploy production
+    needs: [build, staging]
     runs-on: ubuntu-latest
     environment: production
+    env:
+      BACKEND_SERVICE_NAME: ${{ vars.BACKEND_SERVICE_NAME_PROD || vars.BACKEND_SERVICE_NAME || 'sirh-backend' }}
+      FRONTEND_SERVICE_NAME: ${{ vars.FRONTEND_SERVICE_NAME_PROD || vars.FRONTEND_SERVICE_NAME || 'sirh-frontend' }}
+      GCP_REGION: ${{ vars.GCP_REGION_PROD || vars.GCP_REGION || 'europe-west1' }}
     steps:
       - uses: google-github-actions/auth@v2
         with:
@@ -149,22 +150,12 @@ jobs:
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
 
-      - name: Secrets Supabase requis pour le backend
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: |
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_KEY" ]; then
-            echo "::error::Ajoute SUPABASE_URL et SUPABASE_KEY aux secrets de l'environnement « production » ou du dépôt."
-            exit 1
-          fi
-
       - uses: google-github-actions/deploy-cloudrun@v2
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
-          service: ${{ vars.BACKEND_SERVICE_NAME_PROD || env.BACKEND_SERVICE_NAME }}
-          region: ${{ vars.GCP_REGION_PROD || env.GCP_REGION }}
-          image: ${{ needs.build-and-push.outputs.backend_image }}
+          service: ${{ env.BACKEND_SERVICE_NAME }}
+          region: ${{ env.GCP_REGION }}
+          image: ${{ needs.build.outputs.backend_image }}
           env_vars: |-
             SUPABASE_URL=${{ secrets.SUPABASE_URL }}
             SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
@@ -173,13 +164,17 @@ jobs:
       - uses: google-github-actions/deploy-cloudrun@v2
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
-          service: ${{ vars.FRONTEND_SERVICE_NAME_PROD || env.FRONTEND_SERVICE_NAME }}
-          region: ${{ vars.GCP_REGION_PROD || env.GCP_REGION }}
-          image: ${{ needs.build-and-push.outputs.frontend_image }}
+          service: ${{ env.FRONTEND_SERVICE_NAME }}
+          region: ${{ env.GCP_REGION }}
+          image: ${{ needs.build.outputs.frontend_image }}
 
-      - name: Santé backend /health
+      - name: Smoke tests production
         run: |
-          SVC="${{ vars.BACKEND_SERVICE_NAME_PROD || env.BACKEND_SERVICE_NAME }}"
-          REG="${{ vars.GCP_REGION_PROD || env.GCP_REGION }}"
-          URL=$(gcloud run services describe "${SVC}" --region "${REG}" --format 'value(status.url)')
-          curl -fsS --retry 5 --retry-delay 5 --retry-all-errors "${URL}/health"
+          BACK=$(gcloud run services describe "${BACKEND_SERVICE_NAME}" \
+            --region "${GCP_REGION}" --format 'value(status.url)')
+          FRONT=$(gcloud run services describe "${FRONTEND_SERVICE_NAME}" \
+            --region "${GCP_REGION}" --format 'value(status.url)')
+          echo "Backend : $BACK ; Frontend : $FRONT"
+          curl -fsS --retry 5 --retry-delay 5 --retry-all-errors "${BACK}/health"
+          curl -fsS --retry 5 --retry-delay 5 --retry-all-errors -o /dev/null "${BACK}/openapi.json"
+          curl -fsS --retry 5 --retry-delay 5 --retry-all-errors -o /dev/null "${FRONT}/"
