@@ -154,12 +154,12 @@ def aggregate_consolidated_dashboards(
 def resolve_comparison_period(
     compare_to: str,
     *,
-    year: Optional[int],
-    month: Optional[int],
-    start_year: Optional[int],
-    start_month: Optional[int],
-    end_year: Optional[int],
-    end_month: Optional[int],
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+    start_year: Optional[int] = None,
+    start_month: Optional[int] = None,
+    end_year: Optional[int] = None,
+    end_month: Optional[int] = None,
 ) -> Optional[Tuple[int, int, int, int]]:
     """Retourne (start_year, start_month, end_year, end_month) pour la période de comparaison."""
     now = datetime.now()
