@@ -29,8 +29,10 @@ class IAbsenceRepository(ABC):
         ...
 
     @abstractmethod
-    def list_by_status(self, status: Optional[str]) -> List[Dict[str, Any]]:
-        """Liste les demandes (optionnellement filtrées par status) avec join employee."""
+    def list_by_status(
+        self, status: Optional[str], company_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Liste les demandes (status, entreprise) avec join employee."""
         ...
 
     @abstractmethod

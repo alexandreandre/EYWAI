@@ -1,8 +1,10 @@
 # moteur_paie/calcul_reduction_generale.py
 
 from __future__ import annotations
+from app.core.logging import get_logger, log_payroll_debug
 
-import sys
+logger = get_logger("modules.payroll.engine.calcul_reduction_generale")
+
 from typing import Any
 
 from app.modules.payroll.engine.contexte import ContextePaie
@@ -63,10 +65,7 @@ def _calculer_parametre_T(contexte: ContextePaie) -> float:
     # Il est essentiel que ce taux soit correctement renseigné.
     taux_at_mp = contexte.entreprise.get("parametres_paie", {}).get("taux_at_mp", 0.0)
     if not taux_at_mp:
-        print(
-            "AVERTISSEMENT: Le taux AT/MP n'est pas défini. La réduction générale sera sous-évaluée.",
-            file=sys.stderr,
-        )
+        logger.warning("AVERTISSEMENT: Le taux AT/MP n'est pas défini. La réduction générale sera sous-évaluée.")
     taux_a_sommer["at_mp"] = taux_at_mp
 
     parametre_T = sum(taux_a_sommer.values())
@@ -74,9 +73,7 @@ def _calculer_parametre_T(contexte: ContextePaie) -> float:
     # Le T est plafonné à une valeur maximale (en 2025, 0.3333 pour un taux AT/MP de 1.50%).
     # On peut ajouter un plafond de sécurité si nécessaire, mais le calcul dynamique est la norme.
 
-    print(
-        f"DEBUG [Réduction]: Calcul du paramètre T = {parametre_T:.6f}", file=sys.stderr
-    )
+    log_payroll_debug(logger, f'DEBUG [Réduction]: Calcul du paramètre T = {parametre_T:.6f}')
     return parametre_T
 
 
@@ -99,10 +96,7 @@ def _calculer_smic_de_reference_cumule(
 
     smic_reference_cumule = smic_horaire * heures_remunerees_cumulees
 
-    print(
-        f"DEBUG [Réduction]: SMIC de référence cumulé = {smic_reference_cumule:.2f} € (pour {heures_remunerees_cumulees:.2f}h)",
-        file=sys.stderr,
-    )
+    log_payroll_debug(logger, f'DEBUG [Réduction]: SMIC de référence cumulé = {smic_reference_cumule:.2f} € (pour {heures_remunerees_cumulees:.2f}h)')
 
     return smic_reference_cumule
 
@@ -122,10 +116,7 @@ def calculer_reduction_generale(
         heures_remunerees_mois: Le total des heures du mois qui entrent dans le
                                calcul du SMIC de référence (travail, HS, CP, etc.).
     """
-    print(
-        "INFO: Démarrage du calcul de la Réduction Générale (méthode de régularisation progressive)...",
-        file=sys.stderr,
-    )
+    log_payroll_debug(logger, 'INFO: Démarrage du calcul de la Réduction Générale (méthode de régularisation progressive)...')
 
     # --- ÉTAPE 1 : Récupérer les données cumulées du mois précédent ---
     # Gérer le cas où contexte.cumuls est None ou n'existe pas
@@ -154,10 +145,7 @@ def calculer_reduction_generale(
     seuil_eligibilite_cumule = 1.6 * smic_reference_total_cumule
 
     if brut_total_cumule >= seuil_eligibilite_cumule:
-        print(
-            f"INFO: Brut cumulé ({brut_total_cumule:.2f} €) >= 1.6 * SMIC cumulé ({seuil_eligibilite_cumule:.2f} €). La réduction totale est de 0.",
-            file=sys.stderr,
-        )
+        log_payroll_debug(logger, f'INFO: Brut cumulé ({brut_total_cumule:.2f} €) >= 1.6 * SMIC cumulé ({seuil_eligibilite_cumule:.2f} €). La réduction totale est de 0.')
         # S'il y a eu une réduction les mois précédents, il faut la "rembourser".
         montant_reduction_mois = -reduction_deja_appliquee_N_1
         coefficient_C = 0.0
@@ -184,14 +172,8 @@ def calculer_reduction_generale(
 
     montant_final = -round(montant_reduction_mois, 2)
 
-    print(
-        f"DEBUG [Réduction]: Coeff C cumulé = {coefficient_C:.6f} | Réduction totale due = {reduction_totale_due:.2f} €",
-        file=sys.stderr,
-    )
-    print(
-        f"DEBUG [Réduction]: Déjà appliqué = {reduction_deja_appliquee_N_1:.2f} € | Montant du mois = {montant_final} €",
-        file=sys.stderr,
-    )
+    log_payroll_debug(logger, f'DEBUG [Réduction]: Coeff C cumulé = {coefficient_C:.6f} | Réduction totale due = {reduction_totale_due:.2f} €')
+    log_payroll_debug(logger, f'DEBUG [Réduction]: Déjà appliqué = {reduction_deja_appliquee_N_1:.2f} € | Montant du mois = {montant_final} €')
 
     return {
         "libelle": "Réduction générale de cotisations patronales",

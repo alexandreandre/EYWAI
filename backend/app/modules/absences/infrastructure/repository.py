@@ -70,10 +70,14 @@ class SupabaseAbsenceRepository(IAbsenceRepository):
         )
         return r.data if r.data else None
 
-    def list_by_status(self, status: Optional[str]) -> List[Dict[str, Any]]:
+    def list_by_status(
+        self, status: Optional[str], company_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         query = supabase.table("absence_requests").select(
             "*, employee:employees(id, first_name, last_name)"
         )
+        if company_id:
+            query = query.eq("company_id", company_id)
         if status:
             query = query.eq("status", status)
             # Les demandes encore chez le manager ne sont pas visibles dans la file RH « pending ».

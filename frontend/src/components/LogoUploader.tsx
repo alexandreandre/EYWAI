@@ -1,3 +1,4 @@
+import { log } from '@/lib/logger';
 import { useState, useRef, useEffect } from 'react';
 import { Upload, X, Image as ImageIcon, ZoomIn } from 'lucide-react';
 import apiClient from '../api/apiClient';
@@ -80,7 +81,7 @@ export function LogoUploader({
         setLogoUrl(newLogoUrl);
         onLogoChange?.(newLogoUrl);
       } catch (err: any) {
-        console.error('Erreur lors de l\'upload:', err);
+        log.error('Erreur lors de l\'upload:', err);
         setError(err.response?.data?.detail || 'Erreur lors de l\'upload du logo');
       } finally {
         setUploading(false);
@@ -109,7 +110,7 @@ export function LogoUploader({
         setLogoUrl(null);
         onLogoChange?.(null);
       } catch (err: any) {
-        console.error('Erreur lors de la suppression:', err);
+        log.error('Erreur lors de la suppression:', err);
         setError(err.response?.data?.detail || 'Erreur lors de la suppression du logo');
       } finally {
         setUploading(false);
@@ -134,7 +135,7 @@ export function LogoUploader({
         await apiClient.patch(`/api/uploads/logo-scale/${entityType}/${entityId}?scale=${newScale}`);
         onScaleChange?.(newScale);
       } catch (err: any) {
-        console.error('Erreur lors de la mise à jour du scale:', err);
+        log.error('Erreur lors de la mise à jour du scale:', err);
         setError(err.response?.data?.detail || 'Erreur lors de la mise à jour du zoom');
       }
     } else {

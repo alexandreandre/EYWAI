@@ -3,6 +3,7 @@
  * Comprend : Calcul inverse (Net→Brut), Simulation de bulletin
  */
 
+import { log } from '@/lib/logger';
 import React, { useState, useEffect, useRef } from 'react';
 import { Calculator, FileText, Loader2, Stethoscope } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -65,7 +66,7 @@ const Simulation: React.FC = () => {
       const response = await apiClient.get('/api/employees');
       setEmployees(response.data);
     } catch (error) {
-      console.error('Erreur chargement employés:', error);
+      log.error('Erreur chargement employés:', error);
     } finally {
       setLoadingEmployees(false);
     }
@@ -79,7 +80,7 @@ const Simulation: React.FC = () => {
       const result = await reverseCalculation(data);
       setReverseResult(result);
     } catch (error: any) {
-      console.error('Erreur calcul inverse:', error);
+      log.error('Erreur calcul inverse:', error);
       setReverseError(
         error.response?.data?.detail || 'Une erreur est survenue lors du calcul inverse'
       );
@@ -100,7 +101,7 @@ const Simulation: React.FC = () => {
       const result = await createPayslipSimulation(data);
       setPayslipResult(result);
     } catch (error: any) {
-      console.error('Erreur simulation bulletin:', error);
+      log.error('Erreur simulation bulletin:', error);
       setPayslipError(
         error.response?.data?.detail || 'Une erreur est survenue lors de la simulation'
       );
@@ -282,7 +283,7 @@ const Simulation: React.FC = () => {
                     try {
                       await downloadSimulationPDF(payslipResult.simulation_id);
                     } catch (error) {
-                      console.error('Erreur téléchargement PDF:', error);
+                      log.error('Erreur téléchargement PDF:', error);
                       alert('Erreur lors du téléchargement du PDF');
                     }
                   }

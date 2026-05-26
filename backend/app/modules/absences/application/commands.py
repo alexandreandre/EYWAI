@@ -6,9 +6,10 @@ Utilise domain (règles) et infrastructure (repository, providers, queries).
 """
 
 from __future__ import annotations
+from app.core.logging import get_logger, log_app_debug
 
-import sys
-import traceback
+logger = get_logger("modules.absences.application.commands")
+
 from datetime import date
 from typing import Any
 
@@ -53,10 +54,7 @@ def _trace_attestation_salaire_ijss_after_generation(
         )
         row = cert_r.data if cert_r and cert_r.data else None
         if not row:
-            print(
-                f"⚠️ trace IJSS: certificat {certificate_id} introuvable après génération",
-                file=sys.stderr,
-            )
+            logger.warning(f'⚠️ trace IJSS: certificat {certificate_id} introuvable après génération')
             return
         storage_path = row.get("storage_path") or ""
         document_service.trace_existing_document(
@@ -76,8 +74,8 @@ def _trace_attestation_salaire_ijss_after_generation(
             generated_by=generated_by,
         )
     except Exception as e:
-        print(f"⚠️ trace generated_documents attestation IJSS: {e}", file=sys.stderr)
-        traceback.print_exc()
+        logger.warning(f'⚠️ trace generated_documents attestation IJSS: {e}')
+        logger.exception("Exception")
 
 
 def create_absence_request(request_data: Any) -> dict:
@@ -212,11 +210,8 @@ def update_absence_request_status(
                         generated_by=generated_by,
                     )
             except Exception as cert_error:
-                print(
-                    f"⚠️ Erreur lors de la génération automatique de l'attestation: {cert_error}",
-                    file=sys.stderr,
-                )
-                traceback.print_exc()
+                logger.warning(f"⚠️ Erreur lors de la génération automatique de l'attestation: {cert_error}")
+                logger.exception("Exception")
 
     return data
 
@@ -250,6 +245,6 @@ def generate_salary_certificate(
             generated_by=generated_by,
         )
     except Exception as e:
-        print(f"⚠️ trace attestation IJSS (manuelle): {e}", file=sys.stderr)
-        traceback.print_exc()
+        logger.warning(f'⚠️ trace attestation IJSS (manuelle): {e}')
+        logger.exception("Exception")
     return cert_id

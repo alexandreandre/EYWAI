@@ -4,9 +4,10 @@ Commandes (cas d'usage écriture) du module employee_exits.
 Orchestration : domain (rules), infrastructure (repositories, queries, providers, mappers).
 Comportement identique au router legacy.
 """
+from app.core.logging import get_logger, log_app_debug
 
-import sys
-import traceback
+logger = get_logger("modules.employee_exits.application.commands")
+
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -22,6 +23,11 @@ from app.modules.employee_exits.application.service import create_default_checkl
 from app.modules.employee_exits.domain.rules import (
     get_initial_status,
     get_valid_status_transitions,
+)
+from app.modules.employee_exits.application.queries import (
+    EDIT_HISTORY_META_KEY,
+    _coerce_edit_history,
+    _stored_edit_history,
 )
 from app.modules.employee_exits.infrastructure.queries import (
     get_employee_by_id,
@@ -108,27 +114,21 @@ def create_employee_exit(
     exit_repo = EmployeeExitRepository(sb)
     created = exit_repo.create(record)
     exit_id = created["id"]
-    print(f"✓ Sortie créée: {exit_id} (statut: {initial_status})", file=sys.stderr)
+    logger.info(f'✓ Sortie créée: {exit_id} (statut: {initial_status})')
 
     update_employee_employment_status(employee_id, "en_sortie", exit_id, sb)
-    print(
-        f"✓ Employé {employee['first_name']} {employee['last_name']} marqué 'en_sortie'",
-        file=sys.stderr,
-    )
+    logger.info(f"✓ Employé {employee['first_name']} {employee['last_name']} marqué 'en_sortie'")
 
     create_default_checklist_sync(exit_id, company_id, sb)
 
     try:
         _run_post_create_indemnities_and_docs(exit_id, company_id, current_user_id, sb)
     except Exception as e:
-        print(
-            f"⚠ Erreur lors du calcul automatique ou génération des documents: {e}",
-            file=sys.stderr,
-        )
+        logger.warning(f'⚠ Erreur lors du calcul automatique ou génération des documents: {e}')
         if sys:
             import traceback
 
-            traceback.print_exc()
+            logger.exception("Exception")
 
     return created
 
@@ -231,10 +231,10 @@ def _run_portability_exit_documents(
                 generation_context=trace_ctx,
                 generated_by=current_user_id,
             )
-            print(f"✓ {doc_type_key} généré (portabilité)", file=sys.stderr)
+            logger.info(f'✓ {doc_type_key} généré (portabilité)')
         except Exception as e:
-            print(f"⚠ Erreur portabilité {doc_type_key}: {e}", file=sys.stderr)
-            traceback.print_exc()
+            logger.warning(f'⚠ Erreur portabilité {doc_type_key}: {e}')
+            logger.exception("Exception")
 
 
 def _run_post_create_indemnities_and_docs(
@@ -248,7 +248,7 @@ def _run_post_create_indemnities_and_docs(
     storage = get_exit_storage_provider(sb)
     company_data = get_company_by_id(company_id, sb) or {}
 
-    print("[CREATE EXIT] Calcul automatique des indemnités...", file=sys.stderr)
+    log_app_debug(logger, '[CREATE EXIT] Calcul automatique des indemnités...')
     exit_full_data = exit_repo.get_with_employee(
         exit_id,
         company_id,
@@ -271,9 +271,9 @@ def _run_post_create_indemnities_and_docs(
             "final_net_amount": indemnities.get("total_net_indemnities", 0),
         },
     )
-    print("✓ Indemnités calculées automatiquement", file=sys.stderr)
+    logger.info('✓ Indemnités calculées automatiquement')
 
-    print("[CREATE EXIT] Génération automatique des documents...", file=sys.stderr)
+    log_app_debug(logger, '[CREATE EXIT] Génération automatique des documents...')
     for doc_type in (
         "certificat_travail",
         "attestation_pole_emploi",
@@ -311,7 +311,7 @@ def _run_post_create_indemnities_and_docs(
                     "uploaded_by": current_user_id,
                 }
             )
-            print(f"✓ {doc_type} généré", file=sys.stderr)
+            logger.info(f'✓ {doc_type} généré')
             try:
                 trace_id = document_service.trace_existing_document(
                     company_id=company_id,
@@ -329,17 +329,11 @@ def _run_post_create_indemnities_and_docs(
                     generated_by=current_user_id,
                 )
                 if not trace_id:
-                    print(
-                        f"⚠ trace generated_documents ignorée pour {doc_type}",
-                        file=sys.stderr,
-                    )
+                    logger.warning(f'⚠ trace generated_documents ignorée pour {doc_type}')
             except Exception as te:
-                print(
-                    f"⚠ trace generated_documents {doc_type}: {te}",
-                    file=sys.stderr,
-                )
+                logger.warning(f'⚠ trace generated_documents {doc_type}: {te}')
         except Exception as e:
-            print(f"⚠ Erreur génération {doc_type}: {e}", file=sys.stderr)
+            logger.warning(f'⚠ Erreur génération {doc_type}: {e}')
 
     if exit_type in ELIGIBLE_PORTABILITY_MOTIFS and employee_id_exit:
         try:
@@ -357,8 +351,8 @@ def _run_post_create_indemnities_and_docs(
                 doc_repo=doc_repo,
             )
         except Exception as pe:
-            print(f"⚠ Erreur documents portabilité: {pe}", file=sys.stderr)
-            traceback.print_exc()
+            logger.warning(f'⚠ Erreur documents portabilité: {pe}')
+            logger.exception("Exception")
 
 
 def update_employee_exit(
@@ -440,7 +434,7 @@ def update_exit_status(
         update_employee_employment_status(
             str(exit_data["employee_id"]), "parti", None, sb
         )
-        print(f"✓ Employé {exit_data['employee_id']} marqué 'parti'", file=sys.stderr)
+        logger.info(f"✓ Employé {exit_data['employee_id']} marqué 'parti'")
     return updated or exit_data
 
 
@@ -458,15 +452,12 @@ def delete_employee_exit(
     if paths:
         try:
             get_exit_storage_provider(sb).remove(paths)
-            print(
-                f"✓ {len(paths)} fichier(s) supprimé(s) du bucket exit_documents",
-                file=sys.stderr,
-            )
+            logger.info(f'✓ {len(paths)} fichier(s) supprimé(s) du bucket exit_documents')
         except Exception as e:
-            print(f"⚠ Erreur suppression bucket: {e}", file=sys.stderr)
+            logger.warning(f'⚠ Erreur suppression bucket: {e}')
     exit_repo.delete(exit_id, company_id)
     update_employee_employment_status(str(employee_id), "actif", None, sb)
-    print(f"✓ Sortie {exit_id} supprimée", file=sys.stderr)
+    logger.info(f'✓ Sortie {exit_id} supprimée')
 
 
 def create_exit_document(
@@ -700,9 +691,17 @@ def edit_exit_document(
     emp_id = exit_data.get("employee_id")
     employee_data = get_employee_full(str(emp_id), sb) if emp_id else {}
     company_data = get_company_by_id(company_id, sb) or {}
+    incoming_doc_data = edit_request.get("document_data") or {}
+    if not isinstance(incoming_doc_data, dict):
+        incoming_doc_data = {}
+    user_doc_data = {
+        k: v
+        for k, v in incoming_doc_data.items()
+        if k != EDIT_HISTORY_META_KEY
+    }
     merged_data = {
         **doc.get("generation_data", {}),
-        **edit_request.get("document_data", {}),
+        **user_doc_data,
     }
     gen_employee = {**employee_data, **merged_data.get("employee", {})}
     gen_company = {**company_data, **merged_data.get("company", {})}
@@ -728,6 +727,20 @@ def edit_exit_document(
         )
     storage.upload(doc["storage_path"], pdf_bytes, "application/pdf")
     new_version = current_version + 1
+    edited_at = datetime.now(timezone.utc).isoformat()
+    changes_summary = (edit_request.get("changes_summary") or "").strip() or "Modification"
+    history_entry: Dict[str, Any] = {
+        "version": new_version,
+        "edited_at": edited_at,
+        "edited_by": current_user_id,
+        "changes_summary": changes_summary,
+    }
+    internal_note = (edit_request.get("internal_note") or "").strip()
+    if internal_note:
+        history_entry["internal_note"] = internal_note
+    edit_history = _stored_edit_history(doc)
+    edit_history.append(history_entry)
+    merged_data[EDIT_HISTORY_META_KEY] = edit_history
     doc_repo.update(
         document_id,
         exit_id,
@@ -737,8 +750,8 @@ def edit_exit_document(
             "version": new_version,
             "manually_edited": True,
             "last_edited_by": current_user_id,
-            "last_edited_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "last_edited_at": edited_at,
+            "updated_at": edited_at,
         },
     )
     return {

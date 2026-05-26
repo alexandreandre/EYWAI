@@ -29,6 +29,8 @@ def _make_user_with_company():
     user = MagicMock()
     user.id = TEST_USER_ID
     user.active_company_id = TEST_COMPANY_ID
+    user.is_super_admin = False
+    user.has_rh_access_in_company.return_value = True
     return user
 
 
@@ -37,6 +39,18 @@ def _make_user_without_company():
     user = MagicMock()
     user.id = TEST_USER_ID
     user.active_company_id = None
+    user.is_super_admin = False
+    user.has_rh_access_in_company.return_value = False
+    return user
+
+
+def _make_non_rh_user_with_company():
+    """Utilisateur authentifié avec company mais sans accès RH/admin → 403."""
+    user = MagicMock()
+    user.id = TEST_USER_ID
+    user.active_company_id = TEST_COMPANY_ID
+    user.is_super_admin = False
+    user.has_rh_access_in_company.return_value = False
     return user
 
 
@@ -105,11 +119,51 @@ class TestParticipationWithUserNoCompany:
         assert (
             "entreprise" in data["detail"].lower()
             or "company" in data["detail"].lower()
+            or "rh" in data["detail"].lower()
         )
 
     def test_post_simulations_returns_403(self, client_no_company: TestClient):
         """POST /api/participation/simulations sans company → 403."""
         response = client_no_company.post(
+            "/api/participation/simulations",
+            json={
+                "year": 2024,
+                "simulation_name": "Test",
+                "benefice_net": 0,
+                "capitaux_propres": 0,
+                "salaires_bruts": 0,
+                "valeur_ajoutee": 0,
+                "participation_mode": "uniforme",
+                "results_data": {},
+            },
+        )
+        assert response.status_code == 403
+
+
+class TestParticipationWithNonRhUser:
+    """Utilisateur authentifié sans rôle RH/admin → 403."""
+
+    @pytest.fixture
+    def client_non_rh(self, client: TestClient):
+        from app.modules.participation.api.dependencies import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_non_rh_user_with_company()
+        )
+        try:
+            yield client
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+    def test_get_employee_data_returns_403(self, client_non_rh: TestClient):
+        """GET /api/participation/employee-data/{year} sans rôle RH/admin → 403."""
+        response = client_non_rh.get("/api/participation/employee-data/2024")
+        assert response.status_code == 403
+        assert "rh" in response.json().get("detail", "").lower()
+
+    def test_post_simulations_returns_403(self, client_non_rh: TestClient):
+        """POST /api/participation/simulations sans rôle RH/admin → 403."""
+        response = client_non_rh.post(
             "/api/participation/simulations",
             json={
                 "year": 2024,

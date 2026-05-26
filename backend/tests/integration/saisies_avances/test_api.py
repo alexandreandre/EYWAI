@@ -133,6 +133,41 @@ def _make_collaborator_user(
 BASE = "/api/saisies-avances"
 
 
+class TestSaisiesAvancesPermissions:
+    """Endpoints RH doivent refuser un collaborateur."""
+
+    def test_get_salary_advances_403_for_collaborator(self, client: TestClient):
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_collaborator_user()
+        try:
+            response = client.get(f"{BASE}/salary-advances")
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 403
+        assert "rh" in response.json().get("detail", "").lower()
+
+    def test_approve_salary_advance_403_for_collaborator(self, client: TestClient):
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_collaborator_user()
+        try:
+            response = client.patch(f"{BASE}/salary-advances/a1/approve")
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 403
+
+    def test_get_advance_payments_403_for_collaborator(self, client: TestClient):
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_collaborator_user()
+        try:
+            response = client.get(f"{BASE}/advances/a1/payments")
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 403
+
+
 class TestSaisiesAvancesUnauthenticated:
     """Sans token : routes protégées renvoient 401."""
 

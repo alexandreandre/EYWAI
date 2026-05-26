@@ -402,6 +402,7 @@ async def get_exit_document_details(
 ):
     """Détails complets d'un document avec données éditables."""
     company_id = _company_id_required(current_user)
+    _check_exit_permission(current_user, company_id, "view")
     try:
         return queries.get_exit_document_details(
             str(exit_id), str(document_id), company_id
@@ -421,6 +422,7 @@ async def edit_exit_document(
 ):
     """Édite un document généré et régénère le PDF."""
     company_id = _company_id_required(current_user)
+    _check_exit_permission(current_user, company_id, "edit")
     edit_data = edit_request.model_dump()
     if edit_data.get("document_data"):
         for section in ("employee", "company", "exit"):
@@ -452,6 +454,7 @@ async def get_document_edit_history(
 ):
     """Historique des modifications d'un document."""
     company_id = _company_id_required(current_user)
+    _check_exit_permission(current_user, company_id, "view")
     try:
         return queries.get_document_edit_history(
             str(exit_id), str(document_id), company_id

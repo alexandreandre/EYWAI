@@ -6,6 +6,9 @@ Convertit les exceptions du domain en HTTPException. Comportement identique au l
 """
 
 from __future__ import annotations
+from app.core.logging import get_logger, log_app_debug
+
+logger = get_logger("modules.collective_agreements.application.service")
 
 from typing import Any, List, Optional
 
@@ -243,9 +246,9 @@ class CollectiveAgreementsService:
     ) -> str:
         full_text = self._text_cache.get_full_text(agreement_id)
         if full_text:
-            print(f"[INFO] ✓ Texte trouvé en cache pour {agreement_name}")
+            log_app_debug(logger, f'[INFO] ✓ Texte trouvé en cache pour {agreement_name}')
             return full_text
-        print(f"[INFO] Extraction du texte du PDF pour {agreement_name}...")
+        log_app_debug(logger, f'[INFO] Extraction du texte du PDF pour {agreement_name}...')
         full_text = self._pdf_extractor.extract(pdf_url)
         if len(full_text) > MAX_TEXT_CHARS:
             full_text = (

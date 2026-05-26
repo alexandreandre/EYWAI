@@ -3,6 +3,7 @@
  * Avec onglets : Vue d'ensemble, Checklist, Documents, Indemnités
  */
 
+import { log } from '@/lib/logger';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -119,7 +120,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
       );
       setHasPublishPermission(result.has_permission);
     } catch (error) {
-      console.error('Erreur vérification permission:', error);
+      log.error('Erreur vérification permission:', error);
       setHasPublishPermission(false);
     }
   };
@@ -137,7 +138,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
         setIndemnities(data.calculated_indemnities as any);
       }
     } catch (error) {
-      console.error('Erreur lors du chargement des détails:', error);
+      log.error('Erreur lors du chargement des détails:', error);
       toast({
         title: 'Erreur',
         description: 'Impossible de charger les détails du départ',
@@ -162,7 +163,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
       fetchExitDetails();
       onUpdate?.();
     } catch (error) {
-      console.error('Erreur lors de la mise à jour:', error);
+      log.error('Erreur lors de la mise à jour:', error);
       toast({
         title: 'Erreur',
         description: 'Impossible de mettre à jour la tâche',
@@ -186,7 +187,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
 
       fetchExitDetails();
     } catch (error: any) {
-      console.error('Erreur lors du calcul:', error);
+      log.error('Erreur lors du calcul:', error);
       toast({
         title: 'Erreur',
         description: error.response?.data?.detail || 'Impossible de calculer les indemnités',
@@ -211,7 +212,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
 
       fetchExitDetails();
     } catch (error: any) {
-      console.error('Erreur lors de la génération:', error);
+      log.error('Erreur lors de la génération:', error);
       toast({
         title: 'Erreur',
         description: error.response?.data?.detail || 'Impossible de générer le document',
@@ -254,7 +255,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
 
       fetchExitDetails();
     } catch (error: any) {
-      console.error('Erreur lors du téléversement:', error);
+      log.error('Erreur lors du téléversement:', error);
       toast({
         title: 'Erreur',
         description: error.response?.data?.detail || 'Impossible de téléverser le document',
@@ -282,7 +283,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
 
       fetchExitDetails();
     } catch (error) {
-      console.error('Erreur lors de la suppression:', error);
+      log.error('Erreur lors de la suppression:', error);
       toast({
         title: 'Erreur',
         description: 'Impossible de supprimer le document',
@@ -335,7 +336,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
 
       fetchExitDetails();
     } catch (error: any) {
-      console.error('Erreur lors de la publication:', error);
+      log.error('Erreur lors de la publication:', error);
       toast({
         title: 'Erreur',
         description: error.response?.data?.detail || 'Impossible de publier les documents',
@@ -360,7 +361,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Erreur lors du téléchargement:', error);
+      log.error('Erreur lors du téléchargement:', error);
       toast({
         title: 'Erreur',
         description: 'Impossible de télécharger le document',

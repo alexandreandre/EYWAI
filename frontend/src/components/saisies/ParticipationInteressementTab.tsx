@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import apiClient from '@/api/apiClient';
 
+import { log } from '@/lib/logger';
 // Types
 interface Employee {
   id: string;
@@ -91,10 +92,10 @@ export function ParticipationInteressementTab() {
         if (pssConfig?.config_data?.annuel) {
           setPassValue(pssConfig.config_data.annuel);
         } else {
-          console.warn('PASS non trouvé dans Supabase, utilisation de la valeur par défaut');
+          log.warn('PASS non trouvé dans Supabase, utilisation de la valeur par défaut');
         }
       } catch (error) {
-        console.error('Erreur lors du chargement du PASS:', error);
+        log.error('Erreur lors du chargement du PASS:', error);
         // On garde la valeur par défaut en cas d'erreur
       }
     };
@@ -155,7 +156,7 @@ export function ParticipationInteressementTab() {
         });
         
         // Log pour debug
-        console.log(`[Participation] Données chargées pour ${year}:`, {
+        log.debug(`[Participation] Données chargées pour ${year}:`, {
           employeesCount: employeesDataFromApi.length,
           salaries: employeesDataFromApi.map((e: any) => ({ 
             name: `${e.first_name} ${e.last_name}`, 
@@ -172,7 +173,7 @@ export function ParticipationInteressementTab() {
         setEmployees(employeesList);
         setEmployeeData(initialData);
       } catch (error) {
-        console.error(error);
+        log.error(error);
         toast({ 
           title: "Erreur", 
           description: "Impossible de charger les données réelles des employés. Les valeurs par défaut seront utilisées.", 
@@ -195,7 +196,7 @@ export function ParticipationInteressementTab() {
         const res = await apiClient.get(`/api/participation/simulations?year=${year}`);
         setSavedSimulations(res.data || []);
       } catch (error) {
-        console.error('Erreur lors du chargement des simulations:', error);
+        log.error('Erreur lors du chargement des simulations:', error);
       }
     };
     fetchSimulations();
@@ -259,7 +260,7 @@ export function ParticipationInteressementTab() {
       const res = await apiClient.get(`/api/participation/simulations?year=${year}`);
       setSavedSimulations(res.data || []);
     } catch (error: any) {
-      console.error('Erreur lors de la sauvegarde:', error);
+      log.error('Erreur lors de la sauvegarde:', error);
       toast({
         title: "Erreur",
         description: error.response?.data?.detail || "Erreur lors de la sauvegarde de la simulation.",
@@ -296,7 +297,7 @@ export function ParticipationInteressementTab() {
         description: `Simulation "${sim.simulation_name}" chargée avec succès.`
       });
     } catch (error) {
-      console.error('Erreur lors du chargement:', error);
+      log.error('Erreur lors du chargement:', error);
       toast({
         title: "Erreur",
         description: "Erreur lors du chargement de la simulation.",

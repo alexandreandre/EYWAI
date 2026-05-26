@@ -5,6 +5,7 @@ import apiClient from '../../api/apiClient';
 import * as collectiveAgreementsApi from '../../api/collectiveAgreements';
 import { LogoUploader } from '../../components/LogoUploader';
 
+import { log } from '@/lib/logger';
 interface CompanyDetails {
   id: string;
   company_name: string;
@@ -73,7 +74,7 @@ export default function CompanyDetails() {
       const response = await apiClient.get(`/api/super-admin/companies/${companyId}`);
       setCompany(response.data);
     } catch (error) {
-      console.error('Erreur:', error);
+      log.error('Erreur:', error);
     } finally {
       setLoading(false);
     }
@@ -86,7 +87,7 @@ export default function CompanyDetails() {
       const response = await apiClient.get(`/api/super-admin/companies/${companyId}/users`, { params });
       setUsers(response.data.users);
     } catch (error) {
-      console.error('Erreur:', error);
+      log.error('Erreur:', error);
     } finally {
       setLoadingUsers(false);
     }
@@ -99,7 +100,7 @@ export default function CompanyDetails() {
       const companyData = response.data.find((c: any) => c.id === companyId);
       setConventions(companyData?.assigned_agreements || []);
     } catch (error) {
-      console.error('Erreur lors du chargement des conventions:', error);
+      log.error('Erreur lors du chargement des conventions:', error);
     } finally {
       setLoadingConventions(false);
     }
@@ -133,7 +134,7 @@ export default function CompanyDetails() {
       loadUsers(selectedRole || undefined);
       loadCompanyDetails(); // Refresh stats
     } catch (error: any) {
-      console.error('Erreur:', error);
+      log.error('Erreur:', error);
       alert(error.response?.data?.detail || 'Erreur lors de la création de l\'utilisateur');
     } finally {
       setCreatingUser(false);
@@ -164,7 +165,7 @@ export default function CompanyDetails() {
       loadCompanyDetails();
       alert('Utilisateur mis à jour avec succès');
     } catch (error: any) {
-      console.error('Erreur:', error);
+      log.error('Erreur:', error);
       alert(error.response?.data?.detail || 'Erreur lors de la mise à jour de l\'utilisateur');
     } finally {
       setUpdatingUser(false);
@@ -189,7 +190,7 @@ export default function CompanyDetails() {
       loadCompanyDetails();
       alert(response.data.message || 'Utilisateur supprimé avec succès');
     } catch (error: any) {
-      console.error('Erreur:', error);
+      log.error('Erreur:', error);
       alert(error.response?.data?.detail || 'Erreur lors de la suppression de l\'utilisateur');
     } finally {
       setIsDeleting(false);
@@ -204,7 +205,7 @@ export default function CompanyDetails() {
       });
       loadCompanyDetails();
     } catch (error) {
-      console.error('Erreur:', error);
+      log.error('Erreur:', error);
     }
   };
 

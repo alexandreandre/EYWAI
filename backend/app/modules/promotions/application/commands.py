@@ -102,13 +102,13 @@ def update_promotion_cmd(
     body: PromotionUpdate,
     company_id: str,
 ) -> PromotionRead:
-    """Met à jour une promotion (uniquement en statut draft)."""
+    """Met à jour une promotion (statuts draft ou pending_approval)."""
     try:
         repo = get_promotion_repository()
         current_promo = repo.get_by_id(promotion_id, company_id)
         if current_promo is None:
             raise HTTPException(status_code=404, detail="Promotion non trouvée")
-        if current_promo.status != "draft":
+        if current_promo.status not in ("draft", "pending_approval"):
             raise HTTPException(
                 status_code=400,
                 detail=f"Impossible de modifier une promotion en statut '{current_promo.status}'",
@@ -255,6 +255,7 @@ def approve_promotion_cmd(
             )
             repo.update(promotion_id, company_id, {"promotion_letter_url": pdf_url})
         except Exception as pdf_error:
+
             logger.error(
                 "Erreur lors de la génération du PDF de promotion %s: %s",
                 promotion_id,
@@ -305,10 +306,14 @@ def mark_effective_promotion_cmd(promotion_id: str, company_id: str) -> Promotio
     """Marque une promotion comme effective et applique les changements (délègue à IEmployeeUpdater)."""
     try:
         current_promo = get_promotion_by_id_query(promotion_id, company_id)
-        if current_promo.status not in ("draft", "effective"):
+        if current_promo.status not in ("draft", "approved", "effective"):
             raise HTTPException(
                 status_code=400,
-                detail=f"Impossible de marquer comme effective une promotion en statut '{current_promo.status}'. Seules les promotions en 'draft' peuvent être marquées comme effective.",
+                detail=(
+                    f"Impossible de marquer comme effective une promotion en statut "
+                    f"'{current_promo.status}'. Seules les promotions en 'draft' ou 'approved' "
+                    f"peuvent être marquées comme effective."
+                ),
             )
         if current_promo.status == "effective":
             return current_promo
@@ -330,13 +335,13 @@ def mark_effective_promotion_cmd(promotion_id: str, company_id: str) -> Promotio
 
 
 def delete_promotion_cmd(promotion_id: str, company_id: str) -> None:
-    """Supprime une promotion (uniquement en statut draft)."""
+    """Supprime une promotion (statuts draft ou pending_approval)."""
     try:
         repo = get_promotion_repository()
         current_promo = repo.get_by_id(promotion_id, company_id)
         if current_promo is None:
             raise HTTPException(status_code=404, detail="Promotion non trouvée")
-        if current_promo.status != "draft":
+        if current_promo.status not in ("draft", "pending_approval"):
             raise HTTPException(
                 status_code=400,
                 detail=f"Impossible de supprimer une promotion en statut '{current_promo.status}'",

@@ -218,6 +218,7 @@ def _notify_employee_avenant_signe(
             }
         ).execute()
     except Exception:
+
         logger.info("[notify] Notification non insérée pour %s", employee_id)
 
 
@@ -244,6 +245,7 @@ def _handle_avenant_signe(
         _notify_employee_avenant_signe(str(employee_id), company_id, document_type, context)
 
     except Exception as e:
+
         logger.error("[avenant_signe] Erreur non bloquante : %s", e)
 
 

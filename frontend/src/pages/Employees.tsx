@@ -1,5 +1,11 @@
+import { log } from '@/lib/logger';
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEmployeesQuery } from "@/hooks/queries/useEmployeesQuery";
+import { useActiveCompanyId } from "@/hooks/queries/useCompanyId";
+import { queryKeys } from "@/lib/queryKeys";
+import { TableSkeleton } from "@/components/skeletons/TableSkeleton";
+import { PageFetchIndicator } from "@/components/skeletons/PageFetchIndicator";
 import { Link, useNavigate } from "react-router-dom";
 import apiClient from '../api/apiClient';
 
@@ -195,9 +201,12 @@ const translateFieldName = (fieldPath: string): string => {
 };
 
 export default function Employees() {
-  const [employees, setEmployees] = useState<EmployeeListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const employeesQuery = useEmployeesQuery();
+  const employees = (employeesQuery.data ?? []) as EmployeeListItem[];
+  const loading = employeesQuery.isLoading && !employeesQuery.data;
+  const error = employeesQuery.error
+    ? "Erreur : Impossible de récupérer la liste des collaborateurs."
+    : null;
   const [searchTerm, setSearchTerm] = useState("");
   const [employmentStatusFilter, setEmploymentStatusFilter] = useState<string>("actif");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -356,7 +365,7 @@ export default function Employees() {
         const mutuelles = await mutuelleTypesApi.getMutuelleTypes();
         setAvailableMutuelles(mutuelles.filter(m => m.is_active));
       } catch (error) {
-        console.error("Erreur lors du chargement des mutuelles:", error);
+        log.error("Erreur lors du chargement des mutuelles:", error);
       } finally {
         setLoadingMutuelles(false);
       }
@@ -376,20 +385,12 @@ export default function Employees() {
 
   const isCadre = form.watch("statut")?.toLowerCase() === 'cadre';
 
-  const fetchEmployees = async () => {
-    try {
-      setLoading(true);
-      const response = await apiClient.get<EmployeeListItem[]>('/api/employees');
-      setEmployees(response.data);
-      setError(null);
-    } catch (err) {
-      setError("Erreur : Impossible de récupérer la liste des collaborateurs.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const queryClient = useQueryClient();
+  const companyId = useActiveCompanyId();
 
-  useEffect(() => { fetchEmployees(); }, []);
+  const fetchEmployees = async () => {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.employees(companyId) });
+  };
 
   useEffect(() => {
     ribAlertsApi.getRibAlerts({ is_read: false, is_resolved: false, limit: 5 })
@@ -425,7 +426,7 @@ export default function Employees() {
       const extractedData = response.data.extracted_data;
       const warnings = response.data.warnings || [];
 
-      console.log("Données extraites du PDF :", extractedData);
+      log.debug("Données extraites du PDF :", extractedData);
 
       // Préremplir le formulaire avec les données extraites
       const mergeFormValues = (extracted: any) => {
@@ -475,12 +476,12 @@ export default function Employees() {
 
       // Afficher les avertissements s'il y en a
       if (warnings.length > 0) {
-        console.warn("Avertissements lors de l'extraction :", warnings);
+        log.warn("Avertissements lors de l'extraction :", warnings);
         setExtractionError(`Extraction réussie avec des avertissements : ${warnings.join(', ')}`);
       }
 
     } catch (error: any) {
-      console.error("Erreur lors de l'extraction du PDF :", error);
+      log.error("Erreur lors de l'extraction du PDF :", error);
       const errorMessage = error.response?.data?.detail || "Erreur lors de l'extraction du PDF. Veuillez réessayer.";
       setExtractionError(errorMessage);
     } finally {
@@ -548,7 +549,7 @@ export default function Employees() {
       const extractedData = response.data.extracted_data;
       const warnings = response.data.warnings || [];
 
-      console.log("Données bancaires extraites du RIB :", extractedData);
+      log.debug("Données bancaires extraites du RIB :", extractedData);
 
       // Préremplir les champs bancaires avec les données extraites
       const currentValues = form.getValues();
@@ -567,12 +568,12 @@ export default function Employees() {
 
       // Afficher les avertissements s'il y en a
       if (warnings.length > 0) {
-        console.warn("Avertissements lors de l'extraction du RIB :", warnings);
+        log.warn("Avertissements lors de l'extraction du RIB :", warnings);
         setRibExtractionError(`Extraction réussie avec des avertissements : ${warnings.join(', ')}`);
       }
 
     } catch (error: any) {
-      console.error("Erreur lors de l'extraction du RIB :", error);
+      log.error("Erreur lors de l'extraction du RIB :", error);
       const errorMessage = error.response?.data?.detail || "Erreur lors de l'extraction du RIB. Veuillez réessayer.";
       setRibExtractionError(errorMessage);
     } finally {
@@ -687,7 +688,7 @@ export default function Employees() {
       const extractedData = response.data.extracted_data;
       const warnings = response.data.warnings || [];
 
-      console.log("Données extraites du questionnaire d'embauche :", extractedData);
+      log.debug("Données extraites du questionnaire d'embauche :", extractedData);
 
       // Préremplir le formulaire avec les données extraites
       const mergeFormValues = (extracted: any) => {
@@ -737,12 +738,12 @@ export default function Employees() {
 
       // Afficher les avertissements s'il y en a
       if (warnings.length > 0) {
-        console.warn("Avertissements lors de l'extraction du questionnaire :", warnings);
+        log.warn("Avertissements lors de l'extraction du questionnaire :", warnings);
         setQuestionnaireExtractionError(`Extraction réussie avec des avertissements : ${warnings.join(', ')}`);
       }
 
     } catch (error: any) {
-      console.error("Erreur lors de l'extraction du questionnaire :", error);
+      log.error("Erreur lors de l'extraction du questionnaire :", error);
       const errorMessage = error.response?.data?.detail || "Erreur lors de l'extraction du questionnaire d'embauche. Veuillez réessayer.";
       setQuestionnaireExtractionError(errorMessage);
     } finally {
@@ -788,7 +789,7 @@ export default function Employees() {
   setServerError(null);
   setServerFieldErrors(null);
   
-  console.log("Validation réussie, données brutes du formulaire :", values);
+  log.debug("Validation réussie, données brutes du formulaire :", values);
 
   // On prépare le payload final pour le backend
   const payload = {
@@ -813,7 +814,7 @@ export default function Employees() {
     }
   };
 
-  console.log("Payload final envoyé au backend :", payload);
+  log.debug("Payload final envoyé au backend :", payload);
 
   try {
     // 1. Créer un objet FormData
@@ -833,7 +834,7 @@ export default function Employees() {
       formData.append('file', uploadedFile, 'contrat.pdf');
     } else if (!generatePdfContract) {
       // Gérer le cas où aucun fichier n'est joint (si c'est optionnel)
-      console.warn("Aucun fichier PDF de contrat n'a été joint.");
+      log.warn("Aucun fichier PDF de contrat n'a été joint.");
       // Si le fichier est OBLIGATOIRE, tu devrais arrêter ici :
       // setServerError("Veuillez déposer un contrat PDF pour continuer.");
       // return;
@@ -872,7 +873,7 @@ export default function Employees() {
     }
 
   } catch (error: any) { 
-    console.error("Erreur lors de l'envoi au backend :", error.response?.data || error.message);
+    log.error("Erreur lors de l'envoi au backend :", error.response?.data || error.message);
 
     // Vérifier si on a des erreurs de champs spécifiques
     if (error.response?.data?.field_errors) {
@@ -904,9 +905,9 @@ export default function Employees() {
 
   // Cette fonction est appelée UNIQUEMENT si la validation Zod échoue
   const onValidationErrors = (errors: any) => {
-    console.log("%c❌ Validation Échouée !", "color: red; font-weight: bold;");
-    console.log("Champs en erreur :", errors);
-    console.log("Détails complets :", JSON.stringify(errors, null, 2));
+    log.debug("%c❌ Validation Échouée !", "color: red; font-weight: bold;");
+    log.debug("Champs en erreur :", errors);
+    log.debug("Détails complets :", JSON.stringify(errors, null, 2));
 
     // Fonction récursive pour extraire tous les messages d'erreur avec les chemins
     const extractErrorMessages = (obj: any, path: string = ""): string[] => {
@@ -926,7 +927,7 @@ export default function Employees() {
     };
 
     const messages = extractErrorMessages(errors);
-    console.log("Messages d'erreur extraits:", messages);
+    log.debug("Messages d'erreur extraits:", messages);
     setValidationErrorSummary(messages);
     setServerError(null); // On s'assure de ne pas afficher une ancienne erreur serveur
   };
@@ -938,7 +939,9 @@ export default function Employees() {
   });
 
   return (
-    <div className="space-y-6">
+    <>
+      <PageFetchIndicator isFetching={employeesQuery.isFetching} />
+      <div className="space-y-6">
       {ribAlerts.length > 0 && (
         <Card className="border-amber-200 bg-amber-50/50">
           <CardHeader className="py-3">
@@ -1801,7 +1804,13 @@ export default function Employees() {
           <Table className="table-fixed">
             <TableHeader><TableRow><TableHead className="w-[40%]">Collaborateur</TableHead><TableHead className="w-[30%]">Poste</TableHead><TableHead className="w-[25%]">Contrat</TableHead><TableHead className="w-[5%]"></TableHead></TableRow></TableHeader>
             <TableBody>
-              {loading && <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>}
+              {loading && (
+                <TableRow>
+                  <TableCell colSpan={4} className="py-4">
+                    <TableSkeleton rows={6} columns={4} />
+                  </TableCell>
+                </TableRow>
+              )}
               {error && <TableRow><TableCell colSpan={4} className="h-24 text-center text-destructive">{error}</TableCell></TableRow>}
               {!loading && !error && filteredEmployees.map((employee) => (
                 <TableRow key={employee.id} onClick={() => navigate(`/employees/${employee.id}`)} className="cursor-pointer hover:bg-muted/50">
@@ -1838,6 +1847,7 @@ export default function Employees() {
           </Table>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </>
   );
 }

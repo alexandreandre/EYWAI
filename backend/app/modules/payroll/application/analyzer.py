@@ -4,8 +4,10 @@ Analyse des horaires et production des événements de paie.
 Source de vérité unique pour analyser_horaires_du_mois (signature in-memory).
 Migré depuis services/payroll_analyzer.py (fusion avec backend_api/payroll_analyzer.py).
 """
+from app.core.logging import get_logger, log_payroll_debug
 
-import sys
+logger = get_logger("modules.payroll.application.analyzer")
+
 from datetime import date
 from typing import Any, Dict, List
 from collections import defaultdict
@@ -57,17 +59,11 @@ def analyser_horaires_du_mois(
     Analyse les horaires et produit les événements de paie.
     La logique est robuste aux valeurs 'None' venant de la BDD.
     """
-    print(
-        f"INFO: Analyse des horaires pour {employee_name} - {mois:02d}/{annee}...",
-        file=sys.stderr,
-    )
+    log_payroll_debug(logger, f'INFO: Analyse des horaires pour {employee_name} - {mois:02d}/{annee}...')
 
     prevu_data = planned_data_all_months
     reel_data = actual_data_all_months
-    print(
-        f"DEBUG: nb_jours_prevus={len(prevu_data)}, nb_jours_reels={len(reel_data)}",
-        file=sys.stderr,
-    )
+    log_payroll_debug(logger, f'DEBUG: nb_jours_prevus={len(prevu_data)}, nb_jours_reels={len(reel_data)}')
 
     # Étape 1 : Regrouper les données par semaine ISO
     semaines = defaultdict(

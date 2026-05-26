@@ -20,6 +20,9 @@ class ParticipationUserContext(Protocol):
 
     id: str
     active_company_id: Optional[str]
+    is_super_admin: bool
+
+    def has_rh_access_in_company(self, company_id: str) -> bool: ...
 
 
 __all__ = ["ParticipationUserContext", "get_current_user"]

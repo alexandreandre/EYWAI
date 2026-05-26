@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import apiClient from '../../api/apiClient';
 
+import { log } from '@/lib/logger';
 interface Employee {
   id: string;
   name: string;
@@ -222,7 +223,7 @@ export default function ReductionFillon() {
       const response = await apiClient.get('/api/super-admin/reduction-fillon/employees');
       setEmployees(response.data.employees || []);
     } catch (err: any) {
-      console.error('Erreur chargement employés:', err);
+      log.error('Erreur chargement employés:', err);
       setError(err.response?.data?.detail || 'Erreur lors du chargement des employés');
     } finally {
       setLoadingEmployees(false);
@@ -253,7 +254,7 @@ export default function ReductionFillon() {
 
       setResult(response.data);
     } catch (err: any) {
-      console.error('Erreur calcul réduction Fillon:', err);
+      log.error('Erreur calcul réduction Fillon:', err);
       setError(err.response?.data?.detail || 'Erreur lors du calcul de la réduction Fillon');
     } finally {
       setLoading(false);

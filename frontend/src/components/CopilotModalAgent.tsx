@@ -1,3 +1,4 @@
+import { log } from '@/lib/logger';
 import { useEffect, useState, useRef } from "react"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
@@ -100,8 +101,8 @@ export function CopilotModalAgent({ isOpen, onClose }: CopilotModalProps) {
 
         // Afficher le debug si disponible (optionnel)
         if (data.thought_process && showDebug) {
-          console.log("Processus de pensée:", data.thought_process)
-          console.log("Requêtes SQL:", data.sql_queries)
+          log.debug("Processus de pensée:", data.thought_process)
+          log.debug("Requêtes SQL:", data.sql_queries)
         }
       }
     } catch (e: any) {

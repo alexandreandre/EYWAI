@@ -6,8 +6,10 @@ Retourne des dicts / listes de dicts compatibles avec les schémas de réponse A
 """
 
 from __future__ import annotations
+from app.core.logging import get_logger, log_app_debug
 
-import sys
+logger = get_logger("modules.absences.application.queries")
+
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
@@ -82,7 +84,7 @@ def _enrich_with_signed_urls(
             if it.get(path_key) in url_map:
                 it[path_key] = url_map[it[path_key]]
     except Exception as e:
-        print(f"[WARNING] Erreur URLs signées: {e}", file=sys.stderr)
+        logger.warning(f'[WARNING] Erreur URLs signées: {e}')
 
 
 def get_upload_url_signed(user_id: str, filename: str) -> dict:
@@ -98,9 +100,11 @@ def get_upload_url_signed(user_id: str, filename: str) -> dict:
     return {"path": path, "signedURL": url}
 
 
-def get_absence_requests(status: str | None = None) -> List[dict]:
-    """Liste des demandes (optionnellement filtrées par status), enrichies employé + soldes + URLs signées."""
-    requests = absence_repository.list_by_status(status)
+def get_absence_requests(
+    status: str | None = None, *, company_id: str
+) -> List[dict]:
+    """Liste des demandes pour une entreprise, enrichies employé + soldes + URLs signées."""
+    requests = absence_repository.list_by_status(status, company_id=company_id)
     if not requests:
         return []
 
@@ -205,7 +209,7 @@ def update_absence_request_signed_url_single(request_id: str) -> dict | None:
             if url:
                 data["attachment_url"] = url
         except Exception as e:
-            print(f"[WARNING] Erreur URL signée: {e}", file=sys.stderr)
+            logger.warning(f'[WARNING] Erreur URL signée: {e}')
     _enrich_absence_certificate_fields(data)
     return data
 
@@ -425,7 +429,7 @@ def get_salary_certificate_info(absence_id: str) -> dict | None:
         if url:
             cert_data["view_url"] = url
     except Exception as e:
-        print(f"[WARNING] Erreur URL signée (view): {e}", file=sys.stderr)
+        logger.warning(f'[WARNING] Erreur URL signée (view): {e}')
     try:
         url = storage_provider.create_signed_url(
             cert_data["storage_path"],
@@ -436,7 +440,7 @@ def get_salary_certificate_info(absence_id: str) -> dict | None:
         if url:
             cert_data["download_url"] = url
     except Exception as e:
-        print(f"[WARNING] Erreur URL signée (download): {e}", file=sys.stderr)
+        logger.warning(f'[WARNING] Erreur URL signée (download): {e}')
     return cert_data
 
 

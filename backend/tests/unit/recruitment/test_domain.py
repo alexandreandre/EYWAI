@@ -218,16 +218,14 @@ class TestRequireRejectionReasonForRejectedStage:
 
 
 class TestCanDeleteCandidate:
-    """Règle : suppression candidat autorisée seulement en début de pipeline (position <= 1)."""
+    """Règle : suppression candidat autorisée pour les RH (toute étape)."""
 
-    def test_position_0_or_1_can_delete(self):
+    def test_any_stage_position_can_delete(self):
         assert can_delete_candidate(0) is True
         assert can_delete_candidate(1) is True
-
-    def test_position_above_1_cannot_delete(self):
-        assert can_delete_candidate(2) is False
-        assert can_delete_candidate(5) is False
-        assert can_delete_candidate(10) is False
+        assert can_delete_candidate(2) is True
+        assert can_delete_candidate(5) is True
+        assert can_delete_candidate(10) is True
 
 
 class TestIsValidOpinionRating:

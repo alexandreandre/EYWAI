@@ -602,10 +602,9 @@ cd frontend
 2. **Installer les dépendances**
 ```bash
 npm install
-# ou
-yarn install
-# ou
-pnpm install
+# Registre officiel via `.npmrc` (évite npmmirror corrompu).
+# Si erreur ENOTEMPTY ou « vite: command not found » : npm run reinstall
+# ou depuis la racine du dépôt : npm run frontend:reinstall
 ```
 
 3. **Configurer les variables d'environnement**
@@ -617,7 +616,12 @@ Créer un fichier `.env` à la racine de `frontend/` :
 VITE_API_URL=http://localhost:8000
 # ou en production
 VITE_API_URL=https://votre-api.run.app
+
+# Console DevTools (optionnel) : traces détaillées login, sidebar, etc.
+# VITE_APP_DEBUG=1
 ```
+
+Par défaut la console navigateur reste **calme** (`log.debug` / `log.info` désactivés). Seuls `warn` et `error` s’affichent (ex. erreurs HTTP 5xx). Voir `src/lib/logger.ts`.
 
 4. **Lancer l'application en développement**
 

@@ -7,13 +7,14 @@ Aucune logique métier, aucun accès DB. Comportement HTTP identique à l'ancien
 
 from __future__ import annotations
 
-import sys
-import traceback
 from typing import List
 
 from fastapi import APIRouter, HTTPException
 
+from app.core.logging import get_logger
 from app.modules.monthly_inputs.application import commands, queries
+
+logger = get_logger("modules.monthly_inputs")
 from app.modules.monthly_inputs.schemas.requests import MonthlyInput, MonthlyInputCreate
 from app.modules.monthly_inputs.schemas.responses import (
     create_batch_response,
@@ -38,8 +39,7 @@ def create_monthly_inputs(payload: List[MonthlyInput]):
         result = commands.create_monthly_inputs_batch(payload)
         return create_batch_response(result.inserted_count)
     except Exception as e:
-        print(f"❌ ERREUR dans create_monthly_inputs : {e}", file=sys.stderr)
-        traceback.print_exc(file=sys.stderr)
+        logger.exception("create_monthly_inputs")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -64,8 +64,7 @@ def create_employee_monthly_inputs(employee_id: str, prime_data: MonthlyInputCre
         result = commands.create_employee_monthly_input(employee_id, prime_data)
         return create_single_response(result.inserted_data)
     except Exception as e:
-        print(f"❌ Erreur create_employee_monthly_inputs : {e}", file=sys.stderr)
-        traceback.print_exc(file=sys.stderr)
+        logger.exception("create_employee_monthly_inputs")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -76,7 +75,7 @@ def delete_employee_monthly_input(employee_id: str, input_id: str):
         commands.delete_employee_monthly_input(employee_id, input_id)
         return delete_response()
     except Exception as e:
-        print(f"❌ Erreur delete_employee_monthly_input : {e}", file=sys.stderr)
+        logger.exception("delete_employee_monthly_input")
         raise HTTPException(status_code=500, detail=str(e))
 
 

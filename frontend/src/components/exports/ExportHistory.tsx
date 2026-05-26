@@ -1,6 +1,7 @@
 // src/components/exports/ExportHistory.tsx
 // Historique des exports - ÉTAPE 2 : Utilisation des données réelles
 
+import { log } from '@/lib/logger';
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -98,7 +99,7 @@ export function ExportHistory({ exportType, hideHeader = false }: ExportHistoryP
       link.parentNode?.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (err: any) {
-      console.error("Erreur lors du téléchargement:", err);
+      log.error("Erreur lors du téléchargement:", err);
       alert(err.response?.data?.detail || "Erreur lors du téléchargement de l'export");
     } finally {
       setDownloadingIds((prev) => {

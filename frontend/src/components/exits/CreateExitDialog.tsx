@@ -2,6 +2,7 @@
  * Dialog pour créer un nouveau processus de sortie de salarié
  */
 
+import { log } from '@/lib/logger';
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -65,7 +66,7 @@ export function CreateExitDialog({ open, onOpenChange, onSuccess }: CreateExitDi
       );
       setEmployees(activeEmployees);
     } catch (error) {
-      console.error('Erreur lors du chargement des employés:', error);
+      log.error('Erreur lors du chargement des employés:', error);
       toast({
         title: 'Erreur',
         description: 'Impossible de charger la liste des employés',
@@ -142,7 +143,7 @@ export function CreateExitDialog({ open, onOpenChange, onSuccess }: CreateExitDi
       onOpenChange(false);
       onSuccess?.();
     } catch (error: any) {
-      console.error('Erreur lors de la création de la sortie:', error);
+      log.error('Erreur lors de la création de la sortie:', error);
       toast({
         title: 'Erreur',
         description: error.response?.data?.detail || 'Impossible de créer le processus de départ',

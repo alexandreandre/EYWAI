@@ -97,7 +97,7 @@ export function CalendarPilotHeader({
   const periodLabel = `${MONTHS[month - 1]} ${year}`;
 
   return (
-    <div className="sticky top-0 z-30 -mx-6 px-6 py-3 bg-background/95 backdrop-blur border-b space-y-3 lg:-mx-8 lg:px-8">
+    <div className="-mx-6 px-6 py-3 bg-background/95 backdrop-blur border-b space-y-3 lg:-mx-8 lg:px-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">

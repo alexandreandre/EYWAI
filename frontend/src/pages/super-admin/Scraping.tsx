@@ -27,6 +27,7 @@ import {
   ScrapingDashboardStats,
 } from '@/api/scraping';
 
+import { log } from '@/lib/logger';
 // Types pour les données scrapées
 type RateCategory = {
   config_data: any;
@@ -95,7 +96,7 @@ export default function ScrapingPage() {
       setAlerts(alertsData.alerts);
       setRatesData(ratesResp.data);
     } catch (e: any) {
-      console.error('Erreur lors du chargement des données:', e);
+      log.error('Erreur lors du chargement des données:', e);
       setError(e.response?.data?.detail || e.message || 'Une erreur est survenue.');
     } finally {
       setLoading(false);
@@ -123,7 +124,7 @@ export default function ScrapingPage() {
           setTimeout(loadData, 2000);
         }
       } catch (error) {
-        console.error('Erreur lors de la récupération des logs:', error);
+        log.error('Erreur lors de la récupération des logs:', error);
       }
     }, 1000); // Polling toutes les secondes
 
@@ -159,7 +160,7 @@ export default function ScrapingPage() {
         setTimeout(loadData, 5000);
       }
     } catch (error: any) {
-      console.error('Erreur lors du lancement du scraping:', error);
+      log.error('Erreur lors du lancement du scraping:', error);
       alert('❌ Erreur: ' + (error.response?.data?.detail || error.message));
     } finally {
       // Réinitialiser executing après un court délai pour laisser le temps au dialog de s'ouvrir
@@ -181,7 +182,7 @@ export default function ScrapingPage() {
       await markAlertAsRead(alertId);
       loadData();
     } catch (error: any) {
-      console.error('Erreur:', error);
+      log.error('Erreur:', error);
       alert('❌ Erreur: ' + (error.response?.data?.detail || error.message));
     }
   };
@@ -191,7 +192,7 @@ export default function ScrapingPage() {
       await resolveAlert(alertId, note);
       loadData();
     } catch (error: any) {
-      console.error('Erreur:', error);
+      log.error('Erreur:', error);
       alert('❌ Erreur: ' + (error.response?.data?.detail || error.message));
     }
   };

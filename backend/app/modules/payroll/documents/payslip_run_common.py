@@ -1,9 +1,11 @@
 # Helpers partagés pour l'orchestration bulletin heures et forfait (ex-generateur_fiche_paie*.py).
 # Utilisés uniquement par payslip_run_heures et payslip_run_forfait.
 from __future__ import annotations
+from app.core.logging import get_logger, log_payroll_debug
+
+logger = get_logger("modules.payroll.documents.payslip_run_common")
 
 import json
-import sys
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -110,7 +112,7 @@ def mettre_a_jour_cumuls(
     nouveau_fichier_path.parent.mkdir(parents=True, exist_ok=True)
     with open(nouveau_fichier_path, "w", encoding="utf-8") as f:
         json.dump(nouveaux_cumuls_data, f, indent=2, ensure_ascii=False)
-    print(f"INFO: Cumuls écrits dans {nouveau_fichier_path}", file=sys.stderr)
+    log_payroll_debug(logger, f'INFO: Cumuls écrits dans {nouveau_fichier_path}')
 
 
 def creer_calendrier_etendu(
@@ -134,9 +136,6 @@ def creer_calendrier_etendu(
                 ).isoformat()
                 calendrier_final.append(jour_data)
         else:
-            print(
-                f"AVERTISSEMENT: Fichier événements {mois:02d}.json non trouvé.",
-                file=sys.stderr,
-            )
+            logger.warning(f'AVERTISSEMENT: Fichier événements {mois:02d}.json non trouvé.')
 
     return sorted(calendrier_final, key=lambda j: j["date_complete"])

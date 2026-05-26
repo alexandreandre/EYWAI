@@ -4,9 +4,10 @@ Lecture employés / entreprises pour le module schedules (tables employees, comp
 Implémentation du port IEmployeeCompanyReader. Utilisé par l'application pour
 récupérer company_id, statut, employee_folder_name, parametres_paie, etc.
 """
+from app.core.logging import get_logger, log_app_debug
 
-import sys
-import traceback
+logger = get_logger("modules.schedules.infrastructure.queries")
+
 from typing import Any, Dict, Optional, Tuple
 
 from postgrest.exceptions import APIError
@@ -32,10 +33,8 @@ class EmployeeCompanyReader(IEmployeeCompanyReader):
                 .execute()
             )
         except Exception as e:
-            print(
-                f"❌ Erreur lors de la récupération de l'employé: {e}", file=sys.stderr
-            )
-            traceback.print_exc(file=sys.stderr)
+            logger.warning(f"❌ Erreur lors de la récupération de l'employé: {e}")
+            logger.exception("Exception")
             try:
                 employee_res = (
                     supabase.table("employees")
@@ -45,7 +44,7 @@ class EmployeeCompanyReader(IEmployeeCompanyReader):
                     .execute()
                 )
             except Exception as e2:
-                print(f"❌ Échec de la nouvelle tentative: {e2}", file=sys.stderr)
+                logger.warning(f'❌ Échec de la nouvelle tentative: {e2}')
                 raise ScheduleDatabaseError(
                     f"Erreur de connexion à la base de données: {str(e2)}"
                 ) from e2

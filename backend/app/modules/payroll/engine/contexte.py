@@ -1,3 +1,6 @@
+from app.core.logging import get_logger, log_payroll_debug
+
+logger = get_logger("modules.payroll.engine.contexte")
 import json
 import sys
 import os
@@ -104,16 +107,10 @@ class ContextePaie:
         puis en les surchargeant avec les barèmes dynamiques de Supabase.
         """
         # ✅ CORRECTION: Tous les 'print' sont redirigés vers sys.stderr
-        print(
-            "INFO: Initialisation du contexte de paie (Mode Supabase)...",
-            file=sys.stderr,
-        )
+        log_payroll_debug(logger, 'INFO: Initialisation du contexte de paie (Mode Supabase)...')
 
-        print(
-            "\n--- 🔍 DEBUG CONTEXTE: Chargement des fichiers initiaux ---",
-            file=sys.stderr,
-        )
-        print(f"  -> Chemin contrat: {chemin_contrat}", file=sys.stderr)
+        log_payroll_debug(logger, '\n--- 🔍 DEBUG CONTEXTE: Chargement des fichiers initiaux ---')
+        log_payroll_debug(logger, f'  -> Chemin contrat: {chemin_contrat}')
         Path(chemin_data_dir)
 
         # --- ÉTAPE 1 : Chargement des fichiers locaux (Contrat, Cumuls, Fichier Entreprise) ---
@@ -122,10 +119,7 @@ class ContextePaie:
 
         contrat_brut = self._load_json(chemin_contrat)
         if contrat_brut is None:
-            print(
-                "ERREUR: Le fichier contrat.json est vide ou contient 'null'. Vérifiez les données employé en base.",
-                file=sys.stderr,
-            )
+            logger.warning("ERREUR: Le fichier contrat.json est vide ou contient 'null'. Vérifiez les données employé en base.")
             raise ValueError(
                 "Le fichier contrat.json est vide ou contient 'null'. "
                 "Vérifiez que les données de l'employé (employees) sont complètes en production."
@@ -140,11 +134,8 @@ class ContextePaie:
         prevoyance_data = self.contrat.get("specificites_paie", {}).get(
             "prevoyance", "NON TROUVÉE"
         )
-        print(
-            f"  -> Données 'prevoyance' lues du contrat: {json.dumps(prevoyance_data)}",
-            file=sys.stderr,
-        )
-        print("--- FIN DEBUG CONTEXTE ---\n", file=sys.stderr)
+        log_payroll_debug(logger, f"  -> Données 'prevoyance' lues du contrat: {json.dumps(prevoyance_data)}")
+        log_payroll_debug(logger, '--- FIN DEBUG CONTEXTE ---\n')
         # --- ÉTAPE 2 : Connexion à Supabase ---
         try:
             supabase_url = os.environ["SUPABASE_URL"]
@@ -156,24 +147,15 @@ class ContextePaie:
             supabase: Client = create_client(supabase_url, supabase_key)
         except KeyError:
             # ✅ CORRECTION: Redirigé vers sys.stderr
-            print(
-                "ERREUR: Variables SUPABASE_URL ou SUPABASE_SERVICE_KEY manquantes.",
-                file=sys.stderr,
-            )
+            logger.warning('ERREUR: Variables SUPABASE_URL ou SUPABASE_SERVICE_KEY manquantes.')
             raise RuntimeError("Variables d'environnement Supabase non configurées.")
         except Exception as e:
             # ✅ CORRECTION: Redirigé vers sys.stderr
-            print(
-                f"ERREUR: Échec de l'initialisation du client Supabase: {e}",
-                file=sys.stderr,
-            )
+            logger.warning(f"ERREUR: Échec de l'initialisation du client Supabase: {e}")
             raise
 
         # ✅ CORRECTION: Redirigé vers sys.stderr
-        print(
-            "INFO: Connexion Supabase établie. Chargement des barèmes...",
-            file=sys.stderr,
-        )
+        log_payroll_debug(logger, 'INFO: Connexion Supabase établie. Chargement des barèmes...')
 
         # --- ÉTAPE 3 : Chargement des barèmes depuis Supabase ---
         try:
@@ -207,10 +189,7 @@ class ContextePaie:
 
         except Exception as e:
             # ✅ CORRECTION: Redirigé vers sys.stderr
-            print(
-                f"ERREUR CRITIQUE: Impossible de lire 'payroll_config' depuis Supabase. {e}",
-                file=sys.stderr,
-            )
+            logger.warning(f"ERREUR CRITIQUE: Impossible de lire 'payroll_config' depuis Supabase. {e}")
             raise
 
         # --- ÉTAPE 3b : Chargement des règles par convention collective (table convention_collective_rules) ---
@@ -228,10 +207,7 @@ class ContextePaie:
                     if idcc:
                         conventions_collectives[f"idcc_{idcc}"] = rules
         except Exception as e:
-            print(
-                f"WARN: Impossible de lire 'convention_collective_rules' depuis Supabase: {e}. Règles CC vides.",
-                file=sys.stderr,
-            )
+            logger.warning(f"WARN: Impossible de lire 'convention_collective_rules' depuis Supabase: {e}. Règles CC vides.")
 
         # --- ÉTAPE 4 : Assignation à self.baremes ---
         # 'pas' stocke un objet avec clé 'baremes' ; les autres config_data sont des dicts
@@ -263,20 +239,11 @@ class ContextePaie:
             "conventions_collectives": conventions_collectives,
         }
         if not self.baremes["heures_supp"]:
-            print(
-                "WARN: 'heures_supp' absent de payroll_config. Exécutez le seed ou la migration pour insérer les règles heures supplémentaires.",
-                file=sys.stderr,
-            )
+            logger.warning("WARN: 'heures_supp' absent de payroll_config. Exécutez le seed ou la migration pour insérer les règles heures supplémentaires.")
         if not self.baremes["primes"]:
-            print(
-                "WARN: 'primes' absent de payroll_config. Exécutez le seed ou la migration pour insérer le catalogue des primes.",
-                file=sys.stderr,
-            )
+            logger.warning("WARN: 'primes' absent de payroll_config. Exécutez le seed ou la migration pour insérer le catalogue des primes.")
         if not self.baremes["conventions_collectives"]:
-            print(
-                "WARN: Aucune règle dans convention_collective_rules. Exécutez la migration 66 pour insérer les règles par IDCC.",
-                file=sys.stderr,
-            )
+            logger.warning('WARN: Aucune règle dans convention_collective_rules. Exécutez la migration 66 pour insérer les règles par IDCC.')
 
         # --- ÉTAPE 5 : Surcharge des Avantages en Nature ---
         avantages_db = db_baremes.get("avantages_en_nature")
@@ -299,29 +266,20 @@ class ContextePaie:
 
             avantages_local.update(avantages_surcharges)
             # ✅ CORRECTION: Redirigé vers sys.stderr
-            print(
-                "INFO: Surcharge des 'avantages_en_nature' depuis Supabase effectuée.",
-                file=sys.stderr,
-            )
+            log_payroll_debug(logger, "INFO: Surcharge des 'avantages_en_nature' depuis Supabase effectuée.")
         else:
             # ✅ CORRECTION: Redirigé vers sys.stderr
-            print(
-                "WARN: 'avantages_en_nature' non trouvés dans Supabase, utilisation des valeurs du fichier entreprise.json local.",
-                file=sys.stderr,
-            )
+            logger.warning("WARN: 'avantages_en_nature' non trouvés dans Supabase, utilisation des valeurs du fichier entreprise.json local.")
 
         # ✅ CORRECTION: Redirigé vers sys.stderr
-        print("INFO: Contexte chargé avec succès (Mode Supabase).", file=sys.stderr)
+        logger.info('INFO: Contexte chargé avec succès (Mode Supabase).')
 
     def _load_json(self, file_path: Path | str) -> Dict[str, Any] | None:
         """Fonction utilitaire pour charger un fichier JSON en gérant les erreurs."""
         try:
             file_path_obj = Path(file_path)
             if not file_path_obj.exists():
-                print(
-                    f"AVERTISSEMENT: Le fichier JSON '{file_path}' est introuvable. Retour de None.",
-                    file=sys.stderr,
-                )
+                logger.warning(f"AVERTISSEMENT: Le fichier JSON '{file_path}' est introuvable. Retour de None.")
                 return None
             with open(file_path_obj, "r", encoding="utf-8") as f:
                 content = json.load(f)
@@ -331,17 +289,11 @@ class ContextePaie:
                 return content
         except FileNotFoundError:
             # ✅ CORRECTION: Redirigé vers sys.stderr
-            print(
-                f"AVERTISSEMENT: Le fichier JSON '{file_path}' est introuvable. Retour de None.",
-                file=sys.stderr,
-            )
+            logger.warning(f"AVERTISSEMENT: Le fichier JSON '{file_path}' est introuvable. Retour de None.")
             return None
         except json.JSONDecodeError as e:
             # ✅ CORRECTION: Redirigé vers sys.stderr
-            print(
-                f"ERREUR: Le fichier JSON '{file_path}' est mal formaté. Détails: {e}",
-                file=sys.stderr,
-            )
+            logger.warning(f"ERREUR: Le fichier JSON '{file_path}' est mal formaté. Détails: {e}")
             raise
 
     # --- Propriétés d'accès rapide (Données "statiques") ---
@@ -434,10 +386,7 @@ class ContextePaie:
                 cotisations_list = cotisations_data
             else:
                 # ✅ CORRECTION: Redirigé vers sys.stderr
-                print(
-                    "WARN: Structure 'cotisations' non reconnue dans self.baremes pour get_cotisation_by_id.",
-                    file=sys.stderr,
-                )
+                logger.warning("WARN: Structure 'cotisations' non reconnue dans self.baremes pour get_cotisation_by_id.")
                 return None
         else:
             cotisations_list = cotisations_data.get(root_key, [])

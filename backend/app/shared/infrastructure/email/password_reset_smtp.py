@@ -7,10 +7,13 @@ from __future__ import annotations
 
 import os
 import smtplib
-import traceback
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional
+
+from app.core.logging import get_logger, is_app_debug_enabled
+
+logger = get_logger("shared.email")
 
 
 class PasswordResetSmtpSender:
@@ -140,11 +143,16 @@ L'équipe SIRH
             msg.attach(part2)
 
             if not self.smtp_user or not self.smtp_password:
-                print(
-                    "⚠️  [EmailService] SMTP credentials not configured. Email not sent."
+
+                logger.warning(
+                    "SMTP non configuré — email reset non envoyé (destinataire masqué en prod)"
                 )
-                print(f"📧 [EmailService] Would have sent email to: {to_email}")
-                print(f"🔗 [EmailService] Reset link: {reset_link}")
+                if is_app_debug_enabled():
+
+                    logger.debug(
+                        "Reset email simulé pour %s (lien omis des logs)",
+                        to_email,
+                    )
                 return True
 
             with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
@@ -152,12 +160,13 @@ L'équipe SIRH
                 server.login(self.smtp_user, self.smtp_password)
                 server.send_message(msg)
 
-            print(f"✅ [EmailService] Password reset email sent to: {to_email}")
+
+            logger.info("Email reset envoyé")
             return True
 
         except Exception as e:
-            print(f"❌ [EmailService] Error sending email: {e}")
-            print(traceback.format_exc())
+
+            logger.error("Envoi email reset échoué: %s", e, exc_info=True)
             return False
 
     def send_multipart_email(
@@ -180,11 +189,11 @@ L'équipe SIRH
             msg.attach(part2)
 
             if not self.smtp_user or not self.smtp_password:
-                print(
-                    "⚠️  [EmailService] SMTP credentials not configured. Email not sent."
-                )
-                print(f"📧 [EmailService] Would have sent email to: {to_email}")
-                print(f"📧 [EmailService] Subject: {subject}")
+
+                logger.warning("SMTP non configuré — email non envoyé")
+                if is_app_debug_enabled():
+
+                    logger.debug("Email simulé — sujet: %s", subject)
                 return True
 
             with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
@@ -192,12 +201,13 @@ L'équipe SIRH
                 server.login(self.smtp_user, self.smtp_password)
                 server.send_message(msg)
 
-            print(f"✅ [EmailService] Email sent to: {to_email}")
+
+            logger.info("Email envoyé")
             return True
 
         except Exception as e:
-            print(f"❌ [EmailService] Error sending email: {e}")
-            print(traceback.format_exc())
+
+            logger.error("Envoi email échoué: %s", e, exc_info=True)
             return False
 
 

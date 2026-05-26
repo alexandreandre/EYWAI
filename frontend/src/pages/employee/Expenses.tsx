@@ -1,5 +1,6 @@
 // Fichier : src/pages/employee/Expenses.tsx (VERSION COMPLÈTE ET FINALE CORRIGÉE)
 
+import { log } from '@/lib/logger';
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -72,7 +73,7 @@ export default function ExpensesPage() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url); // Libère la mémoire
     } catch (error) {
-      console.error("Erreur lors de la tentative de téléchargement:", error);
+      log.error("Erreur lors de la tentative de téléchargement:", error);
       toast({ title: "Erreur", description: "Impossible de lancer le téléchargement.", variant: "destructive" });
     }
   };

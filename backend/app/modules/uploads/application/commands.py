@@ -6,6 +6,9 @@ Les commandes lèvent HTTPException (mêmes codes et messages que le legacy).
 """
 
 from __future__ import annotations
+from app.core.logging import get_logger, log_app_debug
+
+logger = get_logger("modules.uploads.application.commands")
 
 import uuid
 from typing import TYPE_CHECKING
@@ -58,7 +61,7 @@ async def upload_logo(
     try:
         storage.upload_logo_file(bucket_path, file_content, content_type or "image/png")
     except Exception as e:
-        print(f"Erreur lors de l'upload vers Storage: {e}")
+        logger.warning(f"Erreur lors de l'upload vers Storage: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de l'upload du fichier: {str(e)}",

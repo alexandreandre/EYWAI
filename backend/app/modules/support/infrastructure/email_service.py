@@ -1,6 +1,9 @@
 """E-mails ticket support — transport SMTP partagé avec la réinitialisation mot de passe."""
 
 from __future__ import annotations
+from app.core.logging import get_logger, log_app_debug
+
+logger = get_logger("modules.support.infrastructure.email_service")
 
 import html
 import traceback
@@ -260,5 +263,5 @@ L'équipe EYWAI
         )
         return bool(ok_support and ok_user)
     except Exception:
-        print(f"❌ [EmailService] send_support_ticket_email: {traceback.format_exc()}")
+        logger.warning(f'❌ [EmailService] send_support_ticket_email: {traceback.format_exc()}')
         return False

@@ -17,6 +17,7 @@ from app.modules.users.application.dto import (
     UpdateUserResult,
 )
 from app.modules.users.application.service import (
+    check_role_hierarchy,
     copy_template_permissions_to_user,
     get_auth_provider,
     get_company_repository,
@@ -300,8 +301,31 @@ def update_user_with_permissions(
     user_repo = get_user_repository()
     perm_repo = get_user_permission_repository()
 
-    if not access_repo.get_by_user_and_company(user_id, company_id):
+    access = access_repo.get_by_user_and_company_with_template(user_id, company_id)
+    if not access:
         raise LookupError("Utilisateur n'a pas d'accès à cette entreprise")
+    target_role = access["role"]
+
+    if not getattr(current_user, "is_super_admin", False):
+        if not current_user.has_access_to_company(company_id):
+            raise PermissionError("Vous n'avez pas accès à cette entreprise")
+        creator_role = current_user.get_role_in_company(company_id) or ""
+        editable_roles = domain_rules.get_editable_roles(creator_role)
+        if target_role not in editable_roles:
+            raise PermissionError(
+                "Vous n'avez pas les droits pour modifier cet utilisateur"
+            )
+        if data.base_role:
+            new_role = data.base_role
+            if new_role not in editable_roles:
+                raise PermissionError(
+                    f"Vous ne pouvez pas attribuer le rôle '{new_role}' dans cette entreprise"
+                )
+            if not check_role_hierarchy(current_user, new_role, company_id):
+                raise PermissionError(
+                    f"Vous ne pouvez pas créer d'utilisateurs avec le rôle '{new_role}' "
+                    f"dans cette entreprise"
+                )
 
     profile_updates = {}
     if data.first_name:

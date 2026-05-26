@@ -76,6 +76,7 @@ import {
   FileDown,
   Eye,
   AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -179,6 +180,8 @@ export default function AnnualReviews({
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: 6 }, (_, i) => currentYear - i);
   const focusUpcoming = searchParams.get("focus") === "upcoming";
+  const focusSignaturePending =
+    (searchParams.get("signature_status") ?? "").toLowerCase() === "pending";
 
   const [filterYear, setFilterYear] = useState<number | "all">(currentYear);
   const [filterStatus, setFilterStatus] = useState<AnnualReviewStatus | "all">("all");
@@ -199,6 +202,8 @@ export default function AnnualReviews({
     isLoading,
     isError,
     error,
+    refetch,
+    isFetching,
   } = useQuery({
     queryKey: [
       "annual-reviews",
@@ -338,6 +343,7 @@ export default function AnnualReviews({
     }
     if (hideClosed) parts.push("clôturés masqués");
     if (focusUpcoming) parts.push(`échéance sous ${ANNUAL_REVIEW_PRIORITY_WINDOW_DAYS} jours`);
+    if (focusSignaturePending) parts.push("signatures en attente");
     if (searchTerm.trim()) parts.push(`recherche « ${searchTerm.trim()} »`);
     return parts;
   }, [
@@ -347,13 +353,15 @@ export default function AnnualReviews({
     filterInterviewType,
     hideClosed,
     focusUpcoming,
+    focusSignaturePending,
     searchTerm,
   ]);
 
   const filteredList = useMemo(() => {
     let items: AnnualReviewListItem[] = list;
 
-    if (hideClosed) {
+    // Masquer les clôturés sauf vue « signatures en attente » (souvent statut clôture + pending)
+    if (hideClosed && !focusSignaturePending) {
       items = items.filter((item) => item.status !== "cloture");
     }
 
@@ -374,6 +382,12 @@ export default function AnnualReviews({
       items = items.filter(isUpcomingInPriorityWindow);
     }
 
+    if (focusSignaturePending) {
+      items = items.filter(
+        (item) => (item.signature_status ?? "").toLowerCase() === "pending",
+      );
+    }
+
     if (searchTerm.trim()) {
       const term = searchTerm.trim().toLowerCase();
       items = items.filter(
@@ -384,7 +398,15 @@ export default function AnnualReviews({
     }
 
     return sortListItemsForDisplay(items);
-  }, [list, searchTerm, quickGroup, hideClosed, filterInterviewType, focusUpcoming]);
+  }, [
+    list,
+    searchTerm,
+    quickGroup,
+    hideClosed,
+    filterInterviewType,
+    focusUpcoming,
+    focusSignaturePending,
+  ]);
 
   const isEmpty = list.length === 0;
   const noResults = !isEmpty && filteredList.length === 0;
@@ -663,11 +685,23 @@ export default function AnnualReviews({
           {isLoading ? (
             <TableSkeleton />
           ) : isError ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center text-destructive">
-              <p className="font-medium">Erreur de chargement</p>
-              <p className="text-sm mt-1 text-muted-foreground">
-                {(error as Error)?.message ?? "Impossible de charger les entretiens."}
-              </p>
+            <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
+              <div className="text-destructive">
+                <p className="font-medium">Erreur de chargement</p>
+                <p className="text-sm mt-1 text-muted-foreground">
+                  {(error as Error)?.message ?? "Impossible de charger les entretiens."}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isFetching}
+                onClick={() => void refetch()}
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+                Réessayer
+              </Button>
             </div>
           ) : isEmpty ? (
             <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">

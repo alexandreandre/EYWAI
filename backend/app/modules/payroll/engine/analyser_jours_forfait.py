@@ -1,3 +1,6 @@
+from app.core.logging import get_logger, log_payroll_debug
+
+logger = get_logger("modules.payroll.engine.analyser_jours_forfait")
 # moteur_paie/analyser_jours_forfait.py
 """
 Module d'analyse des jours travaillés pour les employés en forfait jour.
@@ -45,24 +48,15 @@ def analyser_jours_forfait_du_mois(
         Si date_debut_periode et date_fin_periode sont fournies, filtre selon la période.
         Sinon, filtre uniquement le mois demandé (comportement par défaut).
     """
-    print(
-        f"INFO: Analyse des jours forfait pour {employee_name} - {mois:02d}/{annee}...",
-        file=sys.stderr,
-    )
+    log_payroll_debug(logger, f'INFO: Analyse des jours forfait pour {employee_name} - {mois:02d}/{annee}...')
 
     prevu_data = planned_data_all_months
     reel_data = actual_data_all_months
-    print(
-        f"DEBUG: nb_jours_prevus={len(prevu_data)}, nb_jours_reels={len(reel_data)}",
-        file=sys.stderr,
-    )
+    log_payroll_debug(logger, f'DEBUG: nb_jours_prevus={len(prevu_data)}, nb_jours_reels={len(reel_data)}')
 
     # Debug : Afficher la répartition par mois
     if date_debut_periode and date_fin_periode:
-        print(
-            f"DEBUG: Période de paie : du {date_debut_periode.strftime('%d/%m/%Y')} au {date_fin_periode.strftime('%d/%m/%Y')}",
-            file=sys.stderr,
-        )
+        log_payroll_debug(logger, f"DEBUG: Période de paie : du {date_debut_periode.strftime('%d/%m/%Y')} au {date_fin_periode.strftime('%d/%m/%Y')}")
         prevu_par_mois = {}
         reel_par_mois = {}
         for j in prevu_data:
@@ -71,8 +65,8 @@ def analyser_jours_forfait_du_mois(
         for j in reel_data:
             m = j.get("mois", "?")
             reel_par_mois[m] = reel_par_mois.get(m, 0) + 1
-        print(f"DEBUG: Jours prévus par mois: {prevu_par_mois}", file=sys.stderr)
-        print(f"DEBUG: Jours réels par mois: {reel_par_mois}", file=sys.stderr)
+        log_payroll_debug(logger, f'DEBUG: Jours prévus par mois: {prevu_par_mois}')
+        log_payroll_debug(logger, f'DEBUG: Jours réels par mois: {reel_par_mois}')
 
     # Étape 1 : Regrouper les données par semaine ISO
     semaines = defaultdict(
@@ -189,10 +183,7 @@ def analyser_jours_forfait_du_mois(
                     evenements_finaux.append(ev_absence)
                     # Debug pour les absences de janvier/février
                     if ev_absence["mois"] in [1, 2]:
-                        print(
-                            f"DEBUG: Absence détectée : {ev_absence['jour']:02d}/{ev_absence['mois']:02d}/{ev_absence['annee']}",
-                            file=sys.stderr,
-                        )
+                        log_payroll_debug(logger, f"DEBUG: Absence détectée : {ev_absence['jour']:02d}/{ev_absence['mois']:02d}/{ev_absence['annee']}")
                 # Les autres types (congés, fériés) sont déjà gérés dans jours_non_travailles
 
     # Étape 3 : Agréger et filtrer selon la période de paie ou le mois
@@ -215,10 +206,7 @@ def analyser_jours_forfait_du_mois(
             # Filtrer selon la période de paie (peut s'étendre sur plusieurs mois)
             if not (date_debut_periode <= ev_date <= date_fin_periode):
                 if "absence" in ev.get("type", ""):
-                    print(
-                        f"DEBUG: Événement d'absence exclu (hors période) : {ev_date.strftime('%d/%m/%Y')} (événement: {ev.get('type')})",
-                        file=sys.stderr,
-                    )
+                    log_payroll_debug(logger, f"DEBUG: Événement d'absence exclu (hors période) : {ev_date.strftime('%d/%m/%Y')} (événement: {ev.get('type')})")
                 continue
         else:
             # Comportement par défaut : filtrer uniquement le mois demandé
@@ -255,14 +243,9 @@ def analyser_jours_forfait_du_mois(
             absences_par_mois[m] = absences_par_mois.get(m, 0) + 1
 
     if absences_par_mois:
-        print(
-            f"DEBUG: Absences détectées par mois: {absences_par_mois}", file=sys.stderr
-        )
+        log_payroll_debug(logger, f'DEBUG: Absences détectées par mois: {absences_par_mois}')
 
-    print(
-        f"DEBUG: evenements_agreges={len(evenements_agreges)} événements",
-        file=sys.stderr,
-    )
+    log_payroll_debug(logger, f'DEBUG: evenements_agreges={len(evenements_agreges)} événements')
     return sorted(
         evenements_agreges,
         key=lambda x: (x.get("annee", annee), x.get("mois", mois), x.get("jour", 0)),
@@ -325,14 +308,11 @@ if __name__ == "__main__":
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(output_data, f, indent=2, ensure_ascii=False)
 
-        print(
-            f"✅ Fichier d'événements généré avec succès : {output_path}",
-            file=sys.stderr,
-        )
+        logger.info(f"✅ Fichier d'événements généré avec succès : {output_path}")
 
     except Exception as e:
-        print(f"\nERREUR : {e}", file=sys.stderr)
+        logger.warning(f'\nERREUR : {e}')
         import traceback
 
-        traceback.print_exc(file=sys.stderr)
+        logger.exception("Exception")
         sys.exit(1)

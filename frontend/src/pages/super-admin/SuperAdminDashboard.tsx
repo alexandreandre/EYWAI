@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../api/apiClient';
 
+import { log } from '@/lib/logger';
 interface GlobalStats {
   companies: {
     total: number;
@@ -43,7 +44,7 @@ export default function SuperAdminDashboard() {
       setStats(response.data);
       setError(null);
     } catch (err: any) {
-      console.error('Erreur chargement stats:', err);
+      log.error('Erreur chargement stats:', err);
       setError(err.response?.data?.detail || 'Erreur lors du chargement des statistiques');
       if (err.response?.status === 403) {
         navigate('/');

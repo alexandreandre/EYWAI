@@ -2,8 +2,7 @@
 Tests d'intégration HTTP des routes du module rates.
 
 Route : GET /api/rates/all (récupération des configs actives de taux, groupées par config_key).
-Utilise : client (TestClient), dependency_overrides pour get_all_rates_reader pour éviter la DB réelle.
-Pas d'auth sur cette route (pas de get_current_user).
+Utilise : client (TestClient), dependency_overrides pour get_all_rates_reader et get_current_user.
 """
 
 from unittest.mock import MagicMock
@@ -11,6 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.security import get_current_user
 from app.main import app
 from app.modules.rates.api.dependencies import get_all_rates_reader
 
@@ -23,6 +23,22 @@ def _make_mock_reader(rows):
     reader = MagicMock()
     reader.get_all_active_rows.return_value = rows
     return reader
+
+
+def _make_rh_user():
+    user = MagicMock()
+    user.is_super_admin = False
+    user.active_company_id = "company-1"
+    user.has_rh_access_in_company.return_value = True
+    return user
+
+
+def _make_non_rh_user():
+    user = MagicMock()
+    user.is_super_admin = False
+    user.active_company_id = "company-1"
+    user.has_rh_access_in_company.return_value = False
+    return user
 
 
 class TestGetAllRatesEndpoint:
@@ -43,10 +59,12 @@ class TestGetAllRatesEndpoint:
         ]
         mock_reader = _make_mock_reader(rows)
         app.dependency_overrides[get_all_rates_reader] = lambda: mock_reader
+        app.dependency_overrides[get_current_user] = _make_rh_user
         try:
             response = client.get("/api/rates/all")
         finally:
             app.dependency_overrides.pop(get_all_rates_reader, None)
+            app.dependency_overrides.pop(get_current_user, None)
 
         assert response.status_code == 200
         data = response.json()
@@ -62,10 +80,12 @@ class TestGetAllRatesEndpoint:
         """Quand le reader retourne une liste vide, le routeur renvoie 404."""
         mock_reader = _make_mock_reader([])
         app.dependency_overrides[get_all_rates_reader] = lambda: mock_reader
+        app.dependency_overrides[get_current_user] = _make_rh_user
         try:
             response = client.get("/api/rates/all")
         finally:
             app.dependency_overrides.pop(get_all_rates_reader, None)
+            app.dependency_overrides.pop(get_current_user, None)
 
         assert response.status_code == 404
         assert "Aucune configuration active" in response.json().get("detail", "")
@@ -75,10 +95,12 @@ class TestGetAllRatesEndpoint:
         mock_reader = MagicMock()
         mock_reader.get_all_active_rows.side_effect = RuntimeError("DB unreachable")
         app.dependency_overrides[get_all_rates_reader] = lambda: mock_reader
+        app.dependency_overrides[get_current_user] = _make_rh_user
         try:
             response = client.get("/api/rates/all")
         finally:
             app.dependency_overrides.pop(get_all_rates_reader, None)
+            app.dependency_overrides.pop(get_current_user, None)
 
         assert response.status_code == 500
         assert "DB unreachable" in response.json().get("detail", "")
@@ -101,10 +123,12 @@ class TestGetAllRatesEndpoint:
         ]
         mock_reader = _make_mock_reader(rows)
         app.dependency_overrides[get_all_rates_reader] = lambda: mock_reader
+        app.dependency_overrides[get_current_user] = _make_rh_user
         try:
             response = client.get("/api/rates/all")
         finally:
             app.dependency_overrides.pop(get_all_rates_reader, None)
+            app.dependency_overrides.pop(get_current_user, None)
 
         assert response.status_code == 200
         out = response.json()["minimal_legal"]
@@ -118,3 +142,22 @@ class TestGetAllRatesEndpoint:
         assert "config_key" not in out
         assert "created_at" not in out
         assert "is_active" not in out
+
+    def test_returns_401_without_authentication(self, client: TestClient):
+        """Sans get_current_user injecté ni token, l'endpoint est protégé (401)."""
+        response = client.get("/api/rates/all")
+        assert response.status_code == 401
+
+    def test_returns_403_for_non_rh_user(self, client: TestClient):
+        """Un utilisateur sans accès RH sur la company active reçoit 403."""
+        mock_reader = _make_mock_reader([])
+        app.dependency_overrides[get_all_rates_reader] = lambda: mock_reader
+        app.dependency_overrides[get_current_user] = _make_non_rh_user
+        try:
+            response = client.get("/api/rates/all")
+        finally:
+            app.dependency_overrides.pop(get_all_rates_reader, None)
+            app.dependency_overrides.pop(get_current_user, None)
+
+        assert response.status_code == 403
+        assert "rh" in response.json().get("detail", "").lower()

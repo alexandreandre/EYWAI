@@ -4,8 +4,10 @@ Requêtes Supabase complexes pour saisies et avances.
 Listes enrichies (jointures, agrégations), saisies/avances par période,
 salaire journalier, avances restant à rembourser. Comportement identique au legacy.
 """
+from app.core.logging import get_logger, log_app_debug
 
-import traceback
+logger = get_logger("modules.saisies_avances.infrastructure.queries")
+
 from datetime import date
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
@@ -94,8 +96,8 @@ def list_advances_with_employee_and_remaining_to_pay(
                         if eid != sid:
                             employees_map[eid] = full
         except Exception as e:
-            traceback.print_exc()
-            print(f"Erreur récupération noms employés: {e}")
+            logger.exception("Exception")
+            logger.warning(f'Erreur récupération noms employés: {e}')
 
     advance_ids = [a.get("id") for a in advances if a.get("id")]
     payments_map: Dict[str, Decimal] = {}
@@ -117,8 +119,8 @@ def list_advances_with_employee_and_remaining_to_pay(
                     amt = Decimal(str(p.get("payment_amount", 0)))
                     payments_map[key] = payments_map.get(key, Decimal("0")) + amt
         except Exception as e:
-            traceback.print_exc()
-            print(f"Erreur récupération paiements: {e}")
+            logger.exception("Exception")
+            logger.warning(f'Erreur récupération paiements: {e}')
 
     for advance in advances:
         try:
@@ -145,8 +147,8 @@ def list_advances_with_employee_and_remaining_to_pay(
             )
             advance["remaining_to_pay"] = remaining_to_pay_value(approved, total_paid)
         except Exception as e:
-            traceback.print_exc()
-            print(f"[ERROR GET ADVANCES] {advance.get('id')}: {e}")
+            logger.exception("Exception")
+            logger.warning(f"[ERROR GET ADVANCES] {advance.get('id')}: {e}")
             if "employee_name" not in advance:
                 advance["employee_name"] = None
             advance["remaining_to_pay"] = 0.0

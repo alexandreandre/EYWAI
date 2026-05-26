@@ -29,8 +29,9 @@ def resolve_company_id_for_user(current_user: Any) -> Optional[str]:
 
 def resolve_company_id_for_details(current_user: Any) -> Optional[str]:
     """
-    Retourne le company_id du profil utilisateur (contexte GET /details).
-    Comportement identique au routeur legacy (profiles.company_id).
+    Retourne le company_id du profil utilisateur (profiles.company_id).
+    Conservé pour compatibilité tests / appels internes ; GET /details utilise
+    resolve_company_id_for_user (entreprise active).
     """
     # Appel via companies_queries pour que les patch unittest sur
     # app.modules.companies.infrastructure.queries.get_company_id_from_profile

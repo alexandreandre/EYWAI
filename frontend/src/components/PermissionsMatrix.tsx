@@ -1,3 +1,4 @@
+import { log } from '@/lib/logger';
 import React, { useState, useEffect } from 'react';
 import { Loader2, Info, ChevronDown, ChevronRight, CheckSquare, Square } from 'lucide-react';
 import { getPermissionsMatrix, PermissionMatrix, PermissionMatrixCategory } from '../api/permissions';
@@ -44,7 +45,7 @@ export const PermissionsMatrix: React.FC<PermissionsMatrixProps> = ({
       // Expand all categories by default
       setExpandedCategories(new Set(data.categories.map((cat) => cat.code)));
     } catch (error) {
-      console.error('Erreur lors du chargement de la matrice:', error);
+      log.error('Erreur lors du chargement de la matrice:', error);
     } finally {
       setLoading(false);
     }

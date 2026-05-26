@@ -3,7 +3,7 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, ChevronRight } from 'lucide-react';
+import { AlertTriangle, ChevronRight, RefreshCw } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -46,6 +46,10 @@ interface TeamPlanningViewProps {
   rows: EmployeeCalendarOverviewRow[];
   year: number;
   month: number;
+  employeesLoadError?: boolean;
+  employeesLoadErrorMessage?: string;
+  onRetryEmployees?: () => void;
+  unfilteredRowCount?: number;
   onApplyDayPatch: (
     employeeId: string,
     day: number,
@@ -79,6 +83,10 @@ export function TeamPlanningView({
   rows,
   year,
   month,
+  employeesLoadError = false,
+  employeesLoadErrorMessage,
+  onRetryEmployees,
+  unfilteredRowCount = 0,
   onApplyDayPatch,
   onOpenEmployee,
 }: TeamPlanningViewProps) {
@@ -90,9 +98,40 @@ export function TeamPlanningView({
   const todayIso = new Date().toDateString();
 
   if (rows.length === 0) {
+    if (employeesLoadError) {
+      return (
+        <div className="rounded-md border border-destructive/40 bg-destructive/5 py-12 text-center px-4">
+          <AlertTriangle className="mx-auto h-8 w-8 text-destructive/70 mb-3" />
+          <p className="text-sm text-destructive">
+            {employeesLoadErrorMessage ?? 'Impossible de charger la liste des employés.'}
+          </p>
+          {onRetryEmployees && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-4 gap-2"
+              onClick={onRetryEmployees}
+            >
+              <RefreshCw className="h-4 w-4" />
+              Réessayer
+            </Button>
+          )}
+        </div>
+      );
+    }
+
+    if (unfilteredRowCount === 0) {
+      return (
+        <p className="text-sm text-muted-foreground text-center py-12">
+          Aucun employé à piloter pour ce mois.
+        </p>
+      );
+    }
+
     return (
       <p className="text-sm text-muted-foreground text-center py-12">
-        Aucun employé à afficher dans le planning.
+        Aucun employé ne correspond à vos filtres dans le planning.
       </p>
     );
   }

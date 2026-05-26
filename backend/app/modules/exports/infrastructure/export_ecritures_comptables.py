@@ -1,3 +1,6 @@
+from app.core.logging import get_logger, log_app_debug
+
+logger = get_logger("modules.exports.infrastructure.export_ecritures_comptables")
 # Implémentation locale des écritures comptables OD (ex-services.exports.ecritures_comptables).
 from calendar import monthrange
 from typing import Any, Dict, List, Optional, Tuple
@@ -60,7 +63,7 @@ def get_accounting_mappings(company_id: str) -> Dict[str, Dict[str, Any]]:
         )
         return {m["rubrique_code"]: m for m in (response.data or [])}
     except Exception as e:
-        print(f"Erreur lors de la récupération des mappings: {e}")
+        logger.warning(f'Erreur lors de la récupération des mappings: {e}')
         return {}
 
 

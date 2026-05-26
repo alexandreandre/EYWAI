@@ -3,11 +3,9 @@
 # Imports : app.core.*, payroll.analyzer, saisies_avances (queries + enrich_payslip), repos_compensateur.service.
 # Génération in-process via app.modules.payroll.documents.payslip_run_heures (plus de subprocess).
 
+import calendar
 import json
 import logging
-import sys
-import traceback
-import calendar
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -15,6 +13,7 @@ from typing import Any
 from fastapi import HTTPException
 
 from app.core.database import supabase
+from app.core.logging import get_logger, log_payroll_debug
 from app.core.paths import (
     payroll_engine_root,
     payroll_engine_employee_folder,
@@ -23,6 +22,8 @@ from app.core.paths import (
 from app.modules.payroll.application.analyzer import (
     analyser_horaires_du_mois as payroll_analyzer_analyser,
 )
+
+logger = get_logger("modules.payroll.documents.payslip_generator")
 
 
 def _parse_if_json_string(value: Any) -> Any:
@@ -78,12 +79,9 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
                 detail=f"Données de l'entreprise (ID: {company_id}) non trouvées.",
             )
 
-        print(
-            "\n" + "=" * 25 + " DEBUG: Données de l'entreprise (BDD) " + "=" * 25,
-            file=sys.stderr,
-        )
-        print(json.dumps(company_data, indent=2, default=str), file=sys.stderr)
-        print("=" * 80 + "\n", file=sys.stderr)
+        log_payroll_debug(logger, '\n' + '=' * 25 + " DEBUG: Données de l'entreprise (BDD) " + '=' * 25)
+        log_payroll_debug(logger, json.dumps(company_data, indent=2, default=str))
+        log_payroll_debug(logger, '=' * 80 + '\n')
 
         duree_hebdo = employee_data.get("duree_hebdomadaire")
         if not duree_hebdo:
@@ -163,9 +161,7 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
             "periode": {"annee": year, "mois": month},
             "calendrier_analyse": payroll_events_list,
         }
-        print(
-            f"\nDEBUG [Generator]: Nombre de saisies trouvées en BDD pour ce mois : {len(saisies_res.data)}\n"
-        )
+        log_payroll_debug(logger, f'\nDEBUG [Generator]: Nombre de saisies trouvées en BDD pour ce mois : {len(saisies_res.data)}\n')
 
         last_day = calendar.monthrange(year, month)[1]
 
@@ -189,9 +185,7 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
             saisies_data["primes"].append(prime_entry)
 
         if expense_reports_res.data:
-            print(
-                f"DEBUG [Generator] - Ajout de {len(expense_reports_res.data)} note(s) de frais aux saisies."
-            )
+            log_payroll_debug(logger, f'DEBUG [Generator] - Ajout de {len(expense_reports_res.data)} note(s) de frais aux saisies.')
             for expense in expense_reports_res.data:
                 expense_prime_id = f"remb_{expense['type'].lower().replace(' ', '_')}_{expense['date']}"
                 expense_entry = {
@@ -201,7 +195,7 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
                     "soumise_a_impot": False,
                 }
                 saisies_data["primes"].append(expense_entry)
-                print(f"DEBUG [Generator] - Note de frais ajoutée: {expense_entry}")
+                log_payroll_debug(logger, f'DEBUG [Generator] - Note de frais ajoutée: {expense_entry}')
 
         try:
             from app.modules.saisies_avances.infrastructure.queries import (
@@ -212,9 +206,7 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
             advances_to_repay = get_advances_to_repay(employee_id, year, month)
             total_advances_repayment = Decimal("0")
 
-            print(
-                f"[DEBUG GENERATOR] Avances à rembourser trouvées: {len(advances_to_repay)}"
-            )
+            log_payroll_debug(logger, f'[DEBUG GENERATOR] Avances à rembourser trouvées: {len(advances_to_repay)}')
 
             for advance in advances_to_repay:
                 remaining = Decimal(str(advance.get("remaining_amount", 0)))
@@ -230,17 +222,13 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
                     repayment_amount = min(repayment_amount, remaining)
 
                 total_advances_repayment += repayment_amount
-                print(
-                    f"[DEBUG GENERATOR] Avance {advance.get('id')}: {float(repayment_amount)}€ à rembourser ce mois"
-                )
+                log_payroll_debug(logger, f"[DEBUG GENERATOR] Avance {advance.get('id')}: {float(repayment_amount)}€ à rembourser ce mois")
 
             saisies_data["acompte"] = float(total_advances_repayment)
-            print(
-                f"[DEBUG GENERATOR] Total des remboursements d'avances à déduire: {float(total_advances_repayment)}€"
-            )
+            log_payroll_debug(logger, f"[DEBUG GENERATOR] Total des remboursements d'avances à déduire: {float(total_advances_repayment)}€")
         except Exception as e:
             logging.warning(f"Erreur lors du calcul des avances à rembourser: {e}")
-            print(f"[WARNING GENERATOR] Erreur calcul avances: {e}", file=sys.stderr)
+            logger.warning(f'[WARNING GENERATOR] Erreur calcul avances: {e}')
             saisies_data["acompte"] = 0.0
 
         previous_cumuls_data = (
@@ -333,32 +321,16 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
                 status_code=400,
                 detail="Données du contrat employé incomplètes. Vérifiez les données en base.",
             )
-        print("\n" + "=" * 30 + " DEBUG contrat.json " + "=" * 30, file=sys.stderr)
+        log_payroll_debug(logger, '\n' + '=' * 30 + ' DEBUG contrat.json ' + '=' * 30)
         try:
             specificites = contrat_json_content.get("specificites_paie")
-            print(
-                f"DEBUG [Generator]: Type de 'specificites_paie' après parsing: {type(specificites)}",
-                file=sys.stderr,
-            )
-            print(
-                f"DEBUG [Generator]: Clé 'specificites_paie' (brut): {specificites}",
-                file=sys.stderr,
-            )
-            print(
-                "DEBUG [Generator]: Contenu FINAL qui sera écrit dans contrat.json:",
-                file=sys.stderr,
-            )
-            print(
-                json.dumps(
-                    contrat_json_content, indent=2, ensure_ascii=False, default=str
-                ),
-                file=sys.stderr,
-            )
+            log_payroll_debug(logger, f"DEBUG [Generator]: Type de 'specificites_paie' après parsing: {type(specificites)}")
+            log_payroll_debug(logger, f"DEBUG [Generator]: Clé 'specificites_paie' (brut): {specificites}")
+            log_payroll_debug(logger, 'DEBUG [Generator]: Contenu FINAL qui sera écrit dans contrat.json:')
+            log_payroll_debug(logger, json.dumps(contrat_json_content, indent=2, ensure_ascii=False, default=str))
         except Exception as e:
-            print(
-                f"DEBUG [Generator]: ERREUR LORS DU DEBUG PRINT: {e}", file=sys.stderr
-            )
-        print("=" * 80 + "\n", file=sys.stderr)
+            logger.warning(f'DEBUG [Generator]: ERREUR LORS DU DEBUG PRINT: {e}')
+        log_payroll_debug(logger, '=' * 80 + '\n')
         write_temp_json(employee_path / "contrat.json", contrat_json_content)
 
         entreprise_json_path = payroll_engine_entreprise_json()
@@ -390,14 +362,9 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
                 },
             },
         }
-        print(
-            "\n" + "=" * 20 + " DEBUG: Contenu généré pour entreprise.json " + "=" * 20,
-            file=sys.stderr,
-        )
-        print(
-            json.dumps(entreprise_json_content, indent=2, default=str), file=sys.stderr
-        )
-        print("=" * 80 + "\n", file=sys.stderr)
+        logger.info('\n' + '=' * 20 + ' DEBUG: Contenu généré pour entreprise.json ' + '=' * 20)
+        log_payroll_debug(logger, json.dumps(entreprise_json_content, indent=2, default=str))
+        log_payroll_debug(logger, '=' * 80 + '\n')
 
         write_temp_json(entreprise_json_path, entreprise_json_content)
         write_temp_json(
@@ -524,28 +491,19 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
                             file_options={"x-upsert": "true"},
                         )
 
-                    print(
-                        f"[INFO] PDF régénéré avec remboursements d'avances: {enriched_pdf_path}",
-                        file=sys.stderr,
-                    )
+                    logger.info(f"[INFO] PDF régénéré avec remboursements d'avances: {enriched_pdf_path}")
                 except Exception as pdf_err:
                     logging.warning(
                         f"Erreur lors de la régénération du PDF avec données enrichies: {pdf_err}"
                     )
-                    print(
-                        f"[WARNING] Régénération PDF échouée: {pdf_err}",
-                        file=sys.stderr,
-                    )
+                    logger.warning(f'[WARNING] Régénération PDF échouée: {pdf_err}')
 
             except Exception as enrich_err:
                 logging.warning(
                     f"Erreur lors de l'enrichissement avec saisies/avances: {enrich_err}"
                 )
-                print(
-                    f"[WARNING] Enrichissement saisies/avances échoué: {enrich_err}",
-                    file=sys.stderr,
-                )
-                traceback.print_exc()
+                logger.warning(f'[WARNING] Enrichissement saisies/avances échoué: {enrich_err}')
+                logger.exception("Exception")
 
         supabase.table("employee_schedules").update(
             {"cumuls": new_cumuls_json, "payroll_events": payroll_events_json}
@@ -558,10 +516,7 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
 
             recalculer_credits_repos_employe(employee_id, company_id, year)
         except Exception as cor_err:
-            print(
-                f"[WARNING] COR recalc après génération bulletin: {cor_err}",
-                file=sys.stderr,
-            )
+            logger.warning(f'[WARNING] COR recalc après génération bulletin: {cor_err}')
 
         return {
             "status": "success",
@@ -570,7 +525,7 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
         }
 
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Exception")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         for path in files_to_cleanup:
@@ -578,15 +533,11 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
                 if path.exists():
                     path.unlink()
             except Exception as e:
-                print(
-                    f"Erreur lors du nettoyage du fichier {path}: {e}", file=sys.stderr
-                )
+                logger.warning(f'Erreur lors du nettoyage du fichier {path}: {e}')
         for _ in range(2):
             for d in reversed(dirs_to_cleanup):
                 try:
                     if d.exists() and d.is_dir() and not any(d.iterdir()):
                         d.rmdir()
                 except Exception as e:
-                    print(
-                        f"Erreur lors du nettoyage du dossier {d}: {e}", file=sys.stderr
-                    )
+                    logger.warning(f'Erreur lors du nettoyage du dossier {d}: {e}')

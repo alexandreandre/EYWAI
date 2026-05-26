@@ -27,10 +27,9 @@ import { cn } from "@/lib/utils";
 const MAX_TODO = 10;
 
 const ACTIVE_REVIEW_STATUSES = new Set([
-  "a_planifier",
   "planifie",
-  "en_preparation",
-  "prete",
+  "en_attente_acceptation",
+  "accepte",
 ]);
 
 type TodoRow = {

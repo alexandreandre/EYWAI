@@ -3,9 +3,11 @@
 
 import { useState, useMemo, useRef, useCallback, useEffect, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
+import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/react-query";
 import {
-  getJobs, createJob, getPipelineStages, getCandidates, createCandidate,
+  getRecruitmentSettings,
+  getJobs, createJob, updateJob, getPipelineStages, getCandidates, createCandidate, deleteCandidate,
   moveCandidate, getNotes, createNote, uploadNoteAudio, getOpinions, createOpinion,
   getInterviews, createInterview, getTimeline, hireCandidate, getRejectionReasons,
   checkDuplicate,
@@ -13,6 +15,9 @@ import {
   uploadCandidateCV, updateInterview,
   scoreCandidateAI, getCandidateScore,
   getRecruitmentAnalytics,
+  countActionableCandidates,
+  countRecruitmentPriorityCandidates,
+  isRecruitmentPriorityCandidate,
   type Job, type PipelineStage, type Candidate, type Note, type Opinion,
   type Interview, type HireResult, type ScoringResult,
   type RecruitmentAnalyticsParams, type RecruitmentAnalytics,
@@ -47,7 +52,7 @@ import {
   Clock, MapPin, Link2, FileText, ThumbsUp, ThumbsDown,
   Loader2, Briefcase, X, ChevronRight, MessageSquare, AlertTriangle,
   UserPlus, Check, GripVertical, Sparkles, RefreshCw, CheckCircle2, AlertCircle,
-  BarChart3, Mic, Square, Trash2,
+  BarChart3, Mic, Square, Trash2, Pencil, Info, ChevronDown,
 } from "lucide-react";
 import {
   DndContext,
@@ -106,14 +111,133 @@ function recruitmentAiPalette(score: number) {
 
 const eurFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
+const SEARCH_DEBOUNCE_MS = 300;
+
+function recruitmentApiErrorMessage(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const raw = err.response?.data as { detail?: unknown } | undefined;
+    const d = raw?.detail;
+    if (typeof d === "string") return d;
+    if (Array.isArray(d)) {
+      const first = d[0] as { msg?: string } | undefined;
+      if (first?.msg) return first.msg;
+    }
+  }
+  return err instanceof Error ? err.message : "Erreur inattendue";
+}
+
+/** Pipeline commun à tous les postes (aligné sur le modèle backend par défaut). */
+const UNIFIED_PIPELINE_TEMPLATE: Array<{
+  name: string;
+  position: number;
+  stage_type: PipelineStage["stage_type"];
+  is_final: boolean;
+}> = [
+  { name: "Premier appel", position: 0, stage_type: "standard", is_final: false },
+  { name: "Entretien RH", position: 1, stage_type: "standard", is_final: false },
+  { name: "Entretien 1", position: 2, stage_type: "standard", is_final: false },
+  { name: "Entretien 2", position: 3, stage_type: "standard", is_final: false },
+  { name: "Offre envoyée", position: 4, stage_type: "standard", is_final: false },
+  { name: "Refusé", position: 5, stage_type: "rejected", is_final: true },
+  { name: "Recruté", position: 6, stage_type: "hired", is_final: true },
+];
+
+function unifiedStageId(name: string, stageType: string): string {
+  return `unified:${stageType}:${name.toLowerCase().replace(/\s+/g, "-")}`;
+}
+
+function buildUnifiedPipelineStages(): PipelineStage[] {
+  return UNIFIED_PIPELINE_TEMPLATE.map((t) => ({
+    id: unifiedStageId(t.name, t.stage_type),
+    job_id: "unified",
+    name: t.name,
+    position: t.position,
+    is_final: t.is_final,
+    stage_type: t.stage_type,
+  }));
+}
+
+function unifiedStageKeyForCandidate(c: Candidate): string {
+  const type = (c.current_stage_type || "standard").toLowerCase();
+  const name = (c.current_stage_name || "").trim();
+  if (type === "hired") return unifiedStageId("Recruté", "hired");
+  if (type === "rejected") return unifiedStageId("Refusé", "rejected");
+  const match = UNIFIED_PIPELINE_TEMPLATE.find(
+    (s) => s.stage_type === "standard" && s.name.toLowerCase() === name.toLowerCase(),
+  );
+  if (match) return unifiedStageId(match.name, match.stage_type);
+  return unifiedStageId(UNIFIED_PIPELINE_TEMPLATE[0].name, "standard");
+}
+
+function resolveStageIdForCandidate(
+  candidate: Candidate,
+  targetUnifiedStageId: string,
+  stagesByJobId: Record<string, PipelineStage[]>,
+): string | null {
+  const unified = buildUnifiedPipelineStages().find((s) => s.id === targetUnifiedStageId);
+  if (!unified) return null;
+  const jobStages = stagesByJobId[candidate.job_id] ?? [];
+  if (unified.stage_type === "hired") {
+    return jobStages.find((s) => s.stage_type === "hired")?.id ?? null;
+  }
+  if (unified.stage_type === "rejected") {
+    return jobStages.find((s) => s.stage_type === "rejected")?.id ?? null;
+  }
+  return (
+    jobStages.find(
+      (s) =>
+        s.stage_type === "standard" &&
+        s.name.toLowerCase().trim() === unified.name.toLowerCase().trim(),
+    )?.id ??
+    jobStages.find((s) => s.stage_type === "standard")?.id ??
+    null
+  );
+}
+
+
+function RecruitmentPipelineKpis({
+  candidates,
+}: {
+  candidates: Candidate[];
+}) {
+  const inProgress = countActionableCandidates(candidates);
+  const priorityRh = countRecruitmentPriorityCandidates(candidates);
+  const hired = candidates.filter((c) => (c.current_stage_type || "").toLowerCase() === "hired").length;
+
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <Card className="shadow-none">
+        <CardContent className="p-4">
+          <p className="text-xs font-medium text-muted-foreground">Candidats en cours</p>
+          <p className="text-2xl font-bold tabular-nums mt-1">{inProgress}</p>
+        </CardContent>
+      </Card>
+      <Card className={cn("shadow-none", priorityRh > 0 && "border-amber-200/80 bg-amber-50/30")}>
+        <CardContent className="p-4">
+          <p className="text-xs font-medium text-muted-foreground">Entretien RH à traiter</p>
+          <p className="text-2xl font-bold tabular-nums mt-1">{priorityRh}</p>
+        </CardContent>
+      </Card>
+      <Card className="shadow-none">
+        <CardContent className="p-4">
+          <p className="text-xs font-medium text-muted-foreground">Embauchés</p>
+          <p className="text-2xl font-bold tabular-nums mt-1">{hired}</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Analytics (RH) ─────────────────────────────────────────────────
 
 function RecruitmentAnalyticsSection({
   companyId,
   jobs,
+  initialJobId,
 }: {
   companyId: string;
   jobs: Job[];
+  initialJobId?: string | null;
 }) {
   const [formJobId, setFormJobId] = useState("__all__");
   const [formDateFrom, setFormDateFrom] = useState("");
@@ -128,6 +252,12 @@ function RecruitmentAnalyticsSection({
     setFormBudget("");
     setQueryParams({});
   }, [companyId]);
+
+  useEffect(() => {
+    if (!initialJobId) return;
+    setFormJobId(initialJobId);
+    setQueryParams({ job_id: initialJobId });
+  }, [initialJobId]);
 
   const commitFilters = useCallback(() => {
     const p: RecruitmentAnalyticsParams = {};
@@ -442,15 +572,25 @@ function RecruitmentAnalyticsSection({
 
 // ─── Kanban Card ────────────────────────────────────────────────────
 
-function CandidateCard({ candidate, onClick }: { candidate: Candidate; onClick: () => void }) {
+function CandidateCard({
+  candidate,
+  onClick,
+  jobTitle,
+}: {
+  candidate: Candidate;
+  onClick: () => void;
+  jobTitle?: string | null;
+}) {
   const ai = candidate.ai_score;
   const pal = ai != null ? recruitmentAiPalette(ai) : null;
+  const isPriority = isRecruitmentPriorityCandidate(candidate);
   return (
     <div
       onClick={onClick}
       className={cn(
         "relative w-full bg-white border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow group",
         ai != null && "pb-7",
+        isPriority && "ring-1 ring-amber-300/80",
       )}
     >
       <div className="flex items-start gap-2">
@@ -460,12 +600,27 @@ function CandidateCard({ candidate, onClick }: { candidate: Candidate; onClick: 
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
-            {candidate.first_name} {candidate.last_name}
-          </p>
+          <div className="flex flex-wrap items-center gap-1">
+            <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
+              {candidate.first_name} {candidate.last_name}
+            </p>
+            {isPriority ? (
+              <Badge variant="outline" className="text-[9px] h-4 px-1 border-amber-400 text-amber-800 bg-amber-50 shrink-0">
+                Entretien RH
+              </Badge>
+            ) : null}
+          </div>
           {candidate.email && (
             <p className="text-xs text-muted-foreground truncate">{candidate.email}</p>
           )}
+          {jobTitle ? (
+            <Badge variant="secondary" className="mt-0.5 text-[9px] h-4 px-1 max-w-full truncate">
+              {jobTitle}
+            </Badge>
+          ) : null}
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            Depuis le {new Date(candidate.created_at).toLocaleDateString("fr-FR")}
+          </p>
           {candidate.source && (
             <Badge variant="outline" className="mt-1 text-[10px] h-5">{candidate.source}</Badge>
           )}
@@ -498,6 +653,7 @@ function KanbanColumn({
   onDelete,
   stageDragHandleProps,
   compact = false,
+  jobTitlesByJobId,
 }: {
   stage: PipelineStage;
   candidates: Candidate[];
@@ -510,6 +666,7 @@ function KanbanColumn({
   stageDragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
   /** Colonnes nombreuses : padding / espacement réduits */
   compact?: boolean;
+  jobTitlesByJobId?: Record<string, string>;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(stage.name);
@@ -640,7 +797,11 @@ function KanbanColumn({
                 e.stopPropagation();
               } : undefined}
             >
-              <CandidateCard candidate={c} onClick={() => onCardClick(c)} />
+              <CandidateCard
+                candidate={c}
+                onClick={() => onCardClick(c)}
+                jobTitle={jobTitlesByJobId?.[c.job_id]}
+              />
             </div>
           ))}
           {candidates.length === 0 && (
@@ -660,6 +821,7 @@ function PipelineStageSummaryRow({
   stages: PipelineStage[];
   candidatesByStage: Record<string, Candidate[]>;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const scrollToStage = (stageId: string) => {
     document.getElementById(`recruitment-pipeline-stage-${stageId}`)?.scrollIntoView({
       behavior: "smooth",
@@ -668,7 +830,34 @@ function PipelineStageSummaryRow({
     });
   };
 
+  if (stages.length <= 4) return null;
+
+  if (!expanded) {
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-8 text-xs text-muted-foreground w-fit -ml-1"
+        onClick={() => setExpanded(true)}
+      >
+        <ChevronDown className="h-3.5 w-3.5 mr-1" />
+        Afficher le résumé des étapes ({stages.length})
+      </Button>
+    );
+  }
+
   return (
+    <div className="space-y-1.5">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-7 text-xs text-muted-foreground w-fit -ml-1"
+        onClick={() => setExpanded(false)}
+      >
+        Masquer le résumé des étapes
+      </Button>
     <div
       className="flex flex-wrap gap-2 pb-1"
       role="navigation"
@@ -699,6 +888,7 @@ function PipelineStageSummaryRow({
           </button>
         );
       })}
+    </div>
     </div>
   );
 }
@@ -1065,6 +1255,7 @@ function CandidateSlideOver({
   onScheduleInterview,
   companyId,
   onCandidateRefresh,
+  onDeleted,
 }: {
   candidate: Candidate | null;
   open: boolean;
@@ -1077,10 +1268,12 @@ function CandidateSlideOver({
   onScheduleInterview: () => void;
   companyId: string;
   onCandidateRefresh: (c: Candidate) => void;
+  onDeleted: () => void;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const cvFileInputRef = useRef<HTMLInputElement>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [noteAudioUrl, setNoteAudioUrl] = useState<string | null>(null);
   const [opinionRating, setOpinionRating] = useState<"favorable" | "defavorable" | null>(null);
@@ -1115,6 +1308,7 @@ function CandidateSlideOver({
 
   useEffect(() => {
     setNoteAudioUrl(null);
+    setDeleteConfirmOpen(false);
   }, [candidateId]);
 
   const addNoteMutation = useMutation({
@@ -1187,6 +1381,22 @@ function CandidateSlideOver({
     ),
   });
 
+  const deleteCandidateMutation = useMutation({
+    mutationFn: () => deleteCandidate(candidateId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recruitment", "candidates"] });
+      setDeleteConfirmOpen(false);
+      toast({ title: "Candidat supprimé" });
+      onDeleted();
+    },
+    onError: (err: unknown) => {
+      const message =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        ?? "Impossible de supprimer ce candidat.";
+      toast({ title: "Erreur", description: String(message), variant: "destructive" });
+    },
+  });
+
   const scoreAiMutation = useMutation({
     mutationFn: () => scoreCandidateAI(candidateId!, companyId),
     onSuccess: (data: ScoringResult) => {
@@ -1222,11 +1432,17 @@ function CandidateSlideOver({
   if (!candidate) return null;
 
   const currentStage = stages.find((s) => s.id === candidate.current_stage_id);
+  const stageType = (currentStage?.stage_type ?? candidate.current_stage_type ?? "").toLowerCase();
+  const isHiredCandidate = stageType === "hired";
+  const isRejectedCandidate = stageType === "rejected";
+  const isTerminalCandidate = isHiredCandidate || isRejectedCandidate;
+  const stageBadgeLabel =
+    currentStage?.name
+    ?? (isHiredCandidate ? "Recruté" : isRejectedCandidate ? "Refusé" : null);
   const favorableCount = opinions.filter((o) => o.rating === "favorable").length;
   const defavorableCount = opinions.filter((o) => o.rating === "defavorable").length;
 
-  const showRhActions =
-    isRh && currentStage?.stage_type !== "rejected" && currentStage?.stage_type !== "hired";
+  const showRhActions = isRh && !isTerminalCandidate;
   const favorableLabel = `${favorableCount} favorable${favorableCount !== 1 ? "s" : ""}`;
   const defavorableLabel = `${defavorableCount} défavorable${defavorableCount !== 1 ? "s" : ""}`;
   const entryDateLabel = candidate.hired_at
@@ -1259,14 +1475,14 @@ function CandidateSlideOver({
               <SheetTitle className="text-left text-lg font-semibold leading-tight">
                 {candidate.first_name} {candidate.last_name}
               </SheetTitle>
-              {currentStage && (
+              {stageBadgeLabel ? (
                 <Badge
-                  variant={currentStage.stage_type === "rejected" ? "destructive" : currentStage.stage_type === "hired" ? "default" : "secondary"}
+                  variant={isRejectedCandidate ? "destructive" : isHiredCandidate ? "default" : "secondary"}
                   className="mt-2"
                 >
-                  {currentStage.name}
+                  {stageBadgeLabel}
                 </Badge>
-              )}
+              ) : null}
             </div>
             <div className="shrink-0 text-right text-xs space-y-1.5 max-w-[min(50%,11rem)] sm:max-w-[13rem] pt-0.5 border-l border-border/60 pl-3 ml-1">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Contact</p>
@@ -1333,6 +1549,34 @@ function CandidateSlideOver({
               </Button>
             </div>
           )}
+
+          {isRh ? (
+            <div
+              className={cn(
+                "flex flex-wrap gap-2 items-center",
+                showRhActions && "pt-1 border-t border-border/60",
+              )}
+              aria-label="Suppression du candidat"
+            >
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 text-xs border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0"
+                onClick={() => setDeleteConfirmOpen(true)}
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                Supprimer le candidat
+              </Button>
+              {isTerminalCandidate ? (
+                <p className="text-xs text-muted-foreground min-w-[12rem] flex-1">
+                  {isHiredCandidate
+                    ? "Retire ce candidat du recrutement. Le salarié créé reste dans l’effectif."
+                    : "Retire ce candidat refusé du module recrutement."}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="space-y-3" aria-labelledby="candidate-section-avis">
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -1550,7 +1794,7 @@ function CandidateSlideOver({
           <div className="px-6 py-4 space-y-8 pb-10">
             <section aria-labelledby="candidate-section-dossier" className="space-y-5">
               <h3 id="candidate-section-dossier" className="text-sm font-semibold">
-                Dossier candidats
+                Dossier candidat
               </h3>
               <div>
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">CV</h4>
@@ -1615,20 +1859,9 @@ function CandidateSlideOver({
                   </div>
                 )}
               </div>
-              <div>
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                  Autres documents personnels
-                </h4>
-                <div className="rounded-lg border border-dashed bg-muted/20 p-4 flex gap-3 items-start">
-                  <FileText className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                  <div className="min-w-0 space-y-1">
-                    <p className="text-sm font-medium">Aucun document complémentaire</p>
-                    <p className="text-xs text-muted-foreground">
-                      Pièces d&apos;identité, diplômes, attestations ou autres justificatifs pourront être ajoutés ici lorsque le dépôt de fichiers sera disponible.
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <p className="text-[11px] text-muted-foreground/80 leading-snug">
+                Autres pièces (identité, diplômes…) : dépôt multi-fichiers prévu ultérieurement.
+              </p>
             </section>
 
             <Separator />
@@ -1866,6 +2099,50 @@ function CandidateSlideOver({
           </div>
         </ScrollArea>
       </SheetContent>
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce candidat ?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  Vous allez supprimer définitivement{" "}
+                  <span className="font-medium text-foreground">
+                    {candidate.first_name} {candidate.last_name}
+                  </span>
+                  {" "}du module recrutement (historique, notes, entretiens).
+                </p>
+                {isHiredCandidate ? (
+                  <p>
+                    Le salarié associé dans l&apos;effectif ne sera pas supprimé.
+                  </p>
+                ) : null}
+                {isRejectedCandidate ? (
+                  <p>Ce candidat est actuellement en statut refusé.</p>
+                ) : null}
+                <p className="font-medium text-foreground">Cette action est irréversible.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteCandidateMutation.isPending}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteCandidateMutation.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                deleteCandidateMutation.mutate();
+              }}
+            >
+              {deleteCandidateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : null}
+              Supprimer définitivement
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   );
 }
@@ -1882,8 +2159,20 @@ export default function Recruitment() {
 
   const [mainSection, setMainSection] = useState<"pipeline" | "analytics">("pipeline");
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [jobFilterId, setJobFilterId] = useState<string>("__all__");
+  const [newCandidateJobId, setNewCandidateJobId] = useState<string>("");
+  const [editJobTargetId, setEditJobTargetId] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState("");
   const [searchText, setSearchText] = useState("");
+  const [stageFilterId, setStageFilterId] = useState<string>("__all__");
+  const [showEditJob, setShowEditJob] = useState(false);
+  const [editJob, setEditJob] = useState({
+    title: "",
+    description: "",
+    location: "",
+    contract_type: "CDI",
+    status: "active" as Job["status"],
+  });
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [slideOverOpen, setSlideOverOpen] = useState(false);
   const [showCreateJob, setShowCreateJob] = useState(false);
@@ -1918,6 +2207,11 @@ export default function Recruitment() {
 
   const isRh = user?.role === "rh" || user?.role === "admin" || user?.role === "collaborateur_rh";
 
+  useEffect(() => {
+    const t = window.setTimeout(() => setSearchText(searchInput.trim()), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(t);
+  }, [searchInput]);
+
   const servicesQuery = useQuery({
     queryKey: ["recruitment-company-services", companyId],
     queryFn: () => listCompanyServices(),
@@ -1951,31 +2245,76 @@ export default function Recruitment() {
     if (!showInterviewModal) setInterviewParticipantIds([]);
   }, [showInterviewModal]);
 
+  const {
+    data: settings,
+    isLoading: loadingSettings,
+    isError: settingsError,
+    error: settingsQueryError,
+    refetch: refetchSettings,
+  } = useQuery({
+    queryKey: ["recruitment", "settings", companyId],
+    queryFn: getRecruitmentSettings,
+    enabled: Boolean(companyId),
+  });
+
+  const recruitmentEnabled = settings?.enabled === true;
+  const canLoadRecruitmentData = Boolean(companyId) && recruitmentEnabled;
+
   // Queries
-  const { data: jobs = [], isLoading: loadingJobs } = useQuery({
-    queryKey: ["recruitment", "jobs"],
+  const {
+    data: jobs = [],
+    isLoading: loadingJobs,
+    isError: jobsError,
+    error: jobsQueryError,
+    refetch: refetchJobs,
+  } = useQuery({
+    queryKey: ["recruitment", "jobs", companyId],
     queryFn: () => getJobs(),
+    enabled: canLoadRecruitmentData,
   });
 
   const activeJobs = jobs.filter((j) => j.status === "active");
 
-  const effectiveJobId = selectedJobId || (activeJobs.length > 0 ? activeJobs[0].id : null);
+  const jobTitlesByJobId = useMemo(
+    () => Object.fromEntries(jobs.map((j) => [j.id, j.title])),
+    [jobs],
+  );
 
-  const { data: stages = [], isLoading: loadingStages } = useQuery({
-    queryKey: ["recruitment", "stages", effectiveJobId],
-    queryFn: () => getPipelineStages(effectiveJobId!),
-    enabled: !!effectiveJobId,
+  const stageQueries = useQueries({
+    queries: jobs.map((job) => ({
+      queryKey: ["recruitment", "stages", job.id],
+      queryFn: () => getPipelineStages(job.id),
+      enabled: Boolean(job.id) && canLoadRecruitmentData,
+    })),
   });
+
+  const stagesByJobId = useMemo(() => {
+    const map: Record<string, PipelineStage[]> = {};
+    jobs.forEach((job, index) => {
+      map[job.id] = stageQueries[index]?.data ?? [];
+    });
+    return map;
+  }, [jobs, stageQueries]);
+
+  const loadingJobStages = stageQueries.some((q) => q.isLoading);
+
+  const stages = useMemo(() => buildUnifiedPipelineStages(), []);
 
   const { data: candidates = [], isLoading: loadingCandidates } = useQuery({
-    queryKey: ["recruitment", "candidates", effectiveJobId, searchText],
-    queryFn: () => getCandidates({ job_id: effectiveJobId || undefined, search: searchText || undefined }),
-    enabled: !!effectiveJobId,
+    queryKey: ["recruitment", "candidates", "all", searchText, companyId],
+    queryFn: () => getCandidates({ search: searchText || undefined }),
+    enabled: canLoadRecruitmentData,
   });
 
+  useEffect(() => {
+    if (newCandidateJobId) return;
+    if (activeJobs.length > 0) setNewCandidateJobId(activeJobs[0].id);
+  }, [activeJobs, newCandidateJobId]);
+
   const { data: rejectionReasons } = useQuery({
-    queryKey: ["recruitment", "rejection-reasons"],
+    queryKey: ["recruitment", "rejection-reasons", companyId],
     queryFn: getRejectionReasons,
+    enabled: canLoadRecruitmentData,
   });
 
   // Mutations
@@ -1985,14 +2324,31 @@ export default function Recruitment() {
       queryClient.invalidateQueries({ queryKey: ["recruitment", "jobs"] });
       setShowCreateJob(false);
       setNewJob({ title: "", description: "", location: "", contract_type: "CDI", status: "active" });
-      setSelectedJobId(job.id);
       toast({ title: "Poste créé avec succès" });
     },
     onError: () => toast({ title: "Erreur", description: "Impossible de créer le poste.", variant: "destructive" }),
   });
 
+  const updateJobMutation = useMutation({
+    mutationFn: () =>
+      updateJob(editJobTargetId!, {
+        title: editJob.title,
+        description: editJob.description || undefined,
+        location: editJob.location || undefined,
+        contract_type: editJob.contract_type,
+        status: editJob.status,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recruitment", "jobs"] });
+      setShowEditJob(false);
+      toast({ title: "Poste mis à jour" });
+    },
+    onError: () =>
+      toast({ title: "Erreur", description: "Impossible de modifier le poste.", variant: "destructive" }),
+  });
+
   const createCandidateMutation = useMutation({
-    mutationFn: () => createCandidate({ job_id: effectiveJobId!, ...newCandidate }),
+    mutationFn: () => createCandidate({ job_id: newCandidateJobId, ...newCandidate }),
     onSuccess: async (newCand) => {
       queryClient.invalidateQueries({ queryKey: ["recruitment", "candidates"] });
       setShowCreateCandidate(false);
@@ -2015,7 +2371,7 @@ export default function Recruitment() {
     onError: () => toast({ title: "Erreur", description: "Impossible de créer le candidat.", variant: "destructive" }),
   });
 
-  const candidatesKey = ["recruitment", "candidates", effectiveJobId, searchText];
+  const candidatesKey = ["recruitment", "candidates", "all", searchText];
 
   const moveCandidateMutation = useMutation({
     mutationFn: ({ candidateId, stageId, reason, detail }: { candidateId: string; stageId: string; reason?: string; detail?: string }) =>
@@ -2023,7 +2379,10 @@ export default function Recruitment() {
     onMutate: async ({ candidateId, stageId }) => {
       await queryClient.cancelQueries({ queryKey: candidatesKey });
       const prev = queryClient.getQueryData<Candidate[]>(candidatesKey);
-      const targetStage = stages.find((s) => s.id === stageId);
+      const candidate = prev?.find((c) => c.id === candidateId);
+      const targetStage = candidate
+        ? (stagesByJobId[candidate.job_id] ?? []).find((s) => s.id === stageId)
+        : undefined;
       if (prev) {
         queryClient.setQueryData<Candidate[]>(candidatesKey, prev.map((c) =>
           c.id === candidateId
@@ -2117,101 +2476,6 @@ export default function Recruitment() {
     onError: () => toast({ title: "Erreur", description: "Impossible de planifier l'entretien.", variant: "destructive" }),
   });
 
-  // ── Pipeline stage mutations (optimistic) ──
-
-  const stagesKey = ["recruitment", "stages", effectiveJobId];
-
-  const apiDetail = useCallback((err: unknown) => {
-    const ax = err as { response?: { data?: { detail?: string } } };
-    return ax?.response?.data?.detail;
-  }, []);
-
-  const renameStageMutation = useMutation({
-    mutationFn: ({ stageId, name }: { stageId: string; name: string }) =>
-      updatePipelineStage(effectiveJobId!, stageId, { name }),
-    onMutate: async ({ stageId, name }) => {
-      await queryClient.cancelQueries({ queryKey: stagesKey });
-      const prev = queryClient.getQueryData<PipelineStage[]>(stagesKey);
-      if (prev) {
-        queryClient.setQueryData<PipelineStage[]>(stagesKey, prev.map((s) =>
-          s.id === stageId ? { ...s, name } : s,
-        ));
-      }
-      return { prev };
-    },
-    onError: (err: unknown, _v, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(stagesKey, ctx.prev);
-      toast({ title: "Erreur", description: String(apiDetail(err) || "Impossible de renommer l'étape."), variant: "destructive" });
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: stagesKey }),
-  });
-
-  const addStageMutation = useMutation({
-    mutationFn: (name: string) => createPipelineStage(effectiveJobId!, { name }),
-    onMutate: async (name) => {
-      await queryClient.cancelQueries({ queryKey: stagesKey });
-      const prev = queryClient.getQueryData<PipelineStage[]>(stagesKey);
-      if (prev) {
-        const maxPos = prev.reduce((m, s) => Math.max(m, s.position), -1);
-        const optimistic: PipelineStage = {
-          id: `temp-${Date.now()}`,
-          job_id: effectiveJobId!,
-          name,
-          position: maxPos + 1,
-          is_final: false,
-          stage_type: "standard",
-        };
-        queryClient.setQueryData<PipelineStage[]>(stagesKey, [...prev, optimistic]);
-      }
-      return { prev };
-    },
-    onError: (err: unknown, _v, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(stagesKey, ctx.prev);
-      toast({ title: "Erreur", description: String(apiDetail(err) || "Impossible d'ajouter l'étape."), variant: "destructive" });
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: stagesKey }),
-  });
-
-  const removeStageMutation = useMutation({
-    mutationFn: (stageId: string) => deletePipelineStage(effectiveJobId!, stageId),
-    onMutate: async (stageId) => {
-      await queryClient.cancelQueries({ queryKey: stagesKey });
-      const prev = queryClient.getQueryData<PipelineStage[]>(stagesKey);
-      if (prev) {
-        queryClient.setQueryData<PipelineStage[]>(stagesKey, prev.filter((s) => s.id !== stageId));
-      }
-      return { prev };
-    },
-    onError: (err: unknown, _v, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(stagesKey, ctx.prev);
-      toast({ title: "Erreur", description: String(apiDetail(err) || "Impossible de supprimer l'étape."), variant: "destructive" });
-    },
-    onSettled: () => {
-      setDeleteStageTarget(null);
-      queryClient.invalidateQueries({ queryKey: stagesKey });
-    },
-  });
-
-  const reorderStagesMutation = useMutation({
-    mutationFn: (ids: string[]) => reorderPipelineStages(effectiveJobId!, ids),
-    onMutate: async (ids) => {
-      await queryClient.cancelQueries({ queryKey: stagesKey });
-      const prev = queryClient.getQueryData<PipelineStage[]>(stagesKey);
-      if (prev) {
-        const byId = Object.fromEntries(prev.map((s) => [s.id, s]));
-        const reordered = ids.map((id, i) => ({ ...byId[id], position: i })).filter(Boolean) as PipelineStage[];
-        const rest = prev.filter((s) => !ids.includes(s.id));
-        queryClient.setQueryData<PipelineStage[]>(stagesKey, [...reordered, ...rest]);
-      }
-      return { prev };
-    },
-    onError: (err: unknown, _v, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(stagesKey, ctx.prev);
-      toast({ title: "Erreur", description: String(apiDetail(err) || "Impossible de réordonner les étapes."), variant: "destructive" });
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: stagesKey }),
-  });
-
   const sortedPipelineStages = useMemo(
     () => [...stages].sort((a, b) => a.position - b.position),
     [stages],
@@ -2220,69 +2484,115 @@ export default function Recruitment() {
     () => sortedPipelineStages.filter((s) => s.stage_type === "standard"),
     [sortedPipelineStages],
   );
-  const isInterviewStage = useCallback((stage: PipelineStage) => {
-    const name = (stage.name || "").toLowerCase();
-    return name.includes("entretien");
-  }, []);
-  const movableStandardStages = useMemo(
-    () => standardStages.filter((s) => isInterviewStage(s)),
-    [standardStages, isInterviewStage],
-  );
   const terminalStages = useMemo(() => {
     const hired = sortedPipelineStages.find((s) => s.stage_type === "hired");
     const rejected = sortedPipelineStages.find((s) => s.stage_type === "rejected");
     return [hired, rejected].filter(Boolean) as PipelineStage[];
   }, [sortedPipelineStages]);
-  const pipelineStageIds = useMemo(() => movableStandardStages.map((s) => s.id), [movableStandardStages]);
 
-  /** Slots horizontaux : étapes standard + bloc terminal (empilé) + colonne « ajouter » (RH). */
   const kanbanHorizontalSlots =
-    standardStages.length + (terminalStages.length > 0 ? 1 : 0) + (isRh ? 1 : 0);
+    standardStages.length + (terminalStages.length > 0 ? 1 : 0);
   const kanbanCompactLayout = kanbanHorizontalSlots > 5;
 
-  const stageReorderSensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  const filteredCandidates = useMemo(() => {
+    let list = candidates;
+    if (jobFilterId !== "__all__") {
+      list = list.filter((c) => c.job_id === jobFilterId);
+    }
+    if (stageFilterId !== "__all__") {
+      list = list.filter((c) => unifiedStageKeyForCandidate(c) === stageFilterId);
+    }
+    return list;
+  }, [candidates, jobFilterId, stageFilterId]);
+
+  const pipelineActionableCount = useMemo(
+    () => countActionableCandidates(candidates),
+    [candidates],
   );
 
-  const handlePipelineStageDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
-      if (!over || active.id === over.id) return;
-      const sorted = [...movableStandardStages].sort((a, b) => a.position - b.position);
-      const oldIndex = sorted.findIndex((s) => s.id === active.id);
-      const newIndex = sorted.findIndex((s) => s.id === over.id);
-      if (oldIndex < 0 || newIndex < 0) return;
-      reorderStagesMutation.mutate(arrayMove(sorted, oldIndex, newIndex).map((s) => s.id));
+  const pageSubtitle = useMemo(() => {
+    const parts = [
+      `${pipelineActionableCount} candidat${pipelineActionableCount !== 1 ? "s" : ""} en cours`,
+      `${candidates.length} au total`,
+      `${activeJobs.length} poste${activeJobs.length !== 1 ? "s" : ""} actif${activeJobs.length !== 1 ? "s" : ""}`,
+    ];
+    return parts.join(" · ");
+  }, [pipelineActionableCount, candidates.length, activeJobs.length]);
+
+  const openEditJobModal = useCallback(
+    (jobId: string) => {
+      const job = jobs.find((j) => j.id === jobId);
+      if (!job) return;
+      setEditJobTargetId(jobId);
+      setEditJob({
+        title: job.title,
+        description: job.description ?? "",
+        location: job.location ?? "",
+        contract_type: job.contract_type ?? "CDI",
+        status: job.status,
+      });
+      setShowEditJob(true);
     },
-    [movableStandardStages, reorderStagesMutation],
+    [jobs],
   );
 
-  // Grouped candidates by stage (fallback : 1re colonne standard si étape absente ou inconnue)
   const candidatesByStage = useMemo(() => {
     const map: Record<string, Candidate[]> = {};
     for (const s of stages) map[s.id] = [];
-    const ordered = [...stages].sort((a, b) => a.position - b.position);
     const fallbackStageId =
-      ordered.find((s) => s.stage_type === "standard")?.id ?? ordered[0]?.id;
-    for (const c of candidates) {
-      const sid = c.current_stage_id;
-      if (sid && map[sid]) {
-        map[sid].push(c);
+      stages.find((s) => s.stage_type === "standard")?.id ?? stages[0]?.id;
+    for (const c of filteredCandidates) {
+      const key = unifiedStageKeyForCandidate(c);
+      if (map[key]) {
+        map[key].push(c);
       } else if (fallbackStageId) {
         map[fallbackStageId].push(c);
       }
     }
     return map;
-  }, [stages, candidates]);
+  }, [stages, filteredCandidates]);
+
+  const resolveDropStageId = useCallback(
+    (candidateId: string, unifiedStageId: string): string | null => {
+      const candidate = candidates.find((c) => c.id === candidateId);
+      if (!candidate) return null;
+      return resolveStageIdForCandidate(candidate, unifiedStageId, stagesByJobId);
+    },
+    [candidates, stagesByJobId],
+  );
+
+  const slideOverStages = useMemo(
+    () => (selectedCandidate ? stagesByJobId[selectedCandidate.job_id] ?? [] : []),
+    [selectedCandidate, stagesByJobId],
+  );
+
+  const hireJobTitle = useMemo(() => {
+    if (!hireCandidateId) return undefined;
+    const cand = candidates.find((c) => c.id === hireCandidateId);
+    return cand ? jobs.find((j) => j.id === cand.job_id)?.title : undefined;
+  }, [hireCandidateId, candidates, jobs]);
+
+  const canShowPipeline = jobs.length > 0 || candidates.length > 0;
 
   const handleCardClick = (c: Candidate) => {
     setSelectedCandidate(c);
     setSlideOverOpen(true);
   };
 
-  const handleDrop = (candidateId: string, stageId: string) => {
-    const stage = stages.find((s) => s.id === stageId);
+  const handleDrop = (candidateId: string, unifiedStageId: string) => {
+    const stageId = resolveDropStageId(candidateId, unifiedStageId);
+    if (!stageId) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de déplacer ce candidat : étape introuvable pour son poste.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const candidate = candidates.find((c) => c.id === candidateId);
+    const stage = candidate
+      ? (stagesByJobId[candidate.job_id] ?? []).find((s) => s.id === stageId)
+      : undefined;
     if (!stage) return;
     if (stage.stage_type === "rejected") {
       setRejectCandidateId(candidateId);
@@ -2299,7 +2609,10 @@ export default function Recruitment() {
   };
 
   const handleMoveFromSlideOver = (candidateId: string, stageId: string) => {
-    const stage = stages.find((s) => s.id === stageId);
+    const candidate = candidates.find((c) => c.id === candidateId);
+    const stage = candidate
+      ? (stagesByJobId[candidate.job_id] ?? []).find((s) => s.id === stageId)
+      : undefined;
     if (!stage) return;
     if (stage.stage_type === "rejected") {
       setRejectCandidateId(candidateId);
@@ -2316,7 +2629,9 @@ export default function Recruitment() {
   };
 
   const handleRequestReject = (candidateId: string) => {
-    const rejectedStage = stages.find((s) => s.stage_type === "rejected");
+    const candidate = candidates.find((c) => c.id === candidateId);
+    if (!candidate) return;
+    const rejectedStage = (stagesByJobId[candidate.job_id] ?? []).find((s) => s.stage_type === "rejected");
     if (rejectedStage) {
       setRejectCandidateId(candidateId);
       setRejectStageId(rejectedStage.id);
@@ -2324,9 +2639,86 @@ export default function Recruitment() {
     }
   };
 
-  const selectedJobData = jobs.find((j) => j.id === effectiveJobId);
-
   // ─── Render ─────────────────────────────────────────────────────
+
+  const recruitmentPageHeader = (
+    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+      <div className="min-w-0">
+        <h1 className="text-3xl font-bold">Recrutement</h1>
+        {canLoadRecruitmentData ? (
+          <p className="text-muted-foreground mt-1 text-sm">{pageSubtitle}</p>
+        ) : null}
+      </div>
+      {isRh && canLoadRecruitmentData ? (
+        <Button onClick={() => setShowCreateJob(true)} className="shrink-0">
+          <Plus className="h-4 w-4 mr-2" /> Nouveau poste
+        </Button>
+      ) : null}
+    </div>
+  );
+
+  if (!companyId) {
+    return (
+      <div className="space-y-4">
+        {recruitmentPageHeader}
+        <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
+          Sélectionnez une entreprise pour accéder au module Recrutement.
+        </div>
+      </div>
+    );
+  }
+
+  if (loadingSettings) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-64" />
+        <div className="flex gap-4">
+          {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-96 w-64" />)}
+        </div>
+      </div>
+    );
+  }
+
+  if (settingsError) {
+    return (
+      <div className="space-y-4">
+        {recruitmentPageHeader}
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center">
+          <p className="text-sm text-destructive">
+            {recruitmentApiErrorMessage(settingsQueryError)}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-4 gap-2"
+            onClick={() => void refetchSettings()}
+          >
+            <RefreshCw className="h-4 w-4" />
+            Réessayer
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!recruitmentEnabled) {
+    return (
+      <div className="space-y-4">
+        {recruitmentPageHeader}
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <Briefcase className="h-12 w-12 text-muted-foreground/50 mb-4" />
+            <h3 className="text-lg font-medium mb-1">Module Recrutement désactivé</h3>
+            <p className="text-muted-foreground text-sm max-w-md">
+              Le module Recrutement n&apos;est pas activé pour cette entreprise. Contactez votre
+              administrateur pour l&apos;activer dans les paramètres.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (loadingJobs) {
     return (
@@ -2339,117 +2731,149 @@ export default function Recruitment() {
     );
   }
 
+  if (jobsError) {
+    return (
+      <div className="space-y-4">
+        {recruitmentPageHeader}
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center">
+          <p className="text-sm text-destructive">
+            {recruitmentApiErrorMessage(jobsQueryError)}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-4 gap-2"
+            onClick={() => void refetchJobs()}
+          >
+            <RefreshCw className="h-4 w-4" />
+            Réessayer
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold">Recrutement</h1>
-          <p className="text-muted-foreground mt-1">Pipeline de candidatures et gestion des postes</p>
-        </div>
-        {isRh && (
-          <Button onClick={() => setShowCreateJob(true)}>
-            <Plus className="h-4 w-4 mr-2" /> Nouveau poste
-          </Button>
-        )}
-      </div>
+      {recruitmentPageHeader}
+
+      {mainSection === "pipeline" && canShowPipeline && !loadingJobStages && !loadingCandidates ? (
+        <RecruitmentPipelineKpis candidates={candidates} />
+      ) : null}
 
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-        {/* Job selector */}
-        <Select
-          value={effectiveJobId || ""}
-          onValueChange={(v) => setSelectedJobId(v)}
-        >
-          <SelectTrigger className="w-[280px]">
-            <Briefcase className="h-4 w-4 mr-2 text-muted-foreground" />
-            <SelectValue placeholder="Sélectionner un poste" />
-          </SelectTrigger>
-          <SelectContent>
-            {jobs.map((j) => (
-              <SelectItem key={j.id} value={j.id}>
-                <div className="flex items-center gap-2">
-                  <span>{j.title}</span>
-                  <Badge variant={j.status === "active" ? "default" : "secondary"} className="text-[10px] h-4">
-                    {j.status === "active" ? "Actif" : j.status === "draft" ? "Brouillon" : "Archivé"}
-                  </Badge>
-                  {j.candidate_count !== undefined && (
-                    <span className="text-xs text-muted-foreground">({j.candidate_count})</span>
-                  )}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-2 items-stretch sm:items-center min-w-0">
+            <div className="relative flex-1 min-w-[200px] max-w-md">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher un candidat..."
+                className="pl-9 h-9"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+              />
+            </div>
 
-        {/* Search */}
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Rechercher un candidat..."
-            className="pl-9"
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-          />
+            {mainSection === "pipeline" && jobs.length > 0 ? (
+              <Select value={jobFilterId} onValueChange={setJobFilterId}>
+                <SelectTrigger className="w-[200px] h-9">
+                  <SelectValue placeholder="Filtrer par poste" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Tous les postes</SelectItem>
+                  {jobs.map((j) => (
+                    <SelectItem key={j.id} value={j.id} textValue={j.title}>
+                      {j.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+
+            {mainSection === "pipeline" && stages.length > 0 ? (
+              <Select value={stageFilterId} onValueChange={setStageFilterId}>
+                <SelectTrigger className="w-[180px] h-9">
+                  <SelectValue placeholder="Étape" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Toutes les étapes</SelectItem>
+                  {stages.map((s) => (
+                    <SelectItem key={s.id} value={s.id} textValue={s.name}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap gap-2 items-center shrink-0">
+            {isRh && (
+              <div className="flex border rounded-lg h-9 shrink-0">
+                <Button
+                  type="button"
+                  variant={mainSection === "pipeline" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-r-none h-9 px-3"
+                  onClick={() => setMainSection("pipeline")}
+                >
+                  Pipeline
+                </Button>
+                <Button
+                  type="button"
+                  variant={mainSection === "analytics" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-l-none h-9 px-3 gap-1"
+                  onClick={() => setMainSection("analytics")}
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  Analytics
+                </Button>
+              </div>
+            )}
+
+            {mainSection === "pipeline" && (
+              <div className="flex border rounded-lg h-9 shrink-0">
+                <Button
+                  variant={viewMode === "kanban" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-r-none h-9"
+                  onClick={() => setViewMode("kanban")}
+                  aria-label="Vue Kanban"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewMode === "list" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-l-none h-9"
+                  onClick={() => setViewMode("list")}
+                  aria-label="Vue liste"
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+
+            {isRh && canShowPipeline && mainSection === "pipeline" && activeJobs.length > 0 && (
+              <Button onClick={() => setShowCreateCandidate(true)} size="sm" className="h-9">
+                <UserPlus className="h-4 w-4 mr-1" /> Nouveau candidat
+              </Button>
+            )}
+          </div>
         </div>
-
-        {isRh && (
-          <div className="flex border rounded-lg h-9 shrink-0">
-            <Button
-              type="button"
-              variant={mainSection === "pipeline" ? "default" : "ghost"}
-              size="sm"
-              className="rounded-r-none h-9 px-3"
-              onClick={() => setMainSection("pipeline")}
-            >
-              Pipeline
-            </Button>
-            <Button
-              type="button"
-              variant={mainSection === "analytics" ? "default" : "ghost"}
-              size="sm"
-              className="rounded-l-none h-9 px-3 gap-1"
-              onClick={() => setMainSection("analytics")}
-            >
-              <BarChart3 className="h-4 w-4" />
-              Analytics
-            </Button>
-          </div>
-        )}
-
-        {/* View toggle (pipeline uniquement) */}
-        {mainSection === "pipeline" && (
-          <div className="flex border rounded-lg h-9 shrink-0">
-            <Button
-              variant={viewMode === "kanban" ? "default" : "ghost"}
-              size="sm"
-              className="rounded-r-none h-9"
-              onClick={() => setViewMode("kanban")}
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={viewMode === "list" ? "default" : "ghost"}
-              size="sm"
-              className="rounded-l-none h-9"
-              onClick={() => setViewMode("list")}
-            >
-              <List className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-
-        {isRh && effectiveJobId && (
-          <Button onClick={() => setShowCreateCandidate(true)} size="sm">
-            <UserPlus className="h-4 w-4 mr-1" /> Nouveau candidat
-          </Button>
-        )}
       </div>
 
       {/* Content */}
       {mainSection === "analytics" && isRh ? (
-        <RecruitmentAnalyticsSection companyId={companyId} jobs={jobs} />
-      ) : !effectiveJobId ? (
+        <RecruitmentAnalyticsSection
+          companyId={companyId}
+          jobs={jobs}
+          initialJobId={jobFilterId !== "__all__" ? jobFilterId : undefined}
+        />
+      ) : !canShowPipeline ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
             <Briefcase className="h-12 w-12 text-muted-foreground/50 mb-4" />
@@ -2462,7 +2886,7 @@ export default function Recruitment() {
             )}
           </CardContent>
         </Card>
-      ) : loadingStages || loadingCandidates ? (
+      ) : loadingJobStages || loadingCandidates ? (
         <div className="flex w-full min-w-0 gap-2 rounded-lg bg-muted/30 p-2 pb-3">
           {[1, 2, 3, 4, 5].map((i) => (
             <Skeleton key={i} className="h-80 min-h-0 min-w-0 flex-1 basis-0" />
@@ -2480,79 +2904,32 @@ export default function Recruitment() {
               kanbanCompactLayout ? "gap-2 p-2 pb-3" : "gap-4 p-2 pb-4",
             )}
           >
-          {isRh ? (
-            <>
-              <DndContext
-                sensors={stageReorderSensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handlePipelineStageDragEnd}
-              >
-                <SortableContext items={pipelineStageIds} strategy={horizontalListSortingStrategy}>
-                  {standardStages.map((stage) => (
-                    isInterviewStage(stage) ? (
-                      <SortableStageColumn
-                        key={stage.id}
-                        stage={stage}
-                        candidates={candidatesByStage[stage.id] || []}
-                        onCardClick={handleCardClick}
-                        onCandidateDrop={handleDrop}
-                        isRh={isRh}
-                        compact={kanbanCompactLayout}
-                        onRename={(name) => renameStageMutation.mutate({ stageId: stage.id, name })}
-                        onDelete={stage.stage_type === "standard" ? () => setDeleteStageTarget(stage) : undefined}
-                      />
-                    ) : (
-                      <div
-                        key={stage.id}
-                        id={`recruitment-pipeline-stage-${stage.id}`}
-                        className="min-w-0 flex-1"
-                      >
-                        <KanbanColumn
-                          stage={stage}
-                          candidates={candidatesByStage[stage.id] || []}
-                          onCardClick={handleCardClick}
-                          onCandidateDrop={handleDrop}
-                          isRh={isRh}
-                          compact={kanbanCompactLayout}
-                          onRename={(name) => renameStageMutation.mutate({ stageId: stage.id, name })}
-                          onDelete={stage.stage_type === "standard" ? () => setDeleteStageTarget(stage) : undefined}
-                        />
-                      </div>
-                    )
-                  ))}
-                </SortableContext>
-              </DndContext>
-              {terminalStages.length > 0 && (
-                <div
-                  className={cn(
-                    "flex min-h-0 min-w-0 flex-1 flex-col border-l border-border pl-2",
-                    kanbanCompactLayout ? "gap-2" : "gap-3",
-                  )}
-                >
-                  {terminalStages.map((stage) => (
-                    <div key={stage.id} className="flex min-h-0 min-w-0 flex-1 flex-col" id={`recruitment-pipeline-stage-${stage.id}`}>
-                      <KanbanColumn
-                        stage={stage}
-                        candidates={candidatesByStage[stage.id] || []}
-                        onCardClick={handleCardClick}
-                        onCandidateDrop={handleDrop}
-                        isRh={isRh}
-                        compact={kanbanCompactLayout}
-                      />
-                    </div>
-                  ))}
-                </div>
+          {standardStages.map((stage) => (
+            <div
+              key={stage.id}
+              id={`recruitment-pipeline-stage-${stage.id}`}
+              className="min-w-0 flex-1"
+            >
+              <KanbanColumn
+                stage={stage}
+                candidates={candidatesByStage[stage.id] || []}
+                onCardClick={handleCardClick}
+                onCandidateDrop={handleDrop}
+                isRh={isRh}
+                compact={kanbanCompactLayout}
+                jobTitlesByJobId={jobTitlesByJobId}
+              />
+            </div>
+          ))}
+          {terminalStages.length > 0 && (
+            <div
+              className={cn(
+                "flex min-h-0 min-w-0 flex-1 flex-col border-l border-border pl-2",
+                kanbanCompactLayout ? "gap-2" : "gap-3",
               )}
-              <AddStageColumn onAdd={(name) => addStageMutation.mutate(name)} />
-            </>
-          ) : (
-            <>
-              {standardStages.map((stage) => (
-                <div
-                  key={stage.id}
-                  id={`recruitment-pipeline-stage-${stage.id}`}
-                  className="min-w-0 flex-1"
-                >
+            >
+              {terminalStages.map((stage) => (
+                <div key={stage.id} className="flex min-h-0 min-w-0 flex-1 flex-col" id={`recruitment-pipeline-stage-${stage.id}`}>
                   <KanbanColumn
                     stage={stage}
                     candidates={candidatesByStage[stage.id] || []}
@@ -2560,31 +2937,11 @@ export default function Recruitment() {
                     onCandidateDrop={handleDrop}
                     isRh={isRh}
                     compact={kanbanCompactLayout}
+                    jobTitlesByJobId={jobTitlesByJobId}
                   />
                 </div>
               ))}
-              {terminalStages.length > 0 && (
-                <div
-                  className={cn(
-                    "flex min-h-0 min-w-0 flex-1 flex-col border-l border-border pl-2",
-                    kanbanCompactLayout ? "gap-2" : "gap-3",
-                  )}
-                >
-                  {terminalStages.map((stage) => (
-                    <div key={stage.id} className="flex min-h-0 min-w-0 flex-1 flex-col" id={`recruitment-pipeline-stage-${stage.id}`}>
-                      <KanbanColumn
-                        stage={stage}
-                        candidates={candidatesByStage[stage.id] || []}
-                        onCardClick={handleCardClick}
-                        onCandidateDrop={handleDrop}
-                        isRh={isRh}
-                        compact={kanbanCompactLayout}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
+            </div>
           )}
           </div>
         </div>
@@ -2596,23 +2953,29 @@ export default function Recruitment() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Candidat</TableHead>
+                  <TableHead>Poste</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Téléphone</TableHead>
                   <TableHead>Source</TableHead>
                   <TableHead>Étape</TableHead>
+                  <TableHead>Score IA</TableHead>
                   <TableHead>Date</TableHead>
                   {isRh && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
-              {candidates.length === 0 ? (
+              {filteredCandidates.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={isRh ? 7 : 6} className="text-center py-8 text-muted-foreground">
-                    Aucun candidat pour ce poste. Ajoutez un candidat pour démarrer.
+                  <TableCell colSpan={isRh ? 9 : 8} className="text-center py-8 text-muted-foreground">
+                    {candidates.length === 0
+                      ? "Aucun candidat. Ajoutez un candidat pour démarrer."
+                      : "Aucun candidat ne correspond aux filtres."}
                   </TableCell>
                 </TableRow>
               ) : (
-                candidates.map((c) => (
+                filteredCandidates.map((c) => {
+                  const aiPal = c.ai_score != null ? recruitmentAiPalette(c.ai_score) : null;
+                  return (
                   <TableRow
                     key={c.id}
                     className="cursor-pointer hover:bg-muted/50"
@@ -2628,22 +2991,41 @@ export default function Recruitment() {
                         <span className="font-medium text-sm">{c.first_name} {c.last_name}</span>
                       </div>
                     </TableCell>
+                    <TableCell className="text-sm max-w-[10rem] truncate" title={jobTitlesByJobId[c.job_id]}>
+                      {jobTitlesByJobId[c.job_id] || "—"}
+                    </TableCell>
                     <TableCell className="text-sm">{c.email || "—"}</TableCell>
                     <TableCell className="text-sm">{c.phone || "—"}</TableCell>
                     <TableCell className="text-sm">{c.source || "—"}</TableCell>
                     <TableCell>
-                      <Badge
-                        variant={c.current_stage_type === "rejected" ? "destructive" : c.current_stage_type === "hired" ? "default" : "secondary"}
-                        className="text-xs"
-                      >
-                        {c.current_stage_name || "—"}
-                      </Badge>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Badge
+                          variant={c.current_stage_type === "rejected" ? "destructive" : c.current_stage_type === "hired" ? "default" : "secondary"}
+                          className="text-xs"
+                        >
+                          {c.current_stage_name || "—"}
+                        </Badge>
+                        {isRecruitmentPriorityCandidate(c) ? (
+                          <Badge variant="outline" className="text-[9px] h-4 border-amber-400 text-amber-800">
+                            RH
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {c.ai_score != null && aiPal ? (
+                        <Badge className={cn("text-[10px] font-bold tabular-nums border", aiPal.badge)}>
+                          {c.ai_score}
+                        </Badge>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {new Date(c.created_at).toLocaleDateString("fr-FR")}
                     </TableCell>
                     {isRh && (
-                      <TableCell className="text-right">
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <Select
                           onValueChange={(stageId) => handleDrop(c.id, stageId)}
                         >
@@ -2652,16 +3034,19 @@ export default function Recruitment() {
                           </SelectTrigger>
                           <SelectContent>
                             {stages
-                              .filter((s) => s.id !== c.current_stage_id)
+                              .filter((s) => unifiedStageKeyForCandidate(c) !== s.id)
                               .map((s) => (
-                                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                <SelectItem key={s.id} value={s.id} textValue={s.name}>
+                                  {s.name}
+                                </SelectItem>
                               ))}
                           </SelectContent>
                         </Select>
                       </TableCell>
                     )}
                   </TableRow>
-                ))
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -2678,38 +3063,18 @@ export default function Recruitment() {
           setSelectedCandidate(null);
         }}
         isRh={isRh}
-        stages={stages}
+        stages={slideOverStages}
         onMove={handleMoveFromSlideOver}
         onHire={handleHireFromSlideOver}
         onRequestReject={handleRequestReject}
         onScheduleInterview={() => setShowInterviewModal(true)}
         companyId={companyId}
         onCandidateRefresh={(c) => setSelectedCandidate(c)}
+        onDeleted={() => {
+          setSlideOverOpen(false);
+          setSelectedCandidate(null);
+        }}
       />
-
-      {/* Confirmation : Supprimer une étape */}
-      <AlertDialog open={!!deleteStageTarget} onOpenChange={(o) => !o && setDeleteStageTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer l&apos;étape « {deleteStageTarget?.name} » ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Cette action est irréversible. L&apos;étape sera supprimée du pipeline.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={(e) => {
-                e.preventDefault();
-                if (deleteStageTarget) removeStageMutation.mutate(deleteStageTarget.id);
-              }}
-            >
-              Supprimer
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Dialog : Créer un poste */}
       <Dialog open={showCreateJob} onOpenChange={setShowCreateJob}>
@@ -2757,6 +3122,78 @@ export default function Recruitment() {
         </DialogContent>
       </Dialog>
 
+      {/* Dialog : Modifier le poste */}
+      <Dialog open={showEditJob} onOpenChange={setShowEditJob}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Modifier le poste</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Titre du poste *</Label>
+              <Input
+                value={editJob.title}
+                onChange={(e) => setEditJob({ ...editJob, title: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea
+                value={editJob.description}
+                onChange={(e) => setEditJob({ ...editJob, description: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <Label>Localisation</Label>
+                <Input
+                  value={editJob.location}
+                  onChange={(e) => setEditJob({ ...editJob, location: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Type de contrat</Label>
+                <Select
+                  value={editJob.contract_type}
+                  onValueChange={(v) => setEditJob({ ...editJob, contract_type: v })}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {["CDI", "CDD", "Alternance", "Stage", "Intérim", "Freelance", "Autre"].map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>Statut</Label>
+              <Select
+                value={editJob.status}
+                onValueChange={(v) => setEditJob({ ...editJob, status: v as Job["status"] })}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Actif</SelectItem>
+                  <SelectItem value="draft">Brouillon</SelectItem>
+                  <SelectItem value="archived">Archivé</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditJob(false)}>Annuler</Button>
+            <Button
+              onClick={() => updateJobMutation.mutate()}
+              disabled={!editJob.title.trim() || updateJobMutation.isPending}
+            >
+              {updateJobMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Dialog : Créer un candidat */}
       <Dialog open={showCreateCandidate} onOpenChange={setShowCreateCandidate}>
         <DialogContent className="sm:max-w-md">
@@ -2764,6 +3201,17 @@ export default function Recruitment() {
             <DialogTitle>Nouveau candidat</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div>
+              <Label>Poste *</Label>
+              <Select value={newCandidateJobId} onValueChange={setNewCandidateJobId}>
+                <SelectTrigger><SelectValue placeholder="Choisir un poste" /></SelectTrigger>
+                <SelectContent>
+                  {activeJobs.map((j) => (
+                    <SelectItem key={j.id} value={j.id} textValue={j.title}>{j.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>Prénom *</Label>
@@ -2791,7 +3239,7 @@ export default function Recruitment() {
             <Button variant="outline" onClick={() => setShowCreateCandidate(false)}>Annuler</Button>
             <Button
               onClick={() => createCandidateMutation.mutate()}
-              disabled={!newCandidate.first_name.trim() || !newCandidate.last_name.trim() || createCandidateMutation.isPending}
+              disabled={!newCandidateJobId || !newCandidate.first_name.trim() || !newCandidate.last_name.trim() || createCandidateMutation.isPending}
             >
               {createCandidateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Ajouter le candidat
@@ -2871,7 +3319,7 @@ export default function Recruitment() {
             </div>
             <div>
               <Label>Intitulé du poste</Label>
-              <Input value={hireData.job_title} onChange={(e) => setHireData({ ...hireData, job_title: e.target.value })} placeholder={selectedJobData?.title} />
+              <Input value={hireData.job_title} onChange={(e) => setHireData({ ...hireData, job_title: e.target.value })} placeholder={hireJobTitle} />
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>

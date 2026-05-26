@@ -7,11 +7,13 @@ Comportement strictement identique à l'ancien router.
 """
 
 from __future__ import annotations
+from app.core.logging import get_logger, log_app_debug
+
+logger = get_logger("modules.contract_parser.infrastructure.providers")
 
 import io
 import json
 import os
-import traceback
 from typing import Any, Dict, Tuple
 
 from app.modules.contract_parser.domain.interfaces import (
@@ -27,7 +29,7 @@ try:
     _PDFPLUMBER_AVAILABLE = True
 except ImportError:
     _PDFPLUMBER_AVAILABLE = False
-    print("WARNING: pdfplumber non disponible")
+    log_app_debug(logger, 'WARNING: pdfplumber non disponible')
 
 try:
     import PyPDF2
@@ -35,7 +37,7 @@ try:
     _PYPDF2_AVAILABLE = True
 except ImportError:
     _PYPDF2_AVAILABLE = False
-    print("WARNING: PyPDF2 non disponible")
+    log_app_debug(logger, 'WARNING: PyPDF2 non disponible')
 
 try:
     from pdf2image import convert_from_bytes
@@ -46,7 +48,7 @@ try:
     _OCR_AVAILABLE = True
 except ImportError:
     _OCR_AVAILABLE = False
-    print("WARNING: OCR libraries non disponibles (pdf2image, pytesseract, pillow)")
+    log_app_debug(logger, 'WARNING: OCR libraries non disponibles (pdf2image, pytesseract, pillow)')
 
 
 # ---------------------------------------------------------------------------
@@ -72,7 +74,7 @@ class PdfTextExtractor(IPdfTextExtractor):
                         text += page_text + "\n"
                 return text.strip()
         except Exception as e:
-            print(f"ERROR: Impossible d'extraire le texte avec pdfplumber : {e}")
+            logger.warning(f"ERROR: Impossible d'extraire le texte avec pdfplumber : {e}")
             return ""
 
     def _extract_with_pypdf2(self, file_content: bytes) -> str:
@@ -85,7 +87,7 @@ class PdfTextExtractor(IPdfTextExtractor):
                 text += page.extract_text() + "\n"
             return text.strip()
         except Exception as e:
-            print(f"ERROR: Impossible d'extraire le texte avec PyPDF2 : {e}")
+            logger.warning(f"ERROR: Impossible d'extraire le texte avec PyPDF2 : {e}")
             return ""
 
     def _preprocess_image_for_ocr(self, image: "Image.Image") -> "Image.Image":
@@ -100,13 +102,13 @@ class PdfTextExtractor(IPdfTextExtractor):
         if not _OCR_AVAILABLE:
             return ""
         try:
-            print("INFO: Conversion du PDF en images pour OCR...")
+            log_app_debug(logger, 'INFO: Conversion du PDF en images pour OCR...')
             images = convert_from_bytes(
                 file_content, dpi=300, first_page=1, last_page=max_pages
             )
             text = ""
             for i, img in enumerate(images):
-                print(f"INFO: OCR de la page {i + 1}/{len(images)}...")
+                log_app_debug(logger, f'INFO: OCR de la page {i + 1}/{len(images)}...')
                 processed_img = self._preprocess_image_for_ocr(img)
                 custom_config = r"--oem 3 --psm 6"
                 page_text = pytesseract.image_to_string(
@@ -115,8 +117,8 @@ class PdfTextExtractor(IPdfTextExtractor):
                 text += page_text + "\n"
             return text.strip()
         except Exception as e:
-            print(f"ERROR: Impossible d'extraire le texte avec OCR : {e}")
-            traceback.print_exc()
+            logger.warning(f"ERROR: Impossible d'extraire le texte avec OCR : {e}")
+            logger.exception("Exception")
             return ""
 
     def extract_text(self, file_content: bytes) -> Tuple[str, str]:
@@ -124,46 +126,36 @@ class PdfTextExtractor(IPdfTextExtractor):
         method = ""
 
         if _PDFPLUMBER_AVAILABLE:
-            print("INFO: Tentative d'extraction avec pdfplumber...")
+            log_app_debug(logger, "INFO: Tentative d'extraction avec pdfplumber...")
             text = self._extract_with_pdfplumber(file_content)
             if text and len(text) > 100 and not is_scanned_pdf(text):
                 method = "pdfplumber"
-                print(
-                    f"INFO: Extraction réussie avec pdfplumber ({len(text)} caractères)"
-                )
+                log_app_debug(logger, f'INFO: Extraction réussie avec pdfplumber ({len(text)} caractères)')
                 return text, method
             elif text:
-                print(
-                    f"WARNING: pdfplumber a extrait du texte ({len(text)} caractères) mais il semble être un PDF scanné"
-                )
+                log_app_debug(logger, f'WARNING: pdfplumber a extrait du texte ({len(text)} caractères) mais il semble être un PDF scanné')
 
         if not text and _PYPDF2_AVAILABLE:
-            print("INFO: Tentative d'extraction avec PyPDF2...")
+            log_app_debug(logger, "INFO: Tentative d'extraction avec PyPDF2...")
             text = self._extract_with_pypdf2(file_content)
             if text and len(text) > 100 and not is_scanned_pdf(text):
                 method = "PyPDF2"
-                print(f"INFO: Extraction réussie avec PyPDF2 ({len(text)} caractères)")
+                log_app_debug(logger, f'INFO: Extraction réussie avec PyPDF2 ({len(text)} caractères)')
                 return text, method
             elif text:
-                print(
-                    f"WARNING: PyPDF2 a extrait du texte ({len(text)} caractères) mais il semble être un PDF scanné"
-                )
+                log_app_debug(logger, f'WARNING: PyPDF2 a extrait du texte ({len(text)} caractères) mais il semble être un PDF scanné')
 
         if _OCR_AVAILABLE:
-            print(
-                "INFO: Le PDF semble être scanné ou l'extraction a échoué. Tentative d'OCR..."
-            )
+            log_app_debug(logger, "INFO: Le PDF semble être scanné ou l'extraction a échoué. Tentative d'OCR...")
             ocr_text = self._extract_with_ocr(file_content, max_pages=5)
             if ocr_text and len(ocr_text) > 50:
                 method = "OCR (Tesseract)"
-                print(f"INFO: Extraction réussie avec OCR ({len(ocr_text)} caractères)")
+                log_app_debug(logger, f'INFO: Extraction réussie avec OCR ({len(ocr_text)} caractères)')
                 return ocr_text, method
 
         if text and len(text) > 20:
             method = "Extraction de base (qualité limitée)"
-            print(
-                f"WARNING: OCR non disponible. Utilisation du texte extrait avec qualité limitée ({len(text)} caractères)"
-            )
+            log_app_debug(logger, f'WARNING: OCR non disponible. Utilisation du texte extrait avec qualité limitée ({len(text)} caractères)')
             return text, method
 
         if not text or len(text) < 20:
@@ -424,9 +416,7 @@ class ExtractionLLMProvider(IExtractionLLM):
     ) -> Dict[str, Any]:
         client = self._get_client()
         full_content = f"{prompt}\n\n{user_content}"
-        print(
-            f"INFO: Appel de l'API OpenAI (gpt-4o-mini){' ' + log_prefix if log_prefix else ''}..."
-        )
+        log_app_debug(logger, f"INFO: Appel de l'API OpenAI (gpt-4o-mini){(' ' + log_prefix if log_prefix else '')}...")
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": full_content}],
@@ -434,14 +424,12 @@ class ExtractionLLMProvider(IExtractionLLM):
             temperature=0.1,
         )
         raw_response = response.choices[0].message.content or ""
-        print(
-            f"DEBUG: Réponse brute de GPT-4o-mini{log_prefix}: {raw_response[:500]}..."
-        )
+        log_app_debug(logger, f'DEBUG: Réponse brute de GPT-4o-mini{log_prefix}: {raw_response[:500]}...')
         try:
             parsed = json.loads(raw_response)
         except json.JSONDecodeError as e:
-            print(f"ERROR: Impossible de parser la réponse JSON : {e}")
-            print(f"DEBUG: Réponse complète : {raw_response}")
+            logger.warning(f'ERROR: Impossible de parser la réponse JSON : {e}')
+            log_app_debug(logger, f'DEBUG: Réponse complète : {raw_response}')
             raise ValueError(
                 "Le modèle AI n'a pas retourné un JSON valide. Veuillez réessayer."
             ) from e

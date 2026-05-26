@@ -52,7 +52,10 @@ async def preview_export(
 ):
     """Prévisualise un export sans générer de fichier."""
     try:
+        _require_rh_exports(current_user, company_id)
         return export_service.preview_export(company_id, request)
+    except HTTPException:
+        raise
     except ValueError as e:
         raise _value_error_to_http(e)
     except Exception as e:
@@ -70,7 +73,10 @@ async def generate_export(
 ):
     """Génère un export et retourne les fichiers."""
     try:
+        _require_rh_exports(current_user, company_id)
         return export_service.generate_export(company_id, current_user.id, request)
+    except HTTPException:
+        raise
     except ValueError as e:
         raise _value_error_to_http(e)
     except Exception as e:
@@ -87,7 +93,10 @@ async def get_export_history(
 ):
     """Récupère l'historique des exports."""
     try:
+        _require_rh_exports(current_user, company_id)
         return export_service.get_export_history(company_id, export_type, period)
+    except HTTPException:
+        raise
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -101,8 +110,11 @@ async def download_export(
 ):
     """Télécharge un export depuis l'historique (retourne l'URL signée du premier fichier)."""
     try:
+        _require_rh_exports(current_user, company_id)
         download_url = export_service.get_export_download_url(company_id, export_id)
         return {"download_url": download_url}
+    except HTTPException:
+        raise
     except ValueError as e:
         raise _value_error_to_http(e)
     except Exception as e:

@@ -36,6 +36,7 @@ import {
   getPromotion,
   approvePromotion,
   rejectPromotion,
+  submitPromotion,
   markPromotionEffective,
   deletePromotion,
   downloadPromotionDocument,
@@ -187,6 +188,26 @@ export default function PromotionDetail() {
     },
   });
 
+  const submitMutation = useMutation({
+    mutationFn: () => submitPromotion(promotionId!),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["promotion", promotionId] });
+      void queryClient.invalidateQueries({ queryKey: ["promotions"] });
+      void queryClient.invalidateQueries({ queryKey: ["promotion-stats"] });
+      toast({
+        title: "Promotion soumise",
+        description: "La promotion est en attente d'approbation par un administrateur.",
+      });
+    },
+    onError: (err: Error) => {
+      toast({
+        title: "Erreur",
+        description: err?.message ?? "Impossible de soumettre la promotion.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const markEffectiveMutation = useMutation({
     mutationFn: () => markPromotionEffective(promotionId!),
     onSuccess: () => {
@@ -266,8 +287,15 @@ export default function PromotionDetail() {
   const handleDownloadDocument = async () => {
     if (!promotionId) return;
     try {
-      const url = await downloadPromotionDocument(promotionId);
-      window.open(url, "_blank");
+      const blob = await downloadPromotionDocument(promotionId);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `promotion_${promotionId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
     } catch (error: unknown) {
       const message =
         error && typeof error === "object" && "message" in error
@@ -306,9 +334,11 @@ export default function PromotionDetail() {
   }
 
   const canEdit = promotion.status === "draft" || promotion.status === "pending_approval";
+  const canSubmit = promotion.status === "draft";
   const canApprove = promotion.status === "pending_approval";
   const canReject = promotion.status === "pending_approval";
-  const canMarkEffective = promotion.status === "approved";
+  const canMarkEffective =
+    promotion.status === "draft" || promotion.status === "approved";
   const canDelete = promotion.status === "draft" || promotion.status === "pending_approval";
   const hasDocument = !!promotion.promotion_letter_url;
 
@@ -356,7 +386,7 @@ export default function PromotionDetail() {
       </div>
 
       {/* Actions rapides selon le statut */}
-      {(canApprove || canReject || canMarkEffective) && (
+      {(canSubmit || canApprove || canReject || canMarkEffective) && (
         <Card className="border-l-4 border-l-primary">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -367,12 +397,32 @@ export default function PromotionDetail() {
                 <div>
                   <p className="font-semibold">Actions disponibles</p>
                   <p className="text-sm text-muted-foreground">
+                    {canSubmit && "Soumettez pour validation ou marquez comme effective"}
                     {canApprove && "Approuvez ou rejetez cette promotion"}
-                    {canMarkEffective && "Marquez cette promotion comme effective pour appliquer les changements"}
+                    {canMarkEffective &&
+                      promotion.status === "approved" &&
+                      "Marquez comme effective pour appliquer les changements à l'employé"}
+                    {canMarkEffective &&
+                      promotion.status === "draft" &&
+                      "Marquez comme effective pour appliquer immédiatement (hors circuit d'approbation)"}
                   </p>
                 </div>
               </div>
               <div className="flex gap-2">
+                {canSubmit && (
+                  <Button
+                    variant="outline"
+                    onClick={() => submitMutation.mutate()}
+                    disabled={submitMutation.isPending}
+                  >
+                    {submitMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4 mr-2" />
+                    )}
+                    Soumettre pour validation
+                  </Button>
+                )}
                 {canApprove && (
                   <>
                     <Button

@@ -29,16 +29,25 @@ def _require_badgeuse_rh_access(
 ) -> User:
     """
     Vérifie que l'utilisateur a le droit RH de gérer la badgeuse pour l'entreprise.
+
+    Accès : super_admin, rôles RH (admin / rh / collaborateur_rh), custom avec
+    permissions RH, ou permission granulaire ``badgeuse.manage`` si définie en base.
     """
-    has_perm = access_control_service.check_user_has_permission(
-        str(current_user.id), company_id, PERMISSION_BADGEUSE_MANAGE
-    )
-    if not has_perm:
+    if not current_user.has_access_to_company(company_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission RH badgeuse requise",
+            detail="Accès non autorisé pour cette entreprise",
         )
-    return current_user
+    if access_control_service.can_access_company_as_rh(current_user, company_id):
+        return current_user
+    if access_control_service.check_user_has_permission(
+        str(current_user.id), company_id, PERMISSION_BADGEUSE_MANAGE
+    ):
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Accès RH badgeuse requis",
+    )
 
 
 # ----- Router employé : /api/me/badgeuse -----
@@ -73,6 +82,23 @@ def toggle_my_badge(current_user: User = Depends(get_current_user)) -> Dict[str,
     """
     try:
         return badgeuse_service.toggle_badge_for_me(current_user)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router_me.get("/qr")
+def get_my_badge_qr(current_user: User = Depends(get_current_user)) -> Dict[str, Any]:
+    """Payload QR pour l'employé connecté."""
+    try:
+        company_id = badgeuse_service.get_company_id_from_user(current_user)
+        return badgeuse_service.get_qr_for_employee(
+            employee_id=str(current_user.id),
+            company_id=company_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e)) from e
 
@@ -289,6 +315,127 @@ def get_company_summary(
             }
         )
     return items
+
+
+@router_rh.get("/punch-candidates")
+def list_badgeuse_punch_candidates(
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    q: str | None = Query(None, description="Recherche nom ou identifiant"),
+    only_not_badged: bool = Query(
+        False, description="Uniquement les employés sans pointage aujourd'hui"
+    ),
+    limit: int = Query(24, ge=1, le=50),
+    current_user: User = Depends(get_current_user),
+) -> List[Dict[str, Any]]:
+    """Liste pour le secours RH (sans QR) : recherche et badgeage en un clic."""
+    _require_badgeuse_rh_access(company_id, current_user)
+    try:
+        return badgeuse_service.list_punch_candidates(
+            company_id=company_id,
+            search=q,
+            only_not_badged_today=only_not_badged,
+            limit=limit,
+        )
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+
+
+@router_rh.post("/scan")
+def scan_badge_qr(
+    payload: Dict[str, Any],
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Enregistre un pointage via scan QR ou identification manuelle."""
+    _require_badgeuse_rh_access(company_id, current_user)
+    try:
+        if payload.get("username"):
+            return badgeuse_service.punch_by_username(
+                username=str(payload["username"]),
+                company_id=company_id,
+                actor_user_id=str(current_user.id),
+            )
+        manual = bool(payload.get("employee_id")) and not payload.get("qr_payload")
+        return badgeuse_service.punch_from_qr(
+            qr_payload=payload.get("qr_payload"),
+            employee_id=payload.get("employee_id"),
+            company_id=company_id,
+            actor_user_id=str(current_user.id),
+            source=TimeEntrySource.RH if manual else TimeEntrySource.QR_SCAN,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+
+
+@router_rh.post("/employees/{employee_id}/regenerate-badge")
+def regenerate_employee_badge(
+    employee_id: str,
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Régénère le QR d'un employé (invalide les anciennes cartes)."""
+    _require_badgeuse_rh_access(company_id, current_user)
+    try:
+        return badgeuse_service.regenerate_badge_for_employee(
+            employee_id=employee_id,
+            company_id=company_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router_rh.get("/dashboard/today")
+def get_badgeuse_dashboard_today(
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Compteurs temps réel pour la page scan."""
+    _require_badgeuse_rh_access(company_id, current_user)
+    return badgeuse_service.get_dashboard_today(company_id=company_id)
+
+
+@router_rh.get("/settings")
+def get_badgeuse_company_settings(
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    _require_badgeuse_rh_access(company_id, current_user)
+    return badgeuse_service.get_badgeuse_settings(company_id)
+
+
+@router_rh.patch("/settings")
+def patch_badgeuse_company_settings(
+    payload: Dict[str, Any],
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    _require_badgeuse_rh_access(company_id, current_user)
+    return badgeuse_service.update_badgeuse_settings(
+        company_id,
+        allow_self_toggle=payload.get("allow_self_toggle"),
+        scan_mode_enabled=payload.get("scan_mode_enabled"),
+    )
+
+
+@router_rh.get("/employees/{employee_id}/qr")
+def get_employee_badge_qr(
+    employee_id: str,
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """QR pour export carte (RH)."""
+    _require_badgeuse_rh_access(company_id, current_user)
+    try:
+        return badgeuse_service.get_qr_for_employee(
+            employee_id=employee_id,
+            company_id=company_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
 
 
 @router_rh.get("/export")

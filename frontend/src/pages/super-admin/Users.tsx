@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import apiClient from '../../api/apiClient';
 
+import { log } from '@/lib/logger';
 interface User {
   id: string;
   first_name: string;
@@ -33,7 +34,7 @@ export default function Users() {
       });
       setUsers(response.data.users);
     } catch (error) {
-      console.error('Erreur:', error);
+      log.error('Erreur:', error);
     } finally {
       setLoading(false);
     }

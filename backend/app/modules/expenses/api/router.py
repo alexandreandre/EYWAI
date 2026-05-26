@@ -35,6 +35,17 @@ router = APIRouter(prefix="/api/expenses", tags=["Expenses"])
 _expense_service = ExpenseApplicationService()
 
 
+def _require_rh_or_admin(current_user: User) -> None:
+    if current_user.is_super_admin:
+        return
+    active_company_id = current_user.active_company_id
+    if not active_company_id or not current_user.has_rh_access_in_company(active_company_id):
+        raise HTTPException(
+            status_code=403,
+            detail="Accès réservé aux RH et administrateurs.",
+        )
+
+
 @router.post("/get-upload-url", response_model=SignedUploadUrlResponse)
 async def get_upload_url(
     filename: Annotated[str, Body(embed=True)],
@@ -88,6 +99,7 @@ async def get_all_expenses(
 ):
     """(Pour les RH) Récupère toutes les notes de frais, avec détails de l'employé."""
     try:
+        _require_rh_or_admin(current_user)
         return _expense_service.get_all_expenses(ListExpensesInput(status=status))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -101,6 +113,7 @@ async def update_expense_status(
 ):
     """(Pour les RH) Valide ou rejette une note de frais."""
     try:
+        _require_rh_or_admin(current_user)
         result = _expense_service.update_expense_status(
             UpdateExpenseStatusInput(expense_id=expense_id, status=status_update.status)
         )

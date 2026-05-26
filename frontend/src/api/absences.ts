@@ -1,5 +1,6 @@
 // Fichier : src/api/absences.ts (VERSION COMPLÈTE ET CORRIGÉE)
 
+import { log } from '@/lib/logger';
 import apiClient from './apiClient';
 
 // --- INTERFACES DE BASE ---
@@ -179,7 +180,7 @@ export const getUploadUrl = async (filename: string) => {
  * Uploade le fichier directement vers le stockage Supabase via l'URL signée.
  */
 export const uploadFile = async (signedUrl: string, file: File) => {
-  console.log(`[DEBUG] Début de l'upload vers: ${signedUrl.split('?')[0]}...`);
+  log.debug(`[DEBUG] Début de l'upload vers: ${signedUrl.split('?')[0]}...`);
   try {
     const response = await fetch(signedUrl, {
       method: 'PUT',
@@ -191,14 +192,14 @@ export const uploadFile = async (signedUrl: string, file: File) => {
 
     if (!response.ok) {
       const errorBody = await response.text();
-      console.error(`[ERREUR UPLOAD] Statut: ${response.status}, Réponse: ${errorBody}`);
+      log.error(`[ERREUR UPLOAD] Statut: ${response.status}, Réponse: ${errorBody}`);
       throw new Error(`Échec de l'upload vers Supabase Storage. Statut: ${response.status}`);
     }
 
-    console.log(`[DEBUG] Upload terminé avec succès. Statut: ${response.status}`);
+    log.debug(`[DEBUG] Upload terminé avec succès. Statut: ${response.status}`);
 
   } catch (error) {
-    console.error("[ERREUR UPLOAD] Exception lors du fetch:", error);
+    log.error("[ERREUR UPLOAD] Exception lors du fetch:", error);
     throw error;
   }
 };

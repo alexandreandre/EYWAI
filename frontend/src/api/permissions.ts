@@ -1,3 +1,4 @@
+import { log } from '@/lib/logger';
 import apiClient from './apiClient';
 
 // =====================================================
@@ -163,12 +164,12 @@ export interface AccessibleCompany {
 // =====================================================
 
 export const getPermissionCategories = async (): Promise<PermissionCategory[]> => {
-  const response = await apiClient.get('/api/user-management/permission-categories');
+  const response = await apiClient.get('/api/access-control/permission-categories');
   return response.data;
 };
 
 export const getPermissionActions = async (): Promise<PermissionAction[]> => {
-  const response = await apiClient.get('/api/user-management/permission-actions');
+  const response = await apiClient.get('/api/access-control/permission-actions');
   return response.data;
 };
 
@@ -180,7 +181,7 @@ export const getAllPermissions = async (
   if (categoryId) params.append('category_id', categoryId);
   if (requiredRole) params.append('required_role', requiredRole);
 
-  const response = await apiClient.get(`/api/user-management/permissions?${params.toString()}`);
+  const response = await apiClient.get(`/api/access-control/permissions?${params.toString()}`);
   return response.data;
 };
 
@@ -191,7 +192,7 @@ export const getPermissionsMatrix = async (
   const params = new URLSearchParams({ company_id: companyId });
   if (userId) params.append('user_id', userId);
 
-  const response = await apiClient.get(`/api/user-management/permissions/matrix?${params.toString()}`);
+  const response = await apiClient.get(`/api/access-control/permissions/matrix?${params.toString()}`);
   return response.data;
 };
 
@@ -204,7 +205,7 @@ export const getUserPermissions = async (
   companyId: string
 ): Promise<UserPermissionsSummary> => {
   const response = await apiClient.get(
-    `/api/user-management/users/${userId}/permissions?company_id=${companyId}`
+    `/api/access-control/users/${userId}/permissions?company_id=${companyId}`
   );
   return response.data;
 };
@@ -214,7 +215,7 @@ export const grantUserPermissions = async (
   companyId: string,
   permissionIds: string[]
 ): Promise<{ message: string }> => {
-  const response = await apiClient.post(`/api/user-management/users/${userId}/permissions`, {
+  const response = await apiClient.post(`/api/access-control/users/${userId}/permissions`, {
     user_id: userId,
     company_id: companyId,
     permission_ids: permissionIds,
@@ -227,7 +228,7 @@ export const updateUserPermissions = async (
   companyId: string,
   permissionIds: string[]
 ): Promise<{ message: string }> => {
-  const response = await apiClient.put(`/api/user-management/users/${userId}/permissions`, {
+  const response = await apiClient.put(`/api/access-control/users/${userId}/permissions`, {
     user_id: userId,
     company_id: companyId,
     permission_ids: permissionIds,
@@ -241,7 +242,7 @@ export const revokeUserPermission = async (
   companyId: string
 ): Promise<{ message: string }> => {
   const response = await apiClient.delete(
-    `/api/user-management/users/${userId}/permissions/${permissionId}?company_id=${companyId}`
+    `/api/access-control/users/${userId}/permissions/${permissionId}?company_id=${companyId}`
   );
   return response.data;
 };
@@ -260,12 +261,12 @@ export const getRoleTemplates = async (
   if (baseRole) params.append('base_role', baseRole);
   params.append('include_system', includeSystem.toString());
 
-  const response = await apiClient.get(`/api/user-management/role-templates?${params.toString()}`);
+  const response = await apiClient.get(`/api/access-control/role-templates?${params.toString()}`);
   return response.data;
 };
 
 export const getRoleTemplate = async (templateId: string): Promise<RoleTemplateWithPermissions> => {
-  const response = await apiClient.get(`/api/user-management/role-templates/${templateId}`);
+  const response = await apiClient.get(`/api/access-control/role-templates/${templateId}`);
   return response.data;
 };
 
@@ -277,7 +278,7 @@ export const createRoleTemplate = async (data: {
   base_role: string;
   permission_ids: string[];
 }): Promise<RoleTemplate> => {
-  const response = await apiClient.post('/api/user-management/role-templates', data);
+  const response = await apiClient.post('/api/access-control/role-templates', data);
   return response.data;
 };
 
@@ -289,7 +290,7 @@ export const quickCreateRoleTemplate = async (data: {
   description?: string;
   permission_ids: string[];
 }): Promise<{ message: string; template_id: string; name: string }> => {
-  const response = await apiClient.post('/api/user-management/role-templates/quick-create', data);
+  const response = await apiClient.post('/api/access-control/role-templates/quick-create', data);
   return response.data;
 };
 
@@ -304,12 +305,12 @@ export const updateRoleTemplate = async (
     permission_ids?: string[];
   }
 ): Promise<RoleTemplate> => {
-  const response = await apiClient.put(`/api/user-management/role-templates/${templateId}`, data);
+  const response = await apiClient.put(`/api/access-control/role-templates/${templateId}`, data);
   return response.data;
 };
 
 export const deleteRoleTemplate = async (templateId: string): Promise<{ message: string }> => {
-  const response = await apiClient.delete(`/api/user-management/role-templates/${templateId}`);
+  const response = await apiClient.delete(`/api/access-control/role-templates/${templateId}`);
   return response.data;
 };
 
@@ -322,7 +323,7 @@ export const checkRoleHierarchy = async (
   companyId: string
 ): Promise<RoleHierarchyCheckResponse> => {
   const response = await apiClient.get(
-    `/api/user-management/check-hierarchy?target_role=${targetRole}&company_id=${companyId}`
+    `/api/access-control/check-hierarchy?target_role=${targetRole}&company_id=${companyId}`
   );
   return response.data;
 };
@@ -333,7 +334,7 @@ export const checkUserPermission = async (
   permissionCode: string
 ): Promise<PermissionCheckResponse> => {
   const response = await apiClient.get(
-    `/api/user-management/check-permission?user_id=${userId}&company_id=${companyId}&permission_code=${permissionCode}`
+    `/api/access-control/check-permission?user_id=${userId}&company_id=${companyId}&permission_code=${permissionCode}`
   );
   return response.data;
 };
@@ -353,19 +354,19 @@ export const getUserDetail = async (
   userId: string,
   companyId: string
 ): Promise<any> => {
-  console.log('[API permissions.ts] getUserDetail called with:', { userId, companyId });
+  log.debug('[API permissions.ts] getUserDetail called with:', { userId, companyId });
   const url = `/api/users/${userId}?company_id=${companyId}`;
-  console.log('[API permissions.ts] Making GET request to:', url);
+  log.debug('[API permissions.ts] Making GET request to:', url);
 
   try {
-    console.log('[API permissions.ts] BEFORE apiClient.get...');
+    log.debug('[API permissions.ts] BEFORE apiClient.get...');
     const response = await apiClient.get(url);
-    console.log('[API permissions.ts] ✅ Response received:', response);
-    console.log('[API permissions.ts] Response data:', response.data);
+    log.debug('[API permissions.ts] ✅ Response received:', response);
+    log.debug('[API permissions.ts] Response data:', response.data);
     return response.data;
   } catch (error: any) {
-    console.error('[API permissions.ts] ❌ Error in getUserDetail:', error);
-    console.error('[API permissions.ts] Error details:', {
+    log.error('[API permissions.ts] ❌ Error in getUserDetail:', error);
+    log.error('[API permissions.ts] Error details:', {
       message: error.message,
       response: error.response,
       status: error.response?.status,

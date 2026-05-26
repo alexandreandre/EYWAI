@@ -1,5 +1,7 @@
+from app.core.logging import get_logger, log_payroll_debug
+
+logger = get_logger("modules.payroll.engine.calcul_net")
 # moteur_paie/calcul_net.py
-import sys
 import os
 from .contexte import ContextePaie
 from typing import Dict, Any, List
@@ -64,15 +66,9 @@ def _calculer_net_imposable(
                                     mutuelle.get("montant_patronal")
                                 )
                 else:
-                    print(
-                        "WARN: Variables Supabase non configurées, impossible de charger les mutuelles depuis la BDD",
-                        file=sys.stderr,
-                    )
+                    logger.warning('WARN: Variables Supabase non configurées, impossible de charger les mutuelles depuis la BDD')
             except Exception as e:
-                print(
-                    f"ERREUR: Impossible de charger les mutuelles depuis la BDD: {e}",
-                    file=sys.stderr,
-                )
+                logger.warning(f'ERREUR: Impossible de charger les mutuelles depuis la BDD: {e}')
                 # Fallback sur l'ancien format si erreur
 
         # Ancien format : lignes_specifiques (rétrocompatibilité)
@@ -109,39 +105,18 @@ def _calculer_net_imposable(
     net_imposable_final = net_imposable_apres_hs + montant_primes_soumises_impot
 
     # Le bloc de debug détaillé
-    print("\n--- Calcul du Net Imposable ---", file=sys.stderr)
-    print(
-        f"\t  Net Social (Net à payer av. impôt) : {salaire_brut_safe - total_cotisations_safe:10.2f} €",
-        file=sys.stderr,
-    )
-    print(
-        f"\t+ CSG/CRDS non déductible          : {montant_csg_non_deductible:10.2f} €",
-        file=sys.stderr,
-    )
-    print(
-        f"\t+ Part Patronale Mutuelle          : {part_patronale_mutuelle:10.2f} €",
-        file=sys.stderr,
-    )
-    print("\t--------------------------------------------", file=sys.stderr)
-    print(
-        f"\t= Imposable avant défiscalisation  : {net_imposable_avant_defiscalisation:10.2f} €",
-        file=sys.stderr,
-    )
-    print(
-        f"\t- Exonération Heures Supp.         : {remuneration_heures_supp:10.2f} €",
-        file=sys.stderr,
-    )
+    log_payroll_debug(logger, '\n--- Calcul du Net Imposable ---')
+    log_payroll_debug(logger, f'\t  Net Social (Net à payer av. impôt) : {salaire_brut_safe - total_cotisations_safe:10.2f} €')
+    log_payroll_debug(logger, f'\t+ CSG/CRDS non déductible          : {montant_csg_non_deductible:10.2f} €')
+    log_payroll_debug(logger, f'\t+ Part Patronale Mutuelle          : {part_patronale_mutuelle:10.2f} €')
+    log_payroll_debug(logger, '\t--------------------------------------------')
+    log_payroll_debug(logger, f'\t= Imposable avant défiscalisation  : {net_imposable_avant_defiscalisation:10.2f} €')
+    log_payroll_debug(logger, f'\t- Exonération Heures Supp.         : {remuneration_heures_supp:10.2f} €')
     if montant_primes_soumises_impot > 0:
-        print(
-            f"\t+ Primes soumises à l'impôt        : {montant_primes_soumises_impot:10.2f} €",
-            file=sys.stderr,
-        )
-    print("\t--------------------------------------------", file=sys.stderr)
-    print(
-        f"\t= NET IMPOSABLE                    : {round(net_imposable_final, 2):10.2f} €",
-        file=sys.stderr,
-    )
-    print("---------------------------------\n", file=sys.stderr)
+        log_payroll_debug(logger, f"\t+ Primes soumises à l'impôt        : {montant_primes_soumises_impot:10.2f} €")
+    log_payroll_debug(logger, '\t--------------------------------------------')
+    log_payroll_debug(logger, f'\t= NET IMPOSABLE                    : {round(net_imposable_final, 2):10.2f} €')
+    log_payroll_debug(logger, '---------------------------------\n')
 
     return round(net_imposable_final, 2)
 
@@ -169,20 +144,13 @@ def _calculer_net_a_payer(
     if primes_soumises_impot is None:
         primes_soumises_impot = []
 
-    print("\n--- Calcul du Net À Payer ---", file=sys.stderr)
-    print(
-        f"\t  Net Social (base de départ)      : {net_social:10.2f} €", file=sys.stderr
-    )
-    print(
-        f"\t- Impôt sur le revenu              : {montant_pas:10.2f} €", file=sys.stderr
-    )
+    log_payroll_debug(logger, '\n--- Calcul du Net À Payer ---')
+    log_payroll_debug(logger, f'\t  Net Social (base de départ)      : {net_social:10.2f} €')
+    log_payroll_debug(logger, f'\t- Impôt sur le revenu              : {montant_pas:10.2f} €')
 
     net_apres_impot = _get_safe_float(net_social) - _get_safe_float(montant_pas)
-    print("\t--------------------------------------------", file=sys.stderr)
-    print(
-        f"\t= Net après impôt                  : {net_apres_impot:10.2f} €",
-        file=sys.stderr,
-    )
+    log_payroll_debug(logger, '\t--------------------------------------------')
+    log_payroll_debug(logger, f'\t= Net après impôt                  : {net_apres_impot:10.2f} €')
 
     # Initialisation du net à payer
     net_a_payer = net_apres_impot
@@ -196,10 +164,7 @@ def _calculer_net_a_payer(
         part_salariale_tr = valeur_faciale - part_patronale
         deduction_tr = part_salariale_tr * nombre_tr
 
-        print(
-            f"\t- Déduction Titres-Restaurant      : {deduction_tr:10.2f} €",
-            file=sys.stderr,
-        )
+        log_payroll_debug(logger, f'\t- Déduction Titres-Restaurant      : {deduction_tr:10.2f} €')
         net_a_payer -= deduction_tr
 
     # Ajout du remboursement transport
@@ -211,10 +176,7 @@ def _calculer_net_a_payer(
 
     if cout_total_abonnement > 0:
         remboursement_transport = round(cout_total_abonnement * 0.5, 2)
-        print(
-            f"\t+ Remboursement Transport          : {remboursement_transport:10.2f} €",
-            file=sys.stderr,
-        )
+        log_payroll_debug(logger, f'\t+ Remboursement Transport          : {remboursement_transport:10.2f} €')
         net_a_payer += remboursement_transport
 
     # Ajout des primes non soumises aux cotisations ni à l'impôt
@@ -224,10 +186,7 @@ def _calculer_net_a_payer(
         montant_primes_non_soumises += montant_prime
 
     if montant_primes_non_soumises > 0:
-        print(
-            f"\t+ Primes non soumises              : {montant_primes_non_soumises:10.2f} €",
-            file=sys.stderr,
-        )
+        log_payroll_debug(logger, f'\t+ Primes non soumises              : {montant_primes_non_soumises:10.2f} €')
         net_a_payer += montant_primes_non_soumises
 
     # --- NOUVEAU : Ajout des primes soumises à l'impôt (non soumises aux cotisations) ---
@@ -238,24 +197,15 @@ def _calculer_net_a_payer(
         montant_primes_soumises_impot += montant_prime
 
     if montant_primes_soumises_impot > 0:
-        print(
-            f"\t+ Primes soumises à l'impôt        : {montant_primes_soumises_impot:10.2f} €",
-            file=sys.stderr,
-        )
+        log_payroll_debug(logger, f"\t+ Primes soumises à l'impôt        : {montant_primes_soumises_impot:10.2f} €")
         net_a_payer += montant_primes_soumises_impot
 
     if montant_acompte > 0:
-        print(
-            f"\t- Acompte versé                    : {montant_acompte:10.2f} €",
-            file=sys.stderr,
-        )
+        log_payroll_debug(logger, f'\t- Acompte versé                    : {montant_acompte:10.2f} €')
         net_a_payer -= montant_acompte
-    print("\t--------------------------------------------", file=sys.stderr)
-    print(
-        f"\t= NET À PAYER                      : {round(net_a_payer, 2):10.2f} €",
-        file=sys.stderr,
-    )
-    print("-----------------------------\n", file=sys.stderr)
+    log_payroll_debug(logger, '\t--------------------------------------------')
+    log_payroll_debug(logger, f'\t= NET À PAYER                      : {round(net_a_payer, 2):10.2f} €')
+    log_payroll_debug(logger, '-----------------------------\n')
 
     return round(net_a_payer, 2), remboursement_transport
 
@@ -275,7 +225,7 @@ def calculer_net_et_impot(
     if primes_soumises_impot is None:
         primes_soumises_impot = []
 
-    print("INFO: Démarrage du calcul des nets et de l'impôt...", file=sys.stderr)
+    log_payroll_debug(logger, "INFO: Démarrage du calcul des nets et de l'impôt...")
 
     net_social = round(
         _get_safe_float(salaire_brut) - _get_safe_float(total_cotisations_salariales), 2
@@ -300,7 +250,7 @@ def calculer_net_et_impot(
         montant_acompte,  # <--- AJOUTEZ L'ARGUMENT ICI
         primes_soumises_impot,  # <-- NOUVEAU: Primes soumises à l'impôt
     )
-    print("INFO: Calcul des nets et de l'impôt terminé.", file=sys.stderr)
+    logger.info("INFO: Calcul des nets et de l'impôt terminé.")
     return {
         "net_social": net_social,
         "net_imposable": net_imposable,

@@ -3,8 +3,10 @@ Service applicatif partagé du module employee_exits.
 
 Délègue à l'infrastructure (repositories, queries). Comportement identique au router.
 """
+from app.core.logging import get_logger, log_app_debug
 
-import sys
+logger = get_logger("modules.employee_exits.application.service")
+
 from typing import Any, Dict, List
 
 from app.modules.employee_exits.infrastructure import queries as infra_queries
@@ -93,9 +95,9 @@ def create_default_checklist_sync(
     ]
     try:
         repo.create_many(items)
-        print(f"✓ Checklist créée pour sortie {exit_id}", file=sys.stderr)
+        logger.info(f'✓ Checklist créée pour sortie {exit_id}')
     except Exception as e:
-        print(f"⚠ Erreur création checklist: {e}", file=sys.stderr)
+        logger.warning(f'⚠ Erreur création checklist: {e}')
 
 
 def enrich_exit_with_documents_and_checklist(

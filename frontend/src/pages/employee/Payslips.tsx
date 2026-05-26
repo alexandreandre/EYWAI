@@ -1,5 +1,6 @@
 // src/pages/employee/Payslips.tsx (COMPLET, FONCTIONNEL AVEC BACKEND À JOUR)
 
+import { log } from '@/lib/logger';
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -90,18 +91,18 @@ export default function PayslipsPage() {
               return b.month - a.month;
             });
             setPayslips(sortedPayslips);
-            console.log("Bulletins chargés:", sortedPayslips); // Debug
+            log.debug("Bulletins chargés:", sortedPayslips); // Debug
           } else {
-            console.error("Erreur chargement bulletins:", results[0].reason);
+            log.error("Erreur chargement bulletins:", results[0].reason);
             fetchError = true;
           }
 
           // Traitement des infos salaire
           if (results[1].status === 'fulfilled') {
             setSalaryInfo(results[1].value.data);
-            console.log("Infos salaire chargées:", results[1].value.data); // Debug
+            log.debug("Infos salaire chargées:", results[1].value.data); // Debug
           } else {
-            console.error("Erreur chargement infos salaire:", results[1].reason);
+            log.error("Erreur chargement infos salaire:", results[1].reason);
             fetchError = true;
           }
 
@@ -111,13 +112,13 @@ export default function PayslipsPage() {
              const cumulsData = results[2].value.data;
              if (cumulsData && (cumulsData.periode || cumulsData.cumuls)) {
                  setCumuls(cumulsData);
-                 console.log("Cumuls chargés:", cumulsData); // Debug
+                 log.debug("Cumuls chargés:", cumulsData); // Debug
              } else {
-                 console.log("Aucun cumul trouvé ou données vides.");
+                 log.debug("Aucun cumul trouvé ou données vides.");
                  setCumuls(null); // Assure la réinitialisation si vide
              }
           } else {
-            console.error("Erreur chargement cumuls:", results[2].reason);
+            log.error("Erreur chargement cumuls:", results[2].reason);
             setCumuls(null); // Assure la réinitialisation si erreur
             // Optionnel : Mettre une erreur non bloquante si les cumuls échouent
             // setError(prev => prev ? prev + " Cumuls non chargés." : "Cumuls non chargés.");
@@ -131,7 +132,7 @@ export default function PayslipsPage() {
           }
 
         } catch (err) {
-          console.error("Erreur globale chargement rémunération:", err);
+          log.error("Erreur globale chargement rémunération:", err);
           const currentError = "Impossible de charger les informations de rémunération.";
           setError(currentError);
           toast({ variant: "destructive", title: "Erreur", description: currentError });

@@ -72,44 +72,47 @@ class TestCompanyDetails:
         response = client.get("/api/company/details")
         assert response.status_code == 401
 
-    def test_details_with_user_no_company_returns_403(self, client: TestClient):
-        """Utilisateur sans company_id (profil) → 403."""
+    def test_details_without_active_company_returns_400(self, client: TestClient):
+        """Utilisateur sans entreprise active → 400."""
         from app.core.security import get_current_user
 
         user = _make_user_without_company()
-        with patch(
-            "app.modules.companies.infrastructure.queries.get_company_id_from_profile",
-            return_value=None,
-        ):
-            app.dependency_overrides[get_current_user] = lambda: user
-            try:
-                response = client.get("/api/company/details")
-            finally:
-                app.dependency_overrides.pop(get_current_user, None)
-        assert response.status_code == 403
+        app.dependency_overrides[get_current_user] = lambda: user
+        try:
+            response = client.get("/api/company/details")
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 400
         assert "entreprise" in response.json().get("detail", "").lower()
 
+    def test_details_returns_403_without_company_access(self, client: TestClient):
+        """Entreprise active hors périmètre accessible → 403."""
+        from app.core.security import get_current_user
+
+        other_company = "00000000-0000-0000-0000-000000000099"
+        user = _make_user_with_company(active_company_id=other_company)
+        app.dependency_overrides[get_current_user] = lambda: user
+        try:
+            response = client.get("/api/company/details")
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 403
+
     def test_details_with_mock_data_returns_200(self, client: TestClient):
-        """Avec company_id résolu et données mockées → 200 et company_data + kpis."""
+        """Avec entreprise active et données mockées → 200 et company_data + kpis."""
         from app.core.security import get_current_user
 
         user = _make_user_with_company()
         company_data = {"id": TEST_COMPANY_ID, "company_name": "Test SARL"}
-        with (
-            patch(
-                "app.modules.companies.infrastructure.queries.get_company_id_from_profile",
-                return_value=TEST_COMPANY_ID,
-            ),
-            patch(
-                "app.modules.companies.application.queries.fetch_company_with_employees_and_payslips",
-                return_value={
-                    "company_data": company_data,
-                    "employees": [
-                        {"id": "e1", "contract_type": "CDI", "job_title": "Dev"}
-                    ],
-                    "payslips": [],
-                },
-            ),
+        with patch(
+            "app.modules.companies.application.queries.fetch_company_with_employees_and_payslips",
+            return_value={
+                "company_data": company_data,
+                "employees": [
+                    {"id": "e1", "contract_type": "CDI", "job_title": "Dev"}
+                ],
+                "payslips": [],
+            },
         ):
             app.dependency_overrides[get_current_user] = lambda: user
             try:

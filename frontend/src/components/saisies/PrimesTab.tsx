@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+import { log } from '@/lib/logger';
 import { SaisieModal } from "@/components/SaisieModal";
 import * as saisiesApi from '@/api/saisies';
 import apiClient from '@/api/apiClient';
@@ -59,7 +60,7 @@ export function PrimesTab({ selectedYear, selectedMonth, onYearChange, onMonthCh
       setMonthlyInputs(inputsRes.data);
       setEmployees(employeesRes.data);
     } catch (error) {
-      console.error(error);
+      log.error(error);
       toast({ title: "Erreur", description: "Impossible de charger les données.", variant: "destructive" });
     } finally {
       setIsLoading(false);

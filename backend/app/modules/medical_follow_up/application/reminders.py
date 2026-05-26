@@ -149,6 +149,7 @@ def send_medical_reminders(company_id: str) -> dict:
                 ).execute()
                 sent += 1
             except Exception as ex:  # noqa: BLE001
+
                 logger.warning(
                     "[reminders] Insert notification impossible obligation=%s employee=%s: %s",
                     row.get("id"),
@@ -159,5 +160,6 @@ def send_medical_reminders(company_id: str) -> dict:
 
         return {"sent": sent, "errors": errors}
     except Exception as e:  # noqa: BLE001
+
         logger.error("[reminders] Erreur: %s", e)
         return {"sent": 0, "errors": 1}

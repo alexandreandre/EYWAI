@@ -8,7 +8,9 @@
  * - Le header X-Active-Company envoyé au backend
  */
 
+import { log } from '@/lib/logger';
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
 import apiClient from '../api/apiClient';
 
@@ -45,6 +47,7 @@ const CompanyContext = createContext<CompanyContextType | null>(null);
 
 export const CompanyProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [accessibleCompanies, setAccessibleCompanies] = useState<CompanyAccess[]>([]);
   const [activeCompany, setActiveCompanyState] = useState<CompanyAccess | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,91 +57,55 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
    * Charge les entreprises accessibles depuis l'API
    */
   const loadCompanies = async () => {
-    console.log('%c[CompanyContext] 🚀 loadCompanies() appelé', 'background: teal; color: white; font-weight: bold');
-
     if (!user) {
-      console.log('%c[CompanyContext] ❌ Pas d\'utilisateur - Arrêt', 'color: red');
       setIsLoading(false);
       return;
     }
-
-    console.log('%c[CompanyContext] ✅ Utilisateur présent:', 'color: teal', user.email);
 
     try {
       setIsLoading(true);
       setError(null);
 
-      console.log('%c[CompanyContext] 📡 Appel API /api/users/my-companies...', 'color: teal');
-
       const response = await apiClient.get('/api/users/my-companies');
       const companies = response.data as CompanyAccess[];
 
-      console.log(`%c[CompanyContext] ✅ ${companies.length} entreprise(s) trouvée(s)`, 'color: green; font-weight: bold');
-      console.log('%c[CompanyContext] Détail des entreprises:', 'color: teal', companies);
-
       setAccessibleCompanies(companies);
 
-      // Déterminer l'entreprise active
       if (companies.length > 0) {
-        console.log('%c[CompanyContext] 🔍 Détermination de l\'entreprise active...', 'color: teal');
-
-        // 1. Essayer de récupérer depuis localStorage
         const savedCompanyId = localStorage.getItem('activeCompanyId');
-        console.log('%c[CompanyContext] localStorage activeCompanyId:', 'color: teal', savedCompanyId);
-
         let companyToActivate: CompanyAccess | undefined;
 
         if (savedCompanyId) {
-          companyToActivate = companies.find(c => c.company_id === savedCompanyId);
-          if (companyToActivate) {
-            console.log('%c[CompanyContext] ✅ Entreprise active restaurée depuis localStorage:', 'color: green', companyToActivate.company_name);
-          } else {
-            console.log('%c[CompanyContext] ⚠️ ID du localStorage non trouvé dans les entreprises accessibles', 'color: orange');
-            console.log('%c[CompanyContext] 🧹 Nettoyage du localStorage (entreprise non accessible)', 'color: orange');
+          companyToActivate = companies.find((c) => c.company_id === savedCompanyId);
+          if (!companyToActivate) {
             localStorage.removeItem('activeCompanyId');
           }
         }
 
-        // 2. Sinon, utiliser l'entreprise primaire
         if (!companyToActivate) {
-          console.log('%c[CompanyContext] 🔍 Recherche de l\'entreprise primaire...', 'color: teal');
-          companyToActivate = companies.find(c => c.is_primary);
-          if (companyToActivate) {
-            console.log('%c[CompanyContext] ✅ Entreprise primaire utilisée:', 'color: green', companyToActivate.company_name);
-          } else {
-            console.log('%c[CompanyContext] ⚠️ Aucune entreprise primaire trouvée', 'color: orange');
-          }
+          companyToActivate = companies.find((c) => c.is_primary);
         }
 
-        // 3. Sinon, utiliser la première de la liste
         if (!companyToActivate) {
-          console.log('%c[CompanyContext] 🔍 Utilisation de la première entreprise de la liste...', 'color: teal');
           companyToActivate = companies[0];
-          console.log('%c[CompanyContext] ✅ Première entreprise utilisée:', 'color: green', companyToActivate.company_name);
         }
 
-        // Activer l'entreprise
-        console.log('%c[CompanyContext] 🎯 Activation de l\'entreprise:', 'color: teal', companyToActivate);
         setActiveCompanyState(companyToActivate);
         localStorage.setItem('activeCompanyId', companyToActivate.company_id);
-        console.log('%c[CompanyContext] ✅ Entreprise sauvegardée dans localStorage:', 'color: green', companyToActivate.company_id);
-        // NOTE: Le header X-Active-Company sera automatiquement défini par l'intercepteur apiClient
-        // en lisant localStorage à chaque requête
       } else {
-        console.warn('%c[CompanyContext] ⚠️ Aucune entreprise accessible', 'color: orange');
         setActiveCompanyState(null);
       }
-
-    } catch (err: any) {
-      console.error('%c[CompanyContext] 💥 ERREUR lors du chargement des entreprises:', 'background: red; color: white; font-weight: bold', err);
-      console.error('%c[CompanyContext] Détail de l\'erreur:', 'color: red', {
-        message: err.message,
-        response: err.response?.data,
-        status: err.response?.status
-      });
-      setError(err.response?.data?.detail || 'Erreur lors du chargement des entreprises');
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { detail?: string } }; message?: string };
+      if (import.meta.env.DEV) {
+        log.error('[CompanyContext] Erreur chargement entreprises:', err);
+      }
+      setError(
+        axiosErr.response?.data?.detail ||
+          axiosErr.message ||
+          'Erreur lors du chargement des entreprises',
+      );
     } finally {
-      console.log('%c[CompanyContext] 🏁 Fin du chargement (isLoading = false)', 'color: teal');
       setIsLoading(false);
     }
   };
@@ -147,43 +114,22 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
    * Initialisation au montage ou quand l'utilisateur change
    */
   useEffect(() => {
-    console.log('%c[CompanyContext] ⚡ useEffect déclenché', 'background: teal; color: white; font-weight: bold');
-    console.log('%c[CompanyContext] user:', 'color: teal', user);
-
-    // Ne charger les entreprises que pour les utilisateurs non-super-admin
     const isSuperAdmin = user?.is_super_admin === true || user?.role === 'super_admin';
-    console.log('%c[CompanyContext] isSuperAdmin:', 'color: teal', isSuperAdmin);
 
     if (user && !isSuperAdmin) {
-      console.log('%c[CompanyContext] 🚀 Démarrage du chargement des entreprises...', 'color: teal; font-weight: bold');
-
-      // NOTE: Le header X-Active-Company sera automatiquement défini par l'intercepteur apiClient
-      // en lisant localStorage à chaque requête. Pas besoin de le définir ici.
-
-      // Utiliser un timeout pour éviter de bloquer indéfiniment
       const timer = setTimeout(() => {
-        if (isLoading) {
-          console.warn('%c[CompanyContext] ⏰ TIMEOUT - arrêt forcé du chargement', 'background: orange; color: white; font-weight: bold');
-          setIsLoading(false);
-          setError('Timeout lors du chargement des entreprises');
-        }
-      }, 10000); // 10 secondes max
+        setIsLoading(false);
+        setError('Timeout lors du chargement des entreprises');
+      }, 10000);
 
-      loadCompanies().finally(() => {
-        console.log('%c[CompanyContext] 🏁 loadCompanies() terminé - nettoyage du timer', 'color: teal');
-        clearTimeout(timer);
-      });
+      void loadCompanies().finally(() => clearTimeout(timer));
 
-      return () => {
-        console.log('%c[CompanyContext] 🧹 Cleanup - annulation du timer', 'color: teal');
-        clearTimeout(timer);
-      };
-    } else if (isSuperAdmin) {
-      // Super admins peuvent ne pas avoir d'entreprise par défaut
-      console.log('%c[CompanyContext] 👑 Super admin - pas de chargement automatique', 'color: gold');
+      return () => clearTimeout(timer);
+    }
+
+    if (isSuperAdmin) {
       setIsLoading(false);
     } else {
-      console.log('%c[CompanyContext] ⚠️ Pas d\'utilisateur - pas de chargement', 'color: orange');
       setIsLoading(false);
     }
   }, [user]);
@@ -195,23 +141,13 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
     const company = accessibleCompanies.find(c => c.company_id === companyId);
 
     if (!company) {
-      console.error('[CompanyContext] Entreprise non trouvée:', companyId);
+      log.error('[CompanyContext] Entreprise non trouvée:', companyId);
       return;
     }
 
-    console.log('[CompanyContext] Changement d\'entreprise active:', company.company_name);
-
-    // Mettre à jour l'état
     setActiveCompanyState(company);
-
-    // Sauvegarder dans localStorage
     localStorage.setItem('activeCompanyId', companyId);
-    console.log('[CompanyContext] ✅ Nouvelle entreprise sauvegardée dans localStorage:', companyId);
-
-    // NOTE: Le header X-Active-Company sera automatiquement mis à jour par l'intercepteur apiClient
-    // lors du prochain reload de la page
-
-    // Recharger la page pour rafraîchir toutes les données avec la nouvelle entreprise
+    queryClient.clear();
     window.location.reload();
   };
 

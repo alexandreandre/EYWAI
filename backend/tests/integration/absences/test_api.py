@@ -8,31 +8,113 @@ Pour les routes protégées (me/*, get-upload-url, PATCH status, certificate) :
 Préfixe des routes : /api/absences.
 """
 
+from unittest.mock import patch
+
 import pytest
 from fastapi.testclient import TestClient
+
+from app.main import app
+from app.modules.users.schemas.responses import CompanyAccess, User
 
 
 pytestmark = pytest.mark.integration
 
+TEST_COMPANY_ID = "company-absences-test"
 
-# --- GET /api/absences/ (liste globale, sans auth) ---
+
+def _make_rh_user():
+    access = CompanyAccess(
+        company_id=TEST_COMPANY_ID,
+        company_name="Test Co",
+        role="rh",
+        is_primary=True,
+    )
+    return User(
+        id="user-rh-absences-test",
+        email="rh@absences.test",
+        first_name="RH",
+        last_name="Absences",
+        is_super_admin=False,
+        is_group_admin=False,
+        accessible_companies=[access],
+        active_company_id=TEST_COMPANY_ID,
+    )
+
+
+def _make_non_rh_user():
+    access = CompanyAccess(
+        company_id=TEST_COMPANY_ID,
+        company_name="Test Co",
+        role="collaborateur",
+        is_primary=True,
+    )
+    return User(
+        id="user-non-rh-absences-test",
+        email="collab@absences.test",
+        first_name="Collab",
+        last_name="Test",
+        is_super_admin=False,
+        is_group_admin=False,
+        accessible_companies=[access],
+        active_company_id=TEST_COMPANY_ID,
+    )
+
+
+# --- GET /api/absences/ (liste RH) ---
 
 
 class TestGetAbsenceRequests:
     """GET /api/absences/ — liste des demandes, optionnellement filtrée par status."""
 
-    def test_get_absence_requests_returns_200(self, client: TestClient):
-        """Liste des demandes → 200 et tableau (vide ou non)."""
+    def test_get_absence_requests_returns_401_without_auth(self, client: TestClient):
+        """Sans auth → 401."""
         response = client.get("/api/absences/")
-        assert response.status_code == 200
-        data = response.json()
-        assert isinstance(data, list)
+        assert response.status_code == 401
 
-    def test_get_absence_requests_with_status_filter(self, client: TestClient):
-        """Filtre status=pending → 200."""
-        response = client.get("/api/absences/?status=pending")
+    def test_get_absence_requests_returns_403_for_non_rh_user(
+        self, client: TestClient
+    ):
+        """Utilisateur sans accès RH → 403."""
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
+        try:
+            response = client.get("/api/absences/")
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 403
+
+    def test_get_absence_requests_returns_200_with_rh_user(self, client: TestClient):
+        """Liste (mock) → 200."""
+        from app.core.security import get_current_user
+
+        with patch(
+            "app.modules.absences.api.router.queries.get_absence_requests",
+            return_value=[],
+        ):
+            app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+            try:
+                response = client.get("/api/absences/")
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
         assert isinstance(response.json(), list)
+
+    def test_get_absence_requests_with_status_filter(self, client: TestClient):
+        """Filtre status=pending transmis à la query."""
+        from app.core.security import get_current_user
+
+        with patch(
+            "app.modules.absences.api.router.queries.get_absence_requests",
+            return_value=[],
+        ) as mock_get:
+            app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+            try:
+                response = client.get("/api/absences/?status=pending")
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 200
+        mock_get.assert_called_once_with("pending", company_id=TEST_COMPANY_ID)
 
 
 # --- POST /api/absences/requests (création, sans auth dans le router) ---
@@ -158,15 +240,29 @@ class TestUpdateAbsenceRequestStatus:
 
 
 class TestUpdateAbsenceRequestLegacy:
-    """PATCH /api/absences/{request_id} — mise à jour statut (admin/RH)."""
+    """PATCH /api/absences/{request_id} — mise à jour statut (RH)."""
 
-    def test_update_legacy_with_valid_body(self, client: TestClient):
-        """Route sans Depends auth : 404 si id inconnu, 200 si trouvé."""
+    def test_update_legacy_returns_401_without_auth(self, client: TestClient):
+        """Sans auth → 401."""
         response = client.patch(
             "/api/absences/00000000-0000-0000-0000-000000000099",
             json={"status": "rejected"},
         )
-        assert response.status_code in (200, 404, 500)
+        assert response.status_code == 401
+
+    def test_update_legacy_returns_403_for_non_rh_user(self, client: TestClient):
+        """Utilisateur sans accès RH → 403."""
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
+        try:
+            response = client.patch(
+                "/api/absences/00000000-0000-0000-0000-000000000099",
+                json={"status": "rejected"},
+            )
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 403
 
 
 class TestGetMyEvenementsFamiliaux:

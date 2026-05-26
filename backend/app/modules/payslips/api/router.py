@@ -133,9 +133,13 @@ def get_payslips_anomalies_route(
 
 # --- Génération ---
 @router.post("/api/actions/generate-payslip")
-def generate_payslip_route(request: PayslipRequest):
+def generate_payslip_route(
+    request: PayslipRequest,
+    current_user: User = Depends(get_current_user),
+):
     """Génération d'un bulletin (forfait jour ou heures selon statut employé)."""
     try:
+        _require_rh_company_context(current_user)
         result = generate_payslip(
             GeneratePayslipInput(
                 employee_id=request.employee_id,
@@ -168,10 +172,16 @@ def get_my_payslips_route(current_user: User = Depends(get_current_user)):
 
 # --- Bulletins d'un employé ---
 @router.get("/api/employees/{employee_id}/payslips", response_model=List[PayslipInfo])
-def get_employee_payslips_route(employee_id: str):
+def get_employee_payslips_route(
+    employee_id: str,
+    current_user: User = Depends(get_current_user),
+):
     """Liste des bulletins d'un salarié."""
     try:
+        _require_rh_company_context(current_user)
         return get_employee_payslips(employee_id)
+    except HTTPException:
+        raise
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -179,9 +189,13 @@ def get_employee_payslips_route(employee_id: str):
 
 # --- Suppression ---
 @router.delete("/api/payslips/{payslip_id}", status_code=204)
-def delete_payslip_route(payslip_id: str):
+def delete_payslip_route(
+    payslip_id: str,
+    current_user: User = Depends(get_current_user),
+):
     """Supprime un bulletin (BDD, storage, recalc COR)."""
     try:
+        _require_rh_company_context(current_user)
         delete_payslip(payslip_id)
     except HTTPException:
         raise
@@ -423,9 +437,15 @@ def restore_payslip_route(
 
 # --- Debug storage ---
 @router.get("/api/debug-storage/{employee_id}/{year}/{month}")
-def debug_storage_file(employee_id: str, year: int, month: int):
-    """Métadonnées Storage pour diagnostic."""
+def debug_storage_file(
+    employee_id: str,
+    year: int,
+    month: int,
+    current_user: User = Depends(get_current_user),
+):
+    """Métadonnées Storage pour diagnostic (RH uniquement)."""
     try:
+        _require_rh_company_context(current_user)
         return get_debug_storage_info(employee_id, year, month)
     except PayslipNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

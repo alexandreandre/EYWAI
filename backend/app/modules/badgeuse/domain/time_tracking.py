@@ -14,6 +14,7 @@ class TimeEntryType(StrEnum):
 class TimeEntrySource(StrEnum):
     EMPLOYE = "EMPLOYE"
     RH = "RH"
+    QR_SCAN = "QR_SCAN"
 
 
 @dataclass(frozen=True)

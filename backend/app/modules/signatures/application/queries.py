@@ -179,12 +179,14 @@ def send_signature_reminder(review_id: str, company_id: str) -> Dict[str, Any]:
 
     fn = getattr(yousign_service, "send_reminder", None)
     if not callable(fn):
+
         logger.warning("YousignService.send_reminder : méthode absente.")
         return {"success": False, "error": "Méthode non disponible"}
 
     try:
         fn(str(proc))
     except Exception as e:
+
         logger.warning("Relance Yousign échouée: %s", e)
         return {"success": False, "error": str(e)}
 

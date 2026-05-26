@@ -1,3 +1,4 @@
+import { log } from '@/lib/logger';
 import { useEffect, useMemo, useState } from "react";
 import apiClient from "@/api/apiClient";
 import { useAuth } from "@/contexts/AuthContext";
@@ -54,7 +55,7 @@ export default function MutuelleManagementTab() {
       const response = await apiClient.get<SimpleEmployee[]>('/api/employees');
       setEmployees(response.data);
     } catch (error: any) {
-      console.error("Erreur lors du chargement des employés:", error);
+      log.error("Erreur lors du chargement des employés:", error);
     } finally {
       setLoadingEmployees(false);
     }

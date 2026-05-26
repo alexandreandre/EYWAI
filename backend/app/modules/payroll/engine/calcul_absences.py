@@ -1,4 +1,6 @@
-import sys
+from app.core.logging import get_logger, log_payroll_debug
+
+logger = get_logger("modules.payroll.engine.calcul_absences")
 from datetime import date, timedelta
 from typing import Dict, Any
 from .contexte import ContextePaie
@@ -30,10 +32,7 @@ def calculer_deduction_absence(
     Calcule la déduction sur salaire pour une absence non rémunérée.
     La méthode est celle du taux horaire réel.
     """
-    print(
-        f"INFO: Calcul de la déduction pour l'absence '{absence.get('libelle')}'...",
-        file=sys.stderr,
-    )
+    log_payroll_debug(logger, f"INFO: Calcul de la déduction pour l'absence '{absence.get('libelle')}'...")
 
     date_debut = date.fromisoformat(absence["date_debut"])
     date_fin = date.fromisoformat(absence["date_fin"])

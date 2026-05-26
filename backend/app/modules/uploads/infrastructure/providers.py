@@ -5,6 +5,9 @@ Implémente ILogoStorage (domain). Comportement identique à api/routers/uploads
 """
 
 from __future__ import annotations
+from app.core.logging import get_logger, log_app_debug
+
+logger = get_logger("modules.uploads.infrastructure.providers")
 
 from app.core.database import supabase
 
@@ -39,7 +42,7 @@ class LogoStorage:
         try:
             supabase.storage.from_(BUCKET_LOGOS).remove(paths)
         except Exception as e:
-            print(f"Avertissement: impossible de supprimer le fichier du storage: {e}")
+            logger.warning(f'Avertissement: impossible de supprimer le fichier du storage: {e}')
 
 
 _default_storage: ILogoStorage = LogoStorage()

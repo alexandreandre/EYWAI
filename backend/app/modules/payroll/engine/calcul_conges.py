@@ -1,6 +1,8 @@
+from app.core.logging import get_logger, log_payroll_debug
+
+logger = get_logger("modules.payroll.engine.calcul_conges")
 # moteur_paie/calcul_conges.py
 
-import sys
 from .contexte import ContextePaie
 from typing import Dict, Any
 
@@ -12,9 +14,7 @@ def calculer_indemnite_conges(
     Calcule l'indemnité de congés payés en comparant les deux méthodes
     et en retournant la plus avantageuse pour le salarié, en tenant compte des HS structurelles.
     """
-    print(
-        "INFO: Démarrage du calcul de l'indemnité de congés payés...", file=sys.stderr
-    )
+    log_payroll_debug(logger, "INFO: Démarrage du calcul de l'indemnité de congés payés...")
 
     # --- Calcul des heures et montants pour le maintien de salaire ---
     heures_normales_par_jour = 35 / 5
@@ -66,20 +66,12 @@ def calculer_indemnite_conges(
         "1/10ème" if indemnite_finale > indemnite_maintien_total else "Maintien"
     )
 
-    print("\n--- Arbitrage Indemnité Congés Payés ---", file=sys.stderr)
-    print(
-        f"\tMéthode 'Maintien de salaire'  : {indemnite_maintien_total:10.2f} €",
-        file=sys.stderr,
-    )
-    print(
-        f"\tMéthode 'Règle du 1/10ème'     : {indemnite_10eme:10.2f} €", file=sys.stderr
-    )
-    print("\t--------------------------------------------", file=sys.stderr)
-    print(
-        f"\tMontant retenu (plus avantageux) : {indemnite_finale:10.2f} € (Méthode: {methode_retenue})",
-        file=sys.stderr,
-    )
-    print("----------------------------------------\n", file=sys.stderr)
+    log_payroll_debug(logger, '\n--- Arbitrage Indemnité Congés Payés ---')
+    log_payroll_debug(logger, f"\tMéthode 'Maintien de salaire'  : {indemnite_maintien_total:10.2f} €")
+    log_payroll_debug(logger, f"\tMéthode 'Règle du 1/10ème'     : {indemnite_10eme:10.2f} €")
+    log_payroll_debug(logger, '\t--------------------------------------------')
+    log_payroll_debug(logger, f'\tMontant retenu (plus avantageux) : {indemnite_finale:10.2f} € (Méthode: {methode_retenue})')
+    log_payroll_debug(logger, '----------------------------------------\n')
 
     # --- Le dictionnaire de retour est enrichi avec le détail des heures ---
     return {

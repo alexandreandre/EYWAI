@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import apiClient from '@/api/apiClient';
+import { isAxiosError } from 'axios';
+import { RefreshCw } from 'lucide-react';
+import { useEmployeesQuery } from '@/hooks/queries/useEmployeesQuery';
 import { getTeams, type Team } from '@/api/teams';
 import * as calendarApi from '@/api/calendar';
 import { runWithConcurrency } from '@/lib/concurrency';
 import { useEmployeeCalendarOverview } from '@/hooks/useEmployeeCalendarOverview';
 import type { SchedulesEmployeeInput } from '@/lib/schedulesOverview';
 import { useToast } from '@/components/ui/use-toast';
+import { Button } from '@/components/ui/button';
 import { CalendarPilotHeader } from '@/components/schedules/CalendarPilotHeader';
 import { CalendarFiltersBar } from '@/components/schedules/CalendarFiltersBar';
 import { CalendarEmployeeTable } from '@/components/schedules/CalendarEmployeeTable';
@@ -22,6 +25,22 @@ import type {
   ViewMode,
 } from '@/components/schedules/types';
 
+function employeesLoadErrorMessage(error: unknown): string {
+  if (isAxiosError(error)) {
+    const detail = error.response?.data?.detail;
+    if (typeof detail === 'string' && detail.trim()) {
+      return detail;
+    }
+    if (error.response?.status === 503) {
+      return 'Service temporairement indisponible. Réessayez dans quelques secondes.';
+    }
+  }
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return 'Impossible de charger la liste des employés.';
+}
+
 interface Employee extends SchedulesEmployeeInput {
   job_title: string;
 }
@@ -32,8 +51,11 @@ export default function Schedules() {
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
 
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [employeesLoading, setEmployeesLoading] = useState(true);
+  const employeesQuery = useEmployeesQuery();
+  const employees = (employeesQuery.data ?? []) as Employee[];
+  const employeesLoading = employeesQuery.isLoading && !employeesQuery.data;
+  const employeesLoadError = employeesQuery.isError;
+  const refetchEmployees = employeesQuery.refetch;
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [saisieFilter, setSaisieFilter] = useState<SaisieStatusFilter>('all');
@@ -47,26 +69,6 @@ export default function Schedules() {
 
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
-
-  useEffect(() => {
-    async function fetchEmployees() {
-      setEmployeesLoading(true);
-      try {
-        const response = await apiClient.get<Employee[]>('/api/employees');
-        if (response.data) setEmployees(response.data);
-      } catch (error) {
-        console.error('Erreur chargement employés:', error);
-        toast({
-          title: 'Erreur',
-          description: 'Impossible de charger la liste des employés.',
-          variant: 'destructive',
-        });
-      } finally {
-        setEmployeesLoading(false);
-      }
-    }
-    void fetchEmployees();
-  }, [toast]);
 
   const { data: teamsData } = useQuery({
     queryKey: ['teams-active'],
@@ -253,6 +255,24 @@ export default function Schedules() {
         }
       />
 
+      {employeesLoadError && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-center">
+          <p className="text-sm text-destructive">
+            {employeesLoadErrorMessage(employeesQuery.error)}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-3 gap-2"
+            onClick={() => void refetchEmployees()}
+          >
+            <RefreshCw className="h-4 w-4" />
+            Réessayer
+          </Button>
+        </div>
+      )}
+
       <CalendarFiltersBar
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -283,6 +303,10 @@ export default function Schedules() {
           rows={sortedRows}
           teamsById={teamsById}
           isLoading={isPageLoading}
+          employeesLoadError={employeesLoadError}
+          employeesLoadErrorMessage={employeesLoadErrorMessage(employeesQuery.error)}
+          onRetryEmployees={() => void refetchEmployees()}
+          unfilteredRowCount={rows.length}
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
           onToggleSelectAll={toggleSelectAll}
@@ -297,6 +321,10 @@ export default function Schedules() {
           rows={sortedRows}
           year={selectedYear}
           month={selectedMonth}
+          employeesLoadError={employeesLoadError}
+          employeesLoadErrorMessage={employeesLoadErrorMessage(employeesQuery.error)}
+          onRetryEmployees={() => void refetchEmployees()}
+          unfilteredRowCount={rows.length}
           onApplyDayPatch={applyAndPersistDayPatch}
           onOpenEmployee={setDrawerEmployeeId}
         />

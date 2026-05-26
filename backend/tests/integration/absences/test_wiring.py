@@ -14,21 +14,42 @@ from fastapi.testclient import TestClient
 
 pytestmark = pytest.mark.integration
 
+TEST_COMPANY_ID = "company-absences-wiring"
+
 
 class TestAbsencesRouterMounted:
     """Vérification que le router absences est monté et répond."""
 
     def test_get_absences_root_returns_list(self, client: TestClient):
-        """GET /api/absences/ appelle queries.get_absence_requests et retourne une liste."""
+        """GET /api/absences/ sans auth → 401."""
         response = client.get("/api/absences/")
-        assert response.status_code == 200
-        data = response.json()
-        assert isinstance(data, list)
+        assert response.status_code == 401
 
     def test_get_absences_root_uses_queries_get_absence_requests(
         self, client: TestClient
     ):
         """GET /api/absences/ utilise bien la couche application (queries)."""
+        from app.core.security import get_current_user
+        from app.main import app
+        from app.modules.users.schemas.responses import CompanyAccess, User
+
+        rh_user = User(
+            id="user-rh-wiring",
+            email="rh@wiring.test",
+            first_name="RH",
+            last_name="Wiring",
+            is_super_admin=False,
+            is_group_admin=False,
+            accessible_companies=[
+                CompanyAccess(
+                    company_id=TEST_COMPANY_ID,
+                    company_name="Test Co",
+                    role="rh",
+                    is_primary=True,
+                )
+            ],
+            active_company_id=TEST_COMPANY_ID,
+        )
         with patch(
             "app.modules.absences.api.router.queries.get_absence_requests"
         ) as get_requests:
@@ -49,22 +70,51 @@ class TestAbsencesRouterMounted:
                     "status": "pending",
                 }
             ]
-            response = client.get("/api/absences/")
+            app.dependency_overrides[get_current_user] = lambda: rh_user
+            try:
+                response = client.get("/api/absences/")
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
             assert response.status_code == 200
             data = response.json()
             assert len(data) == 1
             assert data[0]["id"] == "wired-req-1"
-            get_requests.assert_called_once_with(None)
+            get_requests.assert_called_once_with(None, company_id=TEST_COMPANY_ID)
 
     def test_get_absences_with_status_passes_filter(self, client: TestClient):
         """GET /api/absences/?status=pending transmet le paramètre à get_absence_requests."""
+        from app.core.security import get_current_user
+        from app.main import app
+        from app.modules.users.schemas.responses import CompanyAccess, User
+
+        rh_user = User(
+            id="user-rh-wiring",
+            email="rh@wiring.test",
+            first_name="RH",
+            last_name="Wiring",
+            is_super_admin=False,
+            is_group_admin=False,
+            accessible_companies=[
+                CompanyAccess(
+                    company_id=TEST_COMPANY_ID,
+                    company_name="Test Co",
+                    role="rh",
+                    is_primary=True,
+                )
+            ],
+            active_company_id=TEST_COMPANY_ID,
+        )
         with patch(
             "app.modules.absences.api.router.queries.get_absence_requests"
         ) as get_requests:
             get_requests.return_value = []
-            response = client.get("/api/absences/?status=pending")
+            app.dependency_overrides[get_current_user] = lambda: rh_user
+            try:
+                response = client.get("/api/absences/?status=pending")
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
             assert response.status_code == 200
-            get_requests.assert_called_once_with("pending")
+            get_requests.assert_called_once_with("pending", company_id=TEST_COMPANY_ID)
 
 
 class TestAbsencesCreateRequestWiring:
@@ -158,6 +208,10 @@ class TestAbsencesCommandsQueriesWiring:
             "app.modules.absences.application.queries.absence_repository"
         ) as repo:
             repo.list_by_status.return_value = []
-            result = queries.get_absence_requests(status="validated")
+            result = queries.get_absence_requests(
+                status="validated", company_id=TEST_COMPANY_ID
+            )
             assert result == []
-            repo.list_by_status.assert_called_once_with("validated")
+            repo.list_by_status.assert_called_once_with(
+                "validated", company_id=TEST_COMPANY_ID
+            )

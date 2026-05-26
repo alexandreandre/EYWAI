@@ -6,10 +6,12 @@ Comportement identique au router legacy. Aucun accès DB direct.
 """
 
 from __future__ import annotations
+from app.core.logging import get_logger, log_app_debug
+
+logger = get_logger("modules.employees.application.commands")
 
 import secrets
 import string
-import traceback
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -187,15 +189,15 @@ async def create_employee(
                 granted_by_user_id,
             )
         except Exception as grant_err:
-            traceback.print_exc()
+            logger.exception("Exception")
             try:
                 _employee_repository.delete(new_employee_db["id"])
             except Exception:
-                traceback.print_exc()
+                logger.exception("Exception")
             try:
                 auth.delete_user(new_user_id)
             except Exception:
-                traceback.print_exc()
+                logger.exception("Exception")
             raise HTTPException(
                 status_code=500,
                 detail="Échec de l'enregistrement de l'accès à l'entreprise pour le collaborateur.",
@@ -221,8 +223,8 @@ async def create_employee(
                     "application/pdf",
                 )
             except Exception as pdf_gen_error:
-                print(f"ERROR: Échec de la génération du contrat PDF: {pdf_gen_error}")
-                traceback.print_exc()
+                logger.warning(f'ERROR: Échec de la génération du contrat PDF: {pdf_gen_error}')
+                logger.exception("Exception")
 
         elif contract_file_content is not None:
             try:
@@ -233,8 +235,8 @@ async def create_employee(
                     contract_content_type or "application/pdf",
                 )
             except Exception as storage_error:
-                print(f"ERROR: Échec de l'upload du contrat PDF: {storage_error}")
-                traceback.print_exc()
+                logger.warning(f"ERROR: Échec de l'upload du contrat PDF: {storage_error}")
+                logger.exception("Exception")
 
         if identity_file_content is not None:
             file_extension = ".pdf"
@@ -275,10 +277,8 @@ async def create_employee(
                     content_type,
                 )
             except Exception as storage_error:
-                print(
-                    f"ERROR: Échec de l'upload de la pièce d'identité: {storage_error}"
-                )
-                traceback.print_exc()
+                logger.warning(f"ERROR: Échec de l'upload de la pièce d'identité: {storage_error}")
+                logger.exception("Exception")
 
         try:
             pdf_content = generate_credentials_pdf(
@@ -295,10 +295,8 @@ async def create_employee(
                 "application/pdf",
             )
         except Exception as pdf_error:
-            print(
-                f"ERROR: Échec de la génération/upload du PDF de création de compte: {pdf_error}"
-            )
-            traceback.print_exc()
+            logger.warning(f'ERROR: Échec de la génération/upload du PDF de création de compte: {pdf_error}')
+            logger.exception("Exception")
 
         response_data = dict(new_employee_db)
         response_data["generated_password"] = password
@@ -322,8 +320,8 @@ async def create_employee(
                         f"RIB en doublon avec : {', '.join(names)}"
                     ]
         except Exception as rib_err:
-            print(f"WARN: Vérification RIB doublon ignorée: {rib_err}")
-            traceback.print_exc()
+            logger.warning(f'WARN: Vérification RIB doublon ignorée: {rib_err}')
+            logger.exception("Exception")
 
         return response_data
 
@@ -332,27 +330,21 @@ async def create_employee(
             try:
                 auth.delete_user(new_user_id)
             except Exception as delete_error:
-                print(
-                    f"FATAL: Impossible de supprimer l'utilisateur orphelin {new_user_id}: {delete_error}"
-                )
+                logger.warning(f"FATAL: Impossible de supprimer l'utilisateur orphelin {new_user_id}: {delete_error}")
         raise
     except EmployeeCreateValidationError:
         if new_user_id:
             try:
                 auth.delete_user(new_user_id)
             except Exception as delete_error:
-                print(
-                    f"FATAL: Impossible de supprimer l'utilisateur orphelin {new_user_id}: {delete_error}"
-                )
+                logger.warning(f"FATAL: Impossible de supprimer l'utilisateur orphelin {new_user_id}: {delete_error}")
         raise
     except Exception as e:
         if new_user_id:
             try:
                 auth.delete_user(new_user_id)
             except Exception as delete_error:
-                print(
-                    f"FATAL: Impossible de supprimer l'utilisateur orphelin {new_user_id}: {delete_error}"
-                )
+                logger.warning(f"FATAL: Impossible de supprimer l'utilisateur orphelin {new_user_id}: {delete_error}")
         error_message = str(e)
         field_errors = {}
         if "duplicate key" in error_message.lower():
@@ -367,7 +359,7 @@ async def create_employee(
                 field_errors=field_errors,
                 message="Erreur lors de la création de l'employé",
             ) from e
-        traceback.print_exc()
+        logger.exception("Exception")
         raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}") from e
 
 
@@ -402,8 +394,8 @@ def update_employee(employee_id: str, update_data: Dict[str, Any]) -> Dict[str, 
                     )
                     on_rib_submitted(company_id, employee_id, new_iban, emp_name)
         except Exception as rib_err:
-            print(f"WARN: Alertes RIB ignorées lors de la mise à jour: {rib_err}")
-            traceback.print_exc()
+            logger.warning(f'WARN: Alertes RIB ignorées lors de la mise à jour: {rib_err}')
+            logger.exception("Exception")
 
     updated = _employee_repository.update(employee_id, update_data)
     if updated is None:
@@ -479,7 +471,7 @@ def delete_employee(employee_id: str) -> None:
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Exception")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur interne du serveur lors de la suppression: {str(e)}",

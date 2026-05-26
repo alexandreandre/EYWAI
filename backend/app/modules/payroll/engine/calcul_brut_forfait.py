@@ -1,3 +1,6 @@
+from app.core.logging import get_logger, log_payroll_debug
+
+logger = get_logger("modules.payroll.engine.calcul_brut_forfait")
 # moteur_paie/calcul_brut_forfait.py
 """
 Module de calcul du salaire brut pour les employés en forfait jour.
@@ -9,7 +12,6 @@ Le forfait jour fonctionne différemment du mode horaire :
 - Pas de calcul de taux horaire
 """
 
-import sys
 from .contexte import ContextePaie
 from datetime import datetime, date
 from typing import Dict, Any, List
@@ -341,12 +343,7 @@ def calculer_salaire_brut_forfait(
     # (sauf si des primes/avantages sont ajoutés)
     salaire_base_seul = salaire_contractuel
     if total_pertes > salaire_base_seul:
-        print(
-            f"AVERTISSEMENT: Les déductions d'absence ({total_pertes:.2f} €) "
-            f"dépassent le salaire de base ({salaire_base_seul:.2f} €). "
-            f"Les déductions sont limitées au salaire de base.",
-            file=sys.stderr,
-        )
+        logger.warning(f"AVERTISSEMENT: Les déductions d'absence ({total_pertes:.2f} €) dépassent le salaire de base ({salaire_base_seul:.2f} €). Les déductions sont limitées au salaire de base.")
         # Limiter les déductions au salaire de base uniquement
         # (les primes et avantages peuvent compenser)
         total_pertes = min(total_pertes, salaire_base_seul)
@@ -355,11 +352,7 @@ def calculer_salaire_brut_forfait(
 
     # Protection finale : Le brut ne peut pas être négatif
     if total_brut < 0:
-        print(
-            f"AVERTISSEMENT: Le salaire brut calculé est négatif ({total_brut:.2f} €). "
-            f"Il est ramené à 0 €.",
-            file=sys.stderr,
-        )
+        logger.warning(f'AVERTISSEMENT: Le salaire brut calculé est négatif ({total_brut:.2f} €). Il est ramené à 0 €.')
         total_brut = 0.0
 
     # En forfait jour, pas d'heures supplémentaires

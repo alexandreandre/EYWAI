@@ -1,210 +1,61 @@
-// src/App.tsx (VERSION COMPLÈTE ET CORRIGÉE)
+// src/App.tsx
 
-import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
-
-// --- Fournisseurs de contexte et composants globaux ---
-import { AuthProvider, useAuth } from './contexts/AuthContext'; // À CRÉER
-import { CompanyProvider, useCompany } from './contexts/CompanyContext'; // NOUVEAU - Multi-entreprises
-import { ViewProvider, useView } from './contexts/ViewContext'; // NOUVEAU - Gestion de la vue pour collaborateur_rh
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { Suspense } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { CompanyProvider, useCompany } from './contexts/CompanyContext';
+import { ViewProvider, useView } from './contexts/ViewContext';
+import { BootProvider } from './contexts/BootContext';
+import { BootGate } from '@/components/BootGate';
+import { Toaster } from '@/components/ui/toaster';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { AppSidebar } from '@/components/ui/app-sidebar';
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { Loader2, Menu } from 'lucide-react';
+import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { CompanySwitcher } from '@/components/CompanySwitcher'; // NOUVEAU
-
-// --- Pages ---
-import LoginPage from './pages/Login'; // À CRÉER
-import ForgotPasswordPage from './pages/ForgotPassword';
-import ResetPasswordPage from './pages/ResetPassword';
-// Pages 
-import RhDashboard from "./pages/Dashboard";
-import Employees from "./pages/Employees";
-import Teams from "@/pages/Teams";
-import EmployeeDetail from "./pages/EmployeeDetail";
-import Rates from "./pages/Rates";
-import Payroll from './pages/Payroll';
-import PayrollDetail from './pages/PayrollDetail';
-import PayslipEdit from './pages/PayslipEdit'; // NOUVEAU - Édition des bulletins
-import Saisies from './pages/Saisies';
-import SalarySeizures from './pages/SalarySeizures';
-import SalaryAdvances from './pages/SalaryAdvances';
-import RhAbsencesPage from './pages/Absences'; // À CRÉER (pour les RH)
-import Planning from '@/pages/Planning';
-import RhExpensesPage from './pages/Expenses';
-import RhSchedulesPage from './pages/Schedules'; // NOUVEAU - Gestion des calendriers
-import CompanyPage from './pages/CompanyPage';
-import EmployeeExits from './pages/EmployeeExits';
-import ExitDocumentEdit from './pages/ExitDocumentEdit';
-import Exports from './pages/Exports';
-import ResidencePermits from './pages/ResidencePermits';
-import MedicalFollowUp from './pages/MedicalFollowUp';
+import { CompanySwitcher } from '@/components/CompanySwitcher';
 import { ErrorBoundaryClass } from '@/components/ErrorBoundary';
-import AnnualReviews from './pages/AnnualReviews';
-import AnnualReviewDetail from './pages/AnnualReviewDetail';
-import {
-  EmployeeFormationLegacyRedirect,
-  RhFormationLegacyRedirect,
-} from './pages/formation/formationRedirects';
-import AugmentationsEtPromotions from './pages/AugmentationsEtPromotions';
-import PromotionDetail from './pages/PromotionDetail';
-import CSE from './pages/CSE';
-import Recruitment from './pages/Recruitment';
+import { EmployeeSidebar } from '@/components/ui/employee-sidebar';
+import { RouteSkeleton } from '@/components/skeletons/RouteSkeleton';
+import * as Pages from '@/app/lazyPages';
 
-const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
-const OnboardingHubPage = lazy(() =>
-  import('./pages/OnboardingPage').then((m) => ({ default: m.OnboardingHubPage })),
-);
-const EmployeeOnboardingRedirect = lazy(() =>
-  import('./pages/OnboardingPage').then((m) => ({ default: m.EmployeeOnboardingRedirect })),
-);
-import BadgeuseRhPage from './pages/BadgeuseRh';
-// --- Pages Collaborateur (NOUVEAU) ---
-import { EmployeeSidebar } from '@/components/ui/employee-sidebar'; // NOUVEAU
-import EmployeeDashboard from './pages/employee/Dashboard';
-import ProfilePage from './pages/employee/Profile';
-import PayslipsPage from './pages/employee/Payslips';
-import EmployeePayslipDetail from './pages/employee/PayslipDetail';
-import EmployeeAbsencesPage from './pages/employee/Absences'; // Renommé pour plus de clarté
-import EmployeePlanning from '@/pages/EmployeePlanning';
-import EmployeeCalendarPage from './pages/employee/Calendar';
-import EmployeeBadgeusePage from './pages/employee/Badgeuse';
-import ExpensesPage from './pages/employee/Expenses';
-import SalaryAdvancesPage from './pages/employee/SalaryAdvances';
-import EmployeeAnnualReviews from './pages/employee/AnnualReviews';
-import EmployeeFormationPage from './pages/employee/EmployeeFormationPage';
-import EmployeeAnnualReviewDetail from './pages/employee/AnnualReviewDetail';
-import EmployeeCSE from './pages/employee/CSE';
-import EmployeeMedicalFollowUp from './pages/employee/MedicalFollowUp';
-import EmployeeCollaboratorDocumentsPage from './pages/employee/Documents';
-// --- Pages Super Admin ---
-import SuperAdminLayout from './pages/super-admin/SuperAdminLayout';
-import SuperAdminDashboard from './pages/super-admin/SuperAdminDashboard';
-import SuperAdminCompanies from './pages/super-admin/Companies';
-import SuperAdminCompanyDetails from './pages/super-admin/CompanyDetails';
-import SuperAdminUsers from './pages/super-admin/Users';
-import SuperAdminMonitoring from './pages/super-admin/Monitoring';
-import SuperAdminTests from './pages/super-admin/Tests';
-import SuperAdminReductionFillon from './pages/super-admin/ReductionFillon';
-import SuperAdminScraping from './pages/super-admin/Scraping';
-import CollectiveAgreementsCatalog from './pages/super-admin/CollectiveAgreementsCatalog';
-import CompanyGroups from './pages/super-admin/CompanyGroups';
-import CompanyGroupDetail from './pages/super-admin/CompanyGroupDetail';
-// Pages Multi-Entreprises
-import { GroupDashboard } from './pages/GroupDashboard'; // NOUVEAU
-// Pages Gestion Utilisateurs avec Permissions Granulaires
-import UserManagement from './pages/UserManagement';
-import UserProfile from './pages/UserProfile';
-import UserCreation from './pages/UserCreation';
-import UserEdit from './pages/UserEdit';
-// Page Simulation
-import Simulation from './pages/Simulation';
-// Page par défaut
-import NotFound from "./pages/NotFound";
-
-const SupportPage = lazy(() => import('./pages/support/SupportPage'));
-const SupportConfirmationPage = lazy(() => import('./pages/support/SupportConfirmationPage'));
-const TicketsHistoryPage = lazy(() => import('./pages/support/TicketsHistoryPage'));
-const FormationPage = lazy(() => import('./pages/formation/FormationPage'));
-const LeaveRequests = lazy(() => import('./pages/manager/LeaveRequests'));
-const RhDocumentsPage = lazy(() => import('./pages/Documents'));
-const MeetingDetailPage = lazy(() => import('./pages/cse/MeetingDetail'));
-const AnalyticsPage = lazy(() => import('./pages/Analytics'));
-const AnalyticsPaiePage = lazy(() => import('./pages/AnalyticsPaie'));
-const AnalyticsGestionPage = lazy(() => import('./pages/AnalyticsGestion'));
-
-const supportRouteFallback = (
-  <div className="flex min-h-[50vh] w-full items-center justify-center">
-    <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
-  </div>
-);
-
-function SuspenseSupportPage() {
-  return (
-    <Suspense fallback={supportRouteFallback}>
-      <SupportPage />
-    </Suspense>
-  );
-}
-
-function SuspenseSupportConfirmationPage() {
-  return (
-    <Suspense fallback={supportRouteFallback}>
-      <SupportConfirmationPage />
-    </Suspense>
-  );
-}
-
-function SuspenseTicketsHistoryPage() {
-  return (
-    <Suspense fallback={supportRouteFallback}>
-      <TicketsHistoryPage />
-    </Suspense>
-  );
-}
-
-const formationRouteFallback = (
-  <div className="flex min-h-[40vh] w-full items-center justify-center">
-    <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
-  </div>
-);
-
-function SuspenseFormationPage() {
-  return (
-    <Suspense fallback={formationRouteFallback}>
-      <FormationPage />
-    </Suspense>
-  );
-}
-
-function SuspenseRhDocumentsPage() {
-  return (
-    <Suspense fallback={formationRouteFallback}>
-      <RhDocumentsPage />
-    </Suspense>
-  );
-}
-
-function SuspenseMeetingDetailPage() {
-  return (
-    <Suspense fallback={formationRouteFallback}>
-      <MeetingDetailPage />
-    </Suspense>
-  );
-}
-
-/**
- * Layout pour l'espace Salarié, avec sa propre barre de navigation.
- */
 function EmployeeLayout() {
-    return (
-        <SidebarProvider>
-            <div className="grid min-h-screen w-full md:grid-cols-[auto_1fr]">
-                <EmployeeSidebar />
-                <div className="flex min-w-0 flex-col flex-1">
-                    {/* Header mobile avec bouton menu */}
-                    <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 md:hidden">
-                        <SidebarTrigger>
-                            <Button variant="ghost" size="icon" className="md:hidden">
-                                <Menu className="h-5 w-5" />
-                                <span className="sr-only">Toggle Menu</span>
-                            </Button>
-                        </SidebarTrigger>
-                        <div className="flex-1">
-                            <img src="/Colorplast.png" alt="Logo Colorplast" className="h-8 w-auto" />
-                        </div>
-                    </header>
-                    <main className="min-w-0 flex-1 overflow-auto overflow-x-auto p-6 lg:p-8"><Outlet /></main>
-                </div>
+  const { accessibleCompanies } = useCompany();
+  const showCompanySwitcher =
+    accessibleCompanies && accessibleCompanies.length > 1;
+
+  return (
+    <SidebarProvider>
+      <div className="grid min-h-screen w-full md:grid-cols-[auto_1fr]">
+        <EmployeeSidebar />
+        <div className="flex min-w-0 flex-col flex-1">
+          <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 md:hidden">
+            <SidebarTrigger>
+              <Button variant="ghost" size="icon" className="md:hidden">
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Toggle Menu</span>
+              </Button>
+            </SidebarTrigger>
+            <div className="flex-1 min-w-0">
+              <img src="/Colorplast.png" alt="Logo Colorplast" className="h-8 w-auto" />
             </div>
-        </SidebarProvider>
-    );
+            {showCompanySwitcher && <CompanySwitcher />}
+          </header>
+          {showCompanySwitcher && (
+            <div className="hidden md:flex items-center gap-4 border-b bg-background px-6 py-3">
+              <div className="flex-1" />
+              <CompanySwitcher />
+            </div>
+          )}
+          <main className="min-w-0 flex-1 overflow-auto overflow-x-auto p-6 lg:p-8">
+            <Outlet />
+          </main>
+        </div>
+      </div>
+    </SidebarProvider>
+  );
 }
-/**
- * Wrapper pour ajouter le ViewProvider autour de ProtectedRoutes
- */
+
 function ProtectedRoutesWithView() {
   const { user } = useAuth();
   return (
@@ -214,119 +65,63 @@ function ProtectedRoutesWithView() {
   );
 }
 
-/**
- * Ce composant gère les routes protégées. Il vérifie si un utilisateur est connecté
- * et quel est son rôle, puis affiche la bonne interface.
- */
 function ProtectedRoutes() {
+  const location = useLocation();
   const { user, isLoading } = useAuth();
   const { accessibleCompanies, isLoading: isCompanyLoading } = useCompany();
   const { viewMode, isCollaborateurRh } = useView();
 
-  console.log('%c[ProtectedRoutes] 🔍 Rendu du composant', 'background: #222; color: #bada55; font-weight: bold');
-  console.log('%c[ProtectedRoutes] isLoading:', 'color: cyan', isLoading);
-  console.log('%c[ProtectedRoutes] user:', 'color: cyan', user);
-  console.log('%c[ProtectedRoutes] accessibleCompanies:', 'color: cyan', accessibleCompanies);
-
-  // 1. Afficher un indicateur de chargement pendant la vérification de l'authentification
   if (isLoading) {
-    console.log('%c[ProtectedRoutes] ⏳ Affichage du loader...', 'color: orange');
-    return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </div>
-    );
+    return null;
   }
 
-  // 2. Si pas d'utilisateur, rediriger vers la page de connexion
   if (!user) {
-    console.log('%c[ProtectedRoutes] ❌ Pas d\'utilisateur - Redirection vers /login', 'color: red');
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location }} />;
   }
-
-  console.log('%c[ProtectedRoutes] ✅ Utilisateur connecté:', 'color: green', {
-    id: user.id,
-    email: user.email,
-    role: user.role,
-    first_name: user.first_name
-  });
 
   const isSuperAdmin = user.is_super_admin === true || user.role === 'super_admin';
   if (!isSuperAdmin && isCompanyLoading) {
-    console.log('%c[ProtectedRoutes] ⏳ Chargement du contexte entreprise...', 'color: orange');
-    return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </div>
-    );
+    return null;
   }
 
-  // 3. Si l'utilisateur est un Collaborateur (sans accès RH), afficher l'interface Collaborateur uniquement
   if (user.role === 'collaborateur') {
-    console.log('%c[ProtectedRoutes] 👤 Rôle COLLABORATEUR détecté - Affichage EmployeeLayout', 'background: blue; color: white; font-weight: bold');
     return (
       <Routes>
         <Route element={<EmployeeLayout />}>
-          <Route path="/" element={<EmployeeDashboard />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/payslips" element={<PayslipsPage />} />
-          <Route path="/employee/payslips/:payslipId" element={<EmployeePayslipDetail />} />
-          <Route path="/badgeuse" element={<EmployeeBadgeusePage />} />
-          <Route path="/annual-reviews" element={<EmployeeAnnualReviews />} />
-          <Route path="/annual-reviews/:reviewId" element={<EmployeeAnnualReviewDetail />} />
-          <Route path="/employee/formation" element={<EmployeeFormationPage />} />
-          <Route path="/habilitations" element={<EmployeeFormationLegacyRedirect />} />
-          <Route path="/objectives" element={<EmployeeFormationLegacyRedirect />} />
-          <Route path="/catalogue-formations" element={<EmployeeFormationLegacyRedirect />} />
-          <Route path="/absences" element={<EmployeeAbsencesPage />} />
+          <Route path="/" element={<Pages.EmployeeDashboard />} />
+          <Route path="/profile" element={<Pages.ProfilePage />} />
+          <Route path="/payslips" element={<Pages.PayslipsPage />} />
+          <Route path="/employee/payslips/:payslipId" element={<Pages.EmployeePayslipDetail />} />
+          <Route path="/badgeuse" element={<Pages.EmployeeBadgeusePage />} />
+          <Route path="/annual-reviews" element={<Pages.EmployeeAnnualReviews />} />
+          <Route path="/annual-reviews/:reviewId" element={<Pages.EmployeeAnnualReviewDetail />} />
+          <Route path="/employee/formation" element={<Pages.EmployeeFormationPage />} />
+          <Route path="/habilitations" element={<Pages.EmployeeFormationLegacyRedirect />} />
+          <Route path="/objectives" element={<Pages.EmployeeFormationLegacyRedirect />} />
+          <Route path="/catalogue-formations" element={<Pages.EmployeeFormationLegacyRedirect />} />
+          <Route path="/absences" element={<Pages.EmployeeAbsencesPage />} />
           <Route path="/employee/leaves/new" element={<Navigate to="/absences" replace />} />
-          {/* TODO: vérifier garde d’auth / permissions module planning côté API si besoin */}
-          <Route path="/employee/planning" element={<EmployeePlanning />} />
-          <Route path="/calendar" element={<EmployeeCalendarPage />} />
-          <Route path="/expenses" element={<ExpensesPage />} />
-          <Route path="/salary-advances" element={<SalaryAdvancesPage />} />
-          <Route path="/employee/documents" element={<EmployeeCollaboratorDocumentsPage />} />
+          <Route path="/employee/planning" element={<Pages.EmployeePlanning />} />
+          <Route path="/calendar" element={<Pages.EmployeeCalendarPage />} />
+          <Route path="/expenses" element={<Pages.ExpensesPage />} />
+          <Route path="/salary-advances" element={<Pages.SalaryAdvancesPage />} />
+          <Route path="/employee/documents" element={<Pages.EmployeeCollaboratorDocumentsPage />} />
           <Route path="/documents" element={<Navigate to="/employee/documents" replace />} />
-          <Route path="/medical-follow-up" element={<EmployeeMedicalFollowUp />} />
-          <Route path="/cse/meetings/:meetingId" element={<SuspenseMeetingDetailPage />} />
-          <Route path="/cse" element={<EmployeeCSE />} />
-          <Route
-            path="/employee/onboarding"
-            element={
-              <Suspense fallback={<div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
-                <EmployeeOnboardingRedirect />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/onboarding/:employeeId"
-            element={
-              <Suspense fallback={<div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
-                <OnboardingPage />
-              </Suspense>
-            }
-          />
-          <Route path="/support" element={<SuspenseSupportPage />} />
-          <Route path="/support/confirmation" element={<SuspenseSupportConfirmationPage />} />
-          <Route path="/support/tickets" element={<SuspenseTicketsHistoryPage />} />
+          <Route path="/medical-follow-up" element={<Pages.EmployeeMedicalFollowUp />} />
+          <Route path="/cse/meetings/:meetingId" element={<Pages.MeetingDetailPage />} />
+          <Route path="/cse" element={<Pages.EmployeeCSE />} />
+          <Route path="/employee/onboarding" element={<Pages.EmployeeOnboardingRedirect />} />
+          <Route path="/onboarding/:employeeId" element={<Pages.OnboardingPage />} />
+          <Route path="/support" element={<Pages.SupportPage />} />
+          <Route path="/support/confirmation" element={<Pages.SupportConfirmationPage />} />
+          <Route path="/support/tickets" element={<Pages.TicketsHistoryPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     );
   }
 
-  // 4. Si c'est un RH, collaborateur_rh, admin ou custom avec permissions RH, afficher le layout complet
-  // Note: collaborateur_rh peut accéder aux deux interfaces selon la vue sélectionnée
-  console.log('%c[ProtectedRoutes] 👔 Rôle RH/ADMIN/COLLABORATEUR_RH détecté - Affichage du layout avec sidebar', 'background: green; color: white; font-weight: bold');
-  console.log('%c[ProtectedRoutes] 🎨 Rendu du SidebarProvider...', 'color: magenta');
-  console.log('%c[ProtectedRoutes] 🔨 Rendu de AppSidebar...', 'color: yellow');
-  console.log('%c[ProtectedRoutes] 🔨 Rendu de CompanySwitcher...', 'color: yellow');
-  console.log('%c[ProtectedRoutes] 🔨 Rendu du main content...', 'color: yellow');
-
-  // Vérifier si l'utilisateur a accès à plusieurs entreprises
   const showCompanySwitcher = accessibleCompanies && accessibleCompanies.length > 1;
-
-  // Si collaborateur_rh en vue Collaborateur, afficher les routes collaborateur dans le layout RH (avec switch)
   const isCollaborateurRhView = isCollaborateurRh && viewMode === 'collaborateur';
 
   return (
@@ -334,7 +129,6 @@ function ProtectedRoutes() {
       <div className="min-h-screen flex w-full bg-muted/40">
         <AppSidebar />
         <div className="flex min-w-0 flex-1 flex-col">
-          {/* Header mobile avec bouton menu et sélecteur d'entreprise - Affiché seulement si plusieurs entreprises */}
           {showCompanySwitcher && (
             <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 md:hidden">
               <SidebarTrigger>
@@ -346,11 +140,9 @@ function ProtectedRoutes() {
               <div className="flex-1">
                 <img src="/Colorplast.png" alt="Logo Colorplast" className="h-8 w-auto" />
               </div>
-              {/* Sélecteur d'entreprise - Mobile */}
               <CompanySwitcher />
             </header>
           )}
-          {/* Header desktop avec sélecteur d'entreprise - Affiché seulement si plusieurs entreprises */}
           {showCompanySwitcher && (
             <div className="hidden md:flex items-center gap-4 border-b bg-background px-6 py-3">
               <div className="flex-1" />
@@ -360,153 +152,99 @@ function ProtectedRoutes() {
           <main className="min-w-0 flex-1 overflow-x-auto overflow-y-auto bg-background p-6 lg:p-8">
             <Routes>
               {isCollaborateurRhView ? (
-                // Routes Collaborateur pour collaborateur_rh en vue Collaborateur
                 <>
-                  <Route path="/" element={<EmployeeDashboard />} />
-                  <Route path="/profile" element={<ProfilePage />} />
-                  <Route path="/payslips" element={<PayslipsPage />} />
-                  <Route path="/employee/payslips/:payslipId" element={<EmployeePayslipDetail />} />
-                  <Route path="/badgeuse" element={<EmployeeBadgeusePage />} />
-                  <Route path="/annual-reviews" element={<EmployeeAnnualReviews />} />
-                  <Route path="/annual-reviews/:reviewId" element={<EmployeeAnnualReviewDetail />} />
-                  <Route path="/employee/formation" element={<EmployeeFormationPage />} />
-                  <Route path="/habilitations" element={<EmployeeFormationLegacyRedirect />} />
-                  <Route path="/objectives" element={<EmployeeFormationLegacyRedirect />} />
-                  <Route path="/catalogue-formations" element={<EmployeeFormationLegacyRedirect />} />
-                  <Route path="/absences" element={<EmployeeAbsencesPage />} />
+                  <Route path="/" element={<Pages.EmployeeDashboard />} />
+                  <Route path="/profile" element={<Pages.ProfilePage />} />
+                  <Route path="/payslips" element={<Pages.PayslipsPage />} />
+                  <Route path="/employee/payslips/:payslipId" element={<Pages.EmployeePayslipDetail />} />
+                  <Route path="/badgeuse" element={<Pages.EmployeeBadgeusePage />} />
+                  <Route path="/annual-reviews" element={<Pages.EmployeeAnnualReviews />} />
+                  <Route path="/annual-reviews/:reviewId" element={<Pages.EmployeeAnnualReviewDetail />} />
+                  <Route path="/employee/formation" element={<Pages.EmployeeFormationPage />} />
+                  <Route path="/habilitations" element={<Pages.EmployeeFormationLegacyRedirect />} />
+                  <Route path="/objectives" element={<Pages.EmployeeFormationLegacyRedirect />} />
+                  <Route path="/catalogue-formations" element={<Pages.EmployeeFormationLegacyRedirect />} />
+                  <Route path="/absences" element={<Pages.EmployeeAbsencesPage />} />
                   <Route path="/employee/leaves/new" element={<Navigate to="/absences" replace />} />
-                  {/* TODO: vérifier garde d’auth / permissions module planning côté API si besoin */}
-                  <Route path="/employee/planning" element={<EmployeePlanning />} />
-                  <Route path="/calendar" element={<EmployeeCalendarPage />} />
-                  <Route path="/expenses" element={<ExpensesPage />} />
-                  <Route path="/salary-advances" element={<SalaryAdvancesPage />} />
-                  <Route path="/employee/documents" element={<EmployeeCollaboratorDocumentsPage />} />
+                  <Route path="/employee/planning" element={<Pages.EmployeePlanning />} />
+                  <Route path="/calendar" element={<Pages.EmployeeCalendarPage />} />
+                  <Route path="/expenses" element={<Pages.ExpensesPage />} />
+                  <Route path="/salary-advances" element={<Pages.SalaryAdvancesPage />} />
+                  <Route path="/employee/documents" element={<Pages.EmployeeCollaboratorDocumentsPage />} />
                   <Route path="/documents" element={<Navigate to="/employee/documents" replace />} />
-                  <Route path="/medical-follow-up" element={<EmployeeMedicalFollowUp />} />
-                  <Route path="/cse/meetings/:meetingId" element={<SuspenseMeetingDetailPage />} />
-                  <Route path="/cse" element={<EmployeeCSE />} />
-                  <Route
-                    path="/employee/onboarding"
-                    element={
-                      <Suspense fallback={<div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
-                        <EmployeeOnboardingRedirect />
-                      </Suspense>
-                    }
-                  />
-                  <Route
-                    path="/onboarding/:employeeId"
-                    element={
-                      <Suspense fallback={<div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
-                        <OnboardingPage />
-                      </Suspense>
-                    }
-                  />
-                  <Route path="/support" element={<SuspenseSupportPage />} />
-                  <Route path="/support/confirmation" element={<SuspenseSupportConfirmationPage />} />
-                  <Route path="/support/tickets" element={<SuspenseTicketsHistoryPage />} />
+                  <Route path="/medical-follow-up" element={<Pages.EmployeeMedicalFollowUp />} />
+                  <Route path="/cse/meetings/:meetingId" element={<Pages.MeetingDetailPage />} />
+                  <Route path="/cse" element={<Pages.EmployeeCSE />} />
+                  <Route path="/employee/onboarding" element={<Pages.EmployeeOnboardingRedirect />} />
+                  <Route path="/onboarding/:employeeId" element={<Pages.OnboardingPage />} />
+                  <Route path="/support" element={<Pages.SupportPage />} />
+                  <Route path="/support/confirmation" element={<Pages.SupportConfirmationPage />} />
+                  <Route path="/support/tickets" element={<Pages.TicketsHistoryPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </>
               ) : (
-                // Routes RH pour rh, admin, collaborateur_rh en vue RH, custom avec permissions RH
                 <>
-                  <Route path="/" element={<RhDashboard />} />
-                  <Route
-                    path="/analytics"
-                    element={
-                      <Suspense fallback={formationRouteFallback}>
-                        <AnalyticsPage />
-                      </Suspense>
-                    }
-                  />
-                  <Route
-                    path="/analytics-paie"
-                    element={
-                      <Suspense fallback={formationRouteFallback}>
-                        <AnalyticsPaiePage />
-                      </Suspense>
-                    }
-                  />
-                  <Route
-                    path="/analytics-gestion"
-                    element={
-                      <Suspense fallback={formationRouteFallback}>
-                        <AnalyticsGestionPage />
-                      </Suspense>
-                    }
-                  />
-                  <Route path="/employees" element={<Employees />} />
-                  <Route path="/teams" element={<Teams />} />
-                  <Route path="/employees/:employeeId" element={<EmployeeDetail />} />
-                  <Route path="/saisies" element={<Saisies />} />
-                  <Route path="/salary-seizures" element={<SalarySeizures />} />
-                  <Route path="/salary-advances" element={<SalaryAdvances />} />
-                  <Route path="/rates" element={<Rates />} />
-                  <Route path="/payroll" element={<Payroll />} />
-                  <Route path="/payroll/:employeeId" element={<PayrollDetail />} />
-                  <Route path="/payslips/:payslipId/edit" element={<PayslipEdit />} />
-                  <Route path="/leaves" element={<RhAbsencesPage />} />
+                  <Route path="/" element={<Pages.RhDashboard />} />
+                  <Route path="/analytics" element={<Pages.AnalyticsPage />} />
+                  <Route path="/analytics-paie" element={<Pages.AnalyticsPaiePage />} />
+                  <Route path="/analytics-gestion" element={<Pages.AnalyticsGestionPage />} />
+                  <Route path="/employees" element={<Pages.Employees />} />
+                  <Route path="/teams" element={<Pages.Teams />} />
+                  <Route path="/employees/:employeeId" element={<Pages.EmployeeDetail />} />
+                  <Route path="/saisies" element={<Pages.Saisies />} />
+                  <Route path="/salary-seizures" element={<Pages.SalarySeizures />} />
+                  <Route path="/salary-advances" element={<Pages.SalaryAdvances />} />
+                  <Route path="/rates" element={<Pages.Rates />} />
+                  <Route path="/payroll" element={<Pages.Payroll />} />
+                  <Route path="/payroll/:employeeId" element={<Pages.PayrollDetail />} />
+                  <Route path="/payslips/:payslipId/edit" element={<Pages.PayslipEdit />} />
+                  <Route path="/leaves" element={<Pages.RhAbsencesPage />} />
                   <Route path="/employee/leaves/new" element={<Navigate to="/leaves" replace />} />
-                  {/* TODO: vérifier garde d’auth / permissions module planning (route /planning) côté API si besoin */}
-                  <Route path="/planning" element={<Planning />} />
-                  <Route path="/expenses" element={<RhExpensesPage />} />
-                  <Route path="/schedules" element={<RhSchedulesPage />} />
-                  <Route path="/employee-exits" element={<EmployeeExits />} />
-                  <Route path="/employee-exits/:exitId/documents/:documentId/edit" element={<ExitDocumentEdit />} />
-                  <Route path="/residence-permits" element={<ResidencePermits />} />
-                  <Route path="/medical-follow-up" element={<ErrorBoundaryClass><MedicalFollowUp /></ErrorBoundaryClass>} />
-                  <Route path="/annual-reviews" element={<AnnualReviews />} />
-                  <Route path="/annual-reviews/:reviewId" element={<AnnualReviewDetail />} />
+                  <Route path="/planning" element={<Pages.Planning />} />
+                  <Route path="/expenses" element={<Pages.RhExpensesPage />} />
+                  <Route path="/schedules" element={<Pages.RhSchedulesPage />} />
+                  <Route path="/employee-exits" element={<Pages.EmployeeExits />} />
+                  <Route path="/employee-exits/:exitId/documents/:documentId/edit" element={<Pages.ExitDocumentEdit />} />
+                  <Route path="/residence-permits" element={<Pages.ResidencePermits />} />
                   <Route
-                    path="/leave-requests"
+                    path="/medical-follow-up"
                     element={
-                      <Suspense fallback={formationRouteFallback}>
-                        <LeaveRequests />
-                      </Suspense>
+                      <ErrorBoundaryClass>
+                        <Pages.MedicalFollowUp />
+                      </ErrorBoundaryClass>
                     }
                   />
-                  <Route path="/formation" element={<SuspenseFormationPage />} />
-                  <Route path="/documents" element={<SuspenseRhDocumentsPage />} />
-                  <Route path="/augmentations-et-promotions" element={<AugmentationsEtPromotions />} />
+                  <Route path="/annual-reviews" element={<Pages.AnnualReviews />} />
+                  <Route path="/annual-reviews/:reviewId" element={<Pages.AnnualReviewDetail />} />
+                  <Route path="/leave-requests" element={<Pages.LeaveRequests />} />
+                  <Route path="/formation" element={<Pages.FormationPage />} />
+                  <Route path="/documents" element={<Pages.RhDocumentsPage />} />
+                  <Route path="/augmentations-et-promotions" element={<Pages.AugmentationsEtPromotions />} />
                   <Route path="/augmentations-collectives" element={<Navigate to="/augmentations-et-promotions" replace />} />
-                  <Route path="/habilitations" element={<RhFormationLegacyRedirect />} />
-                  <Route path="/objectives" element={<RhFormationLegacyRedirect />} />
-                  <Route path="/catalogue-formations" element={<RhFormationLegacyRedirect />} />
+                  <Route path="/habilitations" element={<Pages.RhFormationLegacyRedirect />} />
+                  <Route path="/objectives" element={<Pages.RhFormationLegacyRedirect />} />
+                  <Route path="/catalogue-formations" element={<Pages.RhFormationLegacyRedirect />} />
                   <Route path="/promotions" element={<Navigate to="/augmentations-et-promotions" replace />} />
-                  <Route path="/promotions/:promotionId" element={<PromotionDetail />} />
-                  <Route path="/cse/meetings/:meetingId" element={<SuspenseMeetingDetailPage />} />
-                  <Route path="/cse" element={<CSE />} />
-                  <Route path="/recruitment" element={<Recruitment />} />
-                  <Route
-                    path="/onboarding"
-                    element={
-                      <Suspense fallback={<div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
-                        <OnboardingHubPage />
-                      </Suspense>
-                    }
-                  />
-                  <Route
-                    path="/onboarding/:employeeId"
-                    element={
-                      <Suspense fallback={<div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
-                        <OnboardingPage />
-                      </Suspense>
-                    }
-                  />
-                  <Route path="/badgeuse-rh" element={<BadgeuseRhPage />} />
-                  <Route path="/simulation" element={<Simulation />} />
-                  <Route path="/exports" element={<Exports />} />
-                  <Route path="/company" element={<CompanyPage />} />
-                  {/* Routes Multi-Entreprises */}
-                  <Route path="/groups/:groupId" element={<GroupDashboard />} />
-                  {/* Routes Gestion Utilisateurs avec Permissions Granulaires */}
-                  <Route path="/users" element={<UserManagement />} />
-                  <Route path="/users/create" element={<UserCreation />} />
-                  <Route path="/users/:userId" element={<UserProfile />} />
-                  <Route path="/users/:userId/edit" element={<UserEdit />} />
-                  <Route path="/support" element={<SuspenseSupportPage />} />
-                  <Route path="/support/confirmation" element={<SuspenseSupportConfirmationPage />} />
-                  <Route path="/support/tickets" element={<SuspenseTicketsHistoryPage />} />
-                  <Route path="*" element={<NotFound />} />
+                  <Route path="/promotions/:promotionId" element={<Pages.PromotionDetail />} />
+                  <Route path="/cse/meetings/:meetingId" element={<Pages.MeetingDetailPage />} />
+                  <Route path="/cse" element={<Pages.CSE />} />
+                  <Route path="/recruitment" element={<Pages.Recruitment />} />
+                  <Route path="/onboarding" element={<Pages.OnboardingHubPage />} />
+                  <Route path="/onboarding/:employeeId" element={<Pages.OnboardingPage />} />
+                  <Route path="/badgeuse-rh" element={<Pages.BadgeuseRhPage />} />
+                  <Route path="/badgeuse-rh/scan" element={<Navigate to="/badgeuse-rh" replace />} />
+                  <Route path="/simulation" element={<Pages.Simulation />} />
+                  <Route path="/exports" element={<Pages.Exports />} />
+                  <Route path="/company" element={<Pages.CompanyPage />} />
+                  <Route path="/groups/:groupId" element={<Pages.GroupDashboard />} />
+                  <Route path="/users" element={<Pages.UserManagement />} />
+                  <Route path="/users/create" element={<Pages.UserCreation />} />
+                  <Route path="/users/:userId" element={<Pages.UserProfile />} />
+                  <Route path="/users/:userId/edit" element={<Pages.UserEdit />} />
+                  <Route path="/support" element={<Pages.SupportPage />} />
+                  <Route path="/support/confirmation" element={<Pages.SupportConfirmationPage />} />
+                  <Route path="/support/tickets" element={<Pages.TicketsHistoryPage />} />
+                  <Route path="*" element={<Pages.NotFound />} />
                 </>
               )}
             </Routes>
@@ -517,44 +255,45 @@ function ProtectedRoutes() {
   );
 }
 
-
-/**
- * Le composant racine de l'application.
- * Il met en place les fournisseurs de contexte et le routeur principal.
- */
 export default function App() {
   return (
     <TooltipProvider>
       <Toaster />
-      <AuthProvider>
-        <CompanyProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-              <Route path="/reset-password" element={<ResetPasswordPage />} />
-              {/* Routes Super Admin */}
-              <Route path="/super-admin" element={<SuperAdminLayout />}>
-                <Route index element={<SuperAdminDashboard />} />
-                <Route path="companies" element={<SuperAdminCompanies />} />
-                <Route path="companies/:companyId" element={<SuperAdminCompanyDetails />} />
-                <Route path="groups" element={<CompanyGroups />} />
-                <Route path="groups/:groupId" element={<CompanyGroupDetail />} />
-                <Route path="users" element={<SuperAdminUsers />} />
-                <Route path="collective-agreements" element={<CollectiveAgreementsCatalog />} />
-                <Route path="reduction-fillon" element={<SuperAdminReductionFillon />} />
-                <Route path="scraping" element={<SuperAdminScraping />} />
-                <Route path="monitoring" element={<SuperAdminMonitoring />} />
-                <Route path="tests" element={<SuperAdminTests />} />
-                <Route path="support" element={<SuspenseSupportPage />} />
-                <Route path="support/confirmation" element={<SuspenseSupportConfirmationPage />} />
-                <Route path="support/tickets" element={<SuspenseTicketsHistoryPage />} />
-              </Route>
-              <Route path="/*" element={<ProtectedRoutesWithView />} />
-            </Routes>
-          </BrowserRouter>
-        </CompanyProvider>
-      </AuthProvider>
+      <BootProvider>
+        <AuthProvider>
+          <CompanyProvider>
+            <BrowserRouter>
+              <BootGate>
+                <Suspense fallback={<RouteSkeleton />}>
+                  <Routes>
+                    <Route path="/login" element={<Pages.LoginPage />} />
+                    <Route path="/forgot-password" element={<Pages.ForgotPasswordPage />} />
+                    <Route path="/reset-password" element={<Pages.ResetPasswordPage />} />
+                    <Route path="/super-admin" element={<Pages.SuperAdminLayout />}>
+                      <Route index element={<Pages.SuperAdminDashboard />} />
+                      <Route path="companies" element={<Pages.SuperAdminCompanies />} />
+                      <Route path="companies/:companyId" element={<Pages.SuperAdminCompanyDetails />} />
+                      <Route path="groups" element={<Pages.CompanyGroups />} />
+                      <Route path="groups/:groupId" element={<Pages.CompanyGroupDetail />} />
+                      <Route path="users" element={<Pages.SuperAdminUsers />} />
+                      <Route path="collective-agreements" element={<Pages.CollectiveAgreementsCatalog />} />
+                      <Route path="reduction-fillon" element={<Pages.SuperAdminReductionFillon />} />
+                      <Route path="scraping" element={<Pages.SuperAdminScraping />} />
+                      <Route path="monitoring" element={<Pages.SuperAdminMonitoring />} />
+                      <Route path="tests" element={<Pages.SuperAdminTests />} />
+                      <Route path="support" element={<Pages.SupportPage />} />
+                      <Route path="support/confirmation" element={<Pages.SupportConfirmationPage />} />
+                      <Route path="support/tickets" element={<Pages.TicketsHistoryPage />} />
+                      <Route path="*" element={<Pages.NotFound />} />
+                    </Route>
+                    <Route path="/*" element={<ProtectedRoutesWithView />} />
+                  </Routes>
+                </Suspense>
+              </BootGate>
+            </BrowserRouter>
+          </CompanyProvider>
+        </AuthProvider>
+      </BootProvider>
     </TooltipProvider>
   );
 }

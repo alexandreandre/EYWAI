@@ -5,8 +5,10 @@ Délégation au repository. Comportement identique à api/routers/monthly_inputs
 """
 
 from __future__ import annotations
+from app.core.logging import get_logger, log_app_debug
 
-import sys
+logger = get_logger("modules.monthly_inputs.application.commands")
+
 from typing import List
 
 from app.modules.monthly_inputs.application.dto import (
@@ -31,10 +33,7 @@ def create_monthly_inputs_batch(
     ]
     # Debug conservé pour compatibilité (à retirer en phase de nettoyage)
     if data_to_insert:
-        print(
-            f"\n[monthly_inputs] Insert batch: {len(data_to_insert)} row(s)",
-            file=sys.stderr,
-        )
+        log_app_debug(logger, f'\n[monthly_inputs] Insert batch: {len(data_to_insert)} row(s)')
     inserted = monthly_inputs_repository.insert_batch(data_to_insert)
     return CreateBatchResultDto(inserted_count=len(inserted))
 

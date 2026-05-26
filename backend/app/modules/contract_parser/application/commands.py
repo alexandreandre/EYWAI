@@ -6,6 +6,9 @@ Comportement strictement identique à l'ancien router.
 """
 
 from __future__ import annotations
+from app.core.logging import get_logger, log_app_debug
+
+logger = get_logger("modules.contract_parser.application.commands")
 
 from app.modules.contract_parser.application.dto import ExtractionResultDto
 from app.modules.contract_parser.infrastructure.providers import (
@@ -20,12 +23,10 @@ def extract_contract_from_pdf(file_content: bytes) -> ExtractionResultDto:
     Comportement identique à POST /api/contract-parser/extract-from-pdf.
     """
     extracted_text, method = pdf_text_extractor.extract_text(file_content)
-    print(f"INFO: Texte extrait avec succès ({method})")
-    print(f"INFO: Longueur du texte : {len(extracted_text)} caractères")
+    log_app_debug(logger, f'INFO: Texte extrait avec succès ({method})')
+    log_app_debug(logger, f'INFO: Longueur du texte : {len(extracted_text)} caractères')
     parsed = extraction_llm_provider.extract_contract(extracted_text)
-    print(
-        f"INFO: Extraction réussie. Nombre de champs extraits : {len(parsed.get('extracted_data', {}))}"
-    )
+    log_app_debug(logger, f"INFO: Extraction réussie. Nombre de champs extraits : {len(parsed.get('extracted_data', {}))}")
     return ExtractionResultDto(
         extracted_data=parsed["extracted_data"],
         confidence=parsed["confidence"],
@@ -39,12 +40,10 @@ def extract_rib_from_pdf(file_content: bytes) -> ExtractionResultDto:
     Comportement identique à POST /api/contract-parser/extract-rib-from-pdf.
     """
     extracted_text, method = pdf_text_extractor.extract_text(file_content)
-    print(f"INFO: Texte du RIB extrait avec succès ({method})")
-    print(f"INFO: Longueur du texte : {len(extracted_text)} caractères")
+    log_app_debug(logger, f'INFO: Texte du RIB extrait avec succès ({method})')
+    log_app_debug(logger, f'INFO: Longueur du texte : {len(extracted_text)} caractères')
     parsed = extraction_llm_provider.extract_rib(extracted_text)
-    print(
-        f"INFO: Extraction du RIB réussie. Nombre de champs extraits : {len(parsed.get('extracted_data', {}))}"
-    )
+    log_app_debug(logger, f"INFO: Extraction du RIB réussie. Nombre de champs extraits : {len(parsed.get('extracted_data', {}))}")
     return ExtractionResultDto(
         extracted_data=parsed["extracted_data"],
         confidence=parsed["confidence"],
@@ -58,12 +57,10 @@ def extract_questionnaire_from_pdf(file_content: bytes) -> ExtractionResultDto:
     Comportement identique à POST /api/contract-parser/extract-questionnaire-from-pdf.
     """
     extracted_text, method = pdf_text_extractor.extract_text(file_content)
-    print(f"INFO: Texte du questionnaire extrait avec succès ({method})")
-    print(f"INFO: Longueur du texte : {len(extracted_text)} caractères")
+    log_app_debug(logger, f'INFO: Texte du questionnaire extrait avec succès ({method})')
+    log_app_debug(logger, f'INFO: Longueur du texte : {len(extracted_text)} caractères')
     parsed = extraction_llm_provider.extract_questionnaire(extracted_text)
-    print(
-        f"INFO: Extraction du questionnaire réussie. Nombre de champs extraits : {len(parsed.get('extracted_data', {}))}"
-    )
+    log_app_debug(logger, f"INFO: Extraction du questionnaire réussie. Nombre de champs extraits : {len(parsed.get('extracted_data', {}))}")
     return ExtractionResultDto(
         extracted_data=parsed["extracted_data"],
         confidence=parsed["confidence"],

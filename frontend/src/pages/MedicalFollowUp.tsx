@@ -101,6 +101,50 @@ import {
 
 const ALL_FILTER = "__all__";
 
+function extractApiErrorMessage(e: unknown, fallback: string): string {
+  const err = e as { response?: { data?: { detail?: unknown } }; message?: string };
+  const raw = err.response?.data?.detail;
+  if (typeof raw === "string" && raw.trim()) {
+    return raw;
+  }
+  if (
+    Array.isArray(raw) &&
+    raw[0] &&
+    typeof raw[0] === "object" &&
+    "msg" in raw[0]
+  ) {
+    return String((raw[0] as { msg: string }).msg);
+  }
+  if (err.message) {
+    return err.message;
+  }
+  return fallback;
+}
+
+function MedicalQueryError({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center">
+      <p className="text-sm text-destructive">{message}</p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="mt-3 gap-2"
+        onClick={onRetry}
+      >
+        <RefreshCw className="h-4 w-4" />
+        Réessayer
+      </Button>
+    </div>
+  );
+}
+
 type MedTab = "pilotage" | "conformite";
 type ClientKpiFilter = "overdue" | "upcoming30" | null;
 type SortColumn = "due_date" | "employee" | "status";
@@ -544,6 +588,8 @@ export default function MedicalFollowUp() {
   const [obligations, setObligations] = useState<ObligationListItem[]>([]);
   const [kpis, setKpis] = useState<KPIs | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [employeesLoadError, setEmployeesLoadError] = useState<string | null>(null);
   const [filterEmployee, setFilterEmployee] = useState<string>(
     employeeFromUrl && employeeFromUrl.length > 0 ? employeeFromUrl : ALL_FILTER
   );
@@ -606,6 +652,7 @@ export default function MedicalFollowUp() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [oblsRes, kpisRes] = await Promise.all([
         getObligations({
@@ -624,19 +671,31 @@ export default function MedicalFollowUp() {
       setKpis(validKpis ? (kpisRes as KPIs) : null);
       void queryClient.invalidateQueries({ queryKey: ["medical-follow-up", "compliance-report"] });
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { detail?: unknown } }; message?: string };
-      const raw = err.response?.data?.detail;
-      const msg =
-        typeof raw === "string"
-          ? raw
-          : Array.isArray(raw) && raw[0] && typeof raw[0] === "object" && "msg" in raw[0]
-            ? String((raw[0] as { msg: string }).msg)
-            : err.message ?? "Erreur chargement";
-      toast({ title: "Erreur", description: String(msg), variant: "destructive" });
+      const msg = extractApiErrorMessage(
+        e,
+        "Impossible de charger le suivi médical."
+      );
+      setLoadError(msg);
+      toast({ title: "Erreur", description: msg, variant: "destructive" });
     } finally {
       setLoading(false);
     }
   }, [filterEmployee, filterVisitType, filterStatus, toast, queryClient]);
+
+  const loadEmployees = useCallback(async () => {
+    setEmployeesLoadError(null);
+    try {
+      const r = await apiClient.get("/api/employees");
+      const list = (r.data as { id: string; first_name: string; last_name: string }[]) ?? [];
+      setEmployees(
+        list.map((e) => ({ id: e.id, first_name: e.first_name, last_name: e.last_name }))
+      );
+    } catch (e: unknown) {
+      setEmployeesLoadError(
+        extractApiErrorMessage(e, "Impossible de charger la liste des employés.")
+      );
+    }
+  }, []);
 
   useEffect(() => {
     load();
@@ -666,16 +725,8 @@ export default function MedicalFollowUp() {
   }, [searchInput]);
 
   useEffect(() => {
-    apiClient
-      .get("/api/employees")
-      .then((r) => {
-        const list = (r.data as { id: string; first_name: string; last_name: string }[]) ?? [];
-        setEmployees(
-          list.map((e) => ({ id: e.id, first_name: e.first_name, last_name: e.last_name }))
-        );
-      })
-      .catch(() => {});
-  }, []);
+    void loadEmployees();
+  }, [loadEmployees]);
 
   const complianceQuery = useQuery({
     queryKey: ["medical-follow-up", "compliance-report"],
@@ -1025,6 +1076,13 @@ export default function MedicalFollowUp() {
           </TabsList>
 
           <TabsContent value="pilotage" className="mt-4 space-y-4">
+            {employeesLoadError ? (
+              <MedicalQueryError
+                message={employeesLoadError}
+                onRetry={() => void loadEmployees()}
+              />
+            ) : null}
+
             {kpis ? (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <button
@@ -1179,6 +1237,10 @@ export default function MedicalFollowUp() {
                   {loading ? (
                     <div className="flex justify-center py-10">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : loadError ? (
+                    <div className="p-6">
+                      <MedicalQueryError message={loadError} onRetry={() => void load()} />
                     </div>
                   ) : (
                     <div className="w-full overflow-x-auto">

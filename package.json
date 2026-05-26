@@ -2,6 +2,9 @@
   "name": "eywai",
   "private": true,
   "scripts": {
+    "dev": "npm run dev --prefix frontend",
+    "frontend:install": "npm install --prefix frontend",
+    "frontend:reinstall": "npm run reinstall --prefix frontend",
     "prepare": "husky",
     "hooks:install": "husky",
     "test:prepush": "sh scripts/run-local-ci-suite.sh",

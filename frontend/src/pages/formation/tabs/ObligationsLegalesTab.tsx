@@ -217,8 +217,22 @@ export default function ObligationsLegalesTab({ compactTable = false }: Obligati
     if (employeesQuery.isError || mineQuery.isError) {
       return (
         <Card className="border-destructive/50">
-          <CardContent className="py-6 text-sm text-destructive">
-            Impossible de charger vos obligations légales.
+          <CardContent className="flex flex-col gap-3 py-6 text-sm text-destructive">
+            <p>Impossible de charger vos obligations légales.</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-fit"
+              onClick={() => {
+                void employeesQuery.refetch();
+                if (myEmployeeId) {
+                  void mineQuery.refetch();
+                }
+              }}
+            >
+              Réessayer
+            </Button>
           </CardContent>
         </Card>
       );
@@ -319,8 +333,17 @@ export default function ObligationsLegalesTab({ compactTable = false }: Obligati
 
       {listQuery.isError && (
         <Card className="border-destructive/50">
-          <CardContent className="py-6 text-sm text-destructive">
-            Impossible de charger le tableau des obligations.
+          <CardContent className="flex flex-col gap-3 py-6 text-sm text-destructive">
+            <p>Impossible de charger le tableau des obligations.</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-fit"
+              onClick={() => void listQuery.refetch()}
+            >
+              Réessayer
+            </Button>
           </CardContent>
         </Card>
       )}

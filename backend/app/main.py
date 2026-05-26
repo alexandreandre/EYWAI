@@ -2,22 +2,28 @@
 Point d’entrée de l’application cible (modular monolith).
 """
 
-import logging
 import os
 import traceback
 
-from fastapi import FastAPI, Request
+import httpx
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from postgrest.exceptions import APIError
 
 from app.api.router import router as api_router
+from app.core.supabase_resilience import is_transient_supabase_error
+from app.core.lifecycle import lifespan
+from app.core.logging import configure_logging, get_logger
 from app.modules.planning.api.router import router as planning_router
 from app.modules.signatures.api.router import router as signatures_router
 from app.modules.teams.api.router import router as teams_router
 
-logger = logging.getLogger(__name__)
+configure_logging()
+logger = get_logger(__name__)
 
 app = FastAPI(
+    lifespan=lifespan,
     title="EYWAI SIRH API",
     description="""
 ## API REST EYWAI
@@ -80,26 +86,108 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(APIError)
+async def postgrest_exception_handler(request: Request, exc: APIError):
+    """Erreurs Supabase/PostgREST : message lisible + réponse JSON (headers CORS conservés)."""
+    code = exc.code
+    message = str(exc.message or exc)
+
+    if code == "PGRST205" and any(
+        t in message
+        for t in (
+            "employee_time_entries",
+            "employee_time_entries_validations",
+            "employee_badge_credentials",
+        )
+    ):
+        detail = (
+            "Tables badgeuse absentes sur Supabase. "
+            "Appliquez la migration supabase/migrations/20260525120000_badgeuse_qr.sql "
+            "(SQL Editor ou script backend/scripts/check_badgeuse_schema.py)."
+        )
+        return JSONResponse(
+            status_code=503,
+            content={"detail": detail},
+        )
+
+    logger.error(
+        "PostgREST error on %s %s: %s",
+        request.method,
+        request.url.path,
+        exc.json() if hasattr(exc, "json") else exc,
+    )
+    return JSONResponse(
+        status_code=502,
+        content={"detail": "Erreur base de données"},
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=getattr(exc, "headers", None) or {},
+    )
+
+
+@app.exception_handler(httpx.HTTPError)
+async def httpx_exception_handler(request: Request, exc: httpx.HTTPError):
+    if is_transient_supabase_error(exc):
+        logger.warning(
+            "Erreur réseau transitoire Supabase on %s %s: %s",
+            request.method,
+            request.url.path,
+            exc,
+        )
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": (
+                    "Connexion à la base temporairement indisponible. "
+                    "Réessayez dans quelques secondes."
+                )
+            },
+        )
+    logger.error(
+        "HTTP error on %s %s: %s", request.method, request.url.path, exc
+    )
+    return JSONResponse(
+        status_code=502,
+        content={"detail": "Erreur de communication avec la base de données"},
+    )
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Catch-all : garantit une réponse JSON propre (avec headers CORS) même sur erreur 500."""
+    if is_transient_supabase_error(exc):
+        logger.warning(
+            "Erreur réseau transitoire on %s %s: %s",
+            request.method,
+            request.url.path,
+            exc,
+        )
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": (
+                    "Connexion à la base temporairement indisponible. "
+                    "Réessayez dans quelques secondes."
+                )
+            },
+        )
+
     logger.error(
         "Unhandled exception on %s %s: %s", request.method, request.url.path, exc
     )
+
     logger.error(traceback.format_exc())
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal Server Error"},
     )
 
-
-# ---------------------------------------------------------------------------
-# Lifecycle (startup / shutdown, à brancher plus tard)
-# ---------------------------------------------------------------------------
-# @app.on_event("startup")
-# async def startup(): ...
-# @app.on_event("shutdown")
-# async def shutdown(): ...
 
 # ---------------------------------------------------------------------------
 # Error handlers (à brancher plus tard)

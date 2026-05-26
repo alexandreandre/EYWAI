@@ -2,62 +2,71 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate, useLocation, Link, useSearchParams } from 'react-router-dom';
+import { useNavigate, useLocation, Link, useSearchParams, Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import apiClient from '@/api/apiClient';
 import { Loader2 } from 'lucide-react';
+import { log } from '@/lib/logger';
+
+/** Évite une boucle ou un retour vers l'écran de connexion après auth. */
+function safeReturnPath(pathname: string | undefined): string {
+  if (!pathname || pathname === '/login' || pathname.startsWith('/login?')) {
+    return '/';
+  }
+  return pathname;
+}
+
+function resolvePostLoginPath(
+  isSuperAdmin: boolean | undefined,
+  fromPathname: string | undefined,
+): string {
+  if (isSuperAdmin) return '/super-admin';
+  return safeReturnPath(fromPathname);
+}
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { login } = useAuth();
+  const { user, login, isLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const sessionExpired = searchParams.get('session') === 'expired';
 
-  const from = location.state?.from?.pathname || "/";
+  const from = safeReturnPath(location.state?.from?.pathname);
+
+  if (isLoading) {
+    return null;
+  }
+
+  if (user) {
+    return (
+      <Navigate
+        to={resolvePostLoginPath(user.is_super_admin, from)}
+        replace
+      />
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsSubmitting(true);
 
-    console.log('\n' + '='.repeat(80));
-    console.log('🔐 [FRONTEND LOGIN DEBUG] TENTATIVE DE CONNEXION');
-    console.log('='.repeat(80));
-    console.log('📥 [FRONTEND] Identifier saisi (brut):', `'${identifier}'`);
-    console.log('📥 [FRONTEND] Type:', typeof identifier);
-    console.log('📥 [FRONTEND] Longueur:', identifier.length);
-    console.log('📥 [FRONTEND] Password longueur:', password.length);
-
     try {
-      // On prépare les données au format 'form-urlencoded'
       const params = new URLSearchParams();
       params.append('username', identifier);
       params.append('password', password);
 
-      console.log('📦 [FRONTEND] URLSearchParams créé:');
-      console.log('   - username:', params.get('username'));
-      console.log('   - password longueur:', params.get('password')?.length);
-      console.log('📤 [FRONTEND] Envoi de la requête POST à /api/auth/login');
-
-      // 1. On obtient le token
       const response = await apiClient.post('/api/auth/login', params, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       });
 
-      console.log('✅ [FRONTEND] Réponse reçue:', response.status);
-      console.log('🔑 [FRONTEND] Token reçu (30 premiers car.):', response.data.access_token?.substring(0, 30));
-      console.log('👤 [FRONTEND] Utilisateur:', response.data.user);
-      console.log('👑 [FRONTEND] Super admin:', response.data.user?.is_super_admin);
-
-      // 2. Session complète (access + refresh) pour renouvellement silencieux
       await login({
         access_token: response.data.access_token,
         refresh_token: response.data.refresh_token,
@@ -65,27 +74,15 @@ export default function LoginPage() {
         expires_at: response.data.expires_at,
       });
 
-      console.log('✅ [FRONTEND] Login contexte terminé, redirection...');
-
-      // 3. Redirection automatique pour les super admins
-      if (response.data.user?.is_super_admin) {
-        console.log('👑 [FRONTEND] Super admin détecté -> Redirection vers /super-admin');
-        navigate('/super-admin', { replace: true });
-      } else {
-        console.log('👤 [FRONTEND] Utilisateur normal -> Redirection vers', from);
-        navigate(from, { replace: true });
-      }
-
-      console.log('='.repeat(80) + '\n');
-
-    } catch (err: any) {
-      console.error('❌ [FRONTEND] ERREUR lors de la connexion:');
-      console.error('   - Type:', err?.constructor?.name);
-      console.error('   - Message:', err?.message);
-      console.error('   - Response status:', err?.response?.status);
-      console.error('   - Response data:', err?.response?.data);
-      console.error('   - Stack:', err?.stack);
-      console.log('='.repeat(80) + '\n');
+      navigate(
+        resolvePostLoginPath(response.data.user?.is_super_admin, from),
+        { replace: true },
+      );
+    } catch (err: unknown) {
+      log.error(
+        'Connexion échouée',
+        err instanceof Error ? err.message : err,
+      );
       setError('Identifiant ou mot de passe incorrect.');
     } finally {
       setIsSubmitting(false);
