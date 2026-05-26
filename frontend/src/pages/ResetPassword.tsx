@@ -1,5 +1,6 @@
 // src/pages/ResetPassword.tsx
 
+import { log } from '@/lib/logger';
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -36,16 +37,16 @@ export default function ResetPasswordPage() {
       }
 
       try {
-        console.log('🔍 [RESET PASSWORD] Validation du token...');
+        log.debug('🔍 [RESET PASSWORD] Validation du token...');
         const response = await apiClient.post('/api/auth/verify-reset-token', null, {
           params: { token }
         });
 
-        console.log('✅ [RESET PASSWORD] Token valide');
+        log.debug('✅ [RESET PASSWORD] Token valide');
         setIsValidToken(true);
         setEmail(response.data.email);
       } catch (err: any) {
-        console.error('❌ [RESET PASSWORD] Token invalide:', err);
+        log.error('❌ [RESET PASSWORD] Token invalide:', err);
         const message = err.response?.data?.detail || 'Le lien de réinitialisation est invalide ou a expiré.';
         setError(message);
         setIsValidToken(false);
@@ -92,14 +93,14 @@ export default function ResetPasswordPage() {
     setIsSubmitting(true);
 
     try {
-      console.log('🔐 [RESET PASSWORD] Réinitialisation du mot de passe...');
+      log.debug('🔐 [RESET PASSWORD] Réinitialisation du mot de passe...');
 
       await apiClient.post('/api/auth/reset-password', {
         token,
         new_password: newPassword
       });
 
-      console.log('✅ [RESET PASSWORD] Mot de passe réinitialisé avec succès');
+      log.debug('✅ [RESET PASSWORD] Mot de passe réinitialisé avec succès');
       setIsSuccess(true);
 
       // Rediriger vers la page de connexion après 3 secondes
@@ -108,7 +109,7 @@ export default function ResetPasswordPage() {
       }, 3000);
 
     } catch (err: any) {
-      console.error('❌ [RESET PASSWORD] Erreur:', err);
+      log.error('❌ [RESET PASSWORD] Erreur:', err);
       const message = err.response?.data?.detail || 'Une erreur est survenue. Veuillez réessayer.';
       setError(message);
     } finally {

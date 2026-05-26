@@ -1,5 +1,6 @@
 // src/components/SaisieModal.tsx (VERSION FINALE ET DÉFINITIVE)
 
+import { log } from '@/lib/logger';
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -107,7 +108,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
     bonusTypesApi.getBonusTypes()
       .then(res => setBonusTypes(res.data || []))
       .catch(err => {
-        console.warn("Erreur lors du chargement des bonus types:", err);
+        log.warn("Erreur lors du chargement des bonus types:", err);
         // Si l'endpoint n'existe pas encore, on continue avec l'ancien système
       });
   }, []);
@@ -169,13 +170,13 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
             const seuil = Number(primeForm.seuil_heures);
             amountsByEmployee[empId] = totalHours >= seuil ? Number(primeForm.montant) : 0.0;
           } catch (error) {
-            console.error(`Erreur lors du calcul pour l'employé ${empId}:`, error);
+            log.error(`Erreur lors du calcul pour l'employé ${empId}:`, error);
             // En cas d'erreur, utiliser le montant par défaut
             amountsByEmployee[empId] = Number(formData.amount);
           }
         }
       } catch (error) {
-        console.error("Erreur lors du calcul des montants:", error);
+        log.error("Erreur lors du calcul des montants:", error);
         toast({
           title: "Avertissement",
           description: "Impossible de calculer automatiquement les montants. Le montant saisi sera utilisé pour tous les employés.",
@@ -204,7 +205,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
           description: "Prime enregistrée dans le catalogue.",
         });
       } catch (error) {
-        console.error("Erreur lors de l'enregistrement de la prime:", error);
+        log.error("Erreur lors de l'enregistrement de la prime:", error);
         toast({
           title: "Erreur",
           description: "Impossible d'enregistrer la prime dans le catalogue.",
@@ -282,7 +283,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
           });
         }
       } catch (error) {
-        console.error("Erreur lors du calcul:", error);
+        log.error("Erreur lors du calcul:", error);
         toast({
           title: "Erreur",
           description: "Impossible de calculer le montant automatiquement.",

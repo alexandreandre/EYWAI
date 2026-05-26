@@ -1,7 +1,7 @@
 // frontend/src/pages/AnnualReviewDetail.tsx
 // Page détail d'un entretien (côté RH)
 
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -71,6 +71,7 @@ import { annualReviewFormCompletionPercent } from "@/lib/annualReviewFormUtils";
 import {
   Loader2,
   ArrowLeft,
+  RefreshCw,
   CheckCircle,
   FileText,
   MessageSquare,
@@ -112,6 +113,7 @@ function formatLongDate(value: string | null | undefined): string {
 export default function AnnualReviewDetail() {
   const { reviewId } = useParams<{ reviewId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isEditingTemplate, setIsEditingTemplate] = useState(false);
@@ -131,6 +133,9 @@ export default function AnnualReviewDetail() {
     data: review,
     isLoading,
     isError,
+    error,
+    refetch,
+    isFetching,
   } = useQuery({
     queryKey: ["annual-review", reviewId],
     queryFn: async () => {
@@ -284,6 +289,11 @@ export default function AnnualReviewDetail() {
   }, [review?.status, review?.meeting_report, isEditingReport]);
 
   const handleClose = () => {
+    const fromHub = (location.state as { fromFormationHub?: boolean } | null)?.fromFormationHub;
+    if (fromHub) {
+      navigate({ pathname: "/formation", hash: "entretiens" });
+      return;
+    }
     const params = new URLSearchParams(window.location.search);
     const returnTo = params.get("returnTo");
     const employeeId = params.get("employeeId");
@@ -384,16 +394,55 @@ export default function AnnualReviewDetail() {
     );
   }
 
-  if (isError || !review) {
+  if (isError) {
+    const errorMessage =
+      (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+      (error as Error)?.message ??
+      "Impossible de charger l'entretien.";
     return (
       <div className="space-y-6">
-        <Button variant="ghost" onClick={() => navigate("/annual-reviews")}>
+        <Button variant="ghost" onClick={handleClose}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Retour
         </Button>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-destructive">Erreur lors du chargement de l&apos;entretien.</p>
+            <div className="flex flex-col items-stretch gap-4 rounded-md border border-destructive/20 bg-destructive/10 p-4 text-destructive sm:flex-row sm:items-center">
+              <div className="flex-1">
+                <p className="font-medium">Erreur lors du chargement de l&apos;entretien</p>
+                <p className="text-sm text-muted-foreground mt-1">{errorMessage}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isFetching}
+                  onClick={() => void refetch()}
+                >
+                  <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+                  Réessayer
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!review) {
+    return (
+      <div className="space-y-6">
+        <Button variant="ghost" onClick={handleClose}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Retour
+        </Button>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-muted-foreground">
+              Entretien introuvable ou vous n&apos;avez pas l&apos;autorisation de le consulter.
+            </p>
           </CardContent>
         </Card>
       </div>

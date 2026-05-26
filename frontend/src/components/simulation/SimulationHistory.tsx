@@ -2,6 +2,7 @@
  * Historique des simulations sauvegardées
  */
 
+import { log } from '@/lib/logger';
 import React from 'react';
 import { Calendar, FileText, Trash2, Eye, GitCompare, Download } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -153,7 +154,7 @@ export const SimulationHistory: React.FC<SimulationHistoryProps> = ({
                           try {
                             await downloadSimulationPDF(sim.id);
                           } catch (error) {
-                            console.error('Erreur téléchargement PDF:', error);
+                            log.error('Erreur téléchargement PDF:', error);
                             alert('Erreur lors du téléchargement du PDF');
                           }
                         }}

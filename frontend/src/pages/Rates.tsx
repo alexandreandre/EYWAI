@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useRatesQuery } from '@/hooks/queries/useRatesQuery';
+import { TableSkeleton } from '@/components/skeletons/TableSkeleton';
+import { PageFetchIndicator } from '@/components/skeletons/PageFetchIndicator';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, AlertTriangle, Inbox } from "lucide-react";
@@ -32,26 +34,15 @@ type Cotisation = {
 // --- Composant Principal ---
 
 export default function Rates() {
-  const [data, setData] = useState<RatesResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchRates = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await apiClient.get<RatesResponse>("/api/rates/all");
-        setData(response.data);
-      } catch (e: any) {
-        const errorMsg = e.response?.data?.detail || e.message || "Une erreur est survenue.";
-        setError(errorMsg);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchRates();
-  }, []);
+  const ratesQuery = useRatesQuery();
+  const data = ratesQuery.data as RatesResponse | undefined;
+  const loading = ratesQuery.isLoading && !ratesQuery.data;
+  const error = ratesQuery.error
+    ? ((ratesQuery.error as { response?: { data?: { detail?: string } }; message?: string })
+        .response?.data?.detail ||
+      (ratesQuery.error as Error).message ||
+      'Une erreur est survenue.')
+    : null;
 
   // --- Fonctions Utilitaires (INCHANGÉ) ---
 
@@ -314,9 +305,9 @@ export default function Rates() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        <span className="ml-3 text-muted-foreground">Chargement des taux...</span>
+      <div className="space-y-6 p-6">
+        <PageFetchIndicator isFetching={ratesQuery.isFetching} />
+        <TableSkeleton rows={10} columns={3} />
       </div>
     );
   }
@@ -352,6 +343,7 @@ export default function Rates() {
 
   return (
     <div className="space-y-12 animate-fade-in">
+      <PageFetchIndicator isFetching={ratesQuery.isFetching} />
       {/* === EN-TÊTE === */}
       <div>
         <h1 className="text-3xl font-bold text-foreground">Suivi des Taux</h1>

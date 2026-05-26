@@ -4,7 +4,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -26,7 +27,15 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { ResidencePermitBadge } from "@/components/ResidencePermitBadge";
 import { getResidencePermits } from "@/api/residencePermits";
 import type { ResidencePermitListItem, ResidencePermitStatus } from "@/api/residencePermits";
-import { Loader2, Search, FileCheck, ChevronRight } from "lucide-react";
+import { Loader2, Search, FileCheck, ChevronRight, RefreshCw } from "lucide-react";
+
+function loadErrorMessage(error: unknown): string {
+  const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data
+    ?.detail;
+  if (typeof detail === "string") return detail;
+  if (error instanceof Error && error.message) return error.message;
+  return "Impossible de charger les titres de séjour. Vérifiez votre connexion puis réessayez.";
+}
 
 const STATUS_ORDER: Record<ResidencePermitStatus | "to_complete", number> = {
   expired: 0,
@@ -88,6 +97,7 @@ export default function ResidencePermits() {
     isLoading,
     isError,
     error,
+    refetch,
   } = useQuery({
     queryKey: ["residence-permits", activeCompanyId],
     queryFn: async () => {
@@ -101,8 +111,7 @@ export default function ResidencePermits() {
     if (isError) {
       toast({
         title: "Erreur",
-        description:
-          (error as Error)?.message ?? "Impossible de charger les titres de séjour.",
+        description: loadErrorMessage(error),
         variant: "destructive",
       });
     }
@@ -175,11 +184,19 @@ export default function ResidencePermits() {
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : isError ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center text-destructive">
-              <p className="font-medium">Erreur de chargement</p>
-              <p className="text-sm mt-1 text-muted-foreground">
-                {(error as Error)?.message ?? "Impossible de charger les titres de séjour."}
-              </p>
+            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center">
+              <p className="text-sm font-medium text-destructive">Erreur de chargement</p>
+              <p className="text-sm mt-1 text-muted-foreground">{loadErrorMessage(error)}</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-4 gap-2"
+                onClick={() => void refetch()}
+              >
+                <RefreshCw className="h-4 w-4" />
+                Réessayer
+              </Button>
             </div>
           ) : isEmpty ? (
             <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">

@@ -24,6 +24,7 @@ import {
   Copy,
   Lock,
   Plus,
+  RefreshCw,
   Send,
   Trash2,
 } from 'lucide-react';
@@ -84,15 +85,49 @@ import { WeekGrid } from '@/components/planning/WeekGrid';
 
 type ModalType = 'create' | 'edit' | 'lock' | 'duplicate' | null;
 
-function apiErrorMessage(err: unknown): string {
+function apiErrorMessage(err: unknown, fallback = 'Erreur inattendue'): string {
   if (axios.isAxiosError(err)) {
     const data = err.response?.data as { detail?: unknown } | undefined;
     const d = data?.detail;
-    if (typeof d === 'string') {
+    if (typeof d === 'string' && d.trim()) {
       return d;
     }
+    if (err.response?.status === 503) {
+      return 'Service temporairement indisponible. Réessayez dans quelques secondes.';
+    }
   }
-  return err instanceof Error ? err.message : 'Erreur inattendue';
+  if (err instanceof Error && err.message) {
+    return err.message;
+  }
+  return fallback;
+}
+
+function PlanningQueryError({
+  message,
+  onRetry,
+  className,
+}: {
+  message: string;
+  onRetry: () => void;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-center ${className ?? ''}`}
+    >
+      <p className="text-sm text-destructive">{message}</p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="mt-3 gap-2"
+        onClick={onRetry}
+      >
+        <RefreshCw className="h-4 w-4" />
+        Réessayer
+      </Button>
+    </div>
+  );
 }
 
 function coerceWeekPlanning(raw: unknown): WeekPlanning {
@@ -386,11 +421,22 @@ export default function Planning() {
       Boolean(activeCompany?.company_id),
   });
 
-  const { data: employees, isSuccess: employeesPlanningSuccess } = useQuery({
+  const {
+    data: employees,
+    isSuccess: employeesPlanningSuccess,
+    isError: employeesLoadError,
+    error: employeesQueryError,
+    refetch: refetchEmployees,
+  } = useQuery({
     queryKey: ['employees-planning', activeCompany?.company_id],
     queryFn: () => getEmployeesForPlanning(),
     enabled: Boolean(activeCompany?.company_id),
   });
+
+  const employeesLoadErrorMessage = apiErrorMessage(
+    employeesQueryError,
+    'Impossible de charger la liste des employés.'
+  );
 
   const shiftTypesQuery = useQuery({
     queryKey: ['planning-shift-types', activeCompany?.company_id],
@@ -860,6 +906,13 @@ export default function Planning() {
         </div>
       </div>
 
+      {employeesLoadError ? (
+        <PlanningQueryError
+          message={employeesLoadErrorMessage}
+          onRetry={() => void refetchEmployees()}
+        />
+      ) : null}
+
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           {viewMode === 'semaine' ? (
@@ -956,9 +1009,13 @@ export default function Planning() {
           <Skeleton className="h-64 w-full" />
         </div>
       ) : viewMode === 'semaine' && weekQuery.isError ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-          {apiErrorMessage(weekQuery.error)}
-        </div>
+        <PlanningQueryError
+          message={apiErrorMessage(
+            weekQuery.error,
+            'Impossible de charger le planning de la semaine.'
+          )}
+          onRetry={() => void weekQuery.refetch()}
+        />
       ) : viewMode === 'semaine' && planning ? (
         <WeekGrid
           planning={planning}

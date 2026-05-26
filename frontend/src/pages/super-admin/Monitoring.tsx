@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import apiClient from '../../api/apiClient';
 
+import { log } from '@/lib/logger';
 interface SystemHealth {
   status: string;
   checks: {
@@ -27,7 +28,7 @@ export default function Monitoring() {
       const response = await apiClient.get('/api/super-admin/system/health');
       setHealth(response.data);
     } catch (error) {
-      console.error('Erreur:', error);
+      log.error('Erreur:', error);
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { PlusCircle, Eye, Calendar, FileText, Users as UsersIcon, Trash2 } from 'lucide-react';
+import { log } from '@/lib/logger';
+import React, { useState, useEffect, useMemo } from 'react';
+import { PlusCircle, Eye, Calendar, Users as UsersIcon, Trash2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,39 +20,43 @@ import {
 import { CreateExitDialog } from '@/components/exits/CreateExitDialog';
 import { ExitDetailsPanel } from '@/components/exits/ExitDetailsPanel';
 
+function loadErrorMessage(error: unknown): string {
+  const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  return 'Impossible de charger les départs. Vérifiez votre connexion puis réessayez.';
+}
+
 const EmployeeExitsPage = () => {
   const [exits, setExits] = useState<EmployeeExitWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedExitType, setSelectedExitType] = useState<string>('all');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedExit, setSelectedExit] = useState<EmployeeExitWithDetails | null>(null);
 
   useEffect(() => {
-    fetchExits();
-  }, [selectedExitType]);
+    void fetchExits();
+  }, []);
 
   const fetchExits = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
-      const params: any = {};
-      if (selectedExitType !== 'all') {
-        params.exit_type = selectedExitType;
-      }
-      const data = await getEmployeeExits(params);
+      const data = await getEmployeeExits();
       setExits(data);
-    } catch (error: any) {
-      console.error('Erreur lors du chargement des départs:', error);
+    } catch (error: unknown) {
+      log.error('Erreur lors du chargement des départs:', error);
+      setLoadError(loadErrorMessage(error));
       toast.error('Erreur lors du chargement des départs');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleExitCreated = () => {
-    setShowCreateDialog(false);
-    fetchExits();
-    toast.success('Processus de départ créé avec succès');
-  };
+  const filteredExits = useMemo(() => {
+    if (selectedExitType === 'all') return exits;
+    return exits.filter((e) => e.exit_type === selectedExitType);
+  }, [exits, selectedExitType]);
 
   const handleDeleteExit = async (exitId: string, employeeName: string) => {
     const confirmMessage = `Êtes-vous sûr de vouloir supprimer le départ de ${employeeName} ?\n\nCette action est irréversible et :\n- Supprimera tous les documents associés\n- Supprimera la checklist\n- Remettra l'employé en statut "actif"`;
@@ -65,7 +70,7 @@ const EmployeeExitsPage = () => {
       toast.success('Le départ a été supprimé avec succès. L\'employé est maintenant en statut "actif".');
       fetchExits();
     } catch (error: any) {
-      console.error('Erreur lors de la suppression:', error);
+      log.error('Erreur lors de la suppression:', error);
       toast.error(error.response?.data?.detail || 'Impossible de supprimer le départ');
     }
   };
@@ -158,11 +163,30 @@ const EmployeeExitsPage = () => {
                   <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent"></div>
                   <p className="mt-2 text-sm text-gray-600">Chargement...</p>
                 </div>
+              ) : loadError ? (
+                <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center">
+                  <p className="text-sm text-destructive">{loadError}</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-4 gap-2"
+                    onClick={() => void fetchExits()}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Réessayer
+                  </Button>
+                </div>
               ) : exits.length === 0 ? (
                 <div className="text-center py-12 text-gray-500">
                   <UsersIcon className="h-16 w-16 mx-auto mb-4 text-gray-300" />
                   <p className="text-lg font-medium mb-2">Aucun départ enregistré</p>
                   <p className="text-sm">Cliquez sur « Nouveau départ » pour commencer</p>
+                </div>
+              ) : filteredExits.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <p className="text-lg font-medium mb-2">Aucun départ pour ce type</p>
+                  <p className="text-sm">Sélectionnez un autre onglet ou créez un nouveau départ.</p>
                 </div>
               ) : (
                 <div className="w-full overflow-x-auto">
@@ -179,7 +203,7 @@ const EmployeeExitsPage = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {exits.map((exit) => (
+                      {filteredExits.map((exit) => (
                         <TableRow key={exit.id} className="hover:bg-gray-50">
                           <TableCell>
                             <div>

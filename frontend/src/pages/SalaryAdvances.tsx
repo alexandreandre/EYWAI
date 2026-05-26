@@ -1,6 +1,11 @@
 // frontend/src/pages/SalaryAdvances.tsx
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
+import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
+import { TableSkeleton } from '@/components/skeletons/TableSkeleton';
+import { PageFetchIndicator } from '@/components/skeletons/PageFetchIndicator';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -29,39 +34,23 @@ const STATUS_COLORS: Record<SalaryAdvanceStatus, string> = {
 
 export default function SalaryAdvances() {
   const { toast } = useToast();
-  const [advances, setAdvances] = useState<SalaryAdvance[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const companyId = useActiveCompanyId();
+  const queryClient = useQueryClient();
+  const advancesQuery = useQuery({
+    queryKey: queryKeys.salaryAdvances(companyId),
+    queryFn: getSalaryAdvances,
+    enabled: Boolean(companyId),
+  });
+  const advances = advancesQuery.data ?? [];
+  const isLoading = advancesQuery.isLoading && !advancesQuery.data;
   const [showForm, setShowForm] = useState(false);
   const [selectedAdvance, setSelectedAdvance] = useState<SalaryAdvance | null>(null);
   const [paymentAdvance, setPaymentAdvance] = useState<SalaryAdvance | null>(null);
   const [filterStatus, setFilterStatus] = useState<SalaryAdvanceStatus | 'all'>('all');
 
   const fetchAdvances = async () => {
-    setIsLoading(true);
-    try {
-      // Ajouter un timestamp pour éviter le cache
-      const data = await getSalaryAdvances();
-      console.log('[DEBUG] Avances récupérées:', data);
-      // Vérifier que remaining_to_pay est bien présent
-      data.forEach((advance: any) => {
-        console.log(`[DEBUG] Avance ${advance.id}: remaining_to_pay=${advance.remaining_to_pay}, approved=${advance.approved_amount}, status=${advance.status}`);
-      });
-      setAdvances(data);
-    } catch (error) {
-      console.error('[DEBUG] Erreur lors du chargement des avances:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de charger les avances.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    await queryClient.invalidateQueries({ queryKey: queryKeys.salaryAdvances(companyId) });
   };
-
-  useEffect(() => {
-    fetchAdvances();
-  }, []);
 
   const handleApprove = async (id: string) => {
     try {
@@ -122,6 +111,7 @@ export default function SalaryAdvances() {
 
   return (
     <div className="space-y-6">
+      <PageFetchIndicator isFetching={advancesQuery.isFetching} />
       <div>
         <h1 className="text-3xl font-bold flex items-center gap-2">
           <Wallet className="h-8 w-8" />
@@ -235,8 +225,8 @@ export default function SalaryAdvances() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <div className="py-4">
+              <TableSkeleton rows={6} columns={5} />
             </div>
           ) : (
             <Table>

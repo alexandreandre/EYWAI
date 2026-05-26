@@ -1,3 +1,4 @@
+import { log } from '@/lib/logger';
 import { useEffect, useState } from 'react';
 import { Card, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
@@ -84,7 +85,7 @@ export function YearCalendarView({
         });
         setYearData(dataByMonth);
       } catch (error) {
-        console.error('Erreur lors du chargement des données annuelles', error);
+        log.error('Erreur lors du chargement des données annuelles', error);
       } finally {
         setIsLoadingYear(false);
       }

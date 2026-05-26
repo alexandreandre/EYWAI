@@ -8,6 +8,7 @@
  * - Voir le dashboard consolidé
  */
 
+import { log } from '@/lib/logger';
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '@/api/apiClient';
@@ -187,7 +188,7 @@ export default function CompanyGroupDetail() {
       setGroupStats(statsResponse.data);
 
     } catch (err: any) {
-      console.error('Erreur lors du chargement du groupe:', err);
+      log.error('Erreur lors du chargement du groupe:', err);
       setError(err.response?.data?.detail || 'Erreur lors du chargement du groupe');
     } finally {
       setIsLoading(false);
@@ -227,7 +228,7 @@ export default function CompanyGroupDetail() {
         setSelectedCompanyToAdd('');
         loadGroupData();
       } catch (err: any) {
-        console.error('Erreur lors de l\'ajout de l\'entreprise:', err);
+        log.error('Erreur lors de l\'ajout de l\'entreprise:', err);
         toast({
           title: "Erreur",
           description: err.response?.data?.detail || 'Erreur lors de l\'ajout de l\'entreprise',
@@ -262,7 +263,7 @@ export default function CompanyGroupDetail() {
         setSelectedCompaniesToAdd([]);
         loadGroupData();
       } catch (err: any) {
-        console.error('Erreur lors de l\'ajout des entreprises:', err);
+        log.error('Erreur lors de l\'ajout des entreprises:', err);
         toast({
           title: "Erreur",
           description: err.response?.data?.detail || 'Erreur lors de l\'ajout des entreprises',
@@ -289,7 +290,7 @@ export default function CompanyGroupDetail() {
 
       loadGroupData();
     } catch (err: any) {
-      console.error('Erreur lors du retrait de l\'entreprise:', err);
+      log.error('Erreur lors du retrait de l\'entreprise:', err);
       toast({
         title: "Erreur",
         description: err.response?.data?.detail || 'Erreur lors du retrait de l\'entreprise',
@@ -365,7 +366,7 @@ export default function CompanyGroupDetail() {
       setIsManageUserDialogOpen(false);
       loadGroupData();
     } catch (err: any) {
-      console.error('Erreur lors de la gestion des accès:', err);
+      log.error('Erreur lors de la gestion des accès:', err);
       toast({
         title: "Erreur",
         description: err.response?.data?.detail || 'Erreur lors de la gestion des accès utilisateur',
@@ -391,7 +392,7 @@ export default function CompanyGroupDetail() {
 
       loadGroupData();
     } catch (err: any) {
-      console.error('Erreur lors du retrait de l\'utilisateur:', err);
+      log.error('Erreur lors du retrait de l\'utilisateur:', err);
       toast({
         title: "Erreur",
         description: err.response?.data?.detail || 'Erreur lors du retrait de l\'utilisateur',

@@ -1,3 +1,4 @@
+import { log } from '@/lib/logger';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Loader2, Save, X, User, Building, Shield, Key, AlertCircle, Check, Plus, ChevronDown, ChevronUp, Sparkles, ArrowLeft } from 'lucide-react';
@@ -117,7 +118,7 @@ const UserCreation: React.FC = () => {
       }
     } catch (err) {
       setError('Impossible de charger les entreprises');
-      console.error(err);
+      log.error(err);
     } finally {
       setLoadingCompanies(false);
     }
@@ -141,7 +142,7 @@ const UserCreation: React.FC = () => {
         },
       }));
     } catch (err) {
-      console.error('Erreur lors du chargement des templates:', err);
+      log.error('Erreur lors du chargement des templates:', err);
       setCompanyAccesses((prev) => ({
         ...prev,
         [companyId]: { ...prev[companyId], loadingTemplates: false },
@@ -161,7 +162,7 @@ const UserCreation: React.FC = () => {
         },
       }));
     } catch (err) {
-      console.error('Erreur lors du chargement des permissions du template:', err);
+      log.error('Erreur lors du chargement des permissions du template:', err);
     }
   };
 
@@ -185,7 +186,7 @@ const UserCreation: React.FC = () => {
         },
       }));
     } catch (err) {
-      console.error('Erreur lors du chargement des rôles custom:', err);
+      log.error('Erreur lors du chargement des rôles custom:', err);
       setCompanyAccesses((prev) => ({
         ...prev,
         [companyId]: { ...prev[companyId], loadingCustomRoles: false },
@@ -287,7 +288,7 @@ const UserCreation: React.FC = () => {
         },
       }));
     } catch (err) {
-      console.error('Erreur lors du chargement du rôle custom:', err);
+      log.error('Erreur lors du chargement du rôle custom:', err);
       setError('Erreur lors du chargement du rôle');
     }
   };
@@ -384,7 +385,7 @@ const UserCreation: React.FC = () => {
 
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Erreur lors de la création du template');
-      console.error(err);
+      log.error(err);
     } finally {
       setCreatingTemplate(false);
     }
@@ -492,7 +493,7 @@ const UserCreation: React.FC = () => {
       }, 2000);
     } catch (err: any) {
       setError(err.response?.data?.detail || "Erreur lors de la création de l'utilisateur");
-      console.error(err);
+      log.error(err);
     } finally {
       setLoading(false);
     }

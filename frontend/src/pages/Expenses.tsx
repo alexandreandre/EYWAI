@@ -1,5 +1,6 @@
 // Fichier : src/pages/Expenses.tsx (Côté RH - VERSION FINALE)
 
+import { log } from '@/lib/logger';
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,7 +57,7 @@ export default function ExpensesPage() {
     if (!path) return null;
     const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
     if (!SUPABASE_URL) {
-      console.error("Erreur: VITE_SUPABASE_URL n'est pas définie dans le fichier .env du frontend !");
+      log.error("Erreur: VITE_SUPABASE_URL n'est pas définie dans le fichier .env du frontend !");
       return "#";
     }
     return `${SUPABASE_URL}/storage/v1/object/public/expense_receipts/${path}`;
@@ -115,7 +116,7 @@ export default function ExpensesPage() {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(objectUrl);
   } catch (error) {
-    console.error("Erreur de téléchargement:", error);
+    log.error("Erreur de téléchargement:", error);
     toast({
       title: "Erreur",
       description: "Impossible de télécharger le fichier.",

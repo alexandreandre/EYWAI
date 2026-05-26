@@ -1,3 +1,4 @@
+import { log } from '@/lib/logger';
 import { Fragment, useState, useEffect, useMemo } from "react";
 import {
   LayoutDashboard,
@@ -36,6 +37,7 @@ import {
   LifeBuoy,
   GraduationCap,
   BarChart2,
+  ScanLine,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext"; // <-- IMPORTATION
 import { useRhSidebarTaskBadges } from "@/hooks/useRhSidebarTaskBadges";
@@ -46,6 +48,8 @@ import {
 } from "@/contexts/CompanyContext"; // <-- IMPORTATION
 import { useViewOptional } from "@/contexts/ViewContext"; // NOUVEAU - Gestion de la vue pour collaborateur_rh
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { prefetchRoute } from "@/lib/prefetchByRole";
 import { ChangePasswordModal } from "@/components/ChangePasswordModal";
 import { CompanySwitcher } from "@/components/CompanySwitcher";
 import { Switch } from "@/components/ui/switch";
@@ -139,6 +143,7 @@ const RH_TEAM_GROUPS_BASE: SidebarLinkGroup[] = [
 ];
 
 const RH_GESTION_SUIVI_RH_ITEMS: SidebarLinkItem[] = [
+  { title: "Badgeuse", url: "/badgeuse-rh", icon: ScanLine },
   { title: "Calendriers", url: "/schedules", icon: Calendar },
   { title: "Entretiens", url: "/formation#entretiens", icon: MessageSquare },
   { title: "Formation & talents", url: "/formation", icon: GraduationCap },
@@ -662,10 +667,8 @@ function SubNavCountBadge({ count }: { count: number }) {
 }
 
 export function AppSidebar() {
-
-  console.log('%c[AppSidebar] 🔨 Rendu du composant AppSidebar', 'background: purple; color: white; font-weight: bold');
-
-  const { user, logout } = useAuth(); // <-- UTILISATION DU HOOK
+  const queryClient = useQueryClient();
+  const { user, logout } = useAuth();
   const { state } = useSidebar();
   const navigate = useNavigate();
   const collapsed = state === "collapsed";
@@ -685,6 +688,9 @@ export function AppSidebar() {
   // Récupérer l'entreprise active et les groupes multi-entreprises accessibles
   const companyContext = useCompanyOptional();
   const activeCompany: CompanyAccess | null = companyContext?.activeCompany ?? null;
+  const handleNavPrefetch = (url: string) => () => {
+    prefetchRoute(queryClient, url, activeCompany?.company_id);
+  };
   const accessibleCompanies: CompanyAccess[] = companyContext?.accessibleCompanies ?? [];
   const accessibleGroups =
     companyContext != null
@@ -692,7 +698,7 @@ export function AppSidebar() {
       : [];
 
   if (!companyContext) {
-    console.log('%c[AppSidebar] Pas de CompanyContext disponible', 'color: orange');
+    log.debug('%c[AppSidebar] Pas de CompanyContext disponible', 'color: orange');
   }
 
   // Mettre à jour le logo affiché seulement quand un nouveau logo est disponible
@@ -705,10 +711,10 @@ export function AppSidebar() {
     }
   }, [activeCompany?.logo_url, activeCompany?.logo_scale]);
 
-  console.log('%c[AppSidebar] User:', 'color: purple', user);
-  console.log('%c[AppSidebar] Sidebar state:', 'color: purple', state);
-  console.log('%c[AppSidebar] Collapsed:', 'color: purple', collapsed);
-  console.log('%c[AppSidebar] Accessible Groups:', 'color: purple', accessibleGroups);
+  log.debug('%c[AppSidebar] User:', 'color: purple', user);
+  log.debug('%c[AppSidebar] Sidebar state:', 'color: purple', state);
+  log.debug('%c[AppSidebar] Collapsed:', 'color: purple', collapsed);
+  log.debug('%c[AppSidebar] Accessible Groups:', 'color: purple', accessibleGroups);
 
   const isActive = (path: string) => {
     if (path === "/") {
@@ -815,11 +821,11 @@ export function AppSidebar() {
 
   // Si l'utilisateur n'est pas encore chargé, on n'affiche rien ou un loader
   if (!user) {
-    console.log('%c[AppSidebar] ❌ Pas d\'utilisateur - Retour null', 'color: red');
+    log.debug('%c[AppSidebar] ❌ Pas d\'utilisateur - Retour null', 'color: red');
     return null;
   }
 
-  console.log('%c[AppSidebar] ✅ Utilisateur chargé, affichage de la sidebar', 'color: green');
+  log.debug('%c[AppSidebar] ✅ Utilisateur chargé, affichage de la sidebar', 'color: green');
 
   // Déterminer quel menu afficher selon le rôle et la vue
   let userRole = user.role as keyof typeof menuItems;
@@ -843,8 +849,8 @@ export function AppSidebar() {
     items = rhCollapsedNavItems;
   }
 
-  console.log('%c[AppSidebar] Role:', 'color: purple', userRole);
-  console.log('%c[AppSidebar] Menu items:', 'color: purple', items.length, 'items');
+  log.debug('%c[AppSidebar] Role:', 'color: purple', userRole);
+  log.debug('%c[AppSidebar] Menu items:', 'color: purple', items.length, 'items');
 
   const showRhAccordion = userRole === "rh" && !collapsed;
 
@@ -1060,6 +1066,7 @@ export function AppSidebar() {
                             to={item.url}
                             className={cn(getNavClassName(item.url), subCount > 0 && !collapsed && "pr-9")}
                             end={item.url === "/"}
+                            onMouseEnter={handleNavPrefetch(item.url)}
                           >
                             <item.icon className={SIDEBAR_NAV.iconPrimary} />
                             {!collapsed && (

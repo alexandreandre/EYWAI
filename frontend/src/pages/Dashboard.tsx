@@ -1,7 +1,19 @@
-import { useEffect, useState } from "react";
+import { log } from '@/lib/logger';
+import { useEffect, useMemo, useState } from "react";
 import apiClient from '@/api/apiClient';
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
+import {
+  useAnnualReviewsPriorityQuery,
+  useDashboardAllQuery,
+  useMedicalDashboardQuery,
+  usePendingSignaturesRhQuery,
+  useRecruitmentPriorityQuery,
+  useResidencePermitStatsQuery,
+  useRibAlertsDashboardQuery,
+} from "@/hooks/queries/useDashboardQueries";
+import { DashboardSkeleton } from "@/components/skeletons/DashboardSkeleton";
+import { PageFetchIndicator } from "@/components/skeletons/PageFetchIndicator";
 import { Link, useNavigate } from "react-router-dom";
 import { CopilotModalAgent } from "@/components/CopilotModalAgent";
 
@@ -50,24 +62,14 @@ import {
 
 // --- Alertes RIB ---
 import * as ribAlertsApi from "@/api/ribAlerts";
-import { getPendingSignaturesRH } from "@/api/signatures";
 import { CSEDashboardBlock } from "@/components/CSEDashboardBlock";
 import { PendingSignaturesWidget } from "@/components/dashboard/PendingSignaturesWidget";
 import TeamAnalyticsSection from "@/components/dashboard/TeamAnalyticsSection";
-import { getMedicalSettings, getKPIs, type KPIs } from "@/api/medicalFollowUp";
-import {
-  ANNUAL_REVIEW_PRIORITY_WINDOW_DAYS,
-  countUpcomingPlannedAnnualReviews,
-  getAllAnnualReviews,
-} from "@/api/annualReviews";
-import {
-  countRecruitmentPriorityCandidates,
-  isRecruitmentPriorityCandidate,
-  getCandidates,
-  getJobs,
-  getRecruitmentSettings,
-} from "@/api/recruitment";
-import { useQuery } from "@tanstack/react-query";
+import { type KPIs } from "@/api/medicalFollowUp";
+import { ANNUAL_REVIEW_PRIORITY_WINDOW_DAYS } from "@/api/annualReviews";
+import { isRecruitmentPriorityCandidate, getJobs, getRecruitmentSettings } from "@/api/recruitment";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { getDashboardCounts } from "@/api/certifications";
 import { getOverdueCount } from "@/api/legalObligations";
 import { getBudget, type TrainingBudgetAlertLevel } from "@/api/trainingBudget";
@@ -163,30 +165,57 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { activeCompany } = useCompany();
   const companyId = activeCompany?.company_id;
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [residencePermitStats, setResidencePermitStats] = useState<ResidencePermitStats | null>(null);
-  const [residencePermitLoading, setResidencePermitLoading] = useState(true);
-  const [ribAlerts, setRibAlerts] = useState<ribAlertsApi.RibAlert[]>([]);
-  const [ribAlertTotal, setRibAlertTotal] = useState(0);
-  const [ribAlertsLoading, setRibAlertsLoading] = useState(true);
-  const [medicalModuleEnabled, setMedicalModuleEnabled] = useState(false);
-  const [medicalKpis, setMedicalKpis] = useState<KPIs | null>(null);
-  const [medicalKpisLoading, setMedicalKpisLoading] = useState(true);
-  const [annualReviewsUpcomingCount, setAnnualReviewsUpcomingCount] = useState(0);
-  const [recruitmentPendingCount, setRecruitmentPendingCount] = useState(0);
-  const [recruitmentPendingPreview, setRecruitmentPendingPreview] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const dashboardQuery = useDashboardAllQuery(Boolean(companyId));
+  const residenceQuery = useResidencePermitStatsQuery(Boolean(companyId));
+  const ribQuery = useRibAlertsDashboardQuery(Boolean(companyId));
+  const medical = useMedicalDashboardQuery(Boolean(companyId));
+  const annualReviewsQuery = useAnnualReviewsPriorityQuery(Boolean(companyId));
+  const recruitment = useRecruitmentPriorityQuery(Boolean(companyId));
+  const pendingSignaturesQuery = usePendingSignaturesRhQuery(Boolean(companyId));
+
+  const data = dashboardQuery.data as DashboardData | undefined;
+  const loading = dashboardQuery.isLoading && !dashboardQuery.data;
+  const error = dashboardQuery.error
+    ? (dashboardQuery.error as { response?: { data?: { detail?: string } }; message?: string })
+        .response?.data?.detail ||
+      (dashboardQuery.error as Error).message ||
+      'Une erreur est survenue.'
+    : null;
+
+  const residencePermitStats = residenceQuery.data ?? null;
+  const residencePermitLoading = residenceQuery.isLoading && !residenceQuery.data;
+  const ribAlerts = ribQuery.data?.alerts ?? [];
+  const ribAlertTotal = ribQuery.data?.total ?? 0;
+  const ribAlertsLoading = ribQuery.isLoading && !ribQuery.data;
+  const medicalModuleEnabled = medical.medicalModuleEnabled;
+  const medicalKpis = medical.medicalKpis;
+  const medicalKpisLoading = medical.isLoading;
+  const annualReviewsUpcomingCount = annualReviewsQuery.data ?? 0;
+  const recruitmentPendingCount = recruitment.pendingCount;
+  const recruitmentPendingPreview = useMemo(() => {
+    const candidates = recruitment.candidatesQuery.data;
+    if (!candidates?.length) return null;
+    const pending = candidates.filter(isRecruitmentPriorityCandidate);
+    if (pending.length === 0) return null;
+    return pending
+      .slice(0, 2)
+      .map((c) => `${c.first_name} ${c.last_name}`)
+      .join(' · ');
+  }, [recruitment.candidatesQuery.data]);
+
+  const pendingSignaturesCount = pendingSignaturesQuery.data?.total ?? 0;
+
+  const isFetching =
+    dashboardQuery.isFetching ||
+    residenceQuery.isFetching ||
+    ribQuery.isFetching ||
+    medical.isFetching;
 
   const [isGeneratePayrollModalOpen, setIsGeneratePayrollModalOpen] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [selectedPriorityKey, setSelectedPriorityKey] = useState<DashboardPriorityKey | null>(null);
-  const { data: pendingSignaturesData } = useQuery({
-    queryKey: ["pending-signatures", "rh"],
-    queryFn: getPendingSignaturesRH,
-    enabled: Boolean(companyId),
-  });
-  const pendingSignaturesCount = pendingSignaturesData?.total ?? 0;
   const [validatedPriorityByCount, setValidatedPriorityByCount] = useState<PriorityValidationByCount>(() => {
     try {
       const raw = sessionStorage.getItem(PRIORITY_DAY_STORAGE_KEY);
@@ -205,148 +234,6 @@ export default function Dashboard() {
       return {};
     }
   });
-
-  useEffect(() => {
-    if (!companyId) return;
-
-    let cancelled = false;
-
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await apiClient.get<DashboardData>('/api/dashboard/all');
-        if (!cancelled) setData(response.data);
-      } catch (e: any) {
-        if (!cancelled) {
-          const errorMsg = e.response?.data?.detail || e.message || "Une erreur est survenue.";
-          setError(errorMsg);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
-    return () => {
-      cancelled = true;
-    };
-  }, [companyId]);
-
-  useEffect(() => {
-    const fetchResidencePermitStats = async () => {
-      try {
-        setResidencePermitLoading(true);
-        const response = await apiClient.get<ResidencePermitStats>('/api/dashboard/residence-permit-stats');
-        setResidencePermitStats(response.data);
-      } catch (e: any) {
-        // En cas d'erreur, on garde les stats à null (la carte affichera 0)
-        console.error("Erreur lors de la récupération des stats de titres de séjour:", e);
-        setResidencePermitStats({
-          total_expire: 0,
-          total_a_renouveler: 0,
-          total_a_renseigner: 0,
-          total_valide: 0
-        });
-      } finally {
-        setResidencePermitLoading(false);
-      }
-    };
-    fetchResidencePermitStats();
-  }, []);
-
-  useEffect(() => {
-    const fetchMedical = async () => {
-      try {
-        setMedicalKpisLoading(true);
-        const settings = await getMedicalSettings();
-        setMedicalModuleEnabled(settings.enabled);
-        if (settings.enabled) {
-          const kpis = await getKPIs();
-          setMedicalKpis(kpis);
-        } else {
-          setMedicalKpis(null);
-        }
-      } catch {
-        setMedicalModuleEnabled(false);
-        setMedicalKpis(null);
-      } finally {
-        setMedicalKpisLoading(false);
-      }
-    };
-    fetchMedical();
-  }, []);
-
-  useEffect(() => {
-    const fetchRibAlerts = async () => {
-      try {
-        setRibAlertsLoading(true);
-        const response = await ribAlertsApi.getRibAlerts({
-          is_read: false,
-          is_resolved: false,
-          limit: 5,
-        });
-        setRibAlerts(response.data.alerts || []);
-        setRibAlertTotal(typeof response.data.total === "number" ? response.data.total : (response.data.alerts || []).length);
-      } catch (e: any) {
-        console.error("Erreur lors de la récupération des alertes RIB:", e);
-        setRibAlerts([]);
-        setRibAlertTotal(0);
-      } finally {
-        setRibAlertsLoading(false);
-      }
-    };
-    fetchRibAlerts();
-  }, []);
-
-  useEffect(() => {
-    const fetchAnnualReviewsPriority = async () => {
-      try {
-        const response = await getAllAnnualReviews();
-        setAnnualReviewsUpcomingCount(
-          countUpcomingPlannedAnnualReviews(
-            response.data || [],
-            ANNUAL_REVIEW_PRIORITY_WINDOW_DAYS,
-          ),
-        );
-      } catch {
-        setAnnualReviewsUpcomingCount(0);
-      }
-    };
-    fetchAnnualReviewsPriority();
-  }, []);
-
-  useEffect(() => {
-    const fetchRecruitmentPriority = async () => {
-      try {
-        const settings = await getRecruitmentSettings();
-        if (!settings.enabled) {
-          setRecruitmentPendingCount(0);
-          setRecruitmentPendingPreview(null);
-          return;
-        }
-
-        const candidates = await getCandidates();
-        const pendingCount = countRecruitmentPriorityCandidates(candidates);
-        const pending = candidates.filter(isRecruitmentPriorityCandidate);
-        setRecruitmentPendingCount(pendingCount);
-
-        if (pending.length > 0) {
-          const preview = pending
-            .slice(0, 2)
-            .map((c) => `${c.first_name} ${c.last_name}`)
-            .join(" · ");
-          setRecruitmentPendingPreview(preview);
-        } else {
-          setRecruitmentPendingPreview(null);
-        }
-      } catch {
-        setRecruitmentPendingCount(0);
-        setRecruitmentPendingPreview(null);
-      }
-    };
-    fetchRecruitmentPriority();
-  }, []);
 
   // Gère le raccourci clavier global (Cmd+K) pour le Copilote
   useEffect(() => {
@@ -372,11 +259,7 @@ export default function Dashboard() {
   }
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center h-[calc(100vh-200px)]">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (error) {
@@ -540,6 +423,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <PageFetchIndicator isFetching={isFetching} />
       <DashboardHeader
         firstName={user?.first_name || "Utilisateur"}
         dateLabel={todayLabel}
@@ -658,16 +542,9 @@ export default function Dashboard() {
               alerts={ribAlerts}
               loading={ribAlertsLoading}
               onRefresh={() => {
-                ribAlertsApi
-                  .getRibAlerts({ is_read: false, is_resolved: false, limit: 5 })
-                  .then((r) => {
-                    setRibAlerts(r.data.alerts || []);
-                    setRibAlertTotal(
-                      typeof r.data.total === "number"
-                        ? r.data.total
-                        : (r.data.alerts || []).length,
-                    );
-                  });
+                void queryClient.invalidateQueries({
+                  queryKey: queryKeys.ribAlerts(companyId),
+                });
               }}
             />
             {medicalModuleEnabled ? (
@@ -1111,7 +988,7 @@ function RibAlertsCard({
       await ribAlertsApi.markRibAlertRead(id);
       onRefresh();
     } catch (e) {
-      console.error(e);
+      log.error(e);
     }
   };
 

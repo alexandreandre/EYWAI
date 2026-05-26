@@ -1,6 +1,7 @@
 // frontend/src/pages/employee/AnnualReviewDetail.tsx
 // Page employé : Détail d'un entretien
 
+import { log } from '@/lib/logger';
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -34,6 +35,7 @@ import {
   FileText,
   FileDown,
   Eye,
+  RefreshCw,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -67,13 +69,15 @@ export default function EmployeeAnnualReviewDetail() {
   const queryClient = useQueryClient();
   const [localNotes, setLocalNotes] = useState("");
 
-  console.log("[AnnualReviewDetail] Composant monté avec reviewId:", reviewId);
+  log.debug("[AnnualReviewDetail] Composant monté avec reviewId:", reviewId);
 
   const {
     data: review,
     isLoading,
     isError,
     error,
+    refetch,
+    isFetching,
   } = useQuery({
     queryKey: ["annual-review", reviewId],
     queryFn: async () => {
@@ -82,10 +86,10 @@ export default function EmployeeAnnualReviewDetail() {
       }
       try {
         const res = await getAnnualReview(reviewId);
-        console.log("[AnnualReviewDetail] Données reçues:", res.data);
+        log.debug("[AnnualReviewDetail] Données reçues:", res.data);
         return res.data;
       } catch (err) {
-        console.error("[AnnualReviewDetail] Erreur lors de la récupération:", err);
+        log.error("[AnnualReviewDetail] Erreur lors de la récupération:", err);
         throw err;
       }
     },
@@ -170,7 +174,7 @@ export default function EmployeeAnnualReviewDetail() {
     refuseMutation.mutate(review.id);
   };
 
-  console.log("[AnnualReviewDetail] État:", { isLoading, isError, review, reviewId, error });
+  log.debug("[AnnualReviewDetail] État:", { isLoading, isError, review, reviewId, error });
 
   // Fallback de sécurité : toujours retourner quelque chose
   if (!reviewId) {
@@ -220,7 +224,7 @@ export default function EmployeeAnnualReviewDetail() {
       (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
       (error as Error)?.message ??
       "Une erreur est survenue";
-    console.error("[AnnualReviewDetail] Erreur:", error);
+    log.error("[AnnualReviewDetail] Erreur:", error);
     return (
       <div className="space-y-6">
         <Button variant="ghost" onClick={() => navigate("/annual-reviews")}>
@@ -229,15 +233,26 @@ export default function EmployeeAnnualReviewDetail() {
         </Button>
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3 p-4 bg-destructive/10 text-destructive border border-destructive/20 rounded-md">
-              <AlertCircle className="h-5 w-5 flex-shrink-0" />
+            <div className="flex flex-col gap-3 rounded-md border border-destructive/20 bg-destructive/10 p-4 text-destructive sm:flex-row sm:items-center">
+              <AlertCircle className="h-5 w-5 shrink-0" />
               <div className="flex-1">
                 <p className="font-medium">Erreur lors du chargement</p>
                 <p className="text-sm">{errorMessage}</p>
               </div>
-              <Button variant="outline" size="sm" onClick={() => navigate("/annual-reviews")}>
-                Retour à la liste
-              </Button>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void refetch()}
+                  disabled={isFetching}
+                >
+                  <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+                  Réessayer
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => navigate("/annual-reviews")}>
+                  Retour à la liste
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -326,10 +341,10 @@ export default function EmployeeAnnualReviewDetail() {
     }
   };
 
-  console.log("[AnnualReviewDetail] Rendu avec review:", review);
-  console.log("[AnnualReviewDetail] Statut:", review.status);
-  console.log("[AnnualReviewDetail] canAcceptOrRefuse:", canAcceptOrRefuse);
-  console.log("[AnnualReviewDetail] canEditNotes:", canEditNotes);
+  log.debug("[AnnualReviewDetail] Rendu avec review:", review);
+  log.debug("[AnnualReviewDetail] Statut:", review.status);
+  log.debug("[AnnualReviewDetail] canAcceptOrRefuse:", canAcceptOrRefuse);
+  log.debug("[AnnualReviewDetail] canEditNotes:", canEditNotes);
 
   return (
     <div className="space-y-6">

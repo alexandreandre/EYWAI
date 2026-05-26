@@ -1,5 +1,6 @@
 // Fichier : src/pages/employee/Absences.tsx (VERSION COMPLÈTE ET FINALE)
 
+import { log } from '@/lib/logger';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -171,7 +172,7 @@ export default function AbsencesPage() {
       setCertificates(prev => ({ ...prev, [absenceId]: cert.data }));
     } catch (error: any) {
       if (error.response?.status !== 404) {
-        console.error('Erreur chargement attestation:', error);
+        log.error('Erreur chargement attestation:', error);
       }
     } finally {
       setLoadingCertificates(prev => {
@@ -199,7 +200,7 @@ export default function AbsencesPage() {
       
       toast({ title: 'Succès', description: 'Attestation téléchargée avec succès.' });
     } catch (error) {
-      console.error('Erreur téléchargement attestation:', error);
+      log.error('Erreur téléchargement attestation:', error);
       toast({ title: 'Erreur', description: 'Impossible de télécharger l\'attestation.', variant: 'destructive' });
     }
   };
@@ -227,7 +228,7 @@ export default function AbsencesPage() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.error("Erreur lors de la tentative de téléchargement:", error);
+      log.error("Erreur lors de la tentative de téléchargement:", error);
       toast({ title: "Erreur", description: "Impossible de lancer le téléchargement.", variant: "destructive" });
     }
   };

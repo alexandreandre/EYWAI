@@ -1,5 +1,6 @@
 // src/pages/PayrollDetail.tsx
 
+import { log } from '@/lib/logger';
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import apiClient from '../api/apiClient';
@@ -41,14 +42,14 @@ export default function PayrollDetail() {
     if (!employeeId) return;
     setLoading(true);
     try {
-      console.log("--- DÉBOGAGE (Frontend): Lancement de la récupération des données ---");
+      log.debug("--- DÉBOGAGE (Frontend): Lancement de la récupération des données ---");
       const [employeeRes, payslipsRes] = await Promise.all([
         apiClient.get(`/api/employees/${employeeId}`),
         apiClient.get(`/api/employees/${employeeId}/payslips`)
       ]);
       
-      console.log("DEBUG (Frontend): Données de l'employé reçues:", employeeRes.data);
-      console.log("DEBUG (Frontend): Liste des bulletins reçue:", payslipsRes.data);
+      log.debug("DEBUG (Frontend): Données de l'employé reçues:", employeeRes.data);
+      log.debug("DEBUG (Frontend): Liste des bulletins reçue:", payslipsRes.data);
 
       setEmployee(employeeRes.data);
       setAllPayslips(payslipsRes.data);
@@ -71,7 +72,7 @@ export default function PayrollDetail() {
       const initialStatuses = months.reduce((acc, month) => {
         const generated = filteredPayslips.find((p: Payslip) => p.month === month);
         if (generated) {
-            console.log(`DEBUG (Frontend): Bulletin trouvé pour le mois ${month}, URL: ${generated.url}`);
+            log.debug(`DEBUG (Frontend): Bulletin trouvé pour le mois ${month}, URL: ${generated.url}`);
             acc[month] = { status: 'success', url: generated.url, payslipId: generated.id };
         } else {
             acc[month] = { status: 'idle' };
@@ -81,7 +82,7 @@ export default function PayrollDetail() {
       
       setStatuses(initialStatuses);
     } catch (error) { 
-      console.error("--- ❌ ERREUR (Frontend): Échec de la récupération des données ---", error); 
+      log.error("--- ❌ ERREUR (Frontend): Échec de la récupération des données ---", error); 
     } 
     finally { setLoading(false); }
   };
@@ -127,7 +128,7 @@ export default function PayrollDetail() {
       await apiClient.delete(`/api/payslips/${payslipIdToDelete}`);
       await fetchPayslipData();
     } catch (error) {
-      console.error("Erreur lors de la suppression", error);
+      log.error("Erreur lors de la suppression", error);
       alert("La suppression a échoué.");
     }
   };

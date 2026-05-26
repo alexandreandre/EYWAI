@@ -178,7 +178,13 @@ export default function AnalyticsPaie() {
     () => buildPeriodBounds(periodSelection),
     [periodSelection],
   );
-  const period = periodBounds.exportKey;
+  /** Période API paie (YYYY-MM) — indépendante de exportKey (semaine Sxx, année seule). */
+  const apiPeriod = useMemo(
+    () =>
+      `${periodBounds.payrollYear}-${String(periodBounds.payrollMonth).padStart(2, "0")}`,
+    [periodBounds.payrollYear, periodBounds.payrollMonth],
+  );
+  const periodExportKey = periodBounds.exportKey;
   const payrollYear = periodBounds.payrollYear;
   const payrollMonth = periodBounds.payrollMonth;
 
@@ -196,8 +202,8 @@ export default function AnalyticsPaie() {
     isFetching: summaryFetching,
     refetch: refetchSummary,
   } = useQuery({
-    queryKey: ["payroll-analytics-summary", companyId, period, teamIdsParam],
-    queryFn: () => getPayrollAnalyticsSummary(companyId, period, teamIdsParam),
+    queryKey: ["payroll-analytics-summary", companyId, apiPeriod, teamIdsParam],
+    queryFn: () => getPayrollAnalyticsSummary(companyId, apiPeriod, teamIdsParam),
     enabled: Boolean(companyId) && access.canView,
   });
 
@@ -206,11 +212,11 @@ export default function AnalyticsPaie() {
     isLoading: trendsLoading,
     refetch: refetchTrends,
   } = useQuery({
-    queryKey: ["payroll-analytics-trends", companyId, period, teamIdsParam],
+    queryKey: ["payroll-analytics-trends", companyId, apiPeriod, teamIdsParam],
     queryFn: () =>
       getPayrollAnalyticsTrends(companyId, {
         months: 12,
-        endPeriod: period,
+        endPeriod: apiPeriod,
         teamIds: teamIdsParam,
       }),
     enabled: Boolean(companyId) && access.canView,
@@ -221,9 +227,9 @@ export default function AnalyticsPaie() {
     isLoading: breakdownLoading,
     refetch: refetchBreakdown,
   } = useQuery({
-    queryKey: ["payroll-analytics-breakdown", companyId, period, breakdownGroup, teamIdsParam],
+    queryKey: ["payroll-analytics-breakdown", companyId, apiPeriod, breakdownGroup, teamIdsParam],
     queryFn: () =>
-      getPayrollAnalyticsBreakdown(companyId, period, breakdownGroup, teamIdsParam),
+      getPayrollAnalyticsBreakdown(companyId, apiPeriod, breakdownGroup, teamIdsParam),
     enabled: Boolean(companyId) && access.canView,
   });
 
@@ -234,8 +240,8 @@ export default function AnalyticsPaie() {
   });
 
   const { data: exportHistory } = useQuery({
-    queryKey: ["export-history-paie", companyId, period],
-    queryFn: () => getExportHistory(undefined, period),
+    queryKey: ["export-history-paie", companyId, apiPeriod],
+    queryFn: () => getExportHistory(undefined, apiPeriod),
     enabled: Boolean(companyId) && access.canView,
   });
 
@@ -317,9 +323,9 @@ export default function AnalyticsPaie() {
   }, [exportHistory]);
 
   const cycleInfo = useMemo(() => {
-    const p = periodsData?.periods.find((x) => x.period === period);
+    const p = periodsData?.periods.find((x) => x.period === apiPeriod);
     return p;
-  }, [periodsData, period]);
+  }, [periodsData, apiPeriod]);
 
   const anomaliesPeriodHint = useMemo(() => {
     if (periodSelection.granularity === "monthly") return null;
@@ -380,7 +386,7 @@ export default function AnalyticsPaie() {
               size="sm"
               className="h-9"
               onClick={() =>
-                exportPayrollCsv(companyName, period, summary, trends?.points ?? [])
+                exportPayrollCsv(companyName, periodExportKey, summary, trends?.points ?? [])
               }
               disabled={!summary}
             >
@@ -732,7 +738,7 @@ export default function AnalyticsPaie() {
               <CardHeader className="p-4 pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <FileDown className="h-4 w-4" />
-                  Derniers exports ({period})
+                  Derniers exports ({apiPeriod})
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 p-4 pt-0 text-sm">

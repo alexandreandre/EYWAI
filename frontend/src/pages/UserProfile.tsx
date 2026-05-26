@@ -140,7 +140,11 @@ const UserProfile: React.FC = () => {
   }, [userId, companyId]);
 
   const handleEdit = () => {
-    if (userId) navigate(`/users/${userId}/edit`);
+    if (!userId) return;
+    const editCompanyId =
+      userDetail?.company_id || companyIdFromQuery || activeCompany?.company_id || '';
+    const query = editCompanyId ? `?company_id=${encodeURIComponent(editCompanyId)}` : '';
+    navigate(`/users/${userId}/edit${query}`);
   };
 
   if (loading) {

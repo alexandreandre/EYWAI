@@ -1,5 +1,6 @@
 // src/pages/employee/Dashboard.tsx 
 
+import { log } from '@/lib/logger';
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -55,7 +56,7 @@ export default function EmployeeDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  console.log('DEBUG: [Render] User from useAuth:', user);
+  log.debug('DEBUG: [Render] User from useAuth:', user);
 
   // --- États ---
   const [isLoading, setIsLoading] = useState(true);
@@ -80,10 +81,10 @@ export default function EmployeeDashboard() {
       const response = await apiClient.get<absencesApi.AbsencePageData>(`/api/absences/employees/me/page-data?year=${year}&month=${month}`);
       if (response.data?.calendar_days) {
         setCalendarDays(response.data.calendar_days);
-        console.log(`DEBUG: [Calendar] Fetched calendar data for ${month}/${year}`);
+        log.debug(`DEBUG: [Calendar] Fetched calendar data for ${month}/${year}`);
       }
     } catch (error) {
-      console.error("DEBUG: [Calendar] Failed to fetch calendar data.", error);
+      log.error("DEBUG: [Calendar] Failed to fetch calendar data.", error);
       // On ne met pas d'erreur globale pour ne pas perturber le reste du dashboard
       setCalendarDays([]); // On vide pour que la logique de fallback s'applique
     }
@@ -108,7 +109,7 @@ export default function EmployeeDashboard() {
           let fetchError = false;
 
           // 1. Bulletins -> Bulletin du mois précédent (M-1)
-          console.log("DEBUG: Processing Payslips...");
+          log.debug("DEBUG: Processing Payslips...");
           if (results[0].status === 'fulfilled') {
              const payslipsData = results[0].value.data || [];
              if (payslipsData.length > 0) {
@@ -117,7 +118,7 @@ export default function EmployeeDashboard() {
                  const previousMonth = today.getMonth() === 0 ? 12 : today.getMonth(); // getMonth() returns 0-11
                  const previousYear = today.getMonth() === 0 ? today.getFullYear() - 1 : today.getFullYear();
 
-                 console.log(`DEBUG: [Payslips] Looking for M-1: ${previousMonth}/${previousYear}`);
+                 log.debug(`DEBUG: [Payslips] Looking for M-1: ${previousMonth}/${previousYear}`);
 
                  // Chercher le bulletin du mois précédent
                  const m1Payslip = payslipsData.find(p =>
@@ -125,25 +126,25 @@ export default function EmployeeDashboard() {
                  );
 
                  if (m1Payslip) {
-                   console.log(`DEBUG: [Payslips] Found M-1 payslip: ${m1Payslip.month}/${m1Payslip.year}`);
+                   log.debug(`DEBUG: [Payslips] Found M-1 payslip: ${m1Payslip.month}/${m1Payslip.year}`);
                    setLatestPayslip(m1Payslip);
                  } else {
-                   console.log("DEBUG: [Payslips] No M-1 payslip found. Setting to null.");
+                   log.debug("DEBUG: [Payslips] No M-1 payslip found. Setting to null.");
                    setLatestPayslip(null);
                  }
-             } else { setLatestPayslip(null); console.log("DEBUG: [Payslips] Success. No payslips found."); }
-          } else { console.error("DEBUG: [Payslips] API call rejected.", results[0].reason); fetchError = true; }
+             } else { setLatestPayslip(null); log.debug("DEBUG: [Payslips] Success. No payslips found."); }
+          } else { log.error("DEBUG: [Payslips] API call rejected.", results[0].reason); fetchError = true; }
 
           // 2. Notes de frais -> Compter en attente / rejetées
-          console.log("DEBUG: Processing Expenses...");
+          log.debug("DEBUG: Processing Expenses...");
           if (results[1].status === 'fulfilled') {
             const expenses = results[1].value.data || [];
             setPendingExpensesCount(expenses.filter(e => e.status === 'pending').length);
             setRejectedExpensesCount(expenses.filter(e => e.status === 'rejected').length);
             setValidatedExpensesCount(expenses.filter(e => e.status === 'validated').length);
-          } else { console.error("DEBUG: [Expenses] API call rejected.", results[1].reason); fetchError = true; }
+          } else { log.error("DEBUG: [Expenses] API call rejected.", results[1].reason); fetchError = true; }
 
-          console.log("DEBUG: Processing Absences...");
+          log.debug("DEBUG: Processing Absences...");
           if (results[2].status === 'fulfilled') {
             const absenceData = results[2].value.data;
             if (absenceData?.balances) {
@@ -164,33 +165,33 @@ export default function EmployeeDashboard() {
             setUpcomingAbsences(validatedDates); // Renaming state might be good, but keep for now
 
           } else {
-            console.error("DEBUG: [Absences] API call rejected.", results[2].reason);
+            log.error("DEBUG: [Absences] API call rejected.", results[2].reason);
             setLeaveBalances([]);
             setCalendarDays([]);
             setUpcomingAbsences([]);
           }
 
           // 4. Cumuls
-          console.log("DEBUG: Processing Cumuls...");
+          log.debug("DEBUG: Processing Cumuls...");
           const cumulsResultIndex = 3;
           if (results[cumulsResultIndex].status === 'fulfilled') {
             const cumulsData = results[cumulsResultIndex].value.data;
             if (cumulsData && (cumulsData.periode || cumulsData.cumuls)) {
                 setCumuls(cumulsData);
-            } else { setCumuls(null); console.log("DEBUG: [Cumuls] Success. No cumuls found or data empty."); }
-          } else { console.error("DEBUG: [Cumuls] API call rejected.", results[cumulsResultIndex].reason); setCumuls(null); /* fetchError = true; */ } // Erreur non bloquante ?
+            } else { setCumuls(null); log.debug("DEBUG: [Cumuls] Success. No cumuls found or data empty."); }
+          } else { log.error("DEBUG: [Cumuls] API call rejected.", results[cumulsResultIndex].reason); setCumuls(null); /* fetchError = true; */ } // Erreur non bloquante ?
 
           // 5. Infos Employé
-          console.log("DEBUG: Processing Employee Info...");
+          log.debug("DEBUG: Processing Employee Info...");
            const employeeInfoResultIndex = 4;
            if (results[employeeInfoResultIndex].status === 'fulfilled') {
             setEmployeeInfo(results[employeeInfoResultIndex].value.data);
-          } else { console.error("DEBUG: [Employee Info] API call rejected.", results[employeeInfoResultIndex].reason); fetchError = true; }
+          } else { log.error("DEBUG: [Employee Info] API call rejected.", results[employeeInfoResultIndex].reason); fetchError = true; }
 
 
           if (fetchError) {
              const errorMsg = "Certaines informations du tableau de bord n'ont pas pu être chargées.";
-             console.warn("DEBUG: [fetchDashboardData] fetchError was set to true.");
+             log.warn("DEBUG: [fetchDashboardData] fetchError was set to true.");
              setError(errorMsg);
           }
 

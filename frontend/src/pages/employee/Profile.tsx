@@ -1,5 +1,6 @@
 // src/pages/employee/Profile.tsx (COMPLET ET CORRIGÉ)
 
+import { log } from '@/lib/logger';
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -139,7 +140,7 @@ export default function ProfilePage() {
         setIsLoading(true);
         try {
           const response = await apiClient.get<EmployeeData>(`/api/employees/${user.id}`);
-          console.log("Données brutes reçues:", response.data);
+          log.debug("Données brutes reçues:", response.data);
           setProfile(response.data);
           // ✅ Peuple react-hook-form avec les données chargées
           form.reset({
@@ -152,7 +153,7 @@ export default function ProfilePage() {
             } : null, // Mettre null si l'adresse est nulle
           });
         } catch (error) {
-          console.error("Erreur lors du chargement du profil", error);
+          log.error("Erreur lors du chargement du profil", error);
           toast({ title: "Erreur", description: "Impossible de charger les informations.", variant: "destructive" });
         } finally {
           setIsLoading(false);
@@ -166,7 +167,7 @@ export default function ProfilePage() {
   const onSubmit = async (data: ProfileUpdateFormData) => {
     if (!profile) return;
     setIsSaving(true);
-    console.log("Données envoyées pour mise à jour:", data); // Debug
+    log.debug("Données envoyées pour mise à jour:", data); // Debug
     try {
         // Le payload 'data' correspond maintenant au schéma UpdateEmployee
         await apiClient.put(`/api/employees/${profile.id}`, data);
@@ -177,7 +178,7 @@ export default function ProfilePage() {
         setProfile(response.data);
         form.reset(data); // Met à jour les defaultValues du form
     } catch(error: any) {
-         console.error("Erreur lors de la sauvegarde du profil", error);
+         log.error("Erreur lors de la sauvegarde du profil", error);
          const errorMsg = error.response?.data?.detail || "Impossible de sauvegarder les modifications.";
          toast({ title: "Erreur", description: errorMsg, variant: "destructive" });
     } finally {

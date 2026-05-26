@@ -1,5 +1,6 @@
 // frontend/src/components/saisies-avances/SaisiesAvancesDashboard.tsx
 
+import { log } from '@/lib/logger';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, AlertCircle, CheckCircle, Clock, Scale, Wallet } from "lucide-react";
@@ -30,7 +31,7 @@ export function SaisiesAvancesDashboard() {
           totalAdvances: advances.length,
         });
       } catch (error) {
-        console.error('Erreur lors du chargement des statistiques:', error);
+        log.error('Erreur lors du chargement des statistiques:', error);
       } finally {
         setIsLoading(false);
       }

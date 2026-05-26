@@ -1,5 +1,6 @@
 // frontend/src/pages/super-admin/CollectiveAgreementsCatalog.tsx
 
+import { log } from '@/lib/logger';
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -142,7 +143,7 @@ export default function CollectiveAgreementsCatalog() {
       const response = await collectiveAgreementsApi.getCatalog({ active_only: false });
       setCatalog(response.data || []);
     } catch (err: any) {
-      console.error('Erreur lors de la récupération du catalogue:', err);
+      log.error('Erreur lors de la récupération du catalogue:', err);
       toast({
         title: 'Erreur',
         description: 'Impossible de charger le catalogue des conventions collectives.',

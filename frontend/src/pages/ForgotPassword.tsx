@@ -1,5 +1,6 @@
 // src/pages/ForgotPassword.tsx
 
+import { log } from '@/lib/logger';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -22,17 +23,17 @@ export default function ForgotPasswordPage() {
     setIsSubmitting(true);
 
     try {
-      console.log('🔐 [FORGOT PASSWORD] Envoi de la demande pour:', email);
+      log.debug('🔐 [FORGOT PASSWORD] Envoi de la demande pour:', email);
 
       await apiClient.post('/api/auth/request-password-reset', {
         email: email.trim().toLowerCase()
       });
 
-      console.log('✅ [FORGOT PASSWORD] Demande envoyée avec succès');
+      log.debug('✅ [FORGOT PASSWORD] Demande envoyée avec succès');
       setIsSuccess(true);
 
     } catch (err: any) {
-      console.error('❌ [FORGOT PASSWORD] Erreur:', err);
+      log.error('❌ [FORGOT PASSWORD] Erreur:', err);
       setError('Une erreur est survenue. Veuillez réessayer.');
     } finally {
       setIsSubmitting(false);

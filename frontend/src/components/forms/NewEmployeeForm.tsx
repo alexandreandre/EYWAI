@@ -1,3 +1,4 @@
+import { log } from '@/lib/logger';
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -33,7 +34,7 @@ export function NewEmployeeForm({ onSuccess }: NewEmployeeFormProps) {
       await apiClient.post('/api/employees', values);
       onSuccess(); // Appelle la fonction onSuccess pour notifier le parent
     } catch (error) {
-      console.error("Erreur lors de la création du collaborateur", error);
+      log.error("Erreur lors de la création du collaborateur", error);
       alert("Une erreur est survenue.");
     }
   };

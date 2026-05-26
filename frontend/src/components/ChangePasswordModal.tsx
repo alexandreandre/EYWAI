@@ -1,5 +1,6 @@
 // src/components/ChangePasswordModal.tsx
 
+import { log } from '@/lib/logger';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -82,14 +83,14 @@ export function ChangePasswordModal({ open, onOpenChange }: ChangePasswordModalP
     setIsSubmitting(true);
 
     try {
-      console.log('🔐 [CHANGE PASSWORD] Changement de mot de passe...');
+      log.debug('🔐 [CHANGE PASSWORD] Changement de mot de passe...');
 
       await apiClient.post('/api/auth/change-password', {
         current_password: currentPassword,
         new_password: newPassword,
       });
 
-      console.log('✅ [CHANGE PASSWORD] Mot de passe changé avec succès');
+      log.debug('✅ [CHANGE PASSWORD] Mot de passe changé avec succès');
       setIsSuccess(true);
 
       // Réinitialiser le formulaire après 2 secondes et fermer
@@ -101,7 +102,7 @@ export function ChangePasswordModal({ open, onOpenChange }: ChangePasswordModalP
         onOpenChange(false);
       }, 2000);
     } catch (err: any) {
-      console.error('❌ [CHANGE PASSWORD] Erreur:', err);
+      log.error('❌ [CHANGE PASSWORD] Erreur:', err);
       const message =
         err.response?.data?.detail || 'Une erreur est survenue. Veuillez réessayer.';
       setError(message);

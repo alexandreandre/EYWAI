@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import apiClient from '../../api/apiClient';
 
+import { log } from '@/lib/logger';
 const DRAG_THRESHOLD_MS = 180;
 
 interface TestChild {
@@ -56,7 +57,7 @@ export default function Tests() {
       setTree(response.data);
       setExpanded(new Set((response.data?.levels ?? []).map((l: TestLevel) => l.id)));
     } catch (err) {
-      console.error('Erreur chargement arbre tests:', err);
+      log.error('Erreur chargement arbre tests:', err);
     } finally {
       setLoadingTree(false);
     }

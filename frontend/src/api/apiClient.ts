@@ -1,5 +1,6 @@
 // src/api/apiClient.ts
 
+import { log } from '@/lib/logger';
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import {
   retryAxiosRequest,
@@ -13,6 +14,7 @@ import {
   getAccessToken,
   shouldRefreshAccessToken,
 } from '@/lib/authSession';
+import { isAppDebugEnabled, log } from '@/lib/logger';
 
 export { getApiBaseUrl } from './apiConfig';
 
@@ -136,12 +138,15 @@ apiClient.interceptors.response.use(
       redirectToLoginExpired();
     }
 
-    if (import.meta.env.DEV) {
-      console.error('[apiClient] Erreur HTTP:', {
-        message: error.message,
-        status,
-        url: requestUrl,
-      });
+    const payload = {
+      message: error.message,
+      status,
+      url: requestUrl,
+    };
+    if (status && status >= 500) {
+      log.error('[apiClient] Erreur HTTP:', payload);
+    } else if (isAppDebugEnabled()) {
+      log.debug('[apiClient] Erreur HTTP:', payload);
     }
     return Promise.reject(error);
   },

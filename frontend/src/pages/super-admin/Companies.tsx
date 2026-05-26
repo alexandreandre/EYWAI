@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import apiClient from '../../api/apiClient';
 import { LogoUploader } from '../../components/LogoUploader';
 
+import { log } from '@/lib/logger';
 interface Company {
   id: string;
   company_name: string;
@@ -71,7 +72,7 @@ export default function Companies() {
       });
       setCompanies(response.data.companies);
     } catch (error) {
-      console.error('Erreur:', error);
+      log.error('Erreur:', error);
     } finally {
       setLoading(false);
     }
@@ -82,7 +83,7 @@ export default function Companies() {
       const response = await apiClient.get('/api/company-groups/');
       setGroups(response.data);
     } catch (error) {
-      console.error('Erreur lors du chargement des groupes:', error);
+      log.error('Erreur lors du chargement des groupes:', error);
     }
   };
 
@@ -102,7 +103,7 @@ export default function Companies() {
       setSelectedGroupId('');
       loadCompanies();
     } catch (error: any) {
-      console.error('Erreur:', error);
+      log.error('Erreur:', error);
       alert(error.response?.data?.detail || 'Erreur lors de l\'assignation au groupe');
     } finally {
       setAssigningToGroup(false);
@@ -121,7 +122,7 @@ export default function Companies() {
       alert(`L'entreprise a été retirée du groupe avec succès`);
       loadCompanies();
     } catch (error: any) {
-      console.error('Erreur:', error);
+      log.error('Erreur:', error);
       alert(error.response?.data?.detail || 'Erreur lors du retrait du groupe');
     }
   };
@@ -139,7 +140,7 @@ export default function Companies() {
       });
       loadCompanies();
     } catch (error) {
-      console.error('Erreur:', error);
+      log.error('Erreur:', error);
     }
   };
 
@@ -160,7 +161,7 @@ export default function Companies() {
       setCompanyToDelete(null);
       loadCompanies();
     } catch (error: any) {
-      console.error('Erreur:', error);
+      log.error('Erreur:', error);
       alert(error.response?.data?.detail || 'Erreur lors de la suppression de l\'entreprise');
     } finally {
       setDeleting(false);
@@ -191,16 +192,16 @@ export default function Companies() {
         logo_scale: formData.logo_scale
       };
 
-      console.log('📤 [CREATE COMPANY] Données envoyées:', dataToSend);
+      log.debug('📤 [CREATE COMPANY] Données envoyées:', dataToSend);
 
       const response = await apiClient.post('/api/super-admin/companies', dataToSend);
       const createdCompany = response.data.company;
 
-      console.log('✅ [CREATE COMPANY] Entreprise créée:', createdCompany);
+      log.debug('✅ [CREATE COMPANY] Entreprise créée:', createdCompany);
 
       // 2. Si un logo a été sélectionné, l'uploader
       if (logoFile && createdCompany?.id) {
-        console.log('📤 [UPLOAD LOGO] Upload du logo pour l\'entreprise:', createdCompany.id);
+        log.debug('📤 [UPLOAD LOGO] Upload du logo pour l\'entreprise:', createdCompany.id);
         try {
           const formDataUpload = new FormData();
           formDataUpload.append('file', logoFile);
@@ -212,9 +213,9 @@ export default function Companies() {
               'Content-Type': 'multipart/form-data'
             }
           });
-          console.log('✅ [UPLOAD LOGO] Logo uploadé avec succès');
+          log.debug('✅ [UPLOAD LOGO] Logo uploadé avec succès');
         } catch (uploadError) {
-          console.error('⚠️ [UPLOAD LOGO] Erreur lors de l\'upload du logo:', uploadError);
+          log.error('⚠️ [UPLOAD LOGO] Erreur lors de l\'upload du logo:', uploadError);
           // On ne bloque pas la création si l'upload du logo échoue
         }
       }
@@ -236,9 +237,9 @@ export default function Companies() {
       setLogoFile(null);
       loadCompanies();
     } catch (error: any) {
-      console.error('❌ [CREATE COMPANY] Erreur complète:', error);
-      console.error('❌ [CREATE COMPANY] Response data:', error.response?.data);
-      console.error('❌ [CREATE COMPANY] Response status:', error.response?.status);
+      log.error('❌ [CREATE COMPANY] Erreur complète:', error);
+      log.error('❌ [CREATE COMPANY] Response data:', error.response?.data);
+      log.error('❌ [CREATE COMPANY] Response status:', error.response?.status);
       alert(error.response?.data?.detail || JSON.stringify(error.response?.data) || 'Erreur lors de la création de l\'entreprise');
     } finally {
       setCreating(false);

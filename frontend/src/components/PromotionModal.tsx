@@ -1,6 +1,7 @@
 // frontend/src/components/PromotionModal.tsx
 // Modal pour créer ou éditer une promotion
 
+import { log } from '@/lib/logger';
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -270,7 +271,7 @@ export function PromotionModal({
       onSuccess();
       onClose();
     } catch (error: any) {
-      console.error("Erreur lors de la sauvegarde de la promotion:", error);
+      log.error("Erreur lors de la sauvegarde de la promotion:", error);
       toast({
         title: "Erreur",
         description: error?.response?.data?.detail || "Une erreur est survenue lors de la sauvegarde.",

@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import apiClient from '../api/apiClient';
+import { useEmployeesQuery } from '@/hooks/queries/useEmployeesQuery';
+import { TableSkeleton } from '@/components/skeletons/TableSkeleton';
+import { PageFetchIndicator } from '@/components/skeletons/PageFetchIndicator';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -248,28 +251,17 @@ function GeneratePayrollModal({ isOpen, onClose, employees }: { isOpen: boolean,
 // --- FIN DU BLOC COPIÉ ---
 
 export default function Payroll() {
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const employeesQuery = useEmployeesQuery();
+  const employees = (employeesQuery.data ?? []) as Employee[];
+  const loading = employeesQuery.isLoading && !employeesQuery.data;
+  const error = employeesQuery.error
+    ? "Erreur : Impossible de récupérer la liste des collaborateurs."
+    : null;
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
-
-  useEffect(() => {
-    const fetchEmployees = async () => {
-      try {
-        setLoading(true);
-        const response = await apiClient.get<Employee[]>('/api/employees');
-        setEmployees(response.data);
-      } catch (err) {
-        setError("Erreur : Impossible de récupérer la liste des collaborateurs.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchEmployees();
-  }, []);
 
   return (
     <div className="space-y-6">
+      <PageFetchIndicator isFetching={employeesQuery.isFetching} />
       <div>
         <h1 className="text-3xl font-bold">Gestion de la Paie</h1>
         <p className="text-muted-foreground mt-2">
@@ -302,7 +294,13 @@ export default function Payroll() {
           <Table>
             <TableHeader><TableRow><TableHead>Collaborateur</TableHead><TableHead>Poste</TableHead><TableHead className="text-right"></TableHead></TableRow></TableHeader>
             <TableBody>
-              {loading && <TableRow><TableCell colSpan={3} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>}
+              {loading && (
+                <TableRow>
+                  <TableCell colSpan={3} className="py-4">
+                    <TableSkeleton rows={8} columns={3} />
+                  </TableCell>
+                </TableRow>
+              )}
               {error && <TableRow><TableCell colSpan={3} className="h-24 text-center text-red-500">{error}</TableCell></TableRow>}
               {!loading && !error && employees.map((employee) => (
                 <TableRow key={employee.id} className="cursor-pointer hover:bg-muted/50">

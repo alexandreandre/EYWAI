@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Home, User, Wallet, Calendar, LogOut, Plane, DollarSign, Notebook, Settings, Handshake, Stethoscope, LifeBuoy, GraduationCap, FileText } from "lucide-react";
+import { Home, User, Wallet, Calendar, LogOut, Plane, DollarSign, Notebook, Settings, Handshake, Stethoscope, LifeBuoy, GraduationCap, FileText, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -37,6 +37,7 @@ const baseNavItems = [
   { to: "/calendar", label: "Calendrier", icon: Calendar },
   { to: "/absences", label: "Congés & Absences", icon: Plane },
   { to: "/employee/planning", label: "Mon planning", icon: Calendar },
+  { to: "/badgeuse", label: "Ma badgeuse", icon: ScanLine },
   { to: "/expenses", label: "Notes de Frais", icon: Notebook },
   { to: "/salary-advances", label: "Avances sur salaire", icon: Wallet },
   { to: "/profile", label: "Profil", icon: User },
@@ -97,6 +98,9 @@ export function EmployeeSidebar() {
     }
     if (path === "/employee/planning") {
       return currentPath.startsWith("/employee/planning");
+    }
+    if (path === "/badgeuse") {
+      return currentPath.startsWith("/badgeuse");
     }
     return currentPath.startsWith(path);
   };

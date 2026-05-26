@@ -1,5 +1,6 @@
 // src/hooks/useCalendar.ts
 
+import { log } from '@/lib/logger';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import * as calendarApi from '@/api/calendar';
@@ -131,7 +132,7 @@ export function useCalendar(employeeId: string | undefined, employeeStatut?: str
       setOriginalPlanned(finalPlannedCalendar);
       setOriginalActual(finalActualHours);
     } catch (error) {
-      console.error(error);
+      log.error(error);
       toast({
         title: 'Erreur',
         description: 'Impossible de charger les données du calendrier.',
@@ -233,7 +234,7 @@ export function useCalendar(employeeId: string | undefined, employeeStatut?: str
         description: 'Calendrier et événements de paie sauvegardés et calculés.',
       });
     } catch (error) {
-      console.error(error);
+      log.error(error);
       toast({
         title: 'Erreur',
         description: 'La sauvegarde ou le calcul a échoué.',
@@ -341,7 +342,7 @@ export function useCalendar(employeeId: string | undefined, employeeStatut?: str
         description: `Planning de ${new Date(prevYear, prevMonth - 1).toLocaleString('fr-FR', { month: 'long', year: 'numeric' })} appliqué au mois courant.`,
       });
     } catch (error) {
-      console.error(error);
+      log.error(error);
       toast({
         title: 'Erreur',
         description: 'Impossible de charger le mois précédent.',

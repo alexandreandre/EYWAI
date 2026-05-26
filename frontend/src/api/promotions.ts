@@ -324,13 +324,13 @@ export const deletePromotion = (promotionId: string) => {
 };
 
 /**
- * Récupère l'URL signée du document PDF de promotion
+ * Télécharge le PDF de promotion sous forme de blob.
  */
 export const downloadPromotionDocument = async (promotionId: string) => {
-  const response = await apiClient.get<{ url: string }>(
-    `/api/promotions/${promotionId}/document`
-  );
-  return response.data.url;
+  const response = await apiClient.get(`/api/promotions/${promotionId}/document`, {
+    responseType: "blob",
+  });
+  return response.data as Blob;
 };
 
 /**

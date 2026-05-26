@@ -1,5 +1,6 @@
 // frontend/src/components/CollectiveAgreementCard.tsx
 
+import { log } from '@/lib/logger';
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -82,7 +83,7 @@ export default function CollectiveAgreementCard() {
       const response = await collectiveAgreementsApi.getMyCompanyAgreements();
       setAssignments(response.data || []);
     } catch (err: any) {
-      console.error('Erreur lors de la récupération des conventions assignées:', err);
+      log.error('Erreur lors de la récupération des conventions assignées:', err);
       setAssignments([]);
     } finally {
       setIsLoading(false);
@@ -95,7 +96,7 @@ export default function CollectiveAgreementCard() {
       const response = await collectiveAgreementsApi.getCatalog({ active_only: true });
       setCatalog(response.data || []);
     } catch (err: any) {
-      console.error('Erreur lors de la récupération du catalogue:', err);
+      log.error('Erreur lors de la récupération du catalogue:', err);
       setCatalog([]);
     } finally {
       setIsLoadingCatalog(false);

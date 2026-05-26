@@ -1,11 +1,11 @@
 // frontend/src/pages/ExitDocumentEdit.tsx
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Save, Eye, History, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, Eye, Loader2, RefreshCw } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -17,7 +17,12 @@ import {
   ExitDocumentEditRequest,
   documentTypeLabels,
 } from '@/api/employeeExits';
-import { useAuth } from '@/contexts/AuthContext';
+
+function loadErrorMessage(error: unknown): string {
+  const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  return 'Impossible de charger le document. Vérifiez votre connexion puis réessayez.';
+}
 
 // Import des composants d'édition
 import CertificatTravailSection from '@/components/exit-document-edit/CertificatTravailSection';
@@ -28,61 +33,50 @@ export default function ExitDocumentEdit() {
   const { exitId, documentId } = useParams<{ exitId: string; documentId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
 
   const [document, setDocument] = useState<ExitDocumentDetails | null>(null);
   const [editedData, setEditedData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [changesSummary, setChangesSummary] = useState('');
   const [internalNote, setInternalNote] = useState('');
   const [activeTab, setActiveTab] = useState('edit');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  // Charger les détails du document
+  const handleEditedDataChange = useCallback((newData: any) => {
+    setEditedData(newData);
+    setHasUnsavedChanges(true);
+  }, []);
+
+  const fetchDocument = useCallback(async () => {
+    if (!exitId || !documentId) return;
+
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const data = await getExitDocumentDetails(exitId, documentId);
+      setDocument(data);
+      setEditedData(JSON.parse(JSON.stringify(data.document_data || {})));
+    } catch (error: unknown) {
+      setLoadError(loadErrorMessage(error));
+      toast({
+        title: 'Erreur',
+        description: loadErrorMessage(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [exitId, documentId, toast]);
+
   useEffect(() => {
     if (!exitId || !documentId) {
       navigate('/employee-exits');
       return;
     }
-
-    const fetchDocument = async () => {
-      setIsLoading(true);
-      try {
-        const data = await getExitDocumentDetails(exitId, documentId);
-        setDocument(data);
-        setEditedData(JSON.parse(JSON.stringify(data.document_data || {}))); // Deep clone
-      } catch (error: any) {
-        toast({
-          title: 'Erreur',
-          description: error.response?.data?.detail || 'Impossible de charger le document',
-          variant: 'destructive',
-        });
-        navigate('/employee-exits');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchDocument();
-  }, [exitId, documentId, navigate, toast]);
-
-  // Fonction pour mettre à jour les données éditées
-  const updateEditedData = (path: string[], value: any) => {
-    const newData = JSON.parse(JSON.stringify(editedData));
-    let current = newData;
-
-    for (let i = 0; i < path.length - 1; i++) {
-      if (!current[path[i]]) {
-        current[path[i]] = {};
-      }
-      current = current[path[i]];
-    }
-
-    current[path[path.length - 1]] = value;
-    setEditedData(newData);
-    setHasUnsavedChanges(true);
-  };
+    void fetchDocument();
+  }, [exitId, documentId, navigate, fetchDocument]);
 
   // Fonction de sauvegarde
   const handleSave = async () => {
@@ -115,9 +109,7 @@ export default function ExitDocumentEdit() {
       setInternalNote('');
 
       // Recharger les données
-      const updatedDocument = await getExitDocumentDetails(exitId!, documentId!);
-      setDocument(updatedDocument);
-      setEditedData(JSON.parse(JSON.stringify(updatedDocument.document_data || {})));
+      await fetchDocument();
     } catch (error: any) {
       toast({
         title: 'Erreur',
@@ -150,6 +142,30 @@ export default function ExitDocumentEdit() {
     );
   }
 
+  if (loadError) {
+    return (
+      <div className="container mx-auto py-6 space-y-6">
+        <Button variant="outline" onClick={() => navigate('/employee-exits')}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Retour aux départs
+        </Button>
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center">
+          <p className="text-sm text-destructive">{loadError}</p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-4 gap-2"
+            onClick={() => void fetchDocument()}
+          >
+            <RefreshCw className="h-4 w-4" />
+            Réessayer
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (!document || !editedData) {
     return null;
   }
@@ -160,21 +176,21 @@ export default function ExitDocumentEdit() {
         return (
           <CertificatTravailSection
             data={editedData}
-            onChange={(newData) => setEditedData(newData)}
+            onChange={handleEditedDataChange}
           />
         );
       case 'attestation_pole_emploi':
         return (
           <AttestationPoleEmploiSection
             data={editedData}
-            onChange={(newData) => setEditedData(newData)}
+            onChange={handleEditedDataChange}
           />
         );
       case 'solde_tout_compte':
         return (
           <SoldeToutCompteSection
             data={editedData}
-            onChange={(newData) => setEditedData(newData)}
+            onChange={handleEditedDataChange}
           />
         );
       default:

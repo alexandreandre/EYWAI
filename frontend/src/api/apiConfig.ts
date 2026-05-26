@@ -1,3 +1,5 @@
+import { log } from '@/lib/logger';
+
 /**
  * URL de base de l'API (partagée par apiClient et authRefresh pour éviter les imports circulaires).
  */
@@ -17,7 +19,7 @@ export function getApiBaseUrl(): string {
     return 'http://localhost:8000';
   }
 
-  console.error(
+  log.error(
     '[apiClient] VITE_API_URL est vide au build. Définis la variable dépôt GitHub VITE_API_URL (HTTPS du backend) pour les images Docker / la CI.',
   );
   return '';

@@ -11,6 +11,7 @@ import {
   type CompanyDetailsUpdate,
 } from "@/api/company";
 import { useAuth } from "@/contexts/AuthContext";
+import { useActiveCompanyId } from "@/hooks/queries/useCompanyId";
 import { useCompanyPlan } from "@/hooks/useCompanyPlan";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -30,6 +31,7 @@ import { computePeriodPayroll } from "@/pages/company/lib/companyPeriodKpis";
 
 export default function CompanyPage() {
   const { user } = useAuth();
+  const companyId = useActiveCompanyId();
   const { toast } = useToast();
   const location = useLocation();
   const queryClient = useQueryClient();
@@ -53,13 +55,15 @@ export default function CompanyPage() {
   }, [location.hash]);
 
   const detailsQuery = useQuery({
-    queryKey: ["company-details"],
+    queryKey: ["company-details", companyId],
     queryFn: fetchCompanyDetails,
+    enabled: Boolean(companyId),
   });
 
   const overviewQuery = useQuery({
-    queryKey: ["company-overview"],
+    queryKey: ["company-overview", companyId],
     queryFn: fetchCompanyOverview,
+    enabled: Boolean(companyId),
   });
 
   const canEdit = useMemo(() => {
@@ -98,7 +102,7 @@ export default function CompanyPage() {
     try {
       setSaving(true);
       await patchCompanyDetails(draft);
-      await queryClient.invalidateQueries({ queryKey: ["company-details"] });
+      await queryClient.invalidateQueries({ queryKey: ["company-details", companyId] });
       toast({ title: "Enregistré", description: "Identité mise à jour." });
       setEditOpen(false);
     } catch (e: unknown) {

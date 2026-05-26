@@ -1,5 +1,6 @@
 // src/pages/EmployeeDetail.tsx 
 
+import { log } from '@/lib/logger';
 import React, { useCallback, useState, useEffect, useRef, useMemo } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import apiClient from "@/api/apiClient";
@@ -15,7 +16,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SaisieModal } from "@/components/SaisieModal";
-import { Download, Calendar as CalendarIcon, FileText, Loader2, ArrowLeft, Save, ClipboardEdit, ChevronLeft, ChevronRight, UserPlus, Grid3x3, CalendarDays, Edit, MessageSquare, Play, CheckCircle, FileText as FileTextIcon, FileDown, Eye, TrendingUp, Plus, Trash2, ArrowRight, Stethoscope, Calculator, Copy, Award, ClipboardList } from "lucide-react";
+import { Download, Calendar as CalendarIcon, FileText, Loader2, ArrowLeft, Save, ClipboardEdit, ChevronLeft, ChevronRight, UserPlus, Grid3x3, CalendarDays, Edit, MessageSquare, Play, CheckCircle, FileText as FileTextIcon, FileDown, Eye, TrendingUp, Plus, Trash2, ArrowRight, Stethoscope, Calculator, Copy, Award, ClipboardList, ScanLine } from "lucide-react";
+import { EmployeeDetailBadgeuseSection } from "@/components/badgeuse/rh/EmployeeDetailBadgeuseSection";
 import { isRecentHire } from "@/lib/onboardingUtils";
 import { CalendarKpiBand } from "@/components/employee-detail/CalendarKpiBand";
 import { CalendarAbsencesHint } from "@/components/employee-detail/CalendarAbsencesHint";
@@ -683,7 +685,7 @@ function YearCalendarView({
         });
         setYearData(dataByMonth);
       } catch (error) {
-        console.error("Erreur lors du chargement des données annuelles (calendrier)", error);
+        log.error("Erreur lors du chargement des données annuelles (calendrier)", error);
       } finally {
         setIsLoadingYear(false);
       }
@@ -1212,7 +1214,7 @@ export default function EmployeeDetail() {
       const res = await getEmployeePromotions(employeeId);
       setPromotions(res.data || []);
     } catch (err) {
-      console.error("Erreur chargement promotions", err);
+      log.error("Erreur chargement promotions", err);
       setPromotions([]);
     } finally {
       setPromotionsLoading(false);
@@ -1260,7 +1262,7 @@ export default function EmployeeDetail() {
       const res = await saisiesApi.getEmployeeMonthlyInputs(employeeId, year, month);
       setEmployeeSaisies(res.data || []);
     } catch (err) {
-      console.error("❌ Erreur lors du chargement des saisies :", err);
+      log.error("❌ Erreur lors du chargement des saisies :", err);
     } finally {
       setIsLoadingSaisies(false);
     }
@@ -1292,21 +1294,24 @@ export default function EmployeeDetail() {
     if (!employeeId) return;
     const fetchPageData = async () => {
       setIsPageLoading(true);
+      setEmployee(null);
+      setCredentialsPdfUrl(null);
       try {
-        const [employeeRes, credentialsPdfRes] = await Promise.all([
-          apiClient.get(`/api/employees/${employeeId}`),
-          apiClient.get(`/api/employees/${employeeId}/credentials-pdf`),
-        ]);
+        const employeeRes = await apiClient.get(`/api/employees/${employeeId}`);
         setEmployee(employeeRes.data);
 
-        if (credentialsPdfRes.data.url) {
-          setCredentialsPdfUrl(credentialsPdfRes.data.url);
-        } else {
+        try {
+          const credentialsPdfRes = await apiClient.get(
+            `/api/employees/${employeeId}/credentials-pdf`,
+          );
+          setCredentialsPdfUrl(credentialsPdfRes.data.url ?? null);
+        } catch (credErr) {
+          log.error("Erreur lors du chargement du PDF de création de compte", credErr);
           setCredentialsPdfUrl(null);
         }
-
       } catch (err) {
-        console.error("Erreur lors du chargement des données de la page", err);
+        log.error("Erreur lors du chargement des données de la page", err);
+        setEmployee(null);
       } finally {
         setIsPageLoading(false);
       }
@@ -1401,7 +1406,7 @@ export default function EmployeeDetail() {
       navigate("/employees");
     } catch (error: unknown) {
       if (import.meta.env.DEV) {
-        console.error("Erreur lors de la suppression du collaborateur", error);
+        log.error("Erreur lors de la suppression du collaborateur", error);
       }
       const errorMessage =
         error && typeof error === "object" && "response" in error
@@ -1471,7 +1476,16 @@ export default function EmployeeDetail() {
   // }, [plannedCalendar, actualHours, updateDayData, selectedDate, selectedDays, handleDaySelection]);
 
   if (isPageLoading) return <div className="flex items-center justify-center h-screen"><Loader2 className="h-12 w-12 animate-spin"/></div>;
-  if (!employee) return <div className="text-center p-8">Employé non trouvé.</div>;
+  if (!employee) {
+    return (
+      <div className="space-y-6 p-8">
+        <Link to="/employees" className="flex items-center text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Retour à la liste des collaborateurs
+        </Link>
+        <p className="text-center text-muted-foreground">Employé non trouvé.</p>
+      </div>
+    );
+  }
 
   
   return (
@@ -1705,6 +1719,10 @@ export default function EmployeeDetail() {
           <TabsTrigger value="calendrier" className="px-2 py-1.5 text-[13px]">
             <CalendarIcon className="mr-1.5 h-4 w-4 shrink-0" />
             Calendrier
+          </TabsTrigger>
+          <TabsTrigger value="badgeuse" className="px-2 py-1.5 text-[13px]">
+            <ScanLine className="mr-1.5 h-4 w-4 shrink-0" />
+            Badgeuse
           </TabsTrigger>
         </TabsList>
 
@@ -2454,6 +2472,16 @@ export default function EmployeeDetail() {
                 )}
              </CardContent>
            </Card>
+        </TabsContent>
+
+        <TabsContent value="badgeuse" className="mt-4">
+          {employeeId && activeCompanyId && employee && (
+            <EmployeeDetailBadgeuseSection
+              employeeId={employeeId}
+              companyId={activeCompanyId}
+              employeeName={`${employee.first_name} ${employee.last_name}`}
+            />
+          )}
         </TabsContent>
       </Tabs>
 

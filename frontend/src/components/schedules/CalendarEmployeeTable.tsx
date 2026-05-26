@@ -23,6 +23,7 @@ import {
   ArrowUpDown,
   Calendar,
   CheckCircle2,
+  RefreshCw,
 } from 'lucide-react';
 import type { EmployeeCalendarOverviewRow } from '@/lib/schedulesOverview';
 import type { Team } from '@/api/teams';
@@ -49,6 +50,10 @@ interface CalendarEmployeeTableProps {
   rows: EmployeeCalendarOverviewRow[];
   teamsById: Map<string, Team>;
   isLoading: boolean;
+  employeesLoadError?: boolean;
+  employeesLoadErrorMessage?: string;
+  onRetryEmployees?: () => void;
+  unfilteredRowCount?: number;
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
   onToggleSelectAll: (ids: string[]) => void;
@@ -85,6 +90,10 @@ export function CalendarEmployeeTable({
   rows,
   teamsById,
   isLoading,
+  employeesLoadError = false,
+  employeesLoadErrorMessage,
+  onRetryEmployees,
+  unfilteredRowCount = 0,
   selectedIds,
   onToggleSelect,
   onToggleSelectAll,
@@ -108,6 +117,41 @@ export function CalendarEmployeeTable({
   }
 
   if (rows.length === 0) {
+    if (employeesLoadError) {
+      return (
+        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-12 text-center">
+          <AlertTriangle className="mx-auto h-10 w-10 text-destructive/70 mb-3" />
+          <p className="font-medium text-destructive">
+            {employeesLoadErrorMessage ?? 'Impossible de charger la liste des employés.'}
+          </p>
+          {onRetryEmployees && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-4 gap-2"
+              onClick={onRetryEmployees}
+            >
+              <RefreshCw className="h-4 w-4" />
+              Réessayer
+            </Button>
+          )}
+        </div>
+      );
+    }
+
+    if (unfilteredRowCount === 0) {
+      return (
+        <div className="rounded-md border border-dashed p-12 text-center">
+          <CheckCircle2 className="mx-auto h-10 w-10 text-muted-foreground/50 mb-3" />
+          <p className="font-medium text-foreground">Aucun employé à piloter</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Aucun collaborateur éligible n&apos;est disponible pour ce mois.
+          </p>
+        </div>
+      );
+    }
+
     return (
       <div className="rounded-md border border-dashed p-12 text-center">
         <CheckCircle2 className="mx-auto h-10 w-10 text-muted-foreground/50 mb-3" />

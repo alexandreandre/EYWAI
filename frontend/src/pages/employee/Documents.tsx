@@ -8,6 +8,7 @@ import { FileText, Download, Loader2, Wallet, HardHat, UserRound, AlertCircle } 
 import { useAuth } from '@/contexts/AuthContext'; // Pour afficher le nom
 import { EmployeeGeneratedDocumentsSection } from '@/components/employee/EmployeeGeneratedDocumentsSection';
 
+import { log } from '@/lib/logger';
 // --- Types de données ---
 interface Document {
   id: string;
@@ -70,7 +71,7 @@ const DocumentRow = ({ doc }: { doc: Document }) => {
         window.URL.revokeObjectURL(url);
       }
     } catch (error) {
-      console.error("Erreur lors du téléchargement du document:", error);
+      log.error("Erreur lors du téléchargement du document:", error);
       // On pourrait afficher une notification d'erreur ici
     } finally {
       setIsDownloading(false);
@@ -172,12 +173,12 @@ export default function DocumentsPage() {
 
         // Gérer les erreurs partielles si nécessaire
         if (contractRes.status === 'rejected' || payslipsRes.status === 'rejected' || expensesRes.status === 'rejected' || publishedDocsRes.status === 'rejected') {
-          console.error("Une ou plusieurs requêtes ont échoué:", { contractRes, payslipsRes, expensesRes, publishedDocsRes });
+          log.error("Une ou plusieurs requêtes ont échoué:", { contractRes, payslipsRes, expensesRes, publishedDocsRes });
           setError("Erreur lors du chargement de certains documents.");
         }
 
       } catch (err) {
-        console.error("Erreur fatale lors du chargement des documents:", err);
+        log.error("Erreur fatale lors du chargement des documents:", err);
         setError("Impossible de charger les documents.");
       } finally {
         setIsLoading(false);

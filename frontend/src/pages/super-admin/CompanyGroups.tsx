@@ -7,6 +7,7 @@
  * - Accéder au détail d'un groupe
  */
 
+import { log } from '@/lib/logger';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '@/api/apiClient';
@@ -71,7 +72,7 @@ export default function CompanyGroups() {
       const response = await apiClient.get('/api/company-groups/');
       setGroups(response.data);
     } catch (err: any) {
-      console.error('Erreur lors du chargement des groupes:', err);
+      log.error('Erreur lors du chargement des groupes:', err);
       setError(err.response?.data?.detail || 'Erreur lors du chargement des groupes');
     } finally {
       setIsLoading(false);
@@ -84,7 +85,7 @@ export default function CompanyGroups() {
       const response = await apiClient.get('/api/company-groups/temp/available-companies');
       setAvailableCompanies(response.data);
     } catch (err: any) {
-      console.error('Erreur lors du chargement des entreprises:', err);
+      log.error('Erreur lors du chargement des entreprises:', err);
     }
   };
 
@@ -130,7 +131,7 @@ export default function CompanyGroups() {
             description: `Le groupe "${newGroupName}" a été créé avec ${selectedCompanyIds.length} entreprise(s)`,
           });
         } catch (bulkErr: any) {
-          console.error('Erreur lors de l\'ajout des entreprises:', bulkErr);
+          log.error('Erreur lors de l\'ajout des entreprises:', bulkErr);
           toast({
             title: "Groupe créé avec avertissement",
             description: `Le groupe "${newGroupName}" a été créé, mais certaines entreprises n'ont pas pu être ajoutées`,
@@ -154,7 +155,7 @@ export default function CompanyGroups() {
       // Recharger la liste
       loadGroups();
     } catch (err: any) {
-      console.error('Erreur lors de la création du groupe:', err);
+      log.error('Erreur lors de la création du groupe:', err);
       toast({
         title: "Erreur",
         description: err.response?.data?.detail || 'Erreur lors de la création du groupe',

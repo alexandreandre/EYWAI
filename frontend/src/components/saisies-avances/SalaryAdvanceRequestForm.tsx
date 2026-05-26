@@ -1,5 +1,6 @@
 // frontend/src/components/saisies-avances/SalaryAdvanceRequestForm.tsx
 
+import { log } from '@/lib/logger';
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -61,7 +62,7 @@ export function SalaryAdvanceRequestForm({
           const response = await apiClient.get('/api/employees');
           setEmployees(response.data || []);
         } catch (error) {
-          console.error('Erreur chargement employés:', error);
+          log.error('Erreur chargement employés:', error);
         }
       };
       fetchEmployees();
@@ -87,7 +88,7 @@ export function SalaryAdvanceRequestForm({
             setAvailableAmount(null);
           }
         } catch (error) {
-          console.error('Erreur calcul montant disponible:', error);
+          log.error('Erreur calcul montant disponible:', error);
           setAvailableAmount(null);
         }
       } else {

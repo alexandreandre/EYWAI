@@ -1,5 +1,6 @@
 // frontend/src/components/saisies-avances/SalaryAdvanceDetail.tsx
 
+import { log } from '@/lib/logger';
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +46,7 @@ export function SalaryAdvanceDetail({ advance, onClose, onUpdate }: SalaryAdvanc
       const data = await getAdvancePayments(advance.id);
       setPayments(data);
     } catch (error) {
-      console.error('Erreur chargement paiements:', error);
+      log.error('Erreur chargement paiements:', error);
     } finally {
       setIsLoadingPayments(false);
     }

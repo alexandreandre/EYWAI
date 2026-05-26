@@ -1,6 +1,10 @@
 // Fichier : src/pages/Absences.tsx (VERSION COMPLÈTE ET AMÉLIORÉE)
 
-import { useState, useEffect, useCallback } from 'react';
+import { log } from '@/lib/logger';
+import { useState, useEffect, useMemo } from 'react';
+import { useAbsencesQueries } from '@/hooks/queries/useAbsencesQuery';
+import { TableSkeleton } from '@/components/skeletons/TableSkeleton';
+import { PageFetchIndicator } from '@/components/skeletons/PageFetchIndicator';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -11,7 +15,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { AbsenceRequestModal } from "@/components/AbsenceRequestModal";
 import { Loader2, Check, X, Clock, Info, Download, Eye, FilePlus } from "lucide-react";
-import apiClient from '@/api/apiClient'; // <-- AJOUTER
 import type * as absencesApi from '@/api/absences'; // <-- CHANGER en 'import type'
 import * as absencesApiFunctions from '@/api/absences';
 import {
@@ -61,31 +64,21 @@ export default function AbsencesPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [pending, setPending] = useState<AbsenceRequest[]>([]);
-  const [processed, setProcessed] = useState<AbsenceRequest[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const absencesQuery = useAbsencesQueries();
+  const pending = absencesQuery.pending as AbsenceRequest[];
+  const processed = useMemo(() => {
+    const all = [
+      ...(absencesQuery.validated as AbsenceRequest[]),
+      ...(absencesQuery.rejected as AbsenceRequest[]),
+    ];
+    return all.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+  }, [absencesQuery.validated, absencesQuery.rejected]);
+  const isLoading = absencesQuery.isLoading;
+  const fetchData = absencesQuery.refetch;
   const [certificates, setCertificates] = useState<Record<string, absencesApi.SalaryCertificate>>({});
   const [loadingCertificates, setLoadingCertificates] = useState<Set<string>>(new Set());
-
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      // On utilise apiClient avec les URL relatives (en HTTPS)
-      const [pendingRes, validatedRes, rejectedRes] = await Promise.all([
-        apiClient.get<AbsenceRequest[]>(`/api/absences/?status=pending`),
-        apiClient.get<AbsenceRequest[]>(`/api/absences/?status=validated`),
-        apiClient.get<AbsenceRequest[]>(`/api/absences/?status=rejected`),
-      ]);
-      setPending(pendingRes.data);
-      // On fusionne et trie les demandes traitées (validées et refusées) par date de création
-      const allProcessed = [...validatedRes.data, ...rejectedRes.data];
-      setProcessed(allProcessed.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
-    } catch (error) {
-      toast({ title: "Erreur", description: "Impossible de charger les demandes.", variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [toast]); // Ajout de 'toast' dans les dépendances
 
   // Charger les attestations existantes après le chargement des données
   useEffect(() => {
@@ -100,12 +93,9 @@ export default function AbsencesPage() {
   }, [processed]); // Se déclenche quand les demandes traitées changent
   
 
-  useEffect(() => { fetchData(); }, [fetchData]);
-
   const handleUpdateStatus = async (id: string, status: 'validated' | 'rejected') => {
     try {
-      // On utilise apiClient.patch pour mettre à jour la ressource
-      await apiClient.patch(`/api/absences/${id}`, { status: status });
+      await absencesApiFunctions.updateAbsenceRequestStatus(id, status);
       toast({ title: "Succès", description: "La demande a été mise à jour." });
       fetchData();
     } catch (error) {
@@ -208,7 +198,7 @@ export default function AbsencesPage() {
       setCertificates(prev => ({ ...prev, [absenceId]: cert.data }));
     } catch (error: any) {
       if (error.response?.status !== 404) {
-        console.error('Erreur chargement attestation:', error);
+        log.error('Erreur chargement attestation:', error);
       }
     } finally {
       setLoadingCertificates(prev => {
@@ -228,7 +218,7 @@ export default function AbsencesPage() {
       window.open(url, '_blank', 'noopener,noreferrer');
       setTimeout(() => window.URL.revokeObjectURL(url), 60000);
     } catch (error: any) {
-      console.error('Erreur ouverture attestation:', error);
+      log.error('Erreur ouverture attestation:', error);
       if (error.response?.status === 404) {
         toast({ title: 'Information', description: 'L\'attestation n\'a pas encore été générée pour cet arrêt.', variant: 'default' });
       } else {
@@ -245,7 +235,7 @@ export default function AbsencesPage() {
       // Recharger l'attestation
       await loadCertificate(absenceId);
     } catch (error) {
-      console.error('Erreur génération attestation:', error);
+      log.error('Erreur génération attestation:', error);
       toast({ title: 'Erreur', description: 'Impossible de générer l\'attestation.', variant: 'destructive' });
     } finally {
       setLoadingCertificates(prev => {
@@ -278,7 +268,7 @@ export default function AbsencesPage() {
       
       toast({ title: 'Succès', description: 'Attestation téléchargée avec succès.' });
     } catch (error: any) {
-      console.error('Erreur téléchargement attestation:', error);
+      log.error('Erreur téléchargement attestation:', error);
       if (error.response?.status === 404) {
         toast({ 
           title: 'Attestation non trouvée', 
@@ -314,7 +304,7 @@ export default function AbsencesPage() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.error("Erreur lors de la tentative de téléchargement:", error);
+      log.error("Erreur lors de la tentative de téléchargement:", error);
       toast({ title: "Erreur", description: "Impossible de lancer le téléchargement.", variant: "destructive" });
     }
   };
@@ -468,6 +458,7 @@ export default function AbsencesPage() {
 
   return (
     <div className="space-y-6">
+      <PageFetchIndicator isFetching={absencesQuery.isFetching} />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-3xl font-bold">Gestion des Congés & Absences</h1>
         {canShowRhNewAbsenceButton(user) ? (
@@ -490,8 +481,8 @@ export default function AbsencesPage() {
           <TabsTrigger value="pending"><Clock className="mr-2 h-4 w-4" /> Demandes en attente <Badge className="ml-2">{pending.length}</Badge></TabsTrigger>
           <TabsTrigger value="processed">Historique</TabsTrigger>
         </TabsList>
-        <TabsContent value="pending"><Card><CardHeader><CardTitle>Demandes à valider</CardTitle></CardHeader><CardContent>{isLoading ? <Loader2 className="mx-auto h-8 w-8 animate-spin" /> : renderRequestsTable(pending)}</CardContent></Card></TabsContent>
-        <TabsContent value="processed"><Card><CardHeader><CardTitle>Demandes traitées</CardTitle></CardHeader><CardContent>{isLoading ? <Loader2 className="mx-auto h-8 w-8 animate-spin" /> : renderRequestsTable(processed)}</CardContent></Card></TabsContent>
+        <TabsContent value="pending"><Card><CardHeader><CardTitle>Demandes à valider</CardTitle></CardHeader><CardContent>{isLoading ? <TableSkeleton rows={5} columns={5} /> : renderRequestsTable(pending)}</CardContent></Card></TabsContent>
+        <TabsContent value="processed"><Card><CardHeader><CardTitle>Demandes traitées</CardTitle></CardHeader><CardContent>{isLoading ? <TableSkeleton rows={5} columns={5} /> : renderRequestsTable(processed)}</CardContent></Card></TabsContent>
       </Tabs>
     </div>
   );

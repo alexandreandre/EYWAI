@@ -1,3 +1,4 @@
+import { log } from '@/lib/logger';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
 import { Loader2, Save, User, Shield, AlertCircle, ArrowLeft } from 'lucide-react';
@@ -53,10 +54,16 @@ const UserEdit: React.FC = () => {
   const [availableRoles, setAvailableRoles] = useState<string[]>([]);
 
   useEffect(() => {
-    if (userId && companyId) {
-      loadUserData();
-      loadAvailableRoles();
+    if (!userId) return;
+    if (!companyId) {
+      setLoading(false);
+      setError(
+        "Sélectionnez une entreprise dans le menu en haut ou ouvrez cette page depuis la liste des utilisateurs.",
+      );
+      return;
     }
+    loadUserData();
+    loadAvailableRoles();
   }, [userId, companyId]);
 
   useEffect(() => {
@@ -67,21 +74,21 @@ const UserEdit: React.FC = () => {
 
   const loadUserData = async () => {
     if (!userId || !companyId) {
-      console.log('[UserEdit] ❌ Missing userId or companyId', { userId, companyId });
+      log.debug('[UserEdit] ❌ Missing userId or companyId', { userId, companyId });
       return;
     }
 
-    console.log('[UserEdit] 🚀 START Loading user data...', { userId, companyId });
-    console.log('[UserEdit] 🔍 getUserDetail function:', getUserDetail);
+    log.debug('[UserEdit] 🚀 START Loading user data...', { userId, companyId });
+    log.debug('[UserEdit] 🔍 getUserDetail function:', getUserDetail);
 
     try {
       setLoading(true);
-      console.log('[UserEdit] ⏳ BEFORE calling getUserDetail...');
-      console.log('[UserEdit] 📡 URL will be:', `/api/users/${userId}?company_id=${companyId}`);
+      log.debug('[UserEdit] ⏳ BEFORE calling getUserDetail...');
+      log.debug('[UserEdit] 📡 URL will be:', `/api/users/${userId}?company_id=${companyId}`);
 
       const data = await getUserDetail(userId, companyId);
 
-      console.log('[UserEdit] ✅ AFTER getUserDetail - User data received:', data);
+      log.debug('[UserEdit] ✅ AFTER getUserDetail - User data received:', data);
 
       setFormData({
         first_name: data.first_name,
@@ -96,7 +103,7 @@ const UserEdit: React.FC = () => {
       setPermissionIds(data.permission_ids || []);
       setCanEdit(data.can_edit);
 
-      console.log('[UserEdit] State updated:', {
+      log.debug('[UserEdit] State updated:', {
         role: data.role,
         templateId: data.role_template_id,
         permissionsCount: data.permission_ids?.length || 0,
@@ -107,17 +114,17 @@ const UserEdit: React.FC = () => {
         setError("Vous n'avez pas les droits pour modifier cet utilisateur");
       }
     } catch (err: any) {
-      console.error('[UserEdit] ❌ CATCH - Error loading user data:', err);
-      console.error('[UserEdit] Error name:', err.name);
-      console.error('[UserEdit] Error message:', err.message);
-      console.error('[UserEdit] Error response:', err.response);
-      console.error('[UserEdit] Error response status:', err.response?.status);
-      console.error('[UserEdit] Error response data:', err.response?.data);
-      console.error('[UserEdit] Full error object:', JSON.stringify(err, null, 2));
+      log.error('[UserEdit] ❌ CATCH - Error loading user data:', err);
+      log.error('[UserEdit] Error name:', err.name);
+      log.error('[UserEdit] Error message:', err.message);
+      log.error('[UserEdit] Error response:', err.response);
+      log.error('[UserEdit] Error response status:', err.response?.status);
+      log.error('[UserEdit] Error response data:', err.response?.data);
+      log.error('[UserEdit] Full error object:', JSON.stringify(err, null, 2));
       setError(err.response?.data?.detail || 'Erreur lors du chargement de l\'utilisateur');
     } finally {
       setLoading(false);
-      console.log('[UserEdit] 🏁 FINALLY - Loading complete');
+      log.debug('[UserEdit] 🏁 FINALLY - Loading complete');
     }
   };
 
@@ -127,7 +134,7 @@ const UserEdit: React.FC = () => {
       const data = await getRoleTemplates(companyId, role);
       setTemplates(data);
     } catch (err) {
-      console.error('Erreur lors du chargement des templates:', err);
+      log.error('Erreur lors du chargement des templates:', err);
     } finally {
       setLoadingTemplates(false);
     }
@@ -141,7 +148,7 @@ const UserEdit: React.FC = () => {
         setAvailableRoles(currentCompany.can_create_roles);
       }
     } catch (err) {
-      console.error('Erreur lors du chargement des rôles disponibles:', err);
+      log.error('Erreur lors du chargement des rôles disponibles:', err);
     }
   };
 
@@ -174,7 +181,7 @@ const UserEdit: React.FC = () => {
       // Rediriger vers la liste
       navigate('/users');
     } catch (err: any) {
-      console.error('Erreur lors de la sauvegarde:', err);
+      log.error('Erreur lors de la sauvegarde:', err);
       setError(err.response?.data?.detail || 'Erreur lors de la modification');
     } finally {
       setSaving(false);
