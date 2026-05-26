@@ -3,8 +3,10 @@ Génération et enregistrement des événements de paie dans Supabase.
 
 Migré depuis backend_api/payroll_writer.py.
 """
+from app.core.logging import get_logger, log_payroll_debug
 
-import sys
+logger = get_logger("modules.payroll.application.writer")
+
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -28,10 +30,7 @@ def generer_et_enregistrer_evenements(
     """
     try:
         supabase = get_supabase_admin_client()
-        print(
-            f"🧮 [PayrollWriter] Début génération événements {employee_name} ({month}/{year})",
-            file=sys.stderr,
-        )
+        log_payroll_debug(logger, f'🧮 [PayrollWriter] Début génération événements {employee_name} ({month}/{year})')
 
         res = (
             supabase.table("employee_schedules")
@@ -42,10 +41,7 @@ def generer_et_enregistrer_evenements(
         )
 
         if not res.data:
-            print(
-                f"❌ Aucun calendrier trouvé pour {employee_name} ({month}/{year})",
-                file=sys.stderr,
-            )
+            logger.warning(f'❌ Aucun calendrier trouvé pour {employee_name} ({month}/{year})')
             return None
 
         planned_calendar = res.data.get("planned_calendar") or []
@@ -64,12 +60,9 @@ def generer_et_enregistrer_evenements(
             {"payroll_events": payload, "updated_at": datetime.utcnow().isoformat()}
         ).match({"employee_id": employee_id, "year": year, "month": month}).execute()
 
-        print(
-            f"✅ [PayrollWriter] {len(evenements)} événements enregistrés pour {employee_name} ({month}/{year})",
-            file=sys.stderr,
-        )
+        logger.info(f'✅ [PayrollWriter] {len(evenements)} événements enregistrés pour {employee_name} ({month}/{year})')
         return payload
 
     except Exception as e:
-        print(f"❌ [PayrollWriter] Erreur : {e}", file=sys.stderr)
+        logger.warning(f'❌ [PayrollWriter] Erreur : {e}')
         return None

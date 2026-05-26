@@ -16,9 +16,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from app.core.logging import get_logger
 from app.core.paths import SCRAPING_ROOT
 
 from app.modules.scraping.infrastructure.repository import ScrapingRepository
+
+logger = get_logger("modules.scraping")
 
 # Aligné sur api/routers/scraping.py : certains source_key ne correspondent pas au nom du dossier
 SOURCE_KEY_TO_FOLDER_MAPPING = {
@@ -125,7 +128,8 @@ def run_scraper_script(
             {"execution_logs": [f"Démarrage de l'exécution de {script_path}"]},
         )
 
-    print(f"[SCRAPING] Job {job_id} créé - Exécution de {script_path}")
+
+    logger.info("Job %s créé — exécution de %s", job_id, script_path)
 
     start_time = datetime.now()
     logs: list = []
@@ -137,7 +141,8 @@ def run_scraper_script(
         try:
             repo.update_job(job_id, {"execution_logs": current_logs})
         except Exception as e:
-            print(f"[SCRAPING] Erreur lors de la mise à jour des logs: {e}")
+
+            logger.warning("Mise à jour des logs job %s: %s", job_id, e)
 
     def read_output(pipe, log_prefix: str = "") -> None:
         try:
@@ -154,7 +159,8 @@ def run_scraper_script(
                         if len(logs) % 10 == 0:
                             update_logs_in_db()
         except Exception as e:
-            print(f"[SCRAPING] Erreur lors de la lecture des logs: {e}")
+
+            logger.warning("Lecture des logs job %s: %s", job_id, e)
         finally:
             pipe.close()
 
@@ -185,7 +191,8 @@ def run_scraper_script(
         with logs_lock:
             logs.append("[ERREUR] Le script a dépassé le délai d'exécution (5 minutes)")
         error_msg = "Le script a dépassé le délai d'exécution (5 minutes)"
-        print(f"[SCRAPING] TIMEOUT - {error_msg}")
+
+        logger.warning("Job %s TIMEOUT: %s", job_id, error_msg)
         repo.update_job(
             job_id,
             {
@@ -260,8 +267,12 @@ def run_scraper_script(
         }
         repo.create_alert(alert_data)
 
-    print(
-        f"[SCRAPING] Job {job_id} terminé - Success: {success}, Duration: {duration_ms}ms"
+
+    logger.info(
+        "Job %s terminé — success=%s duration_ms=%s",
+        job_id,
+        success,
+        duration_ms,
     )
 
     return {
@@ -298,7 +309,8 @@ def run_scraper_script_background(
     except Exception as e:
         error_msg = f"Erreur lors de l'exécution : {str(e)}"
         error_trace = traceback.format_exc()
-        print(f"[SCRAPING] ERREUR - {error_msg}\n{error_trace}")
+
+        logger.error("Job %s ERREUR: %s\n%s", job_id, error_msg, error_trace)
         try:
             repo.update_job(
                 job_id,

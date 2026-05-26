@@ -4,11 +4,12 @@ Commandes (cas d'usage écriture) du module schedules.
 Délèguent au repository et aux providers (infrastructure), règles du domain.
 Comportement identique à l'ancien router. Lève ScheduleAppError.
 """
+from app.core.logging import get_logger, log_app_debug
+
+logger = get_logger("modules.schedules.application.commands")
 
 import calendar as cal_mod
 import json
-import sys
-import traceback
 from datetime import date
 from typing import Any, Dict, List, Tuple
 
@@ -38,16 +39,16 @@ def update_planned_calendar(employee_id: str, payload: Any) -> Dict[str, str]:
     payload : objet avec .year, .month, .calendrier_prevu (liste d'entrées Pydantic).
     """
     try:
-        print(f"\n{'=' * 70}")
-        print("🔵 POST /planned-calendar - DEBUT")
-        print(f"{'=' * 70}")
-        print(f"Employee ID: {employee_id}")
-        print(f"Year: {payload.year}, Month: {payload.month}")
-        print(f"Nombre d'entrées calendrier: {len(payload.calendrier_prevu)}")
+        log_app_debug(logger, f"\n{'=' * 70}")
+        log_app_debug(logger, '🔵 POST /planned-calendar - DEBUT')
+        log_app_debug(logger, f"{'=' * 70}")
+        log_app_debug(logger, f'Employee ID: {employee_id}')
+        log_app_debug(logger, f'Year: {payload.year}, Month: {payload.month}')
+        log_app_debug(logger, f"Nombre d'entrées calendrier: {len(payload.calendrier_prevu)}")
 
         company_id, employee_statut = get_employee_company_and_statut(employee_id)
-        print(f"Company ID récupéré: {company_id}")
-        print(f"Statut employé: {employee_statut}")
+        log_app_debug(logger, f'Company ID récupéré: {company_id}')
+        log_app_debug(logger, f'Statut employé: {employee_statut}')
 
         calendrier_prevu_raw = [
             entry.model_dump() for entry in payload.calendrier_prevu
@@ -56,23 +57,19 @@ def update_planned_calendar(employee_id: str, payload: Any) -> Dict[str, str]:
             calendrier_prevu_raw, employee_statut
         )
         if domain_rules.is_forfait_jour(employee_statut):
-            print(
-                f"✅ Normalisation forfait jour appliquée: {len(calendrier_prevu_normalized)} entrées normalisées"
-            )
+            log_app_debug(logger, f'✅ Normalisation forfait jour appliquée: {len(calendrier_prevu_normalized)} entrées normalisées')
 
         json_content = {
             "periode": {"mois": payload.month, "annee": payload.year},
             "calendrier_prevu": calendrier_prevu_normalized,
         }
-        print("\n📦 JSON Content créé:")
-        print(f"   - periode: {json_content['periode']}")
-        print(f"   - calendrier_prevu: {len(json_content['calendrier_prevu'])} entrées")
+        log_app_debug(logger, '\n📦 JSON Content créé:')
+        log_app_debug(logger, f"   - periode: {json_content['periode']}")
+        log_app_debug(logger, f"   - calendrier_prevu: {len(json_content['calendrier_prevu'])} entrées")
 
-        print("\n🔄 Tentative d'upsert avec on_conflict='employee_id,year,month'")
-        print(
-            "   Données upsert: employee_id, company_id, year, month, planned_calendar"
-        )
-        print(f"   Taille du calendrier: {len(calendrier_prevu_normalized)} entrées")
+        log_app_debug(logger, "\n🔄 Tentative d'upsert avec on_conflict='employee_id,year,month'")
+        log_app_debug(logger, '   Données upsert: employee_id, company_id, year, month, planned_calendar')
+        log_app_debug(logger, f'   Taille du calendrier: {len(calendrier_prevu_normalized)} entrées')
 
         schedule_repository.upsert_schedule(
             employee_id,
@@ -82,18 +79,18 @@ def update_planned_calendar(employee_id: str, payload: Any) -> Dict[str, str]:
             planned_calendar=json_content,
         )
 
-        print("\n✅ Upsert réussi!")
-        print(f"{'=' * 70}\n")
+        log_app_debug(logger, '\n✅ Upsert réussi!')
+        log_app_debug(logger, f"{'=' * 70}\n")
         return {"status": "success", "message": "Planning prévisionnel enregistré."}
 
     except ScheduleAppError:
         raise
     except Exception as e:
-        print("\n❌ ERREUR dans update_planned_calendar:")
-        print(f"   Type: {type(e).__name__}")
-        print(f"   Message: {str(e)}")
-        traceback.print_exc()
-        print(f"{'=' * 70}\n")
+        logger.warning('\n❌ ERREUR dans update_planned_calendar:')
+        log_app_debug(logger, f'   Type: {type(e).__name__}')
+        log_app_debug(logger, f'   Message: {str(e)}')
+        logger.exception("Exception")
+        log_app_debug(logger, f"{'=' * 70}\n")
         raise ScheduleAppError("error", str(e), status_code=500) from e
 
 
@@ -103,39 +100,35 @@ def update_actual_hours(employee_id: str, payload: Any) -> Dict[str, str]:
     payload : objet avec .year, .month, .calendrier_reel.
     """
     try:
-        print(f"\n{'=' * 70}")
-        print("🟢 POST /actual-hours - DEBUT")
-        print(f"{'=' * 70}")
-        print(f"Employee ID: {employee_id}")
-        print(f"Year: {payload.year}, Month: {payload.month}")
-        print(f"Nombre d'entrées calendrier réel: {len(payload.calendrier_reel)}")
+        log_app_debug(logger, f"\n{'=' * 70}")
+        log_app_debug(logger, '🟢 POST /actual-hours - DEBUT')
+        log_app_debug(logger, f"{'=' * 70}")
+        log_app_debug(logger, f'Employee ID: {employee_id}')
+        log_app_debug(logger, f'Year: {payload.year}, Month: {payload.month}')
+        log_app_debug(logger, f"Nombre d'entrées calendrier réel: {len(payload.calendrier_reel)}")
 
         company_id, employee_statut = get_employee_company_and_statut(employee_id)
-        print(f"Company ID récupéré: {company_id}")
-        print(f"Statut employé: {employee_statut}")
+        log_app_debug(logger, f'Company ID récupéré: {company_id}')
+        log_app_debug(logger, f'Statut employé: {employee_statut}')
 
         calendrier_reel_raw = [entry.model_dump() for entry in payload.calendrier_reel]
         calendrier_reel_normalized = normalize_actual_hours_for_employee(
             calendrier_reel_raw, employee_statut
         )
         if domain_rules.is_forfait_jour(employee_statut):
-            print(
-                f"✅ Normalisation forfait jour appliquée aux heures réelles: {len(calendrier_reel_normalized)} entrées normalisées"
-            )
+            log_app_debug(logger, f'✅ Normalisation forfait jour appliquée aux heures réelles: {len(calendrier_reel_normalized)} entrées normalisées')
 
         json_content = {
             "periode": {"mois": payload.month, "annee": payload.year},
             "calendrier_reel": calendrier_reel_normalized,
         }
-        print("\n📦 JSON Content créé:")
-        print(f"   - periode: {json_content['periode']}")
-        print(f"   - calendrier_reel: {len(json_content['calendrier_reel'])} entrées")
+        log_app_debug(logger, '\n📦 JSON Content créé:')
+        log_app_debug(logger, f"   - periode: {json_content['periode']}")
+        log_app_debug(logger, f"   - calendrier_reel: {len(json_content['calendrier_reel'])} entrées")
 
-        print("\n🔄 Tentative d'upsert avec on_conflict='employee_id,year,month'")
-        print("   Données upsert: employee_id, company_id, year, month, actual_hours")
-        print(
-            f"   Taille du calendrier réel: {len(calendrier_reel_normalized)} entrées"
-        )
+        log_app_debug(logger, "\n🔄 Tentative d'upsert avec on_conflict='employee_id,year,month'")
+        log_app_debug(logger, '   Données upsert: employee_id, company_id, year, month, actual_hours')
+        log_app_debug(logger, f'   Taille du calendrier réel: {len(calendrier_reel_normalized)} entrées')
 
         schedule_repository.upsert_schedule(
             employee_id,
@@ -145,18 +138,18 @@ def update_actual_hours(employee_id: str, payload: Any) -> Dict[str, str]:
             actual_hours=json_content,
         )
 
-        print("\n✅ Upsert réussi!")
-        print(f"{'=' * 70}\n")
+        log_app_debug(logger, '\n✅ Upsert réussi!')
+        log_app_debug(logger, f"{'=' * 70}\n")
         return {"status": "success", "message": "Heures réelles enregistrées."}
 
     except ScheduleAppError:
         raise
     except Exception as e:
-        print("\n❌ ERREUR dans update_actual_hours:")
-        print(f"   Type: {type(e).__name__}")
-        print(f"   Message: {str(e)}")
-        traceback.print_exc()
-        print(f"{'=' * 70}\n")
+        logger.warning('\n❌ ERREUR dans update_actual_hours:')
+        log_app_debug(logger, f'   Type: {type(e).__name__}')
+        log_app_debug(logger, f'   Message: {str(e)}')
+        logger.exception("Exception")
+        log_app_debug(logger, f"{'=' * 70}\n")
         raise ScheduleAppError("error", str(e), status_code=500) from e
 
 
@@ -208,10 +201,7 @@ def calculate_payroll_events(employee_id: str, year: int, month: int) -> Dict[st
     Utilise payroll_analyzer ou forfait jour selon le statut.
     """
     try:
-        print(
-            f"\n--- Début du calcul de paie pour l'employé {employee_id} ({month}/{year}) ---",
-            file=sys.stderr,
-        )
+        log_app_debug(logger, f"\n--- Début du calcul de paie pour l'employé {employee_id} ({month}/{year}) ---")
 
         employee_data = employee_company_reader.get_employee_for_payroll_events(
             employee_id
@@ -229,10 +219,7 @@ def calculate_payroll_events(employee_id: str, year: int, month: int) -> Dict[st
 
         is_employee_forfait_jour = domain_rules.is_forfait_jour(employee_statut)
         if is_employee_forfait_jour:
-            print(
-                f"✅ Employé en forfait jour détecté (statut: {employee_statut})",
-                file=sys.stderr,
-            )
+            logger.info(f'✅ Employé en forfait jour détecté (statut: {employee_statut})')
 
         date_debut_periode = None
         date_fin_periode = None
@@ -248,44 +235,31 @@ def calculate_payroll_events(employee_id: str, year: int, month: int) -> Dict[st
                         )
                     )
                     if date_debut_periode and date_fin_periode:
-                        print(
-                            f"✅ Période de paie calculée pour forfait jour : "
-                            f"du {date_debut_periode.strftime('%d/%m/%Y')} au {date_fin_periode.strftime('%d/%m/%Y')}",
-                            file=sys.stderr,
-                        )
+                        logger.info(f"✅ Période de paie calculée pour forfait jour : du {date_debut_periode.strftime('%d/%m/%Y')} au {date_fin_periode.strftime('%d/%m/%Y')}")
             except Exception as e:
-                print(
-                    f"⚠️ Impossible de calculer la période de paie pour le forfait jour: {e}. "
-                    f"Utilisation du filtrage par mois.",
-                    file=sys.stderr,
-                )
-                traceback.print_exc(file=sys.stderr)
+                logger.warning(f'⚠️ Impossible de calculer la période de paie pour le forfait jour: {e}. Utilisation du filtrage par mois.')
+                logger.exception("Exception")
 
         dates_to_process = _dates_to_process(year, month)
         year_months = [(d["year"], d["month"]) for d in dates_to_process]
         rows = schedule_repository.get_schedules_for_months(employee_id, year_months)
 
-        print("\n" + "=" * 20 + " ESPION 1 : DONNÉES BRUTES DE SUPABASE " + "=" * 20)
+        log_app_debug(logger, '\n' + '=' * 20 + ' ESPION 1 : DONNÉES BRUTES DE SUPABASE ' + '=' * 20)
         try:
-            print(json.dumps(rows, indent=2))
+            log_app_debug(logger, json.dumps(rows, indent=2))
         except TypeError:
-            print(rows)
-        print("=" * 67 + "\n")
-        print(
-            f"-> Données de {len(rows)} mois récupérées depuis Supabase.",
-            file=sys.stderr,
-        )
+            log_app_debug(logger, rows)
+        log_app_debug(logger, '=' * 67 + '\n')
+        log_app_debug(logger, f'-> Données de {len(rows)} mois récupérées depuis Supabase.')
 
         planned_data_all_months, actual_data_all_months = (
             _build_planned_actual_from_rows(rows, dates_to_process)
         )
 
-        print(
-            "\n" + "=" * 20 + " ESPION 2 : DONNÉES PRÊTES POUR L'ANALYSEUR " + "=" * 20
-        )
-        print("Contenu de la variable 'planned_data_all_months' :")
-        print(json.dumps(planned_data_all_months, indent=2))
-        print("=" * 75 + "\n")
+        log_app_debug(logger, '\n' + '=' * 20 + " ESPION 2 : DONNÉES PRÊTES POUR L'ANALYSEUR " + '=' * 20)
+        log_app_debug(logger, "Contenu de la variable 'planned_data_all_months' :")
+        log_app_debug(logger, json.dumps(planned_data_all_months, indent=2))
+        log_app_debug(logger, '=' * 75 + '\n')
 
         if is_employee_forfait_jour:
             payroll_events_list = forfait_jour_provider.analyser_jours_forfait_du_mois(
@@ -298,15 +272,9 @@ def calculate_payroll_events(employee_id: str, year: int, month: int) -> Dict[st
                 date_fin_periode=date_fin_periode,
             )
             if date_debut_periode and date_fin_periode:
-                print(
-                    "✅ Analyseur forfait jour utilisé avec période de paie",
-                    file=sys.stderr,
-                )
+                logger.info('✅ Analyseur forfait jour utilisé avec période de paie')
             else:
-                print(
-                    "✅ Analyseur forfait jour utilisé (filtrage par mois)",
-                    file=sys.stderr,
-                )
+                logger.info('✅ Analyseur forfait jour utilisé (filtrage par mois)')
         else:
             payroll_events_list = payroll_analyzer_provider.analyser_horaires(
                 planned_data_all_months=planned_data_all_months,
@@ -316,18 +284,15 @@ def calculate_payroll_events(employee_id: str, year: int, month: int) -> Dict[st
                 mois=month,
                 employee_name=employee_name,
             )
-            print("✅ Analyseur normal (heures) utilisé", file=sys.stderr)
-        print(
-            f"-> Analyse terminée : {len(payroll_events_list)} événements de paie générés.",
-            file=sys.stderr,
-        )
+            logger.info('✅ Analyseur normal (heures) utilisé')
+        logger.info(f'-> Analyse terminée : {len(payroll_events_list)} événements de paie générés.')
 
         result_json = {
             "periode": {"annee": year, "mois": month},
             "calendrier_analyse": payroll_events_list,
         }
         schedule_repository.update_payroll_events(employee_id, year, month, result_json)
-        print("-> Résultat sauvegardé avec succès.", file=sys.stderr)
+        logger.info('-> Résultat sauvegardé avec succès.')
 
         return {
             "status": "success",
@@ -339,7 +304,7 @@ def calculate_payroll_events(employee_id: str, year: int, month: int) -> Dict[st
     except ScheduleNotFoundError as e:
         raise ScheduleAppError("not_found", str(e), status_code=404) from e
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Exception")
         raise ScheduleAppError("error", str(e), status_code=500) from e
 
 
@@ -454,7 +419,7 @@ def apply_schedule_model(request: Any, current_user: Any) -> Dict[str, Any]:
     except ScheduleAppError:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Exception")
         raise ScheduleAppError(
             "error",
             f"Erreur lors de l'application du modèle: {str(e)}",

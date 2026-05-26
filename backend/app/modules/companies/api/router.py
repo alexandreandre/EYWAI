@@ -5,8 +5,10 @@ Délègue toute la logique à la couche application (queries, commands, service)
 Aucune logique métier ni accès DB : validation, résolution contexte, appel application, retour HTTP.
 Comportement HTTP identique à api/routers/company.py.
 """
+from app.core.logging import get_logger, log_app_debug
 
-import traceback
+logger = get_logger("modules.companies.api.router")
+
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
@@ -14,10 +16,7 @@ from fastapi.responses import PlainTextResponse
 from app.core.security import get_current_user
 from app.modules.companies.application import commands, queries
 from app.modules.users.schemas.responses import User
-from app.modules.companies.application.service import (
-    resolve_company_id_for_details,
-    resolve_company_id_for_user,
-)
+from app.modules.companies.application.service import resolve_company_id_for_user
 from app.modules.companies.application.export import build_company_export_csv
 from app.modules.companies.schemas.requests import (
     CompanyDetailsUpdate,
@@ -53,15 +52,17 @@ def get_company_details_and_kpis(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Récupère les détails complets de l'entreprise de l'utilisateur connecté
-    ainsi que des indicateurs de performance clés (KPIs) avancés pour le dashboard de pilotage.
+    Récupère les détails complets de l'entreprise active
+    ainsi que des indicateurs de performance clés (KPIs) pour Mon Entreprise.
     """
     try:
-        company_id = resolve_company_id_for_details(current_user)
+        company_id = resolve_company_id_for_user(current_user)
         if not company_id:
+            raise HTTPException(status_code=400, detail="Aucune entreprise active")
+        if not current_user.has_access_to_company(company_id):
             raise HTTPException(
                 status_code=403,
-                detail="Impossible de déterminer l'entreprise de l'utilisateur.",
+                detail="Accès non autorisé pour cette entreprise",
             )
         result = queries.get_company_details_and_kpis(company_id, current_user)
         return CompanyDetailsResponse(
@@ -73,8 +74,8 @@ def get_company_details_and_kpis(
     except HTTPException:
         raise
     except Exception as e:
-        print("ERROR: Exception dans get_company_details_and_kpis:")
-        traceback.print_exc()
+        logger.warning('ERROR: Exception dans get_company_details_and_kpis:')
+        logger.exception("Exception")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur interne du serveur: {str(e)}",

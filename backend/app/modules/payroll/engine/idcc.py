@@ -2,6 +2,9 @@
 Utilitaire API PISTE/KALI pour la recherche de textes par IDCC (conventions collectives).
 Helper technique proche du moteur de paie — migré depuis backend_calculs/idcc.py.
 """
+from app.core.logging import get_logger, log_payroll_debug
+
+logger = get_logger("modules.payroll.engine.idcc")
 
 import requests
 import json
@@ -42,7 +45,7 @@ def obtenir_token():
         response.raise_for_status()
         return response.json().get("access_token")
     except requests.exceptions.RequestException as e:
-        print(f"Erreur lors de l'obtention du token : {e}")
+        logger.warning(f"Erreur lors de l'obtention du token : {e}")
         return None
 
 
@@ -73,9 +76,9 @@ def rechercher_textes_kali(token, idcc):
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        print(f"Erreur lors de la recherche pour l'IDCC {idcc} : {e}")
+        logger.warning(f"Erreur lors de la recherche pour l'IDCC {idcc} : {e}")
         if e.response is not None:
-            print(f"Détail de l'erreur du serveur : {e.response.text}")
+            logger.warning(f"Détail de l'erreur du serveur : {e.response.text}")
         return None
 
 
@@ -87,24 +90,22 @@ def main():
     if not token:
         return
 
-    print("Token d'accès obtenu avec succès.\n")
+    log_payroll_debug(logger, "Token d'accès obtenu avec succès.\n")
 
     # On boucle sur chaque IDCC de notre liste de test
     for idcc_a_tester in IDCC_A_TESTER:
-        print(f"--- Test avec l'IDCC : {idcc_a_tester} ---")
+        log_payroll_debug(logger, f"--- Test avec l'IDCC : {idcc_a_tester} ---")
         resultats = rechercher_textes_kali(token, idcc_a_tester)
 
         if resultats and "results" in resultats:
             nombre_resultats = len(resultats["results"])
-            print(
-                f"✅ SUCCÈS : {nombre_resultats} texte(s) trouvé(s) pour l'IDCC {idcc_a_tester}."
-            )
+            log_payroll_debug(logger, f"✅ SUCCÈS : {nombre_resultats} texte(s) trouvé(s) pour l'IDCC {idcc_a_tester}.")
         else:
-            print(f"❌ ÉCHEC pour l'IDCC {idcc_a_tester}.")
+            logger.warning(f"❌ ÉCHEC pour l'IDCC {idcc_a_tester}.")
 
         # Petite pause pour ne pas surcharger l'API
         time.sleep(1)
-        print("-" * 35 + "\n")
+        log_payroll_debug(logger, '-' * 35 + '\n')
 
 
 if __name__ == "__main__":

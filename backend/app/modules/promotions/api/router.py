@@ -130,7 +130,7 @@ def update_promotion_endpoint(
     _user: User = Depends(require_rh),
     company_id: str = Depends(get_company_id_required),
 ):
-    """Met à jour une promotion (brouillon ou en attente). Rôle RH requis."""
+    """Met à jour une promotion (brouillon ou en attente d'approbation). Rôle RH requis."""
     return update_promotion_cmd(
         promotion_id=promotion_id,
         body=body,
@@ -223,7 +223,7 @@ def delete_promotion_endpoint(
     _user: User = Depends(require_rh),
     company_id: str = Depends(get_company_id_required),
 ):
-    """Supprime une promotion (brouillon uniquement). Rôle RH requis."""
+    """Supprime une promotion (brouillon ou en attente d'approbation). Rôle RH requis."""
     delete_promotion_cmd(promotion_id=promotion_id, company_id=company_id)
 
 

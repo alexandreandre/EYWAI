@@ -28,6 +28,26 @@ def _user_super_admin():
     )
 
 
+def _user_rh_in_company(company_id: str = "c1"):
+    return User(
+        id="rh-1",
+        email="rh@example.com",
+        first_name="Marie",
+        last_name="RH",
+        is_super_admin=False,
+        is_group_admin=False,
+        accessible_companies=[
+            CompanyAccess(
+                company_id=company_id,
+                company_name="Société A",
+                role="rh",
+                is_primary=True,
+            ),
+        ],
+        active_company_id=company_id,
+    )
+
+
 def _user_with_companies():
     return User(
         id="u1",
@@ -144,7 +164,18 @@ class TestGetUserCompanyAccesses:
     def test_non_super_admin_other_user_not_admin_raises_permission_error(
         self, infra_queries
     ):
-        infra_queries.fetch_target_user_company_ids.return_value = ["c99"]
+        infra_queries.fetch_user_accesses_with_companies.return_value = [
+            {
+                "company_id": "c99",
+                "role": "collaborateur",
+                "is_primary": True,
+                "companies": {
+                    "id": "c99",
+                    "company_name": "Autre société",
+                    "siret": None,
+                },
+            },
+        ]
         current = _user_with_companies()
 
         with pytest.raises(PermissionError) as exc_info:
@@ -153,6 +184,49 @@ class TestGetUserCompanyAccesses:
             "permissions" in str(exc_info.value).lower()
             or "pas" in str(exc_info.value).lower()
         )
+
+    @patch("app.modules.users.application.queries.infra_queries")
+    def test_rh_can_view_accesses_for_viewable_user_in_shared_company(
+        self, infra_queries
+    ):
+        infra_queries.fetch_user_accesses_with_companies.return_value = [
+            {
+                "company_id": "c1",
+                "role": "collaborateur",
+                "is_primary": True,
+                "companies": {"id": "c1", "company_name": "Société A", "siret": None},
+            },
+            {
+                "company_id": "c2",
+                "role": "collaborateur",
+                "is_primary": False,
+                "companies": {"id": "c2", "company_name": "Société B", "siret": None},
+            },
+        ]
+        current = _user_rh_in_company("c1")
+
+        result = queries.get_user_company_accesses("other-user", current)
+
+        assert len(result) == 1
+        assert result[0].company_id == "c1"
+        assert result[0].role == "collaborateur"
+
+    @patch("app.modules.users.application.queries.infra_queries")
+    def test_rh_cannot_view_accesses_for_higher_role_in_shared_company(
+        self, infra_queries
+    ):
+        infra_queries.fetch_user_accesses_with_companies.return_value = [
+            {
+                "company_id": "c1",
+                "role": "admin",
+                "is_primary": True,
+                "companies": {"id": "c1", "company_name": "Société A", "siret": None},
+            },
+        ]
+        current = _user_rh_in_company("c1")
+
+        with pytest.raises(PermissionError):
+            queries.get_user_company_accesses("other-user", current)
 
 
 # ----- get_company_users -----

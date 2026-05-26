@@ -7,8 +7,10 @@ Calcule:
 - Indemnité de licenciement (Article L1234-9)
 - Indemnité de rupture conventionnelle
 """
+from app.core.logging import get_logger, log_payroll_debug
 
-import sys
+logger = get_logger("modules.payroll.engine.calcul_indemnites_sortie")
+
 from typing import Dict, Any
 from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
@@ -38,10 +40,7 @@ def calculer_anciennete_annees(hire_date: date, exit_date: date) -> float:
     # Convertir en années décimales
     anciennete = years + (months / 12) + (days / 365)
 
-    print(
-        f"  Ancienneté: {years} ans, {months} mois, {days} jours = {anciennete:.2f} ans",
-        file=sys.stderr,
-    )
+    log_payroll_debug(logger, f'  Ancienneté: {years} ans, {months} mois, {days} jours = {anciennete:.2f} ans')
 
     return round(anciennete, 2)
 
@@ -109,10 +108,10 @@ def calculer_indemnite_preavis(
     Returns:
         Dict contenant le montant et les détails du calcul
     """
-    print("\n  [PRÉAVIS]", file=sys.stderr)
-    print(f"    Salaire mensuel: {salaire_mensuel_brut:.2f} €", file=sys.stderr)
-    print(f"    Jours de préavis: {notice_period_days}", file=sys.stderr)
-    print(f"    Type: {notice_indemnity_type}", file=sys.stderr)
+    log_payroll_debug(logger, '\n  [PRÉAVIS]')
+    log_payroll_debug(logger, f'    Salaire mensuel: {salaire_mensuel_brut:.2f} €')
+    log_payroll_debug(logger, f'    Jours de préavis: {notice_period_days}')
+    log_payroll_debug(logger, f'    Type: {notice_indemnity_type}')
 
     if notice_indemnity_type != "paid" or notice_period_days == 0:
         return {
@@ -126,10 +125,7 @@ def calculer_indemnite_preavis(
     # Calcul: (salaire mensuel brut / 30) × nombre de jours
     indemnite = (salaire_mensuel_brut / 30) * notice_period_days
 
-    print(
-        f"    Indemnité: ({salaire_mensuel_brut} / 30) × {notice_period_days} = {indemnite:.2f} €",
-        file=sys.stderr,
-    )
+    log_payroll_debug(logger, f'    Indemnité: ({salaire_mensuel_brut} / 30) × {notice_period_days} = {indemnite:.2f} €')
 
     return {
         "montant": round(indemnite, 2),
@@ -169,10 +165,10 @@ def calculer_indemnite_licenciement(
     Returns:
         Dict contenant le montant et les détails du calcul
     """
-    print("\n  [LICENCIEMENT]", file=sys.stderr)
-    print(f"    Ancienneté: {anciennete_annees:.2f} ans", file=sys.stderr)
-    print(f"    Salaire référence: {salaire_reference:.2f} €", file=sys.stderr)
-    print(f"    Faute grave: {is_gross_misconduct}", file=sys.stderr)
+    log_payroll_debug(logger, '\n  [LICENCIEMENT]')
+    log_payroll_debug(logger, f'    Ancienneté: {anciennete_annees:.2f} ans')
+    log_payroll_debug(logger, f'    Salaire référence: {salaire_reference:.2f} €')
+    log_payroll_debug(logger, f'    Faute grave: {is_gross_misconduct}')
 
     if is_gross_misconduct:
         return {
@@ -196,10 +192,7 @@ def calculer_indemnite_licenciement(
     annees_tranche1 = min(anciennete_annees, 10)
     indemnite_tranche1 = (salaire_reference * annees_tranche1) / 4
 
-    print(
-        f"    Tranche 1 (≤10 ans): {annees_tranche1:.2f} ans × 1/4 = {indemnite_tranche1:.2f} €",
-        file=sys.stderr,
-    )
+    log_payroll_debug(logger, f'    Tranche 1 (≤10 ans): {annees_tranche1:.2f} ans × 1/4 = {indemnite_tranche1:.2f} €')
 
     # Calcul au-delà de 10 ans: 1/3 de mois par an
     indemnite_tranche2 = 0.0
@@ -208,14 +201,11 @@ def calculer_indemnite_licenciement(
     if anciennete_annees > 10:
         annees_tranche2 = anciennete_annees - 10
         indemnite_tranche2 = (salaire_reference * annees_tranche2) / 3
-        print(
-            f"    Tranche 2 (>10 ans): {annees_tranche2:.2f} ans × 1/3 = {indemnite_tranche2:.2f} €",
-            file=sys.stderr,
-        )
+        log_payroll_debug(logger, f'    Tranche 2 (>10 ans): {annees_tranche2:.2f} ans × 1/3 = {indemnite_tranche2:.2f} €')
 
     indemnite_totale = indemnite_tranche1 + indemnite_tranche2
 
-    print(f"    TOTAL: {indemnite_totale:.2f} €", file=sys.stderr)
+    log_payroll_debug(logger, f'    TOTAL: {indemnite_totale:.2f} €')
 
     return {
         "montant": round(indemnite_totale, 2),
@@ -256,7 +246,7 @@ def calculer_indemnite_rupture_conventionnelle(
     Returns:
         Dict contenant le montant minimum et les détails
     """
-    print("\n  [RUPTURE CONVENTIONNELLE]", file=sys.stderr)
+    log_payroll_debug(logger, '\n  [RUPTURE CONVENTIONNELLE]')
 
     # Minimum légal = indemnité de licenciement
     indemnite_licenciement = calculer_indemnite_licenciement(
@@ -265,14 +255,8 @@ def calculer_indemnite_rupture_conventionnelle(
 
     montant_minimum = indemnite_licenciement["montant"]
 
-    print(
-        f"    Minimum légal: {montant_minimum:.2f} € (= indemnité licenciement)",
-        file=sys.stderr,
-    )
-    print(
-        f"    Montant négocié: {montant_minimum:.2f} € (utiliser le minimum par défaut)",
-        file=sys.stderr,
-    )
+    log_payroll_debug(logger, f'    Minimum légal: {montant_minimum:.2f} € (= indemnité licenciement)')
+    log_payroll_debug(logger, f'    Montant négocié: {montant_minimum:.2f} € (utiliser le minimum par défaut)')
 
     return {
         "montant_minimum": montant_minimum,
@@ -302,7 +286,7 @@ def calculer_indemnite_conges_restants(
     - Le solde restant
     - L'indemnité selon la méthode la plus avantageuse (1/10ème ou maintien de salaire)
     """
-    print("\n  [CONGÉS PAYÉS]", file=sys.stderr)
+    log_payroll_debug(logger, '\n  [CONGÉS PAYÉS]')
 
     salaire_base_obj = employee_data.get("salaire_de_base", {})
     if isinstance(salaire_base_obj, dict):
@@ -313,7 +297,7 @@ def calculer_indemnite_conges_restants(
     # Récupérer la date d'embauche
     hire_date_str = employee_data.get("hire_date")
     if not hire_date_str:
-        print("    ⚠ Date d'embauche non trouvée, calcul simplifié", file=sys.stderr)
+        logger.warning("    ⚠ Date d'embauche non trouvée, calcul simplifié")
         return {
             "montant": 0.0,
             "jours_restants": 0.0,
@@ -387,15 +371,12 @@ def calculer_indemnite_conges_restants(
 
             jours_restants = max(0, cp_acquis - cp_pris)
 
-            print(f"    Congés acquis: {cp_acquis} jours", file=sys.stderr)
-            print(f"    Congés pris: {cp_pris} jours", file=sys.stderr)
-            print(f"    Solde restant: {jours_restants} jours", file=sys.stderr)
+            log_payroll_debug(logger, f'    Congés acquis: {cp_acquis} jours')
+            log_payroll_debug(logger, f'    Congés pris: {cp_pris} jours')
+            log_payroll_debug(logger, f'    Solde restant: {jours_restants} jours')
 
         except Exception as e:
-            print(
-                f"    ⚠ Erreur calcul solde congés: {e}, utilisation calcul simplifié",
-                file=sys.stderr,
-            )
+            logger.warning(f'    ⚠ Erreur calcul solde congés: {e}, utilisation calcul simplifié')
             cp_acquis = 0.0
             cp_pris = 0.0
 
@@ -412,12 +393,9 @@ def calculer_indemnite_conges_restants(
     # Prendre la méthode la plus avantageuse pour le salarié
     indemnite = max(indemnite_maintien, indemnite_dixieme)
 
-    print(f"    Indemnité (maintien): {indemnite_maintien:.2f} €", file=sys.stderr)
-    print(f"    Indemnité (1/10ème): {indemnite_dixieme:.2f} €", file=sys.stderr)
-    print(
-        f"    Indemnité retenue: {indemnite:.2f} € (méthode la plus avantageuse)",
-        file=sys.stderr,
-    )
+    log_payroll_debug(logger, f'    Indemnité (maintien): {indemnite_maintien:.2f} €')
+    log_payroll_debug(logger, f'    Indemnité (1/10ème): {indemnite_dixieme:.2f} €')
+    log_payroll_debug(logger, f'    Indemnité retenue: {indemnite:.2f} € (méthode la plus avantageuse)')
 
     return {
         "montant": round(indemnite, 2),
@@ -455,9 +433,9 @@ def calculer_indemnites_sortie(
     Returns:
         Dict contenant tous les calculs d'indemnités avec détails
     """
-    print("\n" + "=" * 70, file=sys.stderr)
-    print("CALCUL DES INDEMNITÉS DE SORTIE", file=sys.stderr)
-    print("=" * 70, file=sys.stderr)
+    log_payroll_debug(logger, '\n' + '=' * 70)
+    log_payroll_debug(logger, 'CALCUL DES INDEMNITÉS DE SORTIE')
+    log_payroll_debug(logger, '=' * 70)
 
     # Extraire les données nécessaires
     hire_date_str = employee_data.get("hire_date")
@@ -483,13 +461,10 @@ def calculer_indemnites_sortie(
     notice_indemnity_type = exit_data.get("notice_indemnity_type", "not_applicable")
     is_gross_misconduct = exit_data.get("is_gross_misconduct", False)
 
-    print(
-        f"\nEmployé: {employee_data.get('first_name')} {employee_data.get('last_name')}",
-        file=sys.stderr,
-    )
-    print(f"Type de sortie: {exit_type}", file=sys.stderr)
-    print(f"Date d'embauche: {hire_date}", file=sys.stderr)
-    print(f"Date de sortie: {exit_date}", file=sys.stderr)
+    log_payroll_debug(logger, f"\nEmployé: {employee_data.get('first_name')} {employee_data.get('last_name')}")
+    log_payroll_debug(logger, f'Type de sortie: {exit_type}')
+    log_payroll_debug(logger, f"Date d'embauche: {hire_date}")
+    log_payroll_debug(logger, f'Date de sortie: {exit_date}')
 
     # 1. Calculer l'ancienneté
     anciennete = calculer_anciennete_annees(hire_date, exit_date)
@@ -501,9 +476,9 @@ def calculer_indemnites_sortie(
     # Prendre le plus avantageux pour le salarié
     salaire_reference = max(salaire_ref_12, salaire_ref_3)
 
-    print(f"\nSalaire référence (12 mois): {salaire_ref_12:.2f} €", file=sys.stderr)
-    print(f"Salaire référence (3 mois): {salaire_ref_3:.2f} €", file=sys.stderr)
-    print(f"Salaire référence retenu: {salaire_reference:.2f} €", file=sys.stderr)
+    log_payroll_debug(logger, f'\nSalaire référence (12 mois): {salaire_ref_12:.2f} €')
+    log_payroll_debug(logger, f'Salaire référence (3 mois): {salaire_ref_3:.2f} €')
+    log_payroll_debug(logger, f'Salaire référence retenu: {salaire_reference:.2f} €')
 
     # 3. Calculer l'indemnité de préavis
     indemnite_preavis = calculer_indemnite_preavis(
@@ -544,26 +519,20 @@ def calculer_indemnites_sortie(
     # - Indemnité de rupture: exonérée jusqu'à 8 000 €
     total_net = total_brut  # Temporaire
 
-    print(f"\n{'=' * 70}", file=sys.stderr)
-    print("RÉSUMÉ DES INDEMNITÉS:", file=sys.stderr)
-    print(f"  - Préavis: {indemnite_preavis['montant']:.2f} €", file=sys.stderr)
-    print(f"  - Congés payés: {indemnite_conges['montant']:.2f} €", file=sys.stderr)
+    log_payroll_debug(logger, f"\n{'=' * 70}")
+    log_payroll_debug(logger, 'RÉSUMÉ DES INDEMNITÉS:')
+    log_payroll_debug(logger, f"  - Préavis: {indemnite_preavis['montant']:.2f} €")
+    log_payroll_debug(logger, f"  - Congés payés: {indemnite_conges['montant']:.2f} €")
 
     if indemnite_licenciement:
-        print(
-            f"  - Licenciement: {indemnite_licenciement['montant']:.2f} €",
-            file=sys.stderr,
-        )
+        log_payroll_debug(logger, f"  - Licenciement: {indemnite_licenciement['montant']:.2f} €")
 
     if indemnite_rupture:
-        print(
-            f"  - Rupture conventionnelle: {indemnite_rupture.get('montant_negocie', 0):.2f} €",
-            file=sys.stderr,
-        )
+        log_payroll_debug(logger, f"  - Rupture conventionnelle: {indemnite_rupture.get('montant_negocie', 0):.2f} €")
 
-    print(f"\nTOTAL BRUT: {total_brut:.2f} €", file=sys.stderr)
-    print(f"TOTAL NET (estimé): {total_net:.2f} €", file=sys.stderr)
-    print(f"{'=' * 70}\n", file=sys.stderr)
+    log_payroll_debug(logger, f'\nTOTAL BRUT: {total_brut:.2f} €')
+    log_payroll_debug(logger, f'TOTAL NET (estimé): {total_net:.2f} €')
+    log_payroll_debug(logger, f"{'=' * 70}\n")
 
     # Construire le résultat
     result = {

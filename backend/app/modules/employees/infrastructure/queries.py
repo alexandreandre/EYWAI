@@ -3,6 +3,9 @@ Requêtes métier complexes : annual_reviews, employee_documents, URLs signées.
 
 Utilise Supabase et le storage provider. Comportement identique au router legacy.
 """
+from app.core.logging import get_logger, log_app_debug
+
+logger = get_logger("modules.employees.infrastructure.queries")
 
 from typing import Any, Dict, List, Optional
 
@@ -89,7 +92,7 @@ def fetch_published_exit_documents(
                     }
                 )
         except Exception as e:
-            print(f"⚠ Erreur génération URL pour document {doc.get('id')}: {e}")
+            logger.warning(f"⚠ Erreur génération URL pour document {doc.get('id')}: {e}")
             continue
     return documents
 

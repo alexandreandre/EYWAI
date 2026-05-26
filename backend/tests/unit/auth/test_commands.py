@@ -118,6 +118,22 @@ class TestResetPassword:
         )
         auth.update_user_password.assert_not_called()
 
+    def test_get_valid_supabase_error_raises_400(self):
+        """Erreur Supabase à la lecture du token → HTTP 400 (pas 500)."""
+        with (
+            patch(
+                "app.modules.auth.application.commands.reset_token_repository"
+            ) as repo,
+            patch("app.modules.auth.application.commands.auth_provider") as auth,
+        ):
+            repo.get_valid.side_effect = Exception("403 Forbidden")
+
+            with pytest.raises(HTTPException) as exc_info:
+                commands.reset_password("invalid-token", "NewP@ss")
+
+        assert exc_info.value.status_code == 400
+        auth.update_user_password.assert_not_called()
+
 
 class TestChangePassword:
     """Commande change_password (utilisateur connecté)."""

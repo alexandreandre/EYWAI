@@ -3,9 +3,10 @@ Repository employee_schedules : implémentation Supabase du port IScheduleReposi
 
 Tout accès DB à la table employee_schedules. Comportement identique à l'ancien router.
 """
+from app.core.logging import get_logger, log_app_debug
 
-import sys
-import traceback
+logger = get_logger("modules.schedules.infrastructure.repository")
+
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.database import supabase
@@ -74,8 +75,8 @@ class ScheduleRepository(IScheduleRepository):
                 payload, on_conflict="employee_id,year,month"
             ).execute()
         except Exception as e:
-            print(f"❌ Erreur lors de l'upsert Supabase: {e}", file=sys.stderr)
-            traceback.print_exc(file=sys.stderr)
+            logger.warning(f"❌ Erreur lors de l'upsert Supabase: {e}")
+            logger.exception("Exception")
             supabase.table("employee_schedules").upsert(
                 payload, on_conflict="employee_id,year,month"
             ).execute()

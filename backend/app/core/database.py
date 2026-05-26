@@ -27,15 +27,19 @@ depuis app.core.database et en utilisant get_supabase_client() ou get_supabase_a
 from __future__ import annotations
 
 from supabase import Client, create_client
+from supabase.lib.client_options import SyncClientOptions
 
 from app.core.settings import (
     get_supabase_admin_env,
     require_supabase_env,
 )
+from app.core.supabase_resilience import create_supabase_httpx_client
 
 # --- Client par défaut (clé anon/standard) ---
 _default_url, _default_key = require_supabase_env()
-supabase: Client = create_client(_default_url, _default_key)
+_supabase_httpx = create_supabase_httpx_client()
+_supabase_options = SyncClientOptions(httpx_client=_supabase_httpx)
+supabase: Client = create_client(_default_url, _default_key, options=_supabase_options)
 supabase_url: str = _default_url
 supabase_key: str = _default_key
 
@@ -52,4 +56,4 @@ def get_supabase_admin_client() -> Client:
     sinon repli sur SUPABASE_KEY pour compatibilité.
     """
     url, key = get_supabase_admin_env()
-    return create_client(url, key)
+    return create_client(url, key, options=_supabase_options)

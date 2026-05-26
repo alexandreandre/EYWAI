@@ -12,6 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.security import get_current_user
 from app.main import app
 from app.modules.rates.api.dependencies import get_all_rates_reader
 from app.modules.rates.domain.interfaces import IAllRatesReader
@@ -19,6 +20,14 @@ from app.modules.rates.application.queries import get_all_rates
 
 
 pytestmark = pytest.mark.integration
+
+
+def _make_rh_user():
+    user = MagicMock()
+    user.is_super_admin = False
+    user.active_company_id = "company-1"
+    user.has_rh_access_in_company.return_value = True
+    return user
 
 
 class TestRatesDependencyInjection:
@@ -45,10 +54,12 @@ class TestRatesDependencyInjection:
             }
         ]
         app.dependency_overrides[get_all_rates_reader] = lambda: mock_reader
+        app.dependency_overrides[get_current_user] = _make_rh_user
         try:
             response = client.get("/api/rates/all")
         finally:
             app.dependency_overrides.pop(get_all_rates_reader, None)
+            app.dependency_overrides.pop(get_current_user, None)
 
         assert response.status_code == 200
         mock_reader.get_all_active_rows.assert_called_once()
@@ -78,10 +89,12 @@ class TestRatesEndToEndFlow:
         mock_reader = MagicMock()
         mock_reader.get_all_active_rows.return_value = rows
         app.dependency_overrides[get_all_rates_reader] = lambda: mock_reader
+        app.dependency_overrides[get_current_user] = _make_rh_user
         try:
             response = client.get("/api/rates/all")
         finally:
             app.dependency_overrides.pop(get_all_rates_reader, None)
+            app.dependency_overrides.pop(get_current_user, None)
 
         assert response.status_code == 200
         body = response.json()

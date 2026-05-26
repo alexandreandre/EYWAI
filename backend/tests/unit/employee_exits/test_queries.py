@@ -333,6 +333,16 @@ class TestGetDocumentEditHistory:
             "manually_edited": True,
             "last_edited_by": "user-1",
             "last_edited_at": "2025-01-20T10:00:00Z",
+            "document_data": {
+                "_edit_history": [
+                    {
+                        "version": 2,
+                        "edited_by": "user-1",
+                        "edited_at": "2025-01-20T10:00:00Z",
+                        "changes_summary": "Correction du nom de l'entreprise",
+                    }
+                ]
+            },
         }
         mock_doc_repo = MagicMock()
         mock_doc_repo.get_by_id.return_value = doc
@@ -346,6 +356,7 @@ class TestGetDocumentEditHistory:
         assert result["total_versions"] == 2
         assert len(result["history"]) == 1
         assert result["history"][0]["version"] == 2
+        assert result["history"][0]["changes_summary"] == "Correction du nom de l'entreprise"
 
 
 @patch("app.modules.employee_exits.application.queries.ExitChecklistRepository")

@@ -88,36 +88,90 @@ def _make_employee_user(employee_id: str = TEST_EMPLOYEE_ID):
     )
 
 
+def _make_non_rh_user():
+    """Utilisateur connecté sans accès RH."""
+    access = CompanyAccess(
+        company_id=TEST_COMPANY_ID,
+        company_name="Test Co",
+        role="collaborateur",
+        is_primary=True,
+    )
+    return User(
+        id="user-non-rh-payslips-test",
+        email="collab@payslips.test",
+        first_name="Collab",
+        last_name="Test",
+        is_super_admin=False,
+        is_group_admin=False,
+        accessible_companies=[access],
+        active_company_id=TEST_COMPANY_ID,
+    )
+
+
 # --- Routes sans auth (ou dont le routeur n'injecte pas get_current_user) ---
 
 
 class TestPayslipsGenerateRoute:
     """POST /api/actions/generate-payslip."""
 
-    def test_generate_returns_200_with_mock(self, client: TestClient):
-        """Génération mockée retourne status/message/download_url."""
+    def test_generate_returns_401_without_auth(self, client: TestClient):
+        """Sans auth → 401."""
+        response = client.post(
+            "/api/actions/generate-payslip",
+            json={"employee_id": "emp-1", "year": 2024, "month": 3},
+        )
+        assert response.status_code == 401
+
+    def test_generate_returns_200_with_rh_user(self, client: TestClient):
+        """Génération mockée avec RH retourne status/message/download_url."""
+        from app.core.security import get_current_user
+
         with patch("app.modules.payslips.api.router.generate_payslip") as mock_gen:
             mock_gen.return_value = MagicMock(
                 status="ok",
                 message="Bulletin généré",
                 download_url="https://storage.example.com/signed.pdf",
             )
-            response = client.post(
-                "/api/actions/generate-payslip",
-                json={"employee_id": "emp-1", "year": 2024, "month": 3},
-            )
+            app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+            try:
+                response = client.post(
+                    "/api/actions/generate-payslip",
+                    json={"employee_id": "emp-1", "year": 2024, "month": 3},
+                )
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
         assert data["message"] == "Bulletin généré"
         assert data["download_url"] == "https://storage.example.com/signed.pdf"
 
+    def test_generate_returns_403_for_non_rh_user(self, client: TestClient):
+        """Utilisateur sans accès RH → 403."""
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
+        try:
+            response = client.post(
+                "/api/actions/generate-payslip",
+                json={"employee_id": "emp-1", "year": 2024, "month": 3},
+            )
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 403
+
     def test_generate_with_invalid_body_returns_422(self, client: TestClient):
         """Body invalide (mois manquant) → 422."""
-        response = client.post(
-            "/api/actions/generate-payslip",
-            json={"employee_id": "emp-1", "year": 2024},
-        )
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+        try:
+            response = client.post(
+                "/api/actions/generate-payslip",
+                json={"employee_id": "emp-1", "year": 2024},
+            )
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 422
 
 
@@ -161,10 +215,17 @@ class TestPayslipsMyPayslipsRoute:
 
 
 class TestPayslipsEmployeePayslipsRoute:
-    """GET /api/employees/{employee_id}/payslips (pas d'auth sur le routeur actuel)."""
+    """GET /api/employees/{employee_id}/payslips."""
 
-    def test_get_employee_payslips_returns_200_with_mock(self, client: TestClient):
+    def test_get_employee_payslips_returns_401_without_auth(self, client: TestClient):
+        """Sans auth → 401."""
+        response = client.get("/api/employees/emp-1/payslips")
+        assert response.status_code == 401
+
+    def test_get_employee_payslips_returns_200_with_rh_user(self, client: TestClient):
         """Liste des bulletins d'un employé (mock) → 200."""
+        from app.core.security import get_current_user
+
         with patch(
             "app.modules.payslips.api.router.get_employee_payslips",
             return_value=[
@@ -177,22 +238,61 @@ class TestPayslipsEmployeePayslipsRoute:
                 },
             ],
         ):
-            response = client.get("/api/employees/emp-1/payslips")
+            app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+            try:
+                response = client.get("/api/employees/emp-1/payslips")
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
         assert data[0]["id"] == "ps-1"
 
+    def test_get_employee_payslips_returns_403_for_non_rh_user(
+        self, client: TestClient
+    ):
+        """Utilisateur sans accès RH → 403."""
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
+        try:
+            response = client.get("/api/employees/emp-1/payslips")
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 403
+
 
 class TestPayslipsDeleteRoute:
     """DELETE /api/payslips/{payslip_id}."""
 
-    def test_delete_returns_204_with_mock(self, client: TestClient):
+    def test_delete_returns_401_without_auth(self, client: TestClient):
+        """Sans auth → 401."""
+        response = client.delete("/api/payslips/ps-123")
+        assert response.status_code == 401
+
+    def test_delete_returns_204_with_rh_user(self, client: TestClient):
         """Suppression mockée → 204."""
+        from app.core.security import get_current_user
+
         with patch("app.modules.payslips.api.router.delete_payslip") as mock_del:
-            response = client.delete("/api/payslips/ps-123")
+            app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+            try:
+                response = client.delete("/api/payslips/ps-123")
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 204
         mock_del.assert_called_once_with("ps-123")
+
+    def test_delete_returns_403_for_non_rh_user(self, client: TestClient):
+        """Utilisateur sans accès RH → 403."""
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
+        try:
+            response = client.delete("/api/payslips/ps-123")
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 403
 
 
 # --- Routes protégées (détail, edit, history, restore) ---
@@ -418,8 +518,26 @@ class TestPayslipsRestoreRoute:
 class TestPayslipsDebugStorageRoute:
     """GET /api/debug-storage/{employee_id}/{year}/{month}."""
 
+    def test_debug_storage_returns_401_without_auth(self, client: TestClient):
+        """Sans auth → 401."""
+        response = client.get("/api/debug-storage/emp-1/2024/3")
+        assert response.status_code == 401
+
+    def test_debug_storage_returns_403_for_non_rh_user(self, client: TestClient):
+        """Utilisateur sans accès RH → 403."""
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
+        try:
+            response = client.get("/api/debug-storage/emp-1/2024/3")
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 403
+
     def test_debug_storage_returns_200_with_mock(self, client: TestClient):
         """Métadonnées storage (mock) → 200."""
+        from app.core.security import get_current_user
+
         with patch(
             "app.modules.payslips.api.router.get_debug_storage_info",
             return_value={
@@ -427,7 +545,11 @@ class TestPayslipsDebugStorageRoute:
                 "size": 12345,
             },
         ):
-            response = client.get("/api/debug-storage/emp-1/2024/3")
+            app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+            try:
+                response = client.get("/api/debug-storage/emp-1/2024/3")
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
         data = response.json()
         assert "path" in data
@@ -436,11 +558,17 @@ class TestPayslipsDebugStorageRoute:
         self, client: TestClient
     ):
         """Employé inexistant → 404."""
+        from app.core.security import get_current_user
+
         with patch(
             "app.modules.payslips.api.router.get_debug_storage_info"
         ) as mock_get:
             from app.modules.payslips.application.dto import PayslipNotFoundError
 
             mock_get.side_effect = PayslipNotFoundError("Employé non trouvé")
-            response = client.get("/api/debug-storage/emp-unknown/2024/1")
+            app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+            try:
+                response = client.get("/api/debug-storage/emp-unknown/2024/1")
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 404

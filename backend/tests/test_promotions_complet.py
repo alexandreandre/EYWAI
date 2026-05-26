@@ -15,14 +15,21 @@ from pathlib import Path
 from datetime import date, timedelta
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
+from unittest.mock import MagicMock
 
 _here = Path(__file__).resolve().parent
-sys.path.insert(0, str(_here))
+_backend_root = _here.parent
+sys.path.insert(0, str(_backend_root))
+
+if "weasyprint" not in sys.modules:
+    _mock_wp = MagicMock()
+    sys.modules["weasyprint"] = _mock_wp
+    sys.modules["weasyprint.HTML"] = MagicMock()
 
 try:
     from dotenv import load_dotenv
 
-    load_dotenv(_here / ".env")
+    load_dotenv(_backend_root / ".env")
 except ImportError:
     pass
 
@@ -355,7 +362,10 @@ class PromotionTester:
         # Contrainte unique : une seule promotion draft par employé → on supprime après chaque création
         self.log("\n--- Création autres types (draft) ---", "TEST")
         self._cleanup_draft_promotions()
-        id_statut = self.test_create_promotion("statut")
+        id_statut = self.test_create_promotion(
+            "statut",
+            new_statut="Cadre",
+        )
         if id_statut:
             self.test_delete_promotion(id_statut)
         self._cleanup_draft_promotions()
@@ -366,6 +376,41 @@ class PromotionTester:
         id_mixte = self.test_create_promotion("mixte")
         if id_mixte:
             self.test_delete_promotion(id_mixte)
+
+        # A3a : Non-Cadre → Cadre avec date du jour (effective + vérif employé)
+        self.log("\n--- A3a Non-Cadre → Cadre (effective) ---", "TEST")
+        self._cleanup_draft_promotions()
+        try:
+            emp_before = (
+                supabase.table("employees")
+                .select("statut")
+                .eq("id", self.employee_id)
+                .single()
+                .execute()
+            )
+            prev_statut = (emp_before.data or {}).get("statut")
+            id_nc_cadre = self.test_create_promotion(
+                "statut",
+                effective_date=self._effective_date_today(),
+                new_statut="Cadre",
+            )
+            if id_nc_cadre:
+                emp_after = (
+                    supabase.table("employees")
+                    .select("statut")
+                    .eq("id", self.employee_id)
+                    .single()
+                    .execute()
+                )
+                new_statut_emp = (emp_after.data or {}).get("statut")
+                ok = new_statut_emp == "Cadre"
+                self.add(
+                    "A3a employé statut Cadre",
+                    ok,
+                    f"avant={prev_statut}, après={new_statut_emp}",
+                )
+        except Exception as e:
+            self.add("A3a employé statut Cadre", False, str(e))
 
         # Stats et accès RH
         self.log("\n--- Stats et accès RH ---", "TEST")
@@ -397,7 +442,7 @@ class PromotionTester:
 
 def main():
     if not os.getenv("SUPABASE_URL") or not os.getenv("SUPABASE_KEY"):
-        print("❌ Définir SUPABASE_URL et SUPABASE_KEY dans backend_api/.env")
+        print("❌ Définir SUPABASE_URL et SUPABASE_KEY dans backend/.env")
         sys.exit(1)
     tester = PromotionTester()
     tester.run_all()

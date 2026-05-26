@@ -11,6 +11,8 @@ import pytest
 
 from app.modules.absences.application import queries
 
+TEST_COMPANY_ID = "company-absences-test"
+
 
 class TestGetUploadUrlSigned:
     """Query get_upload_url_signed."""
@@ -50,7 +52,7 @@ class TestGetAbsenceRequests:
             "app.modules.absences.application.queries.absence_repository"
         ) as repo:
             repo.list_by_status.return_value = []
-            result = queries.get_absence_requests()
+            result = queries.get_absence_requests(company_id=TEST_COMPANY_ID)
         assert result == []
 
     def test_enriches_requests_with_balances_and_returns_list(self):
@@ -82,7 +84,7 @@ class TestGetAbsenceRequests:
                     "app.modules.absences.application.queries.get_repos_credits_by_employee_year",
                     return_value={"emp-1": 0.0},
                 ):
-                    result = queries.get_absence_requests()
+                    result = queries.get_absence_requests(company_id=TEST_COMPANY_ID)
 
         assert len(result) == 1
         assert "employee" in result[0]
@@ -95,8 +97,8 @@ class TestGetAbsenceRequests:
             "app.modules.absences.application.queries.absence_repository"
         ) as repo:
             repo.list_by_status.return_value = []
-            queries.get_absence_requests(status="pending")
-            repo.list_by_status.assert_called_once_with("pending")
+            queries.get_absence_requests(status="pending", company_id=TEST_COMPANY_ID)
+            repo.list_by_status.assert_called_once_with("pending", company_id=TEST_COMPANY_ID)
 
 
 class TestGetAbsencesForEmployee:

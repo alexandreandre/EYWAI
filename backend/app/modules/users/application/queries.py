@@ -36,17 +36,39 @@ def get_me(current_user: User) -> User:
 
 
 def get_user_company_accesses(user_id: str, current_user: User) -> List[CompanyAccess]:
-    if not current_user.is_super_admin and user_id != current_user.id:
-        target_ids = infra_queries.fetch_target_user_company_ids(user_id)
-        if not any(current_user.is_admin_in_company(cid) for cid in target_ids):
-            raise PermissionError("Vous n'avez pas les permissions pour voir ces accès")
+    """
+    Liste les accès multi-entreprises d'un utilisateur.
 
+    - super_admin ou propre profil : tous les accès.
+    - admin d'au moins une société commune : tous les accès (comportement historique).
+    - RH / collaborateur_rh : accès filtrés par société commune et hiérarchie
+      (aligné sur get_user_detail / get_company_users).
+    """
     accesses = infra_queries.fetch_user_accesses_with_companies(user_id)
-    return [
-        row_to_company_access(acc, acc.get("companies"))
-        for acc in accesses
-        if acc.get("companies")
-    ]
+    rows = [acc for acc in accesses if acc.get("companies")]
+
+    if current_user.is_super_admin or user_id == current_user.id:
+        return [row_to_company_access(acc, acc["companies"]) for acc in rows]
+
+    target_company_ids = [str(acc["company_id"]) for acc in rows]
+    if any(current_user.is_admin_in_company(cid) for cid in target_company_ids):
+        return [row_to_company_access(acc, acc["companies"]) for acc in rows]
+
+    visible: List[CompanyAccess] = []
+    for acc in rows:
+        company_id = str(acc["company_id"])
+        target_role = acc["role"]
+        if not current_user.has_access_to_company(company_id):
+            continue
+        if not current_user.has_rh_access_in_company(company_id):
+            continue
+        creator_role = current_user.get_role_in_company(company_id) or ""
+        if target_role in domain_rules.get_viewable_roles(creator_role):
+            visible.append(row_to_company_access(acc, acc["companies"]))
+
+    if not visible:
+        raise PermissionError("Vous n'avez pas les permissions pour voir ces accès")
+    return visible
 
 
 def get_company_users(

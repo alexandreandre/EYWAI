@@ -1,3 +1,6 @@
+from app.core.logging import get_logger, log_payroll_debug
+
+logger = get_logger("modules.payroll.engine.analyser_horaires")
 # moteur_paie/analyser_horaires.py
 """
 Entrée fichier : charge calendriers depuis le disque puis délègue à la source de vérité
@@ -10,7 +13,6 @@ from pathlib import Path
 from datetime import date
 from typing import Dict, Any, List
 import argparse
-import traceback
 
 
 def analyser_horaires_du_mois(
@@ -101,12 +103,9 @@ if __name__ == "__main__":
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(output_data, f, indent=2, ensure_ascii=False)
 
-        print(
-            f"✅ Fichier d'événements généré avec succès : {output_path}",
-            file=sys.stderr,
-        )
+        logger.info(f"✅ Fichier d'événements généré avec succès : {output_path}")
 
     except Exception as e:
-        print(f"\nERREUR : {e}", file=sys.stderr)
-        traceback.print_exc(file=sys.stderr)
+        logger.warning(f'\nERREUR : {e}')
+        logger.exception("Exception")
         sys.exit(1)

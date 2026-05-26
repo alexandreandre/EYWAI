@@ -4,6 +4,9 @@ Service applicatif saisies et avances.
 Orchestration : domain (règles pures) + infrastructure (repositories, queries, providers).
 Comportement strictement identique à l'ancien router.
 """
+from app.core.logging import get_logger, log_app_debug
+
+logger = get_logger("modules.saisies_avances.application.service")
 
 import os
 import uuid
@@ -358,7 +361,7 @@ def delete_advance_payment(payment_id: str) -> Dict[str, bool]:
         try:
             advance_payment_storage.remove(payment["proof_file_path"])
         except Exception as e:
-            print(f"Erreur suppression fichier: {e}")
+            logger.warning(f'Erreur suppression fichier: {e}')
     advance_payment_repository.delete(payment_id)
     total_paid = advance_payment_repository.get_total_paid_by_advance_id(advance["id"])
     approved_amount = Decimal(str(advance.get("approved_amount", 0)))

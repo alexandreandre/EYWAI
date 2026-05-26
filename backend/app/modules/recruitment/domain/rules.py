@@ -19,9 +19,9 @@ def require_rejection_reason_for_rejected_stage(
     return bool(rejection_reason and rejection_reason.strip())
 
 
-def can_delete_candidate(stage_position: int) -> bool:
-    """Suppression autorisée seulement en début de pipeline (position 1)."""
-    return stage_position <= 1
+def can_delete_candidate(_stage_position: int) -> bool:
+    """Suppression définitive autorisée pour les RH (toute étape du pipeline)."""
+    return True
 
 
 def is_valid_opinion_rating(rating: str) -> bool:

@@ -383,17 +383,56 @@ class TestPromotionsWithRhUser:
         response = client_with_rh.post("/api/promotions/promo-unknown/submit")
         assert response.status_code == 404
 
-    def test_post_mark_effective_returns_400_when_not_draft_or_effective(
+    def test_post_submit_returns_200_when_draft(
         self, client_with_rh: TestClient, mock_repo
     ):
-        """POST .../mark-effective quand statut approved → 400."""
-        mock_repo.get_by_id.return_value = _promotion_read()
+        """POST .../submit quand draft → 200 pending_approval."""
+        mock_repo.get_by_id.return_value = _promotion_read(status="draft")
         with patch(
             "app.modules.promotions.application.commands.get_promotion_by_id_query",
-            return_value=_promotion_read(status="approved"),
+            return_value=_promotion_read(status="pending_approval"),
+        ):
+            response = client_with_rh.post("/api/promotions/promo-1/submit")
+        assert response.status_code == 200
+        assert response.json()["status"] == "pending_approval"
+
+    def test_post_mark_effective_returns_200_when_approved(
+        self, client_with_rh: TestClient, mock_repo
+    ):
+        """POST .../mark-effective quand statut approved → 200 (C5)."""
+        approved = _promotion_read(status="approved", new_statut="Cadre")
+        mock_repo.get_by_id.return_value = approved
+        with (
+            patch(
+                "app.modules.promotions.application.commands.get_promotion_by_id_query",
+                side_effect=[approved, _promotion_read(status="effective")],
+            ),
+            patch(
+                "app.modules.promotions.application.commands.apply_promotion_changes"
+            ),
+        ):
+            response = client_with_rh.post("/api/promotions/promo-1/mark-effective")
+        assert response.status_code == 200
+
+    def test_post_mark_effective_returns_400_when_rejected(
+        self, client_with_rh: TestClient, mock_repo
+    ):
+        """POST .../mark-effective quand statut rejected → 400."""
+        with patch(
+            "app.modules.promotions.application.commands.get_promotion_by_id_query",
+            return_value=_promotion_read(status="rejected"),
         ):
             response = client_with_rh.post("/api/promotions/promo-1/mark-effective")
         assert response.status_code == 400
+
+    def test_delete_returns_204_when_pending_approval(
+        self, client_with_rh: TestClient, mock_repo
+    ):
+        """DELETE quand pending_approval → 204 (C13)."""
+        mock_repo.get_by_id.return_value = _promotion_read(status="pending_approval")
+        response = client_with_rh.delete("/api/promotions/promo-1")
+        assert response.status_code == 204
+        mock_repo.delete.assert_called_once_with("promo-1", TEST_COMPANY_ID)
 
     def test_delete_returns_404_when_not_found(self, client_with_rh: TestClient):
         """DELETE /api/promotions/{id} quand promotion inexistante → 404."""

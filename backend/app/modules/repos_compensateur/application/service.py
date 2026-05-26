@@ -7,6 +7,9 @@ Comportement strictement identique.
 """
 
 from __future__ import annotations
+from app.core.logging import get_logger, log_app_debug
+
+logger = get_logger("modules.repos_compensateur.application.service")
 
 from app.modules.repos_compensateur.application.dto import CalculerCreditsResult
 from app.modules.repos_compensateur.domain.entities import ReposCredit
@@ -136,5 +139,5 @@ def recalculer_credits_repos_employe(
 
         return credits_upserted
     except Exception as e:
-        print(f"[WARNING] recalculer_credits_repos_employe failed: {e}")
+        logger.warning(f'[WARNING] recalculer_credits_repos_employe failed: {e}')
         return 0

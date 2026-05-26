@@ -6,10 +6,11 @@ app.modules.absences.infrastructure (evenements_familiaux, salary_certificate_ge
 """
 
 from __future__ import annotations
+from app.core.logging import get_logger, log_app_debug
+
+logger = get_logger("modules.absences.infrastructure.providers")
 
 import calendar as cal_module
-import sys
-import traceback
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
@@ -185,11 +186,8 @@ class SalaryCertificateProvider(ISalaryCertificateProvider):
                 return cert_resp.data[0]["id"]
             return None
         except Exception as e:
-            print(
-                f"⚠️ Erreur lors de la génération de l'attestation: {e}",
-                file=sys.stderr,
-            )
-            traceback.print_exc()
+            logger.warning(f"⚠️ Erreur lors de la génération de l'attestation: {e}")
+            logger.exception("Exception")
             return None
 
 

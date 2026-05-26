@@ -45,6 +45,7 @@ router = APIRouter(
 
 _ERR_NO_COMPANY = "Impossible de déterminer l'entreprise de l'utilisateur."
 _ERR_SIMULATION_NOT_FOUND = "Simulation non trouvée."
+_ERR_RH_REQUIRED = "Accès réservé aux RH et administrateurs."
 
 
 def _require_company_id(user: ParticipationUserContext) -> str:
@@ -53,6 +54,15 @@ def _require_company_id(user: ParticipationUserContext) -> str:
     if not company_id:
         raise HTTPException(status_code=403, detail=_ERR_NO_COMPANY)
     return str(company_id)
+
+
+def _require_rh_or_admin(user: ParticipationUserContext) -> None:
+    """Vérifie que l'utilisateur dispose d'un accès RH/admin sur l'entreprise active."""
+    if user.is_super_admin:
+        return
+    company_id = user.active_company_id
+    if not company_id or not user.has_rh_access_in_company(company_id):
+        raise HTTPException(status_code=403, detail=_ERR_RH_REQUIRED)
 
 
 @router.get("/employee-data/{year}", response_model=EmployeeDataResponse)
@@ -65,6 +75,7 @@ def get_employee_participation_data_route(
     salaire annuel cumulé, jours de présence, ancienneté.
     """
     try:
+        _require_rh_or_admin(user)
         company_id = _require_company_id(user)
         rows = get_employee_participation_data(company_id, year)
         items = [
@@ -98,6 +109,7 @@ def create_participation_simulation_route(
 ) -> ParticipationSimulationResponse:
     """Crée une nouvelle simulation de participation & intéressement."""
     try:
+        _require_rh_or_admin(user)
         company_id = _require_company_id(user)
         created_by = str(user.id)
         input_data = build_simulation_create_input(
@@ -145,6 +157,7 @@ def list_participation_simulations_route(
 ) -> List[ParticipationSimulationListItem]:
     """Liste les simulations de participation & intéressement de l'entreprise."""
     try:
+        _require_rh_or_admin(user)
         company_id = _require_company_id(user)
         entities = list_participation_simulations(company_id, year)
         return [
@@ -171,6 +184,7 @@ def get_participation_simulation_route(
 ) -> ParticipationSimulationResponse:
     """Récupère une simulation de participation & intéressement par son ID."""
     try:
+        _require_rh_or_admin(user)
         company_id = _require_company_id(user)
         entity = get_participation_simulation(simulation_id, company_id)
         if not entity:
@@ -198,6 +212,7 @@ def delete_participation_simulation_route(
 ) -> dict:
     """Supprime une simulation de participation & intéressement."""
     try:
+        _require_rh_or_admin(user)
         company_id = _require_company_id(user)
         deleted = delete_participation_simulation(simulation_id, company_id)
         if not deleted:

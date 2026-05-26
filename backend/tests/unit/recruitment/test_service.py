@@ -202,13 +202,13 @@ class TestServiceDeleteCandidate:
         with pytest.raises(ValueError, match="Candidat non trouvé"):
             svc.service_delete_candidate("cand-x", "co-1")
 
-    def test_raises_when_stage_position_above_1(self, mock_repos):
+    def test_deletes_when_advanced_in_pipeline(self, mock_repos):
         mock_repos["infra_queries"].get_candidate_with_stage_position.return_value = {
             "id": "cand-1",
             "stage": {"position": 3},
         }
-        with pytest.raises(ValueError, match="avancé dans le pipeline"):
-            svc.service_delete_candidate("cand-1", "co-1")
+        svc.service_delete_candidate("cand-1", "co-1")
+        mock_repos["cand_repo"].delete.assert_called_once_with("cand-1", "co-1")
 
     def test_deletes_when_position_1(self, mock_repos):
         mock_repos["infra_queries"].get_candidate_with_stage_position.return_value = {

@@ -91,7 +91,7 @@ Les modules ne s'importent pas entre eux pour des détails d'implémentation ; l
 | **database** | Client Supabase par défaut (`supabase`), `get_supabase_client()`, `get_supabase_admin_client()`. Source de vérité pour l'accès DB. |
 | **security** | `oauth2_scheme`, `get_current_user`, `get_current_user_role` ; validation JWT, chargement du profil et des accès multi-entreprises, contexte entreprise active (header `X-Active-Company`). |
 | **paths** | Chemins du moteur de paie (`PAYROLL_ENGINE_ROOT`, `payroll_engine_root()`, `payroll_engine_data()`, etc.). Pas de chemins en dur ailleurs. |
-| **logging** | Logger racine `app`, `get_logger()`, `configure_logging()`. |
+| **logging** | Logger racine `app`, `get_logger()`, `configure_logging()` ; variables `LOG_LEVEL`, `APP_DEBUG`, `PAYROLL_DEBUG` (voir § Logging). |
 
 ### `shared/`
 
@@ -225,7 +225,19 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 
 ### Logging
 
-- Utiliser `app.core.logging.get_logger(__name__)` pour les logs structurés. Éviter les `print()` pour la logique (les garder uniquement en debug temporaire si besoin).
+- Utiliser `app.core.logging.get_logger(__name__)` pour les logs structurés ; `log_app_debug` / `log_payroll_debug` pour les traces optionnelles.
+- **Par défaut** (local et GCP) : `LOG_LEVEL` non défini → **WARNING** — peu de bruit, erreurs et avertissements visibles dans Cloud Logging.
+- **Debug applicatif** (plannings, contrats, traces détaillées) : `APP_DEBUG=1` + optionnel `LOG_LEVEL=DEBUG`.
+- **Debug moteur de paie** (cotisations, bulletin, générateur) : `PAYROLL_DEBUG=1`.
+- Shim `print()` de secours au démarrage (reliquat subprocess / scripts) : silencieux sauf erreur/avertissement ou flags ci-dessus. Ne jamais logger de PII (tokens, mots de passe, dump de tables).
+
+Variables d'environnement utiles :
+
+| Variable | Exemple prod | Exemple debug local |
+|----------|--------------|---------------------|
+| `LOG_LEVEL` | `WARNING` | `DEBUG` |
+| `APP_DEBUG` | *(vide)* | `1` |
+| `PAYROLL_DEBUG` | *(vide)* | `1` lors d'un calcul de paie |
 
 ---
 

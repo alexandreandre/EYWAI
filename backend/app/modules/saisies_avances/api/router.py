@@ -42,12 +42,24 @@ router = APIRouter(
     tags=["Saisies et Avances"],
 )
 
+_ERR_RH_REQUIRED = "Accès réservé aux RH et administrateurs."
+
 
 def _user_ctx(user) -> UserContext:
     return UserContext(user_id=user.id, role=getattr(user, "role", ""))
 
 
+def _require_rh_or_admin(current_user: User) -> None:
+    if current_user.is_super_admin:
+        return
+    active_company_id = current_user.active_company_id
+    if not active_company_id or not current_user.has_rh_access_in_company(active_company_id):
+        raise HTTPException(status_code=403, detail=_ERR_RH_REQUIRED)
+
+
 def _handle_error(e: Exception) -> None:
+    if isinstance(e, HTTPException):
+        raise e
     if isinstance(e, SaisiesAvancesError):
         raise HTTPException(status_code=e.status_code, detail=e.message)
     traceback.print_exc()
@@ -64,6 +76,7 @@ async def create_salary_seizure(
 ):
     """Crée une nouvelle saisie sur salaire (RH uniquement)."""
     try:
+        _require_rh_or_admin(current_user)
         return commands.create_salary_seizure(seizure_data, current_user.id)
     except SaisiesAvancesError as e:
         _handle_error(e)
@@ -79,6 +92,7 @@ async def get_salary_seizures(
 ):
     """Récupère la liste des saisies avec filtres (RH)."""
     try:
+        _require_rh_or_admin(current_user)
         return queries.get_salary_seizures(employee_id=employee_id, status=status)
     except Exception as e:
         _handle_error(e)
@@ -91,6 +105,7 @@ async def get_salary_seizure(
 ):
     """Récupère les détails d'une saisie."""
     try:
+        _require_rh_or_admin(current_user)
         return queries.get_salary_seizure(seizure_id)
     except SaisiesAvancesError as e:
         _handle_error(e)
@@ -106,6 +121,7 @@ async def update_salary_seizure(
 ):
     """Met à jour une saisie (RH uniquement)."""
     try:
+        _require_rh_or_admin(current_user)
         return commands.update_salary_seizure(seizure_id, update_data)
     except SaisiesAvancesError as e:
         _handle_error(e)
@@ -120,6 +136,7 @@ async def delete_salary_seizure(
 ):
     """Supprime une saisie (RH uniquement)."""
     try:
+        _require_rh_or_admin(current_user)
         commands.delete_salary_seizure(seizure_id)
     except Exception as e:
         _handle_error(e)
@@ -186,6 +203,7 @@ async def get_employee_salary_seizures(
 ):
     """Récupère les saisies d'un employé."""
     try:
+        _require_rh_or_admin(current_user)
         return queries.get_employee_salary_seizures(employee_id)
     except Exception as e:
         _handle_error(e)
@@ -217,6 +235,7 @@ async def get_salary_advances(
 ):
     """Récupère la liste des avances avec filtres."""
     try:
+        _require_rh_or_admin(current_user)
         return queries.get_salary_advances(
             employee_id=employee_id,
             status=status,
@@ -232,6 +251,7 @@ async def get_salary_advance(
 ):
     """Récupère les détails d'une avance."""
     try:
+        _require_rh_or_admin(current_user)
         return queries.get_salary_advance(advance_id)
     except SaisiesAvancesError as e:
         _handle_error(e)
@@ -249,6 +269,7 @@ async def approve_salary_advance(
 ):
     """Approuve une avance (RH/Manager). Le montant approuvé = montant demandé."""
     try:
+        _require_rh_or_admin(current_user)
         return commands.approve_salary_advance(advance_id, current_user.id)
     except SaisiesAvancesError as e:
         _handle_error(e)
@@ -267,6 +288,7 @@ async def reject_salary_advance(
 ):
     """Rejette une avance (RH/Manager)."""
     try:
+        _require_rh_or_admin(current_user)
         return commands.reject_salary_advance(
             advance_id,
             rejection_data.rejection_reason,
@@ -287,6 +309,7 @@ async def get_employee_salary_advances(
 ):
     """Récupère les avances d'un employé."""
     try:
+        _require_rh_or_admin(current_user)
         return queries.get_employee_salary_advances(employee_id)
     except SaisiesAvancesError as e:
         _handle_error(e)
@@ -307,6 +330,7 @@ async def get_payslip_deductions(
 ):
     """Récupère les prélèvements appliqués sur un bulletin."""
     try:
+        _require_rh_or_admin(current_user)
         return queries.get_payslip_deductions(payslip_id)
     except Exception as e:
         _handle_error(e)
@@ -322,6 +346,7 @@ async def get_payslip_advance_repayments(
 ):
     """Récupère les remboursements d'avances appliqués sur un bulletin."""
     try:
+        _require_rh_or_admin(current_user)
         return queries.get_payslip_advance_repayments(payslip_id)
     except Exception as e:
         _handle_error(e)
@@ -340,6 +365,7 @@ async def get_payment_upload_url(
 ):
     """Génère une URL signée pour uploader une preuve de paiement."""
     try:
+        _require_rh_or_admin(current_user)
         return commands.get_payment_upload_url(filename, current_user.id)
     except SaisiesAvancesError as e:
         _handle_error(e)
@@ -358,6 +384,7 @@ async def create_advance_payment(
 ):
     """Crée un paiement d'avance (versement total ou partiel)."""
     try:
+        _require_rh_or_admin(current_user)
         return commands.create_advance_payment(payment_data, current_user.id)
     except SaisiesAvancesError as e:
         _handle_error(e)
@@ -375,6 +402,7 @@ async def get_advance_payments(
 ):
     """Récupère tous les paiements d'une avance."""
     try:
+        _require_rh_or_admin(current_user)
         return queries.get_advance_payments(advance_id)
     except Exception as e:
         _handle_error(e)
@@ -387,6 +415,7 @@ async def get_payment_proof_url(
 ):
     """Génère une URL signée pour télécharger la preuve de paiement."""
     try:
+        _require_rh_or_admin(current_user)
         url = queries.get_payment_proof_url(payment_id)
         return {"url": url}
     except SaisiesAvancesError as e:
@@ -402,6 +431,7 @@ async def delete_advance_payment(
 ):
     """Supprime un paiement d'avance."""
     try:
+        _require_rh_or_admin(current_user)
         return commands.delete_advance_payment(payment_id)
     except SaisiesAvancesError as e:
         _handle_error(e)

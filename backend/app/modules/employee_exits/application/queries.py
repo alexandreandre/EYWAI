@@ -3,8 +3,10 @@ Requêtes (cas d'usage lecture) du module employee_exits.
 
 Délèguent à domain + infrastructure. Comportement identique au router legacy.
 """
+from app.core.logging import get_logger, log_app_debug
 
-import sys
+logger = get_logger("modules.employee_exits.application.queries")
+
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -106,7 +108,7 @@ def calculate_exit_indemnities(
             500, f"Module de calcul non disponible: {str(e)}"
         )
     except Exception as e:
-        print(f"✗ Erreur calcul: {e}", file=sys.stderr)
+        logger.warning(f'✗ Erreur calcul: {e}')
         raise EmployeeExitApplicationError(
             500, f"Erreur lors du calcul des indemnités: {str(e)}"
         )
@@ -147,7 +149,7 @@ def get_document_upload_url(
             "expires_in": 3600,
         }
     except Exception as e:
-        print(f"✗ Erreur génération URL upload: {e}", file=sys.stderr)
+        logger.warning(f'✗ Erreur génération URL upload: {e}')
         raise EmployeeExitApplicationError(500, f"Erreur génération URL: {str(e)}")
 
 
@@ -167,6 +169,51 @@ def list_exit_documents(
         except Exception:
             doc["download_url"] = None
     return documents
+
+
+EDIT_HISTORY_META_KEY = "_edit_history"
+
+
+def _coerce_edit_history(raw: Any) -> List[Dict[str, Any]]:
+    if isinstance(raw, list):
+        return [entry for entry in raw if isinstance(entry, dict)]
+    return []
+
+
+def _stored_edit_history(doc: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Lit l'historique depuis la colonne dédiée ou document_data._edit_history."""
+    history = _coerce_edit_history(doc.get("edit_history"))
+    if history:
+        return history
+    document_data = doc.get("document_data")
+    if isinstance(document_data, dict):
+        return _coerce_edit_history(document_data.get(EDIT_HISTORY_META_KEY))
+    return []
+
+
+def _strip_edit_history_meta(document_data: Any) -> Any:
+    if not isinstance(document_data, dict):
+        return document_data
+    if EDIT_HISTORY_META_KEY not in document_data:
+        return document_data
+    return {k: v for k, v in document_data.items() if k != EDIT_HISTORY_META_KEY}
+
+
+def document_edit_history_entries(doc: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Historique persisté, avec repli sur last_edited_* pour les anciens enregistrements."""
+    history = _stored_edit_history(doc)
+    if history:
+        return history
+    if doc.get("manually_edited") and doc.get("last_edited_at"):
+        return [
+            {
+                "version": doc.get("version", 1),
+                "edited_by": doc.get("last_edited_by"),
+                "edited_at": doc.get("last_edited_at"),
+                "changes_summary": "Document modifié",
+            }
+        ]
+    return []
 
 
 def get_exit_document_details(
@@ -197,15 +244,15 @@ def get_exit_document_details(
             exit_data,
             include_indemnities=(doc.get("document_type") == "solde_tout_compte"),
         )
-    edit_history = []
+    edit_history = document_edit_history_entries(doc)
     download_url = None
     if doc.get("storage_path"):
         try:
             download_url = storage.create_signed_url(doc["storage_path"], 3600)
         except Exception as e:
-            print(f"⚠ Erreur génération URL signée: {e}", file=sys.stderr)
+            logger.warning(f'⚠ Erreur génération URL signée: {e}')
     result = dict(doc)
-    result["document_data"] = document_data
+    result["document_data"] = _strip_edit_history_meta(document_data)
     result["edit_history"] = edit_history if edit_history else None
     result["download_url"] = download_url
     result.setdefault("version", 1)
@@ -227,16 +274,7 @@ def get_document_edit_history(
     doc = doc_repo.get_by_id(document_id, exit_id, company_id)
     if not doc:
         raise EmployeeExitApplicationError(404, "Document non trouvé")
-    history = []
-    if doc.get("manually_edited") and doc.get("last_edited_at"):
-        history.append(
-            {
-                "version": doc.get("version", 1),
-                "edited_by": doc.get("last_edited_by"),
-                "edited_at": doc.get("last_edited_at"),
-                "changes_summary": "Document modifié",
-            }
-        )
+    history = document_edit_history_entries(doc)
     return {
         "document_id": document_id,
         "total_versions": doc.get("version", 1),

@@ -1,3 +1,6 @@
+from app.core.logging import get_logger, log_payroll_debug
+
+logger = get_logger("modules.payroll.exports.ecritures_comptables")
 # app/modules/payroll/exports/ecritures_comptables.py
 # Migré depuis services/exports/ecritures_comptables.py. Export des écritures comptables (OD).
 
@@ -67,7 +70,7 @@ def get_accounting_mappings(company_id: str) -> Dict[str, Dict[str, Any]]:
             mappings[mapping["rubrique_code"]] = mapping
         return mappings
     except Exception as e:
-        print(f"Erreur lors de la récupération des mappings: {e}")
+        logger.warning(f'Erreur lors de la récupération des mappings: {e}')
         return {}
 
 

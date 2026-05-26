@@ -253,9 +253,32 @@ class CandidateRepository(ICandidateRepository):
         return candidate_row_to_out(d)
 
     def delete(self, candidate_id: str, company_id: str) -> None:
+        interviews = (
+            supabase.table("recruitment_interviews")
+            .select("id")
+            .eq("candidate_id", candidate_id)
+            .eq("company_id", company_id)
+            .execute()
+        )
+        for row in interviews.data or []:
+            supabase.table("recruitment_interview_participants").delete().eq(
+                "interview_id", row["id"]
+            ).execute()
+        supabase.table("recruitment_interviews").delete().eq(
+            "candidate_id", candidate_id
+        ).eq("company_id", company_id).execute()
+        supabase.table("recruitment_notes").delete().eq(
+            "candidate_id", candidate_id
+        ).eq("company_id", company_id).execute()
+        supabase.table("recruitment_opinions").delete().eq(
+            "candidate_id", candidate_id
+        ).eq("company_id", company_id).execute()
+        supabase.table("recruitment_timeline_events").delete().eq(
+            "candidate_id", candidate_id
+        ).eq("company_id", company_id).execute()
         supabase.table("recruitment_candidates").delete().eq(
             "id", candidate_id
-        ).execute()
+        ).eq("company_id", company_id).execute()
 
     def archive(self, candidate_id: str, company_id: str) -> None:
         supabase.table("recruitment_candidates").update({"is_archived": True}).eq(

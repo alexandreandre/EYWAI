@@ -294,7 +294,9 @@ class TestUpdateUserWithPermissions:
     def test_no_access_to_company_raises_lookup_error(
         self, get_user_repo, get_access_repo, get_perm_repo
     ):
-        get_access_repo.return_value.get_by_user_and_company.return_value = None
+        get_access_repo.return_value.get_by_user_and_company_with_template.return_value = (
+            None
+        )
         data = MagicMock()
         data.company_id = UUID("660e8400-e29b-41d4-a716-446655440001")
         data.first_name = None
@@ -307,3 +309,65 @@ class TestUpdateUserWithPermissions:
         with pytest.raises(LookupError) as exc_info:
             commands.update_user_with_permissions("u1", data, _current_user())
         assert "n'a pas d'accès" in str(exc_info.value)
+
+    @patch("app.modules.users.application.commands.get_user_permission_repository")
+    @patch("app.modules.users.application.commands.get_user_company_access_repository")
+    @patch("app.modules.users.application.commands.get_user_repository")
+    def test_rh_cannot_update_admin_in_company(
+        self, get_user_repo, get_access_repo, get_perm_repo
+    ):
+        company_id = "660e8400-e29b-41d4-a716-446655440001"
+        get_access_repo.return_value.get_by_user_and_company_with_template.return_value = {
+            "role": "admin",
+            "role_template_id": None,
+        }
+        data = MagicMock()
+        data.company_id = UUID(company_id)
+        data.first_name = "Jean"
+        data.last_name = None
+        data.job_title = None
+        data.base_role = None
+        data.role_template_id = None
+        data.permission_ids = None
+
+        current = MagicMock()
+        current.is_super_admin = False
+        current.has_access_to_company.return_value = True
+        current.get_role_in_company.return_value = "rh"
+
+        with pytest.raises(PermissionError) as exc_info:
+            commands.update_user_with_permissions("target-1", data, current)
+        assert "droits pour modifier" in str(exc_info.value).lower()
+        get_user_repo.return_value.update.assert_not_called()
+
+    @patch("app.modules.users.application.commands.check_role_hierarchy")
+    @patch("app.modules.users.application.commands.get_user_permission_repository")
+    @patch("app.modules.users.application.commands.get_user_company_access_repository")
+    @patch("app.modules.users.application.commands.get_user_repository")
+    def test_rh_can_update_collaborateur_in_company(
+        self, get_user_repo, get_access_repo, get_perm_repo, check_hierarchy
+    ):
+        company_id = "660e8400-e29b-41d4-a716-446655440001"
+        get_access_repo.return_value.get_by_user_and_company_with_template.return_value = {
+            "role": "collaborateur",
+            "role_template_id": None,
+        }
+        data = MagicMock()
+        data.company_id = UUID(company_id)
+        data.first_name = "Jean"
+        data.last_name = "Dupont"
+        data.job_title = None
+        data.base_role = None
+        data.role_template_id = None
+        data.permission_ids = None
+
+        current = MagicMock()
+        current.id = "rh-1"
+        current.is_super_admin = False
+        current.has_access_to_company.return_value = True
+        current.get_role_in_company.return_value = "rh"
+
+        result = commands.update_user_with_permissions("target-1", data, current)
+
+        assert result.user_id == "target-1"
+        get_user_repo.return_value.update.assert_called_once()

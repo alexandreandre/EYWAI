@@ -763,8 +763,10 @@ Configurer dans la console Cloud Run ou via CLI :
 
 ```bash
 gcloud run services update sirh-backend \
-  --set-env-vars SUPABASE_URL=...,SUPABASE_KEY=...
+  --set-env-vars SUPABASE_URL=...,SUPABASE_KEY=...,LOG_LEVEL=WARNING
 ```
+
+Ne pas définir `APP_DEBUG` ni `PAYROLL_DEBUG` en production (traces verbeuses et coût Cloud Logging).
 
 ### Health Check
 
@@ -785,11 +787,15 @@ curl http://localhost:8000/health
 
 ### Logging
 
-Les logs sont écrits dans la console avec différents niveaux :
-- `INFO` : Informations générales
-- `WARNING` : Avertissements
-- `ERROR` : Erreurs
-- `DEBUG` : Détails de débogage
+Configuration centralisée dans `app/core/logging.py` (activée au démarrage dans `app/main.py`).
+
+| Variable | Défaut | Rôle |
+|----------|--------|------|
+| `LOG_LEVEL` | `WARNING` | Niveau global (`INFO`, `DEBUG`, …) |
+| `APP_DEBUG` | off | Traces plannings, contrats, etc. (`log_app_debug`) |
+| `PAYROLL_DEBUG` | off | Traces moteur de paie (`log_payroll_debug`) |
+
+En local, laisser les flags vides pour un terminal calme ; activer `PAYROLL_DEBUG=1` uniquement pour déboguer un bulletin.
 
 ### Tests
 

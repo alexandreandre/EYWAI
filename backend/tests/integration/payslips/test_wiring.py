@@ -67,6 +67,8 @@ class TestPayslipsWiringGenerate:
 
     def test_generate_flow_uses_command_and_provider(self, client: TestClient):
         """La route appelle generate_payslip qui utilise employee_statut_reader et provider."""
+        from app.core.security import get_current_user
+
         with (
             patch(
                 "app.modules.payslips.application.commands.employee_statut_reader"
@@ -81,10 +83,14 @@ class TestPayslipsWiringGenerate:
                 "message": "Généré",
                 "download_url": "https://wiring.signed/pdf",
             }
-            response = client.post(
-                "/api/actions/generate-payslip",
-                json={"employee_id": "emp-1", "year": 2024, "month": 3},
-            )
+            app.dependency_overrides[get_current_user] = lambda: _rh_user()
+            try:
+                response = client.post(
+                    "/api/actions/generate-payslip",
+                    json={"employee_id": "emp-1", "year": 2024, "month": 3},
+                )
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
@@ -172,9 +178,15 @@ class TestPayslipsWiringDelete:
 
     def test_delete_flow_uses_repository(self, client: TestClient):
         """La route appelle delete_payslip qui appelle le repository."""
+        from app.core.security import get_current_user
+
         with patch(
             "app.modules.payslips.infrastructure.repository.payslip_repository"
         ) as mock_repo:
-            response = client.delete("/api/payslips/ps-123")
+            app.dependency_overrides[get_current_user] = lambda: _rh_user()
+            try:
+                response = client.delete("/api/payslips/ps-123")
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 204
         mock_repo.delete.assert_called_once_with("ps-123")

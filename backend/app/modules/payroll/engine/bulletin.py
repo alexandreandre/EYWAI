@@ -1,6 +1,8 @@
+from app.core.logging import get_logger, log_payroll_debug
+
+logger = get_logger("modules.payroll.engine.bulletin")
 # moteur_paie/bulletin.py
 
-import sys
 from .contexte import ContextePaie
 from typing import Any, Dict, List, Optional
 
@@ -20,7 +22,7 @@ def creer_bulletin_final(
     Assemble tous les éléments calculés en une structure de données finale
     qui respecte l'ordre d'affichage désiré sur le bulletin.
     """
-    print("INFO: Assemblage et tri du bulletin de paie final...", file=sys.stderr)
+    log_payroll_debug(logger, 'INFO: Assemblage et tri du bulletin de paie final...')
 
     lignes_maintien = [l for l in details_brut if l.get("is_arret_maladie")]
 
@@ -213,7 +215,7 @@ def creer_bulletin_final(
             },
         },
     }
-    print("INFO: Bulletin de paie final assemblé.", file=sys.stderr)
+    log_payroll_debug(logger, 'INFO: Bulletin de paie final assemblé.')
     return bulletin
 
 
@@ -250,7 +252,7 @@ def creer_bulletin_sortie(
     Returns:
         Dict contenant le bulletin complet avec indemnités de sortie
     """
-    print("INFO: Assemblage du bulletin de sortie avec indemnités...", file=sys.stderr)
+    log_payroll_debug(logger, 'INFO: Assemblage du bulletin de sortie avec indemnités...')
 
     # Commencer par créer un bulletin normal
     bulletin_base = creer_bulletin_final(
@@ -389,9 +391,6 @@ def creer_bulletin_sortie(
         2,
     )
 
-    print(
-        f"INFO: Bulletin de sortie assemblé - Indemnités totales: {round(total_indemnites_soumises + total_indemnites_exonerees, 2)} €",
-        file=sys.stderr,
-    )
+    log_payroll_debug(logger, f'INFO: Bulletin de sortie assemblé - Indemnités totales: {round(total_indemnites_soumises + total_indemnites_exonerees, 2)} €')
 
     return bulletin_base

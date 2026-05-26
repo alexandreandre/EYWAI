@@ -1,6 +1,8 @@
+from app.core.logging import get_logger, log_payroll_debug
+
+logger = get_logger("modules.payroll.engine.calculT")
 # moteur_paie/calcul_T.py
 
-import sys
 from .contexte import ContextePaie
 
 
@@ -24,16 +26,13 @@ def calculer_parametre_T(contexte: ContextePaie) -> float:
 
     valeur_T = 0.0
 
-    print("--- Calcul du Paramètre T ---", file=sys.stderr)
+    log_payroll_debug(logger, '--- Calcul du Paramètre T ---')
 
     # 1. Additionner les taux des cotisations listées
     for cle in cles_incluses_dans_T:
         coti_data = contexte.get_cotisation_by_id(cle)
         if not coti_data:
-            print(
-                f"AVERTISSEMENT: Cotisation '{cle}' non trouvée pour le calcul de T.",
-                file=sys.stderr,
-            )
+            logger.warning(f"AVERTISSEMENT: Cotisation '{cle}' non trouvée pour le calcul de T.")
             continue
 
         taux_patronal_brut = coti_data.get("patronal")
@@ -54,10 +53,7 @@ def calculer_parametre_T(contexte: ContextePaie) -> float:
 
         taux_a_ajouter = taux_a_ajouter or 0.0
         valeur_T += taux_a_ajouter
-        print(
-            f"  + {coti_data.get('libelle', cle):<45} : {taux_a_ajouter:.4f}",
-            file=sys.stderr,
-        )
+        log_payroll_debug(logger, f"  + {coti_data.get('libelle', cle):<45} : {taux_a_ajouter:.4f}")
 
     # 2. Gérer le cas particulier de la cotisation Accidents du Travail (AT/MP)
     taux_at_reel = (
@@ -71,13 +67,10 @@ def calculer_parametre_T(contexte: ContextePaie) -> float:
     taux_at_pour_T = min(taux_at_reel, TAUX_AT_POUR_T_MAX)
 
     valeur_T += taux_at_pour_T
-    print(
-        f"  + {'Cotisation Accidents du travail (part pour T)':<45} : {taux_at_pour_T:.4f} (Taux réel: {taux_at_reel})",
-        file=sys.stderr,
-    )
+    log_payroll_debug(logger, f"  + {'Cotisation Accidents du travail (part pour T)':<45} : {taux_at_pour_T:.4f} (Taux réel: {taux_at_reel})")
 
     valeur_T = round(valeur_T, 4)
-    print("-------------------------------------------------------", file=sys.stderr)
-    print(f"VALEUR TOTALE DE T CALCULÉE : {valeur_T}", file=sys.stderr)
+    log_payroll_debug(logger, '-------------------------------------------------------')
+    log_payroll_debug(logger, f'VALEUR TOTALE DE T CALCULÉE : {valeur_T}')
 
     return valeur_T

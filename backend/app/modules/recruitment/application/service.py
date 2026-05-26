@@ -149,9 +149,7 @@ def service_delete_candidate(candidate_id: str, company_id: str) -> None:
         raise ValueError("Candidat non trouvé")
     stage = cand.get("stage") or {}
     if not domain_rules.can_delete_candidate(stage.get("position", 0)):
-        raise ValueError(
-            "Impossible de supprimer un candidat avancé dans le pipeline. Utilisez le refus."
-        )
+        raise ValueError("Suppression du candidat non autorisée")
     _candidate_repo.delete(candidate_id, company_id)
 
 
@@ -299,6 +297,7 @@ def service_hire_candidate(
                 company_id=company_id,
             )
     except Exception as e:
+
         _logger.error("[onboarding] Erreur création checklist : %s", e)
     return result
 

@@ -13,7 +13,8 @@ ou seront migrées plus tard dans les modules. Ne pas les déplacer ici.
 
 from __future__ import annotations
 
-import traceback
+import threading
+import time
 from typing import Annotated, Optional
 
 from fastapi import Depends, HTTPException, Header, status
@@ -25,10 +26,55 @@ except ImportError:  # compat anciennes installs
     from gotrue.errors import AuthApiError  # type: ignore[no-redef]
 
 from app.core.database import supabase
+from app.core.logging import get_logger, is_app_debug_enabled
+from app.core.supabase_resilience import (
+    execute_with_retry,
+    is_transient_supabase_error,
+)
 from app.modules.users.schemas.responses import CompanyAccess, User
+
+logger = get_logger("core.security")
 
 # Schéma OAuth2 pour l'endpoint de login
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+_session_company_lock = threading.Lock()
+
+
+def _set_session_company(company_id: str) -> bool:
+    """
+    Définit le contexte entreprise PostgreSQL (RLS).
+    Sérialise les appels (client Supabase partagé) et réessaie sur erreurs réseau passagères.
+    """
+    last_error: BaseException | None = None
+    for attempt in range(3):
+        try:
+            with _session_company_lock:
+                supabase.rpc(
+                    "set_session_company", {"p_company_id": company_id}
+                ).execute()
+            return True
+        except Exception as e:
+            last_error = e
+            if is_transient_supabase_error(e) and attempt < 2:
+                time.sleep(0.03 * (attempt + 1))
+                continue
+            break
+    if last_error is not None:
+        if is_transient_supabase_error(last_error):
+            if is_app_debug_enabled():
+                logger.debug(
+                    "set_session_company indisponible (transitoire) pour %s: %s",
+                    company_id,
+                    last_error,
+                )
+        else:
+            logger.warning(
+                "set_session_company échoué pour %s: %s",
+                company_id,
+                last_error,
+            )
+    return False
 
 
 def get_current_user(
@@ -46,44 +92,37 @@ def get_current_user(
     Returns:
         User object with all company accesses and active company context
     """
+    debug = is_app_debug_enabled()
     try:
-        print("--- 🕵️ [get_current_user] Validation du token...")
-        print(f"--- 🏢 [get_current_user] X-Active-Company header: {x_active_company}")
+        if debug:
+
+            logger.debug(
+                "Validation token (X-Active-Company=%s)",
+                x_active_company,
+            )
 
         # 1. Authentifier l'utilisateur
-        user_response = supabase.auth.get_user(token)
+        user_response = execute_with_retry(lambda: supabase.auth.get_user(token))
         user = user_response.user
         if not user:
-            print(
-                "--- ❌ [get_current_user] Token valide mais aucun utilisateur trouvé."
-            )
             raise HTTPException(status_code=401, detail="Utilisateur non trouvé")
 
-        print(
-            f"--- ✅ [get_current_user] Utilisateur authentifié: {user.email} (ID: {user.id})"
-        )
-
         # 2. Récupérer le profil de base
-        print("--- 🕵️ [get_current_user] Récupération du profil...")
-        profile_response = (
-            supabase.table("profiles")
+        profile_response = execute_with_retry(
+            lambda: supabase.table("profiles")
             .select("first_name, last_name")
             .eq("id", user.id)
             .execute()
         )
 
         if not profile_response.data or len(profile_response.data) == 0:
-            print(
-                f"--- ❌ [get_current_user] Profil non trouvé pour l'utilisateur ID: {user.id}"
-            )
             raise HTTPException(status_code=404, detail="Profil utilisateur non trouvé")
 
         profile_data = profile_response.data[0]
 
         # 3. Vérifier si super admin
-        print("--- 🕵️ [get_current_user] Vérification statut super admin...")
-        super_admin_response = (
-            supabase.table("super_admins")
+        super_admin_response = execute_with_retry(
+            lambda: supabase.table("super_admins")
             .select("*")
             .eq("user_id", user.id)
             .eq("is_active", True)
@@ -92,14 +131,10 @@ def get_current_user(
         is_super_admin = bool(
             super_admin_response.data and len(super_admin_response.data) > 0
         )
-        print(
-            f"--- {'👑' if is_super_admin else '👤'} [get_current_user] Super admin: {is_super_admin}"
-        )
 
         # 4. Charger les accès multi-entreprises
-        print("--- 🕵️ [get_current_user] Chargement des accès multi-entreprises...")
-        accesses_response = (
-            supabase.table("user_company_accesses")
+        accesses_response = execute_with_retry(
+            lambda: supabase.table("user_company_accesses")
             .select(
                 "company_id, role, is_primary, companies(id, company_name, siret, logo_url, logo_scale, group_id, company_groups(group_name, logo_url, logo_scale))"
             )
@@ -137,30 +172,19 @@ def get_current_user(
                     )
                 )
 
-        print(
-            f"--- 📊 [get_current_user] Entreprises accessibles: {len(accessible_companies)}"
-        )
-
         # 5. Déterminer l'entreprise active
         active_company_id = None
 
         if is_super_admin and x_active_company:
             active_company_id = x_active_company
-            print(
-                f"--- 👑 [get_current_user] Super admin - Entreprise active depuis header: {active_company_id}"
-            )
         elif x_active_company:
             if any(acc.company_id == x_active_company for acc in accessible_companies):
                 active_company_id = x_active_company
-                print(
-                    f"--- ✅ [get_current_user] Entreprise active depuis header (validée): {active_company_id}"
-                )
-            else:
-                print(
-                    f"--- ⚠️  [get_current_user] Header X-Active-Company invalide (entreprise non accessible): {x_active_company}"
-                )
-                print(
-                    "--- 🔄 [get_current_user] Utilisation de l'entreprise primaire à la place..."
+            elif debug:
+
+                logger.debug(
+                    "X-Active-Company ignoré (non accessible): %s",
+                    x_active_company,
                 )
 
         if not active_company_id and accessible_companies:
@@ -169,41 +193,15 @@ def get_current_user(
             )
             if primary:
                 active_company_id = primary.company_id
-                print(
-                    f"--- 📍 [get_current_user] Entreprise active: primaire par défaut ({primary.company_name})"
-                )
             else:
                 active_company_id = accessible_companies[0].company_id
-                print(
-                    "--- 📍 [get_current_user] Entreprise active: première de la liste"
-                )
 
         # 6. Définir le contexte d'entreprise dans PostgreSQL (lecture/écriture du contexte)
-        print("")
-        print("=" * 80)
-        print(f"🎯 [get_current_user] ENTREPRISE ACTIVE FINALE: {active_company_id}")
-        print("=" * 80)
-        print("")
-
         if active_company_id:
-            print(
-                f"--- 🔧 [get_current_user] Définition du contexte PostgreSQL: {active_company_id}"
-            )
-            try:
-                supabase.rpc(
-                    "set_session_company", {"p_company_id": active_company_id}
-                ).execute()
-                print(
-                    f"--- ✅ [get_current_user] Contexte PostgreSQL défini avec succès pour: {active_company_id}"
-                )
-            except Exception as e:
-                print(
-                    f"--- ⚠️  [get_current_user] Erreur lors de la définition du contexte: {e}"
-                )
-        else:
-            print(
-                "--- ⚠️  [get_current_user] AUCUNE ENTREPRISE ACTIVE - Contexte PostgreSQL NON défini"
-            )
+            _set_session_company(active_company_id)
+        elif debug:
+
+            logger.debug("Aucune entreprise active pour user_id=%s", user.id)
 
         # 7. Vérifier si group admin
         is_group_admin = False
@@ -214,10 +212,6 @@ def get_current_user(
             if len(admin_companies) >= 2:
                 groups = set(acc.group_id for acc in admin_companies if acc.group_id)
                 is_group_admin = len(groups) > 0
-
-        print(
-            f"--- {'🏢' if is_group_admin else '👤'} [get_current_user] Group admin: {is_group_admin}"
-        )
 
         # 8. Construire l'objet User complet
         user_data = User(
@@ -231,15 +225,20 @@ def get_current_user(
             active_company_id=active_company_id,
         )
 
-        print(
-            f"--- ✅ [get_current_user] Utilisateur complet: {user_data.email} | Rôle actif: {user_data.role} | Entreprise: {active_company_id}"
-        )
+        if debug:
+
+            logger.debug(
+                "Utilisateur chargé role=%s company=%s",
+                user_data.role,
+                active_company_id,
+            )
         return user_data
 
     except HTTPException:
         raise
     except AuthApiError as e:
-        print(f"--- ❌ [get_current_user] Erreur d'API Supabase Auth: {e}")
+
+        logger.info("Auth Supabase refusée: %s", e)
         detail = getattr(e, "message", None) or str(e)
         if "expired" in detail.lower():
             detail = "Session expirée. Veuillez vous reconnecter."
@@ -250,8 +249,16 @@ def get_current_user(
             detail=detail,
         )
     except Exception as e:
-        print(f"--- ❌ [get_current_user] Erreur inattendue: {e}")
-        traceback.print_exc()
+        if is_transient_supabase_error(e):
+            logger.warning("get_current_user: erreur réseau transitoire Supabase: %s", e)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=(
+                    "Connexion à la base temporairement indisponible. "
+                    "Réessayez dans quelques secondes."
+                ),
+            ) from e
+        logger.exception("get_current_user: erreur inattendue")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erreur interne du serveur: {str(e)}",

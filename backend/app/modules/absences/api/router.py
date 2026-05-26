@@ -84,6 +84,27 @@ def _require_active_company_absences(current_user: User) -> str:
     return str(cid)
 
 
+def _require_rh_company_context(current_user: User) -> str:
+    """Entreprise active + droits RH (ou super admin)."""
+    company_id = _require_active_company_absences(current_user)
+    if current_user.is_super_admin:
+        return company_id
+    if not current_user.has_rh_access_in_company(company_id):
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+    return company_id
+
+
+def _ensure_absence_in_active_company(request_id: str, company_id: str) -> dict:
+    row = absence_repository.get_by_id(request_id)
+    if not row:
+        raise LookupError(f"Demande {request_id} non trouvée.")
+    if str(row.get("company_id") or "") != company_id:
+        raise HTTPException(
+            status_code=403, detail="Demande hors périmètre entreprise."
+        )
+    return row
+
+
 def _enrich_single_absence_row(row: dict) -> dict:
     r = {k: v for k, v in row.items() if k != "employee"}
     queries._enrich_absence_certificate_fields(r)
@@ -170,7 +191,12 @@ async def update_absence_request_status(
 ):
     """Met à jour le statut d'une demande (utilisateur connecté). Génère l'attestation si nécessaire."""
     try:
-        req_before = absence_repository.get_by_id(request_id)
+        company_id = _require_active_company_absences(current_user)
+        if status_update.status in ("validated", "rejected"):
+            _require_rh_company_context(current_user)
+            req_before = _ensure_absence_in_active_company(request_id, company_id)
+        else:
+            req_before = absence_repository.get_by_id(request_id)
         if (
             req_before
             and req_before.get("workflow_step") == "pending_manager"
@@ -238,67 +264,14 @@ async def update_absence_request(
     request_id: str,
     http_request: Request,
     status_update: AbsenceRequestStatusUpdate,
+    current_user: User = Depends(get_current_user),
 ):
-    """Met à jour le statut d'une demande d'absence (pour RH/Admin)."""
-    try:
-        req_before = absence_repository.get_by_id(request_id)
-        if (
-            req_before
-            and req_before.get("workflow_step") == "pending_manager"
-            and req_before.get("status") == "pending"
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail="La demande doit d'abord être validée par le manager.",
-            )
-        data = commands.update_absence_request_status(
-            request_id, status_update.status, current_user_id=None
-        )
-        extra: dict = {}
-        if status_update.status == "validated":
-            extra["workflow_step"] = "approved_rh"
-        elif status_update.status == "rejected":
-            extra["workflow_step"] = "rejected_rh"
-        if extra:
-            merged = absence_repository.update(request_id, extra)
-            if merged:
-                data = merged
-        _notify_rh_status_change(req_before, status_update.status)
-        enriched = queries.update_absence_request_signed_url_single(request_id)
-        out = enriched if enriched is not None else data
-        cid = str((out or data).get("company_id") or "")
-        if cid and status_update.status in ("validated", "rejected"):
-            audit_repository.log(
-                company_id=cid,
-                user_id=None,
-                user_email=None,
-                action=(
-                    "absence.validate"
-                    if status_update.status == "validated"
-                    else "absence.reject"
-                ),
-                resource_type="absence_request",
-                resource_id=str(request_id),
-                details={"employee_id": str((out or data).get("employee_id") or "")},
-                ip_address=http_request.client.host if http_request.client else None,
-            )
-        if status_update.status == "validated" and cid:
-            webhook_repository.trigger_event(
-                cid,
-                "absence.approved",
-                {
-                    "request_id": str(request_id),
-                    "employee_id": str((out or data).get("employee_id") or ""),
-                },
-            )
-        return out
-    except HTTPException:
-        raise
-    except (ValueError, LookupError, RuntimeError) as e:
-        _handle_application_errors(e)
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+    """Met à jour le statut d'une demande d'absence (RH). Alias de PATCH .../requests/{id}/status."""
+    if status_update.status in ("validated", "rejected"):
+        _require_rh_company_context(current_user)
+    return await update_absence_request_status(
+        request_id, http_request, status_update, current_user
+    )
 
 
 # ----- Liste globale (RH) -----
@@ -307,10 +280,14 @@ async def update_absence_request(
 @router.get("/", response_model=List[AbsenceRequestWithEmployee])
 async def get_absence_requests(
     status: Literal["pending", "validated", "rejected", "cancelled"] | None = None,
+    current_user: User = Depends(get_current_user),
 ):
-    """Récupère les demandes d'absence, enrichies avec détails et soldes par employé."""
+    """Récupère les demandes d'absence de l'entreprise active (RH)."""
     try:
-        return queries.get_absence_requests(status)
+        company_id = _require_rh_company_context(current_user)
+        return queries.get_absence_requests(status, company_id=company_id)
+    except HTTPException:
+        raise
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

@@ -674,6 +674,7 @@ def _transmit_to_payroll(
                     }
                 ).eq("id", existing["id"]).execute()
             else:
+
                 logger.warning(
                     "[Planning] Pas de ligne employee_schedules pour employee=%s "
                     "%s-%s (transmission planning ignorée).",
@@ -684,6 +685,7 @@ def _transmit_to_payroll(
 
         planning_repository.set_payroll_transmitted(company_id, week_start_clean)
     except Exception as e:
+
         logger.error(
             "[Planning] Échec transmission paie company=%s week=%s : %s",
             company_id,

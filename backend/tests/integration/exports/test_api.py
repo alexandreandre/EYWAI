@@ -44,6 +44,26 @@ def _make_rh_user():
     )
 
 
+def _make_non_rh_user():
+    """Utilisateur sans droits RH sur la company active."""
+    access = CompanyAccess(
+        company_id=TEST_COMPANY_ID,
+        company_name="Test Exports Co",
+        role="collaborateur",
+        is_primary=True,
+    )
+    return User(
+        id="user-non-rh-exports-test",
+        email="exports-non-rh@test.com",
+        first_name="Non",
+        last_name="Rh",
+        is_super_admin=False,
+        is_group_admin=False,
+        accessible_companies=[access],
+        active_company_id=TEST_COMPANY_ID,
+    )
+
+
 class TestExportsUnauthenticated:
     """Sans token : toutes les routes protégées renvoient 401."""
 
@@ -266,3 +286,50 @@ class TestExportsWithRhUser:
         ):
             response = client_with_exports_auth.get("/api/exports/download/unknown-id")
         assert response.status_code == 404
+
+
+class TestExportsWithNonRhUser:
+    """Un utilisateur non RH ne peut pas accéder aux routes exports RH."""
+
+    @pytest.fixture
+    def client_with_non_rh_exports_auth(self, client: TestClient):
+        from app.core.security import get_current_user
+        from app.modules.exports.api.dependencies import get_active_company_id
+
+        app.dependency_overrides[get_current_user] = _make_non_rh_user
+        app.dependency_overrides[get_active_company_id] = lambda: TEST_COMPANY_ID
+        try:
+            yield client
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+            app.dependency_overrides.pop(get_active_company_id, None)
+
+    def test_preview_returns_403_for_non_rh_user(
+        self, client_with_non_rh_exports_auth: TestClient
+    ):
+        response = client_with_non_rh_exports_auth.post(
+            "/api/exports/preview",
+            json={"export_type": "journal_paie", "period": "2025-01"},
+        )
+        assert response.status_code == 403
+
+    def test_generate_returns_403_for_non_rh_user(
+        self, client_with_non_rh_exports_auth: TestClient
+    ):
+        response = client_with_non_rh_exports_auth.post(
+            "/api/exports/generate",
+            json={"export_type": "journal_paie", "period": "2025-01", "format": "xlsx"},
+        )
+        assert response.status_code == 403
+
+    def test_history_returns_403_for_non_rh_user(
+        self, client_with_non_rh_exports_auth: TestClient
+    ):
+        response = client_with_non_rh_exports_auth.get("/api/exports/history")
+        assert response.status_code == 403
+
+    def test_download_returns_403_for_non_rh_user(
+        self, client_with_non_rh_exports_auth: TestClient
+    ):
+        response = client_with_non_rh_exports_auth.get("/api/exports/download/exp-123")
+        assert response.status_code == 403

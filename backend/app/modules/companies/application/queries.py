@@ -34,7 +34,7 @@ def get_company_details_and_kpis(
 ) -> CompanyDetailsWithKpisDto:
     """
     Détails entreprise + KPIs dashboard.
-    company_id doit être résolu côté appelant (ex. via service.resolve_company_id_for_details).
+    company_id doit être l'entreprise active (résolu via service.resolve_company_id_for_user).
     """
     data = fetch_company_with_employees_and_payslips(company_id)
     company_data = data["company_data"]

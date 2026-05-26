@@ -6,8 +6,10 @@ Aucun accès direct à la DB : utilise les ports (calculateur résidence, query 
 """
 
 from __future__ import annotations
+from app.core.logging import get_logger, log_app_debug
 
-import traceback
+logger = get_logger("modules.employees.application.service")
+
 from datetime import date
 from typing import Any, Dict
 
@@ -49,7 +51,7 @@ def enrich_employee_with_residence_permit_status(
         result.update(status_data)
         return result
     except Exception:
-        traceback.print_exc()
+        logger.exception("Exception")
         return employee_data
 
 
@@ -84,6 +86,6 @@ def enrich_employee_with_annual_review(
             result["annual_review_current_completed_date"] = None
         return result
     except Exception as e:
-        print(f"ERROR [enrich_employee_with_annual_review]: {e}")
-        traceback.print_exc()
+        logger.warning(f'ERROR [enrich_employee_with_annual_review]: {e}')
+        logger.exception("Exception")
         return employee_data

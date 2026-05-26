@@ -5,6 +5,9 @@ Implémentations réelles (Supabase storage, table collective_agreement_texts, O
 """
 
 from __future__ import annotations
+from app.core.logging import get_logger, log_app_debug
+
+logger = get_logger("modules.collective_agreements.infrastructure.providers")
 
 import os
 import re
@@ -36,7 +39,7 @@ class AgreementStorageProvider:
             )
             return signed.get("signedURL") if signed else None
         except Exception as e:
-            print(f"[WARNING] Erreur lors de la génération de l'URL signée: {e}")
+            logger.warning(f"[WARNING] Erreur lors de la génération de l'URL signée: {e}")
             return None
 
     def create_signed_upload_url(self, path: str) -> dict[str, str]:
@@ -53,7 +56,7 @@ class AgreementStorageProvider:
         try:
             self._supabase.storage.from_(BUCKET_NAME).remove(paths)
         except Exception as e:
-            print(f"[WARNING] Erreur lors de la suppression du PDF: {e}")
+            logger.warning(f'[WARNING] Erreur lors de la suppression du PDF: {e}')
 
 
 class AgreementTextCacheProvider:
@@ -74,7 +77,7 @@ class AgreementTextCacheProvider:
             if response.data and response.data.get("full_text"):
                 return response.data["full_text"]
         except Exception as e:
-            print(f"[WARNING] Impossible d'accéder au cache: {e}")
+            logger.warning(f"[WARNING] Impossible d'accéder au cache: {e}")
         return None
 
     def set_full_text(
@@ -103,7 +106,7 @@ class AgreementTextCacheProvider:
                     cache_data
                 ).execute()
         except Exception as e:
-            print(f"[WARNING] Impossible de sauvegarder le cache: {e}")
+            logger.warning(f'[WARNING] Impossible de sauvegarder le cache: {e}')
 
     def delete(self, agreement_id: str) -> None:
         self._supabase.table("collective_agreement_texts").delete().eq(

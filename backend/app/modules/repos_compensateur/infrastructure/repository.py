@@ -6,6 +6,9 @@ Comportement identique à l'ancien code (upsert, lecture jours par employé/ann�
 """
 
 from __future__ import annotations
+from app.core.logging import get_logger, log_app_debug
+
+logger = get_logger("modules.repos_compensateur.infrastructure.repository")
 
 from app.core.database import supabase
 from app.modules.repos_compensateur.domain.entities import ReposCredit
@@ -24,9 +27,7 @@ def upsert_credit(credit: ReposCredit) -> bool:
         ).execute()
         return True
     except Exception as err:
-        print(
-            f"[WARNING] Upsert repos_credits failed for {credit.employee_id} {credit.year}-{credit.month}: {err}"
-        )
+        logger.warning(f'[WARNING] Upsert repos_credits failed for {credit.employee_id} {credit.year}-{credit.month}: {err}')
         return False
 
 

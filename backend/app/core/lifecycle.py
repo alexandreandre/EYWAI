@@ -1,31 +1,37 @@
 """
-Lifecycle de l'application : startup et shutdown.
-
-Fonctions à enregistrer sur l'app FastAPI (on_event ou lifespan).
-Implémentation minimale : log uniquement ; à étendre (pool DB, caches, etc.) sans impact métier.
+Lifecycle de l'application : startup et shutdown (lifespan FastAPI).
 """
 
 from __future__ import annotations
 
-from app.core.logging import get_logger
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
+
+from fastapi import FastAPI
+
+from app.core.logging import configure_logging, get_logger
 
 logger = get_logger(__name__)
 
 
-async def on_startup() -> None:
-    """Appelé au démarrage de l'application."""
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Hook de démarrage / arrêt (remplace les anciens on_event / add_event_handler)."""
+    configure_logging()
     logger.info("Application startup")
+    try:
+        yield
+    finally:
+        logger.info("Application shutdown")
 
 
-async def on_shutdown() -> None:
-    """Appelé à l'arrêt de l'application."""
-    logger.info("Application shutdown")
-
-
-def register_lifecycle(app) -> None:
+def register_lifecycle(app: FastAPI) -> None:
     """
-    Enregistre les hooks startup/shutdown sur l'instance FastAPI.
-    Usage dans app/main.py : register_lifecycle(app)
+    Compat : le lifespan doit être passé au constructeur FastAPI.
+    Si l'app a été créée sans lifespan, on ne peut pas le rattacher après coup.
     """
-    app.add_event_handler("startup", on_startup)
-    app.add_event_handler("shutdown", on_shutdown)
+    if getattr(app, "router", None) and getattr(app.router, "lifespan_context", None):
+        return
+    logger.warning(
+        "lifespan non attaché : passer lifespan=app.core.lifecycle.lifespan à FastAPI()"
+    )

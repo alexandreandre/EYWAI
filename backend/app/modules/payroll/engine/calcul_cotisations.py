@@ -1,6 +1,8 @@
+from app.core.logging import get_logger, log_payroll_debug
+
+logger = get_logger("modules.payroll.engine.calcul_cotisations")
 # moteur_paie/calcul_cotisations.py
 
-import sys
 import os
 from .contexte import ContextePaie
 from typing import Dict, Any, List, Tuple
@@ -32,10 +34,7 @@ def _calculer_assiettes(
         # Formule URSSAF : Plafond × (Durée contractuelle / Durée légale)
         # Note : les heures complémentaires ne sont pas encore gérées ici.
         pss_calcule = pss_mensuel * (duree_contrat_hebdo / duree_legale_hebdo)
-        print(
-            f"INFO: Plafond SS proratisé pour temps partiel : {pss_calcule:.2f} €",
-            file=sys.stderr,
-        )
+        log_payroll_debug(logger, f'INFO: Plafond SS proratisé pour temps partiel : {pss_calcule:.2f} €')
     # --- FIN DU NOUVEAU BLOC ---
 
     # Assiettes conditionnelles
@@ -75,10 +74,7 @@ def _calculer_assiettes(
                                     mutuelle.get("montant_patronal", 0.0)
                                 )
             except Exception as e:
-                print(
-                    f"WARN: Impossible de charger les mutuelles pour CSG: {e}",
-                    file=sys.stderr,
-                )
+                logger.warning(f'WARN: Impossible de charger les mutuelles pour CSG: {e}')
 
         # Ancien format : lignes_specifiques (rétrocompatibilité)
         for ligne in mutuelle_spec.get("lignes_specifiques", []):
@@ -161,7 +157,7 @@ def calculer_cotisations(
     """
     Calcule toutes les cotisations sociales, salariales et patronales.
     """
-    print("INFO: Démarrage du calcul des cotisations...", file=sys.stderr)
+    log_payroll_debug(logger, 'INFO: Démarrage du calcul des cotisations...')
 
     assiettes = _calculer_assiettes(contexte, salaire_brut, remuneration_heures_supp)
     root_key = next(
@@ -332,15 +328,9 @@ def calculer_cotisations(
                                 }
                             )
                 else:
-                    print(
-                        "WARN: Variables Supabase non configurées, impossible de charger les mutuelles depuis la BDD",
-                        file=sys.stderr,
-                    )
+                    logger.warning('WARN: Variables Supabase non configurées, impossible de charger les mutuelles depuis la BDD')
             except Exception as e:
-                print(
-                    f"ERREUR: Impossible de charger les mutuelles depuis la BDD: {e}",
-                    file=sys.stderr,
-                )
+                logger.warning(f'ERREUR: Impossible de charger les mutuelles depuis la BDD: {e}')
                 # Fallback sur l'ancien format si erreur
 
         # Ancien format : lignes_specifiques (rétrocompatibilité)
@@ -358,27 +348,21 @@ def calculer_cotisations(
             )
 
     # --- 🔍 DEBUG PRÉVOYANCE: DÉBUT DE LA SECTION SPÉCIFIQUE ---
-    print("\n--- 🔍 DEBUG PRÉVOYANCE ---", file=sys.stderr)
+    log_payroll_debug(logger, '\n--- 🔍 DEBUG PRÉVOYANCE ---')
     prevoyance_spec = contexte.contrat.get("specificites_paie", {}).get(
         "prevoyance", {}
     )
     if not isinstance(prevoyance_spec, dict):
         prevoyance_spec = {}
     adhesion_prevoyance = prevoyance_spec.get("adhesion", False)
-    print(f"  -> Statut du salarié: {contexte.statut_salarie}", file=sys.stderr)
-    print(
-        f"  -> Adhésion prévoyance détectée dans le contrat: {adhesion_prevoyance}",
-        file=sys.stderr,
-    )
+    log_payroll_debug(logger, f'  -> Statut du salarié: {contexte.statut_salarie}')
+    log_payroll_debug(logger, f'  -> Adhésion prévoyance détectée dans le contrat: {adhesion_prevoyance}')
 
     if adhesion_prevoyance and contexte.statut_salarie == "Cadre":
-        print("  -> ✅ Branche CADRE sélectionnée.", file=sys.stderr)
+        logger.info('  -> ✅ Branche CADRE sélectionnée.')
         # Cas CADRE : on lit les lignes depuis le contrat.json
         lignes_specifiques = prevoyance_spec.get("lignes_specifiques", [])
-        print(
-            f"  -> Lignes spécifiques trouvées pour le cadre: {len(lignes_specifiques)}",
-            file=sys.stderr,
-        )
+        log_payroll_debug(logger, f'  -> Lignes spécifiques trouvées pour le cadre: {len(lignes_specifiques)}')
         for ligne in lignes_specifiques:
             base_id = ligne.get("base", "brut_plafonne")
             assiette = assiettes.get(base_id, 0.0)
@@ -390,9 +374,7 @@ def calculer_cotisations(
             )
             if ligne_calculee:
                 bulletin_cotisations.append(ligne_calculee)
-                print(
-                    f"    -> Ligne calculée (Cadre): {ligne_calculee}", file=sys.stderr
-                )
+                log_payroll_debug(logger, f'    -> Ligne calculée (Cadre): {ligne_calculee}')
 
                 # --- AJOUT DE LA LOGIQUE FORFAIT SOCIAL ---
                 taux_fs = ligne.get("forfait_social")
@@ -406,24 +388,16 @@ def calculer_cotisations(
                     )
                     if ligne_fs:
                         bulletin_cotisations.append(ligne_fs)
-                        print(
-                            f"      -> Ligne Forfait Social ajoutée: {ligne_fs}",
-                            file=sys.stderr,
-                        )
+                        log_payroll_debug(logger, f'      -> Ligne Forfait Social ajoutée: {ligne_fs}')
 
     elif adhesion_prevoyance and contexte.statut_salarie == "Non-Cadre":
-        print("  -> ✅ Branche NON-CADRE sélectionnée.", file=sys.stderr)
+        logger.info('  -> ✅ Branche NON-CADRE sélectionnée.')
         # Cas NON-CADRE : on lit la règle standard depuis les barèmes (cotisations.json)
         coti_data = contexte.get_cotisation_by_id("prevoyance_non_cadre")
         if coti_data:
-            print(
-                f"  -> Règle 'prevoyance_non_cadre' trouvée dans les barèmes: {json.dumps(coti_data)}",
-                file=sys.stderr,
-            )
+            log_payroll_debug(logger, f"  -> Règle 'prevoyance_non_cadre' trouvée dans les barèmes: {json.dumps(coti_data)}")
             assiette = assiettes.get(coti_data.get("base", "brut_plafonne"), 0.0)
-            print(
-                f"  -> Assiette de calcul utilisée: {assiette:.2f} €", file=sys.stderr
-            )
+            log_payroll_debug(logger, f'  -> Assiette de calcul utilisée: {assiette:.2f} €')
             ligne_calculee = _calculer_une_ligne(
                 coti_data.get("libelle"),
                 assiette,
@@ -432,26 +406,14 @@ def calculer_cotisations(
             )
             if ligne_calculee:
                 bulletin_cotisations.append(ligne_calculee)
-                print(
-                    f"  -> ✅ Ligne calculée (Non-Cadre) et ajoutée: {ligne_calculee}",
-                    file=sys.stderr,
-                )
+                logger.info(f'  -> ✅ Ligne calculée (Non-Cadre) et ajoutée: {ligne_calculee}')
             else:
-                print(
-                    "  -> ❌ Ligne non-cadre non ajoutée (calcul a retourné None ou 0).",
-                    file=sys.stderr,
-                )
+                logger.warning('  -> ❌ Ligne non-cadre non ajoutée (calcul a retourné None ou 0).')
         else:
-            print(
-                "  -> ❌ Règle 'prevoyance_non_cadre' INTROUVABLE dans les barèmes (cotisations.json).",
-                file=sys.stderr,
-            )
+            logger.warning("  -> ❌ Règle 'prevoyance_non_cadre' INTROUVABLE dans les barèmes (cotisations.json).")
     else:
-        print(
-            "  -> ❌ Aucune branche de calcul de prévoyance n'a été exécutée.",
-            file=sys.stderr,
-        )
-    print("--- FIN DEBUG PRÉVOYANCE ---\n", file=sys.stderr)
+        logger.warning("  -> ❌ Aucune branche de calcul de prévoyance n'a été exécutée.")
+    log_payroll_debug(logger, '--- FIN DEBUG PRÉVOYANCE ---\n')
 
     # Ajout de la réduction salariale sur les heures supplémentaires
     if remuneration_heures_supp > 0:
@@ -504,5 +466,5 @@ def calculer_cotisations(
     total_cotisations_salariales = sum(
         ligne.get("montant_salarial", 0.0) or 0.0 for ligne in bulletin_cotisations
     )
-    print("INFO: Calcul des cotisations terminé.", file=sys.stderr)
+    logger.info('INFO: Calcul des cotisations terminé.')
     return bulletin_cotisations, round(total_cotisations_salariales, 2)
