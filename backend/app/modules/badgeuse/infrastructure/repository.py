@@ -4,6 +4,7 @@ from datetime import datetime, date
 from typing import Any, List, Dict, Optional, Set
 
 from app.core.database import supabase
+from app.modules.badgeuse.infrastructure.db_errors import execute_supabase
 from app.modules.badgeuse.domain.time_tracking import (
     TimeEntry,
     TimeEntryType,
@@ -33,8 +34,8 @@ class TimeEntryRepository:
         start: datetime,
         end: datetime,
     ) -> List[TimeEntry]:
-        result = (
-            supabase.table(self.table_name)
+        result = execute_supabase(
+            lambda: supabase.table(self.table_name)
             .select("*")
             .eq("employee_id", employee_id)
             .eq("company_id", company_id)
@@ -77,7 +78,9 @@ class TimeEntryRepository:
         }
         if created_by:
             payload["created_by"] = created_by
-        result = supabase.table(self.table_name).insert(payload).execute()
+        result = execute_supabase(
+            lambda: supabase.table(self.table_name).insert(payload).execute()
+        )
         row = (result.data or [None])[0]
         if not row:
             raise RuntimeError("Erreur lors de la création du pointage")
@@ -98,8 +101,11 @@ class TimeEntryRepository:
             payload["event_type"] = event_type.value
         if updated_by is not None:
             payload["updated_by"] = updated_by
-        result = (
-            supabase.table(self.table_name).update(payload).eq("id", entry_id).execute()
+        result = execute_supabase(
+            lambda: supabase.table(self.table_name)
+            .update(payload)
+            .eq("id", entry_id)
+            .execute()
         )
         row = (result.data or [None])[0]
         if not row:
@@ -107,7 +113,9 @@ class TimeEntryRepository:
         return self._row_to_entry(row)
 
     def delete_entry(self, entry_id: str) -> None:
-        supabase.table(self.table_name).delete().eq("id", entry_id).execute()
+        execute_supabase(
+            lambda: supabase.table(self.table_name).delete().eq("id", entry_id).execute()
+        )
 
     def get_anomalies_over_period(
         self,
@@ -119,8 +127,8 @@ class TimeEntryRepository:
         Récupère les événements bruts pour les jours potentiellement en anomalie.
         Le filtrage précis par type d'anomalie est fait en mémoire via les règles de domaine.
         """
-        result = (
-            supabase.table(self.table_name)
+        result = execute_supabase(
+            lambda: supabase.table(self.table_name)
             .select("*")
             .eq("company_id", company_id)
             .gte("timestamp", start.isoformat())
@@ -151,7 +159,9 @@ class TimeEntryRepository:
         )
         if employee_ids:
             query = query.in_("employee_id", employee_ids)
-        result = query.order("employee_id").order("timestamp").execute()
+        result = execute_supabase(
+            lambda: query.order("employee_id").order("timestamp").execute()
+        )
         return result.data or []
 
 
@@ -184,8 +194,8 @@ class TimeEntryValidationRepository:
         }
 
         # On tente de trouver une validation existante pour cette journée
-        existing = (
-            supabase.table(self.table_name)
+        existing = execute_supabase(
+            lambda: supabase.table(self.table_name)
             .select("id")
             .eq("employee_id", employee_id)
             .eq("company_id", company_id)
@@ -194,11 +204,16 @@ class TimeEntryValidationRepository:
         )
         rows = existing.data or []
         if rows:
-            supabase.table(self.table_name).update(payload).eq(
-                "id", rows[0]["id"]
-            ).execute()
+            execute_supabase(
+                lambda: supabase.table(self.table_name)
+                .update(payload)
+                .eq("id", rows[0]["id"])
+                .execute()
+            )
         else:
-            supabase.table(self.table_name).insert(payload).execute()
+            execute_supabase(
+                lambda: supabase.table(self.table_name).insert(payload).execute()
+            )
 
     def get_validated_days_for_employee_between(
         self,
@@ -208,8 +223,8 @@ class TimeEntryValidationRepository:
         start: date,
         end: date,
     ) -> Set[date]:
-        result = (
-            supabase.table(self.table_name)
+        result = execute_supabase(
+            lambda: supabase.table(self.table_name)
             .select("day")
             .eq("employee_id", employee_id)
             .eq("company_id", company_id)
@@ -227,8 +242,8 @@ class TimeEntryValidationRepository:
         company_id: str,
         day: date,
     ) -> bool:
-        result = (
-            supabase.table(self.table_name)
+        result = execute_supabase(
+            lambda: supabase.table(self.table_name)
             .select("id")
             .eq("employee_id", employee_id)
             .eq("company_id", company_id)

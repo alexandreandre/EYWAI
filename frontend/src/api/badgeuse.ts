@@ -9,12 +9,67 @@ export interface BadgeuseStatusToday {
   current_open_since?: string | null;
   next_action?: "ENTREE" | "SORTIE";
   total_seconds?: number;
+  employee_display_name?: string;
+  badge_username?: string;
+  qr_payload?: string;
+  allow_self_toggle?: boolean;
+  anomalies?: string[];
+  sequences?: {
+    start: string;
+    end: string;
+    duration_seconds: number;
+  }[];
   events?: {
     id?: string | null;
     timestamp: string;
     event_type: "ENTREE" | "SORTIE";
-    source: "EMPLOYE" | "RH";
+    source: "EMPLOYE" | "RH" | "QR_SCAN";
   }[];
+}
+
+export interface BadgeQrResponse {
+  qr_payload: string;
+  employee_display_name: string;
+  badge_username?: string;
+  token_version?: number;
+}
+
+export interface ScanPunchResult {
+  employee_id: string;
+  employee_name: string;
+  event_type: "ENTREE" | "SORTIE";
+  timestamp: string;
+  total_seconds_today: number;
+  status_label: string;
+}
+
+export interface BadgeuseDashboardToday {
+  date: string;
+  present_count: number;
+  not_badged_count: number;
+  anomaly_count: number;
+  eligible_count: number;
+  last_scans: {
+    id?: string | null;
+    employee_id: string;
+    employee_name: string;
+    event_type: "ENTREE" | "SORTIE";
+    timestamp: string;
+    source: string;
+  }[];
+}
+
+export interface BadgeuseSettings {
+  allow_self_toggle: boolean;
+  scan_mode_enabled: boolean;
+}
+
+export interface PunchCandidate {
+  employee_id: string;
+  display_name: string;
+  username: string | null;
+  badged_today: boolean;
+  next_action: "ENTREE" | "SORTIE";
 }
 
 export interface DaySummary {
@@ -38,7 +93,7 @@ export interface DayDetail {
     id?: string | null;
     timestamp: string;
     event_type: "ENTREE" | "SORTIE";
-    source: "EMPLOYE" | "RH";
+    source: "EMPLOYE" | "RH" | "QR_SCAN";
   }[];
   validated?: boolean;
 }
@@ -49,8 +104,93 @@ export const getMyBadgeuseStatusToday = async (day?: string): Promise<BadgeuseSt
   return response.data;
 };
 
+export const getMyBadgeQr = async (): Promise<BadgeQrResponse> => {
+  const response = await apiClient.get("/api/me/badgeuse/qr");
+  return response.data;
+};
+
 export const toggleMyBadge = async (): Promise<BadgeuseStatusToday> => {
   const response = await apiClient.post("/api/me/badgeuse/toggle");
+  return response.data;
+};
+
+export const getBadgeusePunchCandidates = async (
+  companyId: string,
+  options?: { q?: string; onlyNotBadged?: boolean; limit?: number }
+): Promise<PunchCandidate[]> => {
+  const params = new URLSearchParams({ company_id: companyId });
+  if (options?.q?.trim()) {
+    params.set("q", options.q.trim());
+  }
+  if (options?.onlyNotBadged) {
+    params.set("only_not_badged", "true");
+  }
+  if (options?.limit != null) {
+    params.set("limit", String(options.limit));
+  }
+  const response = await apiClient.get(
+    `/api/badgeuse/punch-candidates?${params.toString()}`
+  );
+  return response.data ?? [];
+};
+
+export const scanBadgeQr = async (
+  companyId: string,
+  payload: { qr_payload?: string; employee_id?: string; username?: string }
+): Promise<ScanPunchResult> => {
+  const params = new URLSearchParams({ company_id: companyId });
+  const response = await apiClient.post(
+    `/api/badgeuse/scan?${params.toString()}`,
+    payload
+  );
+  return response.data;
+};
+
+export const getBadgeuseDashboardToday = async (
+  companyId: string
+): Promise<BadgeuseDashboardToday> => {
+  const params = new URLSearchParams({ company_id: companyId });
+  const response = await apiClient.get(`/api/badgeuse/dashboard/today?${params.toString()}`);
+  return response.data;
+};
+
+export const getBadgeuseSettings = async (companyId: string): Promise<BadgeuseSettings> => {
+  const params = new URLSearchParams({ company_id: companyId });
+  const response = await apiClient.get(`/api/badgeuse/settings?${params.toString()}`);
+  return response.data;
+};
+
+export const updateBadgeuseSettings = async (
+  companyId: string,
+  settings: Partial<BadgeuseSettings>
+): Promise<BadgeuseSettings> => {
+  const params = new URLSearchParams({ company_id: companyId });
+  const response = await apiClient.patch(
+    `/api/badgeuse/settings?${params.toString()}`,
+    settings
+  );
+  return response.data;
+};
+
+export const getEmployeeBadgeQr = async (
+  employeeId: string,
+  companyId: string
+): Promise<BadgeQrResponse> => {
+  const params = new URLSearchParams({ company_id: companyId });
+  const response = await apiClient.get(
+    `/api/badgeuse/employees/${employeeId}/qr?${params.toString()}`
+  );
+  return response.data;
+};
+
+export const regenerateEmployeeBadge = async (
+  employeeId: string,
+  companyId: string
+): Promise<BadgeQrResponse> => {
+  const params = new URLSearchParams({ company_id: companyId });
+  const response = await apiClient.post(
+    `/api/badgeuse/employees/${employeeId}/regenerate-badge?${params.toString()}`
+  );
   return response.data;
 };
 
@@ -193,5 +333,3 @@ export const deleteBadgeuseEvent = async (
   });
   await apiClient.delete(`/api/badgeuse/events/${eventId}?${params.toString()}`);
 };
-
-
