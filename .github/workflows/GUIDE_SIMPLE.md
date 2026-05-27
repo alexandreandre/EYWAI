@@ -68,7 +68,7 @@ Trois fichiers :
 
 **Secrets / variables CI**
 - **Aucun obligatoire** pour la CI bloquante : les tests unit utilisent des valeurs Supabase factices au besoin.
-- *Optionnels (utilisés si présents)* : `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_SERVICE_KEY`, `OPENAI_API_KEY`. Sans eux, le job `Backend integration (info)` est simplement skippé.
+- *Optionnels (utilisés si présents)* : `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_SERVICE_KEY`, `OPENROUTER_API_KEY`. Sans eux, le job `Backend integration (info)` est simplement skippé.
 
 ### 3.2 Pull requests (`pull-request.yml`)
 
@@ -94,6 +94,7 @@ Deux comportements dans le même fichier :
 |------|-----|------|
 | Secret | `GCP_SA_KEY` | JSON du compte de service GCP. |
 | Secret | `SUPABASE_URL`, `SUPABASE_KEY` | Variables passées à Cloud Run au déploiement. |
+| Secret | `OPENROUTER_API_KEY` | Clé OpenRouter pour l'IA en prod (copilot, parsing PDF, etc.). Sans elle, l'app tourne mais l'IA renvoie une erreur de configuration. |
 | Variable | `GCP_PROJECT_ID` | Projet GCP cible. |
 | Variable | `VITE_API_URL` | URL HTTPS publique du backend (utilisée au build de l'image frontend). |
 | Variable (optionnel) | `GCP_REGION`, `BACKEND_SERVICE_NAME`, `FRONTEND_SERVICE_NAME` | Surcharge des valeurs par défaut. |

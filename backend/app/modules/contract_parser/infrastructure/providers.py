@@ -395,17 +395,7 @@ N'ajoute AUCUN texte explicatif avant ou après le JSON. Uniquement le JSON pur.
 
 
 class ExtractionLLMProvider(IExtractionLLM):
-    """Appels OpenAI (gpt-4o-mini) pour extraction contrat / RIB / questionnaire."""
-
-    def __init__(self) -> None:
-        self._client: Any = None
-
-    def _get_client(self) -> Any:
-        if self._client is None:
-            from openai import OpenAI
-
-            self._client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        return self._client
+    """Appels LLM (OpenRouter) pour extraction contrat / RIB / questionnaire."""
 
     def _call_llm(
         self,
@@ -414,11 +404,18 @@ class ExtractionLLMProvider(IExtractionLLM):
         max_tokens: int,
         log_prefix: str = "",
     ) -> Dict[str, Any]:
-        client = self._get_client()
+        from app.shared.infrastructure.ai import (
+            MODEL_CONTRACT_EXTRACTION,
+            chat_completions_create,
+        )
+
         full_content = f"{prompt}\n\n{user_content}"
-        log_app_debug(logger, f"INFO: Appel de l'API OpenAI (gpt-4o-mini){(' ' + log_prefix if log_prefix else '')}...")
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        log_app_debug(
+            logger,
+            f"INFO: Appel OpenRouter (LLM){(' ' + log_prefix if log_prefix else '')}...",
+        )
+        response = chat_completions_create(
+            model=MODEL_CONTRACT_EXTRACTION,
             messages=[{"role": "user", "content": full_content}],
             max_tokens=max_tokens,
             temperature=0.1,

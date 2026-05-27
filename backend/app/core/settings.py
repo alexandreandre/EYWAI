@@ -18,6 +18,9 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
+# OpenRouter (clé API ; les modèles sont définis dans app.shared.infrastructure.ai.models)
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+
 
 def require_supabase_env() -> tuple[str, str]:
     """Retourne (SUPABASE_URL, SUPABASE_KEY) ou lève RuntimeError si manquants."""

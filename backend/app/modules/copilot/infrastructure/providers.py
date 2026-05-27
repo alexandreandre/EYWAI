@@ -1,5 +1,5 @@
 """
-Providers infrastructure : OpenAI, recherche employés, conventions collectives, résolution company.
+Providers infrastructure : LLM (OpenRouter), recherche employés, conventions collectives, résolution company.
 
 Implémentent les interfaces du domain. Comportement strictement identique au legacy.
 """
@@ -8,13 +8,11 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from datetime import date
 from difflib import SequenceMatcher
 from typing import Any, Dict, List
 
-from openai import OpenAI
-
+from app.shared.infrastructure.ai import MODEL_COPILOT, chat_completions_create
 from app.modules.copilot.infrastructure.schema_context import DATABASE_SCHEMA_AGENT
 from app.modules.copilot.infrastructure.queries import (
     get_company_collective_agreements as queries_get_company_agreements,
@@ -31,17 +29,11 @@ def _clean_generated_sql(raw_sql: str) -> str:
     return sql.strip().rstrip(";")
 
 
-def _get_openai_client() -> OpenAI:
-    """Retourne un client OpenAI configuré (clé depuis l'environnement)."""
-    api_key = os.getenv("OPENAI_API_KEY")
-    return OpenAI(api_key=api_key or "")
-
-
 # --- OpenAI Provider (IOpenAIProvider) ---
 
 
 class OpenAIProvider:
-    """Implémentation des appels LLM pour Text-to-SQL et Agent."""
+    """Implémentation des appels LLM (OpenRouter) pour Text-to-SQL et Agent."""
 
     def generate_sql_from_prompt(self, prompt: str, schema_context: str) -> str:
         today = date.today().isoformat()
@@ -50,7 +42,6 @@ class OpenAIProvider:
             if "{today}" in schema_context
             else schema_context
         )
-        client = _get_openai_client()
         system_prompt = f"""
         Tu es un expert en génération de SQL PostgreSQL.
         En te basant sur le schéma de BDD suivant, génère une requête SQL (SELECT uniquement)
@@ -61,8 +52,8 @@ class OpenAIProvider:
         Schéma:
         {schema}
         """
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        response = chat_completions_create(
+            model=MODEL_COPILOT,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt},
@@ -73,7 +64,6 @@ class OpenAIProvider:
         return _clean_generated_sql(sql_query)
 
     def format_answer_from_data(self, prompt: str, data: Any, sql_query: str) -> str:
-        client = _get_openai_client()
         if data is None or data == []:
             data_str = "[] (Aucun résultat)"
         else:
@@ -89,8 +79,8 @@ class OpenAIProvider:
         {data_str}
         """
         try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
+            response = chat_completions_create(
+                model=MODEL_COPILOT,
                 messages=[{"role": "system", "content": system_prompt}],
                 temperature=0,
             )
@@ -105,7 +95,6 @@ class OpenAIProvider:
         conversation_history: List[Dict[str, str]],
         company_agreements_summary: str,
     ) -> Dict[str, Any]:
-        client = _get_openai_client()
         conversation_context = "\n".join(
             f"{msg.get('role', '')}: {msg.get('content', '')}"
             for msg in conversation_history[-5:]
@@ -157,8 +146,8 @@ Exemples:
 Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire."""
 
         try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
+            response = chat_completions_create(
+                model=MODEL_COPILOT,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"Question: {prompt}"},
@@ -185,7 +174,6 @@ Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire."""
     def generate_sql_for_step(
         self, step_description: str, context: Dict[str, Any]
     ) -> str:
-        client = _get_openai_client()
         system_prompt = f"""Tu es un expert en génération de SQL PostgreSQL.
 Génère une requête SQL SELECT pour: {step_description}
 
@@ -198,8 +186,8 @@ Date actuelle: {date.today().isoformat()}
 
 Réponds UNIQUEMENT avec la requête SQL, sans ```sql ni explication."""
 
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        response = chat_completions_create(
+            model=MODEL_COPILOT,
             messages=[{"role": "system", "content": system_prompt}],
             temperature=0,
         )
@@ -211,7 +199,6 @@ Réponds UNIQUEMENT avec la requête SQL, sans ```sql ni explication."""
     def answer_collective_agreement_question(
         self, prompt: str, agreement: Dict[str, Any], plan: Dict[str, Any]
     ) -> str:
-        client = _get_openai_client()
         if not agreement.get("full_text"):
             return (
                 f"Je ne peux pas répondre à cette question car le texte de la convention collective "
@@ -268,8 +255,8 @@ Contexte de la demande: {json.dumps(plan, ensure_ascii=False)}"""
 Réponds à cette question en te basant sur le texte de la convention collective ci-dessus. Cite les articles ou sections pertinents et structure ta réponse de manière claire et professionnelle."""
 
         try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
+            response = chat_completions_create(
+                model=MODEL_COPILOT,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
@@ -290,7 +277,6 @@ Réponds à cette question en te basant sur le texte de la convention collective
         plan: Dict[str, Any],
         retrieval_results: List[Dict[str, Any]],
     ) -> str:
-        client = _get_openai_client()
         results_summary = []
         for i, result in enumerate(retrieval_results):
             if result.get("success"):
@@ -324,8 +310,8 @@ Génère une réponse claire, professionnelle et concise en français.
 Ne mentionne JAMAIS les détails techniques (SQL, tables, etc.). Réponds comme un collègue RH serviable et expert."""
 
         try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
+            response = chat_completions_create(
+                model=MODEL_COPILOT,
                 messages=[{"role": "system", "content": system_prompt}],
                 temperature=0.7,
             )

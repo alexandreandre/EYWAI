@@ -17,10 +17,18 @@ import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from ddgs.ddgs import DDGS
-from openai import OpenAI
 
 # --- Configuration ---
 load_dotenv()
+
+import sys
+from pathlib import Path as _Path
+
+_SCRAPING_ROOT = _Path(__file__).resolve().parents[1]
+if str(_SCRAPING_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING_ROOT))
+from openrouter_client import chat_completions_create, require_api_key
+
 
 # L'année sera ajoutée dynamiquement
 SEARCH_QUERY_TEMPLATE = "taux cotisation AGS URSSAF {year}"
@@ -51,13 +59,13 @@ def _fetch_text_with_requests(url: str) -> str | None:
 
 def _extract_rate_with_gpt(page_text: str) -> float | None:
     """Extrait uniquement le taux AGS général via GPT."""
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        print("ERREUR (AGS_AI): Clé OPENAI_API_KEY manquante.", file=sys.stderr)
+    try:
+        require_api_key()
+    except ValueError:
+        print("ERREUR: OPENROUTER_API_KEY manquante.", file=sys.stderr)
         return None
 
-    client = OpenAI(api_key=api_key)
-    current_year = datetime.now().year
+        current_year = datetime.now().year
 
     # Prompt conçu pour ignorer ETT et se concentrer sur le taux général
     prompt = (
@@ -70,8 +78,7 @@ def _extract_rate_with_gpt(page_text: str) -> float | None:
     )
 
     try:
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
+        resp = chat_completions_create(
             response_format={"type": "json_object"},
             temperature=0,
             messages=[

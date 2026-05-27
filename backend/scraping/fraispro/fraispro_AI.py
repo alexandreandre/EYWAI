@@ -6,11 +6,19 @@ from datetime import datetime, timezone
 
 import requests
 from bs4 import BeautifulSoup
-from openai import OpenAI
 from googlesearch import search
 from dotenv import load_dotenv
 
 load_dotenv()
+
+import sys
+from pathlib import Path as _Path
+
+_SCRAPING_ROOT = _Path(__file__).resolve().parents[1]
+if str(_SCRAPING_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING_ROOT))
+from openrouter_client import chat_completions_create, require_api_key
+
 
 SEARCH_QUERY = "barèmes frais professionnels URSSAF 2025"
 
@@ -21,12 +29,12 @@ def iso_now() -> str:
 
 
 def extract_json_with_gpt(page_text: str, prompt: str) -> dict | None:
-    if not os.getenv("OPENAI_API_KEY"):
+    try:
+        require_api_key()
+    except ValueError:
         return None
     try:
-        client = OpenAI()
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        response = chat_completions_create(
             response_format={"type": "json_object"},
             messages=[
                 {

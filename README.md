@@ -333,7 +333,7 @@ pip install -r requirements.txt
 
 # Configurer les variables d'environnement
 # Créer un fichier `.env` à la racine de `backend/` (voir backend/README.md)
-# Ex. : SUPABASE_URL, SUPABASE_KEY, OPENAI_API_KEY (optionnel), REDIS_URL (optionnel, Dramatiq)
+# Ex. : SUPABASE_URL, SUPABASE_KEY, OPENROUTER_API_KEY (optionnel), REDIS_URL (optionnel, Dramatiq)
 ```
 
 #### 3. Configuration du frontend
@@ -464,7 +464,7 @@ Dans la console Cloud Run, configurer les variables d'environnement pour chaque 
 **Backend :**
 - `SUPABASE_URL`
 - `SUPABASE_KEY`
-- `OPENAI_API_KEY` (optionnel)
+- `OPENROUTER_API_KEY` (optionnel — copilot, parsing PDF, scoring recrutement, chat conventions)
 - `SMTP_HOST`, `SMTP_PORT`, etc. (optionnel)
 
 **Frontend :**

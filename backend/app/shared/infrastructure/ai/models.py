@@ -1,0 +1,22 @@
+"""
+Modèles OpenRouter par cas d'usage.
+
+Les identifiants sont définis dans le code (pas dans .env) pour pouvoir
+varier selon la fonctionnalité. Pour l'instant : gpt-4o-mini partout.
+"""
+
+# Référence OpenRouter (préfixe fournisseur obligatoire)
+GPT_4O_MINI = "openai/gpt-4o-mini"
+
+# --- Application (modules métier) ---
+
+MODEL_COPILOT = GPT_4O_MINI
+MODEL_COLLECTIVE_AGREEMENT_CHAT = GPT_4O_MINI
+MODEL_CONTRACT_EXTRACTION = GPT_4O_MINI
+MODEL_RECRUITMENT_SCORING = GPT_4O_MINI
+MODEL_COMPETENCIES_MOBILITY = GPT_4O_MINI
+MODEL_CSE_RECORDING = GPT_4O_MINI
+
+# --- Scripts de scraping ---
+
+MODEL_SCRAPING_EXTRACTION = GPT_4O_MINI

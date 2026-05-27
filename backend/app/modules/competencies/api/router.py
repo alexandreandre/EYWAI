@@ -59,7 +59,7 @@ def _company_id(user: User) -> str:
 
 
 def _is_rh(user: User) -> bool:
-    if getattr(user, "is_super_admin", False):
+    if getattr(user, 'is_platform_admin', False) or getattr(user, 'is_super_admin', False):
         return True
     if not user.active_company_id:
         return False
@@ -345,10 +345,10 @@ def route_analyze_mobility(
     except HTTPException:
         raise
     except ValueError as e:
-        if "OPENAI_API_KEY" in str(e):
+        if "OPENROUTER_API_KEY" in str(e):
             raise HTTPException(
                 status_code=503,
-                detail="Clé API OpenAI non configurée (OPENAI_API_KEY).",
+                detail="Clé API OpenRouter non configurée (OPENROUTER_API_KEY).",
             )
         raise HTTPException(status_code=400, detail=str(e))
     except json.JSONDecodeError as e:

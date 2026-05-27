@@ -4,10 +4,18 @@ import json
 import os
 from datetime import datetime, timezone
 
-from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
+
+import sys
+from pathlib import Path as _Path
+
+_SCRAPING_ROOT = _Path(__file__).resolve().parents[1]
+if str(_SCRAPING_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING_ROOT))
+from openrouter_client import chat_completions_create, require_api_key
+
 
 
 def iso_now() -> str:
@@ -122,14 +130,13 @@ def validate_payload(data: dict) -> bool:
 
 def get_baremes_via_ai() -> dict | None:
     """Interroge directement l'API pour obtenir le JSON des barèmes, sans navigation web."""
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
+    try:
+        require_api_key()
+    except ValueError:
         return None
     try:
-        client = OpenAI(api_key=api_key)
         prompt = build_prompt()
-        resp = client.chat.completions.create(
-            model="gpt-4.1",
+        resp = chat_completions_create(
             response_format={"type": "json_object"},
             messages=[
                 {

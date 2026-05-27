@@ -50,7 +50,7 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://ci-fake.supabase.co' }}
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY || 'ci-fake-anon-key' }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || '' }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || 'sk-ci-fake' }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY || secrets.OPENAI_API_KEY || 'sk-or-ci-fake' }}
     defaults:
       run:
         working-directory: backend
@@ -115,7 +115,7 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || 'sk-ci-fake' }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY || secrets.OPENAI_API_KEY || 'sk-or-ci-fake' }}
     defaults:
       run:
         working-directory: backend

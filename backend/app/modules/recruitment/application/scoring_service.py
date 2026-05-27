@@ -1,13 +1,16 @@
 # app/modules/recruitment/application/scoring_service.py
-"""Scoring IA candidat vs fiche de poste (OpenAI)."""
+"""Scoring IA candidat vs fiche de poste (OpenRouter)."""
 
 from __future__ import annotations
 
 import json
-import os
 from typing import Any, Dict, List
 
-from openai import OpenAI
+from app.shared.infrastructure.ai import (
+    MODEL_RECRUITMENT_SCORING,
+    chat_completions_create,
+    require_llm_api_key,
+)
 
 SCORING_PROMPT = """Tu es un expert RH chargé d'évaluer l'adéquation d'un candidat
 à une offre d'emploi.
@@ -49,17 +52,6 @@ la recommandation.
 
 
 class ScoringService:
-    def __init__(self) -> None:
-        self._client = None
-
-    def _get_client(self):
-        if self._client is None:
-            api_key = os.environ.get("OPENAI_API_KEY")
-            if not api_key:
-                raise ValueError("OPENAI_API_KEY non définie")
-            self._client = OpenAI(api_key=api_key)
-        return self._client
-
     def score_candidate(
         self,
         candidate: Dict[str, Any],
@@ -108,9 +100,9 @@ class ScoringService:
             opinions=opinions_text,
         )
 
-        client = self._get_client()
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        require_llm_api_key()
+        response = chat_completions_create(
+            model=MODEL_RECRUITMENT_SCORING,
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},

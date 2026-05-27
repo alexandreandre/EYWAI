@@ -15,9 +15,17 @@ import sys
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
-from openai import OpenAI
 
 load_dotenv()
+
+import sys
+from pathlib import Path as _Path
+
+_SCRAPING_ROOT = _Path(__file__).resolve().parents[1]
+if str(_SCRAPING_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING_ROOT))
+from openrouter_client import chat_completions_create, require_api_key
+
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -36,15 +44,16 @@ def iso_now() -> str:
 
 def _extract_taux_with_gpt() -> float | None:
     """Extrait le taux Alsace-Moselle actuel via GPT, à la date du jour."""
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        print(
-            "ERREUR (MMIDsalarial_AI): Clé OPENAI_API_KEY manquante.", file=sys.stderr
+    try:
+        require_api_key()
+    except ValueError:
+        print("ERREUR: OPENROUTER_API_KEY manquante.", file=sys.stderr)
+        return None
+
         )
         return None
 
-    client = OpenAI(api_key=api_key)
-    today_str = datetime.now().strftime("%A %d %B %Y")
+        today_str = datetime.now().strftime("%A %d %B %Y")
     current_year = datetime.now().year
 
     prompt = (
@@ -61,8 +70,7 @@ def _extract_taux_with_gpt() -> float | None:
     )
 
     try:
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
+        resp = chat_completions_create(
             temperature=0,
             response_format={"type": "json_object"},
             messages=[

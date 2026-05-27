@@ -10,11 +10,19 @@ from openai import OpenAI  # Import pour l'IA
 
 load_dotenv()
 
+import sys
+from pathlib import Path as _Path
+
+_SCRAPING_ROOT = _Path(__file__).resolve().parents[1]
+if str(_SCRAPING_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING_ROOT))
+from openrouter_client import chat_completions_create, require_api_key
+
+
 # Initialisation du client OpenAI
 try:
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    if not client.api_key:
-        raise ValueError("OPENAI_API_KEY est vide ou non définie.")
+        if not client.api_key:
+        require_api_key()
 except Exception as e:
     print(f"Erreur initialisation OpenAI: {e}")
     client = None
@@ -79,8 +87,7 @@ def get_taux_maladie_ai() -> dict | None:
         )
 
         # print(f"Interrogation de gpt-4o-mini pour les taux {current_year}...")
-        completion = client.chat.completions.create(
-            model="gpt-4o-mini",
+        completion = chat_completions_create(
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": system_prompt},

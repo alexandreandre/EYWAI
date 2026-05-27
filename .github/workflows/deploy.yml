@@ -110,6 +110,7 @@ jobs:
           env_vars: |-
             SUPABASE_URL=${{ secrets.SUPABASE_URL }}
             SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
+            OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
           env_vars_update_strategy: merge
 
       - uses: google-github-actions/deploy-cloudrun@v2
@@ -159,6 +160,7 @@ jobs:
           env_vars: |-
             SUPABASE_URL=${{ secrets.SUPABASE_URL }}
             SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
+            OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
           env_vars_update_strategy: merge
 
       - uses: google-github-actions/deploy-cloudrun@v2

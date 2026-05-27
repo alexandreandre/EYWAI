@@ -585,7 +585,8 @@ Exemples courants :
 ```env
 SUPABASE_URL=https://votre-projet.supabase.co
 SUPABASE_KEY=votre-clé
-OPENAI_API_KEY=...          # optionnel (copilot, parsing)
+OPENROUTER_API_KEY=...      # optionnel (copilot, parsing, scoring, conventions)
+# Modèles : app/shared/infrastructure/ai/models.py (pas dans .env)
 REDIS_URL=redis://localhost:6379/0   # si Dramatiq
 # SMTP, clés de test, etc. — voir conftest / DEPLOIEMENT
 ```

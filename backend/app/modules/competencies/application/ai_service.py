@@ -1,12 +1,15 @@
-"""Analyse mobilité interne et recommandations formations (OpenAI)."""
+"""Analyse mobilité interne et recommandations formations (OpenRouter)."""
 
 from __future__ import annotations
 
 import json
-import os
 from typing import Any, Dict, List
 
-from openai import OpenAI
+from app.shared.infrastructure.ai import (
+    MODEL_COMPETENCIES_MOBILITY,
+    chat_completions_create,
+    require_llm_api_key,
+)
 
 MOBILITY_PROMPT = """
 Tu es un expert RH spécialisé en mobilité interne et développement
@@ -71,17 +74,6 @@ def _strip_json_fence(raw: str) -> str:
 
 
 class TalentAIService:
-    def __init__(self) -> None:
-        self._client: OpenAI | None = None
-
-    def _get_client(self) -> OpenAI:
-        if not self._client:
-            api_key = os.environ.get("OPENAI_API_KEY")
-            if not api_key:
-                raise ValueError("OPENAI_API_KEY non définie")
-            self._client = OpenAI(api_key=api_key)
-        return self._client
-
     def analyze_mobility(
         self,
         employee: Dict[str, Any],
@@ -134,9 +126,9 @@ class TalentAIService:
             available_positions=positions_text,
         )
 
-        client = self._get_client()
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        require_llm_api_key()
+        response = chat_completions_create(
+            model=MODEL_COMPETENCIES_MOBILITY,
             max_tokens=1500,
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},

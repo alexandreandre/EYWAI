@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 
+from app.shared.infrastructure.ai import is_llm_configured
 from app.modules.copilot.application.dto import (
     AgentQueryInput,
     AgentQueryResult,
@@ -37,8 +37,10 @@ def execute_text_to_sql(input_: TextToSqlInput) -> TextToSqlResult:
     Exécute une requête Text-to-SQL : génération SQL via LLM, vérification SELECT, exécution, formatage.
     Comportement identique à api/routers/copilot.py handle_query.
     """
-    if not os.getenv("OPENAI_API_KEY"):
-        raise ValueError("Le service Copilote n'est pas configuré (clé API manquante).")
+    if not is_llm_configured():
+        raise ValueError(
+            "Le service Copilote n'est pas configuré (OPENROUTER_API_KEY manquante)."
+        )
 
     sql_query = generate_sql_from_prompt(input_.prompt)
 
@@ -62,8 +64,10 @@ def handle_agent_query(input_: AgentQueryInput) -> AgentQueryResult:
     Traite une requête agent : intent, clarification, recherche employé, conventions collectives,
     récupération données, synthèse. Comportement identique à api/routers/copilot_agent.py handle_agent_query.
     """
-    if not os.getenv("OPENAI_API_KEY"):
-        raise ValueError("Le service Copilote n'est pas configuré.")
+    if not is_llm_configured():
+        raise ValueError(
+            "Le service Copilote n'est pas configuré (OPENROUTER_API_KEY manquante)."
+        )
 
     prompt = input_.prompt
     conversation_history = input_.conversation_history or []

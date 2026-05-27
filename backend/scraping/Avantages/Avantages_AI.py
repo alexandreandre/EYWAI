@@ -6,10 +6,18 @@ import sys
 import requests
 from bs4 import BeautifulSoup
 from googlesearch import search
-from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
+
+import sys
+from pathlib import Path as _Path
+
+_SCRAPING_ROOT = _Path(__file__).resolve().parents[1]
+if str(_SCRAPING_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING_ROOT))
+from openrouter_client import chat_completions_create, require_api_key
+
 
 SEARCH_QUERY = "barème avantages en nature actuel"
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
@@ -36,13 +44,12 @@ def make_payload(repas, titre_restaurant, logement_bareme, source_url=None):
 
 
 def extract_json_with_gpt(page_text: str, prompt: str):
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
+    try:
+        require_api_key()
+    except ValueError:
         return None
     try:
-        client = OpenAI(api_key=api_key)
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
+        resp = chat_completions_create(
             response_format={"type": "json_object"},
             messages=[
                 {

@@ -4,18 +4,19 @@ Intégration IA CSE (transcription, synthèse, PV).
 Implémentation autonome ex-services.cse_ai_service.
 """
 
-import os
 from typing import Any, Dict, List
 from fastapi import HTTPException
 
 from app.core.database import supabase
+from app.shared.infrastructure.ai import is_llm_configured
 
 
-# ============================================================================
-# Configuration
-# ============================================================================
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+def _require_llm_configured() -> None:
+    if not is_llm_configured():
+        raise HTTPException(
+            status_code=500,
+            detail="Clé API OpenRouter non configurée (OPENROUTER_API_KEY).",
+        )
 
 
 # ============================================================================
@@ -27,7 +28,7 @@ def transcribe_audio(audio_file_path: str) -> str:
     """
     Transcrit un fichier audio en texte.
 
-    Utilise OpenAI Whisper API pour la transcription.
+    Utilise un modèle de transcription via OpenRouter (à brancher).
 
     Args:
         audio_file_path: Chemin vers le fichier audio dans Supabase Storage
@@ -35,8 +36,7 @@ def transcribe_audio(audio_file_path: str) -> str:
     Returns:
         Texte transcrit
     """
-    if not OPENAI_API_KEY:
-        raise HTTPException(status_code=500, detail="OpenAI API key non configurée")
+    _require_llm_configured()
 
     try:
         # Télécharger le fichier audio depuis Supabase Storage
@@ -53,7 +53,7 @@ def transcribe_audio(audio_file_path: str) -> str:
 
         # Pour l'instant, retourner un placeholder
         raise NotImplementedError(
-            "Transcription audio non implémentée. À implémenter avec OpenAI Whisper ou équivalent."
+            "Transcription audio non implémentée. À implémenter via OpenRouter."
         )
 
     except Exception as e:
@@ -71,7 +71,7 @@ def generate_summary(transcription: str) -> Dict[str, Any]:
     """
     Génère un résumé structuré depuis une transcription.
 
-    Utilise OpenAI GPT pour générer un résumé structuré avec :
+    Utilise un LLM (OpenRouter) pour générer un résumé structuré avec :
     - Points clés discutés
     - Décisions prises
     - Actions à suivre
@@ -82,8 +82,7 @@ def generate_summary(transcription: str) -> Dict[str, Any]:
     Returns:
         Dictionnaire avec le résumé structuré
     """
-    if not OPENAI_API_KEY:
-        raise HTTPException(status_code=500, detail="OpenAI API key non configurée")
+    _require_llm_configured()
 
     try:
         # Exemple avec OpenAI GPT (à implémenter)
@@ -118,7 +117,7 @@ def generate_summary(transcription: str) -> Dict[str, Any]:
 
         # Pour l'instant, retourner un placeholder
         raise NotImplementedError(
-            "Génération de synthèse non implémentée. À implémenter avec OpenAI GPT."
+            "Génération de synthèse non implémentée. À implémenter via OpenRouter."
         )
 
     except Exception as e:
@@ -148,8 +147,7 @@ def extract_tasks(
     Returns:
         Liste des tâches avec assignation et échéance
     """
-    if not OPENAI_API_KEY:
-        raise HTTPException(status_code=500, detail="OpenAI API key non configurée")
+    _require_llm_configured()
 
     try:
         # Exemple avec OpenAI GPT (à implémenter)
@@ -183,7 +181,7 @@ def extract_tasks(
 
         # Pour l'instant, retourner un placeholder
         raise NotImplementedError(
-            "Extraction de tâches non implémentée. À implémenter avec OpenAI GPT."
+            "Extraction de tâches non implémentée. À implémenter via OpenRouter."
         )
 
     except Exception as e:

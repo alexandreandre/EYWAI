@@ -1,7 +1,7 @@
 """
 Providers infrastructure : storage, cache texte, extraction PDF, chat LLM.
 
-Implémentations réelles (Supabase storage, table collective_agreement_texts, OpenAI).
+Implémentations réelles (Supabase storage, table collective_agreement_texts, OpenRouter).
 """
 
 from __future__ import annotations
@@ -16,13 +16,16 @@ from typing import Any, List, Optional
 
 import pdfplumber
 import requests
-from openai import OpenAI
 
 from app.core.database import get_supabase_client
+from app.shared.infrastructure.ai import (
+    MODEL_COLLECTIVE_AGREEMENT_CHAT,
+    chat_completions_create,
+)
 from app.modules.collective_agreements.domain.exceptions import ValidationError
 
 BUCKET_NAME = "collective_agreement_rules"
-CHAT_MODEL = "gpt-4o-mini"
+CHAT_MODEL = MODEL_COLLECTIVE_AGREEMENT_CHAT
 MAX_TEXT_CHARS = 400000
 
 
@@ -131,19 +134,36 @@ class AgreementPdfTextExtractor:
 
 
 class AgreementChatProvider:
-    """Implémentation de IAgreementChatProvider (OpenAI gpt-4o-mini)."""
+    """Implémentation de IAgreementChatProvider (OpenRouter)."""
 
-    def __init__(self, api_key: Optional[str] = None):
-        self._client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
+    def __init__(self, api_key: Optional[str] = None) -> None:
+        self._api_key = api_key
 
     def answer(self, system_prompt: str, user_prompt: str) -> str:
-        response = self._client.chat.completions.create(
-            model=CHAT_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.2,
-            max_tokens=2000,
-        )
+        if self._api_key:
+            from openai import OpenAI
+
+            client = OpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=self._api_key,
+            )
+            response = client.chat.completions.create(
+                model=CHAT_MODEL,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.2,
+                max_tokens=2000,
+            )
+        else:
+            response = chat_completions_create(
+                model=MODEL_COLLECTIVE_AGREEMENT_CHAT,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.2,
+                max_tokens=2000,
+            )
         return (response.choices[0].message.content or "").strip()

@@ -1,7 +1,7 @@
 """
 Tests des commandes du module copilot (application/commands.py).
 
-Repositories et service mockés : pas d'appel réel à OpenAI ni à la DB.
+Repositories et service mockés : pas d'appel réel à OpenRouter ni à la DB.
 """
 
 import os
@@ -26,11 +26,11 @@ pytestmark = pytest.mark.unit
 class TestExecuteTextToSql:
     """Commande execute_text_to_sql : Text-to-SQL avec vérification SELECT."""
 
-    def test_raises_when_openai_key_missing(self):
+    def test_raises_when_openrouter_key_missing(self):
         with patch.dict(os.environ, {}, clear=False):
-            if "OPENAI_API_KEY" in os.environ:
-                del os.environ["OPENAI_API_KEY"]
-            with pytest.raises(ValueError, match="clé API manquante|pas configuré"):
+            if "OPENROUTER_API_KEY" in os.environ:
+                del os.environ["OPENROUTER_API_KEY"]
+            with pytest.raises(ValueError, match="clé API manquante|pas configuré|OPENROUTER"):
                 execute_text_to_sql(
                     TextToSqlInput(prompt="Combien d'employés ?", user_id="user-1")
                 )
@@ -42,7 +42,7 @@ class TestExecuteTextToSql:
     def test_success_returns_result(
         self, mock_format, mock_execute, mock_only_select, mock_generate
     ):
-        os.environ["OPENAI_API_KEY"] = "sk-test"
+        os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
         mock_generate.return_value = "SELECT COUNT(*) FROM employees"
         mock_only_select.return_value = True
         mock_execute.return_value = [{"count": 5}]
@@ -64,7 +64,7 @@ class TestExecuteTextToSql:
     @patch("app.modules.copilot.application.commands.generate_sql_from_prompt")
     @patch("app.modules.copilot.application.commands.only_select_allowed")
     def test_non_select_raises_permission_error(self, mock_only_select, mock_generate):
-        os.environ["OPENAI_API_KEY"] = "sk-test"
+        os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
         mock_generate.return_value = "DELETE FROM employees"
         mock_only_select.return_value = False
 
@@ -77,11 +77,11 @@ class TestExecuteTextToSql:
 class TestHandleAgentQuery:
     """Commande handle_agent_query : agent avec intent, clarification, conventions, données."""
 
-    def test_raises_when_openai_key_missing(self):
+    def test_raises_when_openrouter_key_missing(self):
         with patch.dict(os.environ, {}, clear=False):
-            if "OPENAI_API_KEY" in os.environ:
-                del os.environ["OPENAI_API_KEY"]
-            with pytest.raises(ValueError, match="pas configuré"):
+            if "OPENROUTER_API_KEY" in os.environ:
+                del os.environ["OPENROUTER_API_KEY"]
+            with pytest.raises(ValueError, match="pas configuré|OPENROUTER"):
                 handle_agent_query(
                     AgentQueryInput(
                         prompt="Combien d'employés ?",
@@ -93,7 +93,7 @@ class TestHandleAgentQuery:
     @patch("app.modules.copilot.application.commands.get_company_id_for_user")
     def test_raises_lookup_error_when_no_company(self, mock_get_company):
         mock_get_company.return_value = None
-        os.environ["OPENAI_API_KEY"] = "sk-test"
+        os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
 
         with pytest.raises(LookupError, match="Company ID non trouvé"):
             handle_agent_query(
@@ -110,7 +110,7 @@ class TestHandleAgentQuery:
     def test_needs_clarification_returns_result(
         self, mock_analyze, mock_get_company, mock_get_agreements
     ):
-        os.environ["OPENAI_API_KEY"] = "sk-test"
+        os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
         mock_get_company.return_value = "company-123"
         mock_get_agreements.return_value = []
         mock_analyze.return_value = {
@@ -146,7 +146,7 @@ class TestHandleAgentQuery:
         mock_retrieval,
         mock_synthesize,
     ):
-        os.environ["OPENAI_API_KEY"] = "sk-test"
+        os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
         mock_get_company.return_value = "company-123"
         mock_get_agreements.return_value = []
         mock_analyze.return_value = {
@@ -182,7 +182,7 @@ class TestHandleAgentQuery:
     def test_requires_collective_agreement_no_agreements_returns_message(
         self, mock_analyze, mock_get_company, mock_get_agreements
     ):
-        os.environ["OPENAI_API_KEY"] = "sk-test"
+        os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
         mock_get_company.return_value = "company-123"
         mock_get_agreements.return_value = []
         mock_analyze.return_value = {
@@ -212,7 +212,7 @@ class TestHandleAgentQuery:
     def test_requires_collective_agreement_single_agreement_calls_answer(
         self, mock_analyze, mock_get_company, mock_get_agreements, mock_answer
     ):
-        os.environ["OPENAI_API_KEY"] = "sk-test"
+        os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
         mock_get_company.return_value = "company-123"
         mock_get_agreements.return_value = [
             {
@@ -246,7 +246,7 @@ class TestHandleAgentQuery:
     def test_employee_search_no_match_returns_clarification_message(
         self, mock_analyze, mock_get_company, mock_get_agreements, mock_fuzzy
     ):
-        os.environ["OPENAI_API_KEY"] = "sk-test"
+        os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
         mock_get_company.return_value = "company-123"
         mock_get_agreements.return_value = []
         mock_analyze.return_value = {

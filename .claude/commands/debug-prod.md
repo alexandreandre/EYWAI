@@ -15,7 +15,7 @@ Avant de commencer, vérifie que tu disposes des informations suivantes. Si l'un
 | `SUPABASE_SERVICE_KEY` | Clé service_role (optionnelle, pour tests admin) | `backend/.env` |
 | `TEST_USER_EMAIL` | Email d'un utilisateur de test Supabase (optionnel) | Dashboard Supabase Auth |
 | `TEST_USER_PASSWORD` | Mot de passe de cet utilisateur (optionnel) | — |
-| `OPENAI_API_KEY` | Clé API OpenAI (optionnelle mais utile pour le smoke `copilot`) | `backend/.env`, secrets CI |
+| `OPENROUTER_API_KEY` | Clé API OpenRouter (optionnelle mais utile pour le smoke `copilot`) | `backend/.env`, secrets CI |
 
 Lis `backend/.env` et `frontend/.env` pour récupérer les clés Supabase déjà configurées. Pour les URLs de prod, demande-les à l'utilisateur s'il ne les a pas déjà fournies.
 

@@ -410,10 +410,10 @@ def score_candidate_ai(
         msg = str(e)
         if "non trouvé" in msg:
             raise HTTPException(status_code=404, detail=msg) from e
-        if "OPENAI_API_KEY" in msg:
+        if "OPENROUTER_API_KEY" in msg:
             raise HTTPException(
                 status_code=503,
-                detail="Clé API OpenAI non configurée (OPENAI_API_KEY).",
+                detail="Clé API OpenRouter non configurée (OPENROUTER_API_KEY).",
             ) from e
         raise HTTPException(status_code=400, detail=msg) from e
     except json.JSONDecodeError as e:
