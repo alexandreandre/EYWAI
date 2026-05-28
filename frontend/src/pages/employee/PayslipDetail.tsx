@@ -4,9 +4,14 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Download, Loader2 } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Download, Loader2 } from 'lucide-react';
 import { getPayslipDetails, type PayslipDetail } from '@/api/payslips';
+import {
+  EmployeePageBackLink,
+  EmployeePageHeader,
+  EmployeePageShell,
+} from '@/components/employee/EmployeePageHeader';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PayslipComparisonTab } from '@/components/payslip/PayslipComparisonTab';
@@ -60,31 +65,22 @@ export default function EmployeePayslipDetail() {
   }
 
   return (
-    <div className="container mx-auto max-w-5xl space-y-6 py-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+    <EmployeePageShell>
+      <EmployeePageHeader
+        back={
+          <EmployeePageBackLink to="/payslips" label="Retour à ma rémunération" />
+        }
+        title={`Mon bulletin — ${formatMonthYearFr(payslip.month, payslip.year)}`}
+        description="Comparaison avec le mois précédent et tendance sur l'historique (lecture seule)."
+        actions={
           <Button variant="outline" size="sm" asChild>
-            <Link to="/payslips">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Retour à ma rémunération
-            </Link>
+            <a href={payslip.url} download={payslip.name}>
+              <Download className="mr-2 h-4 w-4" />
+              PDF
+            </a>
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              Mon bulletin — {formatMonthYearFr(payslip.month, payslip.year)}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Comparaison avec le mois précédent et tendance sur l’historique (lecture seule).
-            </p>
-          </div>
-        </div>
-        <Button variant="outline" size="sm" asChild>
-          <a href={payslip.url} download={payslip.name}>
-            <Download className="mr-2 h-4 w-4" />
-            PDF
-          </a>
-        </Button>
-      </div>
+        }
+      />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full max-w-md grid-cols-1 gap-1 sm:grid-cols-2">
@@ -107,6 +103,6 @@ export default function EmployeePayslipDetail() {
           />
         </TabsContent>
       </Tabs>
-    </div>
+    </EmployeePageShell>
   );
 }

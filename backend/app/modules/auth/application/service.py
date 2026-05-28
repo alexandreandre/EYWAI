@@ -57,7 +57,7 @@ def login(username_or_email: str, password: str) -> dict:
 
             logger.debug(
                 "Connexion réussie (super_admin=%s)",
-                user_info.is_super_admin,
+                user_info.is_platform_admin,
             )
 
         return {

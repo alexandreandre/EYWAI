@@ -117,29 +117,59 @@ class TestGetAbsenceRequests:
         mock_get.assert_called_once_with("pending", company_id=TEST_COMPANY_ID)
 
 
-# --- POST /api/absences/requests (création, sans auth dans le router) ---
+# --- POST /api/absences/requests (création, auth requise) ---
 
 
 class TestCreateAbsenceRequest:
     """POST /api/absences/requests — création d'une demande d'absence."""
 
+    def test_create_absence_request_without_auth_returns_401(
+        self, client: TestClient
+    ):
+        """Sans token → 401."""
+        response = client.post(
+            "/api/absences/requests",
+            json={
+                "employee_id": "emp-test",
+                "type": "conge_paye",
+                "selected_days": ["2025-06-10"],
+            },
+        )
+        assert response.status_code == 401
+
     def test_create_absence_request_invalid_body_returns_422(self, client: TestClient):
         """Body invalide (manque champs obligatoires) → 422."""
-        response = client.post("/api/absences/requests", json={})
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
+        try:
+            response = client.post("/api/absences/requests", json={})
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 422
 
     def test_create_absence_request_empty_selected_days_returns_400(
         self, client: TestClient
     ):
         """selected_days vide → 400 (validation métier)."""
-        response = client.post(
-            "/api/absences/requests",
-            json={
-                "employee_id": "emp-test",
-                "type": "conge_paye",
-                "selected_days": [],
-            },
-        )
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
+        try:
+            with patch(
+                "app.modules.absences.api.router.resolve_employee_id_for_user",
+                return_value="emp-resolved",
+            ):
+                response = client.post(
+                    "/api/absences/requests",
+                    json={
+                        "employee_id": "user-non-rh-absences-test",
+                        "type": "conge_paye",
+                        "selected_days": [],
+                    },
+                )
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 400
         data = response.json()
         assert "detail" in data
@@ -149,21 +179,76 @@ class TestCreateAbsenceRequest:
 
     def test_create_absence_request_valid_schema_calls_app(self, client: TestClient):
         """Body valide (schema) → 201 si employé/DB OK, 404 si employé inconnu, 500 si erreur."""
-        response = client.post(
-            "/api/absences/requests",
-            json={
-                "employee_id": "employee-inexistant-uuid",
-                "type": "conge_paye",
-                "selected_days": ["2025-06-10", "2025-06-11"],
-            },
-        )
-        # 404 employé non trouvé ou 201 si test data existe
-        assert response.status_code in (201, 404, 500)
-        if response.status_code == 201:
-            data = response.json()
-            assert "id" in data
-            assert data.get("type") == "conge_paye"
-            assert "selected_days" in data
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
+        try:
+            with patch(
+                "app.modules.absences.api.router.resolve_employee_id_for_user",
+                return_value="emp-resolved",
+            ), patch(
+                "app.modules.absences.api.router.commands.create_absence_request"
+            ) as create_cmd, patch(
+                "app.modules.absences.api.router.absence_repository.get_team_manager_employee_id_for_employee",
+                return_value=None,
+            ), patch(
+                "app.modules.absences.api.router.absence_repository.update",
+                side_effect=lambda rid, payload: {
+                    "id": rid,
+                    "employee_id": "emp-resolved",
+                    "company_id": TEST_COMPANY_ID,
+                    "type": "conge_paye",
+                    "selected_days": ["2025-06-10", "2025-06-11"],
+                    "status": "pending",
+                    "comment": None,
+                    "created_at": "2025-06-01T09:00:00",
+                    "manager_id": None,
+                    "attachment_url": None,
+                    "filename": None,
+                    "event_subtype": None,
+                    "jours_payes": None,
+                    **payload,
+                },
+            ), patch(
+                "app.modules.absences.api.router.absence_notif.notify_absence_submitted",
+            ), patch(
+                "app.modules.absences.api.router.absence_notif.notify_manager_new_request",
+            ), patch(
+                "app.modules.absences.api.router._enrich_single_absence_row",
+                side_effect=lambda row: row,
+            ):
+                create_cmd.return_value = {
+                    "id": "created-1",
+                    "employee_id": "emp-resolved",
+                    "company_id": TEST_COMPANY_ID,
+                    "type": "conge_paye",
+                    "selected_days": ["2025-06-10", "2025-06-11"],
+                    "status": "pending",
+                    "comment": None,
+                    "created_at": "2025-06-01T09:00:00",
+                    "manager_id": None,
+                    "attachment_url": None,
+                    "filename": None,
+                    "event_subtype": None,
+                    "jours_payes": None,
+                }
+                response = client.post(
+                    "/api/absences/requests",
+                    json={
+                        "employee_id": "user-non-rh-absences-test",
+                        "type": "conge_paye",
+                        "selected_days": ["2025-06-10", "2025-06-11"],
+                    },
+                )
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 201
+        data = response.json()
+        assert "id" in data
+        assert data.get("type") == "conge_paye"
+        assert "selected_days" in data
+        create_cmd.assert_called_once()
+        assert create_cmd.call_args[0][0].employee_id == "emp-resolved"
 
 
 # --- GET /api/absences/employees/{employee_id} ---
@@ -339,6 +424,32 @@ class TestGetMyAbsencesPageData:
         """Sans token → 401."""
         response = client.get("/api/absences/employees/me/page-data?year=2025&month=6")
         assert response.status_code == 401
+
+    def test_me_page_data_uses_resolved_employee_id(self, client: TestClient):
+        """La query page-data reçoit employees.id résolu, pas l'uid auth."""
+        from app.core.security import get_current_user
+
+        page_payload = {
+            "balances": [],
+            "calendar_days": [],
+            "history": [],
+        }
+        with patch(
+            "app.modules.absences.api.router.resolve_employee_id_for_user",
+            return_value="emp-resolved",
+        ), patch(
+            "app.modules.absences.api.router.queries.get_my_absences_page_data",
+            return_value=page_payload,
+        ) as mock_page:
+            app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
+            try:
+                response = client.get(
+                    "/api/absences/employees/me/page-data?year=2025&month=6"
+                )
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 200
+        mock_page.assert_called_once_with("emp-resolved", 2025, 6)
 
     def test_me_page_data_with_auth_returns_200_or_404(
         self, client: TestClient, auth_headers: dict

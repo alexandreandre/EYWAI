@@ -28,19 +28,7 @@ from app.core.paths import (
 )
 
 
-def is_forfait_jour(statut: str | None) -> bool:
-    """
-    Détecte si un employé est en forfait jour selon son statut.
-
-    Args:
-        statut: Statut de l'employé (ex: "Cadre au forfait jour")
-
-    Returns:
-        True si l'employé est en forfait jour, False sinon
-    """
-    if not statut:
-        return False
-    return "forfait jour" in statut.lower()
+from app.shared.domain.employment_rules import is_forfait_jour as is_forfait_jour
 
 
 def process_payslip_generation_forfait(employee_id: str, year: int, month: int):

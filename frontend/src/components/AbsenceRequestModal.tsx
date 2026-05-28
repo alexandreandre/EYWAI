@@ -19,6 +19,7 @@ import { Calendar } from "@/components/ui/calendar";
 
 // Logique
 import { useAuth } from "@/contexts/AuthContext";
+import { useEmployeeProfileQuery } from "@/hooks/queries/useEmployeeDashboardQueries";
 import { useToast } from "@/components/ui/use-toast";
 import * as absencesApi from "@/api/absences";
 import { getEmployeesLite, type EmployeeLite } from "@/api/employees";
@@ -36,6 +37,36 @@ function isArretPrincipalType(
   t: string
 ): t is (typeof ARRET_PRINCIPAL_TYPES)[number] {
   return (ARRET_PRINCIPAL_TYPES as readonly string[]).includes(t);
+}
+
+function BalanceHint({
+  absenceType,
+  balances,
+}: {
+  absenceType: string;
+  balances: absencesApi.AbsenceBalance[];
+}) {
+  const labelByType: Record<string, string> = {
+    conge_paye: 'Congés Payés',
+    rtt: 'RTT',
+    repos_compensateur: 'Repos compensateur',
+  };
+  const label = labelByType[absenceType];
+  if (!label) return null;
+  const row = balances.find((b) => b.type === label);
+  const rest = typeof row?.remaining === 'number' ? row.remaining : null;
+  if (rest == null) return null;
+  const typeLabel =
+    absenceType === 'conge_paye'
+      ? 'congés payés'
+      : absenceType === 'rtt'
+        ? 'RTT'
+        : 'repos compensateur';
+  return (
+    <p className="text-xs text-muted-foreground">
+      Solde {typeLabel} restant : {rest.toFixed(1)} j
+    </p>
+  );
 }
 
 interface AbsenceRequestModalProps {
@@ -56,6 +87,7 @@ export function AbsenceRequestModal({
   showEmployeeSelector = false,
 }: AbsenceRequestModalProps) {
   const { user } = useAuth();
+  const { data: myEmployeeProfile } = useEmployeeProfileQuery(user?.id);
   const { toast } = useToast();
 
   type AbsenceTypeValue = 'conge_paye' | 'rtt' | 'repos_compensateur' | 'evenement_familial' | 'arret_maladie' | 'arret_at' | 'arret_paternite' | 'arret_maternite' | 'arret_maladie_pro';
@@ -148,7 +180,7 @@ export function AbsenceRequestModal({
       const employeeId =
         showEmployeeSelector && selectedEmployeeId
           ? selectedEmployeeId
-          : user!.id;
+          : myEmployeeProfile?.id ?? user!.id;
 
       // Créer la demande d'absence avec ou sans justificatif
       const payload: absencesApi.AbsenceCreationPayload = {
@@ -276,6 +308,9 @@ export function AbsenceRequestModal({
                 <SelectItem value="arret_maladie_pro">Maladie Professionnelle</SelectItem>
               </SelectContent>
             </Select>
+            {!showEmployeeSelector && balances.length > 0 && absenceType && (
+              <BalanceHint absenceType={absenceType} balances={balances} />
+            )}
           </div>
 
           {isArretPrincipalType(absenceType) && (

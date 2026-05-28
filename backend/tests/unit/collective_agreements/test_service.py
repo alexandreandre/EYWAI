@@ -148,7 +148,7 @@ class TestServiceCreateCatalogItem:
         svc = _make_service()
 
         with pytest.raises(HTTPException) as exc_info:
-            svc.create_catalog_item(data, is_super_admin=False)
+            svc.create_catalog_item(data, is_platform_admin=False)
 
         assert exc_info.value.status_code == 403
         assert "super administrateur" in exc_info.value.detail
@@ -168,7 +168,7 @@ class TestServiceCreateCatalogItem:
         )
         svc = _make_service(repo=repo)
 
-        result = svc.create_catalog_item(data, is_super_admin=True)
+        result = svc.create_catalog_item(data, is_platform_admin=True)
 
         assert result["id"] == "new-id"
         repo.create_catalog_item.assert_called_once()
@@ -186,13 +186,13 @@ class TestServiceUpdateCatalogItem:
     def test_raises_403_when_not_super_admin(self):
         svc = _make_service()
         with pytest.raises(HTTPException) as exc_info:
-            svc.update_catalog_item("agr-1", {"name": "X"}, is_super_admin=False)
+            svc.update_catalog_item("agr-1", {"name": "X"}, is_platform_admin=False)
         assert exc_info.value.status_code == 403
 
     def test_raises_400_when_no_data_to_update(self):
         svc = _make_service()
         with pytest.raises(HTTPException) as exc_info:
-            svc.update_catalog_item("agr-1", {}, is_super_admin=True)
+            svc.update_catalog_item("agr-1", {}, is_platform_admin=True)
         assert exc_info.value.status_code == 400
         assert "Aucune donnée" in exc_info.value.detail
 
@@ -206,7 +206,7 @@ class TestServiceUpdateCatalogItem:
         svc.update_catalog_item(
             "agr-1",
             {"name": "X", "rules_pdf_path": None},
-            is_super_admin=True,
+            is_platform_admin=True,
         )
 
         storage.remove.assert_called_once_with(["/old/path.pdf"])
@@ -222,7 +222,7 @@ class TestServiceDeleteCatalogItem:
     def test_raises_403_when_not_super_admin(self):
         svc = _make_service()
         with pytest.raises(HTTPException) as exc_info:
-            svc.delete_catalog_item("agr-1", is_super_admin=False)
+            svc.delete_catalog_item("agr-1", is_platform_admin=False)
         assert exc_info.value.status_code == 403
 
     def test_removes_pdf_and_deletes_in_repo(self):
@@ -232,7 +232,7 @@ class TestServiceDeleteCatalogItem:
         storage = MagicMock()
         svc = _make_service(repo=repo, storage=storage)
 
-        result = svc.delete_catalog_item("agr-1", is_super_admin=True)
+        result = svc.delete_catalog_item("agr-1", is_platform_admin=True)
 
         assert result is True
         storage.remove.assert_called_once_with(["/catalog/doc.pdf"])
@@ -312,7 +312,7 @@ class TestServiceGetAllAssignments:
     def test_raises_403_when_not_super_admin(self):
         svc = _make_service()
         with pytest.raises(HTTPException) as exc_info:
-            svc.get_all_assignments(is_super_admin=False)
+            svc.get_all_assignments(is_platform_admin=False)
         assert exc_info.value.status_code == 403
 
     def test_returns_repo_result_with_signed_urls(self):
@@ -330,7 +330,7 @@ class TestServiceGetAllAssignments:
         storage.create_signed_url.return_value = "https://signed.url"
         svc = _make_service(repo=repo, storage=storage)
 
-        result = svc.get_all_assignments(is_super_admin=True)
+        result = svc.get_all_assignments(is_platform_admin=True)
 
         assert len(result) == 1
         assert (
@@ -428,7 +428,7 @@ class TestServiceRefreshTextCache:
     def test_raises_403_when_not_super_admin(self):
         svc = _make_service()
         with pytest.raises(HTTPException) as exc_info:
-            svc.refresh_text_cache("agr-1", is_super_admin=False)
+            svc.refresh_text_cache("agr-1", is_platform_admin=False)
         assert exc_info.value.status_code == 403
 
     def test_deletes_cache_and_refetches_text(self):
@@ -451,7 +451,7 @@ class TestServiceRefreshTextCache:
             pdf_extractor=pdf_extractor,
         )
 
-        svc.refresh_text_cache("agr-1", is_super_admin=True)
+        svc.refresh_text_cache("agr-1", is_platform_admin=True)
 
         text_cache.delete.assert_called_once_with("agr-1")
         text_cache.set_full_text.assert_called_once()

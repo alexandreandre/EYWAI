@@ -23,6 +23,7 @@ from app.modules.payslips.application.dto import (
 from app.modules.payslips.application.queries import (
     get_employee_payslips,
     get_my_payslips,
+    get_my_payslips_for_user_account,
     get_payslip_details,
     get_payslip_history,
 )
@@ -44,6 +45,7 @@ __all__ = [
     "edit_payslip",
     "restore_payslip_version",
     "get_my_payslips",
+    "get_my_payslips_for_user_account",
     "get_employee_payslips",
     "get_payslip_details",
     "get_payslip_history",

@@ -13,6 +13,7 @@ import {
   type TicketStatusAdminUpdate,
 } from '@/api/support';
 import { getCompanyUsers } from '@/api/permissions';
+import { isPlatformAdmin } from '@/lib/platformAdmin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -115,13 +116,13 @@ export function SupportTicketDetailSheet({
     setStatusSelect('');
   }, [ticketId]);
 
-  const isSuperAdmin = Boolean(user?.is_super_admin || user?.role === 'super_admin');
+  const isPlatformAdminUser = isPlatformAdmin(user);
   const isRhManager =
-    !isSuperAdmin &&
+    !isPlatformAdminUser &&
     user?.role != null &&
     ['admin', 'rh', 'collaborateur_rh'].includes(user.role);
 
-  const showEmitter = isSuperAdmin || isRhManager;
+  const showEmitter = isPlatformAdminUser || isRhManager;
 
   const {
     data: ticket,
@@ -296,7 +297,7 @@ export function SupportTicketDetailSheet({
                 )}
               </section>
 
-              {isSuperAdmin ? (
+              {isPlatformAdminUser ? (
                 <div className="space-y-3 border-t pt-4">
                   <Label htmlFor="support-ticket-status">Changer le statut</Label>
                   <div className="flex flex-wrap items-center gap-3">

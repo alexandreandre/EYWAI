@@ -15,13 +15,12 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 from app.core.security import get_current_user
-from app.modules.audit.infrastructure.repository import audit_repository
-from app.modules.webhooks.infrastructure.repository import webhook_repository
+from app.modules.absences.application import router_support as absence_router
+from app.modules.audit.application.commands import log_audit_event
+from app.modules.webhooks.application.service import trigger_webhook_event
 from app.modules.users.schemas.responses import User
 
 from app.modules.absences.application import commands, notifications as absence_notif, queries
-from app.modules.absences.infrastructure.queries import resolve_employee_id_for_user
-from app.modules.absences.infrastructure.repository import absence_repository
 from app.modules.absences.schemas.requests import (
     AbsenceRequestCreate,
     AbsenceRequestStatusUpdate,
@@ -87,7 +86,7 @@ def _require_active_company_absences(current_user: User) -> str:
 def _require_rh_company_context(current_user: User) -> str:
     """Entreprise active + droits RH (ou super admin)."""
     company_id = _require_active_company_absences(current_user)
-    if current_user.is_super_admin:
+    if current_user.is_platform_admin:
         return company_id
     if not current_user.has_rh_access_in_company(company_id):
         raise HTTPException(status_code=403, detail="Accès non autorisé")
@@ -95,7 +94,7 @@ def _require_rh_company_context(current_user: User) -> str:
 
 
 def _ensure_absence_in_active_company(request_id: str, company_id: str) -> dict:
-    row = absence_repository.get_by_id(request_id)
+    row = absence_router.get_absence_by_id(request_id)
     if not row:
         raise LookupError(f"Demande {request_id} non trouvée.")
     if str(row.get("company_id") or "") != company_id:
@@ -122,6 +121,70 @@ def _enrich_absence_row_keep_employee(row: dict) -> dict:
     return r
 
 
+def _resolve_employee_id_for_current_user(current_user: User) -> str:
+    """Résout employees.id pour le compte connecté (user_id ou id = auth uid)."""
+    company_id = current_user.active_company_id
+    if not company_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Aucune entreprise active.",
+        )
+    employee_id = absence_router.resolve_employee_id_for_user(
+        str(current_user.id), str(company_id)
+    )
+    if not employee_id:
+        raise HTTPException(
+            status_code=404,
+            detail="Profil collaborateur sans employé associé.",
+        )
+    return employee_id
+
+
+def _resolve_create_absence_employee_id(
+    current_user: User, requested_employee_id: str
+) -> str:
+    """
+    Collaborateur : uniquement sa fiche (accepte encore employee_id = auth uid).
+    RH / super admin : employé de l'entreprise active.
+    """
+    target = str(requested_employee_id)
+    company_id = current_user.active_company_id
+    is_rh = current_user.is_platform_admin or (
+        company_id is not None
+        and current_user.has_rh_access_in_company(str(company_id))
+    )
+    if is_rh:
+        emp_company = absence_router.employee_company_id(target)
+        if not emp_company:
+            raise HTTPException(status_code=404, detail="Employé non trouvé.")
+        if (
+            company_id
+            and str(emp_company) != str(company_id)
+            and not current_user.is_platform_admin
+        ):
+            raise HTTPException(
+                status_code=403, detail="Employé hors périmètre entreprise."
+            )
+        return target
+
+    company_id = current_user.active_company_id
+    if not company_id:
+        raise HTTPException(status_code=400, detail="Aucune entreprise active.")
+    my_id = absence_router.resolve_employee_id_for_user(str(current_user.id), str(company_id))
+    if not my_id:
+        raise HTTPException(
+            status_code=404,
+            detail="Profil collaborateur sans employé associé.",
+        )
+    uid = str(current_user.id)
+    if target not in (str(my_id), uid):
+        raise HTTPException(
+            status_code=403,
+            detail="Vous ne pouvez créer une demande que pour votre propre fiche.",
+        )
+    return str(my_id)
+
+
 # ----- Upload URL -----
 
 
@@ -143,15 +206,25 @@ async def get_upload_url(
 
 
 @router.post("/requests", response_model=AbsenceRequest, status_code=201)
-async def create_absence_request(request_data: AbsenceRequestCreate):
+async def create_absence_request(
+    request_data: AbsenceRequestCreate,
+    current_user: User = Depends(get_current_user),
+):
     """Crée une nouvelle demande d'absence à partir d'une liste de jours."""
     try:
+        employee_id = _resolve_create_absence_employee_id(
+            current_user, request_data.employee_id
+        )
+        if employee_id != request_data.employee_id:
+            request_data = request_data.model_copy(
+                update={"employee_id": employee_id}
+            )
         data = commands.create_absence_request(request_data)
         rid = str(data["id"])
         eid = str(data["employee_id"])
-        mgr = absence_repository.get_team_manager_employee_id_for_employee(eid)
+        mgr = absence_router.get_team_manager_employee_id(eid)
         wf = "pending_manager" if mgr else "pending"
-        data2 = absence_repository.update(rid, {"workflow_step": wf})
+        data2 = absence_router.update_absence(rid, {"workflow_step": wf})
         data = data2 or data
         try:
             d0, d1 = absence_notif.absence_date_range_iso(data)
@@ -196,7 +269,7 @@ async def update_absence_request_status(
             _require_rh_company_context(current_user)
             req_before = _ensure_absence_in_active_company(request_id, company_id)
         else:
-            req_before = absence_repository.get_by_id(request_id)
+            req_before = absence_router.get_absence_by_id(request_id)
         if (
             req_before
             and req_before.get("workflow_step") == "pending_manager"
@@ -218,7 +291,7 @@ async def update_absence_request_status(
         elif status_update.status == "rejected":
             extra_ws["workflow_step"] = "rejected_rh"
         if extra_ws:
-            merged = absence_repository.update(request_id, extra_ws)
+            merged = absence_router.update_absence(request_id, extra_ws)
             if merged:
                 data = merged
         _notify_rh_status_change(req_before, status_update.status)
@@ -226,7 +299,7 @@ async def update_absence_request_status(
         out = enriched if enriched is not None else data
         cid = str((out or data).get("company_id") or "")
         if cid and status_update.status in ("validated", "rejected"):
-            audit_repository.log(
+            log_audit_event(
                 company_id=cid,
                 user_id=str(current_user.id),
                 user_email=current_user.email,
@@ -241,7 +314,7 @@ async def update_absence_request_status(
                 ip_address=http_request.client.host if http_request.client else None,
             )
         if status_update.status == "validated" and cid:
-            webhook_repository.trigger_event(
+            trigger_webhook_event(
                 cid,
                 "absence.approved",
                 {
@@ -300,15 +373,15 @@ async def list_pending_manager_approval(
     """Demandes en attente de validation manager (périmètre RH ou équipe du manager)."""
     try:
         company_id = _require_active_company_absences(current_user)
-        rows = absence_repository.get_pending_manager_approval(company_id)
+        rows = absence_router.list_pending_manager_approval(company_id)
         if not current_user.has_rh_access_in_company(company_id):
-            me = resolve_employee_id_for_user(str(current_user.id))
+            me = absence_router.resolve_employee_id_for_user(str(current_user.id), str(company_id))
             if not me:
                 raise HTTPException(
                     status_code=403,
                     detail="Profil employé requis pour consulter ces demandes.",
                 )
-            managed = absence_repository.get_employee_ids_managed_by_manager(
+            managed = absence_router.list_employee_ids_managed_by_manager(
                 me, company_id
             )
             managed_set = set(managed)
@@ -338,16 +411,16 @@ async def manager_approve_absence(
                 raise ValueError("Un motif de refus est requis.")
 
         if not current_user.has_rh_access_in_company(company_id):
-            me = resolve_employee_id_for_user(str(current_user.id))
+            me = absence_router.resolve_employee_id_for_user(str(current_user.id), str(company_id))
             if not me:
                 raise HTTPException(
                     status_code=403,
                     detail="Profil employé requis pour cette action.",
                 )
-            row = absence_repository.get_by_id(absence_id)
+            row = absence_router.get_absence_by_id(absence_id)
             if not row:
                 raise LookupError("Demande introuvable.")
-            mgr = absence_repository.get_team_manager_employee_id_for_employee(
+            mgr = absence_router.get_team_manager_employee_id(
                 str(row["employee_id"])
             )
             if mgr != me:
@@ -356,7 +429,7 @@ async def manager_approve_absence(
                     detail="Vous n'êtes pas le manager de l'équipe de ce collaborateur.",
                 )
 
-        data = absence_repository.approve_by_manager(
+        data = absence_router.approve_absence_by_manager(
             absence_id,
             company_id,
             str(current_user.id),
@@ -421,7 +494,10 @@ async def get_my_evenements_familiaux(
 ):
     """Récupère la liste des événements familiaux disponibles avec quota et solde restant."""
     try:
-        events = queries.get_my_evenements_familiaux(str(current_user.id))
+        company_id = _require_active_company_absences(current_user)
+        events = queries.get_my_evenements_familiaux(
+            str(current_user.id), str(company_id)
+        )
         return EvenementFamilialQuotaResponse(
             events=[EvenementFamilialEvent(**e) for e in events]
         )
@@ -436,7 +512,8 @@ async def get_my_absence_balances(
 ):
     """Récupère les soldes de congés calculés pour l'utilisateur connecté."""
     try:
-        balances = queries.get_my_absence_balances(str(current_user.id))
+        employee_id = _resolve_employee_id_for_current_user(current_user)
+        balances = queries.get_my_absence_balances(employee_id)
         return AbsenceBalancesResponse(balances=balances)
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -453,7 +530,8 @@ async def get_my_monthly_calendar(
 ):
     """Récupère le calendrier planifié pour un mois donné pour l'utilisateur connecté."""
     try:
-        days = queries.get_my_monthly_calendar(str(current_user.id), year, month)
+        employee_id = _resolve_employee_id_for_current_user(current_user)
+        days = queries.get_my_monthly_calendar(employee_id, year, month)
         return MonthlyCalendarResponse(days=days)
     except Exception:
         traceback.print_exc()
@@ -469,7 +547,8 @@ async def get_my_absences_history(
 ):
     """Récupère l'historique des demandes d'absence pour l'utilisateur connecté avec URLs des justificatifs."""
     try:
-        return queries.get_my_absences_history(str(current_user.id))
+        employee_id = _resolve_employee_id_for_current_user(current_user)
+        return queries.get_my_absences_history(employee_id)
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(
@@ -486,7 +565,8 @@ async def get_my_absences_page_data(
 ):
     """Récupère toutes les données pour la page absences (soldes, calendrier, historique)."""
     try:
-        data = queries.get_my_absences_page_data(str(current_user.id), year, month)
+        employee_id = _resolve_employee_id_for_current_user(current_user)
+        data = queries.get_my_absences_page_data(employee_id, year, month)
         return AbsencePageData(**data)
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -618,7 +698,10 @@ async def get_absence_request_detail_for_user(
 ):
     """Détail d'une absence (collaborateur) avec statut attestation IJSS."""
     try:
-        return queries.get_absence_request_detail(str(current_user.id), absence_id)
+        company_id = _require_active_company_absences(current_user)
+        return queries.get_absence_request_detail(
+            str(current_user.id), str(company_id), absence_id
+        )
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except PermissionError as e:

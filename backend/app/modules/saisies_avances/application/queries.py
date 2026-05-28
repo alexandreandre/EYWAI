@@ -9,6 +9,40 @@ from decimal import Decimal
 from typing import Any, List, Optional
 
 from . import service
+from .dto import NotFoundError
+
+
+def resolve_employee_id_for_advance_account(
+    user_id: str, company_id: str | None
+) -> str | None:
+    """Résout employees.id pour un compte collaborateur (user_id, id, e-mail)."""
+    if not company_id:
+        return None
+    from app.modules.employees.infrastructure.queries import (
+        resolve_employee_id_for_user_account,
+    )
+
+    return resolve_employee_id_for_user_account(str(user_id), str(company_id))
+
+
+def get_my_salary_advances_for_user_account(
+    user_id: str, company_id: str | None
+) -> List[Any]:
+    """Avances du collaborateur lié au compte auth."""
+    employee_id = resolve_employee_id_for_advance_account(user_id, company_id)
+    if not employee_id:
+        return []
+    return get_my_salary_advances(employee_id)
+
+
+def get_my_advance_available_for_user_account(
+    user_id: str, company_id: str | None
+) -> Any:
+    """Montant disponible pour le collaborateur lié au compte auth."""
+    employee_id = resolve_employee_id_for_advance_account(user_id, company_id)
+    if not employee_id:
+        raise NotFoundError("Profil collaborateur sans employé associé.")
+    return get_my_advance_available(employee_id)
 
 
 def get_salary_seizures(

@@ -167,6 +167,24 @@ class TestGetMeetingParticipants:
         repo.get_participants.assert_called_once_with("mtg-1")
 
 
+class TestIsMeetingParticipant:
+    """is_meeting_participant."""
+
+    def test_true_when_employee_in_participants(self):
+        p1 = MagicMock(employee_id="emp-1")
+        p2 = MagicMock(employee_id="emp-2")
+        repo = MagicMock()
+        repo.get_participants.return_value = [p1, p2]
+        with patch.object(queries, "meeting_repository", repo):
+            assert queries.is_meeting_participant("mtg-1", "emp-2") is True
+
+    def test_false_when_employee_not_in_participants(self):
+        repo = MagicMock()
+        repo.get_participants.return_value = [MagicMock(employee_id="emp-1")]
+        with patch.object(queries, "meeting_repository", repo):
+            assert queries.is_meeting_participant("mtg-1", "emp-99") is False
+
+
 # --- get_recording_status ---
 
 

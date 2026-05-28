@@ -1,6 +1,7 @@
 // frontend/src/pages/employee/AnnualReviews.tsx
 // Page employé : Liste de tous les entretiens
 
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +18,41 @@ import { getMyAnnualReviews, INTERVIEW_TYPE_LABELS } from "@/api/annualReviews";
 import type { AnnualReview, InterviewType } from "@/api/annualReviews";
 import { Loader2, MessageSquare, AlertCircle, ChevronRight, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  type ReviewFilter,
+  reviewNeedsAction,
+  sortAndFilterReviews,
+} from "@/lib/employeeFormationUtils";
+import { cn } from "@/lib/utils";
+import {
+  EmployeePageHeader,
+  EmployeePageShell,
+} from "@/components/employee/EmployeePageHeader";
+
+const ANNUAL_REVIEWS_PAGE_HEADER = (
+  <EmployeePageHeader
+    title="Mes Entretiens"
+    description="Retrouvez tous vos entretiens et suivez leur avancement"
+  />
+);
+
+function ReviewsPageWrap({
+  embedded,
+  children,
+}: {
+  embedded: boolean;
+  children: ReactNode;
+}) {
+  if (embedded) {
+    return <div className="space-y-3">{children}</div>;
+  }
+  return (
+    <EmployeePageShell>
+      {ANNUAL_REVIEWS_PAGE_HEADER}
+      {children}
+    </EmployeePageShell>
+  );
+}
 
 function formatDate(value: string | null): string {
   if (!value) return "—";
@@ -43,6 +79,7 @@ export type EmployeeAnnualReviewsProps = {
 
 export default function EmployeeAnnualReviews({ embedded = false }: EmployeeAnnualReviewsProps) {
   const navigate = useNavigate();
+  const [filter, setFilter] = useState<ReviewFilter>("all");
 
   const {
     data: reviews = [],
@@ -57,6 +94,11 @@ export default function EmployeeAnnualReviews({ embedded = false }: EmployeeAnnu
       return res.data;
     },
   });
+
+  const displayedReviews = useMemo(
+    () => sortAndFilterReviews(reviews, embedded ? filter : "all"),
+    [reviews, filter, embedded],
+  );
 
   const handleRowClick = (reviewId: string) => {
     navigate(`/annual-reviews/${reviewId}`);
@@ -73,15 +115,7 @@ export default function EmployeeAnnualReviews({ embedded = false }: EmployeeAnnu
 
   if (isLoading) {
     return (
-      <div className={embedded ? "space-y-3" : "space-y-6"}>
-        {!embedded && (
-          <div>
-            <h1 className="text-3xl font-bold">Mes Entretiens</h1>
-            <p className="text-muted-foreground mt-2">
-              Retrouvez tous vos entretiens et suivez leur avancement
-            </p>
-          </div>
-        )}
+      <ReviewsPageWrap embedded={embedded}>
         <Card>
           <CardContent className="pt-6">
             <Table>
@@ -109,7 +143,7 @@ export default function EmployeeAnnualReviews({ embedded = false }: EmployeeAnnu
             </Table>
           </CardContent>
         </Card>
-      </div>
+      </ReviewsPageWrap>
     );
   }
 
@@ -118,15 +152,7 @@ export default function EmployeeAnnualReviews({ embedded = false }: EmployeeAnnu
       (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
       "Une erreur est survenue lors du chargement";
     return (
-      <div className={embedded ? "space-y-3" : "space-y-6"}>
-        {!embedded && (
-          <div>
-            <h1 className="text-3xl font-bold">Mes Entretiens</h1>
-            <p className="text-muted-foreground mt-2">
-              Retrouvez tous vos entretiens et suivez leur avancement
-            </p>
-          </div>
-        )}
+      <ReviewsPageWrap embedded={embedded}>
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3 rounded-md border border-destructive/20 bg-destructive/10 p-4 text-destructive">
@@ -141,18 +167,36 @@ export default function EmployeeAnnualReviews({ embedded = false }: EmployeeAnnu
             </div>
           </CardContent>
         </Card>
-      </div>
+      </ReviewsPageWrap>
     );
   }
 
   return (
-    <div className={embedded ? "space-y-3" : "space-y-6"}>
-      {!embedded && (
-        <div>
-          <h1 className="text-3xl font-bold">Mes Entretiens</h1>
-          <p className="text-muted-foreground mt-2">
-            Retrouvez tous vos entretiens et suivez leur avancement
+    <ReviewsPageWrap embedded={embedded}>
+      {embedded && reviews.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Cliquez sur un entretien pour y répondre ou consulter le détail.
           </p>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["all", "Tous"],
+                ["action", "À traiter"],
+                ["closed", "Clôturés"],
+              ] as const
+            ).map(([value, label]) => (
+              <Button
+                key={value}
+                type="button"
+                size="sm"
+                variant={filter === value ? "default" : "outline"}
+                onClick={() => setFilter(value)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -176,6 +220,11 @@ export default function EmployeeAnnualReviews({ embedded = false }: EmployeeAnnu
             </CardHeader>
           )}
           <CardContent className={embedded ? "pt-4" : ""}>
+            {embedded && filter !== "all" && displayedReviews.length === 0 && (
+              <p className="mb-4 text-center text-sm text-muted-foreground">
+                Aucun entretien dans cette catégorie.
+              </p>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
@@ -187,10 +236,13 @@ export default function EmployeeAnnualReviews({ embedded = false }: EmployeeAnnu
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {reviews.map((review: AnnualReview) => (
+                {displayedReviews.map((review: AnnualReview) => (
                   <TableRow
                     key={review.id}
-                    className="cursor-pointer transition-colors hover:bg-muted/50"
+                    className={cn(
+                      "cursor-pointer transition-colors hover:bg-muted/50",
+                      reviewNeedsAction(review.status) && "bg-warning/10",
+                    )}
                     onClick={() => handleRowClick(review.id)}
                     role="button"
                     tabIndex={0}
@@ -234,6 +286,6 @@ export default function EmployeeAnnualReviews({ embedded = false }: EmployeeAnnu
           </CardContent>
         </Card>
       )}
-    </div>
+    </ReviewsPageWrap>
   );
 }

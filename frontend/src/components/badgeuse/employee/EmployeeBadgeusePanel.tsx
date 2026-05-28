@@ -5,6 +5,10 @@ import {
   getMyBadgeuseStatusToday,
   toggleMyBadge,
 } from "@/api/badgeuse";
+import {
+  EmployeePageHeader,
+  employeePageClassName,
+} from "@/components/employee/EmployeePageHeader";
 import { BadgeQrDisplay } from "@/components/badgeuse/BadgeQrDisplay";
 import { BadgeuseDayTimeline } from "@/components/badgeuse/employee/BadgeuseDayTimeline";
 import { formatSecondsToHoursMinutes } from "@/lib/badgeuseFormat";
@@ -19,6 +23,10 @@ import {
 import { cn } from "@/lib/utils";
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
+
+const PAGE_ROOT = employeePageClassName;
+/** Cartes centrées ; le titre reste aligné à gauche sur toute la largeur du main */
+const CONTENT_COLUMN = "mx-auto w-full max-w-3xl space-y-4";
 
 export function EmployeeBadgeusePanel() {
   const queryClient = useQueryClient();
@@ -48,22 +56,48 @@ export function EmployeeBadgeusePanel() {
     },
   });
 
+  const pageHeader = (description?: string) => (
+    <EmployeePageHeader
+      title="Ma badgeuse"
+      icon={<ScanLine />}
+      description={description}
+    />
+  );
+
   if (isLoading) {
-    return <p className="text-sm text-muted-foreground">Chargement de la badgeuse…</p>;
+    return (
+      <div className={PAGE_ROOT}>
+        {pageHeader()}
+        <div className={CONTENT_COLUMN}>
+          <p className="text-sm text-muted-foreground">Chargement de la badgeuse…</p>
+        </div>
+      </div>
+    );
   }
 
   if (isError || !data) {
-    return <p className="text-sm text-red-600">Impossible de charger la badgeuse.</p>;
+    return (
+      <div className={PAGE_ROOT}>
+        {pageHeader()}
+        <div className={CONTENT_COLUMN}>
+          <p className="text-sm text-red-600">Impossible de charger la badgeuse.</p>
+        </div>
+      </div>
+    );
   }
 
   if (!data.is_eligible_for_badgeuse) {
     return (
-      <Card className="p-6 space-y-2">
-        <h1 className="text-xl font-semibold">Ma badgeuse</h1>
-        <p className="text-sm text-muted-foreground">
-          {data.reason || "La badgeuse n'est pas applicable à votre profil."}
-        </p>
-      </Card>
+      <div className={PAGE_ROOT}>
+        {pageHeader('Badgeage et suivi du temps de présence')}
+        <div className={CONTENT_COLUMN}>
+          <Card className="p-6">
+            <p className="text-sm text-muted-foreground">
+              {data.reason || "La badgeuse n'est pas applicable à votre profil."}
+            </p>
+          </Card>
+        </div>
+      </div>
     );
   }
 
@@ -72,26 +106,25 @@ export function EmployeeBadgeusePanel() {
   const showToggle = isToday && (data.allow_self_toggle !== false);
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight flex items-center gap-2">
-            <ScanLine className="h-5 w-5 text-primary" />
-            Ma badgeuse
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">{data.status_label}</p>
-        </div>
-        <div className="flex flex-col items-end gap-1">
-          <span className="text-xs text-muted-foreground">Date</span>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="border rounded-md px-2 py-1 text-xs"
-          />
-        </div>
-      </div>
+    <div className={PAGE_ROOT}>
+      <EmployeePageHeader
+        title="Ma badgeuse"
+        icon={<ScanLine />}
+        description={data.status_label}
+        actions={
+          <div className="flex flex-col items-start gap-1 sm:items-end">
+            <span className="text-xs font-medium text-muted-foreground">Date</span>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="rounded-md border bg-background px-2 py-1.5 text-sm"
+            />
+          </div>
+        }
+      />
 
+      <div className={CONTENT_COLUMN}>
       {data.anomalies && data.anomalies.length > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <p className="font-medium">Anomalie détectée</p>
@@ -136,6 +169,7 @@ export function EmployeeBadgeusePanel() {
                 displayName={data.employee_display_name}
                 username={data.badge_username}
                 size={180}
+                allowDownload
               />
               <DialogTrigger asChild>
                 <Button
@@ -155,6 +189,7 @@ export function EmployeeBadgeusePanel() {
                 displayName={data.employee_display_name}
                 username={data.badge_username}
                 size={280}
+                allowDownload
               />
             </DialogContent>
           </Dialog>
@@ -191,6 +226,7 @@ export function EmployeeBadgeusePanel() {
       )}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
+      </div>
     </div>
   );
 }

@@ -208,25 +208,15 @@ export async function createReplacement(
 
 /** Liste des salariés actifs (entreprise active) pour la grille planning. */
 export async function getEmployeesForPlanning(): Promise<EmployeeForPlanning[]> {
-  const { data } = await apiClient.get<
-    Array<
-      EmployeeForPlanning & {
-        employment_status?: string | null;
-      }
-    >
-  >('/api/employees', {
-    params: { status: 'active' },
-  });
-  const rows = data ?? [];
-  const isActive = (employment_status: string | null | undefined) => {
-    if (employment_status === undefined || employment_status === null) {
-      return true;
-    }
-    const s = String(employment_status).toLowerCase();
-    return s === 'actif' || s === 'active';
-  };
+  const { fetchEmployeesSummary } = await import('@/api/employees');
+  const rows = await fetchEmployeesSummary('active');
   return rows
-    .filter((r) => isActive(r.employment_status))
+    .filter((r) => {
+      const status = r.employment_status;
+      if (status === undefined || status === null) return true;
+      const s = String(status).toLowerCase();
+      return s === 'actif' || s === 'active';
+    })
     .map((r) => ({
       id: String(r.id),
       first_name: r.first_name ?? '',

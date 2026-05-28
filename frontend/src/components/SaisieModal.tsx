@@ -99,7 +99,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [employeePopoverOpen, setEmployeePopoverOpen] = useState(false);
 
-  const canSaveToCatalogue = user?.role === 'admin' || user?.role === 'rh' || user?.role === 'super_admin';
+  const canSaveToCatalogue = user?.role === 'admin' || user?.role === 'rh' || user?.role === 'admin';
 
   useEffect(() => {
     // Charger les primes depuis le catalogue (ancien système)

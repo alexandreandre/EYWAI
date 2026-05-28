@@ -144,6 +144,18 @@ class TestAccessControlUserPermissions:
         else:
             assert response.status_code == 401
 
+    def test_put_without_auth_returns_401(self, client: TestClient):
+        """PUT permissions sans token → 401."""
+        response = client.put(
+            "/api/access-control/users/00000000-0000-0000-0000-000000000001/permissions",
+            json={
+                "user_id": "00000000-0000-0000-0000-000000000001",
+                "company_id": "00000000-0000-0000-0000-000000000002",
+                "permission_ids": [],
+            },
+        )
+        assert response.status_code == 401
+
 
 class TestAccessControlRoleTemplates:
     """GET /api/access-control/role-templates."""

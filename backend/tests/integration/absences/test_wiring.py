@@ -139,6 +139,25 @@ class TestAbsencesCreateRequestWiring:
             "jours_payes": None,
             "created_at": datetime(2025, 6, 1, 9, 0, 0),
         }
+        from app.core.security import get_current_user
+        from app.main import app
+        from app.modules.users.schemas.responses import CompanyAccess, User
+
+        def _collab_user():
+            return User(
+                id="user-non-rh-absences-test",
+                email="collab@absences.test",
+                accessible_companies=[
+                    CompanyAccess(
+                        company_id=TEST_COMPANY_ID,
+                        company_name="Test Co",
+                        role="collaborateur",
+                        is_primary=True,
+                    )
+                ],
+                active_company_id=TEST_COMPANY_ID,
+            )
+
         with patch(
             "app.modules.absences.api.router.commands.create_absence_request"
         ) as create_cmd, patch(
@@ -147,16 +166,26 @@ class TestAbsencesCreateRequestWiring:
         ), patch(
             "app.modules.absences.api.router.absence_repository.update",
             side_effect=lambda rid, payload: {**created, **payload},
+        ), patch(
+            "app.modules.absences.api.router.resolve_employee_id_for_user",
+            return_value="emp-1",
+        ), patch(
+            "app.modules.absences.api.router._enrich_single_absence_row",
+            side_effect=lambda row: row,
         ):
             create_cmd.return_value = created
-            response = client.post(
-                "/api/absences/requests",
-                json={
-                    "employee_id": "emp-1",
-                    "type": "conge_paye",
-                    "selected_days": ["2025-06-10"],
-                },
-            )
+            app.dependency_overrides[get_current_user] = _collab_user
+            try:
+                response = client.post(
+                    "/api/absences/requests",
+                    json={
+                        "employee_id": "emp-1",
+                        "type": "conge_paye",
+                        "selected_days": ["2025-06-10"],
+                    },
+                )
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
             assert response.status_code == 201
             data = response.json()
             assert data["id"] == "created-1"

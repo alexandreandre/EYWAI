@@ -1,424 +1,555 @@
-// src/pages/employee/Dashboard.tsx 
-
-import { log } from '@/lib/logger';
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, CalendarDays, Receipt, ArrowRight, Wallet, TrendingUp, Hourglass, CircleX, Loader2, Info, Euro, CheckCircle } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { Calendar } from '@/components/ui/calendar'; // Renommé ShadCalendar en Calendar
-import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/components/ui/use-toast';
-import apiClient from '@/api/apiClient';
-import { DayPickerSingleProps } from 'react-day-picker'; // Pour typer les modifiers
 import { fr } from 'date-fns/locale';
-import type * as absencesApi from '@/api/absences'; // Import types
+import {
+  CalendarDays,
+  CheckCircle,
+  CircleX,
+  Clock,
+  Euro,
+  FileText,
+  GraduationCap,
+  Hourglass,
+  Info,
+  Receipt,
+  ScanLine,
+  TrendingUp,
+  User,
+  Wallet,
+} from 'lucide-react';
+import type { AbsenceRequest } from '@/api/absences';
+import {
+  EmployeePageHeader,
+  EmployeePageShell,
+} from '@/components/employee/EmployeePageHeader';
 import { PendingSignaturesWidget } from '@/components/dashboard/PendingSignaturesWidget';
+import { EmployeeBadgeuseDashboardCard } from '@/components/dashboard/EmployeeBadgeuseDashboardCard';
+import { EmployeeCseDashboardCard } from '@/components/employee-cse/EmployeeCseDashboardCard';
+import { EmployeeAbsenceBalanceRow } from '@/components/employee-absences/EmployeeAbsenceBalanceRow';
+import { EmployeeDashboardSkeleton } from '@/components/skeletons/EmployeeDashboardSkeleton';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  useEmployeeAbsencesPageQuery,
+  useEmployeeCumulsQuery,
+  useEmployeeExpensesQuery,
+  useEmployeePayslipsQuery,
+  useEmployeeProfileQuery,
+} from '@/hooks/queries/useEmployeeDashboardQueries';
+import {
+  ABSENCE_CALENDAR_MODIFIERS_CLASS_NAMES,
+  buildAbsenceCalendarModifiers,
+  CALENDAR_LEGEND,
+  formatCurrency,
+  formatCumulsMonthLabel,
+  formatMonthYear,
+  getNextValidatedAbsenceDate,
+  pickDisplayPayslip,
+} from '@/lib/employeeDashboardUtils';
+import { cn } from '@/lib/utils';
 
-// --- Interfaces (simplifiées pour le dashboard) ---
-interface PayslipInfo {
-  id: string; month: number; year: number; name: string; url: string; net_a_payer?: number | null;
+function ExpenseStatusLink({
+  to,
+  count,
+  label,
+  icon: Icon,
+  iconClassName,
+  subdued,
+}: {
+  to: string;
+  count: number;
+  label: string;
+  icon: typeof Hourglass;
+  iconClassName: string;
+  subdued?: boolean;
+}) {
+  return (
+    <Link
+      to={to}
+      className={cn(
+        'flex flex-1 items-center gap-2 rounded-md p-3 text-center transition-colors hover:bg-muted justify-center',
+        subdued && 'opacity-70'
+      )}
+    >
+      <Icon className={cn('h-5 w-5 shrink-0', iconClassName)} />
+      <div>
+        <p className="text-xl font-bold">{count}</p>
+        <p className="text-xs text-muted-foreground">{label}</p>
+      </div>
+    </Link>
+  );
 }
-interface EmployeeSalaryInfo {
-  salaire_de_base?: { valeur?: number } | null;
-  job_title?: string | null;
-  hire_date?: string | null;
-}
-interface ExpenseInfo {
-  id: string; status: 'pending' | 'validated' | 'rejected'; date: string; amount: number; type: string;
-}
-interface AbsenceBalance { type: string; total_allocated: number; taken: number; remaining: number; }
-interface AbsenceRequest { id: string; type: string; selected_days: string[]; status: 'pending' | 'validated' | 'rejected'; employee: { balances: AbsenceBalance[] }; }
-interface CumulsData {
-  periode?: { annee_en_cours?: number; dernier_mois_calcule?: number };
-  cumuls?: { brut_total?: number; net_imposable?: number };
-}
-
-// --- Fonctions Utilitaires ---
-const formatCurrency = (amount: number | undefined | null): string => {
-    if (amount == null || isNaN(amount)) return 'N/A';
-    return amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
-};
-const formatMonthYear = (month: number, year: number) => {
-  return new Date(year, month - 1).toLocaleString('fr-FR', { month: 'long', year: 'numeric' });
-};
-const formatDate = (dateString: string | undefined | null) => {
-    if (!dateString) return 'N/A';
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return 'N/A';
-      return date.toLocaleDateString('fr-FR');
-    } catch (e) { return 'N/A'; }
-};
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
-  const { toast } = useToast();
+  const userId = user?.id;
+  const [currentMonth, setCurrentMonth] = useState(() => new Date());
 
-  log.debug('DEBUG: [Render] User from useAuth:', user);
+  const calendarYear = currentMonth.getFullYear();
+  const calendarMonth = currentMonth.getMonth() + 1;
 
-  // --- États ---
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [latestPayslip, setLatestPayslip] = useState<PayslipInfo | null>(null);
-  const [pendingExpensesCount, setPendingExpensesCount] = useState(0);
-  const [rejectedExpensesCount, setRejectedExpensesCount] = useState(0);
-  const [validatedExpensesCount, setValidatedExpensesCount] = useState(0);
-  const [leaveBalances, setLeaveBalances] = useState<AbsenceBalance[]>([]);
-  const [upcomingAbsences, setUpcomingAbsences] = useState<Date[]>([]); // Dates validées
-  const [cumuls, setCumuls] = useState<CumulsData | null>(null);
-  const [employeeInfo, setEmployeeInfo] = useState<EmployeeSalaryInfo | null>(null);
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [calendarDays, setCalendarDays] = useState<absencesApi.CalendarDay[]>([]);
+  const payslipsQuery = useEmployeePayslipsQuery(userId);
+  const expensesQuery = useEmployeeExpensesQuery(userId);
+  const absencesQuery = useEmployeeAbsencesPageQuery(
+    userId,
+    calendarYear,
+    calendarMonth
+  );
+  const cumulsQuery = useEmployeeCumulsQuery(userId);
+  const profileQuery = useEmployeeProfileQuery(userId);
 
-  // --- Logique de fetch séparée pour le calendrier ---
-  const fetchCalendarData = async (date: Date) => {
-    try {
-      const year = date.getFullYear();
-      const month = date.getMonth() + 1;
-      // On ne récupère que les `calendar_days` pour le mois donné
-      const response = await apiClient.get<absencesApi.AbsencePageData>(`/api/absences/employees/me/page-data?year=${year}&month=${month}`);
-      if (response.data?.calendar_days) {
-        setCalendarDays(response.data.calendar_days);
-        log.debug(`DEBUG: [Calendar] Fetched calendar data for ${month}/${year}`);
-      }
-    } catch (error) {
-      log.error("DEBUG: [Calendar] Failed to fetch calendar data.", error);
-      // On ne met pas d'erreur globale pour ne pas perturber le reste du dashboard
-      setCalendarDays([]); // On vide pour que la logique de fallback s'applique
-    }
-  };
+  const initialAbsencesQuery = useEmployeeAbsencesPageQuery(
+    userId,
+    new Date().getFullYear(),
+    new Date().getMonth() + 1
+  );
 
-  useEffect(() => {
-    if (user?.id) {
-      const fetchDashboardData = async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-          // Utiliser les URLs correctes et AbsencePageData
-          const results = await Promise.allSettled([
-            apiClient.get<PayslipInfo[]>(`/api/me/payslips`),
-            apiClient.get<ExpenseInfo[]>(`/api/expenses/me`), // ✅ URL Corrigée
-            // ✅ Utiliser la route "tout-en-un" pour les absences
-            apiClient.get<absencesApi.AbsencePageData>(`/api/absences/employees/me/page-data?year=${new Date().getFullYear()}&month=${new Date().getMonth() + 1}`), // Ajout params year/month même si non utilisés par soldes/historique
-            apiClient.get<CumulsData>('/api/me/current-cumuls'),
-            apiClient.get<EmployeeSalaryInfo>(`/api/employees/${user.id}`),
-          ]);
+  const isInitialLoading =
+    payslipsQuery.isLoading ||
+    expensesQuery.isLoading ||
+    initialAbsencesQuery.isLoading ||
+    profileQuery.isLoading;
 
-          let fetchError = false;
+  const partialError =
+    payslipsQuery.isError ||
+    expensesQuery.isError ||
+    initialAbsencesQuery.isError ||
+    profileQuery.isError ||
+    cumulsQuery.isError;
 
-          // 1. Bulletins -> Bulletin du mois précédent (M-1)
-          log.debug("DEBUG: Processing Payslips...");
-          if (results[0].status === 'fulfilled') {
-             const payslipsData = results[0].value.data || [];
-             if (payslipsData.length > 0) {
-                 // Calculer M-1 (mois précédent)
-                 const today = new Date();
-                 const previousMonth = today.getMonth() === 0 ? 12 : today.getMonth(); // getMonth() returns 0-11
-                 const previousYear = today.getMonth() === 0 ? today.getFullYear() - 1 : today.getFullYear();
+  const displayPayslip = useMemo(
+    () => pickDisplayPayslip(payslipsQuery.data ?? []),
+    [payslipsQuery.data]
+  );
 
-                 log.debug(`DEBUG: [Payslips] Looking for M-1: ${previousMonth}/${previousYear}`);
+  const expenses = expensesQuery.data ?? [];
+  const pendingExpensesCount = expenses.filter((e) => e.status === 'pending').length;
+  const rejectedExpensesCount = expenses.filter(
+    (e) => e.status === 'rejected'
+  ).length;
+  const validatedExpensesCount = expenses.filter(
+    (e) => e.status === 'validated'
+  ).length;
 
-                 // Chercher le bulletin du mois précédent
-                 const m1Payslip = payslipsData.find(p =>
-                   p.month === previousMonth && p.year === previousYear
-                 );
+  const absencePage = absencesQuery.data ?? initialAbsencesQuery.data;
+  const leaveBalances =
+    initialAbsencesQuery.data?.balances ?? absencePage?.balances ?? [];
+  const calendarDays = absencePage?.calendar_days ?? [];
+  const absenceHistory: AbsenceRequest[] =
+    initialAbsencesQuery.data?.history ?? absencePage?.history ?? [];
 
-                 if (m1Payslip) {
-                   log.debug(`DEBUG: [Payslips] Found M-1 payslip: ${m1Payslip.month}/${m1Payslip.year}`);
-                   setLatestPayslip(m1Payslip);
-                 } else {
-                   log.debug("DEBUG: [Payslips] No M-1 payslip found. Setting to null.");
-                   setLatestPayslip(null);
-                 }
-             } else { setLatestPayslip(null); log.debug("DEBUG: [Payslips] Success. No payslips found."); }
-          } else { log.error("DEBUG: [Payslips] API call rejected.", results[0].reason); fetchError = true; }
+  const pendingAbsences = absenceHistory.filter((a) => a.status === 'pending');
+  const cumuls = cumulsQuery.data;
+  const employeeInfo = profileQuery.data;
 
-          // 2. Notes de frais -> Compter en attente / rejetées
-          log.debug("DEBUG: Processing Expenses...");
-          if (results[1].status === 'fulfilled') {
-            const expenses = results[1].value.data || [];
-            setPendingExpensesCount(expenses.filter(e => e.status === 'pending').length);
-            setRejectedExpensesCount(expenses.filter(e => e.status === 'rejected').length);
-            setValidatedExpensesCount(expenses.filter(e => e.status === 'validated').length);
-          } else { log.error("DEBUG: [Expenses] API call rejected.", results[1].reason); fetchError = true; }
+  const nextAbsenceDate = useMemo(
+    () => getNextValidatedAbsenceDate(absenceHistory),
+    [absenceHistory]
+  );
 
-          log.debug("DEBUG: Processing Absences...");
-          if (results[2].status === 'fulfilled') {
-            const absenceData = results[2].value.data;
-            if (absenceData?.balances) {
-                setLeaveBalances(absenceData.balances);
-            } else { setLeaveBalances([]); }
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
 
-            // ✅ Store calendarDays for the displayed month
-            if (absenceData?.calendar_days) {
-                setCalendarDays(absenceData.calendar_days);
-            } else { setCalendarDays([]); }
+  const calendarModifiers = useMemo(
+    () =>
+      buildAbsenceCalendarModifiers(
+        calendarDays,
+        currentMonth,
+        today,
+        nextAbsenceDate
+      ),
+    [calendarDays, currentMonth, nextAbsenceDate, today]
+  );
 
-            // Extract validated dates from HISTORY (all validated requests) for modifiers
-            const validatedDates = (absenceData?.history || [])
-              .filter(a => a.status === 'validated')
-              .flatMap(a => a.selected_days || [])
-              .map(d => new Date(d));
-            // Note: We don't filter by future here, the modifier logic handles display month
-            setUpcomingAbsences(validatedDates); // Renaming state might be good, but keep for now
+  const cumulsMonthLabel = formatCumulsMonthLabel(
+    cumuls?.periode?.dernier_mois_calcule
+  );
+  const payslipHref = displayPayslip?.payslip.id
+    ? `/employee/payslips/${displayPayslip.payslip.id}`
+    : '/payslips';
 
-          } else {
-            log.error("DEBUG: [Absences] API call rejected.", results[2].reason);
-            setLeaveBalances([]);
-            setCalendarDays([]);
-            setUpcomingAbsences([]);
-          }
+  const payslipPeriodLabel = displayPayslip
+    ? displayPayslip.label === 'm1'
+      ? `${formatMonthYear(displayPayslip.payslip.month, displayPayslip.payslip.year)} (M-1)`
+      : `Dernier bulletin — ${formatMonthYear(displayPayslip.payslip.month, displayPayslip.payslip.year)}`
+    : 'Aucun bulletin disponible';
 
-          // 4. Cumuls
-          log.debug("DEBUG: Processing Cumuls...");
-          const cumulsResultIndex = 3;
-          if (results[cumulsResultIndex].status === 'fulfilled') {
-            const cumulsData = results[cumulsResultIndex].value.data;
-            if (cumulsData && (cumulsData.periode || cumulsData.cumuls)) {
-                setCumuls(cumulsData);
-            } else { setCumuls(null); log.debug("DEBUG: [Cumuls] Success. No cumuls found or data empty."); }
-          } else { log.error("DEBUG: [Cumuls] API call rejected.", results[cumulsResultIndex].reason); setCumuls(null); /* fetchError = true; */ } // Erreur non bloquante ?
+  const showExpensesEmptyState =
+    !isInitialLoading &&
+    pendingExpensesCount === 0 &&
+    rejectedExpensesCount === 0;
 
-          // 5. Infos Employé
-          log.debug("DEBUG: Processing Employee Info...");
-           const employeeInfoResultIndex = 4;
-           if (results[employeeInfoResultIndex].status === 'fulfilled') {
-            setEmployeeInfo(results[employeeInfoResultIndex].value.data);
-          } else { log.error("DEBUG: [Employee Info] API call rejected.", results[employeeInfoResultIndex].reason); fetchError = true; }
+  if (!userId) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Connectez-vous pour accéder à votre tableau de bord.
+      </p>
+    );
+  }
 
+  if (isInitialLoading) {
+    return <EmployeeDashboardSkeleton />;
+  }
 
-          if (fetchError) {
-             const errorMsg = "Certaines informations du tableau de bord n'ont pas pu être chargées.";
-             log.warn("DEBUG: [fetchDashboardData] fetchError was set to true.");
-             setError(errorMsg);
-          }
-
-        } catch (err) { /* ... (gestion erreur globale inchangée) ... */ }
-        finally { setIsLoading(false); }
-      };
-      fetchDashboardData();
-    } else { /* ... (gestion user?.id manquant inchangée) ... */ }
-  }, [user?.id, toast]); // Dépendances OK
-
-  // --- ✅ NOUVEAU : useEffect pour recharger les données du calendrier au changement de mois ---
-  useEffect(() => {
-    // On ne recharge pas au premier rendu car les données sont déjà chargées par fetchDashboardData
-    // On vérifie aussi que l'utilisateur est chargé pour éviter un appel inutile
-    if (!isLoading && user?.id) {
-      fetchCalendarData(currentMonth);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMonth, isLoading, user?.id]); // On ne veut pas fetchCalendarData dans les deps
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0); // Normalize today for comparison
-
-  const calendarLegend = {
-    aujourdhui: { label: "Aujourd'hui", color: 'border-2 border-primary' },
-    conge: { label: 'Congé / RTT', color: 'bg-blue-500', textColor: 'text-white' },
-    arret_maladie: { label: 'Arrêt maladie', color: 'bg-orange-400', textColor: 'text-white' },
-    ferie: { label: 'Jour férié', color: 'bg-green-500', textColor: 'text-white' },
-    weekend: { label: 'Weekend', color: 'bg-gray-200 dark:bg-gray-700', textColor: 'text-muted-foreground' },
-  };
-  type CalendarDayType = keyof typeof calendarLegend;
-
-  const getCalendarModifiers = () => {
-      const year = currentMonth.getFullYear();
-      const month = currentMonth.getMonth();
-
-      // Si le calendrier de la BDD est vide, on génère un calendrier par défaut avec seulement les week-ends
-      if (calendarDays.length === 0) {
-          const weekends: Date[] = [];
-          const daysInMonth = new Date(year, month + 1, 0).getDate();
-          for (let day = 1; day <= daysInMonth; day++) {
-              const date = new Date(year, month, day);
-              if (date.getDay() === 0 || date.getDay() === 6) {
-                  weekends.push(date);
-              }
-          }
-          return { weekend: weekends, aujourdhui: [today] };
-      }
-
-      // Sinon, on utilise les données de la BDD comme avant
-      const modifiersFromApi = calendarDays.reduce((acc, day) => {
-        const type = day.type as CalendarDayType;
-        if (!acc[type]) acc[type] = [];
-        acc[type].push(new Date(year, month, day.jour));
-        return acc;
-      }, {} as Record<CalendarDayType, Date[]>);
-
-      return modifiersFromApi;
-  };
-
-  const modifiers = getCalendarModifiers();
-  modifiers.aujourdhui = [today];
-
-  const modifiersClassNames = {
-    aujourdhui: 'border-2 border-primary rounded-md !bg-transparent text-primary',
-    conge: 'bg-blue-500 text-white rounded-md',
-    arret_maladie: 'bg-orange-400 text-white rounded-md',
-    ferie: 'bg-green-500 text-white rounded-md',
-    weekend: 'text-muted-foreground opacity-80',
-  };
-
-  // --- LE JSX RESTE LE MÊME que dans ma réponse précédente, ---
-  // --- mais les sections Soldes et Calendrier vont maintenant s'afficher ---
-  // --- si les données sont chargées correctement. ---
   return (
-    <div className="space-y-6">
-      {/* ... (En-tête, Affichage Erreur Globale) ... */}
-       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Bonjour, {user?.first_name || 'Utilisateur'} !</h1>
-          <p className="text-muted-foreground">Votre tableau de bord personnel.</p>
-        </div>
-      </div>
-      {error && !isLoading && (
-          <Card className="border-destructive bg-destructive/10"><CardContent className="pt-6 text-destructive text-sm font-medium flex items-center gap-2"><Info className="h-4 w-4"/> {error}</CardContent></Card>
+    <EmployeePageShell className="space-y-8">
+      <EmployeePageHeader
+        title={`Bonjour, ${user?.first_name || 'Utilisateur'} !`}
+        description={
+          employeeInfo?.job_title ?? 'Votre tableau de bord personnel.'
+        }
+        actions={
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/profile">
+              <User className="mr-2 h-4 w-4" />
+              Mon profil
+            </Link>
+          </Button>
+        }
+      />
+
+      {partialError && (
+        <Card className="border-destructive bg-destructive/10">
+          <CardContent className="flex items-center gap-2 pt-6 text-sm font-medium text-destructive">
+            <Info className="h-4 w-4 shrink-0" />
+            Certaines informations du tableau de bord n&apos;ont pas pu être
+            chargées.
+          </CardContent>
+        </Card>
       )}
 
-      <PendingSignaturesWidget mode="employee" />
+      <section className="space-y-4" aria-labelledby="dashboard-urgent-heading">
+        <h2 id="dashboard-urgent-heading" className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          À traiter
+        </h2>
+        <PendingSignaturesWidget mode="employee" />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
-          {/* --- Cartes KPI --- */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
-             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Dernier Net à Payer</CardTitle><Wallet className="h-4 w-4 text-muted-foreground" /></CardHeader>
-              <CardContent>
-                {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+        {pendingAbsences.length > 0 && (
+          <Card className="border-amber-200 bg-amber-50/80 dark:border-amber-900/50 dark:bg-amber-950/20">
+            <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+              <div className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-amber-600" />
+                <p className="text-sm font-medium">
+                  {pendingAbsences.length} demande
+                  {pendingAbsences.length > 1 ? 's' : ''} d&apos;absence en
+                  attente de validation
+                </p>
+              </div>
+              <Button variant="secondary" size="sm" asChild>
+                <Link to="/absences">Voir mes absences</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {(pendingExpensesCount > 0 || rejectedExpensesCount > 0) && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">Notes de frais à suivre</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-around">
+                <ExpenseStatusLink
+                  to="/expenses?status=pending"
+                  count={pendingExpensesCount}
+                  label="En attente"
+                  icon={Hourglass}
+                  iconClassName="text-amber-500"
+                />
+                <ExpenseStatusLink
+                  to="/expenses?status=rejected"
+                  count={rejectedExpensesCount}
+                  label="Refusée(s)"
+                  icon={CircleX}
+                  iconClassName="text-destructive"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </section>
+
+      <section className="space-y-6" aria-labelledby="dashboard-suivi-heading">
+        <h2 id="dashboard-suivi-heading" className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Suivi
+        </h2>
+
+        <EmployeeBadgeuseDashboardCard />
+
+        <EmployeeCseDashboardCard />
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="space-y-6 lg:col-span-2">
+            <div className="-mx-1 flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-4 lg:overflow-visible lg:pb-0">
+              <Card
+                className={cn(
+                  'min-w-[85%] shrink-0 snap-center transition-colors sm:min-w-[45%] lg:min-w-0',
+                  displayPayslip &&
+                    'cursor-pointer hover:border-primary/50 hover:bg-muted/30'
+                )}
+              >
+                {displayPayslip ? (
+                  <Link to={payslipHref} className="block h-full">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">
+                        Dernier net à payer
+                      </CardTitle>
+                      <Wallet className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">
+                        {formatCurrency(displayPayslip.payslip.net_a_payer)}
+                      </div>
+                      <p className="text-xs capitalize text-muted-foreground">
+                        {payslipPeriodLabel}
+                      </p>
+                    </CardContent>
+                  </Link>
+                ) : (
                   <>
-                    <div className="text-2xl font-bold">{latestPayslip?.net_a_payer ? formatCurrency(latestPayslip.net_a_payer) : 'N/A'}</div>
-                    <p className="text-xs text-muted-foreground capitalize">
-                      {latestPayslip ? `${formatMonthYear(latestPayslip.month, latestPayslip.year)} (M-1)` : 'Mois précédent (M-1)'}
-                    </p>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">
+                        Dernier net à payer
+                      </CardTitle>
+                      <Wallet className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">N/A</div>
+                      <p className="text-xs text-muted-foreground">
+                        {payslipPeriodLabel}
+                      </p>
+                    </CardContent>
                   </>
                 )}
-              </CardContent>
-            </Card>
+              </Card>
+
+              <Card className="min-w-[85%] shrink-0 snap-center sm:min-w-[45%] lg:min-w-0">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    Net imposable annuel
+                  </CardTitle>
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {formatCurrency(cumuls?.cumuls?.net_imposable)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Année{' '}
+                    {cumuls?.periode?.annee_en_cours ?? new Date().getFullYear()}
+                    {cumulsMonthLabel
+                      ? ` · Arrêté au ${cumulsMonthLabel}`
+                      : ''}
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="min-w-[85%] shrink-0 snap-center border-dashed sm:min-w-[45%] lg:min-w-0">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Salaire de base
+                  </CardTitle>
+                  <Euro className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-xl font-semibold text-muted-foreground">
+                    {formatCurrency(employeeInfo?.salaire_de_base?.valeur)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Mensuel brut</p>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    asChild
+                    className="mt-1 h-auto p-0 text-xs"
+                  >
+                    <Link to="/payslips">Voir ma rémunération →</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Net Imposable Annuel</CardTitle><TrendingUp className="h-4 w-4 text-muted-foreground" /></CardHeader>
-              <CardContent>
-                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
-                   <>
-                    <div className="text-2xl font-bold">{formatCurrency(cumuls?.cumuls?.net_imposable)}</div>
-                    <p className="text-xs text-muted-foreground">Année {cumuls?.periode?.annee_en_cours || new Date().getFullYear()}</p>
-                   </>
-                 )}
+              <CardHeader>
+                <CardTitle className="text-lg">Accès rapides</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Button
+                    asChild
+                    variant="secondary"
+                    className="h-20 flex-col gap-1 border-2 border-transparent text-sm transition-all hover:scale-[1.02] hover:border-primary"
+                  >
+                    <Link to="/absences">
+                      <CalendarDays className="mb-1 h-5 w-5" />
+                      Demander une absence
+                    </Link>
+                  </Button>
+                  <Button
+                    asChild
+                    variant="secondary"
+                    className="h-20 flex-col gap-1 border-2 border-transparent text-sm transition-all hover:scale-[1.02] hover:border-primary"
+                  >
+                    <Link to="/expenses?action=new">
+                      <Receipt className="mb-1 h-5 w-5" />
+                      Déclarer une note
+                    </Link>
+                  </Button>
+                  <Button
+                    asChild
+                    variant="secondary"
+                    className="h-20 flex-col gap-1 border-2 border-transparent text-sm transition-all hover:scale-[1.02] hover:border-primary"
+                  >
+                    <Link to="/payslips">
+                      <FileText className="mb-1 h-5 w-5" />
+                      Voir mes bulletins
+                    </Link>
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <Button asChild variant="outline" size="sm" className="h-auto flex-col gap-1 py-3 text-xs">
+                    <Link to="/employee/formation">
+                      <GraduationCap className="h-4 w-4" />
+                      Ma formation
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" size="sm" className="h-auto flex-col gap-1 py-3 text-xs">
+                    <Link to="/employee/documents">
+                      <FileText className="h-4 w-4" />
+                      Mes documents
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" size="sm" className="h-auto flex-col gap-1 py-3 text-xs">
+                    <Link to="/badgeuse">
+                      <ScanLine className="h-4 w-4" />
+                      Ma badgeuse
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" size="sm" className="h-auto flex-col gap-1 py-3 text-xs">
+                    <Link to="/calendar?view=week">
+                      <CalendarDays className="h-4 w-4" />
+                      Calendrier et planning
+                    </Link>
+                  </Button>
+                </div>
               </CardContent>
             </Card>
-             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Salaire de Base</CardTitle><Euro className="h-4 w-4 text-muted-foreground" /></CardHeader>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Mes notes de frais</CardTitle>
+              </CardHeader>
               <CardContent>
-                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
-                   <>
-                    <div className="text-2xl font-bold">{formatCurrency(employeeInfo?.salaire_de_base?.valeur)}</div>
-                    <p className="text-xs text-muted-foreground">Mensuel brut</p>
-                   </>
-                 )}
+                {showExpensesEmptyState ? (
+                  <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-6 text-center">
+                    <CheckCircle className="h-8 w-8 text-emerald-600" />
+                    <p className="text-sm font-medium">Aucune note en cours</p>
+                    <Button variant="link" size="sm" asChild>
+                      <Link to="/expenses">Voir l&apos;historique</Link>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-around">
+                    <ExpenseStatusLink
+                      to="/expenses?status=pending"
+                      count={pendingExpensesCount}
+                      label="En attente"
+                      icon={Hourglass}
+                      iconClassName="text-amber-500"
+                    />
+                    <ExpenseStatusLink
+                      to="/expenses?status=rejected"
+                      count={rejectedExpensesCount}
+                      label="Refusée(s)"
+                      icon={CircleX}
+                      iconClassName="text-destructive"
+                    />
+                    <ExpenseStatusLink
+                      to="/expenses?status=validated"
+                      count={validatedExpensesCount}
+                      label="Acceptée(s)"
+                      icon={CheckCircle}
+                      iconClassName="text-green-600"
+                      subdued
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
 
-          {/* --- Accès Rapides --- */}
-          <Card>
-              <CardHeader><CardTitle className="text-lg">Accès Rapides</CardTitle></CardHeader>
-              <CardContent className="grid gap-4 sm:grid-cols-3">
-                  <Button asChild variant="secondary" className="h-20 text-sm flex-col gap-1 border-2 border-transparent transition-all duration-200 hover:border-primary hover:scale-[1.02]">
-                      <Link to="/absences"><CalendarDays className="h-5 w-5 mb-1"/> Demander une absence</Link>
-                  </Button>
-                  <Button asChild variant="secondary" className="h-20 text-sm flex-col gap-1 border-2 border-transparent transition-all duration-200 hover:border-primary hover:scale-[1.02]">
-                      <Link to="/expenses"><Receipt className="h-5 w-5 mb-1"/> Déclarer une note</Link>
-                  </Button>
-                  <Button asChild variant="secondary" className="h-20 text-sm flex-col gap-1 border-2 border-transparent transition-all duration-200 hover:border-primary hover:scale-[1.02]">
-                      <Link to="/payslips"><FileText className="h-5 w-5 mb-1"/> Voir mes bulletins</Link>
-                  </Button>
-              </CardContent>
-          </Card>
-
-          {/* --- Statut Notes de Frais --- */}
-          <Card>
-            <CardHeader><CardTitle className="text-lg">Mes Notes de Frais</CardTitle></CardHeader>
-            <CardContent>
-               {isLoading ? ( <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Chargement...</div> ) : (
-                <div className="flex flex-col sm:flex-row gap-4 justify-around">
-                    {/* TODO: Ajuster le lien si la page Expenses gère le filtrage par status */}
-                    <Link to="/expenses" className="flex items-center gap-2 p-3 rounded-md hover:bg-muted justify-center text-center">
-                        <Hourglass className="h-5 w-5 text-amber-500"/>
-                        <div><p className="text-xl font-bold">{pendingExpensesCount}</p><p className="text-xs text-muted-foreground">En attente</p></div>
-                    </Link>
-                    <Link to="/expenses" className="flex items-center gap-2 p-3 rounded-md hover:bg-muted justify-center text-center">
-                        <CircleX className="h-5 w-5 text-destructive"/>
-                        <div><p className="text-xl font-bold">{rejectedExpensesCount}</p><p className="text-xs text-muted-foreground">Refusée(s)</p></div>
-                    </Link>
-                    <Link to="/expenses" className="flex items-center gap-2 p-3 rounded-md hover:bg-muted justify-center text-center">
-                        <CheckCircle className="h-5 w-5 text-green-600"/>
-                        <div><p className="text-xl font-bold">{validatedExpensesCount}</p><p className="text-xs text-muted-foreground">Acceptée(s)</p></div>
-                    </Link>
-                </div>
-               )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* --- Colonne Latérale (1/3) --- */}
-        <div className="space-y-6">
-          {/* --- Soldes Congés (Réactivé) --- */}
-          <Card>
-            <CardHeader><CardTitle className="text-lg">Mes Soldes</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              {isLoading ? ( <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Chargement...</div>
-              ) : leaveBalances && leaveBalances.length > 0 ? ( // Vérifie si leaveBalances existe et n'est pas vide
-                leaveBalances.map(balance => (
-                  <div key={balance.type} className="flex justify-between items-baseline">
-                    <span className="text-muted-foreground">{balance.type || 'Type inconnu'}</span>
-                    <strong className="text-2xl font-bold">
-                        {/* Gère 'N/A' pour Congé sans solde */}
-                        {typeof balance.remaining === 'number' ? `${balance.remaining.toFixed(1)} j` : balance.remaining}
-                    </strong>
-                  </div>
-                ))
-              ) : !error ? ( // N'affiche "non dispo" que s'il n'y a pas d'erreur globale
-                <p className="text-sm text-muted-foreground">Soldes non disponibles.</p>
-              ) : null }
-              {!isLoading && ( // N'affiche le bouton qu'après le chargement
-                <Button variant="link" size="sm" asChild className="p-0 h-auto text-xs mt-2">
-                      <Link to="/absences">Voir détails / Faire une demande</Link>
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Mes soldes</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {leaveBalances.length > 0 ? (
+                  leaveBalances.map((balance) => (
+                    <EmployeeAbsenceBalanceRow key={balance.type} balance={balance} />
+                  ))
+                ) : !partialError ? (
+                  <p className="text-sm text-muted-foreground">
+                    Soldes non disponibles.
+                  </p>
+                ) : null}
+                <Button variant="link" size="sm" asChild className="h-auto p-0 text-xs">
+                  <Link to="/absences">Voir détails / Faire une demande</Link>
                 </Button>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          
-          <Card className="relative">
-            <CardHeader><CardTitle className="text-lg">Mon Calendrier</CardTitle></CardHeader>
-            <CardContent className="flex flex-col items-center">
-              {isLoading && <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10 rounded-lg"><Loader2 className="h-6 w-6 animate-spin" /></div>}
-
-              <Calendar
-                mode="single"
-                month={currentMonth}
-                onMonthChange={setCurrentMonth}
-                className="rounded-md border p-0"
-                weekStartsOn={1}
-                modifiers={modifiers}
-                modifiersClassNames={modifiersClassNames}
-              />
-              {/* Légende */}
-              <div className="w-full mt-4 space-y-2 border-t pt-4">
-                {Object.entries(calendarLegend).map(([key, { label, color }]) => (
+            <Card className="relative">
+              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+                <CardTitle className="text-lg">Calendrier des congés</CardTitle>
+                <Button size="sm" asChild>
+                  <Link to="/absences">Demander une absence</Link>
+                </Button>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center">
+                {absencesQuery.isFetching && !absencesQuery.isLoading && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/50">
+                    <span className="sr-only">Chargement du calendrier</span>
+                  </div>
+                )}
+                {nextAbsenceDate && (
+                  <p className="mb-3 w-full text-center text-xs text-muted-foreground">
+                    Prochaine absence validée :{' '}
+                    <Badge variant="outline" className="ml-1 font-normal">
+                      {nextAbsenceDate.toLocaleDateString('fr-FR')}
+                    </Badge>
+                  </p>
+                )}
+                <Calendar
+                  mode="single"
+                  locale={fr}
+                  month={currentMonth}
+                  onMonthChange={setCurrentMonth}
+                  className="rounded-md border p-0"
+                  weekStartsOn={1}
+                  modifiers={calendarModifiers}
+                  modifiersClassNames={ABSENCE_CALENDAR_MODIFIERS_CLASS_NAMES}
+                />
+                <div className="mt-4 w-full space-y-2 border-t pt-4">
+                  {Object.entries(CALENDAR_LEGEND).map(([key, { label, color }]) => (
                     <div key={key} className="flex items-center text-sm">
-                        <span className={`w-3 h-3 rounded-full mr-2 ${color}`}></span>
-                        <span>{label}</span>
+                      <span
+                        className={cn('mr-2 h-3 w-3 rounded-full', color)}
+                      />
+                      <span>{label}</span>
                     </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
-    </div>
+      </section>
+    </EmployeePageShell>
   );
 }

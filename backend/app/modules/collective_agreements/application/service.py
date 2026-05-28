@@ -118,9 +118,9 @@ class CollectiveAgreementsService:
             raise _to_http(e)
 
     def create_catalog_item(
-        self, data: CatalogCreateInput, is_super_admin: bool
+        self, data: CatalogCreateInput, is_platform_admin: bool
     ) -> dict[str, Any]:
-        if not is_super_admin:
+        if not is_platform_admin:
             raise HTTPException(
                 status_code=403, detail="Accès réservé au super administrateur"
             )
@@ -140,9 +140,9 @@ class CollectiveAgreementsService:
             raise _to_http(e)
 
     def update_catalog_item(
-        self, agreement_id: str, update_dict_raw: dict[str, Any], is_super_admin: bool
+        self, agreement_id: str, update_dict_raw: dict[str, Any], is_platform_admin: bool
     ) -> Optional[dict[str, Any]]:
-        if not is_super_admin:
+        if not is_platform_admin:
             raise HTTPException(
                 status_code=403, detail="Accès réservé au super administrateur"
             )
@@ -165,8 +165,8 @@ class CollectiveAgreementsService:
         except (NotFoundError, ForbiddenError, ValidationError) as e:
             raise _to_http(e)
 
-    def delete_catalog_item(self, agreement_id: str, is_super_admin: bool) -> bool:
-        if not is_super_admin:
+    def delete_catalog_item(self, agreement_id: str, is_platform_admin: bool) -> bool:
+        if not is_platform_admin:
             raise HTTPException(
                 status_code=403, detail="Accès réservé au super administrateur"
             )
@@ -222,8 +222,8 @@ class CollectiveAgreementsService:
         except (NotFoundError, ForbiddenError, ValidationError) as e:
             raise _to_http(e)
 
-    def get_all_assignments(self, is_super_admin: bool) -> List[dict[str, Any]]:
-        if not is_super_admin:
+    def get_all_assignments(self, is_platform_admin: bool) -> List[dict[str, Any]]:
+        if not is_platform_admin:
             raise HTTPException(
                 status_code=403, detail="Accès réservé au super administrateur"
             )
@@ -329,8 +329,8 @@ Réponds à cette question en te basant sur le texte de la convention collective
         except (NotFoundError, ForbiddenError, ValidationError) as e:
             raise _to_http(e)
 
-    def refresh_text_cache(self, agreement_id: str, is_super_admin: bool) -> None:
-        if not is_super_admin:
+    def refresh_text_cache(self, agreement_id: str, is_platform_admin: bool) -> None:
+        if not is_platform_admin:
             raise HTTPException(
                 status_code=403, detail="Accès réservé au super administrateur"
             )

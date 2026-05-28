@@ -4,6 +4,7 @@ import { checkUserPermission } from "@/api/permissions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useViewOptional } from "@/contexts/ViewContext";
+import { isPlatformAdmin } from "@/lib/platformAdmin";
 
 const PAYROLL_ANALYTICS_VIEW = "payroll.analytics.view";
 
@@ -15,10 +16,10 @@ export function usePayrollAnalyticsAccess() {
 
   const companyId = activeCompany?.company_id ?? null;
   const roleInCompany = activeCompany?.role ?? user?.role;
-  const isSuperAdmin = Boolean(user?.is_super_admin);
+  const platformAdmin = isPlatformAdmin(user);
 
   const isRhSystemRole =
-    isSuperAdmin ||
+    platformAdmin ||
     roleInCompany === "admin" ||
     roleInCompany === "rh" ||
     roleInCompany === "collaborateur_rh";
@@ -50,20 +51,20 @@ export function usePayrollAnalyticsAccess() {
 
   const canView = Boolean(companyId && canViewRh && !isCollaborateurRhEmployeeView);
 
-  const isReadOnly = roleInCompany === "collaborateur_rh" && !isSuperAdmin;
+  const isReadOnly = roleInCompany === "collaborateur_rh" && !platformAdmin;
 
   return {
     user,
     companyId,
     roleInCompany,
-    isSuperAdmin,
+    isPlatformAdmin: platformAdmin,
     canView,
     isReadOnly,
-    scope: isSuperAdmin ? ("group" as const) : ("company" as const),
+    scope: platformAdmin ? ("group" as const) : ("company" as const),
     isCollaborateurRhEmployeeView,
     canGeneratePayroll:
       canView &&
       !isReadOnly &&
-      (isSuperAdmin || roleInCompany === "admin" || roleInCompany === "rh"),
+      (platformAdmin || roleInCompany === "admin" || roleInCompany === "rh"),
   };
 }

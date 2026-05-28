@@ -287,7 +287,7 @@ class TestGetMyEvenementsFamiliaux:
             "app.modules.absences.application.queries.resolve_employee_id_for_user",
             return_value=None,
         ):
-            result = queries.get_my_evenements_familiaux("user-1")
+            result = queries.get_my_evenements_familiaux("user-1", "co-1")
         assert result == []
 
     def test_returns_events_from_provider_when_employee_resolved(self):
@@ -312,7 +312,7 @@ class TestGetMyEvenementsFamiliaux:
                 "app.modules.absences.application.queries.evenement_familial_provider"
             ) as prov:
                 prov.get_events_disponibles.return_value = events
-                result = queries.get_my_evenements_familiaux("user-1")
+                result = queries.get_my_evenements_familiaux("user-1", "co-1")
         assert result == events
         prov.get_events_disponibles.assert_called_once_with("emp-1")
 

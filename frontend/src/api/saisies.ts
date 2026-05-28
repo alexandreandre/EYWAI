@@ -1,4 +1,7 @@
-// src/api/saisies.ts
+/**
+ * API « saisies » = primes et monthly-inputs (éléments variables de paie).
+ * Ne pas confondre avec `saisiesAvances.ts` (saisies sur salaire + avances sur salaire).
+ */
 import apiClient from './apiClient';
 
 

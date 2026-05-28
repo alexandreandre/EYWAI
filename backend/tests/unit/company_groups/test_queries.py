@@ -17,10 +17,10 @@ from app.modules.company_groups.application.dto import (
 MODULE_QUERIES = "app.modules.company_groups.application.queries"
 
 
-def _make_user(is_super_admin: bool = False, accessible_company_ids=None):
-    """Utilisateur mock avec is_super_admin et accessible_companies."""
+def _make_user(is_platform_admin: bool = False, accessible_company_ids=None):
+    """Utilisateur mock avec is_platform_admin et accessible_companies."""
     user = MagicMock()
-    user.is_super_admin = is_super_admin
+    user.is_platform_admin = is_platform_admin
     if accessible_company_ids is None:
         accessible_company_ids = []
     accs = [MagicMock(company_id=cid) for cid in accessible_company_ids]
@@ -33,7 +33,7 @@ class TestGetMyGroups:
 
     def test_returns_empty_when_user_has_no_accessible_companies(self):
         """Utilisateur non super_admin sans entreprises → liste vide."""
-        user = _make_user(is_super_admin=False, accessible_company_ids=[])
+        user = _make_user(is_platform_admin=False, accessible_company_ids=[])
         with (
             patch(f"{MODULE_QUERIES}.get_accessible_company_ids", return_value=[]),
             patch(f"{MODULE_QUERIES}.company_group_repository") as mock_repo,
@@ -44,7 +44,7 @@ class TestGetMyGroups:
 
     def test_returns_groups_for_accessible_companies(self):
         """Liste les groupes contenant au moins une entreprise accessible."""
-        user = _make_user(is_super_admin=False, accessible_company_ids=["c1"])
+        user = _make_user(is_platform_admin=False, accessible_company_ids=["c1"])
         mock_repo = MagicMock()
         mock_repo.list_groups_with_companies.return_value = [
             {
@@ -85,7 +85,7 @@ class TestGetMyGroups:
 
     def test_super_admin_gets_all_groups(self):
         """Super admin : company_ids=None → tous les groupes."""
-        user = _make_user(is_super_admin=True)
+        user = _make_user(is_platform_admin=True)
         mock_repo = MagicMock()
         mock_repo.list_groups_with_companies.return_value = []
         with (
@@ -104,7 +104,7 @@ class TestGetGroupDetails:
         """LookupError si le groupe n'existe pas."""
         mock_repo = MagicMock()
         mock_repo.get_by_id_with_companies.return_value = None
-        user = _make_user(is_super_admin=True)
+        user = _make_user(is_platform_admin=True)
         with patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo):
             with pytest.raises(LookupError, match="Groupe non trouvé"):
                 queries.get_group_details("g-inexistant", user)
@@ -117,7 +117,7 @@ class TestGetGroupDetails:
             "group_name": "G1",
             "companies": [{"id": "c1"}, {"id": "c2"}],
         }
-        user = _make_user(is_super_admin=False, accessible_company_ids=[])
+        user = _make_user(is_platform_admin=False, accessible_company_ids=[])
         with (
             patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo),
             patch(f"{MODULE_QUERIES}.get_accessible_company_ids", return_value=[]),
@@ -142,7 +142,7 @@ class TestGetGroupDetails:
         }
         mock_repo = MagicMock()
         mock_repo.get_by_id_with_companies.return_value = row
-        user = _make_user(is_super_admin=True)
+        user = _make_user(is_platform_admin=True)
         mapped = {**row, "companies": row["companies"]}
         with (
             patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo),
@@ -162,7 +162,7 @@ class TestGetGroupConsolidatedStats:
         """LookupError si aucune entreprise dans le groupe."""
         mock_repo = MagicMock()
         mock_repo.get_companies_for_group_stats.return_value = []
-        user = _make_user(is_super_admin=True)
+        user = _make_user(is_platform_admin=True)
         with (
             patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo),
             patch(f"{MODULE_QUERIES}.get_company_ids_for_group", return_value=[]),
@@ -174,7 +174,7 @@ class TestGetGroupConsolidatedStats:
         """PermissionError si l'utilisateur n'a accès à aucune entreprise."""
         mock_repo = MagicMock()
         mock_repo.get_companies_for_group_stats.return_value = [{"id": "c1"}]
-        user = _make_user(is_super_admin=False)
+        user = _make_user(is_platform_admin=False)
         with (
             patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo),
             patch(f"{MODULE_QUERIES}.get_company_ids_for_group", return_value=[]),
@@ -186,7 +186,7 @@ class TestGetGroupConsolidatedStats:
         """Délègue au provider et retourne son résultat."""
         mock_repo = MagicMock()
         mock_repo.get_companies_for_group_stats.return_value = [{"id": "c1"}]
-        user = _make_user(is_super_admin=True)
+        user = _make_user(is_platform_admin=True)
         dashboard_data = {"total_employees": 10, "payroll": 50000}
         with (
             patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo),
@@ -205,7 +205,7 @@ class TestGetGroupConsolidatedStats:
         """Plage multi-mois : plusieurs appels RPC puis agrégation."""
         mock_repo = MagicMock()
         mock_repo.get_companies_for_group_stats.return_value = [{"id": "c1"}]
-        user = _make_user(is_super_admin=True)
+        user = _make_user(is_platform_admin=True)
         month_a = {
             "metadata": {"reference_year": 2024, "reference_month": 1, "company_count": 1},
             "totals": {},
@@ -263,7 +263,7 @@ class TestGetGroupConsolidatedStats:
     def test_includes_comparison_block(self):
         mock_repo = MagicMock()
         mock_repo.get_companies_for_group_stats.return_value = [{"id": "c1"}]
-        user = _make_user(is_super_admin=True)
+        user = _make_user(is_platform_admin=True)
         current = {
             "metadata": {"reference_year": 2024, "reference_month": 6, "company_count": 1},
             "totals": {"total_gross_salary": 5000},
@@ -366,13 +366,13 @@ class TestGetAllGroups:
 
     def test_raises_when_not_super_admin(self):
         """PermissionError si l'utilisateur n'est pas super_admin."""
-        user = _make_user(is_super_admin=False)
+        user = _make_user(is_platform_admin=False)
         with pytest.raises(PermissionError, match="super administrateurs"):
             queries.get_all_groups(user)
 
     def test_returns_list_summary_dtos(self):
         """Retourne liste de GroupListSummaryDto avec company_count et total_employees."""
-        user = _make_user(is_super_admin=True)
+        user = _make_user(is_platform_admin=True)
         mock_repo = MagicMock()
         mock_repo.list_all_active_ordered.return_value = [
             {"id": "g1", "group_name": "G1", "description": None, "created_at": None},
@@ -399,12 +399,12 @@ class TestGetGroupCompanies:
     """Query get_group_companies (super_admin only)."""
 
     def test_raises_when_not_super_admin(self):
-        user = _make_user(is_super_admin=False)
+        user = _make_user(is_platform_admin=False)
         with pytest.raises(PermissionError, match="super administrateurs"):
             queries.get_group_companies("g1", user)
 
     def test_returns_repository_companies(self):
-        user = _make_user(is_super_admin=True)
+        user = _make_user(is_platform_admin=True)
         companies = [{"id": "c1", "company_name": "C1", "siret": "123"}]
         mock_repo = MagicMock()
         mock_repo.get_companies_by_group_id.return_value = companies
@@ -418,12 +418,12 @@ class TestGetAvailableCompanies:
     """Query get_available_companies (super_admin only)."""
 
     def test_raises_when_not_super_admin(self):
-        user = _make_user(is_super_admin=False)
+        user = _make_user(is_platform_admin=False)
         with pytest.raises(PermissionError, match="super administrateurs"):
             queries.get_available_companies(user)
 
     def test_returns_companies_without_group(self):
-        user = _make_user(is_super_admin=True)
+        user = _make_user(is_platform_admin=True)
         companies = [{"id": "c1", "company_name": "Sans groupe"}]
         mock_repo = MagicMock()
         mock_repo.get_companies_without_group.return_value = companies
@@ -436,12 +436,12 @@ class TestGetGroupUserAccesses:
     """Query get_group_user_accesses (super_admin only)."""
 
     def test_raises_when_not_super_admin(self):
-        user = _make_user(is_super_admin=False)
+        user = _make_user(is_platform_admin=False)
         with pytest.raises(PermissionError, match="super administrateurs"):
             queries.get_group_user_accesses("g1", user)
 
     def test_returns_empty_when_no_companies_in_group(self):
-        user = _make_user(is_super_admin=True)
+        user = _make_user(is_platform_admin=True)
         mock_repo = MagicMock()
         mock_repo.get_company_ids_by_group_id.return_value = []
         with patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo):
@@ -449,7 +449,7 @@ class TestGetGroupUserAccesses:
         assert result == []
 
     def test_returns_accesses_with_emails(self):
-        user = _make_user(is_super_admin=True)
+        user = _make_user(is_platform_admin=True)
         mock_repo = MagicMock()
         mock_repo.get_company_ids_by_group_id.return_value = ["c1"]
         mock_repo.get_user_accesses_for_companies.return_value = [
@@ -480,12 +480,12 @@ class TestGetDetailedUserAccesses:
     """Query get_detailed_user_accesses (super_admin only)."""
 
     def test_raises_when_not_super_admin(self):
-        user = _make_user(is_super_admin=False)
+        user = _make_user(is_platform_admin=False)
         with pytest.raises(PermissionError, match="super administrateurs"):
             queries.get_detailed_user_accesses("g1", user)
 
     def test_returns_companies_and_users_structure(self):
-        user = _make_user(is_super_admin=True)
+        user = _make_user(is_platform_admin=True)
         mock_repo = MagicMock()
         mock_repo.get_companies_by_group_id.return_value = [
             {"id": "c1", "company_name": "C1", "siret": None},

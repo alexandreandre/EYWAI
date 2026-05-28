@@ -2,6 +2,7 @@
  * Tableau de bord RH — onboardings récents (endpoint agrégé).
  */
 
+import { RhPageHeader } from '@/components/layout';
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -66,7 +67,7 @@ export function OnboardingHubPage() {
 
   if (!companyId) {
     return (
-      <div className="mx-auto max-w-lg p-6">
+      <div className="mx-auto max-w-lg">
         <Card>
           <CardHeader>
             <CardTitle>Onboarding</CardTitle>
@@ -78,24 +79,19 @@ export function OnboardingHubPage() {
   }
 
   return (
-    <div className="space-y-6 p-6 max-w-5xl mx-auto pb-12">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Onboarding</h1>
-          <p className="text-sm text-muted-foreground mt-1 max-w-2xl leading-relaxed">
-            Suivez les intégrations des collaborateurs embauchés ces{" "}
-            {hubQuery.data?.lookback_days ?? ONBOARDING_LOOKBACK_DAYS} derniers jours. Les
-            checklists sont créées automatiquement à l&apos;embauche — ouvrez-les depuis le
-            recrutement ou la fiche collaborateur.
-          </p>
-        </div>
-        <Button asChild variant="outline" size="sm" className="shrink-0">
-          <Link to="/recruitment">
-            <UserPlus className="mr-2 h-4 w-4" />
-            Recrutement
-          </Link>
-        </Button>
-      </div>
+    <div className="mx-auto max-w-5xl space-y-6 pb-12">
+      <RhPageHeader
+        title="Onboarding"
+        description={`Suivez les intégrations des collaborateurs embauchés ces ${hubQuery.data?.lookback_days ?? ONBOARDING_LOOKBACK_DAYS} derniers jours. Les checklists sont créées automatiquement à l'embauche — ouvrez-les depuis le recrutement ou la fiche collaborateur.`}
+        actions={
+          <Button asChild variant="outline" size="sm" className="shrink-0">
+            <Link to="/recruitment">
+              <UserPlus className="mr-2 h-4 w-4" />
+              Recrutement
+            </Link>
+          </Button>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>

@@ -12,30 +12,6 @@ from app.core.database import supabase
 BUCKET_SALARY_CERTIFICATES = "salary_certificates"
 
 
-def resolve_employee_id_for_user(user_id: str) -> Optional[str]:
-    """
-    Résout l'ID employé à partir de l'ID utilisateur.
-    Priorité : employees.id = user_id puis employees.user_id = user_id.
-    """
-    emp = (
-        supabase.table("employees")
-        .select("id")
-        .eq("id", user_id)
-        .maybe_single()
-        .execute()
-    )
-    if emp and emp.data:
-        return emp.data["id"]
-    emp2 = (
-        supabase.table("employees")
-        .select("id")
-        .eq("user_id", user_id)
-        .maybe_single()
-        .execute()
-    )
-    return emp2.data["id"] if emp2 and emp2.data else None
-
-
 def get_employee_hire_date(employee_id: str) -> Optional[str]:
     """Retourne hire_date (iso) pour un employé."""
     r = (

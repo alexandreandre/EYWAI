@@ -88,9 +88,10 @@ def get_payslip_details_for_user(
     if not can_view_payslip(
         detail,
         ctx.user_id,
-        ctx.is_super_admin,
+        ctx.is_platform_admin,
         ctx.has_rh_access_in_company,
         ctx.active_company_id,
+        ctx.resolved_employee_id,
     ):
         raise PayslipForbiddenError(
             "Accès refusé: vous n'avez pas les permissions pour consulter ce bulletin"
@@ -114,9 +115,10 @@ def get_payslip_history_for_user(
     if not can_view_payslip(
         meta,
         ctx.user_id,
-        ctx.is_super_admin,
+        ctx.is_platform_admin,
         ctx.has_rh_access_in_company,
         ctx.active_company_id,
+        ctx.resolved_employee_id,
     ):
         raise PayslipForbiddenError("Accès refusé")
     return get_payslip_history(payslip_id)
@@ -142,7 +144,7 @@ def edit_payslip_for_user(
         raise PayslipBadRequestError("Bulletin sans entreprise associée")
     if not can_edit_or_restore_payslip(
         meta,
-        ctx.is_super_admin,
+        ctx.is_platform_admin,
         ctx.has_rh_access_in_company,
         ctx.active_company_id,
     ):
@@ -179,7 +181,7 @@ def restore_payslip_for_user(
         raise PayslipBadRequestError("Bulletin sans entreprise associée")
     if not can_edit_or_restore_payslip(
         meta,
-        ctx.is_super_admin,
+        ctx.is_platform_admin,
         ctx.has_rh_access_in_company,
         ctx.active_company_id,
     ):

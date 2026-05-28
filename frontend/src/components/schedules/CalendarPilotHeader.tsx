@@ -14,6 +14,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { pageTitleClassName } from '@/components/layout';
 import { Calculator, Loader2 } from 'lucide-react';
 import type { GlobalOverviewKpis } from '@/lib/schedulesOverview';
 import { cn } from '@/lib/utils';
@@ -100,7 +101,7 @@ export function CalendarPilotHeader({
     <div className="-mx-6 px-6 py-3 bg-background/95 backdrop-blur border-b space-y-3 lg:-mx-8 lg:px-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          <h1 className={pageTitleClassName}>
             Calendriers — {periodLabel}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">

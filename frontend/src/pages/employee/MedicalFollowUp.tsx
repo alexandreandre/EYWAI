@@ -1,153 +1,126 @@
 // Page Collaborateur : Mon suivi médical (lecture seule)
 
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { getMyObligations, type ObligationListItem } from "@/api/medicalFollowUp";
+import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { AlertCircle, LifeBuoy, RefreshCw, Stethoscope } from 'lucide-react';
+import { EmployeeMedicalKpiBand } from '@/components/medical-follow-up/EmployeeMedicalKpiBand';
+import { EmployeeMedicalNextVisitCard } from '@/components/medical-follow-up/EmployeeMedicalNextVisitCard';
+import { EmployeeMedicalObligationsList } from '@/components/medical-follow-up/EmployeeMedicalObligationsList';
+import { EmployeeMedicalFollowUpSkeleton } from '@/components/skeletons/EmployeeMedicalFollowUpSkeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { useEmployeeMedicalObligationsQuery } from '@/hooks/queries/useEmployeeMedicalObligationsQuery';
+import { getMedicalFollowUpErrorMessage } from '@/lib/employeeMedicalFollowUp';
+import { countMedicalObligations } from '@/lib/medicalFollowUpLabels';
 import {
-  formatMedicalDate as formatDate,
-  getNextObligation,
-  STATUS_LABELS,
-  statusBadgeVariant,
-  VISIT_TYPE_LABELS,
-} from "@/lib/medicalFollowUpLabels";
-import { Loader2, Stethoscope } from "lucide-react";
+  EmployeePageHeader,
+  EmployeePageShell,
+} from '@/components/employee/EmployeePageHeader';
+
+function PageHeader({
+  onRefresh,
+  isRefreshing,
+}: {
+  onRefresh: () => void;
+  isRefreshing: boolean;
+}) {
+  return (
+    <EmployeePageHeader
+      title="Mon suivi médical"
+      description="Vos prochaines visites et l'historique de suivi médical"
+      icon={<Stethoscope />}
+      actions={
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-2"
+          onClick={onRefresh}
+          disabled={isRefreshing}
+        >
+          <RefreshCw className={isRefreshing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
+          Actualiser
+        </Button>
+      }
+    />
+  );
+}
 
 export default function EmployeeMedicalFollowUp() {
-  const [obligations, setObligations] = useState<ObligationListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: obligations = [], isLoading, isError, error, refetch, isFetching } =
+    useEmployeeMedicalObligationsQuery();
 
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    getMyObligations()
-      .then(setObligations)
-      .catch((e: any) => setError(e.response?.data?.detail ?? e.message ?? "Erreur de chargement"))
-      .finally(() => setLoading(false));
-  }, []);
+  const counts = useMemo(() => countMedicalObligations(obligations), [obligations]);
+  const upcomingCount = Math.max(0, counts.active - counts.overdue);
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-[200px]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+  if (isLoading && obligations.length === 0) {
+    return <EmployeeMedicalFollowUpSkeleton />;
   }
 
-  if (error) {
+  if (isError) {
+    const message = getMedicalFollowUpErrorMessage(error);
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Stethoscope className="h-7 w-7 text-teal-600" />
-          Mon suivi médical
-        </h1>
-        <Card className="border-amber-500/50">
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground">{error}</p>
-            <p className="text-sm text-muted-foreground mt-2">Si le module est activé par votre entreprise, cette page affichera vos prochaines visites médicales.</p>
-          </CardContent>
-        </Card>
-      </div>
+      <EmployeePageShell>
+        <PageHeader onRefresh={() => void refetch()} isRefreshing={isFetching} />
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            <span>{message}</span>
+            <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+              Réessayer
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </EmployeePageShell>
     );
   }
-
-  const nextObligation = getNextObligation(obligations);
-  const isOverdue =
-    nextObligation?.due_date &&
-    nextObligation.status !== "realisee" &&
-    nextObligation.status !== "annulee" &&
-    new Date(nextObligation.due_date) < new Date();
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Stethoscope className="h-7 w-7 text-teal-600" />
-          Mon suivi médical
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Vos prochaines visites et l’historique de suivi médical
-        </p>
-      </div>
+    <EmployeePageShell>
+      <PageHeader onRefresh={() => void refetch()} isRefreshing={isFetching} />
+
+      {counts.overdue > 0 && (
+        <Alert className="border-destructive/40 bg-destructive/5">
+          <AlertCircle className="h-4 w-4 text-destructive" />
+          <AlertDescription>
+            {counts.overdue === 1
+              ? 'Vous avez 1 visite médicale en retard.'
+              : `Vous avez ${counts.overdue} visites médicales en retard.`}{' '}
+            Contactez les RH ou la médecine du travail pour planifier votre passage.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {obligations.length === 0 ? (
         <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground">Aucune visite à ce jour.</p>
+          <CardContent className="pt-6 space-y-4">
+            <p className="text-muted-foreground">
+              Aucune obligation de suivi médical pour le moment. Les visites sont calculées à
+              partir de votre contrat et des visites déjà enregistrées par votre employeur.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              En cas de question, contactez les ressources humaines.
+            </p>
+            <Button variant="outline" size="sm" className="gap-2" asChild>
+              <Link to="/support">
+                <LifeBuoy className="h-4 w-4" />
+                Contacter le support
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       ) : (
         <>
-          <Card className={isOverdue ? "border-red-500/50 bg-red-500/5" : ""}>
-            <CardHeader>
-              <CardTitle className="text-lg">Prochaine visite</CardTitle>
-              <CardDescription>Prochaine obligation de suivi médical</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {nextObligation ? (
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">
-                      {VISIT_TYPE_LABELS[nextObligation.visit_type] ?? nextObligation.visit_type}
-                    </span>
-                    {isOverdue && (
-                      <Badge variant="destructive">En retard</Badge>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Date limite : {formatDate(nextObligation.due_date)}
-                  </p>
-                  <p className="text-sm">
-                    Statut : {STATUS_LABELS[nextObligation.status] ?? nextObligation.status}
-                  </p>
-                  {nextObligation.justification && (
-                    <p className="text-sm text-muted-foreground">{nextObligation.justification}</p>
-                  )}
-                </div>
-              ) : (
-                <p className="text-muted-foreground">Toutes vos obligations sont à jour.</p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Liste détaillée</CardTitle>
-              <CardDescription>Historique et prochaines échéances</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Date limite</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead>Message</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {obligations.map((o) => (
-                    <TableRow key={o.id}>
-                      <TableCell>{VISIT_TYPE_LABELS[o.visit_type] ?? o.visit_type}</TableCell>
-                      <TableCell>{formatDate(o.due_date)}</TableCell>
-                      <TableCell>
-                        <Badge variant={statusBadgeVariant(o.status, o.due_date)}>
-                          {STATUS_LABELS[o.status] ?? o.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {o.justification ?? (o.status === "realisee" && o.completed_date ? `Réalisée le ${formatDate(o.completed_date)}` : "—")}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <EmployeeMedicalKpiBand
+            overdue={counts.overdue}
+            upcoming={upcomingCount}
+            completed={counts.completed}
+          />
+          <EmployeeMedicalNextVisitCard obligations={obligations} />
+          <EmployeeMedicalObligationsList obligations={obligations} />
         </>
       )}
-    </div>
+    </EmployeePageShell>
   );
 }

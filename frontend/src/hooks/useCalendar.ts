@@ -73,6 +73,7 @@ export function useCalendar(employeeId: string | undefined, employeeStatut?: str
   const [isDirty, setIsDirty] = useState(false);
   const [isSavingAfterApply, setIsSavingAfterApply] = useState(false);
   const [isCopyingPrevMonth, setIsCopyingPrevMonth] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const monthCompletionStatus = useMemo(() => {
     if (isLoading || plannedCalendar.length === 0) return 'a_saisir' as const;
@@ -84,9 +85,16 @@ export function useCalendar(employeeId: string | undefined, employeeStatut?: str
   }, [plannedCalendar, selectedDate.year, selectedDate.month, isLoading]);
 
   const fetchAllCalendarData = useCallback(async () => {
-    if (!employeeId) return;
+    if (!employeeId) {
+      setIsLoading(false);
+      setLoadError(false);
+      setPlannedCalendar([]);
+      setActualHours([]);
+      return;
+    }
     setIsLoading(true);
     setIsDirty(false);
+    setLoadError(false);
     try {
       const [plannedRes, actualRes] = await Promise.all([
         calendarApi.getPlannedCalendar(employeeId, selectedDate.year, selectedDate.month),
@@ -131,8 +139,10 @@ export function useCalendar(employeeId: string | undefined, employeeStatut?: str
       setActualHours(finalActualHours);
       setOriginalPlanned(finalPlannedCalendar);
       setOriginalActual(finalActualHours);
+      setLoadError(false);
     } catch (error) {
       log.error(error);
+      setLoadError(true);
       toast({
         title: 'Erreur',
         description: 'Impossible de charger les données du calendrier.',
@@ -443,5 +453,7 @@ export function useCalendar(employeeId: string | undefined, employeeStatut?: str
     copyPlannedToActualForDay,
     copyPlannedToActualForDays,
     bulkCopyPlannedToActual,
+    loadError,
+    refetch: fetchAllCalendarData,
   };
 }

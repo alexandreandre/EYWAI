@@ -451,3 +451,31 @@ async def get_my_planning_week(
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/me/export/pdf")
+async def export_my_planning_week_pdf(
+    week_start: str = Query(..., description="Lundi de la semaine (YYYY-MM-DD)"),
+    current_user: User = Depends(get_current_user),
+):
+    """Export PDF du planning hebdomadaire publié du collaborateur connecté."""
+    company_id = _require_active_company(current_user)
+    try:
+        pdf_bytes = app_queries.build_my_planning_week_pdf(
+            str(current_user.id), company_id, week_start
+        )
+        safe = week_start[:10].replace("/", "-")
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="planning-{safe}.pdf"'
+            },
+        )
+    except HTTPException:
+        raise
+    except (ValueError, LookupError, PermissionError, RuntimeError) as e:
+        _handle_application_errors(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))

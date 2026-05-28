@@ -7,7 +7,9 @@ from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
-
+from app.modules.employees.infrastructure.queries import (
+    resolve_employee_id_for_user_account,
+)
 from app.modules.planning.infrastructure import queries as infra_queries
 from app.modules.planning.infrastructure.repository import planning_repository
 
@@ -312,22 +314,29 @@ def get_employee_planning(
 
 def get_my_planning_week(user_id: str, company_id: str, week_start: str) -> dict:
     """Vue salarié : résout l'employé depuis le compte utilisateur puis charge la semaine."""
-    r = (
-        supabase.table("employees")
-        .select("id")
-        .eq("user_id", user_id)
-        .eq("company_id", company_id)
-        .maybe_single()
-        .execute()
-    )
-    employee = r.data if r else None
-    if not employee or not employee.get("id"):
+    employee_id = resolve_employee_id_for_user_account(user_id, company_id)
+    if not employee_id:
         raise LookupError("Profil salarié introuvable pour cette entreprise.")
-    employee_id = str(employee["id"])
     ws = week_start[:10]
     wstatus = planning_repository.get_week_status(company_id, ws)
     team_view = bool(wstatus.get("team_view_enabled")) if wstatus else False
-    return get_employee_planning(employee_id, ws, team_view)
+    payload = get_employee_planning(employee_id, ws, team_view)
+    payload["employee_id"] = employee_id
+    return payload
+
+
+def build_my_planning_week_pdf(user_id: str, company_id: str, week_start: str) -> bytes:
+    """PDF exportable pour la semaine du collaborateur connecté."""
+    from app.modules.planning.application.employee_week_pdf import (
+        generate_employee_week_planning_pdf,
+    )
+
+    planning = get_my_planning_week(user_id, company_id, week_start)
+    if planning.get("status") == "draft":
+        raise ValueError(
+            "Le planning de cette semaine n'est pas encore publié ; export impossible."
+        )
+    return generate_employee_week_planning_pdf(planning)
 
 
 def _month_date_bounds(year: int, month: int) -> tuple[str, str]:
@@ -371,18 +380,9 @@ def list_my_shifts_month(user_id: str, company_id: str, year: int, month: int) -
     Shifts du mois pour le salarié connecté.
     Exclut les semaines encore en brouillon (aligné sur get_employee_planning).
     """
-    r = (
-        supabase.table("employees")
-        .select("id")
-        .eq("user_id", user_id)
-        .eq("company_id", company_id)
-        .maybe_single()
-        .execute()
-    )
-    employee = r.data if r else None
-    if not employee or not employee.get("id"):
+    employee_id = resolve_employee_id_for_user_account(user_id, company_id)
+    if not employee_id:
         raise LookupError("Profil salarié introuvable pour cette entreprise.")
-    employee_id = str(employee["id"])
     d0, d1 = _month_date_bounds(year, month)
     rows = infra_queries.get_shifts_employee_date_range_joined(
         employee_id, company_id, d0, d1

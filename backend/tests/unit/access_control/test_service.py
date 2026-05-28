@@ -20,7 +20,7 @@ from app.modules.users.schemas.responses import CompanyAccess, User
 
 def _make_user(
     user_id: str = "user-1",
-    is_super_admin: bool = False,
+    is_platform_admin: bool = False,
     accessible_companies: list | None = None,
 ) -> User:
     if accessible_companies is None:
@@ -34,7 +34,7 @@ def _make_user(
         email="user@example.com",
         first_name="Test",
         last_name="User",
-        is_super_admin=is_super_admin,
+        is_platform_admin=is_platform_admin,
         accessible_companies=accessible_companies,
         active_company_id="company-1",
     )
@@ -63,7 +63,7 @@ class TestCheckRoleHierarchyAccess:
         """Super admin peut tout attribuer."""
         mock_repo = MagicMock()
         svc = AccessControlService(mock_repo)
-        user = _make_user(is_super_admin=True, accessible_companies=[])
+        user = _make_user(is_platform_admin=True, accessible_companies=[])
 
         assert svc.check_role_hierarchy_access(user, "admin", "company-1") is True
         assert svc.check_role_hierarchy_access(user, "custom", "company-1") is True
@@ -193,7 +193,7 @@ class TestRequireRhAccess:
         """Super admin ne lève jamais."""
         mock_repo = MagicMock()
         svc = AccessControlService(mock_repo)
-        user = _make_user(is_super_admin=True, accessible_companies=[])
+        user = _make_user(is_platform_admin=True, accessible_companies=[])
 
         svc.require_rh_access(user)  # no raise
 
@@ -239,7 +239,7 @@ class TestRequireRhAccessForCompany:
         """Super admin ne lève jamais."""
         mock_repo = MagicMock()
         svc = AccessControlService(mock_repo)
-        user = _make_user(is_super_admin=True, accessible_companies=[])
+        user = _make_user(is_platform_admin=True, accessible_companies=[])
 
         svc.require_rh_access_for_company(user, "any-company")  # no raise
 
@@ -287,7 +287,7 @@ class TestCanAccessCompanyAsRh:
         """Super admin a toujours accès RH."""
         mock_repo = MagicMock()
         svc = AccessControlService(mock_repo)
-        user = _make_user(is_super_admin=True, accessible_companies=[])
+        user = _make_user(is_platform_admin=True, accessible_companies=[])
 
         assert svc.can_access_company_as_rh(user, "any-company") is True
         mock_repo.user_has_any_rh_permission.assert_not_called()

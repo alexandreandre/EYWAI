@@ -32,12 +32,12 @@ def row_to_company_access(
 
 
 def row_to_company_access_super_admin(c: dict) -> CompanyAccess:
-    """Construit CompanyAccess pour un super_admin (toutes les companies actives)."""
+    """Construit CompanyAccess pour un admin plateforme (toutes les companies actives)."""
     groups = c.get("company_groups") or {}
     return CompanyAccess(
         company_id=c["id"],
         company_name=c["company_name"],
-        role="super_admin",
+        role="admin",
         is_primary=False,
         siret=c.get("siret"),
         logo_url=c.get("logo_url"),

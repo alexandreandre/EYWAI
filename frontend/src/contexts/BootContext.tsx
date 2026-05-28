@@ -18,6 +18,8 @@ export type BootContextType = {
   isBooting: boolean;
   /** Termine le boot (appelé par BootGate) */
   finishBoot: () => void;
+  /** Relance le splash (connexion / déconnexion) */
+  resetBoot: () => void;
 };
 
 const BootContext = createContext<BootContextType | null>(null);
@@ -41,9 +43,15 @@ export function BootProvider({ children }: { children: ReactNode }) {
     setIsBooting(false);
   }, []);
 
+  const resetBoot = useCallback(() => {
+    setStepLabel(DEFAULT_LABEL);
+    setProgress(0);
+    setIsBooting(true);
+  }, []);
+
   const value = useMemo(
-    () => ({ stepLabel, progress, markStep, isBooting, finishBoot }),
-    [stepLabel, progress, markStep, isBooting, finishBoot],
+    () => ({ stepLabel, progress, markStep, isBooting, finishBoot, resetBoot }),
+    [stepLabel, progress, markStep, isBooting, finishBoot, resetBoot],
   );
 
   return <BootContext.Provider value={value}>{children}</BootContext.Provider>;

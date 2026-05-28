@@ -93,8 +93,14 @@ def get_my_badge_qr(current_user: User = Depends(get_current_user)) -> Dict[str,
     """Payload QR pour l'employé connecté."""
     try:
         company_id = badgeuse_service.get_company_id_from_user(current_user)
+        employee_id = badgeuse_service.resolve_my_employee_id_for_user(current_user)
+        if not employee_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Aucune fiche employé n'est reliée à votre compte.",
+            )
         return badgeuse_service.get_qr_for_employee(
-            employee_id=str(current_user.id),
+            employee_id=employee_id,
             company_id=company_id,
         )
     except ValueError as e:

@@ -19,9 +19,11 @@ ROLE_HIERARCHY = {
 def check_role_hierarchy(creator_user: Any, target_role: str, company_id: str) -> bool:
     """
     Vérifie si le créateur peut créer/modifier un utilisateur avec le rôle cible.
-    creator_user doit exposer : is_super_admin, get_role_in_company(company_id) -> str | None.
+    creator_user doit exposer : is_platform_admin, get_role_in_company(company_id) -> str | None.
     """
-    if getattr(creator_user, "is_super_admin", False):
+    if getattr(creator_user, "is_platform_admin", False) or getattr(
+        creator_user, "is_super_admin", False
+    ):
         return True
     creator_role = None
     if hasattr(creator_user, "get_role_in_company"):

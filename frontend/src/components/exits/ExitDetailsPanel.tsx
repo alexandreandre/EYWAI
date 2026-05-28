@@ -64,6 +64,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
+import { downloadBlob, openBlobInNewTab } from '@/lib/downloadBlob';
 
 interface ExitDetailsPanelProps {
   exitId: string | null;
@@ -352,14 +353,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
     try {
       const response = await fetch(downloadUrl);
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      downloadBlob(blob, filename);
     } catch (error) {
       log.error('Erreur lors du téléchargement:', error);
       toast({

@@ -6,19 +6,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
-import { FileText, Download, Trash2, Eye } from "lucide-react";
+import { AlertCircle, Eye, FileText, Trash2 } from "lucide-react";
 import { getAdvancePayments, getPaymentProofUrl, deleteAdvancePayment } from '@/api/saisiesAvances';
 import type { SalaryAdvance, SalaryAdvancePayment } from '@/api/saisiesAvances';
 import { useAuth } from '@/contexts/AuthContext';
 import { AdvancePaymentModal } from './AdvancePaymentModal';
-
-const STATUS_LABELS: Record<string, string> = {
-  'pending': 'En attente',
-  'approved': 'À verser',
-  'rejected': 'Rejetée',
-  'paid': 'Versée',
-};
+import { EmployeeSalaryAdvanceStatusBadge } from '@/components/employee-salary-advances/EmployeeSalaryAdvanceStatusBadge';
+import { formatCurrency } from '@/lib/employeeDashboardUtils';
+import {
+  formatAdvanceDate,
+  formatAdvanceDateTime,
+  showRemainingRepayment,
+} from '@/lib/employeeSalaryAdvancesUtils';
 
 interface SalaryAdvanceDetailProps {
   advance: SalaryAdvance;
@@ -32,13 +33,14 @@ export function SalaryAdvanceDetail({ advance, onClose, onUpdate }: SalaryAdvanc
   const [payments, setPayments] = useState<SalaryAdvancePayment[]>([]);
   const [isLoadingPayments, setIsLoadingPayments] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [viewingProof, setViewingProof] = useState<string | null>(null);
 
   const isRh = user?.role === 'rh' || user?.role === 'admin';
+  const isEmployee = user?.role === 'collaborateur';
 
   useEffect(() => {
-    fetchPayments();
-  }, [advance.id]);
+    if (!isRh) return;
+    void fetchPayments();
+  }, [advance.id, isRh]);
 
   const fetchPayments = async () => {
     setIsLoadingPayments(true);
@@ -56,7 +58,7 @@ export function SalaryAdvanceDetail({ advance, onClose, onUpdate }: SalaryAdvanc
     try {
       const { url } = await getPaymentProofUrl(paymentId);
       window.open(url, '_blank');
-    } catch (error: any) {
+    } catch {
       toast({
         title: "Erreur",
         description: "Impossible de télécharger la preuve.",
@@ -75,78 +77,125 @@ export function SalaryAdvanceDetail({ advance, onClose, onUpdate }: SalaryAdvanc
         title: "Succès",
         description: "Paiement supprimé.",
       });
-      fetchPayments();
+      void fetchPayments();
       onUpdate?.();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const detail =
+        error && typeof error === 'object' && 'response' in error
+          ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
       toast({
         title: "Erreur",
-        description: error.response?.data?.detail || "Impossible de supprimer le paiement.",
+        description: detail || "Impossible de supprimer le paiement.",
         variant: "destructive",
       });
     }
   };
 
   const approvedAmount = Number(advance.approved_amount || 0);
+  const requestedAmount = Number(advance.requested_amount || 0);
   const totalPaid = payments.reduce((sum, p) => sum + Number(p.payment_amount || 0), 0);
-  const remainingToPay = approvedAmount - totalPaid; // Montant restant à verser à l'employé
+  const remainingToPay = approvedAmount - totalPaid;
+
+  const dialogTitle = isEmployee
+    ? `Ma demande du ${formatAdvanceDate(advance.created_at)}`
+    : "Détails de l'avance";
+
+  const paymentMethodLabel =
+    advance.payment_method === 'virement'
+      ? 'Virement'
+      : advance.payment_method === 'cheque'
+        ? 'Chèque'
+        : advance.payment_method === 'especes'
+          ? 'Espèces'
+          : null;
 
   return (
     <>
       <Dialog open={true} onOpenChange={onClose}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Détails de l'avance</DialogTitle>
+            <DialogTitle>{dialogTitle}</DialogTitle>
           </DialogHeader>
           <div className="space-y-6">
-            {/* Informations principales */}
-            <div className="grid grid-cols-2 gap-4">
+            {advance.status === 'rejected' && advance.rejection_reason && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Demande rejetée</AlertTitle>
+                <AlertDescription>{advance.rejection_reason}</AlertDescription>
+              </Alert>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Statut</p>
-                <Badge className="mt-1">{STATUS_LABELS[advance.status]}</Badge>
+                <div className="mt-1">
+                  <EmployeeSalaryAdvanceStatusBadge status={advance.status} />
+                </div>
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Montant demandé</p>
-                <p className="text-lg font-semibold">{Number(advance.requested_amount || 0).toFixed(2)}€</p>
+                <p className="text-lg font-semibold">{formatCurrency(requestedAmount)}</p>
               </div>
             </div>
 
             {approvedAmount > 0 && (
-              <div className="grid grid-cols-3 gap-4 p-3 bg-blue-50 rounded-md">
+              <div className="grid grid-cols-1 gap-4 rounded-md border bg-muted/40 p-3 sm:grid-cols-3">
                 <div>
-                  <p className="text-sm font-medium text-blue-900">Montant approuvé</p>
-                  <p className="text-lg font-semibold text-blue-900">{approvedAmount.toFixed(2)}€</p>
+                  <p className="text-sm font-medium text-muted-foreground">Montant approuvé</p>
+                  <p className="text-lg font-semibold">{formatCurrency(approvedAmount)}</p>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-blue-900">Total versé</p>
-                  <p className="text-lg font-semibold text-green-600">{totalPaid.toFixed(2)}€</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-blue-900">Reste à verser</p>
-                  <p className="text-lg font-semibold text-orange-600">{remainingToPay.toFixed(2)}€</p>
-                </div>
+                {isRh ? (
+                  <>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Total versé</p>
+                      <p className="text-lg font-semibold text-green-600 dark:text-green-400">
+                        {formatCurrency(totalPaid)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Reste à verser</p>
+                      <p className="text-lg font-semibold text-orange-600 dark:text-orange-400">
+                        {formatCurrency(remainingToPay)}
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  showRemainingRepayment(advance) && (
+                    <div className="sm:col-span-2">
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Reste à rembourser sur vos prochains bulletins
+                      </p>
+                      <p className="text-lg font-semibold">
+                        {formatCurrency(advance.remaining_amount)}
+                      </p>
+                    </div>
+                  )
+                )}
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Date de demande</p>
-                <p>{new Date(advance.requested_date).toLocaleDateString('fr-FR')}</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Versement souhaité
+                </p>
+                <p>{formatAdvanceDate(advance.requested_date)}</p>
               </div>
               {advance.payment_date && (
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Date de versement</p>
-                  <p>{new Date(advance.payment_date).toLocaleDateString('fr-FR')}</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Date de versement effective
+                  </p>
+                  <p>{formatAdvanceDate(advance.payment_date)}</p>
                 </div>
               )}
             </div>
 
-            {advance.payment_method && (
+            {paymentMethodLabel && (
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Mode de paiement</p>
-                <p>
-                  {advance.payment_method === 'virement' ? 'Virement' :
-                   advance.payment_method === 'cheque' ? 'Chèque' : 'Espèces'}
-                </p>
+                <p>{paymentMethodLabel}</p>
               </div>
             )}
 
@@ -157,95 +206,102 @@ export function SalaryAdvanceDetail({ advance, onClose, onUpdate }: SalaryAdvanc
               </div>
             )}
 
-            {advance.rejection_reason && (
+            {isRh && advance.rejection_reason && advance.status !== 'rejected' && (
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Raison du rejet</p>
-                <p className="text-sm text-red-600">{advance.rejection_reason}</p>
+                <p className="text-sm text-destructive">{advance.rejection_reason}</p>
               </div>
             )}
 
-            {/* Section Paiements */}
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Paiements</h3>
-                {isRh && (advance.status === 'approved' || advance.status === 'paid') && remainingToPay > 0 && (
-                  <Button
-                    size="sm"
-                    onClick={() => setShowPaymentModal(true)}
-                  >
-                    Enregistrer un paiement
-                  </Button>
-                )}
-              </div>
+            {isEmployee && advance.status === 'paid' && !showRemainingRepayment(advance) && (
+              <p className="text-sm text-muted-foreground">
+                Cette avance a été versée et est entièrement remboursée.
+              </p>
+            )}
 
-              {isLoadingPayments ? (
-                <p className="text-sm text-muted-foreground">Chargement...</p>
-              ) : payments.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Aucun paiement enregistré</p>
-              ) : (
-                <div className="space-y-2">
-                  {payments.map((payment) => (
-                    <Card key={payment.id}>
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="font-semibold">
-                                {Number(payment.payment_amount || 0).toFixed(2)}€
-                              </span>
-                              <span className="text-sm text-muted-foreground">
-                                le {new Date(payment.payment_date).toLocaleDateString('fr-FR')}
-                              </span>
-                              {payment.payment_method && (
-                                <Badge variant="outline" className="text-xs">
-                                  {payment.payment_method === 'virement' ? 'Virement' :
-                                   payment.payment_method === 'cheque' ? 'Chèque' : 'Espèces'}
-                                </Badge>
+            {isRh && (
+              <div>
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Paiements</h3>
+                  {(advance.status === 'approved' || advance.status === 'paid') &&
+                    remainingToPay > 0 && (
+                      <Button size="sm" onClick={() => setShowPaymentModal(true)}>
+                        Enregistrer un paiement
+                      </Button>
+                    )}
+                </div>
+
+                {isLoadingPayments ? (
+                  <p className="text-sm text-muted-foreground">Chargement...</p>
+                ) : payments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Aucun paiement enregistré</p>
+                ) : (
+                  <div className="space-y-2">
+                    {payments.map((payment) => (
+                      <Card key={payment.id}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="mb-2 flex items-center gap-2">
+                                <span className="font-semibold">
+                                  {formatCurrency(payment.payment_amount)}
+                                </span>
+                                <span className="text-sm text-muted-foreground">
+                                  le {formatAdvanceDate(payment.payment_date)}
+                                </span>
+                                {payment.payment_method && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {payment.payment_method === 'virement'
+                                      ? 'Virement'
+                                      : payment.payment_method === 'cheque'
+                                        ? 'Chèque'
+                                        : 'Espèces'}
+                                  </Badge>
+                                )}
+                              </div>
+                              {payment.proof_file_name && (
+                                <div className="mt-2 flex items-center gap-2">
+                                  <FileText className="h-4 w-4 text-muted-foreground" />
+                                  <span className="text-sm text-muted-foreground">
+                                    {payment.proof_file_name}
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => void handleViewProof(payment.id)}
+                                    className="h-6 px-2"
+                                  >
+                                    <Eye className="mr-1 h-3 w-3" />
+                                    Voir
+                                  </Button>
+                                </div>
+                              )}
+                              {payment.notes && (
+                                <p className="mt-2 text-sm text-muted-foreground">
+                                  {payment.notes}
+                                </p>
                               )}
                             </div>
-                            {payment.proof_file_name && (
-                              <div className="flex items-center gap-2 mt-2">
-                                <FileText className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm text-muted-foreground">
-                                  {payment.proof_file_name}
-                                </span>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleViewProof(payment.id)}
-                                  className="h-6 px-2"
-                                >
-                                  <Eye className="h-3 w-3 mr-1" />
-                                  Voir
-                                </Button>
-                              </div>
-                            )}
-                            {payment.notes && (
-                              <p className="text-sm text-muted-foreground mt-2">{payment.notes}</p>
-                            )}
-                          </div>
-                          {isRh && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleDeletePayment(payment.id)}
+                              onClick={() => void handleDeletePayment(payment.id)}
                               className="text-red-600 hover:text-red-700"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Créée le</p>
-              <p>{new Date(advance.created_at).toLocaleString('fr-FR')}</p>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Demande déposée le {formatAdvanceDateTime(advance.created_at)}
+            </p>
           </div>
         </DialogContent>
       </Dialog>
@@ -256,7 +312,7 @@ export function SalaryAdvanceDetail({ advance, onClose, onUpdate }: SalaryAdvanc
           onClose={() => setShowPaymentModal(false)}
           onSuccess={() => {
             setShowPaymentModal(false);
-            fetchPayments();
+            void fetchPayments();
             onUpdate?.();
           }}
         />

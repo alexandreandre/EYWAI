@@ -13,6 +13,29 @@ from app.modules.expenses.infrastructure.providers import ExpenseStorageProvider
 from app.modules.expenses.infrastructure.repository import ExpenseRepository
 
 
+def resolve_employee_id_for_expense_account(
+    user_id: str, company_id: str | None
+) -> str | None:
+    """Résout employees.id pour un compte collaborateur (user_id, id, e-mail)."""
+    if not company_id:
+        return None
+    from app.modules.employees.infrastructure.queries import (
+        resolve_employee_id_for_user_account,
+    )
+
+    return resolve_employee_id_for_user_account(str(user_id), str(company_id))
+
+
+def get_my_expenses_for_user_account(
+    user_id: str, company_id: str | None
+) -> List[dict]:
+    """Notes de frais du collaborateur lié au compte auth."""
+    employee_id = resolve_employee_id_for_expense_account(user_id, company_id)
+    if not employee_id:
+        return []
+    return get_my_expenses(employee_id)
+
+
 def get_my_expenses(employee_id: str) -> List[dict]:
     """
     Liste les notes de frais de l'employé (date desc), avec URLs signées pour receipt_url.

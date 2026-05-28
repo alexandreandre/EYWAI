@@ -4,6 +4,7 @@
 
 import apiClient from './apiClient';
 import type { MaintenancePreview } from './absences';
+import { downloadBlob, openBlobInNewTab } from '@/lib/downloadBlob';
 
 // ============================================================================
 // Types
@@ -277,14 +278,7 @@ export const downloadSimulationPDF = async (simulationId: string): Promise<void>
 
   // Créer un lien de téléchargement
   const blob = new Blob([response.data], { type: 'application/pdf' });
-  const url = window.URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `simulation_${simulationId}.pdf`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  window.URL.revokeObjectURL(url);
+  downloadBlob(blob, `simulation_${simulationId}.pdf`);
 };
 
 /**

@@ -45,9 +45,10 @@ class UserContext:
     """
 
     user_id: str
-    is_super_admin: bool
+    is_platform_admin: bool
     has_rh_access_in_company: Callable[[str], bool]
     active_company_id: str | None
+    resolved_employee_id: str | None = None
     first_name: str | None = None
     last_name: str | None = None
 

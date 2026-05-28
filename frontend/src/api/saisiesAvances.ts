@@ -1,5 +1,7 @@
-// frontend/src/api/saisiesAvances.ts
-
+/**
+ * API saisies sur salaire et avances (module backend saisies_avances).
+ * Ne pas confondre avec `saisies.ts` (primes / monthly-inputs paie).
+ */
 import apiClient from './apiClient';
 
 // =====================================================================
@@ -90,7 +92,8 @@ export interface SalaryAdvance {
 }
 
 export interface SalaryAdvanceCreate {
-  employee_id: string;
+  /** Ignoré pour le collaborateur : résolu côté API depuis le compte connecté. */
+  employee_id?: string;
   requested_amount: number;
   requested_date: string;
   repayment_mode?: RepaymentMode;

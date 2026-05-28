@@ -24,13 +24,13 @@ from app.modules.absences.infrastructure.providers import (
     evenement_familial_provider,
     storage_provider,
 )
+from app.modules.absences.application.service import resolve_employee_id_for_user
 from app.modules.absences.infrastructure.queries import (
     get_employee_hire_date,
     get_employees_hire_dates_batch,
     get_planned_calendar,
     get_repos_credits_by_employee_year,
     get_salary_certificate_record,
-    resolve_employee_id_for_user,
 )
 from app.modules.absences.infrastructure.repository import absence_repository
 from app.modules.maintenance_settings.application.queries import get_maintenance_settings
@@ -214,9 +214,11 @@ def update_absence_request_signed_url_single(request_id: str) -> dict | None:
     return data
 
 
-def get_absence_request_detail(user_id: str, absence_id: str) -> dict:
+def get_absence_request_detail(
+    user_id: str, company_id: str, absence_id: str
+) -> dict:
     """Détail d'une absence pour le collaborateur connecté (avec statut attestation IJSS)."""
-    employee_id = resolve_employee_id_for_user(user_id)
+    employee_id = resolve_employee_id_for_user(user_id, company_id)
     if not employee_id:
         raise LookupError("Profil collaborateur sans employé associé.")
     row = absence_repository.get_by_id(absence_id)
@@ -404,9 +406,9 @@ def get_my_absences_page_data(employee_id: str, year: int, month: int) -> dict:
     }
 
 
-def get_my_evenements_familiaux(user_id: str) -> List[dict]:
+def get_my_evenements_familiaux(user_id: str, company_id: str) -> List[dict]:
     """Événements familiaux disponibles pour l'utilisateur (résolution employee_id via user_id)."""
-    employee_id = resolve_employee_id_for_user(user_id)
+    employee_id = resolve_employee_id_for_user(user_id, company_id)
     if not employee_id:
         return []
     return evenement_familial_provider.get_events_disponibles(employee_id)
@@ -579,10 +581,12 @@ def get_absence_maintenance_preview(
     if emp_company != str(active_cid):
         raise LookupError("Absence introuvable.")
 
-    my_employee_id = resolve_employee_id_for_user(str(current_user.id))
+    my_employee_id = resolve_employee_id_for_user(
+        str(current_user.id), str(active_cid)
+    )
     is_owner = my_employee_id == absence.get("employee_id")
     can_rh = current_user.has_rh_access_in_company(str(active_cid))
-    if not (is_owner or can_rh or current_user.is_super_admin):
+    if not (is_owner or can_rh or current_user.is_platform_admin):
         raise LookupError("Absence introuvable.")
 
     co_res = (
@@ -664,7 +668,7 @@ def get_absence_regularisation_at(
         raise ValueError(
             "Sélectionnez une entreprise active pour la régularisation AT."
         )
-    if not current_user.is_super_admin and not current_user.has_rh_access_in_company(
+    if not current_user.is_platform_admin and not current_user.has_rh_access_in_company(
         str(active_cid)
     ):
         raise PermissionError(

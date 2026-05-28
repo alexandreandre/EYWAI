@@ -119,7 +119,7 @@ def delete_bonus_type(
         delete_bonus_type_cmd(
             bonus_type_id,
             str(company_id),
-            user.is_super_admin,
+            user.is_platform_admin,
             user.has_rh_access_in_company(str(company_id)),
         )
         return {"status": "success", "message": "Prime supprimée avec succès"}

@@ -80,7 +80,7 @@ def run_simulation_arret_maladie(
         raise ValueError(
             "Sélectionnez une entreprise active pour lancer la simulation."
         )
-    if not current_user.is_super_admin and not current_user.has_rh_access_in_company(
+    if not current_user.is_platform_admin and not current_user.has_rh_access_in_company(
         str(active_cid)
     ):
         raise PermissionError(

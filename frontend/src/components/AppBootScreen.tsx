@@ -22,7 +22,10 @@ export function AppBootScreen() {
         />
         <div className="w-full space-y-3">
           <Progress value={progress} className="h-1.5" />
-          <p className="text-center text-sm text-muted-foreground">{stepLabel}</p>
+          <p className="text-center text-sm font-medium text-foreground">{stepLabel}</p>
+          <p className="text-center text-xs text-muted-foreground">
+            Préparation de vos données pour une navigation plus fluide
+          </p>
         </div>
       </div>
     </div>

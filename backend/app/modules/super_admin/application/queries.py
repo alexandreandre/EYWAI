@@ -6,7 +6,7 @@ Délègue à l'infrastructure (DB). Comportement identique.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from app.modules.super_admin.infrastructure import queries as infra_queries
 
@@ -14,6 +14,34 @@ from app.modules.super_admin.infrastructure import queries as infra_queries
 def get_global_stats(super_admin_row: Dict[str, Any]) -> Dict[str, Any]:
     """Statistiques globales pour GET /dashboard/stats."""
     return infra_queries.get_global_stats(super_admin_row)
+
+
+def get_support_badges() -> Dict[str, Any]:
+    """Compteurs tickets pour badges navigation admin."""
+    return infra_queries.get_support_badges()
+
+
+def list_platform_audit_logs(
+    company_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    action: Optional[str] = None,
+    resource_type: Optional[str] = None,
+    created_after: Optional[str] = None,
+    created_before: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> List[Dict[str, Any]]:
+    """Journal d'audit cross-plateforme."""
+    return infra_queries.list_platform_audit_logs(
+        company_id=company_id,
+        user_id=user_id,
+        action=action,
+        resource_type=resource_type,
+        created_after=created_after,
+        created_before=created_before,
+        limit=limit,
+        offset=offset,
+    )
 
 
 def list_companies(

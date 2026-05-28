@@ -18,7 +18,9 @@ from app.modules.expenses.application.dto import (
 from app.modules.expenses.application.queries import (
     get_all_expenses as query_get_all_expenses,
     get_my_expenses as query_get_my_expenses,
+    get_my_expenses_for_user_account as query_get_my_expenses_for_user_account,
     get_signed_upload_url as query_get_signed_upload_url,
+    resolve_employee_id_for_expense_account as query_resolve_employee_id_for_expense_account,
 )
 
 
@@ -33,6 +35,16 @@ class ExpenseApplicationService:
 
     def get_my_expenses(self, employee_id: str) -> List[dict]:
         return query_get_my_expenses(employee_id)
+
+    def get_my_expenses_for_user_account(
+        self, user_id: str, company_id: str | None
+    ) -> List[dict]:
+        return query_get_my_expenses_for_user_account(user_id, company_id)
+
+    def resolve_employee_id_for_expense_account(
+        self, user_id: str, company_id: str | None
+    ) -> str | None:
+        return query_resolve_employee_id_for_expense_account(user_id, company_id)
 
     def get_all_expenses(self, input: ListExpensesInput) -> List[dict]:
         return query_get_all_expenses(input.status)

@@ -57,15 +57,11 @@ class SupabaseCompetenciesRepository(AbstractCompetenciesRepository):
     """Implémentation Supabase."""
 
     def get_employee_id_for_user(self, user_id: str, company_id: str) -> Optional[str]:
-        r = (
-            supabase.table("employees")
-            .select("id")
-            .eq("user_id", user_id)
-            .eq("company_id", company_id)
-            .maybe_single()
-            .execute()
+        from app.modules.employees.infrastructure.queries import (
+            resolve_employee_id_for_user_account,
         )
-        return str(r.data["id"]) if r and r.data else None
+
+        return resolve_employee_id_for_user_account(user_id, company_id)
 
     def get_employee_row(self, employee_id: str, company_id: str) -> Optional[Dict[str, Any]]:
         r = (
@@ -77,6 +73,39 @@ class SupabaseCompetenciesRepository(AbstractCompetenciesRepository):
             .execute()
         )
         return dict(r.data) if r and r.data else None
+
+    def get_employee_profile_for_mobility(
+        self, employee_id: str, company_id: str
+    ) -> Optional[Dict[str, Any]]:
+        r = (
+            supabase.table("employees")
+            .select(
+                "id, company_id, first_name, last_name, job_title, employment_status"
+            )
+            .eq("id", employee_id)
+            .eq("company_id", company_id)
+            .maybe_single()
+            .execute()
+        )
+        return dict(r.data) if r and r.data else None
+
+    def list_active_job_titles(self, company_id: str, *, limit: int = 20) -> List[str]:
+        jr = (
+            supabase.table("employees")
+            .select("job_title")
+            .eq("company_id", company_id)
+            .eq("employment_status", "actif")
+            .limit(200)
+            .execute()
+        )
+        titles: List[str] = []
+        for row in list(jr.data or []):
+            jt = (row.get("job_title") or "").strip()
+            if jt and jt not in titles:
+                titles.append(jt)
+            if len(titles) >= limit:
+                break
+        return titles
 
     def get_all_refs(self, company_id: str, include_archived: bool = False) -> List[Dict[str, Any]]:
         q = supabase.table("competency_referential").select("*").eq("company_id", company_id)

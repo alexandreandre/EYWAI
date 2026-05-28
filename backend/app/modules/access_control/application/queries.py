@@ -43,8 +43,8 @@ def check_hierarchy(
     )
     creator_role = (
         current_user.get_role_in_company(company_id)
-        if not current_user.is_super_admin
-        else "super_admin"
+        if not current_user.is_platform_admin
+        else "admin"
     )
     return RoleHierarchyCheckResult(
         is_allowed=is_allowed,
@@ -211,7 +211,7 @@ def get_user_permissions_summary(
         )
     target_user_role = access["role"]
 
-    if not current_user.is_super_admin:
+    if not current_user.is_platform_admin:
         if not current_user.has_rh_access_in_company(company_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

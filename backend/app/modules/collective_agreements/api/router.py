@@ -113,7 +113,7 @@ async def get_catalog_upload_url(
 ):
     """Génère une URL signée pour uploader un PDF (super admin)."""
     try:
-        if current_user.role != "super_admin":
+        if not current_user.is_platform_admin:
             raise HTTPException(
                 status_code=403, detail="Accès réservé au super administrateur"
             )
@@ -144,7 +144,7 @@ async def create_catalog_item(
             rules_pdf_filename=agreement_data.rules_pdf_filename,
         )
         return commands.create_catalog_item(
-            data, is_super_admin=(current_user.role == "super_admin")
+            data, is_platform_admin=current_user.is_platform_admin
         )
     except HTTPException:
         raise
@@ -165,7 +165,7 @@ async def update_catalog_item(
         out = commands.update_catalog_item(
             agreement_id,
             update_dict_raw,
-            is_super_admin=(current_user.role == "super_admin"),
+            is_platform_admin=current_user.is_platform_admin,
         )
         if not out:
             raise HTTPException(
@@ -187,7 +187,7 @@ async def delete_catalog_item(
     """Supprime une convention du catalogue (super admin)."""
     try:
         commands.delete_catalog_item(
-            agreement_id, is_super_admin=(current_user.role == "super_admin")
+            agreement_id, is_platform_admin=current_user.is_platform_admin
         )
         return None
     except HTTPException:
@@ -276,11 +276,11 @@ async def get_all_company_assignments(
 ):
     """Toutes les assignations par entreprise (super admin)."""
     try:
-        if current_user.role != "super_admin":
+        if not current_user.is_platform_admin:
             raise HTTPException(
                 status_code=403, detail="Accès réservé au super administrateur"
             )
-        return queries.get_all_assignments_query(is_super_admin=True)
+        return queries.get_all_assignments_query(is_platform_admin=True)
     except HTTPException:
         raise
     except Exception as e:
@@ -327,11 +327,11 @@ async def refresh_cache(
 ):
     """Force le rafraîchissement du cache texte (super admin)."""
     try:
-        if current_user.role != "super_admin":
+        if not current_user.is_platform_admin:
             raise HTTPException(
                 status_code=403, detail="Accès réservé au super administrateur"
             )
-        commands.refresh_text_cache(agreement_id, is_super_admin=True)
+        commands.refresh_text_cache(agreement_id, is_platform_admin=True)
         return {"message": "Cache rafraîchi avec succès"}
     except HTTPException:
         raise

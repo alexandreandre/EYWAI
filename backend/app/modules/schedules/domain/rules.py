@@ -9,11 +9,7 @@ normalize_actual_hours_for_forfait_jour). Aucune I/O, pas de dépendance FastAPI
 from typing import Any, Dict, List
 
 
-def is_forfait_jour(statut: str | None) -> bool:
-    """Détecte si un employé est en forfait jour selon son statut."""
-    if not statut:
-        return False
-    return "forfait jour" in statut.lower()
+from app.shared.domain.employment_rules import is_forfait_jour as is_forfait_jour
 
 
 def normalize_planned_calendar_for_forfait_jour(

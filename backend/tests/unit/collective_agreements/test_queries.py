@@ -151,7 +151,7 @@ class TestGetAllAssignmentsQuery:
         mock_svc = MagicMock(spec=CollectiveAgreementsService)
         mock_svc.get_all_assignments.return_value = expected
 
-        result = get_all_assignments_query(is_super_admin=True, service=mock_svc)
+        result = get_all_assignments_query(is_platform_admin=True, service=mock_svc)
 
         assert result == expected
         mock_svc.get_all_assignments.assert_called_once_with(True)

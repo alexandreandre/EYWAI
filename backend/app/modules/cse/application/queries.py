@@ -65,6 +65,12 @@ def get_meeting_participants(meeting_id: str) -> List[Any]:
     return meeting_repository.get_participants(meeting_id)
 
 
+def is_meeting_participant(meeting_id: str, employee_id: str) -> bool:
+    """True si l'employé est inscrit comme participant à la réunion."""
+    participants = meeting_repository.get_participants(meeting_id)
+    return any(getattr(p, "employee_id", None) == employee_id for p in participants)
+
+
 def get_recording_status(meeting_id: str) -> Any:
     return recording_repository.get_status(meeting_id)
 

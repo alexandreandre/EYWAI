@@ -78,6 +78,7 @@ import {
 } from "@/lib/annualReviewLabels";
 import { cn } from "@/lib/utils";
 import { useCompany } from "@/contexts/CompanyContext";
+import { downloadAnnualReviewPdfFile, previewAnnualReviewPdf } from '@/lib/annualReviewPdf';
 import {
   ChevronRight,
   ExternalLink,
@@ -394,9 +395,7 @@ export function EmployeeDetailAnnualReviewsTab({
     e.stopPropagation();
     try {
       const blob = await downloadAnnualReviewPdf(reviewId);
-      const url = window.URL.createObjectURL(blob);
-      window.open(url, "_blank");
-      setTimeout(() => window.URL.revokeObjectURL(url), 100);
+      openBlobInNewTab(blob, 100);
     } catch {
       toast({ title: "Erreur", description: "PDF inaccessible.", variant: "destructive" });
     }
@@ -406,13 +405,7 @@ export function EmployeeDetailAnnualReviewsTab({
     e.stopPropagation();
     try {
       const blob = await downloadAnnualReviewPdf(reviewId);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `entretien_${reviewId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
+      downloadAnnualReviewPdfFile(blob, reviewId);
       document.body.removeChild(a);
       toast({ title: "PDF téléchargé" });
     } catch {

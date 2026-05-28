@@ -43,7 +43,7 @@ class SimulationCompareRequest(BaseModel):
 
 
 def _require_rh_or_admin(current_user: User) -> str:
-    if current_user.is_super_admin:
+    if current_user.is_platform_admin:
         return str(current_user.active_company_id or "")
     active_company_id = current_user.active_company_id
     if not active_company_id or not current_user.has_rh_access_in_company(active_company_id):

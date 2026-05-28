@@ -13,6 +13,7 @@ import {
 } from '@/lib/schedulesAbsenceConflict';
 import { getFrenchPublicHolidayDayNumbers } from '@/lib/frenchPublicHolidays';
 import { isForfaitJour } from '@/utils/employeeUtils';
+import { downloadBlob } from '@/lib/downloadBlob';
 
 export interface DayPatch {
   type?: string;
@@ -327,10 +328,5 @@ export function exportOverviewCsv(
 
   const csv = [headers.join(','), ...lines].join('\n');
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `calendriers-${year}-${String(month).padStart(2, '0')}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadBlob(blob, `calendriers-${year}-${String(month).padStart(2, '0')}.csv`);
 }

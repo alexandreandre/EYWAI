@@ -8,12 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2 } from "lucide-react";
+import { Info, Loader2 } from "lucide-react";
 import { createSalaryAdvance, getMyAdvanceAvailable } from '@/api/saisiesAvances';
 import type { SalaryAdvanceCreate } from '@/api/saisiesAvances';
 import { useAuth } from '@/contexts/AuthContext';
 import apiClient from '@/api/apiClient';
+import { formatCurrency } from '@/lib/employeeDashboardUtils';
 
 interface Employee {
   id: string;
@@ -28,13 +30,16 @@ interface SalaryAdvanceRequestFormProps {
   employeeId?: string;
   /** Si true, masque le sélecteur d'employé (pour les demandes d'employés) */
   hideEmployeeSelector?: boolean;
+  /** Date de versement souhaitée par défaut (AAAA-MM-JJ) */
+  defaultRequestedDate?: string;
 }
 
-export function SalaryAdvanceRequestForm({ 
-  onClose, 
-  onSuccess, 
+export function SalaryAdvanceRequestForm({
+  onClose,
+  onSuccess,
   employeeId,
-  hideEmployeeSelector = false 
+  hideEmployeeSelector = false,
+  defaultRequestedDate,
 }: SalaryAdvanceRequestFormProps) {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -43,18 +48,25 @@ export function SalaryAdvanceRequestForm({
   const [availableAmount, setAvailableAmount] = useState<number | null>(null);
   const [formData, setFormData] = useState<Partial<SalaryAdvanceCreate>>({
     employee_id: employeeId,
-    repayment_mode: 'single', // Valeur par défaut, non affichée dans l'interface
-    repayment_months: 1, // Valeur par défaut, non affichée dans l'interface
+    requested_date: defaultRequestedDate,
+    repayment_mode: 'single',
+    repayment_months: 1,
   });
 
-  // Mettre à jour employee_id si employeeId change
   useEffect(() => {
     if (employeeId) {
-      setFormData(prev => ({ ...prev, employee_id: employeeId }));
+      setFormData((prev) => ({ ...prev, employee_id: employeeId }));
     }
   }, [employeeId]);
 
-  // Charger la liste des employés seulement si le sélecteur est visible (RH)
+  useEffect(() => {
+    if (defaultRequestedDate) {
+      setFormData((prev) =>
+        prev.requested_date ? prev : { ...prev, requested_date: defaultRequestedDate }
+      );
+    }
+  }, [defaultRequestedDate]);
+
   useEffect(() => {
     if (!hideEmployeeSelector) {
       const fetchEmployees = async () => {
@@ -65,44 +77,36 @@ export function SalaryAdvanceRequestForm({
           log.error('Erreur chargement employés:', error);
         }
       };
-      fetchEmployees();
+      void fetchEmployees();
     }
   }, [hideEmployeeSelector]);
 
-  // Charger le montant disponible quand employee_id change
   useEffect(() => {
     const fetchAvailable = async () => {
-      const targetEmployeeId = formData.employee_id || employeeId;
-      if (targetEmployeeId) {
+      if (hideEmployeeSelector) {
         try {
-          // Si c'est l'employé connecté, utiliser getMyAdvanceAvailable
-          // Sinon, il faudrait créer un endpoint pour calculer le disponible pour un employé spécifique
-          if (targetEmployeeId === user?.id) {
-            const available = await getMyAdvanceAvailable();
-            // Convertir en nombre car Pydantic sérialise les Decimal en chaînes
-            setAvailableAmount(Number(available.available_amount || 0));
-          } else {
-            // Pour les RH qui créent une demande pour un autre employé
-            // On ne peut pas calculer le disponible facilement ici
-            // TODO: Créer un endpoint pour calculer le disponible pour un employé spécifique
-            setAvailableAmount(null);
-          }
+          const available = await getMyAdvanceAvailable();
+          setAvailableAmount(Number(available.available_amount || 0));
         } catch (error) {
           log.error('Erreur calcul montant disponible:', error);
           setAvailableAmount(null);
         }
-      } else {
-        setAvailableAmount(null);
+        return;
       }
+      const targetEmployeeId = formData.employee_id || employeeId;
+      if (!targetEmployeeId) {
+        setAvailableAmount(null);
+        return;
+      }
+      setAvailableAmount(null);
     };
-    fetchAvailable();
-  }, [formData.employee_id, employeeId, user?.id]);
+    void fetchAvailable();
+  }, [formData.employee_id, employeeId, hideEmployeeSelector]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Utiliser employeeId si fourni, sinon formData.employee_id
     const finalEmployeeId = employeeId || formData.employee_id;
-    
+
     if (!finalEmployeeId || !formData.requested_amount || !formData.requested_date) {
       toast({
         title: "Erreur",
@@ -115,7 +119,7 @@ export function SalaryAdvanceRequestForm({
     if (availableAmount !== null && formData.requested_amount > Number(availableAmount)) {
       toast({
         title: "Erreur",
-        description: `Le montant demandé dépasse le disponible (${Number(availableAmount).toFixed(2)}€).`,
+        description: `Le montant demandé dépasse le disponible (${formatCurrency(availableAmount)}).`,
         variant: "destructive",
       });
       return;
@@ -123,22 +127,25 @@ export function SalaryAdvanceRequestForm({
 
     setIsLoading(true);
     try {
-      // S'assurer que employee_id est bien défini dans les données envoyées
       const submitData: SalaryAdvanceCreate = {
         ...formData,
         employee_id: finalEmployeeId,
       } as SalaryAdvanceCreate;
-      
+
       await createSalaryAdvance(submitData);
       toast({
         title: "Succès",
         description: "Demande d'avance créée avec succès.",
       });
       onSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const detail =
+        error && typeof error === 'object' && 'response' in error
+          ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
       toast({
         title: "Erreur",
-        description: error.response?.data?.detail || "Impossible de créer la demande.",
+        description: detail || "Impossible de créer la demande.",
         variant: "destructive",
       });
     } finally {
@@ -146,9 +153,14 @@ export function SalaryAdvanceRequestForm({
     }
   };
 
-  // Déterminer si c'est une demande (employé) ou une création (RH)
   const isEmployeeRequest = hideEmployeeSelector && user?.role === 'collaborateur';
-  const dialogTitle = isEmployeeRequest ? 'Nouvelle demande d\'avance' : 'Nouvelle avance';
+  const dialogTitle = isEmployeeRequest ? "Nouvelle demande d'avance" : 'Nouvelle avance';
+
+  const applyMaxAmount = () => {
+    if (availableAmount !== null && availableAmount > 0) {
+      setFormData((prev) => ({ ...prev, requested_amount: availableAmount }));
+    }
+  };
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
@@ -179,23 +191,38 @@ export function SalaryAdvanceRequestForm({
           )}
 
           {availableAmount !== null && (
-            <div className="p-3 bg-blue-50 rounded-md">
-              <p className="text-sm text-blue-900">
-                <strong>Montant disponible :</strong> {Number(availableAmount).toFixed(2)}€
-              </p>
-            </div>
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Montant disponible :</strong> {formatCurrency(availableAmount)}
+              </AlertDescription>
+            </Alert>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
               <Label>Montant demandé (€) *</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={formData.requested_amount || ''}
-                onChange={(e) => setFormData({ ...formData, requested_amount: parseFloat(e.target.value) })}
-                placeholder="0.00"
-              />
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="flex-1"
+                  value={formData.requested_amount ?? ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      requested_amount: parseFloat(e.target.value) || undefined,
+                    })
+                  }
+                  placeholder="0.00"
+                />
+                {isEmployeeRequest && availableAmount !== null && availableAmount > 0 && (
+                  <Button type="button" variant="outline" onClick={applyMaxAmount}>
+                    Maximum
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div>
@@ -222,8 +249,8 @@ export function SalaryAdvanceRequestForm({
               Annuler
             </Button>
             <Button type="submit" disabled={isLoading}>
-              {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {isEmployeeRequest ? 'Créer la demande' : 'Créer l\'avance'}
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isEmployeeRequest ? 'Créer la demande' : "Créer l'avance"}
             </Button>
           </DialogFooter>
         </form>

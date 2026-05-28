@@ -24,8 +24,6 @@ def can_assign_role(creator_role: str, target_role: str) -> bool:
     Retourne True si le créateur (creator_role) peut attribuer target_role.
     Pure, sans I/O.
     """
-    if creator_role == "super_admin":
-        return True
     return target_role in ROLE_HIERARCHY.get(creator_role, [])
 
 

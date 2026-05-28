@@ -6,9 +6,9 @@ Compatibilité : schemas.user réexporte depuis ce module.
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional
 
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, computed_field, model_validator
 
 
 class CompanyAccess(BaseModel):
@@ -56,12 +56,28 @@ class User(BaseModel):
     email: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    is_super_admin: bool = False
+    is_platform_admin: bool = False
     is_group_admin: bool = False
 
     # Multi-entreprises
     accessible_companies: List[CompanyAccess] = []
     active_company_id: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_platform_admin(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "is_super_admin" in data:
+                if "is_platform_admin" not in data:
+                    data["is_platform_admin"] = data["is_super_admin"]
+                data.pop("is_super_admin", None)
+        return data
+
+    @computed_field
+    @property
+    def is_super_admin(self) -> bool:
+        """@deprecated Utiliser is_platform_admin."""
+        return self.is_platform_admin
 
     @computed_field
     @property
@@ -70,8 +86,8 @@ class User(BaseModel):
         Retourne le rôle de l'utilisateur pour l'entreprise active.
         Permet la compatibilité avec l'ancien code qui utilise user.role.
         """
-        if self.is_super_admin:
-            return "super_admin"
+        if self.is_platform_admin:
+            return "admin"
 
         if not self.active_company_id:
             # Si pas d'entreprise active, retourner le rôle de l'entreprise primaire
@@ -101,7 +117,7 @@ class User(BaseModel):
 
     def has_access_to_company(self, company_id: str) -> bool:
         """Vérifie si l'utilisateur a accès à une entreprise"""
-        if self.is_super_admin:
+        if self.is_platform_admin:
             return True
         return any(
             access.company_id == company_id for access in self.accessible_companies
@@ -109,8 +125,8 @@ class User(BaseModel):
 
     def get_role_in_company(self, company_id: str) -> Optional[str]:
         """Retourne le rôle de l'utilisateur dans une entreprise spécifique"""
-        if self.is_super_admin:
-            return "super_admin"
+        if self.is_platform_admin:
+            return "admin"
 
         for access in self.accessible_companies:
             if access.company_id == company_id:
@@ -119,7 +135,7 @@ class User(BaseModel):
 
     def is_admin_in_company(self, company_id: str) -> bool:
         """Vérifie si l'utilisateur est admin dans une entreprise"""
-        if self.is_super_admin:
+        if self.is_platform_admin:
             return True
         return self.get_role_in_company(company_id) == "admin"
 
@@ -137,7 +153,7 @@ class User(BaseModel):
         Vérifie si l'utilisateur a accès RH dans une entreprise.
         Inclut: admin, rh, collaborateur_rh, et custom avec permissions RH.
         """
-        if self.is_super_admin:
+        if self.is_platform_admin:
             return True
         role = self.get_role_in_company(company_id)
         if role in ("admin", "rh", "collaborateur_rh"):
@@ -157,7 +173,7 @@ class User(BaseModel):
                 "email": "user@example.com",
                 "first_name": "Jean",
                 "last_name": "Dupont",
-                "is_super_admin": False,
+                "is_platform_admin": False,
                 "is_group_admin": False,
                 "accessible_companies": [
                     {
@@ -186,7 +202,12 @@ class UserSimple(BaseModel):
     role: str
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    is_super_admin: bool = False
+    is_platform_admin: bool = False
+
+    @computed_field
+    @property
+    def is_super_admin(self) -> bool:
+        return self.is_platform_admin
 
 
 class UserDetail(BaseModel):

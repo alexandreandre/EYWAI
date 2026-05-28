@@ -58,7 +58,7 @@ def _company_id_required(user: User) -> str:
 
 def _check_exit_permission(user: User, company_id: str, _permission: str) -> None:
     """Vérifie que l'utilisateur a le droit d'agir sur les sorties (admin/rh ou super_admin)."""
-    if user.is_super_admin:
+    if user.is_platform_admin:
         return
     role = user.get_role_in_company(company_id)
     if role in ("admin", "rh"):
@@ -71,7 +71,7 @@ def _check_exit_permission(user: User, company_id: str, _permission: str) -> Non
 
 def _check_publish_permission(user: User, company_id: str) -> None:
     """Vérifie la permission de publication des documents (RH ou permission granulaire)."""
-    if user.is_super_admin:
+    if user.is_platform_admin:
         return
     if getattr(user, "has_rh_access_in_company", lambda c: False)(company_id):
         return
@@ -90,7 +90,7 @@ def _check_publish_permission(user: User, company_id: str) -> None:
 
 def _check_unpublish_permission(user: User, company_id: str) -> None:
     """Vérifie la permission de dépublication."""
-    if user.is_super_admin:
+    if user.is_platform_admin:
         return
     role = user.get_role_in_company(company_id)
     if role in ("admin", "rh"):

@@ -22,7 +22,14 @@ from app.modules.users.schemas.responses import User, CompanyAccess
 pytestmark = pytest.mark.integration
 
 TEST_USER_ID = "660e8400-e29b-41d4-a716-446655440001"
+TEST_EMPLOYEE_ID = "770e8400-e29b-41d4-a716-446655440099"
 TEST_COMPANY_ID = "550e8400-e29b-41d4-a716-446655440000"
+
+
+def _mock_employee_expense_service() -> MagicMock:
+    mock_svc = MagicMock()
+    mock_svc.resolve_employee_id_for_expense_account.return_value = TEST_EMPLOYEE_ID
+    return mock_svc
 
 
 def _make_user():
@@ -54,9 +61,9 @@ class TestExpensesWiringGetUploadUrl:
     ):
         from app.core.security import get_current_user
 
-        mock_svc = MagicMock()
+        mock_svc = _mock_employee_expense_service()
         mock_svc.get_signed_upload_url.return_value = {
-            "path": f"{TEST_USER_ID}/2025-03-15-abc.pdf",
+            "path": f"{TEST_EMPLOYEE_ID}/2025-03-15-abc.pdf",
             "signedURL": "https://signed-upload-wiring",
         }
 
@@ -75,10 +82,10 @@ class TestExpensesWiringGetUploadUrl:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["path"] == f"{TEST_USER_ID}/2025-03-15-abc.pdf"
+        assert data["path"] == f"{TEST_EMPLOYEE_ID}/2025-03-15-abc.pdf"
         assert data["signedURL"] == "https://signed-upload-wiring"
         mock_svc.get_signed_upload_url.assert_called_once_with(
-            TEST_USER_ID, "facture.pdf"
+            TEST_EMPLOYEE_ID, "facture.pdf"
         )
 
 
@@ -90,9 +97,10 @@ class TestExpensesWiringCreateExpense:
     ):
         from app.core.security import get_current_user
 
+        mock_svc = _mock_employee_expense_service()
         created = {
             "id": "exp-wiring-1",
-            "employee_id": TEST_USER_ID,
+            "employee_id": TEST_EMPLOYEE_ID,
             "date": "2025-03-15",
             "amount": 80.0,
             "type": "Restaurant",
@@ -102,7 +110,6 @@ class TestExpensesWiringCreateExpense:
             "filename": None,
             "created_at": datetime.now().isoformat(),
         }
-        mock_svc = MagicMock()
         mock_svc.create_expense.return_value = created
 
         app.dependency_overrides[get_current_user] = lambda: _make_user()
@@ -131,7 +138,7 @@ class TestExpensesWiringCreateExpense:
         mock_svc.create_expense.assert_called_once()
         call_input = mock_svc.create_expense.call_args[0][0]
         assert isinstance(call_input, CreateExpenseInput)
-        assert call_input.employee_id == TEST_USER_ID
+        assert call_input.employee_id == TEST_EMPLOYEE_ID
         assert call_input.amount == 80.0
         assert call_input.type == "Restaurant"
 
@@ -142,12 +149,12 @@ class TestExpensesWiringGetMyExpenses:
     def test_get_my_expenses_flow_calls_service_with_user_id(self, client: TestClient):
         from app.core.security import get_current_user
 
-        mock_svc = MagicMock()
-        mock_svc.get_my_expenses.return_value = [
+        mock_svc = _mock_employee_expense_service()
+        mock_svc.get_my_expenses_for_user_account.return_value = [
             {
                 "id": "exp-1",
                 "created_at": datetime.now().isoformat(),
-                "employee_id": TEST_USER_ID,
+                "employee_id": TEST_EMPLOYEE_ID,
                 "date": "2025-03-15",
                 "amount": 25.0,
                 "type": "Transport",
@@ -169,7 +176,9 @@ class TestExpensesWiringGetMyExpenses:
         data = response.json()
         assert len(data) == 1
         assert data[0]["id"] == "exp-1"
-        mock_svc.get_my_expenses.assert_called_once_with(TEST_USER_ID)
+        mock_svc.get_my_expenses_for_user_account.assert_called_once_with(
+            TEST_USER_ID, TEST_COMPANY_ID
+        )
 
 
 class TestExpensesWiringGetAllExpenses:
@@ -278,6 +287,9 @@ class TestExpensesWiringEndToEndWithApplicationLayer:
         app.dependency_overrides[get_current_user] = lambda: _make_user()
         try:
             with patch(
+                "app.modules.employees.infrastructure.queries.resolve_employee_id_for_user_account",
+                return_value=TEST_USER_ID,
+            ), patch(
                 "app.modules.expenses.application.commands.ExpenseRepository"
             ) as mock_repo_class:
                 mock_repo = MagicMock()

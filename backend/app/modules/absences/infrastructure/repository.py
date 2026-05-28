@@ -16,25 +16,14 @@ class SupabaseAbsenceRepository(IAbsenceRepository):
     """Implémentation Supabase pour absence_requests."""
 
     @staticmethod
-    def _resolve_employee_id_for_user(user_id: str) -> Optional[str]:
-        """Même logique que infrastructure.queries.resolve_employee_id_for_user (évite import circulaire)."""
-        emp = (
-            supabase.table("employees")
-            .select("id")
-            .eq("id", user_id)
-            .maybe_single()
-            .execute()
+    def _resolve_employee_id_for_user(
+        user_id: str, company_id: str
+    ) -> Optional[str]:
+        from app.shared.employee_resolution import (
+            resolve_employee_id_for_user_account,
         )
-        if emp and emp.data:
-            return str(emp.data["id"])
-        emp2 = (
-            supabase.table("employees")
-            .select("id")
-            .eq("user_id", user_id)
-            .maybe_single()
-            .execute()
-        )
-        return str(emp2.data["id"]) if emp2 and emp2.data else None
+
+        return resolve_employee_id_for_user_account(str(user_id), str(company_id))
 
     def create(self, data: Dict[str, Any]) -> Dict[str, Any]:
         response = supabase.table("absence_requests").insert(data).execute()
@@ -186,7 +175,9 @@ class SupabaseAbsenceRepository(IAbsenceRepository):
 
         now_iso = datetime.now(timezone.utc).isoformat()
 
-        manager_employee_id = self._resolve_employee_id_for_user(manager_user_id)
+        manager_employee_id = self._resolve_employee_id_for_user(
+            manager_user_id, str(company_id)
+        )
 
         if approved:
             update_payload: Dict[str, Any] = {

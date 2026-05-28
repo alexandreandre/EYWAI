@@ -28,7 +28,7 @@ from app.modules.super_admin.schemas.requests import (
     UserCreate,
 )
 
-router = APIRouter(prefix="/api/super-admin", tags=["Super Admin"])
+router = APIRouter(prefix="/api/super-admin", tags=["Admin plateforme"])
 
 
 # ----- Dépendance : vérifier super admin -----
@@ -91,6 +91,45 @@ async def get_global_stats(
         raise _map_exceptions(e)
 
 
+@router.get("/dashboard/support-badges")
+async def get_support_badges(
+    super_admin: Dict[str, Any] = Depends(verify_super_admin),
+):
+    """Compteurs tickets pour la navigation Administration EYWAI."""
+    try:
+        return queries.get_support_badges()
+    except Exception as e:
+        raise _map_exceptions(e)
+
+
+@router.get("/activity/logs")
+async def list_platform_audit_logs(
+    company_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    action: Optional[str] = None,
+    resource_type: Optional[str] = None,
+    created_after: Optional[str] = None,
+    created_before: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    super_admin: Dict[str, Any] = Depends(verify_super_admin),
+):
+    """Journal d'audit plateforme (toutes entreprises)."""
+    try:
+        return queries.list_platform_audit_logs(
+            company_id=company_id,
+            user_id=user_id,
+            action=action,
+            resource_type=resource_type,
+            created_after=created_after,
+            created_before=created_before,
+            limit=limit,
+            offset=offset,
+        )
+    except Exception as e:
+        raise _map_exceptions(e)
+
+
 # ----- Companies -----
 
 
@@ -146,7 +185,7 @@ async def update_company(
         update_data = {
             k: v for k, v in company_update.model_dump().items() if v is not None
         }
-        return commands.update_company(company_id, update_data)
+        return commands.update_company(company_id, update_data, super_admin)
     except Exception as e:
         raise _map_exceptions(e)
 
@@ -224,7 +263,9 @@ async def create_company_user(
 ):
     """Crée un nouvel utilisateur pour une entreprise."""
     try:
-        return commands.create_company_user(company_id, user_data.model_dump())
+        return commands.create_company_user(
+            company_id, user_data.model_dump(), super_admin
+        )
     except Exception as e:
         raise _map_exceptions(e)
 
@@ -238,7 +279,9 @@ async def update_company_user(
 ):
     """Met à jour les informations d'un utilisateur."""
     try:
-        return commands.update_company_user(company_id, user_id, update_data)
+        return commands.update_company_user(
+            company_id, user_id, update_data, super_admin
+        )
     except Exception as e:
         raise _map_exceptions(e)
 

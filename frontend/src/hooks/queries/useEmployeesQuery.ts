@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import apiClient from '@/api/apiClient';
+import { fetchEmployeesSummary } from '@/api/employees';
 import { queryKeys } from '@/lib/queryKeys';
 import { useActiveCompanyId } from './useCompanyId';
 
@@ -12,16 +12,15 @@ export type EmployeeListItem = {
   hire_date?: string | null;
   employment_status?: string | null;
   current_exit_id?: string | null;
+  duree_hebdomadaire?: number | null;
 };
 
 export function useEmployeesQuery(enabled = true) {
   const companyId = useActiveCompanyId();
   return useQuery({
     queryKey: queryKeys.employees(companyId),
-    queryFn: async () => {
-      const res = await apiClient.get<EmployeeListItem[]>('/api/employees');
-      return res.data ?? [];
-    },
+    queryFn: () => fetchEmployeesSummary('all'),
     enabled: enabled && Boolean(companyId),
+    placeholderData: (previous) => previous,
   });
 }

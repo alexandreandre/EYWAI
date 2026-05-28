@@ -51,7 +51,7 @@ class AccessControlService:
         Vérifie si l'utilisateur créateur peut créer/modifier un utilisateur
         avec le rôle cible dans l'entreprise donnée.
         """
-        if creator_user.is_super_admin:
+        if creator_user.is_platform_admin:
             return True
         creator_role = creator_user.get_role_in_company(str(company_id))
         if not creator_role:
@@ -83,7 +83,7 @@ class AccessControlService:
         Lève HTTPException 403 si l'utilisateur n'a aucun accès RH
         (super_admin ou has_rh_access_in_company sur au moins une entreprise).
         """
-        if current_user.is_super_admin:
+        if current_user.is_platform_admin:
             return
         has_rh = any(
             current_user.has_rh_access_in_company(acc.company_id)
@@ -102,7 +102,7 @@ class AccessControlService:
         Lève HTTPException 403 si l'utilisateur n'a pas d'accès RH pour cette entreprise.
         Aligné legacy check-permission : super_admin ou has_rh_access_in_company(company_id).
         """
-        if current_user.is_super_admin:
+        if current_user.is_platform_admin:
             return
         if not current_user.has_rh_access_in_company(company_id):
             raise HTTPException(
@@ -115,7 +115,7 @@ class AccessControlService:
         True si l'utilisateur a accès RH pour cette entreprise (pour ex. matrice des permissions).
         Règle pure pour admin/rh/collaborateur_rh ; custom nécessite la persistance (repository).
         """
-        if current_user.is_super_admin:
+        if current_user.is_platform_admin:
             return True
         role = current_user.get_role_in_company(company_id)
         if rules.role_has_rh_level(role or ""):

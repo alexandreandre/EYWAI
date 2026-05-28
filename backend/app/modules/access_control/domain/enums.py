@@ -13,7 +13,6 @@ from enum import StrEnum
 class RoleKind(StrEnum):
     """Rôles utilisateur dans une entreprise (base_role)."""
 
-    SUPER_ADMIN = "super_admin"
     ADMIN = "admin"
     RH = "rh"
     COLLABORATEUR_RH = "collaborateur_rh"

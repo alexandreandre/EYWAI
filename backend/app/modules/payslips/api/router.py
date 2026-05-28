@@ -15,11 +15,12 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.core.security import get_current_user
-from app.modules.audit.infrastructure.repository import audit_repository
-from app.modules.webhooks.infrastructure.repository import webhook_repository
+from app.modules.audit.application.commands import log_audit_event
+from app.modules.webhooks.application.service import trigger_webhook_event
 from app.modules.payslips.application.anomalies_report import (
     build_payslips_anomalies_report,
 )
+from app.shared.employee_resolution import resolve_employee_id_for_user_account
 from app.modules.payslips.application import (
     PayslipBadRequestError,
     PayslipCriticalActiveError,
@@ -31,7 +32,7 @@ from app.modules.payslips.application import (
     generate_payslip,
     get_debug_storage_info,
     get_employee_payslips,
-    get_my_payslips,
+    get_my_payslips_for_user_account,
     get_payslip_comparison_for_user,
     get_payslip_details_for_user,
     get_payslip_history_for_user,
@@ -42,7 +43,7 @@ from app.modules.payslips.application import (
     validate_payslip_for_user,
     GeneratePayslipInput,
 )
-from app.modules.payslips.infrastructure.queries import get_payslip_meta
+from app.modules.payslips.application.router_queries import get_payslip_meta_for_access
 from app.modules.payslips.schemas.anomalies import PayslipsAnomaliesReport
 from app.modules.payslips.schemas import (
     AcquitAlertRequest,
@@ -72,11 +73,18 @@ _PAYSLIP_APP_ERRORS = (
 
 def _to_user_context(user: User) -> UserContext:
     """Adapte User (couche API) vers UserContext (application)."""
+    company_id = user.active_company_id
+    resolved_employee_id = None
+    if company_id:
+        resolved_employee_id = resolve_employee_id_for_user_account(
+            str(user.id), str(company_id)
+        )
     return UserContext(
         user_id=user.id,
-        is_super_admin=user.is_super_admin,
+        is_platform_admin=user.is_platform_admin,
         has_rh_access_in_company=user.has_rh_access_in_company,
-        active_company_id=user.active_company_id,
+        active_company_id=company_id,
+        resolved_employee_id=resolved_employee_id,
         first_name=user.first_name,
         last_name=user.last_name,
     )
@@ -164,7 +172,9 @@ def generate_payslip_route(
 def get_my_payslips_route(current_user: User = Depends(get_current_user)):
     """Liste des bulletins de l'employé connecté."""
     try:
-        return get_my_payslips(current_user.id)
+        return get_my_payslips_for_user_account(
+            str(current_user.id), current_user.active_company_id
+        )
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -303,10 +313,10 @@ def validate_payslip_route(
     """Valide le bulletin si aucune alerte critique active."""
     try:
         validate_payslip_for_user(payslip_id, _to_user_context(current_user))
-        meta = get_payslip_meta(payslip_id)
+        meta = get_payslip_meta_for_access(payslip_id)
         cid = str(meta.get("company_id") or "") if meta else ""
         if cid:
-            audit_repository.log(
+            log_audit_event(
                 company_id=cid,
                 user_id=str(current_user.id),
                 user_email=current_user.email,
@@ -318,7 +328,7 @@ def validate_payslip_route(
                 },
                 ip_address=request.client.host if request.client else None,
             )
-            webhook_repository.trigger_event(
+            trigger_webhook_event(
                 cid,
                 "payslip.validated",
                 {

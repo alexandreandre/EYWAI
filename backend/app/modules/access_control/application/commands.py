@@ -11,7 +11,10 @@ from typing import TYPE_CHECKING, Any
 from fastapi import HTTPException, status
 
 from app.modules.access_control.application.service import access_control_service
-from app.modules.access_control.infrastructure.queries import role_template_repository
+from app.modules.access_control.infrastructure.queries import (
+    permission_catalog_reader,
+    role_template_repository,
+)
 
 if TYPE_CHECKING:
     from app.modules.users.schemas.responses import User
@@ -47,7 +50,7 @@ def quick_create_role_template(
     Lève 403 si pas d'accès RH pour l'entreprise, 400 si le nom existe déjà.
     Retourne {"message": "...", "template_id": "...", "name": "..."}.
     """
-    if not current_user.is_super_admin:
+    if not current_user.is_platform_admin:
         if not current_user.has_rh_access_in_company(company_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -79,3 +82,68 @@ def quick_create_role_template(
         "template_id": template_id,
         "name": name,
     }
+
+
+def _assert_can_manage_user_permissions(
+    current_user: "User", user_id: str, company_id: str
+) -> None:
+    """Vérifie que l'appelant peut modifier les permissions de l'utilisateur cible."""
+    access = permission_catalog_reader.get_user_company_access(user_id, company_id)
+    if not access:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Utilisateur n'a pas d'accès à cette entreprise",
+        )
+    target_user_role = access["role"]
+    if not current_user.is_platform_admin:
+        if not current_user.has_rh_access_in_company(company_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Accès RH requis",
+            )
+        viewable_roles = access_control_service.get_viewable_roles(
+            current_user.get_role_in_company(company_id) or ""
+        )
+        if target_user_role not in viewable_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Vous n'êtes pas autorisé à modifier les permissions de cet utilisateur",
+            )
+
+
+def replace_user_permissions(
+    current_user: "User",
+    user_id: str,
+    company_id: str,
+    permission_ids: list | None,
+) -> dict[str, str]:
+    """Remplace toutes les permissions utilisateur pour une entreprise (PUT)."""
+    from app.modules.users.infrastructure.repository import user_permission_repository
+
+    _assert_can_manage_user_permissions(current_user, user_id, company_id)
+    ids = [str(p) for p in (permission_ids or [])]
+    user_permission_repository.delete_for_user_company(user_id, company_id)
+    grantor = str(current_user.id)
+    for permission_id in ids:
+        user_permission_repository.upsert(
+            user_id, company_id, permission_id, grantor
+        )
+    return {"message": "Permissions mises à jour"}
+
+
+def grant_user_permissions(
+    current_user: "User",
+    user_id: str,
+    company_id: str,
+    permission_ids: list | None,
+) -> dict[str, str]:
+    """Ajoute des permissions sans supprimer les existantes (POST)."""
+    from app.modules.users.infrastructure.repository import user_permission_repository
+
+    _assert_can_manage_user_permissions(current_user, user_id, company_id)
+    grantor = str(current_user.id)
+    for permission_id in [str(p) for p in (permission_ids or [])]:
+        user_permission_repository.upsert(
+            user_id, company_id, permission_id, grantor
+        )
+    return {"message": "Permissions accordées"}

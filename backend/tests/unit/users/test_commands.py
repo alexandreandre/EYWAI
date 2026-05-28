@@ -22,10 +22,10 @@ from app.modules.users.application.dto import (
 pytestmark = pytest.mark.unit
 
 
-def _current_user(id_="user-1", is_super_admin=False):
+def _current_user(id_="user-1", is_platform_admin=False):
     u = MagicMock()
     u.id = id_
-    u.is_super_admin = is_super_admin
+    u.is_platform_admin = is_platform_admin
     return u
 
 
@@ -214,7 +214,7 @@ class TestRevokeCompanyAccess:
         access_repo = MagicMock()
         get_repo.return_value = access_repo
         access_repo.count_admins.return_value = 1
-        current = _current_user(id_="u1", is_super_admin=False)
+        current = _current_user(id_="u1", is_platform_admin=False)
 
         with pytest.raises(ValueError) as exc_info:
             commands.revoke_company_access("u1", "c1", current)
@@ -226,7 +226,7 @@ class TestRevokeCompanyAccess:
         get_repo.return_value = access_repo
         access_repo.count_admins.return_value = 1
         access_repo.delete.return_value = {"user_id": "u1", "company_id": "c1"}
-        current = _current_user(id_="u1", is_super_admin=True)
+        current = _current_user(id_="u1", is_platform_admin=True)
 
         result = commands.revoke_company_access("u1", "c1", current)
         assert result.user_id == "u1"
@@ -331,7 +331,7 @@ class TestUpdateUserWithPermissions:
         data.permission_ids = None
 
         current = MagicMock()
-        current.is_super_admin = False
+        current.is_platform_admin = False
         current.has_access_to_company.return_value = True
         current.get_role_in_company.return_value = "rh"
 
@@ -363,7 +363,7 @@ class TestUpdateUserWithPermissions:
 
         current = MagicMock()
         current.id = "rh-1"
-        current.is_super_admin = False
+        current.is_platform_admin = False
         current.has_access_to_company.return_value = True
         current.get_role_in_company.return_value = "rh"
 

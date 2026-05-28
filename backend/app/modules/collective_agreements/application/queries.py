@@ -67,12 +67,12 @@ def get_my_company_agreements_query(
 
 
 def get_all_assignments_query(
-    is_super_admin: bool,
+    is_platform_admin: bool,
     service: Optional[CollectiveAgreementsService] = None,
 ) -> List[dict]:
     """Toutes les assignations par entreprise (super admin)."""
     svc = service or get_collective_agreements_service()
-    return svc.get_all_assignments(is_super_admin)
+    return svc.get_all_assignments(is_platform_admin)
 
 
 def ask_question_query(

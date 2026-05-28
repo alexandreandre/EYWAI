@@ -13,6 +13,7 @@ import io
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
+from app.core.platform_admin import is_platform_admin
 from app.core.security import get_current_user
 from app.modules.users.schemas.responses import User
 
@@ -41,7 +42,7 @@ def _company_id(user: User) -> str:
 
 
 def _is_rh(user: User) -> bool:
-    if getattr(user, "is_super_admin", False):
+    if is_platform_admin(user):
         return True
     if not user.active_company_id:
         return False
@@ -50,6 +51,14 @@ def _is_rh(user: User) -> bool:
 
 def _repo():
     return service.get_repository()
+
+
+def _resolve_employee_id_for_current_user(user: User) -> Optional[str]:
+    """Id fiche employees pour le compte connecté (user_id, id ou e-mail)."""
+    from app.shared.employee_resolution import resolve_employee_id_for_user_account
+
+    cid = _company_id(user)
+    return resolve_employee_id_for_user_account(str(user.id), cid)
 
 
 # --- GET list (RH)
@@ -85,16 +94,22 @@ def get_employee_annual_reviews(
 # --- GET my reviews
 @router.get("/me", response_model=List[AnnualReviewRead])
 def get_my_annual_reviews(current_user: User = Depends(get_current_user)):
+    employee_id = _resolve_employee_id_for_current_user(current_user)
+    if not employee_id:
+        return []
     return queries.get_my_annual_reviews(
-        current_user.id, _company_id(current_user), repository=_repo()
+        employee_id, _company_id(current_user), repository=_repo()
     )
 
 
 # --- GET my current
 @router.get("/me/current", response_model=Optional[AnnualReviewRead])
 def get_my_current_annual_review(current_user: User = Depends(get_current_user)):
+    employee_id = _resolve_employee_id_for_current_user(current_user)
+    if not employee_id:
+        return None
     return queries.get_my_current_annual_review(
-        current_user.id,
+        employee_id,
         _company_id(current_user),
         date.today().year,
         repository=_repo(),
@@ -107,10 +122,15 @@ def get_annual_review(
     review_id: str,
     current_user: User = Depends(get_current_user),
 ):
+    scope_id = (
+        _resolve_employee_id_for_current_user(current_user)
+        if not _is_rh(current_user)
+        else str(current_user.id)
+    )
     out = queries.get_annual_review_by_id(
         review_id,
         _company_id(current_user),
-        current_user.id,
+        scope_id or "",
         _is_rh(current_user),
         repository=_repo(),
     )
@@ -150,10 +170,15 @@ def update_annual_review(
     current_user: User = Depends(get_current_user),
 ):
     try:
+        scope_id = (
+            _resolve_employee_id_for_current_user(current_user)
+            if not _is_rh(current_user)
+            else str(current_user.id)
+        )
         updated = commands.update_annual_review(
             review_id,
             _company_id(current_user),
-            current_user.id,
+            scope_id or "",
             _is_rh(current_user),
             data.model_dump(exclude_unset=True),
             repository=_repo(),
@@ -231,10 +256,15 @@ def download_annual_review_pdf(
     current_user: User = Depends(get_current_user),
 ):
     try:
+        scope_id = (
+            _resolve_employee_id_for_current_user(current_user)
+            if not _is_rh(current_user)
+            else str(current_user.id)
+        )
         pdf_bytes, filename = service.generate_annual_review_pdf(
             review_id,
             _company_id(current_user),
-            current_user.id,
+            scope_id or "",
             _is_rh(current_user),
         )
         return StreamingResponse(

@@ -128,7 +128,7 @@ def get_current_user(
             .eq("is_active", True)
             .execute()
         )
-        is_super_admin = bool(
+        is_platform_admin = bool(
             super_admin_response.data and len(super_admin_response.data) > 0
         )
 
@@ -175,7 +175,7 @@ def get_current_user(
         # 5. Déterminer l'entreprise active
         active_company_id = None
 
-        if is_super_admin and x_active_company:
+        if is_platform_admin and x_active_company:
             active_company_id = x_active_company
         elif x_active_company:
             if any(acc.company_id == x_active_company for acc in accessible_companies):
@@ -205,7 +205,7 @@ def get_current_user(
 
         # 7. Vérifier si group admin
         is_group_admin = False
-        if not is_super_admin and len(accessible_companies) > 1:
+        if not is_platform_admin and len(accessible_companies) > 1:
             admin_companies = [
                 acc for acc in accessible_companies if acc.role == "admin"
             ]
@@ -219,7 +219,7 @@ def get_current_user(
             email=user.email,
             first_name=profile_data.get("first_name"),
             last_name=profile_data.get("last_name"),
-            is_super_admin=is_super_admin,
+            is_platform_admin=is_platform_admin,
             is_group_admin=is_group_admin,
             accessible_companies=accessible_companies,
             active_company_id=active_company_id,

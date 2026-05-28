@@ -18,16 +18,7 @@ import {
   exportElectionCalendar,
 } from "@/api/cse";
 import { getCurrentMonthPeriod } from "@/lib/csePeriod";
-async function downloadBlob(blob: Blob, filename: string) {
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  window.URL.revokeObjectURL(url);
-  document.body.removeChild(a);
-}
+import { downloadBlob } from '@/lib/downloadBlob';
 
 interface CseExportsMenuProps {
   onOpenExportsTab?: () => void;

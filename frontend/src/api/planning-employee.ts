@@ -6,19 +6,13 @@ export interface EmployeeWeekPlanning {
   week_end: string;
   status: string;
   team_view_enabled: boolean;
+  /** Fiche employees.id résolue côté serveur (vision équipe, etc.). */
+  employee_id?: string;
   shifts: Shift[];
 }
 
-function triggerDownload(blob: Blob, filename: string): void {
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.setAttribute('download', filename);
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  window.URL.revokeObjectURL(url);
-}
+import { downloadBlob as triggerDownload } from '@/lib/downloadBlob';
+
 
 /** Retire les champs non destinés à l’affichage collaborateur (défense en profondeur). */
 function sanitizeShifts(shifts: Shift[]): Shift[] {

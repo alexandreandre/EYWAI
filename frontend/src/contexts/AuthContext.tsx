@@ -14,15 +14,19 @@ import {
   type AuthSessionPayload,
 } from '@/lib/authSession';
 import { CompanyAccess } from "./CompanyContext";
+import { useBootOptional } from '@/contexts/BootContext';
+import { isPlatformAdmin } from '@/lib/platformAdmin';
 
 // === Types ===
 
 interface User {
   id: string;
   email: string;
-  role?: 'rh' | 'collaborateur' | 'collaborateur_rh' | 'admin' | 'super_admin' | 'custom';
+  role?: 'rh' | 'collaborateur' | 'collaborateur_rh' | 'admin' | 'custom';
   first_name: string;
   last_name?: string;
+  is_platform_admin?: boolean;
+  /** @deprecated — utiliser is_platform_admin */
   is_super_admin?: boolean;
   is_group_admin?: boolean;
   active_company?: CompanyAccess;
@@ -65,6 +69,7 @@ async function fetchCurrentUser(): Promise<User> {
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const queryClient = useQueryClient();
+  const boot = useBootOptional();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -155,6 +160,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const login = async (session: AuthSessionPayload) => {
+    boot?.resetBoot();
     persistAuthSession(session);
     applyAccessToken(session.access_token);
 
@@ -169,6 +175,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = async () => {
+    boot?.resetBoot();
     if (refreshTimerRef.current) {
       clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = null;
@@ -201,7 +208,7 @@ export const useAuth = () => {
 
 export function hasRhAccess(user: User | null, companyId: string): boolean {
   if (!user) return false;
-  if (user.is_super_admin) return true;
+  if (isPlatformAdmin(user)) return true;
   if (user.role === 'rh' || user.role === 'collaborateur_rh' || user.role === 'admin') {
     return true;
   }

@@ -9,7 +9,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
-from app.core.database import supabase
+from app.core.platform_admin import is_platform_admin
 from app.core.security import get_current_user
 from app.modules.competencies.application import commands, queries
 from app.modules.competencies.application.ai_service import talent_ai_service
@@ -26,7 +26,6 @@ from app.modules.competencies.schemas.responses import (
     MobilityRecommendedPosition,
     MobilityRecommendedTraining,
 )
-from app.modules.training.infrastructure.repository import training_repository
 from app.modules.users.schemas.responses import User
 
 router = APIRouter(prefix="/api/competencies", tags=["Competencies"])
@@ -59,7 +58,7 @@ def _company_id(user: User) -> str:
 
 
 def _is_rh(user: User) -> bool:
-    if getattr(user, 'is_platform_admin', False) or getattr(user, 'is_super_admin', False):
+    if is_platform_admin(user):
         return True
     if not user.active_company_id:
         return False
@@ -265,17 +264,9 @@ def route_analyze_mobility(
         raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
     cid = _company_id(current_user)
     try:
-        r = (
-            supabase.table("employees")
-            .select("id, company_id, first_name, last_name, job_title, employment_status")
-            .eq("id", employee_id)
-            .eq("company_id", cid)
-            .maybe_single()
-            .execute()
-        )
-        if not r or not r.data:
+        emp_row = queries.get_employee_row_for_mobility(cid, employee_id)
+        if not emp_row:
             raise HTTPException(status_code=404, detail="Collaborateur introuvable.")
-        emp_row = dict(r.data)
 
         evals = queries.get_latest_evaluations(cid, employee_id)
         competencies = [
@@ -294,23 +285,8 @@ def route_analyze_mobility(
             for g in gaps_cells
         ]
 
-        train_rows = training_repository.get_all_trainings(cid, include_archived=False)
-
-        jr = (
-            supabase.table("employees")
-            .select("job_title")
-            .eq("company_id", cid)
-            .eq("employment_status", "actif")
-            .limit(200)
-            .execute()
-        )
-        titles: List[str] = []
-        for row in list(jr.data or []):
-            jt = (row.get("job_title") or "").strip()
-            if jt and jt not in titles:
-                titles.append(jt)
-            if len(titles) >= 20:
-                break
+        train_rows = queries.list_training_catalog_for_mobility(cid)
+        titles = queries.list_active_job_titles(cid, limit=20)
 
         employee_payload = {
             "first_name": emp_row.get("first_name"),

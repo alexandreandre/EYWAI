@@ -21,13 +21,23 @@ from app.core.security import get_current_user
 pytestmark = pytest.mark.integration
 
 
-def _make_mock_user(*, role="user", active_company_id="company-1", has_rh=True):
+def _make_mock_user(
+    *,
+    role="user",
+    active_company_id="company-1",
+    has_rh=True,
+    is_platform_admin: bool | None = None,
+):
     """Contexte utilisateur mock pour dependency override."""
     user = MagicMock()
     user.id = "user-test-id"
     user.role = role
     user.active_company_id = active_company_id
     user.has_rh_access_in_company = lambda cid: has_rh
+    if is_platform_admin is None:
+        user.is_platform_admin = role == "super_admin"
+    else:
+        user.is_platform_admin = is_platform_admin
     return user
 
 

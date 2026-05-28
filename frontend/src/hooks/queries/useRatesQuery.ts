@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import apiClient from '@/api/apiClient';
+import { fetchAllRates } from '@/api/rates';
 import { queryKeys } from '@/lib/queryKeys';
 import { useActiveCompanyId } from './useCompanyId';
 
@@ -7,10 +7,7 @@ export function useRatesQuery(enabled = true) {
   const companyId = useActiveCompanyId();
   return useQuery({
     queryKey: queryKeys.rates(companyId),
-    queryFn: async () => {
-      const res = await apiClient.get('/api/rates/all');
-      return res.data;
-    },
+    queryFn: fetchAllRates,
     enabled: enabled && Boolean(companyId),
   });
 }

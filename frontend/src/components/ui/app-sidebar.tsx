@@ -9,7 +9,6 @@ import {
   UsersRound,
   ClipboardCheck,
   User,
-  LogOut,
   ClipboardEdit,
   ClipboardList,
   Notebook,
@@ -27,7 +26,6 @@ import {
   Scale,
   Wallet,
   Home,
-  DollarSign,
   FolderKanban,
   Handshake,
   Stethoscope,
@@ -40,6 +38,7 @@ import {
   ScanLine,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext"; // <-- IMPORTATION
+import { isPlatformAdmin } from "@/lib/platformAdmin";
 import { useRhSidebarTaskBadges } from "@/hooks/useRhSidebarTaskBadges";
 import {
   computeAccessibleGroups,
@@ -50,7 +49,7 @@ import { useViewOptional } from "@/contexts/ViewContext"; // NOUVEAU - Gestion d
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { prefetchRoute } from "@/lib/prefetchByRole";
-import { ChangePasswordModal } from "@/components/ChangePasswordModal";
+import { SidebarAccountMenu } from "@/components/ui/sidebar-account-menu";
 import { CompanySwitcher } from "@/components/CompanySwitcher";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -80,7 +79,6 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { NotificationBell } from "@/components/NotificationBell";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import type { LucideIcon } from "lucide-react";
 
 type SidebarLinkItem = {
@@ -269,6 +267,52 @@ function monEntrepriseInsertIndexInConsolidated(
   return majiIdx >= 0 ? majiIdx : groups.length;
 }
 
+function consolidatedGroupDisplayName(group: {
+  groupCompanies: CompanyAccess[];
+}): string {
+  return (
+    group.groupCompanies[0]?.group_name ||
+    `Groupe ${group.groupCompanies.length} entreprises`
+  );
+}
+
+function getConsolidatedGroupNavClassName(
+  path: string,
+  collapsed: boolean,
+  isActive: (path: string) => boolean,
+): string {
+  const baseClasses = collapsed
+    ? "flex items-center justify-center rounded-lg h-8 w-8 p-0 transition-all duration-200 hover:bg-primary/10"
+    : "flex min-h-7 items-center gap-2 rounded-lg px-2.5 py-1 transition-all duration-200 hover:bg-primary/10";
+  return isActive(path)
+    ? `${baseClasses} bg-primary text-primary-foreground shadow-sm`
+    : `${baseClasses} text-muted-foreground hover:text-foreground`;
+}
+
+function ConsolidatedGroupLinkLabel({
+  groupName,
+  companyCount,
+  active,
+}: {
+  groupName: string;
+  companyCount: number;
+  active: boolean;
+}) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-px leading-none">
+      <span className="truncate text-sm font-medium leading-tight">{groupName}</span>
+      <span
+        className={cn(
+          "truncate text-[11px] leading-tight",
+          active ? "text-primary-foreground/80" : "text-muted-foreground",
+        )}
+      >
+        {companyCount} entreprises
+      </span>
+    </div>
+  );
+}
+
 const menuItems = {
   rh: [
     RH_HOME,
@@ -282,12 +326,10 @@ const menuItems = {
   ],
   employee: [
     { title: "Tableau de Bord", url: "/", icon: Home },
-    { title: "Rémunération", url: "/payslips", icon: DollarSign },
     { title: "Mes Entretiens", url: "/annual-reviews", icon: MessageSquare },
     { title: "Ma formation", url: "/employee/formation", icon: GraduationCap },
-    { title: "Calendrier", url: "/calendar", icon: Calendar },
+    { title: "Calendrier et planning", url: "/calendar", icon: Calendar },
     { title: "Congés & Absences", url: "/absences", icon: Plane },
-    { title: "Mon planning", url: "/employee/planning", icon: Calendar },
     { title: "Notes de Frais", url: "/expenses", icon: Notebook },
     { title: "Avances sur salaire", url: "/salary-advances", icon: Wallet },
     { title: "Mes Documents", url: "/documents", icon: FolderKanban },
@@ -668,13 +710,12 @@ function SubNavCountBadge({ count }: { count: number }) {
 
 export function AppSidebar() {
   const queryClient = useQueryClient();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { state } = useSidebar();
   const navigate = useNavigate();
   const collapsed = state === "collapsed";
   const location = useLocation();
   const currentPath = location.pathname;
-  const [showChangePassword, setShowChangePassword] = useState(false);
   
   // Récupérer la vue pour collaborateur_rh (hors ViewProvider : undefined)
   const viewContext = useViewOptional();
@@ -860,6 +901,11 @@ export function AppSidebar() {
         <div className="flex items-center justify-start mb-2 -ml-2">
           <SidebarTrigger className="h-8 w-8 p-0 hover:bg-primary/10 flex-shrink-0" />
         </div>
+        {!collapsed && accessibleCompanies.length > 1 && (
+          <div className="mb-3 w-full">
+            <CompanySwitcher variant="sidebar" />
+          </div>
+        )}
         {!collapsed && (
           <div className="flex flex-col items-center gap-2 text-center">
             {/* Logo de l'entreprise sélectionnée */}
@@ -952,12 +998,12 @@ export function AppSidebar() {
 
             <SidebarGroup>
               <SidebarGroupContent>
-                <SidebarMenu className="gap-0.5">
+                <SidebarMenu className="gap-0">
                   <Collapsible open={teamOpen} onOpenChange={setTeamOpen} className="group/collapsible">
                     <SidebarMenuItem>
                       <div className="relative w-full">
                         <CollapsibleTrigger asChild>
-                          <SidebarMenuButton className="w-full">
+                          <SidebarMenuButton size="sm" className="w-full">
                             <Users className={SIDEBAR_NAV.iconPrimary} />
                             <span className={SIDEBAR_NAV.sectionTitle}>EYWAI Team</span>
                             <ChevronRight
@@ -986,7 +1032,7 @@ export function AppSidebar() {
                     <SidebarMenuItem>
                       <div className="relative w-full">
                         <CollapsibleTrigger asChild>
-                          <SidebarMenuButton className="w-full">
+                          <SidebarMenuButton size="sm" className="w-full">
                             <Settings className={SIDEBAR_NAV.iconPrimary} />
                             <span className={SIDEBAR_NAV.sectionTitle}>EYWAI Gestion</span>
                             <ChevronRight
@@ -1015,7 +1061,7 @@ export function AppSidebar() {
                     <SidebarMenuItem>
                       <div className="relative w-full">
                         <CollapsibleTrigger asChild>
-                          <SidebarMenuButton className="w-full">
+                          <SidebarMenuButton size="sm" className="w-full">
                             <Calculator className={SIDEBAR_NAV.iconPrimary} />
                             <span className={SIDEBAR_NAV.sectionTitle}>EYWAI Paie</span>
                             <ChevronRight
@@ -1100,32 +1146,33 @@ export function AppSidebar() {
               Vues Consolidées
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu className={collapsed ? "flex flex-col items-center gap-1" : ""}>
+              <SidebarMenu className={collapsed ? "flex flex-col items-center gap-1" : "gap-0.5"}>
                 {accessibleGroups.slice(0, majiInsertIndex).map((group) => {
                   const groupUrl = `/groups/${group.groupId}`;
-                  const groupName =
-                    group.groupCompanies[0]?.group_name ||
-                    `Groupe ${group.groupCompanies.length} entreprises`;
+                  const groupName = consolidatedGroupDisplayName(group);
 
                   return (
                     <SidebarMenuItem key={group.groupId}>
-                      <SidebarMenuButton asChild tooltip={collapsed ? groupName : undefined}>
-                        <NavLink to={groupUrl} className={getNavClassName(groupUrl)}>
-                          <Building2 className="h-5 w-5 flex-shrink-0" />
+                      <SidebarMenuButton
+                        asChild
+                        size="sm"
+                        tooltip={collapsed ? groupName : undefined}
+                      >
+                        <NavLink
+                          to={groupUrl}
+                          className={getConsolidatedGroupNavClassName(
+                            groupUrl,
+                            collapsed,
+                            isActive,
+                          )}
+                        >
+                          <Building2 className={SIDEBAR_NAV.iconPrimary} />
                           {!collapsed && (
-                            <div className="flex flex-col">
-                              <span className="font-medium text-sm">{groupName}</span>
-                              <span
-                                className={cn(
-                                  "text-xs",
-                                  isActive(groupUrl)
-                                    ? "text-primary-foreground/85"
-                                    : "text-muted-foreground",
-                                )}
-                              >
-                                {group.groupCompanies.length} entreprises
-                              </span>
-                            </div>
+                            <ConsolidatedGroupLinkLabel
+                              groupName={groupName}
+                              companyCount={group.groupCompanies.length}
+                              active={isActive(groupUrl)}
+                            />
                           )}
                         </NavLink>
                       </SidebarMenuButton>
@@ -1150,29 +1197,30 @@ export function AppSidebar() {
                 </SidebarMenuItem>
                 {accessibleGroups.slice(majiInsertIndex).map((group) => {
                   const groupUrl = `/groups/${group.groupId}`;
-                  const groupName =
-                    group.groupCompanies[0]?.group_name ||
-                    `Groupe ${group.groupCompanies.length} entreprises`;
+                  const groupName = consolidatedGroupDisplayName(group);
 
                   return (
                     <SidebarMenuItem key={group.groupId}>
-                      <SidebarMenuButton asChild tooltip={collapsed ? groupName : undefined}>
-                        <NavLink to={groupUrl} className={getNavClassName(groupUrl)}>
-                          <Building2 className="h-5 w-5 flex-shrink-0" />
+                      <SidebarMenuButton
+                        asChild
+                        size="sm"
+                        tooltip={collapsed ? groupName : undefined}
+                      >
+                        <NavLink
+                          to={groupUrl}
+                          className={getConsolidatedGroupNavClassName(
+                            groupUrl,
+                            collapsed,
+                            isActive,
+                          )}
+                        >
+                          <Building2 className={SIDEBAR_NAV.iconPrimary} />
                           {!collapsed && (
-                            <div className="flex flex-col">
-                              <span className="font-medium text-sm">{groupName}</span>
-                              <span
-                                className={cn(
-                                  "text-xs",
-                                  isActive(groupUrl)
-                                    ? "text-primary-foreground/85"
-                                    : "text-muted-foreground",
-                                )}
-                              >
-                                {group.groupCompanies.length} entreprises
-                              </span>
-                            </div>
+                            <ConsolidatedGroupLinkLabel
+                              groupName={groupName}
+                              companyCount={group.groupCompanies.length}
+                              active={isActive(groupUrl)}
+                            />
                           )}
                         </NavLink>
                       </SidebarMenuButton>
@@ -1185,12 +1233,33 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      <SidebarFooter className={collapsed ? "p-2" : "p-4"}>
+      <SidebarFooter className={collapsed ? "p-2" : "px-4 pb-2 pt-1.5"}>
+        {!collapsed && <Separator className="mb-1.5" />}
         {activeCompany?.company_id ? (
-          <NotificationBell companyId={activeCompany.company_id} />
+          <div
+            className={cn(
+              "mb-1",
+              collapsed && "flex justify-center",
+            )}
+          >
+            <NotificationBell
+              companyId={activeCompany.company_id}
+              collapsed={collapsed}
+              compact
+            />
+          </div>
         ) : null}
-        {!collapsed && <Separator className="mb-4" />}
-        <SidebarMenu className={collapsed ? "mb-2 flex flex-col items-center gap-1" : "mb-2"}>
+        <SidebarMenu className={collapsed ? "mb-1.5 flex flex-col items-center gap-0.5" : "mb-1.5 gap-0.5"}>
+          {isPlatformAdmin(user) ? (
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild tooltip={collapsed ? "Administration" : undefined}>
+                <NavLink to="/super-admin" className={getNavClassName("/super-admin")}>
+                  <Building2 className="h-5 w-5 flex-shrink-0" />
+                  {!collapsed && <span className="font-medium">Administration</span>}
+                </NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ) : null}
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip={collapsed ? "Support" : undefined}>
               <NavLink to="/support" className={getNavClassName("/support")}>
@@ -1200,7 +1269,7 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        <div className={`flex items-center ${collapsed ? 'flex-col gap-2' : 'gap-3'}`}>
+        <div className={`flex items-center ${collapsed ? 'flex-col gap-1.5' : 'gap-2.5'}`}>
           {!collapsed && (
             <Avatar className="h-8 w-8">
               <AvatarFallback className="text-xs font-medium bg-primary/10">
@@ -1214,55 +1283,8 @@ export function AppSidebar() {
               <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
             </div>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0 text-muted-foreground hover:bg-primary/10 hover:text-primary"
-            aria-label="Paramètres"
-            onClick={() => setShowChangePassword(true)}
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                aria-label="Se déconnecter"
-              >
-                <LogOut className="h-4 w-4" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Se déconnecter ?</AlertDialogTitle>
-                <AlertDialogDescription>Êtes-vous sûr de vouloir mettre fin à votre session ?</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Annuler</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => {
-                    logout();
-                    // On ne navigue pas manuellement ici.
-                    // Le composant 'ProtectedRoutes' (dans App.tsx) va
-                    // détecter le changement d'état (user=null)
-                    // et gérer la redirection vers /login.
-                  }}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  Se déconnecter
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <SidebarAccountMenu collapsed={collapsed} />
         </div>
-
-        {/* Modal de changement de mot de passe */}
-        <ChangePasswordModal
-          open={showChangePassword}
-          onOpenChange={setShowChangePassword}
-        />
       </SidebarFooter>
     </Sidebar>
   );

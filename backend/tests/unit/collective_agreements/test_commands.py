@@ -43,12 +43,12 @@ class TestCreateCatalogItem:
         mock_svc = MagicMock(spec=CollectiveAgreementsService)
         mock_svc.create_catalog_item.return_value = expected
 
-        result = create_catalog_item(data, is_super_admin=True, service=mock_svc)
+        result = create_catalog_item(data, is_platform_admin=True, service=mock_svc)
 
         assert result == expected
         mock_svc.create_catalog_item.assert_called_once_with(data, True)
 
-    def test_passes_is_super_admin_false(self):
+    def test_passes_is_platform_admin_false(self):
         data = CatalogCreateInput(
             name="CC",
             idcc="1234",
@@ -60,7 +60,7 @@ class TestCreateCatalogItem:
             rules_pdf_filename=None,
         )
         mock_svc = MagicMock(spec=CollectiveAgreementsService)
-        create_catalog_item(data, is_super_admin=False, service=mock_svc)
+        create_catalog_item(data, is_platform_admin=False, service=mock_svc)
         mock_svc.create_catalog_item.assert_called_once_with(data, False)
 
 
@@ -77,7 +77,7 @@ class TestUpdateCatalogItem:
         mock_svc.update_catalog_item.return_value = expected
 
         result = update_catalog_item(
-            "agr-1", update_dict, is_super_admin=True, service=mock_svc
+            "agr-1", update_dict, is_platform_admin=True, service=mock_svc
         )
 
         assert result == expected
@@ -88,7 +88,7 @@ class TestUpdateCatalogItem:
         mock_svc.update_catalog_item.return_value = None
 
         result = update_catalog_item(
-            "agr-unknown", {"name": "X"}, is_super_admin=True, service=mock_svc
+            "agr-unknown", {"name": "X"}, is_platform_admin=True, service=mock_svc
         )
 
         assert result is None
@@ -104,7 +104,7 @@ class TestDeleteCatalogItem:
         mock_svc = MagicMock(spec=CollectiveAgreementsService)
         mock_svc.delete_catalog_item.return_value = True
 
-        result = delete_catalog_item("agr-1", is_super_admin=True, service=mock_svc)
+        result = delete_catalog_item("agr-1", is_platform_admin=True, service=mock_svc)
 
         assert result is True
         mock_svc.delete_catalog_item.assert_called_once_with("agr-1", True)
@@ -171,7 +171,7 @@ class TestRefreshTextCache:
         mock_svc.refresh_text_cache.return_value = None
 
         result = refresh_text_cache(
-            agreement_id="agr-1", is_super_admin=True, service=mock_svc
+            agreement_id="agr-1", is_platform_admin=True, service=mock_svc
         )
 
         assert result is None

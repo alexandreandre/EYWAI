@@ -18,9 +18,9 @@ from app.modules.company_groups.infrastructure.repository import (
 def get_accessible_company_ids(current_user: Any) -> List[str]:
     """
     Retourne les IDs d'entreprises accessibles par l'utilisateur.
-    Pour super_admin : retourne [] (convention : pas de filtre, tout est accessible).
+    Pour admin plateforme : retourne [] (convention : pas de filtre, tout est accessible).
     """
-    if getattr(current_user, "is_super_admin", False):
+    if current_user.is_platform_admin:
         return []
     acc = getattr(current_user, "accessible_companies", None) or []
     return [a.company_id for a in acc]
@@ -29,13 +29,13 @@ def get_accessible_company_ids(current_user: Any) -> List[str]:
 def get_company_ids_for_group(group_id: str, current_user: Any) -> List[str]:
     """
     Retourne les IDs d'entreprises du groupe accessibles par l'utilisateur.
-    Super_admin : toutes les entreprises du groupe.
+    Admin plateforme : toutes les entreprises du groupe.
     Sinon : intersection avec accessible_companies.
     """
     all_ids = company_group_repository.get_company_ids_by_group_id(group_id)
     if not all_ids:
         return []
-    if getattr(current_user, "is_super_admin", False):
+    if current_user.is_platform_admin:
         return all_ids
     accessible = set(get_accessible_company_ids(current_user))
     return [cid for cid in all_ids if cid in accessible]

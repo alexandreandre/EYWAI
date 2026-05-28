@@ -43,9 +43,10 @@ def _ensure_view_detail(detail: dict[str, Any] | None, ctx: UserContext) -> dict
     if not can_view_payslip(
         detail,
         ctx.user_id,
-        ctx.is_super_admin,
+        ctx.is_platform_admin,
         ctx.has_rh_access_in_company,
         ctx.active_company_id,
+        ctx.resolved_employee_id,
     ):
         raise PayslipForbiddenError(
             "Accès refusé: vous n'avez pas les permissions pour consulter ce bulletin"
@@ -61,7 +62,7 @@ def _ensure_edit_meta(meta: dict[str, Any] | None, ctx: UserContext) -> dict[str
         raise PayslipBadRequestError("Bulletin sans entreprise associée")
     if not can_edit_or_restore_payslip(
         meta,
-        ctx.is_super_admin,
+        ctx.is_platform_admin,
         ctx.has_rh_access_in_company,
         ctx.active_company_id,
     ):

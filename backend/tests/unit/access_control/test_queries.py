@@ -20,7 +20,7 @@ from app.modules.users.schemas.responses import CompanyAccess, User
 
 def _make_user(
     user_id: str = "user-1",
-    is_super_admin: bool = False,
+    is_platform_admin: bool = False,
     accessible_companies: list | None = None,
 ) -> User:
     if accessible_companies is None:
@@ -34,7 +34,7 @@ def _make_user(
         email="user@example.com",
         first_name="Test",
         last_name="User",
-        is_super_admin=is_super_admin,
+        is_platform_admin=is_platform_admin,
         accessible_companies=accessible_companies,
         active_company_id="company-1",
     )
@@ -69,14 +69,14 @@ class TestCheckHierarchy:
         assert result.company_id == "company-1"
 
     @patch("app.modules.access_control.application.queries.access_control_service")
-    def test_super_admin_creator_role_is_super_admin(self, mock_service: MagicMock):
+    def test_super_admin_creator_role_is_platform_admin(self, mock_service: MagicMock):
         """Pour super_admin, creator_role dans le résultat est super_admin."""
         mock_service.check_role_hierarchy_access.return_value = True
-        user = _make_user(is_super_admin=True, accessible_companies=[])
+        user = _make_user(is_platform_admin=True, accessible_companies=[])
 
         result = queries.check_hierarchy(user, "admin", "company-1")
 
-        assert result.creator_role == "super_admin"
+        assert result.creator_role == "admin"
 
 
 class TestCheckPermission:

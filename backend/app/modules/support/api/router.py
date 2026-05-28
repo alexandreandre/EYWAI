@@ -116,7 +116,7 @@ async def get_tickets(
         if user_id is not None:
             filters["user_id"] = user_id
 
-        if current_user.is_super_admin:
+        if current_user.is_platform_admin:
             rows = queries.get_tickets_super_admin(filters)
         elif current_user.role in ("admin", "rh", "collaborateur_rh"):
             if not x_active_company:
@@ -152,7 +152,7 @@ async def get_ticket(
             raise HTTPException(status_code=404, detail="Ticket introuvable.")
 
         ticket_company_id = ticket.get("company_id")
-        if current_user.is_super_admin:
+        if current_user.is_platform_admin:
             pass
         elif ticket_company_id is not None and current_user.has_rh_access_in_company(
             str(ticket_company_id)
@@ -182,7 +182,7 @@ async def patch_ticket_status(
 ):
     """Met à jour le statut d'un ticket (Super Admin uniquement)."""
     try:
-        if current_user.role != "super_admin":
+        if not current_user.is_platform_admin:
             raise HTTPException(
                 status_code=403,
                 detail="Action réservée au Super Admin.",

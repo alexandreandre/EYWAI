@@ -22,6 +22,22 @@ def get_my_payslips(employee_id: str) -> list[dict[str, Any]]:
     return _get_my_payslips(employee_id)
 
 
+def get_my_payslips_for_user_account(
+    user_id: str, company_id: str | None
+) -> list[dict[str, Any]]:
+    """Bulletins du collaborateur lié au compte auth (résolution employees.id)."""
+    if not company_id:
+        return []
+    from app.modules.employees.infrastructure.queries import (
+        resolve_employee_id_for_user_account,
+    )
+
+    employee_id = resolve_employee_id_for_user_account(user_id, company_id)
+    if not employee_id:
+        return []
+    return _get_my_payslips(employee_id)
+
+
 def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
     """Liste des bulletins d'un employé (pour RH)."""
     return _get_employee_payslips(employee_id)

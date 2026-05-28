@@ -55,10 +55,13 @@ if [ "${SKIP_GITLEAKS:-}" != "1" ] && command -v gitleaks >/dev/null 2>&1; then
 fi
 
 echo ""
-echo "=== Frontend : npm ci + lint + build ==="
+echo "=== Frontend : npm ci + lint + test + build + verify imports ==="
 (cd "$REPO_ROOT/frontend" && npm ci)
 (cd "$REPO_ROOT/frontend" && npm run lint)
+(cd "$REPO_ROOT/frontend" && npm run test)
 (cd "$REPO_ROOT/frontend" && VITE_API_URL="${VITE_API_URL:-https://example.com}" npm run build)
+(cd "$REPO_ROOT/frontend" && node scripts/verify-pages-imports.mjs)
+(cd "$REPO_ROOT/frontend" && node scripts/verify-no-pages-imports-in-ui.mjs)
 
 echo ""
 echo "Suite locale (alignée sur la CI bloquante) : OK."
