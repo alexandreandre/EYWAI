@@ -115,6 +115,10 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+# Venvs locaux CI (ne jamais versionner)
+backend/.venv-ci
+backend/.venv-ci-local
+.venv-ci*
 
 # Spyder project settings
 .spyderproject
