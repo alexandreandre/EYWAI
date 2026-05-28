@@ -196,8 +196,9 @@ frontend/
 │   │   │   ├── chart-container.tsx
 │   │   │   └── kpi-card.tsx
 │   │   │
-│   │   ├── forms/                 # Formulaires réutilisables
-│   │   │   └── NewEmployeeForm.tsx
+│   │   ├── forms/                 # Formulaires réutilisables (legacy)
+│   │   │
+│   │   ├── features/employees/    # CreateEmployeeForm (création collaborateur)
 │   │   │
 │   │   ├── payslip-edit/          # Composants édition bulletins
 │   │   │   ├── PayslipHeaderSection.tsx
