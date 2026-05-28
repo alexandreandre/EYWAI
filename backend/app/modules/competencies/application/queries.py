@@ -132,3 +132,21 @@ def get_matrix(
 
 def get_employee_id_for_user_scope(user_id: str, company_id: str) -> Optional[str]:
     return competencies_repository.get_employee_id_for_user(user_id, company_id)
+
+
+def get_employee_row_for_mobility(
+    company_id: str, employee_id: str
+) -> Optional[Dict[str, Any]]:
+    return competencies_repository.get_employee_profile_for_mobility(
+        employee_id, company_id
+    )
+
+
+def list_active_job_titles(company_id: str, *, limit: int = 20) -> List[str]:
+    return competencies_repository.list_active_job_titles(company_id, limit=limit)
+
+
+def list_training_catalog_for_mobility(company_id: str) -> List[Dict[str, Any]]:
+    from app.modules.training.infrastructure.repository import training_repository
+
+    return training_repository.get_all_trainings(company_id, include_archived=False)

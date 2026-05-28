@@ -103,7 +103,7 @@ async def grant_company_access(
     current_user: User = Depends(get_current_user),
 ):
     """Accorde l'accès à une entreprise (par email). Vérification RH côté router."""
-    if not current_user.is_super_admin:
+    if not current_user.is_platform_admin:
         has_rh = current_user.has_rh_access_in_company(request.company_id)
         if not has_rh and not has_any_rh_permission(
             str(current_user.id), request.company_id
@@ -131,7 +131,7 @@ async def grant_company_access_by_user_id(
     current_user: User = Depends(get_current_user),
 ):
     """Accorde l'accès à une entreprise (par user_id). Vérification RH côté router."""
-    if not current_user.is_super_admin:
+    if not current_user.is_platform_admin:
         has_rh = current_user.has_rh_access_in_company(request.company_id)
         if not has_rh and not has_any_rh_permission(
             str(current_user.id), request.company_id
@@ -160,7 +160,7 @@ async def revoke_company_access(
     current_user: User = Depends(get_current_user),
 ):
     """Révoque l'accès. Réservé aux admins de l'entreprise ou super_admin."""
-    if not current_user.is_super_admin:
+    if not current_user.is_platform_admin:
         if not current_user.is_admin_in_company(company_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -185,7 +185,7 @@ async def update_company_access(
     current_user: User = Depends(get_current_user),
 ):
     """Modifie l'accès (rôle ou is_primary). Réservé aux admins ou super_admin."""
-    if not current_user.is_super_admin:
+    if not current_user.is_platform_admin:
         if not current_user.is_admin_in_company(company_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -224,7 +224,7 @@ async def create_user_with_permissions(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Un seul accès peut être marqué comme primaire",
         )
-    if not current_user.is_super_admin:
+    if not current_user.is_platform_admin:
         for access in data.company_accesses:
             if not current_user.has_access_to_company(str(access.company_id)):
                 raise HTTPException(
@@ -257,7 +257,7 @@ async def get_company_users(
     current_user: User = Depends(get_current_user),
 ):
     """Liste les utilisateurs d'une entreprise (RH/Admin)."""
-    if not current_user.is_super_admin:
+    if not current_user.is_platform_admin:
         if not current_user.has_rh_access_in_company(company_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -301,7 +301,7 @@ async def update_user_with_permissions(
 ):
     """Modifie un utilisateur (profil, rôle, permissions). Vérification hiérarchie côté router."""
     company_id = str(data.company_id)
-    if not current_user.is_super_admin:
+    if not current_user.is_platform_admin:
         if not current_user.has_access_to_company(company_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

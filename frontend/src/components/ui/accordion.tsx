@@ -14,6 +14,9 @@ const AccordionItem = React.forwardRef<
 ));
 AccordionItem.displayName = "AccordionItem";
 
+const accordionTriggerClassName =
+  "flex flex-1 items-center justify-between py-4 font-medium transition-all hover:underline [&[data-state=open]>svg]:rotate-180";
+
 const AccordionTrigger = React.forwardRef<
   React.ElementRef<typeof AccordionPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>
@@ -21,10 +24,7 @@ const AccordionTrigger = React.forwardRef<
   <AccordionPrimitive.Header className="flex">
     <AccordionPrimitive.Trigger
       ref={ref}
-      className={cn(
-        "flex flex-1 items-center justify-between py-4 font-medium transition-all hover:underline [&[data-state=open]>svg]:rotate-180",
-        className,
-      )}
+      className={cn(accordionTriggerClassName, className)}
       {...props}
     >
       {children}
@@ -33,6 +33,31 @@ const AccordionTrigger = React.forwardRef<
   </AccordionPrimitive.Header>
 ));
 AccordionTrigger.displayName = AccordionPrimitive.Trigger.displayName;
+
+type AccordionHeaderWithActionsProps = React.ComponentPropsWithoutRef<
+  typeof AccordionPrimitive.Trigger
+> & {
+  actions?: React.ReactNode;
+};
+
+/** En-tête accordéon : zone cliquable + actions (boutons) hors du trigger pour éviter button dans button. */
+const AccordionHeaderWithActions = React.forwardRef<
+  React.ElementRef<typeof AccordionPrimitive.Trigger>,
+  AccordionHeaderWithActionsProps
+>(({ className, children, actions, ...props }, ref) => (
+  <AccordionPrimitive.Header className="flex items-center gap-2">
+    <AccordionPrimitive.Trigger
+      ref={ref}
+      className={cn(accordionTriggerClassName, className)}
+      {...props}
+    >
+      {children}
+      <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+    </AccordionPrimitive.Trigger>
+    {actions ? <div className="flex shrink-0 flex-wrap items-center gap-1 py-2">{actions}</div> : null}
+  </AccordionPrimitive.Header>
+));
+AccordionHeaderWithActions.displayName = "AccordionHeaderWithActions";
 
 const AccordionContent = React.forwardRef<
   React.ElementRef<typeof AccordionPrimitive.Content>,
@@ -49,4 +74,10 @@ const AccordionContent = React.forwardRef<
 
 AccordionContent.displayName = AccordionPrimitive.Content.displayName;
 
-export { Accordion, AccordionItem, AccordionTrigger, AccordionContent };
+export {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionHeaderWithActions,
+  AccordionContent,
+};

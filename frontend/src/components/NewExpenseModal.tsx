@@ -55,7 +55,6 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess }: NewExpenseModalP
 
       // 3. Créer la note de frais en BDD EN PASSANT LE NOM DU FICHIER
       await expensesApi.createExpense({
-        employee_id: user.id,
         date,
         amount: parseFloat(amount),
         type,
@@ -68,7 +67,12 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess }: NewExpenseModalP
       onSuccess();
       onClose();
     } catch (err) {
-      // ... (gestion d'erreur inchangée) ...
+      const message =
+        axios.isAxiosError(err) && err.response?.data?.detail
+          ? String(err.response.data.detail)
+          : "Impossible d'envoyer la note de frais. Réessayez ou contactez les RH.";
+      setError(message);
+      toast({ title: "Erreur", description: message, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -77,7 +81,12 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess }: NewExpenseModalP
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
-        <DialogHeader><DialogTitle>Nouvelle dépense</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Nouvelle dépense</DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            Le justificatif (photo ou PDF) est obligatoire pour chaque dépense.
+          </p>
+        </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2"><Label htmlFor="date">Date</Label><Input id="date" type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
@@ -89,7 +98,17 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess }: NewExpenseModalP
               <SelectContent>{expenseTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div className="grid gap-2"><Label htmlFor="receipt">Justificatif</Label><Input id="receipt" type="file" onChange={e => setFile(e.target.files ? e.target.files[0] : null)} /></div>
+          <div className="grid gap-2">
+            <Label htmlFor="receipt">Justificatif</Label>
+            <Input
+              id="receipt"
+              type="file"
+              accept="image/*,application/pdf,.heic,.heif"
+              capture="environment"
+              onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)}
+            />
+            <p className="text-xs text-muted-foreground">PDF ou image (photo sur mobile)</p>
+          </div>
           <div className="grid gap-2"><Label htmlFor="description">Description (facultatif)</Label><Textarea id="description" placeholder="Ex: Dîner client M. Dupont" value={description} onChange={e => setDescription(e.target.value)} /></div>
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>

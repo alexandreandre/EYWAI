@@ -10,6 +10,7 @@ from app.modules.access_control.schemas.catalog import (
     RoleTemplateQuickCreate,
     RoleTemplateWithPermissions,
     UserPermissionsSummary,
+    UserPermissionsUpdate,
 )
 from app.modules.access_control.schemas.responses import (
     PermissionCheckResponse,
@@ -26,6 +27,7 @@ __all__ = [
     "PermissionMatrixCategory",
     "PermissionWithMetadata",
     "UserPermissionsSummary",
+    "UserPermissionsUpdate",
     "RoleTemplateDetail",
     "RoleTemplateQuickCreate",
     "RoleTemplateWithPermissions",

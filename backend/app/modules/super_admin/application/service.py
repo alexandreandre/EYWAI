@@ -32,7 +32,7 @@ def verify_super_admin_and_return_row(current_user_id: str) -> Dict[str, Any]:
     entity = get_by_user_id(current_user_id)
     if entity is None:
         raise SuperAdminAccessError(
-            "Accès refusé : vous devez être super administrateur"
+            "Accès refusé : vous devez être administrateur plateforme"
         )
     return super_admin_to_row(entity)
 

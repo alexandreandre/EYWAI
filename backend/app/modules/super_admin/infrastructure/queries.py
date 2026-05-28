@@ -12,6 +12,84 @@ import json
 from typing import Any, Dict, List, Optional
 
 from app.core.database import get_supabase_admin_client, get_supabase_client
+from app.modules.audit.infrastructure.repository import audit_repository
+from app.modules.scraping.infrastructure.repository import ScrapingRepository
+
+_scraping_repo = ScrapingRepository()
+
+
+def _support_ticket_stats(supabase: Any) -> Dict[str, Any]:
+    """Compteurs tickets support pour le dashboard admin."""
+    try:
+        result = supabase.table("support_tickets").select("status, urgency").execute()
+        rows = result.data or []
+    except Exception:
+        return {"open": 0, "urgent": 0, "by_status": {}}
+    by_status: Dict[str, int] = {}
+    open_count = 0
+    urgent = 0
+    open_statuses = {"envoye", "en_cours"}
+    for row in rows:
+        st = row.get("status") or "unknown"
+        by_status[st] = by_status.get(st, 0) + 1
+        if st in open_statuses:
+            open_count += 1
+            if row.get("urgency") in ("critique", "elevee"):
+                urgent += 1
+    return {"open": open_count, "urgent": urgent, "by_status": by_status}
+
+
+def _recent_support_tickets(supabase: Any, limit: int = 5) -> List[Dict[str, Any]]:
+    try:
+        r = (
+            supabase.table("support_tickets")
+            .select("id, company_id, module, urgency, status, description, created_at, companies(company_name)")
+            .in_("status", ["envoye", "en_cours"])
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        out: List[Dict[str, Any]] = []
+        for row in r.data or []:
+            companies = row.pop("companies", None)
+            name = None
+            if isinstance(companies, dict):
+                name = companies.get("company_name")
+            elif isinstance(companies, list) and companies:
+                name = companies[0].get("company_name")
+            out.append({**row, "company_name": name})
+        return out
+    except Exception:
+        return []
+
+
+def get_support_badges() -> Dict[str, int]:
+    """Badges sidebar : tickets en attente et urgents."""
+    supabase = get_supabase_client()
+    stats = _support_ticket_stats(supabase)
+    return {"pending": stats["open"], "urgent": stats["urgent"]}
+
+
+def list_platform_audit_logs(
+    company_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    action: Optional[str] = None,
+    resource_type: Optional[str] = None,
+    created_after: Optional[str] = None,
+    created_before: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> List[Dict[str, Any]]:
+    return audit_repository.list_logs_platform(
+        company_id=company_id,
+        user_id=user_id,
+        action=action,
+        resource_type=resource_type,
+        created_after=created_after,
+        created_before=created_before,
+        limit=limit,
+        offset=offset,
+    )
 
 
 def get_global_stats(_super_admin_row: Dict[str, Any]) -> Dict[str, Any]:
@@ -63,6 +141,11 @@ def get_global_stats(_super_admin_row: Dict[str, Any]) -> Dict[str, Any]:
                     "employees_count": emp_count,
                 }
             )
+    support_stats = _support_ticket_stats(supabase)
+    unread_alerts = _scraping_repo.get_unread_alerts(limit=100)
+    recent_activity = audit_repository.list_logs_platform(limit=10, offset=0)
+    recent_tickets = _recent_support_tickets(supabase, limit=5)
+
     return {
         "companies": {
             "total": companies.count,
@@ -71,8 +154,13 @@ def get_global_stats(_super_admin_row: Dict[str, Any]) -> Dict[str, Any]:
         },
         "users": {"total": profiles.count, "by_role": roles_count},
         "employees": {"total": employees.count},
+        "platform_admins": {"total": super_admins.count},
         "super_admins": {"total": super_admins.count},
         "top_companies": top_companies_with_names,
+        "support_tickets": support_stats,
+        "scraping_alerts": {"unread": len(unread_alerts)},
+        "recent_activity": recent_activity,
+        "recent_support_tickets": recent_tickets,
     }
 
 
@@ -246,7 +334,11 @@ def list_super_admins() -> Dict[str, Any]:
         .order("created_at", desc=True)
         .execute()
     )
-    return {"super_admins": result.data, "total": len(result.data)}
+    return {
+        "platform_admins": result.data,
+        "super_admins": result.data,
+        "total": len(result.data),
+    }
 
 
 def get_system_health() -> Dict[str, Any]:

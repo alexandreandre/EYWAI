@@ -57,15 +57,11 @@ class SupabaseTrainingRepository(AbstractTrainingRepository):
     """Implémentation Supabase."""
 
     def get_employee_id_for_user(self, user_id: str, company_id: str) -> Optional[str]:
-        r = (
-            supabase.table("employees")
-            .select("id")
-            .eq("user_id", user_id)
-            .eq("company_id", company_id)
-            .maybe_single()
-            .execute()
+        from app.modules.employees.infrastructure.queries import (
+            resolve_employee_id_for_user_account,
         )
-        return str(r.data["id"]) if r and r.data else None
+
+        return resolve_employee_id_for_user_account(user_id, company_id)
 
     def _fetch_cert_map(
         self, company_id: str, cert_ids: List[str]

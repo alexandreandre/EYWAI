@@ -2,6 +2,10 @@
 
 import { log } from '@/lib/logger';
 import { useState, useEffect } from 'react';
+import {
+  EmployeePageHeader,
+  EmployeePageShell,
+} from '@/components/employee/EmployeePageHeader';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -76,7 +80,7 @@ export default function PayslipsPage() {
           // Utiliser Promise.allSettled pour gérer les erreurs partielles
           const results = await Promise.allSettled([
             apiClient.get<PayslipInfo[]>(`/api/me/payslips`),
-            apiClient.get<EmployeeSalaryInfo>(`/api/employees/${user.id}`),
+            apiClient.get<EmployeeSalaryInfo>('/api/employees/me'),
             // ✅ Appel pour les cumuls activé
             apiClient.get<CumulsData>('/api/me/current-cumuls')
           ]);
@@ -156,8 +160,8 @@ export default function PayslipsPage() {
     .reverse(); // Remet dans l'ordre chronologique pour Recharts
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Ma Rémunération</h1>
+    <EmployeePageShell>
+      <EmployeePageHeader title="Ma Rémunération" />
 
       {/* --- Affichage d'Erreur --- */}
       {error && !isLoading && ( // N'affiche l'erreur qu'après le chargement initial
@@ -335,6 +339,6 @@ export default function PayslipsPage() {
         </CardContent>
       </Card>
 
-    </div>
+    </EmployeePageShell>
   );
 }

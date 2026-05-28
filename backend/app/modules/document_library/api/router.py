@@ -50,13 +50,13 @@ def _require_company_access(user: User, company_id: str) -> None:
 
 
 def _can_read_library(user: User, company_id: str) -> bool:
-    if user.is_super_admin:
+    if user.is_platform_admin:
         return True
     return user.has_rh_access_in_company(company_id)
 
 
 def _can_write_library(user: User, company_id: str) -> bool:
-    if user.is_super_admin:
+    if user.is_platform_admin:
         return True
     role = user.get_role_in_company(company_id)
     return role in ("admin", "rh", "collaborateur_rh")
@@ -68,7 +68,7 @@ def _require_premium_for_custom_upload(company_id: str) -> None:
 
 
 def _is_primary_hr_or_admin(user: User, company_id: str) -> bool:
-    if user.is_super_admin:
+    if user.is_platform_admin:
         return True
     if user.is_admin_in_company(company_id):
         return True

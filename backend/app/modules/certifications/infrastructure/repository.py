@@ -255,17 +255,11 @@ class SupabaseCertificationRepository(AbstractCertificationRepository):
             raise LookupError("Habilitation non trouvée.")
 
     def get_employee_id_for_user(self, user_id: str, company_id: str) -> Optional[str]:
-        r = (
-            supabase.table("employees")
-            .select("id")
-            .eq("user_id", user_id)
-            .eq("company_id", company_id)
-            .maybe_single()
-            .execute()
+        from app.modules.employees.infrastructure.queries import (
+            resolve_employee_id_for_user_account,
         )
-        if not r.data:
-            return None
-        return str(r.data["id"])
+
+        return resolve_employee_id_for_user_account(user_id, company_id)
 
     def get_expiring_count(self, company_id: str) -> int:
         rows = self.get_all_employee_certs(company_id, None, False)

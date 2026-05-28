@@ -1,28 +1,44 @@
 // src/App.tsx
 
-import { Suspense } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CompanyProvider, useCompany } from './contexts/CompanyContext';
 import { ViewProvider, useView } from './contexts/ViewContext';
 import { BootProvider } from './contexts/BootContext';
 import { BootGate } from '@/components/BootGate';
+import { isPlatformAdmin } from '@/lib/platformAdmin';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AppSidebar } from '@/components/ui/app-sidebar';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { CompanySwitcher } from '@/components/CompanySwitcher';
+import { CompanySwitcher, CompanySwitcherCompact } from '@/components/CompanySwitcher';
 import { ErrorBoundaryClass } from '@/components/ErrorBoundary';
 import { EmployeeSidebar } from '@/components/ui/employee-sidebar';
 import { RouteSkeleton } from '@/components/skeletons/RouteSkeleton';
+import { ProtectedAppSkeleton } from '@/components/skeletons/ProtectedAppSkeleton';
+import { TableSkeleton } from '@/components/skeletons/TableSkeleton';
+import { PlanningPageSkeleton } from '@/components/skeletons/PlanningPageSkeleton';
+import { BackgroundDataIndicator } from '@/components/BackgroundDataIndicator';
 import * as Pages from '@/app/lazyPages';
+import { employeeCollaboratorRoutes } from '@/app/employeeRoutes';
 
 function EmployeeLayout() {
-  const { accessibleCompanies } = useCompany();
+  const { accessibleCompanies, activeCompany } = useCompany();
   const showCompanySwitcher =
     accessibleCompanies && accessibleCompanies.length > 1;
+  const headerLogo = activeCompany?.logo_url ? (
+    <img
+      src={activeCompany.logo_url}
+      alt={`Logo ${activeCompany.company_name}`}
+      className="h-8 w-auto max-w-[140px] object-contain"
+      style={{ transform: `scale(${activeCompany.logo_scale || 1})` }}
+    />
+  ) : (
+    <img src="/Colorplast.png" alt="Logo par défaut" className="h-8 w-auto" />
+  );
 
   return (
     <SidebarProvider>
@@ -36,9 +52,7 @@ function EmployeeLayout() {
                 <span className="sr-only">Toggle Menu</span>
               </Button>
             </SidebarTrigger>
-            <div className="flex-1 min-w-0">
-              <img src="/Colorplast.png" alt="Logo Colorplast" className="h-8 w-auto" />
-            </div>
+            <div className="flex-1 min-w-0">{headerLogo}</div>
             {showCompanySwitcher && <CompanySwitcher />}
           </header>
           {showCompanySwitcher && (
@@ -48,6 +62,7 @@ function EmployeeLayout() {
             </div>
           )}
           <main className="min-w-0 flex-1 overflow-auto overflow-x-auto p-6 lg:p-8">
+            <BackgroundDataIndicator />
             <Outlet />
           </main>
         </div>
@@ -71,52 +86,18 @@ function ProtectedRoutes() {
   const { accessibleCompanies, isLoading: isCompanyLoading } = useCompany();
   const { viewMode, isCollaborateurRh } = useView();
 
-  if (isLoading) {
-    return null;
+  if (isLoading || isCompanyLoading) {
+    return <ProtectedAppSkeleton />;
   }
 
   if (!user) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  const isSuperAdmin = user.is_super_admin === true || user.role === 'super_admin';
-  if (!isSuperAdmin && isCompanyLoading) {
-    return null;
-  }
-
   if (user.role === 'collaborateur') {
     return (
       <Routes>
-        <Route element={<EmployeeLayout />}>
-          <Route path="/" element={<Pages.EmployeeDashboard />} />
-          <Route path="/profile" element={<Pages.ProfilePage />} />
-          <Route path="/payslips" element={<Pages.PayslipsPage />} />
-          <Route path="/employee/payslips/:payslipId" element={<Pages.EmployeePayslipDetail />} />
-          <Route path="/badgeuse" element={<Pages.EmployeeBadgeusePage />} />
-          <Route path="/annual-reviews" element={<Pages.EmployeeAnnualReviews />} />
-          <Route path="/annual-reviews/:reviewId" element={<Pages.EmployeeAnnualReviewDetail />} />
-          <Route path="/employee/formation" element={<Pages.EmployeeFormationPage />} />
-          <Route path="/habilitations" element={<Pages.EmployeeFormationLegacyRedirect />} />
-          <Route path="/objectives" element={<Pages.EmployeeFormationLegacyRedirect />} />
-          <Route path="/catalogue-formations" element={<Pages.EmployeeFormationLegacyRedirect />} />
-          <Route path="/absences" element={<Pages.EmployeeAbsencesPage />} />
-          <Route path="/employee/leaves/new" element={<Navigate to="/absences" replace />} />
-          <Route path="/employee/planning" element={<Pages.EmployeePlanning />} />
-          <Route path="/calendar" element={<Pages.EmployeeCalendarPage />} />
-          <Route path="/expenses" element={<Pages.ExpensesPage />} />
-          <Route path="/salary-advances" element={<Pages.SalaryAdvancesPage />} />
-          <Route path="/employee/documents" element={<Pages.EmployeeCollaboratorDocumentsPage />} />
-          <Route path="/documents" element={<Navigate to="/employee/documents" replace />} />
-          <Route path="/medical-follow-up" element={<Pages.EmployeeMedicalFollowUp />} />
-          <Route path="/cse/meetings/:meetingId" element={<Pages.MeetingDetailPage />} />
-          <Route path="/cse" element={<Pages.EmployeeCSE />} />
-          <Route path="/employee/onboarding" element={<Pages.EmployeeOnboardingRedirect />} />
-          <Route path="/onboarding/:employeeId" element={<Pages.OnboardingPage />} />
-          <Route path="/support" element={<Pages.SupportPage />} />
-          <Route path="/support/confirmation" element={<Pages.SupportConfirmationPage />} />
-          <Route path="/support/tickets" element={<Pages.TicketsHistoryPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
+        <Route element={<EmployeeLayout />}>{employeeCollaboratorRoutes}</Route>
       </Routes>
     );
   }
@@ -140,67 +121,61 @@ function ProtectedRoutes() {
               <div className="flex-1">
                 <img src="/Colorplast.png" alt="Logo Colorplast" className="h-8 w-auto" />
               </div>
-              <CompanySwitcher />
+              <CompanySwitcherCompact />
             </header>
           )}
-          {showCompanySwitcher && (
-            <div className="hidden md:flex items-center gap-4 border-b bg-background px-6 py-3">
-              <div className="flex-1" />
-              <CompanySwitcher />
-            </div>
-          )}
           <main className="min-w-0 flex-1 overflow-x-auto overflow-y-auto bg-background p-6 lg:p-8">
+            <BackgroundDataIndicator />
             <Routes>
               {isCollaborateurRhView ? (
-                <>
-                  <Route path="/" element={<Pages.EmployeeDashboard />} />
-                  <Route path="/profile" element={<Pages.ProfilePage />} />
-                  <Route path="/payslips" element={<Pages.PayslipsPage />} />
-                  <Route path="/employee/payslips/:payslipId" element={<Pages.EmployeePayslipDetail />} />
-                  <Route path="/badgeuse" element={<Pages.EmployeeBadgeusePage />} />
-                  <Route path="/annual-reviews" element={<Pages.EmployeeAnnualReviews />} />
-                  <Route path="/annual-reviews/:reviewId" element={<Pages.EmployeeAnnualReviewDetail />} />
-                  <Route path="/employee/formation" element={<Pages.EmployeeFormationPage />} />
-                  <Route path="/habilitations" element={<Pages.EmployeeFormationLegacyRedirect />} />
-                  <Route path="/objectives" element={<Pages.EmployeeFormationLegacyRedirect />} />
-                  <Route path="/catalogue-formations" element={<Pages.EmployeeFormationLegacyRedirect />} />
-                  <Route path="/absences" element={<Pages.EmployeeAbsencesPage />} />
-                  <Route path="/employee/leaves/new" element={<Navigate to="/absences" replace />} />
-                  <Route path="/employee/planning" element={<Pages.EmployeePlanning />} />
-                  <Route path="/calendar" element={<Pages.EmployeeCalendarPage />} />
-                  <Route path="/expenses" element={<Pages.ExpensesPage />} />
-                  <Route path="/salary-advances" element={<Pages.SalaryAdvancesPage />} />
-                  <Route path="/employee/documents" element={<Pages.EmployeeCollaboratorDocumentsPage />} />
-                  <Route path="/documents" element={<Navigate to="/employee/documents" replace />} />
-                  <Route path="/medical-follow-up" element={<Pages.EmployeeMedicalFollowUp />} />
-                  <Route path="/cse/meetings/:meetingId" element={<Pages.MeetingDetailPage />} />
-                  <Route path="/cse" element={<Pages.EmployeeCSE />} />
-                  <Route path="/employee/onboarding" element={<Pages.EmployeeOnboardingRedirect />} />
-                  <Route path="/onboarding/:employeeId" element={<Pages.OnboardingPage />} />
-                  <Route path="/support" element={<Pages.SupportPage />} />
-                  <Route path="/support/confirmation" element={<Pages.SupportConfirmationPage />} />
-                  <Route path="/support/tickets" element={<Pages.TicketsHistoryPage />} />
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </>
+                <>{employeeCollaboratorRoutes}</>
               ) : (
                 <>
                   <Route path="/" element={<Pages.RhDashboard />} />
-                  <Route path="/analytics" element={<Pages.AnalyticsPage />} />
+                  <Route
+                    path="/analytics"
+                    element={
+                      <Suspense fallback={<RouteSkeleton />}>
+                        <Pages.AnalyticsPage />
+                      </Suspense>
+                    }
+                  />
                   <Route path="/analytics-paie" element={<Pages.AnalyticsPaiePage />} />
                   <Route path="/analytics-gestion" element={<Pages.AnalyticsGestionPage />} />
-                  <Route path="/employees" element={<Pages.Employees />} />
+                  <Route
+                    path="/employees"
+                    element={
+                      <Suspense fallback={<TableSkeleton rows={10} columns={4} />}>
+                        <Pages.Employees />
+                      </Suspense>
+                    }
+                  />
                   <Route path="/teams" element={<Pages.Teams />} />
                   <Route path="/employees/:employeeId" element={<Pages.EmployeeDetail />} />
                   <Route path="/saisies" element={<Pages.Saisies />} />
                   <Route path="/salary-seizures" element={<Pages.SalarySeizures />} />
                   <Route path="/salary-advances" element={<Pages.SalaryAdvances />} />
                   <Route path="/rates" element={<Pages.Rates />} />
-                  <Route path="/payroll" element={<Pages.Payroll />} />
+                  <Route
+                    path="/payroll"
+                    element={
+                      <Suspense fallback={<TableSkeleton rows={8} columns={5} />}>
+                        <Pages.Payroll />
+                      </Suspense>
+                    }
+                  />
                   <Route path="/payroll/:employeeId" element={<Pages.PayrollDetail />} />
                   <Route path="/payslips/:payslipId/edit" element={<Pages.PayslipEdit />} />
                   <Route path="/leaves" element={<Pages.RhAbsencesPage />} />
                   <Route path="/employee/leaves/new" element={<Navigate to="/leaves" replace />} />
-                  <Route path="/planning" element={<Pages.Planning />} />
+                  <Route
+                    path="/planning"
+                    element={
+                      <Suspense fallback={<PlanningPageSkeleton />}>
+                        <Pages.Planning />
+                      </Suspense>
+                    }
+                  />
                   <Route path="/expenses" element={<Pages.RhExpensesPage />} />
                   <Route path="/schedules" element={<Pages.RhSchedulesPage />} />
                   <Route path="/employee-exits" element={<Pages.EmployeeExits />} />
@@ -255,6 +230,17 @@ function ProtectedRoutes() {
   );
 }
 
+function PlatformAdminRoute({ children }: { children: ReactNode }) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) {
+    return <ProtectedAppSkeleton />;
+  }
+  if (!user || !isPlatformAdmin(user)) {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <TooltipProvider>
@@ -269,21 +255,31 @@ export default function App() {
                     <Route path="/login" element={<Pages.LoginPage />} />
                     <Route path="/forgot-password" element={<Pages.ForgotPasswordPage />} />
                     <Route path="/reset-password" element={<Pages.ResetPasswordPage />} />
-                    <Route path="/super-admin" element={<Pages.SuperAdminLayout />}>
+                    <Route
+                      path="/super-admin"
+                      element={
+                        <PlatformAdminRoute>
+                          <Pages.SuperAdminLayout />
+                        </PlatformAdminRoute>
+                      }
+                    >
                       <Route index element={<Pages.SuperAdminDashboard />} />
                       <Route path="companies" element={<Pages.SuperAdminCompanies />} />
                       <Route path="companies/:companyId" element={<Pages.SuperAdminCompanyDetails />} />
                       <Route path="groups" element={<Pages.CompanyGroups />} />
                       <Route path="groups/:groupId" element={<Pages.CompanyGroupDetail />} />
                       <Route path="users" element={<Pages.SuperAdminUsers />} />
+                      <Route path="activity" element={<Pages.AdminActivityLog />} />
+                      <Route path="access" element={<Pages.AdminAccessRH />} />
+                      <Route path="admins" element={<Pages.AdminSuperAdminsPage />} />
                       <Route path="collective-agreements" element={<Pages.CollectiveAgreementsCatalog />} />
                       <Route path="reduction-fillon" element={<Pages.SuperAdminReductionFillon />} />
                       <Route path="scraping" element={<Pages.SuperAdminScraping />} />
                       <Route path="monitoring" element={<Pages.SuperAdminMonitoring />} />
                       <Route path="tests" element={<Pages.SuperAdminTests />} />
-                      <Route path="support" element={<Pages.SupportPage />} />
+                      <Route path="support" element={<Pages.AdminSupportCenter />} />
                       <Route path="support/confirmation" element={<Pages.SupportConfirmationPage />} />
-                      <Route path="support/tickets" element={<Pages.TicketsHistoryPage />} />
+                      <Route path="support/tickets" element={<Pages.AdminSupportCenter />} />
                       <Route path="*" element={<Pages.NotFound />} />
                     </Route>
                     <Route path="/*" element={<ProtectedRoutesWithView />} />

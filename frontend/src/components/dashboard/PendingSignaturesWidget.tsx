@@ -152,21 +152,43 @@ export function PendingSignaturesWidget({ mode }: PendingSignaturesWidgetProps) 
     !isError &&
     (isPending || isLoading || (isFetching && data === undefined));
 
-  if (!isVisible) {
-    return null;
-  }
-
   const title =
     mode === "rh" ? "Signatures en attente" : "Mes signatures en attente";
 
   const total = data?.total ?? 0;
+
+  if (!isVisible) {
+    if (mode === "employee" && !showLoadingSkeleton && !isError && total > 0) {
+      return (
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-900/50 dark:bg-blue-950/30"
+          role="status"
+        >
+          <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+            {total} signature{total > 1 ? "s" : ""} en attente
+          </p>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => setIsVisible(true)}
+          >
+            Rouvrir
+          </Button>
+        </div>
+      );
+    }
+    return null;
+  }
 
   return (
     <Card className="overflow-hidden">
       <CardHeader className="flex flex-row flex-wrap items-center gap-2 space-y-0 pb-2">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <Mail className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
-          <CardTitle className="text-base font-semibold">{title}</CardTitle>
+          <CardTitle className={cn("font-semibold", mode === "employee" ? "text-lg" : "text-base")}>
+            {title}
+          </CardTitle>
           <Badge
             variant="secondary"
             className={cn(

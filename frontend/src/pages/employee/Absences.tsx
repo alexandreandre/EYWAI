@@ -1,438 +1,377 @@
-// Fichier : src/pages/employee/Absences.tsx (VERSION COMPLÈTE ET FINALE)
-
-import { log } from '@/lib/logger';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { fr } from 'date-fns/locale';
+import { AlertCircle, Clock, PlusCircle } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import type { AbsenceBalance, AbsenceRequest, SalaryCertificate } from '@/api/absences';
+import {
+  EmployeePageHeader,
+  EmployeePageShell,
+} from '@/components/employee/EmployeePageHeader';
+import { AbsenceRequestModal } from '@/components/AbsenceRequestModal';
+import { EmployeeAbsenceBalanceRow } from '@/components/employee-absences/EmployeeAbsenceBalanceRow';
+import { EmployeeAbsenceDaySheet } from '@/components/employee-absences/EmployeeAbsenceDaySheet';
+import { EmployeeAbsenceRequestsSection } from '@/components/employee-absences/EmployeeAbsenceRequestsSection';
+import { EmployeeAbsencesPageSkeleton } from '@/components/skeletons/EmployeeAbsencesPageSkeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
-import { Badge } from '@/components/ui/badge';
-import { useState, useEffect, useCallback } from 'react';
-import { PlusCircle, CheckCircle, Clock, Loader2, CircleX, Download, Eye, FileText } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { AbsenceRequestModal } from '@/components/AbsenceRequestModal';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import * as absencesApi from '@/api/absences';
-import * as absencesApiFunctions from '@/api/absences';
-import {
-  MaintenancePreviewBlock,
-  ABSENCE_TYPES_MAINTIEN_PREVIEW,
-} from '@/components/absences/MaintenancePreviewBlock';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/components/ui/use-toast';
-import type { DayPicker } from 'react-day-picker';
-import apiClient from '@/api/apiClient';
+import { useEmployeeAbsencesPageQuery } from '@/hooks/queries/useEmployeeDashboardQueries';
+import {
+  type AbsenceStatusFilter,
+  absencesOnCalendarDay,
+  filterAbsencesByStatus,
+} from '@/lib/employeeAbsencesUtils';
+import {
+  ABSENCE_CALENDAR_MODIFIERS_CLASS_NAMES,
+  buildAbsenceCalendarModifiers,
+  CALENDAR_LEGEND,
+  formatMonthYear,
+  getNextValidatedAbsenceDate,
+} from '@/lib/employeeDashboardUtils';
+import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 
-type AbsenceRequest = absencesApi.AbsenceRequest;
-
-const calendarLegend = {
-  aujourdhui: { label: "Aujourd'hui", color: 'border-2 border-primary' },
-  conge: { label: 'Congé / RTT', color: 'bg-blue-500', textColor: 'text-white' },
-  arret_maladie: { label: 'Arrêt maladie', color: 'bg-orange-400', textColor: 'text-white' },
-  ferie: { label: 'Jour férié', color: 'bg-green-500', textColor: 'text-white' },
-  weekend: { label: 'Weekend', color: 'bg-gray-200 dark:bg-gray-700', textColor: 'text-muted-foreground' },
-};
-type CalendarDayType = keyof typeof calendarLegend;
+const VALID_STATUS_PARAMS = new Set<AbsenceStatusFilter>([
+  'pending',
+  'validated',
+  'rejected',
+  'cancelled',
+]);
 
 export default function AbsencesPage() {
   const { user } = useAuth();
-  const { toast } = useToast();
-
-  // --- ÉTATS SIMPLIFIÉS ---
-  const [balances, setBalances] = useState<absencesApi.AbsenceBalance[]>([]);
-  const [calendarDays, setCalendarDays] = useState<absencesApi.CalendarDay[]>([]);
-  const [myAbsences, setMyAbsences] = useState<AbsenceRequest[]>([]);
-  const [certificates, setCertificates] = useState<Record<string, absencesApi.SalaryCertificate>>({});
-  const [loadingCertificates, setLoadingCertificates] = useState<Set<string>>(new Set());
-  const [isLoading, setIsLoading] = useState(true);
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const userId = user?.id;
+  const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [currentMonth, setCurrentMonth] = useState(() => new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEvenementFamilialModalOpen, setIsEvenementFamilialModalOpen] = useState(false);
-  const [evenementFamilialEvents, setEvenementFamilialEvents] = useState<absencesApi.EvenementFamilialEvent[]>([]);
-  const [isLoadingEvenementFamilial, setIsLoadingEvenementFamilial] = useState(false);
+  const [certificates, setCertificates] = useState<Record<string, SalaryCertificate>>({});
+  const [loadingCertificates, setLoadingCertificates] = useState<Set<string>>(new Set());
+  const [selectedCalendarDay, setSelectedCalendarDay] = useState<Date | null>(null);
+  const [daySheetOpen, setDaySheetOpen] = useState(false);
+  const requestsListRef = useRef<HTMLDivElement>(null);
 
-  // --- UNE SEULE FONCTION DE FETCH ---
-  const fetchPageData = useCallback(async (date: Date) => {
-    if (!user?.id) return;
-    setIsLoading(true);
-    try {
-      const year = date.getFullYear();
-      const month = date.getMonth() + 1;
+  const calendarYear = currentMonth.getFullYear();
+  const calendarMonth = currentMonth.getMonth() + 1;
 
-      // On utilise apiClient avec l'URL relative (qui sera en HTTPS)
-      const url = `/api/absences/employees/me/page-data?year=${year}&month=${month}`;
-      const response = await apiClient.get<absencesApi.AbsencePageData>(url);
+  const pageQuery = useEmployeeAbsencesPageQuery(userId, calendarYear, calendarMonth);
 
-      setBalances(response.data.balances);
-      setCalendarDays(response.data.calendar_days);
-      setMyAbsences(response.data.history);
-      
-    } catch (error) {
-      // Utilisation directe de toast sans dépendance dans useCallback
-      toast({ title: "Erreur", description: "Impossible de charger les données.", variant: "destructive" });
-    } finally {
-      setIsLoading(false);
+  const statusFilter = useMemo((): AbsenceStatusFilter => {
+    const raw = searchParams.get('status');
+    if (raw && VALID_STATUS_PARAMS.has(raw as AbsenceStatusFilter)) {
+      return raw as AbsenceStatusFilter;
     }
-  }, [user?.id]); // Suppression de la dépendance toast
+    return 'all';
+  }, [searchParams]);
 
-  // --- UN SEUL USE EFFECT ---
+  const balances: AbsenceBalance[] = pageQuery.data?.balances ?? [];
+  const calendarDays = pageQuery.data?.calendar_days ?? [];
+  const myAbsences: AbsenceRequest[] = pageQuery.data?.history ?? [];
+
+  const pendingCount = useMemo(
+    () => myAbsences.filter((a) => a.status === 'pending').length,
+    [myAbsences]
+  );
+
+  const filteredAbsences = useMemo(
+    () => filterAbsencesByStatus(myAbsences, statusFilter),
+    [myAbsences, statusFilter]
+  );
+
+  const nextAbsenceDate = useMemo(
+    () => getNextValidatedAbsenceDate(myAbsences),
+    [myAbsences]
+  );
+
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const calendarModifiers = useMemo(
+    () =>
+      buildAbsenceCalendarModifiers(
+        calendarDays,
+        currentMonth,
+        today,
+        nextAbsenceDate
+      ),
+    [calendarDays, currentMonth, nextAbsenceDate, today]
+  );
+
+  const daySheetAbsences = useMemo(() => {
+    if (!selectedCalendarDay) return [];
+    return absencesOnCalendarDay(myAbsences, selectedCalendarDay);
+  }, [myAbsences, selectedCalendarDay]);
+
   useEffect(() => {
-    fetchPageData(currentMonth);
-  }, [fetchPageData, currentMonth]);
-
-  // --- LOGIQUE CALENDRIER ---
-  const today = new Date();
-  
-  // --- CORRECTION : Générer un calendrier par défaut si les données sont vides ---
-  const getCalendarModifiers = () => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-
-    // Si le calendrier de la BDD est vide, on génère un calendrier par défaut avec seulement les week-ends
-    if (calendarDays.length === 0) {
-      const weekends: Date[] = [];
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      for (let day = 1; day <= daysInMonth; day++) {
-        const date = new Date(year, month, day);
-        if (date.getDay() === 0 || date.getDay() === 6) { // 0 = Dimanche, 6 = Samedi
-          weekends.push(date);
-        }
-      }
-      return { weekend: weekends, aujourdhui: [today] };
+    if (searchParams.get('new') === '1') {
+      setIsModalOpen(true);
     }
+  }, [searchParams]);
 
-    // Sinon, on utilise les données de la BDD comme avant
-    return calendarDays.reduce((acc, day) => {
-      const type = day.type as CalendarDayType;
-      if (!acc[type]) acc[type] = [];
-      acc[type].push(new Date(year, month, day.jour));
-      return acc;
-    }, {} as Record<CalendarDayType, Date[]>);
+  const handleStatusFilterChange = (filter: AbsenceStatusFilter) => {
+    const next = new URLSearchParams(searchParams);
+    if (filter === 'all') {
+      next.delete('status');
+    } else {
+      next.set('status', filter);
+    }
+    setSearchParams(next, { replace: true });
   };
 
-  const modifiers = getCalendarModifiers();
-  modifiers.aujourdhui = [today];
+  const openRequestModal = () => {
+    setIsModalOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.set('new', '1');
+    setSearchParams(next, { replace: true });
+  };
 
-  // --- FONCTIONS UTILITAIRES ---
-  const typeLabels: Record<AbsenceRequest['type'], string> = { 
-    'conge_paye': 'Congé payé', 
-    'rtt': 'RTT', 
-    'sans_solde': 'Congé sans solde', 
-    'repos_compensateur': 'Repos compensateur', 
-    'evenement_familial': 'Événement familial',
-    'arret_maladie': 'Arrêt maladie',
-    'arret_at': 'Accident du travail',
-    'arret_paternite': 'Congé paternité',
-    'arret_maternite': 'Congé maternité',
-    'arret_maladie_pro': 'Maladie professionnelle'
+  const closeRequestModal = () => {
+    setIsModalOpen(false);
+    const next = new URLSearchParams(searchParams);
+    next.delete('new');
+    setSearchParams(next, { replace: true });
   };
-  const evenementFamilialLabels: Record<string, string> = {
-    mariage_salarie: 'Mariage du collaborateur', pacs_salarie: 'PACS du collaborateur', mariage_enfant: 'Mariage d\'un enfant',
-    naissance_adoption: 'Naissance ou adoption', deces_conjoint: 'Décès du conjoint', deces_enfant: 'Décès d\'un enfant',
-    deces_pere_mere: 'Décès parent', deces_frere_soeur: 'Décès frère/sœur', deces_beaux_parents: 'Décès beaux-parents',
-    deces_grands_parents: 'Décès grands-parents', annonce_handicap_enfant: 'Annonce handicap enfant', demenagement: 'Déménagement',
+
+  const refreshPageData = useCallback(() => {
+    if (!userId) return;
+    void queryClient.invalidateQueries({
+      queryKey: [...queryKeys.employeeDashboard(userId), 'absences'],
+    });
+  }, [queryClient, userId]);
+
+  const handleCertificateLoaded = (absenceId: string, cert: SalaryCertificate) => {
+    setCertificates((prev) => ({ ...prev, [absenceId]: cert }));
   };
-  const getStatusBadge = (status: string) => {
-    if (status === 'validated') return <Badge variant="success"><CheckCircle className="mr-1 h-3 w-3"/>Validée</Badge>;
-    if (status === 'rejected') return <Badge variant="destructive"><CircleX className="mr-1 h-3 w-3"/>Rejetée</Badge>;
-    return <Badge variant="secondary"><Clock className="mr-1 h-3 w-3"/>En attente</Badge>;
+
+  const handleCertificateLoading = (absenceId: string, loading: boolean) => {
+    setLoadingCertificates((prev) => {
+      const next = new Set(prev);
+      if (loading) next.add(absenceId);
+      else next.delete(absenceId);
+      return next;
+    });
   };
-  const renderDates = (days: string[]) => {
-    const count = days.length;
-    if (count === 0) return 'N/A';
-    const sortedDays = days.map(d => new Date(d)).sort((a, b) => a.getTime() - b.getTime());
-    const formattedDays = sortedDays.map(d => d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }));
+
+  const scrollToRequests = () => {
+    requestsListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    handleStatusFilterChange('pending');
+  };
+
+  if (!userId) {
     return (
-      <TooltipProvider>
-        <Tooltip><TooltipTrigger>
-            <span className="underline decoration-dashed cursor-help">{count} jour{count > 1 ? 's' : ''}</span>
-        </TooltipTrigger><TooltipContent><p>{formattedDays.join(', ')}</p></TooltipContent></Tooltip>
-      </TooltipProvider>
+      <p className="text-sm text-muted-foreground">
+        Connectez-vous pour accéder à vos congés et absences.
+      </p>
     );
-  };
+  }
 
-  const handleOpenEvenementFamilialModal = () => {
-    setIsEvenementFamilialModalOpen(true);
-    setIsLoadingEvenementFamilial(true);
-    absencesApi.getEvenementsFamiliaux()
-      .then((res) => setEvenementFamilialEvents(res.data.events || []))
-      .catch(() => setEvenementFamilialEvents([]))
-      .finally(() => setIsLoadingEvenementFamilial(false));
-  };
+  if (pageQuery.isLoading && !pageQuery.data) {
+    return <EmployeeAbsencesPageSkeleton />;
+  }
 
-  const requiresCertificate = (type: string) => {
-    return ['arret_maladie', 'arret_at', 'arret_paternite', 'arret_maternite', 'arret_maladie_pro'].includes(type);
-  };
-
-  const loadCertificate = async (absenceId: string) => {
-    if (certificates[absenceId] || loadingCertificates.has(absenceId)) return;
-    
-    setLoadingCertificates(prev => new Set(prev).add(absenceId));
-    try {
-      const cert = await absencesApiFunctions.getSalaryCertificate(absenceId);
-      setCertificates(prev => ({ ...prev, [absenceId]: cert.data }));
-    } catch (error: any) {
-      if (error.response?.status !== 404) {
-        log.error('Erreur chargement attestation:', error);
-      }
-    } finally {
-      setLoadingCertificates(prev => {
-        const next = new Set(prev);
-        next.delete(absenceId);
-        return next;
-      });
-    }
-  };
-
-  const handleDownloadCertificate = async (absenceId: string) => {
-    try {
-      const blob = await absencesApiFunctions.downloadSalaryCertificate(absenceId);
-      const cert = certificates[absenceId];
-      const filename = cert?.filename || `attestation_salaire_${absenceId}.pdf`;
-      
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
-      toast({ title: 'Succès', description: 'Attestation téléchargée avec succès.' });
-    } catch (error) {
-      log.error('Erreur téléchargement attestation:', error);
-      toast({ title: 'Erreur', description: 'Impossible de télécharger l\'attestation.', variant: 'destructive' });
-    }
-  };
-
-  const handleDownload = async (absence: AbsenceRequest) => {
-    const signedUrl = absence.attachment_url;
-    if (!signedUrl) {
-      toast({ title: "Erreur", description: "Aucun justificatif associé.", variant: "destructive" });
-      return;
-    }
-
-    try {
-      const response = await fetch(signedUrl);
-      if (!response.ok) {
-        throw new Error(`Erreur réseau: ${response.statusText}`);
-      }
-      const blob = await response.blob();
-
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = absence.filename || "justificatif";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      log.error("Erreur lors de la tentative de téléchargement:", error);
-      toast({ title: "Erreur", description: "Impossible de lancer le téléchargement.", variant: "destructive" });
-    }
-  };
+  const isFetchingOverlay = pageQuery.isFetching && !pageQuery.isLoading;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Congés & Absences</h1>
-        <Button onClick={() => setIsModalOpen(true)}><PlusCircle className="mr-2 h-4 w-4" /> Faire une demande</Button>
-      </div>
+    <EmployeePageShell>
+      <EmployeePageHeader
+        title="Congés & Absences"
+        description="Soldes, demandes et calendrier du mois"
+        actions={
+          <Button onClick={openRequestModal}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Faire une demande
+          </Button>
+        }
+      />
+
+      {pendingCount > 0 && (
+        <Alert className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30">
+          <Clock className="h-4 w-4 text-amber-700" />
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-2 text-amber-950 dark:text-amber-100">
+            <span>
+              {pendingCount} demande{pendingCount > 1 ? 's' : ''} en attente de
+              validation
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-amber-300 bg-white hover:bg-amber-100 dark:bg-transparent"
+              onClick={scrollToRequests}
+            >
+              Voir les demandes
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {pageQuery.isError && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Impossible de charger les données. Réessayez en changeant de mois ou
+            en rafraîchissant la page.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader><CardTitle>Mes Soldes</CardTitle></CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 gap-4 border-b pb-2 text-center sm:grid-cols-3"><p className="text-left text-sm text-muted-foreground">Type</p><p className="text-sm text-muted-foreground">Pris</p><p className="text-sm font-bold text-primary">Restant</p></div>
-              {isLoading ? <div className="flex justify-center items-center h-24"><Loader2 className="h-6 w-6 animate-spin" /></div>
-               : balances.map(b => (
-                <div key={b.type} className="mt-2 grid grid-cols-1 gap-4 rounded p-2 text-center hover:bg-muted sm:grid-cols-3 sm:items-center">
-                  <p className="font-medium text-left">{b.type}</p>
-                  <p className="text-muted-foreground">{b.taken} j</p>
-                  {b.type === 'Événement familial' ? (
-                    <Button
-                      variant="link"
-                      className="font-bold text-xl h-auto p-0 text-primary hover:underline"
-                      onClick={handleOpenEvenementFamilialModal}
-                    >
-                      Voir
-                    </Button>
-                  ) : (
-                    <p className="font-bold text-xl">{typeof b.remaining === 'string' ? b.remaining : `${b.remaining} j`}</p>
-                  )}
-                </div>
-              ))}
+        {/* Colonne principale : soldes puis demandes (mobile : calendrier entre les deux via order) */}
+        <div className="order-1 space-y-6 lg:order-1 lg:col-span-2">
+          <Card className="order-1">
+            <CardHeader>
+              <CardTitle>Mes soldes</CardTitle>
+              <CardDescription>
+                Droits acquis et jours restants sur la période en cours
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-1">
+              {balances.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Soldes non disponibles.
+                </p>
+              ) : (
+                balances.map((b) => (
+                  <EmployeeAbsenceBalanceRow
+                    key={b.type}
+                    balance={b}
+                    showAcquired
+                  />
+                ))
+              )}
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader><CardTitle>Mes Demandes Récentes</CardTitle></CardHeader>
-            <CardContent>
-              {isLoading ? <div className="flex justify-center items-center h-24"><Loader2 className="h-6 w-6 animate-spin" /></div>
-               : myAbsences.length > 0 ? (
-                <ul className="space-y-3">{myAbsences.map(a => (
-                    <li key={a.id} className="space-y-3 p-3 rounded-md border">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium">{a.type === 'evenement_familial' && a.event_subtype ? `Événement familial - ${evenementFamilialLabels[a.event_subtype] ?? a.event_subtype}` : typeLabels[a.type]}</p>
-                          <p className="text-sm text-muted-foreground">{renderDates(a.selected_days)}</p>
-                          {a.comment && <p className="text-xs text-muted-foreground mt-1 italic">{a.comment}</p>}
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <div className="flex gap-1">
-                            {a.attachment_url && (
-                              <>
-                                <Button variant="outline" size="icon" className="h-8 w-8" asChild>
-                                  <a href={a.attachment_url} target="_blank" rel="noopener noreferrer" title="Voir le justificatif">
-                                    <Eye className="h-4 w-4" />
-                                  </a>
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handleDownload(a)}
-                                  title="Télécharger le justificatif"
-                                >
-                                  <Download className="h-4 w-4" />
-                                </Button>
-                              </>
-                            )}
-                            {a.certificate_status === 'generated' && (
-                              <div className="flex items-center gap-2">
-                                <Badge className="bg-green-600 hover:bg-green-600 text-white border-0 shrink-0">
-                                  Attestation IJSS générée
-                                </Badge>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 shrink-0"
-                                  onClick={() => handleDownloadCertificate(a.id)}
-                                >
-                                  Télécharger
-                                </Button>
-                              </div>
-                            )}
-                            {a.certificate_status === 'pending' && (
-                              <Badge className="bg-orange-500 hover:bg-orange-500 text-white border-0 shrink-0">
-                                Attestation en cours
-                              </Badge>
-                            )}
-                            {(a.certificate_status === undefined ||
-                              a.certificate_status === null) &&
-                              a.status === 'validated' &&
-                              requiresCertificate(a.type) && (
-                              <>
-                                {loadingCertificates.has(a.id) ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : certificates[a.id] ? (
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={() => handleDownloadCertificate(a.id)}
-                                    title="Télécharger l'attestation de salaire"
-                                  >
-                                    <FileText className="h-4 w-4" />
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={() => loadCertificate(a.id)}
-                                    title="Charger l'attestation"
-                                  >
-                                    <FileText className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </>
-                            )}
-                          </div>
-                          {getStatusBadge(a.status)}
-                        </div>
-                      </div>
-                      {ABSENCE_TYPES_MAINTIEN_PREVIEW.has(a.type) ? (
-                        <div className="max-w-xl">
-                          <MaintenancePreviewBlock
-                            absenceId={a.id}
-                            arretType={a.arret_type ?? null}
-                          />
-                        </div>
-                      ) : null}
-                    </li>))}
-                </ul>
-              ) : <p className="text-center text-sm text-muted-foreground h-24 flex items-center justify-center">Aucune demande récente.</p>}
+          {/* Calendrier : visible avant l'historique sur mobile */}
+          <Card className="relative order-2 lg:hidden">
+            <CardHeader>
+              <CardTitle>Calendrier</CardTitle>
+              <CardDescription>
+                {formatMonthYear(calendarMonth, calendarYear)}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center">
+              {isFetchingOverlay && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/50">
+                  <span className="sr-only">Chargement du calendrier</span>
+                </div>
+              )}
+              {nextAbsenceDate && (
+                <p className="mb-3 w-full text-center text-xs text-muted-foreground">
+                  Prochaine absence validée :{' '}
+                  <span className="font-medium text-foreground">
+                    {nextAbsenceDate.toLocaleDateString('fr-FR')}
+                  </span>
+                </p>
+              )}
+              <Calendar
+                mode="single"
+                locale={fr}
+                month={currentMonth}
+                onMonthChange={setCurrentMonth}
+                className="rounded-md border p-0"
+                weekStartsOn={1}
+                modifiers={calendarModifiers}
+                modifiersClassNames={ABSENCE_CALENDAR_MODIFIERS_CLASS_NAMES}
+                onDayClick={(day) => {
+                  setSelectedCalendarDay(day);
+                  setDaySheetOpen(true);
+                }}
+              />
+              <CalendarLegend />
             </CardContent>
           </Card>
+
+          <div className="order-3">
+            <EmployeeAbsenceRequestsSection
+              absences={filteredAbsences}
+              statusFilter={statusFilter}
+              onStatusFilterChange={handleStatusFilterChange}
+              certificates={certificates}
+              loadingCertificates={loadingCertificates}
+              onCertificateLoaded={handleCertificateLoaded}
+              onCertificateLoading={handleCertificateLoading}
+              listRef={requestsListRef}
+            />
+          </div>
         </div>
 
-        <Card>
-          <CardHeader><CardTitle>Calendrier</CardTitle></CardHeader>
+        {/* Calendrier desktop */}
+        <Card className="relative order-2 hidden lg:order-2 lg:block">
+          <CardHeader>
+            <CardTitle>Calendrier</CardTitle>
+            <CardDescription>
+              {formatMonthYear(calendarMonth, calendarYear)}
+            </CardDescription>
+          </CardHeader>
           <CardContent className="flex flex-col items-center">
-            {isLoading && <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10 rounded-lg"><Loader2 className="h-6 w-6 animate-spin" /></div>}
+            {isFetchingOverlay && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/50">
+                <span className="sr-only">Chargement du calendrier</span>
+              </div>
+            )}
+            {nextAbsenceDate && (
+              <p className="mb-3 w-full text-center text-xs text-muted-foreground">
+                Prochaine absence validée :{' '}
+                <span className="font-medium text-foreground">
+                  {nextAbsenceDate.toLocaleDateString('fr-FR')}
+                </span>
+              </p>
+            )}
             <Calendar
-              mode="single" month={currentMonth} onMonthChange={setCurrentMonth} className="rounded-md border p-0" weekStartsOn={1} modifiers={modifiers}
-              modifiersClassNames={{
-                  aujourdhui: 'border-2 border-primary rounded-md !bg-transparent text-primary', conge: 'bg-blue-500 text-white rounded-md',
-                  arret_maladie: 'bg-orange-400 text-white rounded-md', ferie: 'bg-green-500 text-white rounded-md',
-                  weekend: 'text-muted-foreground opacity-80', travail: 'font-semibold',
+              mode="single"
+              locale={fr}
+              month={currentMonth}
+              onMonthChange={setCurrentMonth}
+              className="rounded-md border p-0"
+              weekStartsOn={1}
+              modifiers={calendarModifiers}
+              modifiersClassNames={ABSENCE_CALENDAR_MODIFIERS_CLASS_NAMES}
+              onDayClick={(day) => {
+                setSelectedCalendarDay(day);
+                setDaySheetOpen(true);
               }}
             />
-            <div className="w-full mt-4 space-y-2 border-t pt-4">{Object.entries(calendarLegend).map(([key, { label, color }]) => (
-                <div key={key} className="flex items-center text-sm"><span className={`w-4 h-4 rounded-full mr-2 ${color}`}></span><span>{label}</span></div>
-            ))}</div>
+            <CalendarLegend />
+            <p className="mt-3 text-center text-xs text-muted-foreground">
+              Cliquez sur un jour pour voir les demandes associées.
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      <AbsenceRequestModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSuccess={() => fetchPageData(currentMonth)} balances={balances} />
+      <AbsenceRequestModal
+        isOpen={isModalOpen}
+        onClose={closeRequestModal}
+        onSuccess={refreshPageData}
+        balances={balances}
+      />
 
-      <Dialog open={isEvenementFamilialModalOpen} onOpenChange={setIsEvenementFamilialModalOpen}>
-        <DialogContent className="max-w-md max-h-[85vh] overflow-hidden flex flex-col">
-          <DialogHeader className="flex-shrink-0">
-            <DialogTitle>Événements familiaux – Jours restants</DialogTitle>
-          </DialogHeader>
-          {isLoadingEvenementFamilial ? (
-            <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
-          ) : evenementFamilialEvents.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4">Aucun événement familial disponible. Assurez-vous que votre convention collective est configurée.</p>
-          ) : (
-            <div className="overflow-y-auto max-h-[50vh] min-h-0 rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="font-semibold">Événement</TableHead>
-                  <TableHead className="text-right font-semibold">Quota</TableHead>
-                  <TableHead className="text-right font-semibold">Pris</TableHead>
-                  <TableHead className="text-right font-semibold text-primary">Restant</TableHead>
-                  {evenementFamilialEvents.some(ev => (ev.cycles_completed ?? 0) > 0) && (
-                    <TableHead className="text-right font-semibold text-muted-foreground">Consommé</TableHead>
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {evenementFamilialEvents.map((ev) => (
-                  <TableRow key={ev.code}>
-                    <TableCell className="font-medium">{ev.libelle}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">{ev.quota} j</TableCell>
-                    <TableCell className="text-right text-muted-foreground">{ev.taken} j</TableCell>
-                    <TableCell className="text-right font-bold text-primary">{ev.solde_restant} j</TableCell>
-                    {(ev.cycles_completed ?? 0) > 0 ? (
-                      <TableCell className="text-right text-muted-foreground text-xs">entièrement {ev.cycles_completed}×</TableCell>
-                    ) : evenementFamilialEvents.some(e => (e.cycles_completed ?? 0) > 0) ? (
-                      <TableCell className="text-right text-muted-foreground/50">—</TableCell>
-                    ) : null}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <EmployeeAbsenceDaySheet
+        open={daySheetOpen}
+        onOpenChange={setDaySheetOpen}
+        day={selectedCalendarDay}
+        absences={daySheetAbsences}
+      />
+    </EmployeePageShell>
+  );
+}
+
+function CalendarLegend() {
+  return (
+    <div className="mt-4 w-full space-y-2 border-t pt-4">
+      {Object.entries(CALENDAR_LEGEND).map(([key, { label, color }]) => (
+        <div key={key} className="flex items-center text-sm">
+          <span className={cn('mr-2 h-3 w-3 rounded-full', color)} />
+          <span>{label}</span>
+        </div>
+      ))}
     </div>
   );
 }

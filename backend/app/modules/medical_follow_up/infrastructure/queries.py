@@ -132,12 +132,9 @@ def get_employee_id_by_user_id(
     supabase: Any, user_id: str, company_id: str
 ) -> Optional[str]:
     """Retourne l’id employé pour un user_id et company_id ou None."""
-    res = (
-        supabase.table("employees")
-        .select("id")
-        .eq("user_id", user_id)
-        .eq("company_id", company_id)
-        .maybe_single()
-        .execute()
+    from app.modules.employees.infrastructure.queries import (
+        resolve_employee_id_for_user_account,
     )
-    return res.data.get("id") if res and res.data else None
+
+    _ = supabase
+    return resolve_employee_id_for_user_account(user_id, company_id)

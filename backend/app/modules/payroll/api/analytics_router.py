@@ -28,7 +28,7 @@ def _require_payroll_analytics_access(current_user: User) -> str:
     if not company_id:
         raise HTTPException(status_code=400, detail="Aucune entreprise active.")
     cid = str(company_id)
-    if current_user.is_super_admin:
+    if current_user.is_platform_admin:
         return cid
     role = current_user.get_role_in_company(cid)
     if role in ("admin", "rh", "collaborateur_rh"):

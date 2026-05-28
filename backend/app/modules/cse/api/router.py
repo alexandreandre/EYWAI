@@ -71,7 +71,7 @@ def _get_company_id(user: User) -> str:
 
 
 def _is_rh(user: User) -> bool:
-    if user.is_super_admin:
+    if user.is_platform_admin:
         return True
     if not user.active_company_id:
         return False
@@ -83,12 +83,38 @@ def _require_rh(current_user: User) -> None:
         raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
 
 
+def _resolve_employee_id_for_current_user(user: User) -> Optional[str]:
+    """Id fiche employees pour le compte connecté (user_id, id ou e-mail)."""
+    from app.shared.employee_resolution import resolve_employee_id_for_user_account
+
+    cid = user.active_company_id
+    if not cid:
+        return None
+    return resolve_employee_id_for_user_account(str(user.id), str(cid))
+
+
+def _scoped_employee_id_for_current_user(user: User) -> str:
+    """Id employé obligatoire pour les actions collaborateur (élus)."""
+    employee_id = _resolve_employee_id_for_current_user(user)
+    if not employee_id:
+        raise HTTPException(
+            status_code=404, detail="Profil collaborateur non trouvé"
+        )
+    return employee_id
+
+
 def _require_elected_or_rh(
     current_user: User, company_id: str, employee_id: Optional[str] = None
 ) -> None:
     if _is_rh(current_user):
         return
-    user_employee_id = employee_id or str(current_user.id)
+    user_employee_id = employee_id or _resolve_employee_id_for_current_user(
+        current_user
+    )
+    if not user_employee_id:
+        raise HTTPException(
+            status_code=403, detail="Accès réservé aux élus CSE ou aux RH."
+        )
     if queries.is_elected_member(company_id, user_employee_id):
         return
     raise HTTPException(status_code=403, detail="Accès réservé aux élus CSE ou aux RH.")
@@ -97,7 +123,13 @@ def _require_elected_or_rh(
 def _check_meeting_access(current_user: User, meeting_id: str, company_id: str) -> None:
     if _is_rh(current_user):
         return
-    _require_elected_or_rh(current_user, company_id)
+    employee_id = _scoped_employee_id_for_current_user(current_user)
+    _require_elected_or_rh(current_user, company_id, employee_id)
+    if not queries.is_meeting_participant(meeting_id, employee_id):
+        raise HTTPException(
+            status_code=403,
+            detail="Vous n'êtes pas participant à cette réunion.",
+        )
 
 
 def _consents_to_dict(consents) -> list:
@@ -167,7 +199,13 @@ def get_my_elected_status(
     """Statut élu de l'utilisateur connecté ou d'un employé (RH)."""
     company_id = _get_company_id(current_user)
     queries.check_module_active(company_id)
-    employee_id = str(current_user.id)
+    employee_id = _resolve_employee_id_for_current_user(current_user)
+    if not employee_id:
+        return ElectedMemberStatus(
+            is_elected=False,
+            current_mandate=None,
+            role=None,
+        )
     return queries.get_my_elected_status(company_id, employee_id)
 
 
@@ -187,11 +225,16 @@ def list_meetings(
     queries.check_module_active(company_id)
     if not _is_rh(current_user):
         _require_elected_or_rh(current_user, company_id)
+    participant_id = (
+        None
+        if _is_rh(current_user)
+        else _scoped_employee_id_for_current_user(current_user)
+    )
     return queries.get_meetings(
         company_id=company_id,
         status=status,
         meeting_type=meeting_type,
-        participant_id=None,
+        participant_id=participant_id,
     )
 
 
@@ -435,10 +478,10 @@ def get_delegation_quota_endpoint(
     """Récupère le quota mensuel d'heures de délégation. Élu : son quota, RH : quota d'un élu."""
     company_id = _get_company_id(current_user)
     queries.check_module_active(company_id)
-    target_employee_id = (
-        employee_id if (_is_rh(current_user) and employee_id) else str(current_user.id)
-    )
-    if not _is_rh(current_user):
+    if _is_rh(current_user):
+        target_employee_id = employee_id or str(current_user.id)
+    else:
+        target_employee_id = _scoped_employee_id_for_current_user(current_user)
         _require_elected_or_rh(current_user, company_id, target_employee_id)
     return queries.get_delegation_quota(company_id, target_employee_id)
 
@@ -453,10 +496,10 @@ def get_delegation_hours_endpoint(
     """Récupère les heures de délégation. Élu : ses heures, RH : heures d'un élu."""
     company_id = _get_company_id(current_user)
     queries.check_module_active(company_id)
-    target_employee_id = (
-        employee_id if (_is_rh(current_user) and employee_id) else str(current_user.id)
-    )
-    if not _is_rh(current_user):
+    if _is_rh(current_user):
+        target_employee_id = employee_id or str(current_user.id)
+    else:
+        target_employee_id = _scoped_employee_id_for_current_user(current_user)
         _require_elected_or_rh(current_user, company_id, target_employee_id)
     start_date = datetime.fromisoformat(period_start).date() if period_start else None
     end_date = datetime.fromisoformat(period_end).date() if period_end else None
@@ -473,13 +516,16 @@ def create_delegation_hour_endpoint(
     """Saisit une heure de délégation. Élu ou RH pour un élu."""
     company_id = _get_company_id(current_user)
     queries.check_module_active(company_id)
-    target_employee_id = body.employee_id or str(current_user.id)
-    if not _is_rh(current_user):
-        if target_employee_id != str(current_user.id):
+    if _is_rh(current_user):
+        target_employee_id = body.employee_id or str(current_user.id)
+    else:
+        scoped = _scoped_employee_id_for_current_user(current_user)
+        if body.employee_id and body.employee_id != scoped:
             raise HTTPException(
                 status_code=403,
                 detail="Vous ne pouvez saisir que vos propres heures",
             )
+        target_employee_id = scoped
         _require_elected_or_rh(current_user, company_id, target_employee_id)
     return commands.create_delegation_hour(
         company_id=company_id,

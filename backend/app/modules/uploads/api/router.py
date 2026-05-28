@@ -25,7 +25,7 @@ router = APIRouter(prefix="/api/uploads", tags=["Uploads"])
 
 
 def _require_rh_bdes_company_id(user: User) -> str:
-    if user.is_super_admin:
+    if user.is_platform_admin:
         if not user.active_company_id:
             raise HTTPException(
                 status_code=400,

@@ -29,6 +29,7 @@ def prepare_employee_insert_data(
     """
     data = dict(employee_data)
     data["id"] = str(new_user_id)
+    data["user_id"] = str(new_user_id)
     data["employee_folder_name"] = folder_name
     data["company_id"] = company_id
     data["username"] = username

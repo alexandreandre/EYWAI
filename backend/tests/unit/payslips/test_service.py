@@ -31,7 +31,7 @@ def _ctx_employee(employee_id: str):
     """Contexte utilisateur = employé (pas RH, pas super admin)."""
     return UserContext(
         user_id=employee_id,
-        is_super_admin=False,
+        is_platform_admin=False,
         has_rh_access_in_company=lambda c: False,
         active_company_id="co-1",
         first_name="Jean",
@@ -43,7 +43,7 @@ def _ctx_rh(company_id: str):
     """Contexte utilisateur RH sur une entreprise."""
     return UserContext(
         user_id="rh-user",
-        is_super_admin=False,
+        is_platform_admin=False,
         has_rh_access_in_company=lambda c: c == company_id,
         active_company_id=company_id,
         first_name="RH",
@@ -55,7 +55,7 @@ def _ctx_super_admin():
     """Contexte super admin."""
     return UserContext(
         user_id="super-admin",
-        is_super_admin=True,
+        is_platform_admin=True,
         has_rh_access_in_company=lambda c: True,
         active_company_id=None,
         first_name="Admin",

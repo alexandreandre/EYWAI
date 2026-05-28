@@ -87,18 +87,7 @@ export interface AuditLogEntry {
   created_at: string;
 }
 
-export const ACTIONS_LABELS: Record<string, string> = {
-  "employee.create": "Création salarié",
-  "employee.update": "Modification salarié",
-  "employee.delete": "Suppression salarié",
-  "payslip.validate": "Validation bulletin",
-  "payslip.generate": "Génération bulletin",
-  "absence.validate": "Validation absence",
-  "absence.reject": "Refus absence",
-  "document.sign": "Signature document",
-  "salary.update": "Modification salaire",
-  "recruitment.hire": "Embauche candidat",
-};
+export { ACTIONS_LABELS } from "@/lib/auditLabels";
 
 export async function getAnomaliesPayslips(
   companyId: string | null | undefined,

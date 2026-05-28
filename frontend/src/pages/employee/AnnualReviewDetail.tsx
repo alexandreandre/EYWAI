@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
+import { EmployeePageHeader, EmployeePageShell } from "@/components/employee/EmployeePageHeader";
 import { AnnualReviewBadge } from "@/components/AnnualReviewBadge";
 import {
   getAnnualReview,
@@ -37,6 +38,7 @@ import {
   Eye,
   RefreshCw,
 } from "lucide-react";
+import { downloadAnnualReviewPdfFile, previewAnnualReviewPdf } from '@/lib/annualReviewPdf';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -303,10 +305,7 @@ export default function EmployeeAnnualReviewDetail() {
     if (!reviewId) return;
     try {
       const blob = await downloadAnnualReviewPdf(reviewId);
-      const url = window.URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      // Ne pas révoquer immédiatement l'URL pour permettre l'ouverture dans un nouvel onglet
-      setTimeout(() => window.URL.revokeObjectURL(url), 100);
+      previewAnnualReviewPdf(blob);
     } catch (error: any) {
       toast({
         title: "Erreur",
@@ -320,14 +319,7 @@ export default function EmployeeAnnualReviewDetail() {
     if (!reviewId) return;
     try {
       const blob = await downloadAnnualReviewPdf(reviewId);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `entretien_${reviewId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      downloadAnnualReviewPdfFile(blob, reviewId);
       toast({
         title: "PDF téléchargé",
         description: "Le PDF de l'entretien a été téléchargé avec succès.",
@@ -347,56 +339,51 @@ export default function EmployeeAnnualReviewDetail() {
   log.debug("[AnnualReviewDetail] canEditNotes:", canEditNotes);
 
   return (
-    <div className="space-y-6">
-      {/* Header sobre et simple */}
-      <div className="flex items-start justify-between border-b pb-4">
-        <div className="flex items-start gap-4 flex-1">
-          <Button 
-            variant="ghost" 
+    <EmployeePageShell>
+      <EmployeePageHeader
+        back={
+          <Button
+            variant="ghost"
             size="sm"
-            onClick={() => navigate("/annual-reviews")}
-            className="mt-1"
+            className="-ml-2 h-8 w-fit text-muted-foreground"
+            onClick={() => navigate('/annual-reviews')}
           >
-            <ArrowLeft className="h-4 w-4 mr-2" />
+            <ArrowLeft className="mr-2 h-4 w-4" />
             Retour
           </Button>
-          <div className="flex-1">
-            <h1 className="text-2xl font-semibold text-foreground">Fiche Entretien</h1>
-            <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-              {review.planned_date && (
-                <span>{formatDate(review.planned_date)}</span>
-              )}
-            </div>
+        }
+        title="Fiche Entretien"
+        description={review.planned_date ? formatDate(review.planned_date) : undefined}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {canDownloadPdf && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleViewPdf}
+                  className="gap-2"
+                  title="Voir le PDF"
+                >
+                  <Eye className="h-4 w-4" />
+                  Voir
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownloadPdf}
+                  className="gap-2"
+                  title="Télécharger le PDF"
+                >
+                  <FileDown className="h-4 w-4" />
+                  Télécharger
+                </Button>
+              </>
+            )}
+            <AnnualReviewBadge status={review.status} />
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {canDownloadPdf && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleViewPdf}
-                className="gap-2"
-                title="Voir le PDF"
-              >
-                <Eye className="h-4 w-4" />
-                Voir
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDownloadPdf}
-                className="gap-2"
-                title="Télécharger le PDF"
-              >
-                <FileDown className="h-4 w-4" />
-                Télécharger
-              </Button>
-            </>
-          )}
-          <AnnualReviewBadge status={review.status} />
-        </div>
-      </div>
+        }
+      />
 
       {/* Statut */}
       <Card className="border-l-4 border-l-indigo-500">
@@ -863,6 +850,6 @@ export default function EmployeeAnnualReviewDetail() {
             </CardContent>
           </Card>
       )}
-    </div>
+    </EmployeePageShell>
   );
 }

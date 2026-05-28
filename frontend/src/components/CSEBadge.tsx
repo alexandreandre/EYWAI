@@ -12,6 +12,7 @@ import {
 import { Users, Calendar, Clock } from "lucide-react";
 import type { ElectedMemberRole } from "@/api/cse";
 import { ROLE_LABELS, ROLE_BADGE_CLASSES } from "@/lib/cseLabels";
+import { cn } from "@/lib/utils";
 
 interface CSEBadgeProps {
   role: ElectedMemberRole;
@@ -46,8 +47,13 @@ export function CSEBadge({
   const isExpired = daysRemaining !== null && daysRemaining < 0;
 
   const badgeContent = (
-    <Badge className={ROLE_BADGE_CLASSES[role] || ROLE_BADGE_CLASSES.autre}>
-      <Users className="h-3 w-3 mr-1" />
+    <Badge
+      className={cn(
+        ROLE_BADGE_CLASSES[role] || ROLE_BADGE_CLASSES.autre,
+        compact && "h-5 gap-0.5 px-1.5 py-0 text-[10px] font-medium",
+      )}
+    >
+      <Users className={cn("shrink-0", compact ? "h-2.5 w-2.5" : "h-3 w-3 mr-1")} />
       {compact ? ROLE_LABELS[role] : `Élu CSE - ${ROLE_LABELS[role]}`}
       {college && !compact && ` (${college})`}
     </Badge>

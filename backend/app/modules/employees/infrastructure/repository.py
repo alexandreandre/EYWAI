@@ -158,6 +158,32 @@ class EmployeeRepository(IEmployeeRepository):
         )
         return [dict(row) for row in (response.data or [])]
 
+    def get_summary_by_company(
+        self,
+        company_id: str,
+        *,
+        active_only: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Liste allégée sans enrichissement (performances listes / planning)."""
+        response = (
+            supabase.table("employees")
+            .select(
+                "id, first_name, last_name, job_title, contract_type, "
+                "hire_date, employment_status, current_exit_id, duree_hebdomadaire"
+            )
+            .eq("company_id", company_id)
+            .order("last_name")
+            .execute()
+        )
+        rows = [dict(row) for row in (response.data or [])]
+        if not active_only:
+            return rows
+        return [
+            r
+            for r in rows
+            if (r.get("employment_status") or "actif").lower() in ("actif", "active")
+        ]
+
     def get_by_id(self, employee_id: str, company_id: str) -> Optional[Dict[str, Any]]:
         response = (
             supabase.table("employees")

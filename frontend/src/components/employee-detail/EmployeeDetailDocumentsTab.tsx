@@ -1,14 +1,11 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/api/apiClient';
 import { DOCUMENT_TYPE_LABELS } from '@/api/documentLibrary';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
-import { Edit, Folder, FolderOpen, RefreshCw } from 'lucide-react';
+import { Edit, RefreshCw } from 'lucide-react';
 import {
   DOCUMENT_FOLDERS,
   type DocumentFolderId,
@@ -26,6 +23,10 @@ import {
   useEmployeeDocumentGeneration,
   type EmployeeDetailDocumentsRhEmployee,
 } from '@/components/employee-detail/EmployeeDetailDocumentsRhSection';
+import { EmployeeDocumentsFolderExplorer } from '@/components/documents/EmployeeDocumentsFolderExplorer';
+import { countRhDetailFolderItems } from '@/components/documents/employeeDocumentsFolderCounts';
+import { matchesFileSemantic } from '@/components/documents/companyDocumentsExplorerUtils';
+import type { GeneratedDocument } from '@/api/documents';
 
 interface ContractUrlResponse {
   url: string | null;
@@ -46,28 +47,29 @@ function FileListSkeleton() {
   );
 }
 
-function countFolderItems(
-  folderId: DocumentFolderId,
-  opts: {
-    contractUrl: string | null;
-    identityUrl: string | null;
-    payslips: PayslipItem[];
-    credentialsPdfUrl: string | null;
-    generatedByFolder: ReturnType<typeof groupGeneratedByFolder>;
-  }
-): number {
-  switch (folderId) {
-    case 'contrat':
-      return (opts.contractUrl ? 1 : 0) + opts.generatedByFolder.contrat.length;
-    case 'identite':
-      return opts.identityUrl ? 1 : 0;
-    case 'bulletins':
-      return opts.payslips.length;
-    case 'autres':
-      return opts.generatedByFolder.autres.length + (opts.credentialsPdfUrl ? 1 : 0);
-    default:
-      return 0;
-  }
+function filterGeneratedDocs(docs: GeneratedDocument[], fileSearch: string): GeneratedDocument[] {
+  return docs.filter((d) =>
+    matchesFileSemantic(
+      [
+        DOCUMENT_TYPE_LABELS[d.document_type] ?? d.document_type,
+        d.document_type,
+        d.file_name ?? '',
+        d.status,
+        d.template_name ?? '',
+        d.is_eywai_template ? 'eywai standard' : 'personnalise',
+      ],
+      fileSearch
+    )
+  );
+}
+
+function filterPayslips(payslips: PayslipItem[], fileSearch: string): PayslipItem[] {
+  return payslips.filter((p) =>
+    matchesFileSemantic(
+      [payslipLabel(p), p.name, String(p.month), String(p.year), 'bulletin paie'],
+      fileSearch
+    )
+  );
 }
 
 export function EmployeeDetailDocumentsTab({
@@ -76,8 +78,6 @@ export function EmployeeDetailDocumentsTab({
   credentialsPdfUrl = null,
 }: EmployeeDetailDocumentsTabProps) {
   const navigate = useNavigate();
-  const [selectedFolder, setSelectedFolder] = useState<DocumentFolderId>('contrat');
-  const [mobileOpenFolder, setMobileOpenFolder] = useState<DocumentFolderId | null>('contrat');
 
   const {
     rows: generatedRows,
@@ -124,7 +124,7 @@ export function EmployeeDetailDocumentsTab({
   const folderCounts = useMemo(() => {
     const opts = { contractUrl, identityUrl, payslips, credentialsPdfUrl, generatedByFolder };
     return Object.fromEntries(
-      DOCUMENT_FOLDERS.map((f) => [f.id, countFolderItems(f.id, opts)])
+      DOCUMENT_FOLDERS.map((f) => [f.id, countRhDetailFolderItems(f.id, opts)])
     ) as Record<DocumentFolderId, number>;
   }, [contractUrl, identityUrl, payslips, credentialsPdfUrl, generatedByFolder]);
 
@@ -141,7 +141,20 @@ export function EmployeeDetailDocumentsTab({
     ? 'Aucun titre de séjour trouvé.'
     : "Aucune pièce d'identité trouvée.";
 
-  const renderContratFiles = () => {
+  const renderGeneratedRow = (doc: GeneratedDocument) => {
+    const typeLabel = DOCUMENT_TYPE_LABELS[doc.document_type] ?? doc.document_type;
+    return (
+      <DocumentFileRow
+        key={doc.id}
+        name={typeLabel}
+        subtitle={doc.file_name || undefined}
+        meta={<GeneratedDocMeta doc={doc} />}
+        actions={<GeneratedDocActions doc={doc} handlers={handlers} />}
+      />
+    );
+  };
+
+  const renderContratFiles = (fileSearch: string) => {
     const loading = contractQuery.isLoading || generatedLoading;
     if (loading) return <FileListSkeleton />;
     if (contractQuery.isError || generatedError) {
@@ -165,7 +178,10 @@ export function EmployeeDetailDocumentsTab({
 
     const items: ReactNode[] = [];
 
-    if (contractUrl) {
+    if (
+      contractUrl &&
+      matchesFileSemantic(['contrat travail', 'contrat embauche', 'fichier signe'], fileSearch)
+    ) {
       items.push(
         <DocumentFileRow
           key="uploaded-contract"
@@ -181,23 +197,17 @@ export function EmployeeDetailDocumentsTab({
       );
     }
 
-    for (const doc of generatedByFolder.contrat) {
-      const typeLabel = DOCUMENT_TYPE_LABELS[doc.document_type] ?? doc.document_type;
-      items.push(
-        <DocumentFileRow
-          key={doc.id}
-          name={typeLabel}
-          subtitle={doc.file_name || undefined}
-          meta={<GeneratedDocMeta doc={doc} />}
-          actions={<GeneratedDocActions doc={doc} handlers={handlers} />}
-        />
-      );
+    for (const doc of filterGeneratedDocs(generatedByFolder.contrat, fileSearch)) {
+      items.push(renderGeneratedRow(doc));
     }
 
     if (items.length === 0) {
+      const hasData = contractUrl || generatedByFolder.contrat.length > 0;
       return (
         <p className="py-8 text-center text-sm text-muted-foreground">
-          {DOCUMENT_FOLDERS.find((f) => f.id === 'contrat')?.emptyMessage}
+          {fileSearch.trim() && hasData
+            ? 'Aucun fichier ne correspond à votre recherche.'
+            : DOCUMENT_FOLDERS.find((f) => f.id === 'contrat')?.emptyMessage}
         </p>
       );
     }
@@ -205,7 +215,7 @@ export function EmployeeDetailDocumentsTab({
     return <ul className="divide-y divide-border/60">{items}</ul>;
   };
 
-  const renderIdentiteFiles = () => {
+  const renderIdentiteFiles = (fileSearch: string) => {
     if (identityQuery.isLoading) return <FileListSkeleton />;
     if (identityQuery.isError) {
       return (
@@ -218,6 +228,19 @@ export function EmployeeDetailDocumentsTab({
     }
     if (!identityUrl) {
       return <p className="py-8 text-center text-sm text-muted-foreground">{identityEmptyMessage}</p>;
+    }
+
+    if (
+      !matchesFileSemantic(
+        [identityLabel, 'identite', 'passeport', 'titre sejour', 'piece identite'],
+        fileSearch
+      )
+    ) {
+      return (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          Aucun fichier ne correspond à votre recherche.
+        </p>
+      );
     }
 
     const subtitleParts: string[] = [];
@@ -266,7 +289,7 @@ export function EmployeeDetailDocumentsTab({
     />
   );
 
-  const renderBulletinsFiles = () => {
+  const renderBulletinsFiles = (fileSearch: string) => {
     if (payslipsQuery.isLoading) return <FileListSkeleton />;
     if (payslipsQuery.isError) {
       return (
@@ -285,10 +308,29 @@ export function EmployeeDetailDocumentsTab({
       );
     }
 
+    const filtered = filterPayslips(payslips, fileSearch);
+    if (filtered.length === 0) {
+      return (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          Aucun fichier ne correspond à votre recherche.
+        </p>
+      );
+    }
+
     if (payslipsByYear) {
+      const yearBlocks = [...payslipsByYear.entries()]
+        .map(([year, list]) => [year, filterPayslips(list, fileSearch)] as const)
+        .filter(([, list]) => list.length > 0);
+      if (yearBlocks.length === 0) {
+        return (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            Aucun fichier ne correspond à votre recherche.
+          </p>
+        );
+      }
       return (
         <ul className="space-y-4">
-          {[...payslipsByYear.entries()].map(([year, list]) => (
+          {yearBlocks.map(([year, list]) => (
             <li key={year}>
               <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {year}
@@ -300,10 +342,10 @@ export function EmployeeDetailDocumentsTab({
       );
     }
 
-    return <ul className="divide-y divide-border/60">{payslips.map(renderPayslipRow)}</ul>;
+    return <ul className="divide-y divide-border/60">{filtered.map(renderPayslipRow)}</ul>;
   };
 
-  const renderAutresFiles = () => {
+  const renderAutresFiles = (fileSearch: string) => {
     if (generatedLoading) return <FileListSkeleton />;
     if (generatedError) {
       return (
@@ -317,7 +359,10 @@ export function EmployeeDetailDocumentsTab({
 
     const items: ReactNode[] = [];
 
-    if (credentialsPdfUrl) {
+    if (
+      credentialsPdfUrl &&
+      matchesFileSemantic(['identifiants connexion', 'creation compte', 'compte'], fileSearch)
+    ) {
       items.push(
         <DocumentFileRow
           key="credentials-pdf"
@@ -333,23 +378,18 @@ export function EmployeeDetailDocumentsTab({
       );
     }
 
-    for (const doc of generatedByFolder.autres) {
-      const typeLabel = DOCUMENT_TYPE_LABELS[doc.document_type] ?? doc.document_type;
-      items.push(
-        <DocumentFileRow
-          key={doc.id}
-          name={typeLabel}
-          subtitle={doc.file_name || undefined}
-          meta={<GeneratedDocMeta doc={doc} />}
-          actions={<GeneratedDocActions doc={doc} handlers={handlers} />}
-        />
-      );
+    for (const doc of filterGeneratedDocs(generatedByFolder.autres, fileSearch)) {
+      items.push(renderGeneratedRow(doc));
     }
 
     if (items.length === 0) {
+      const hasData =
+        Boolean(credentialsPdfUrl) || generatedByFolder.autres.length > 0;
       return (
         <p className="py-8 text-center text-sm text-muted-foreground">
-          {DOCUMENT_FOLDERS.find((f) => f.id === 'autres')?.emptyMessage}
+          {fileSearch.trim() && hasData
+            ? 'Aucun fichier ne correspond à votre recherche.'
+            : DOCUMENT_FOLDERS.find((f) => f.id === 'autres')?.emptyMessage}
         </p>
       );
     }
@@ -357,54 +397,19 @@ export function EmployeeDetailDocumentsTab({
     return <ul className="divide-y divide-border/60">{items}</ul>;
   };
 
-  const renderFolderContent = (folderId: DocumentFolderId) => {
+  const renderFolderContent = (folderId: DocumentFolderId, fileSearch: string) => {
     switch (folderId) {
       case 'contrat':
-        return renderContratFiles();
+        return renderContratFiles(fileSearch);
       case 'identite':
-        return renderIdentiteFiles();
+        return renderIdentiteFiles(fileSearch);
       case 'bulletins':
-        return renderBulletinsFiles();
+        return renderBulletinsFiles(fileSearch);
       case 'autres':
-        return renderAutresFiles();
+        return renderAutresFiles(fileSearch);
       default:
         return null;
     }
-  };
-
-  const selectedMeta = DOCUMENT_FOLDERS.find((f) => f.id === selectedFolder)!;
-
-  const renderFolderButton = (folder: (typeof DOCUMENT_FOLDERS)[number], variant: 'sidebar' | 'accordion') => {
-    const count = folderCounts[folder.id];
-    const isSelected = variant === 'sidebar' ? selectedFolder === folder.id : mobileOpenFolder === folder.id;
-    const Icon = isSelected ? FolderOpen : Folder;
-
-    const btn = (
-      <button
-        type="button"
-        onClick={() => {
-          if (variant === 'sidebar') {
-            setSelectedFolder(folder.id);
-          } else {
-            setMobileOpenFolder((prev) => (prev === folder.id ? null : folder.id));
-          }
-        }}
-        className={cn(
-          'flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm transition-colors',
-          isSelected
-            ? 'bg-primary/10 text-primary font-medium'
-            : 'text-foreground hover:bg-muted/80'
-        )}
-      >
-        <Icon className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
-        <span className="min-w-0 flex-1 truncate">{folder.label}</span>
-        <Badge variant="secondary" className="shrink-0 tabular-nums">
-          {count}
-        </Badge>
-      </button>
-    );
-
-    return btn;
   };
 
   const manageTemplates = () => navigate('/company#bibliotheque');
@@ -419,79 +424,17 @@ export function EmployeeDetailDocumentsTab({
 
       {dialogs}
 
-      {/* Desktop : explorateur deux colonnes */}
-      <Card className="hidden lg:block overflow-hidden">
-        <div className="grid min-h-[320px] grid-cols-[minmax(240px,280px)_1fr]">
-          <div className="border-r bg-muted/30 p-3">
-            <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Dossiers
-            </p>
-            <nav className="space-y-0.5" aria-label="Dossiers documents">
-              {DOCUMENT_FOLDERS.map((folder) => (
-                <div key={folder.id}>{renderFolderButton(folder, 'sidebar')}</div>
-              ))}
-            </nav>
-          </div>
-          <div className="flex flex-col">
-            <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
-              <div className="min-w-0">
-                <h3 className="font-semibold leading-tight">{selectedMeta.label}</h3>
-                <p className="text-xs text-muted-foreground">
-                  {folderCounts[selectedFolder]} fichier
-                  {folderCounts[selectedFolder] !== 1 ? 's' : ''}
-                </p>
-              </div>
-              <EmployeeDocumentAddMenu
-                handlers={handlers}
-                onManageTemplates={manageTemplates}
-                menuAlign={'end'}
-              />
-            </div>
-            <div className="flex-1 overflow-y-auto p-2">{renderFolderContent(selectedFolder)}</div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Mobile / tablette : accordéons empilés */}
-      <div className="space-y-3 lg:hidden">
-        {DOCUMENT_FOLDERS.map((folder) => {
-          const isOpen = mobileOpenFolder === folder.id;
-          return (
-            <Card key={folder.id} className="overflow-hidden">
-              <CardHeader className="py-3">
-                <div className="flex items-start justify-between gap-2">
-                  <button
-                    type="button"
-                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                    onClick={() =>
-                      setMobileOpenFolder((prev) => (prev === folder.id ? null : folder.id))
-                    }
-                    aria-expanded={isOpen}
-                  >
-                    {isOpen ? (
-                      <FolderOpen className="h-5 w-5 shrink-0 text-primary" />
-                    ) : (
-                      <Folder className="h-5 w-5 shrink-0 text-muted-foreground" />
-                    )}
-                    <div className="min-w-0">
-                      <CardTitle className="text-base leading-snug">{folder.label}</CardTitle>
-                      <CardDescription className="mt-0.5">
-                        {folderCounts[folder.id]} fichier{folderCounts[folder.id] !== 1 ? 's' : ''}
-                      </CardDescription>
-                    </div>
-                  </button>
-                  <EmployeeDocumentAddMenu
-                    handlers={handlers}
-                    onManageTemplates={manageTemplates}
-                    menuAlign={'end'}
-                  />
-                </div>
-              </CardHeader>
-              {isOpen && <CardContent className="pt-0 pb-4">{renderFolderContent(folder.id)}</CardContent>}
-            </Card>
-          );
-        })}
-      </div>
+      <EmployeeDocumentsFolderExplorer
+        folderCounts={folderCounts}
+        renderFolderContent={renderFolderContent}
+        headerActions={
+          <EmployeeDocumentAddMenu
+            handlers={handlers}
+            onManageTemplates={manageTemplates}
+            menuAlign="end"
+          />
+        }
+      />
     </div>
   );
 }

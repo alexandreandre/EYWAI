@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { History, Loader2, Download } from "lucide-react";
 import { getExportHistory, ExportHistoryEntry, downloadExport, ExportType } from "@/api/exports";
+import { downloadBlob, openBlobInNewTab, createBlobPreviewUrl } from '@/lib/downloadBlob';
 
 const exportTypeLabels: Record<string, string> = {
   // Paie & Comptabilité
@@ -90,13 +91,7 @@ export function ExportHistory({ exportType, hideHeader = false }: ExportHistoryP
       const filename = `${exportType}_${periodFormatted}.${extension}`;
 
       // Créer un lien de téléchargement
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", filename);
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode?.removeChild(link);
+      downloadBlob(blob, filename);
       window.URL.revokeObjectURL(url);
     } catch (err: any) {
       log.error("Erreur lors du téléchargement:", err);

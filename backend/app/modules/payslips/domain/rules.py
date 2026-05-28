@@ -10,32 +10,30 @@ from __future__ import annotations
 from typing import Any, Callable
 
 
-def is_forfait_jour(statut: str | None) -> bool:
-    """
-    Détecte si un employé est en forfait jour selon son statut.
-    Règle métier pure (pas d'I/O).
-    """
-    if not statut:
-        return False
-    return "forfait jour" in statut.lower()
+from app.shared.domain.employment_rules import is_forfait_jour as is_forfait_jour
 
 
 def can_view_payslip(
     payslip: dict[str, Any],
     user_id: str,
-    is_super_admin: bool,
+    is_platform_admin: bool,
     has_rh_access_in_company: Callable[[str], bool],
     active_company_id: str | None,
+    resolved_employee_id: str | None = None,
 ) -> bool:
     """
     L'utilisateur peut consulter le bulletin s'il est l'employé concerné,
     ou RH/Admin de l'entreprise du bulletin, ou super admin.
 
     has_rh_access_in_company(company_id) -> bool.
+    resolved_employee_id : fiche employees.id liée au compte (user_id sur employees).
     """
-    if payslip.get("employee_id") == user_id:
+    employee_id = payslip.get("employee_id")
+    if employee_id == user_id:
         return True
-    if is_super_admin:
+    if resolved_employee_id and employee_id == resolved_employee_id:
+        return True
+    if is_platform_admin:
         return True
     company_id = payslip.get("company_id")
     if not company_id:
@@ -49,7 +47,7 @@ def can_view_payslip(
 
 def can_edit_or_restore_payslip(
     payslip: dict[str, Any],
-    is_super_admin: bool,
+    is_platform_admin: bool,
     has_rh_access_in_company: Callable[[str], bool],
     active_company_id: str | None,
 ) -> bool:
@@ -57,7 +55,7 @@ def can_edit_or_restore_payslip(
     Édition / restauration : RH ou Admin de l'entreprise du bulletin, ou super admin.
     Même entreprise active (sauf super admin).
     """
-    if is_super_admin:
+    if is_platform_admin:
         return True
     company_id = payslip.get("company_id")
     if not company_id:

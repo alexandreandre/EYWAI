@@ -25,7 +25,7 @@ from app.modules.users.schemas.responses import CompanyAccess, User, UserDetail
 
 
 def get_my_companies(current_user: User) -> List[CompanyAccess]:
-    if current_user.is_super_admin:
+    if current_user.is_platform_admin:
         rows = infra_queries.fetch_active_companies_with_groups()
         return [row_to_company_access_super_admin(c) for c in rows]
     return current_user.accessible_companies
@@ -47,7 +47,7 @@ def get_user_company_accesses(user_id: str, current_user: User) -> List[CompanyA
     accesses = infra_queries.fetch_user_accesses_with_companies(user_id)
     rows = [acc for acc in accesses if acc.get("companies")]
 
-    if current_user.is_super_admin or user_id == current_user.id:
+    if current_user.is_platform_admin or user_id == current_user.id:
         return [row_to_company_access(acc, acc["companies"]) for acc in rows]
 
     target_company_ids = [str(acc["company_id"]) for acc in rows]
@@ -77,7 +77,7 @@ def get_company_users(
     rows = infra_queries.fetch_company_users_rows(company_id, role)
     auth = get_auth_provider()
 
-    if current_user.is_super_admin:
+    if current_user.is_platform_admin:
         viewable_roles = ["admin", "rh", "collaborateur_rh", "collaborateur", "custom"]
         editable_roles = ["admin", "rh", "collaborateur_rh", "collaborateur", "custom"]
     else:
@@ -104,13 +104,13 @@ def get_company_users(
 
 
 def get_accessible_companies_for_user_creation(current_user: User) -> List[dict]:
-    if current_user.is_super_admin:
+    if current_user.is_platform_admin:
         rows = infra_queries.fetch_active_companies_for_creation()
         return [
             {
                 "company_id": row["id"],
                 "company_name": row["company_name"],
-                "creator_role": "super_admin",
+                "creator_role": "admin",
                 "can_create_roles": [
                     "admin",
                     "rh",
@@ -151,7 +151,7 @@ def get_user_detail(user_id: str, company_id: str, current_user: User) -> dict:
         raise LookupError("Utilisateur n'a pas d'accès à cette entreprise")
     target_role = access["role"]
 
-    if not current_user.is_super_admin:
+    if not current_user.is_platform_admin:
         if not current_user.has_access_to_company(company_id):
             raise PermissionError("Vous n'avez pas accès à cette entreprise")
         creator_role = current_user.get_role_in_company(company_id) or ""

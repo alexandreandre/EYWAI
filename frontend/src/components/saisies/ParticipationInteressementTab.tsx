@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import apiClient from '@/api/apiClient';
 
 import { log } from '@/lib/logger';
+import { downloadBlob, openBlobInNewTab } from '@/lib/downloadBlob';
 // Types
 interface Employee {
   id: string;
@@ -512,9 +513,7 @@ export function ParticipationInteressementTab() {
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `participation_interessement_${year}.csv`;
-    link.click();
+    downloadBlob(blob, `participation_interessement_${year}.csv`);
   };
 
 

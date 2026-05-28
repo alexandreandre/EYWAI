@@ -20,14 +20,14 @@ from app.modules.users.schemas.responses import User
 
 def _make_user(
     user_id: str = "user-1",
-    is_super_admin: bool = False,
+    is_platform_admin: bool = False,
 ) -> User:
     return User(
         id=user_id,
         email="user@test.com",
         first_name="Test",
         last_name="User",
-        is_super_admin=is_super_admin,
+        is_platform_admin=is_platform_admin,
         accessible_companies=[],
         active_company_id="company-1",
     )
@@ -67,7 +67,7 @@ class TestEnsureCanEditEntityLogo:
             ensure_can_edit_entity_logo(
                 entity_type="group",
                 entity_id="group-1",
-                current_user=_make_user(is_super_admin=False),
+                current_user=_make_user(is_platform_admin=False),
             )
         assert exc_info.value.status_code == 403
         assert "super administrateur" in str(exc_info.value.detail).lower()
@@ -83,7 +83,7 @@ class TestEnsureCanEditEntityLogo:
         )
         mock_can_edit.assert_called_once_with(
             user_id="user-1",
-            is_super_admin=False,
+            is_platform_admin=False,
             entity_type="company",
             entity_id="company-1",
         )

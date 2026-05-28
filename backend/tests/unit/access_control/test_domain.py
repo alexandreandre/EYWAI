@@ -19,7 +19,6 @@ class TestRoleKind:
 
     def test_role_kind_values(self):
         """Tous les rôles attendus sont définis."""
-        assert RoleKind.SUPER_ADMIN == "super_admin"
         assert RoleKind.ADMIN == "admin"
         assert RoleKind.RH == "rh"
         assert RoleKind.COLLABORATEUR_RH == "collaborateur_rh"
@@ -63,13 +62,6 @@ class TestROLE_HIERARCHY:
 
 class TestCanAssignRole:
     """Règle : un créateur peut-il attribuer le rôle cible ?"""
-
-    def test_super_admin_can_assign_any_role(self):
-        """super_admin peut attribuer n'importe quel rôle."""
-        assert can_assign_role("super_admin", "admin") is True
-        assert can_assign_role("super_admin", "rh") is True
-        assert can_assign_role("super_admin", "collaborateur") is True
-        assert can_assign_role("super_admin", "custom") is True
 
     def test_admin_can_assign_rh_and_below(self):
         """admin peut attribuer rh, collaborateur_rh, collaborateur, custom."""

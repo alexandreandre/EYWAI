@@ -69,7 +69,7 @@ def get_my_groups(current_user: Any) -> List[GroupWithCompaniesDto]:
     """Liste les groupes auxquels l'utilisateur a accès (via accessible_companies)."""
     accessible = get_accessible_company_ids(current_user)
     company_ids = (
-        None if (getattr(current_user, "is_super_admin", False)) else accessible
+        None if current_user.is_platform_admin else accessible
     )
     if company_ids is not None and len(company_ids) == 0:
         return []
@@ -83,7 +83,7 @@ def get_group_details(group_id: str, current_user: Any) -> GroupWithCompaniesDto
     row = company_group_repository.get_by_id_with_companies(group_id)
     if not row:
         raise LookupError("Groupe non trouvé")
-    if not getattr(current_user, "is_super_admin", False):
+    if not current_user.is_platform_admin:
         companies = row.get("companies") or []
         if isinstance(companies, dict):
             companies = [companies]
@@ -218,7 +218,7 @@ def get_group_company_comparison(
 
 def get_all_groups(current_user: Any) -> List[GroupListSummaryDto]:
     """Liste tous les groupes avec company_count et total_employees (super_admin only)."""
-    if not getattr(current_user, "is_super_admin", False):
+    if not current_user.is_platform_admin:
         raise PermissionError("Accès réservé aux super administrateurs")
     groups = company_group_repository.list_all_active_ordered()
     with_stats = company_group_repository.get_groups_with_company_and_effectif(groups)
@@ -227,21 +227,21 @@ def get_all_groups(current_user: Any) -> List[GroupListSummaryDto]:
 
 def get_group_companies(group_id: str, current_user: Any) -> List[dict]:
     """Liste des entreprises d'un groupe (super_admin only)."""
-    if not getattr(current_user, "is_super_admin", False):
+    if not current_user.is_platform_admin:
         raise PermissionError("Accès réservé aux super administrateurs")
     return company_group_repository.get_companies_by_group_id(group_id)
 
 
 def get_available_companies(current_user: Any) -> List[dict]:
     """Entreprises sans groupe (group_id null) pour affectation (super_admin only)."""
-    if not getattr(current_user, "is_super_admin", False):
+    if not current_user.is_platform_admin:
         raise PermissionError("Accès réservé aux super administrateurs")
     return company_group_repository.get_companies_without_group()
 
 
 def get_group_user_accesses(group_id: str, current_user: Any) -> List[dict]:
     """Liste des accès utilisateurs aux entreprises du groupe (super_admin only)."""
-    if not getattr(current_user, "is_super_admin", False):
+    if not current_user.is_platform_admin:
         raise PermissionError("Accès réservé aux super administrateurs")
     company_ids = company_group_repository.get_company_ids_by_group_id(group_id)
     if not company_ids:
@@ -269,7 +269,7 @@ def get_group_user_accesses(group_id: str, current_user: Any) -> List[dict]:
 
 def get_detailed_user_accesses(group_id: str, current_user: Any) -> dict:
     """Accès détaillés matriciels (companies + users avec accesses) (super_admin only)."""
-    if not getattr(current_user, "is_super_admin", False):
+    if not current_user.is_platform_admin:
         raise PermissionError("Accès réservé aux super administrateurs")
     companies = company_group_repository.get_companies_by_group_id(
         group_id, columns="id, company_name, siret"

@@ -58,7 +58,7 @@ def _require_company_id(user: ParticipationUserContext) -> str:
 
 def _require_rh_or_admin(user: ParticipationUserContext) -> None:
     """Vérifie que l'utilisateur dispose d'un accès RH/admin sur l'entreprise active."""
-    if user.is_super_admin:
+    if user.is_platform_admin:
         return
     company_id = user.active_company_id
     if not company_id or not user.has_rh_access_in_company(company_id):

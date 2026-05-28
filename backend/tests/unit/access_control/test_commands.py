@@ -16,7 +16,7 @@ from app.modules.users.schemas.responses import CompanyAccess, User
 
 def _make_user(
     user_id: str = "user-1",
-    is_super_admin: bool = False,
+    is_platform_admin: bool = False,
     accessible_companies: list | None = None,
 ) -> User:
     """Fabrique un User pour les tests."""
@@ -34,7 +34,7 @@ def _make_user(
         email="user@example.com",
         first_name="Test",
         last_name="User",
-        is_super_admin=is_super_admin,
+        is_platform_admin=is_platform_admin,
         accessible_companies=accessible_companies,
         active_company_id="company-1",
     )
@@ -45,7 +45,7 @@ class TestRequireRhAccess:
 
     def test_super_admin_does_not_raise(self):
         """Super admin ne lève jamais."""
-        user = _make_user(is_super_admin=True, accessible_companies=[])
+        user = _make_user(is_platform_admin=True, accessible_companies=[])
         commands.require_rh_access(user)  # no raise
 
     def test_user_with_rh_in_one_company_does_not_raise(self):
@@ -114,7 +114,7 @@ class TestRequireRhAccessForCompany:
 
     def test_super_admin_does_not_raise(self):
         """Super admin ne lève jamais."""
-        user = _make_user(is_super_admin=True, accessible_companies=[])
+        user = _make_user(is_platform_admin=True, accessible_companies=[])
         commands.require_rh_access_for_company(user, "any-company")  # no raise
 
     def test_user_with_rh_in_that_company_does_not_raise(self):
@@ -221,7 +221,7 @@ class TestQuickCreateRoleTemplate:
         mock_repo.role_template_name_exists.return_value = False
         mock_repo.create_role_template.return_value = "tpl-1"
 
-        user = _make_user(is_super_admin=True, accessible_companies=[])
+        user = _make_user(is_platform_admin=True, accessible_companies=[])
 
         result = commands.quick_create_role_template(
             current_user=user,
@@ -314,3 +314,59 @@ class TestQuickCreateRoleTemplate:
         )
 
         mock_repo.attach_permissions_to_role_template.assert_not_called()
+
+
+class TestReplaceUserPermissions:
+    """replace_user_permissions — remplacement des droits utilisateur."""
+
+    @patch("app.modules.users.infrastructure.repository.user_permission_repository")
+    @patch("app.modules.access_control.application.commands.permission_catalog_reader")
+    def test_platform_admin_replaces_permissions(
+        self,
+        mock_reader: MagicMock,
+        mock_perm_repo: MagicMock,
+    ):
+        mock_reader.get_user_company_access.return_value = {"role": "custom"}
+        user = _make_user(is_platform_admin=True, accessible_companies=[])
+
+        result = commands.replace_user_permissions(
+            user,
+            "target-1",
+            "company-1",
+            ["perm-a", "perm-b"],
+        )
+
+        assert result["message"] == "Permissions mises à jour"
+        mock_perm_repo.delete_for_user_company.assert_called_once_with(
+            "target-1", "company-1"
+        )
+        assert mock_perm_repo.upsert.call_count == 2
+
+    @patch("app.modules.access_control.application.commands.permission_catalog_reader")
+    def test_raises_404_when_no_company_access(self, mock_reader: MagicMock):
+        mock_reader.get_user_company_access.return_value = None
+        user = _make_user(is_platform_admin=True, accessible_companies=[])
+
+        with pytest.raises(HTTPException) as exc_info:
+            commands.replace_user_permissions(user, "target-1", "company-1", [])
+        assert exc_info.value.status_code == 404
+
+
+class TestGrantUserPermissions:
+    """grant_user_permissions — ajout de droits sans suppression."""
+
+    @patch("app.modules.users.infrastructure.repository.user_permission_repository")
+    @patch("app.modules.access_control.application.commands.permission_catalog_reader")
+    def test_grants_without_delete(
+        self, mock_reader: MagicMock, mock_perm_repo: MagicMock
+    ):
+        mock_reader.get_user_company_access.return_value = {"role": "custom"}
+        user = _make_user(is_platform_admin=True, accessible_companies=[])
+
+        result = commands.grant_user_permissions(
+            user, "target-1", "company-1", ["perm-a"]
+        )
+
+        assert result["message"] == "Permissions accordées"
+        mock_perm_repo.delete_for_user_company.assert_not_called()
+        mock_perm_repo.upsert.assert_called_once()

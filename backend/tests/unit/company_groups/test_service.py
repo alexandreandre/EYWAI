@@ -12,10 +12,10 @@ from app.modules.company_groups.application import service
 MODULE_SERVICE = "app.modules.company_groups.application.service"
 
 
-def _make_user(is_super_admin: bool = False, accessible_company_ids=None):
-    """Utilisateur mock."""
+def _make_user(is_platform_admin: bool = False, accessible_company_ids=None):
+    """Utilisateur mock (aligné sur User.is_platform_admin)."""
     user = MagicMock()
-    user.is_super_admin = is_super_admin
+    user.is_platform_admin = is_platform_admin
     if accessible_company_ids is None:
         accessible_company_ids = []
     accs = [MagicMock(company_id=cid) for cid in accessible_company_ids]
@@ -28,20 +28,20 @@ class TestGetAccessibleCompanyIds:
 
     def test_super_admin_returns_empty_list(self):
         """Convention : super_admin → [] (pas de filtre, tout accessible)."""
-        user = _make_user(is_super_admin=True)
+        user = _make_user(is_platform_admin=True)
         result = service.get_accessible_company_ids(user)
         assert result == []
 
     def test_non_super_admin_returns_company_ids_from_accessible_companies(self):
         """Retourne les company_id des accessible_companies."""
-        user = _make_user(is_super_admin=False, accessible_company_ids=["c1", "c2"])
+        user = _make_user(is_platform_admin=False, accessible_company_ids=["c1", "c2"])
         result = service.get_accessible_company_ids(user)
         assert result == ["c1", "c2"]
 
     def test_accessible_companies_none_treated_as_empty(self):
         """Si accessible_companies est None, traité comme []."""
         user = MagicMock()
-        user.is_super_admin = False
+        user.is_platform_admin = False
         user.accessible_companies = None
         result = service.get_accessible_company_ids(user)
         assert result == []
@@ -54,7 +54,7 @@ class TestGetCompanyIdsForGroup:
         """Si le groupe n'a aucune entreprise → []."""
         mock_repo = MagicMock()
         mock_repo.get_company_ids_by_group_id.return_value = []
-        user = _make_user(is_super_admin=False)
+        user = _make_user(is_platform_admin=False)
         with patch(f"{MODULE_SERVICE}.company_group_repository", mock_repo):
             result = service.get_company_ids_for_group("g1", user)
         assert result == []
@@ -63,7 +63,7 @@ class TestGetCompanyIdsForGroup:
         """Super admin reçoit toutes les entreprises du groupe."""
         mock_repo = MagicMock()
         mock_repo.get_company_ids_by_group_id.return_value = ["c1", "c2", "c3"]
-        user = _make_user(is_super_admin=True)
+        user = _make_user(is_platform_admin=True)
         with patch(f"{MODULE_SERVICE}.company_group_repository", mock_repo):
             result = service.get_company_ids_for_group("g1", user)
         assert result == ["c1", "c2", "c3"]
@@ -73,7 +73,7 @@ class TestGetCompanyIdsForGroup:
         """Intersection entre entreprises du groupe et accessible_companies."""
         mock_repo = MagicMock()
         mock_repo.get_company_ids_by_group_id.return_value = ["c1", "c2", "c3"]
-        user = _make_user(is_super_admin=False, accessible_company_ids=["c1", "c3"])
+        user = _make_user(is_platform_admin=False, accessible_company_ids=["c1", "c3"])
         with patch(f"{MODULE_SERVICE}.company_group_repository", mock_repo):
             result = service.get_company_ids_for_group("g1", user)
         assert result == ["c1", "c3"]

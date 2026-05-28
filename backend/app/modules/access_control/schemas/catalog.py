@@ -223,6 +223,17 @@ class RoleTemplateDetail(BaseModel):
     permissions: List[PermissionWithMetadata] = Field(default_factory=list)
 
 
+class UserPermissionsUpdate(BaseModel):
+    """Corps POST/PUT /users/{user_id}/permissions — remplacement ou ajout de droits."""
+
+    user_id: UUID = Field(..., description="ID de l'utilisateur cible")
+    company_id: UUID = Field(..., description="ID de l'entreprise")
+    permission_ids: List[UUID] = Field(
+        default_factory=list,
+        description="IDs des permissions (PUT : liste complète ; POST : droits à ajouter)",
+    )
+
+
 class RoleTemplateQuickCreate(BaseModel):
     """Schéma pour créer rapidement un template avec un nom et un rôle de base"""
 

@@ -27,7 +27,8 @@ export interface ExpenseWithEmployee extends Expense {
 }
 
 export interface ExpenseCreatePayload {
-  employee_id: string;
+  /** Ignoré côté API : l'employé est résolu depuis le compte connecté. */
+  employee_id?: string;
   date: string;
   amount: number;
   type: ExpenseType;

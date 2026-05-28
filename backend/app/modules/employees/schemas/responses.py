@@ -68,6 +68,23 @@ class EmployeeRhAccess(BaseModel):
     available_roles: List[RhAccessRole] = Field(..., description="Rôles RH disponibles")
 
 
+class EmployeeSummary(BaseModel):
+    """Liste légère (grilles, planning, boot) — sans enrichissement lourd."""
+
+    id: str
+    first_name: str
+    last_name: str
+    job_title: str | None = None
+    contract_type: str | None = None
+    hire_date: date | None = None
+    employment_status: str | None = None
+    current_exit_id: str | None = None
+    duree_hebdomadaire: float | None = None
+
+    class Config:
+        from_attributes = True
+
+
 class FullEmployee(BaseModel):
     """Employé complet (lecture, détail, liste)."""
 
@@ -78,6 +95,7 @@ class FullEmployee(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr | None = None
+    phone_number: str | None = None
     nir: str | None = None
     date_naissance: date | None = None
     lieu_naissance: str | None = None
@@ -147,6 +165,7 @@ class NewEmployeeResponse(FullEmployee):
 
 
 __all__ = [
+    "EmployeeSummary",
     "FullEmployee",
     "NewEmployeeResponse",
     "ContractResponse",

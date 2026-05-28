@@ -15,6 +15,10 @@ import {
 import { cn } from '@/lib/utils';
 import { Calendar, Clock, Copy } from 'lucide-react';
 import { isFrenchPublicHoliday } from '@/lib/frenchPublicHolidays';
+import {
+  CALENDAR_TYPE_BAR_COLORS,
+  getCalendarTypeLabel,
+} from '@/lib/calendarTypes';
 
 interface CalendarDayCellProps {
   arg: DayCellContentArg;
@@ -27,22 +31,6 @@ interface CalendarDayCellProps {
   isForfaitJour?: boolean;
   onCopyPlannedToActual?: (dayNumber: number) => void;
 }
-
-const typeBarColors: Record<string, string> = {
-  travail: 'bg-sky-500',
-  conge: 'bg-blue-500',
-  ferie: 'bg-purple-500',
-  arret_maladie: 'bg-amber-500',
-  weekend: 'bg-slate-400',
-};
-
-const typeLabels: Record<string, string> = {
-  travail: 'Travail',
-  conge: 'Congé',
-  ferie: 'Férié',
-  arret_maladie: 'Arrêt',
-  weekend: 'Week-end',
-};
 
 const EDITABLE_TYPES = [
   { value: 'travail', label: 'Travail' },
@@ -297,7 +285,7 @@ export function CalendarDayCell({
     setTypePopoverOpen(false);
   };
 
-  const barColor = typeBarColors[plannedDay.type] ?? 'bg-gray-300';
+  const barColor = CALENDAR_TYPE_BAR_COLORS[plannedDay.type] ?? 'bg-gray-300';
 
   return (
     <div
@@ -372,7 +360,7 @@ export function CalendarDayCell({
                 setTypePopoverOpen(true);
               }}
             >
-              {typeLabels[plannedDay.type] ?? plannedDay.type}
+              {getCalendarTypeLabel(plannedDay.type)}
               {isHoliday && plannedDay.type !== 'ferie' && (
                 <span className="text-purple-600 ml-0.5">(férié)</span>
               )}

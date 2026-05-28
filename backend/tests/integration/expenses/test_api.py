@@ -24,7 +24,15 @@ from app.modules.users.schemas.responses import User, CompanyAccess
 pytestmark = pytest.mark.integration
 
 TEST_USER_ID = "660e8400-e29b-41d4-a716-446655440001"
+TEST_EMPLOYEE_ID = "770e8400-e29b-41d4-a716-446655440099"
 TEST_COMPANY_ID = "550e8400-e29b-41d4-a716-446655440000"
+
+
+def _mock_employee_expense_service() -> MagicMock:
+    """Service mocké avec résolution employé (auth uid ≠ employees.id)."""
+    mock_svc = MagicMock()
+    mock_svc.resolve_employee_id_for_expense_account.return_value = TEST_EMPLOYEE_ID
+    return mock_svc
 
 
 def _make_user(user_id: str = TEST_USER_ID):
@@ -94,9 +102,9 @@ class TestGetUploadUrl:
     ):
         from app.core.security import get_current_user
 
-        mock_svc = MagicMock()
+        mock_svc = _mock_employee_expense_service()
         mock_svc.get_signed_upload_url.return_value = {
-            "path": f"{TEST_USER_ID}/2025-03-15-abc123.pdf",
+            "path": f"{TEST_EMPLOYEE_ID}/2025-03-15-abc123.pdf",
             "signedURL": "https://signed-upload-url",
         }
 
@@ -119,7 +127,7 @@ class TestGetUploadUrl:
         assert "signedURL" in data
         assert data["signedURL"] == "https://signed-upload-url"
         mock_svc.get_signed_upload_url.assert_called_once_with(
-            TEST_USER_ID, "justificatif.pdf"
+            TEST_EMPLOYEE_ID, "justificatif.pdf"
         )
 
     def test_get_upload_url_invalid_body_returns_422(self, client: TestClient):
@@ -143,9 +151,10 @@ class TestCreateExpenseReport:
     def test_create_expense_returns_201(self, client: TestClient):
         from app.core.security import get_current_user
 
+        mock_svc = _mock_employee_expense_service()
         created = {
             "id": "exp-new-1",
-            "employee_id": TEST_USER_ID,
+            "employee_id": TEST_EMPLOYEE_ID,
             "date": "2025-03-15",
             "amount": 75.50,
             "type": "Restaurant",
@@ -155,7 +164,6 @@ class TestCreateExpenseReport:
             "filename": None,
             "created_at": datetime.now().isoformat(),
         }
-        mock_svc = MagicMock()
         mock_svc.create_expense.return_value = created
 
         app.dependency_overrides[get_current_user] = lambda: _make_user()
@@ -184,9 +192,36 @@ class TestCreateExpenseReport:
         assert data["status"] == "pending"
         mock_svc.create_expense.assert_called_once()
         call_input = mock_svc.create_expense.call_args[0][0]
-        assert call_input.employee_id == TEST_USER_ID
+        assert call_input.employee_id == TEST_EMPLOYEE_ID
         assert call_input.amount == 75.50
         assert call_input.type == "Restaurant"
+
+    def test_create_expense_returns_404_without_employee_profile(
+        self, client: TestClient
+    ):
+        from app.core.security import get_current_user
+
+        mock_svc = _mock_employee_expense_service()
+        mock_svc.resolve_employee_id_for_expense_account.return_value = None
+
+        app.dependency_overrides[get_current_user] = lambda: _make_user()
+        try:
+            with patch(
+                "app.modules.expenses.api.router._expense_service",
+                mock_svc,
+            ):
+                response = client.post(
+                    "/api/expenses/",
+                    json={
+                        "date": "2025-03-15",
+                        "amount": 50.0,
+                        "type": "Restaurant",
+                    },
+                )
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+        assert response.status_code == 404
 
     def test_create_expense_invalid_type_returns_422(self, client: TestClient):
         from app.core.security import get_current_user
@@ -213,12 +248,12 @@ class TestGetMyExpenses:
     def test_get_my_expenses_returns_200_and_list(self, client: TestClient):
         from app.core.security import get_current_user
 
-        mock_svc = MagicMock()
-        mock_svc.get_my_expenses.return_value = [
+        mock_svc = _mock_employee_expense_service()
+        mock_svc.get_my_expenses_for_user_account.return_value = [
             {
                 "id": "exp-1",
                 "created_at": datetime.now().isoformat(),
-                "employee_id": TEST_USER_ID,
+                "employee_id": TEST_EMPLOYEE_ID,
                 "date": "2025-03-10",
                 "amount": 30.0,
                 "type": "Transport",
@@ -242,13 +277,15 @@ class TestGetMyExpenses:
         assert len(data) == 1
         assert data[0]["id"] == "exp-1"
         assert data[0]["amount"] == 30.0
-        mock_svc.get_my_expenses.assert_called_once_with(TEST_USER_ID)
+        mock_svc.get_my_expenses_for_user_account.assert_called_once_with(
+            TEST_USER_ID, TEST_COMPANY_ID
+        )
 
     def test_get_my_expenses_empty_returns_empty_list(self, client: TestClient):
         from app.core.security import get_current_user
 
-        mock_svc = MagicMock()
-        mock_svc.get_my_expenses.return_value = []
+        mock_svc = _mock_employee_expense_service()
+        mock_svc.get_my_expenses_for_user_account.return_value = []
 
         app.dependency_overrides[get_current_user] = lambda: _make_user()
         try:

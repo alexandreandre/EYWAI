@@ -10,6 +10,8 @@ Fixture à prévoir dans conftest.py si absente :
   - Si seul auth_headers existe, les tests authentifiés l'utilisent (401 si token vide).
 """
 
+from unittest.mock import patch
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -58,6 +60,30 @@ class TestGetEmployeeDetails:
         assert response.status_code in (403, 404)
 
 
+class TestGetMyEmployeeDetails:
+    """GET /api/employees/me — fiche collaborateur connecté."""
+
+    def test_get_my_employee_details_without_auth_returns_401(
+        self, client: TestClient
+    ):
+        response = client.get("/api/employees/me")
+        assert response.status_code == 401
+
+    def test_get_my_employee_details_with_auth_returns_200_or_404(
+        self, client: TestClient, auth_headers: dict
+    ):
+        if not auth_headers:
+            pytest.skip("auth_headers non configuré")
+        with patch(
+            "app.modules.employees.api.router.queries.get_my_employee_profile"
+        ) as mock_profile:
+            mock_profile.return_value = {"id": "emp-1", "first_name": "Test"}
+            response = client.get("/api/employees/me", headers=auth_headers)
+        assert response.status_code in (200, 403, 404)
+        if response.status_code == 200:
+            assert response.json()["first_name"] == "Test"
+
+
 class TestGetMyContract:
     """GET /api/employees/me/contract — URL signée contrat (espace employé)."""
 
@@ -71,6 +97,25 @@ class TestGetMyContract:
         if not auth_headers:
             pytest.skip("auth_headers non configuré")
         response = client.get("/api/employees/me/contract", headers=auth_headers)
+        assert response.status_code in (200, 401)
+        if response.status_code == 200:
+            data = response.json()
+            assert "url" in data
+
+
+class TestGetMyIdentityDocument:
+    """GET /api/employees/me/identity-document — URL signée pièce d'identité (espace employé)."""
+
+    def test_get_my_identity_document_without_auth_returns_401(self, client: TestClient):
+        response = client.get("/api/employees/me/identity-document")
+        assert response.status_code == 401
+
+    def test_get_my_identity_document_with_auth_returns_200_with_url_or_none(
+        self, client: TestClient, auth_headers: dict
+    ):
+        if not auth_headers:
+            pytest.skip("auth_headers non configuré")
+        response = client.get("/api/employees/me/identity-document", headers=auth_headers)
         assert response.status_code in (200, 401)
         if response.status_code == 200:
             data = response.json()

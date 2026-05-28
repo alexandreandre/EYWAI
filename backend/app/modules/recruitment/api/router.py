@@ -12,8 +12,8 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 
 from app.core.security import get_current_user
-from app.modules.audit.infrastructure.repository import audit_repository
-from app.modules.webhooks.infrastructure.repository import webhook_repository
+from app.modules.audit.application.commands import log_audit_event
+from app.modules.webhooks.application.service import trigger_webhook_event
 from app.modules.users.schemas.responses import User
 
 from app.modules.recruitment.application import commands, queries
@@ -539,7 +539,7 @@ def hire_candidate(
                 "message": "Un salarié avec cet email existe déjà.",
             }
         emp_id = str(result["id"])
-        audit_repository.log(
+        log_audit_event(
             company_id=str(company_id),
             user_id=str(current_user.id),
             user_email=current_user.email,
@@ -549,7 +549,7 @@ def hire_candidate(
             details={"employee_id": emp_id},
             ip_address=http_request.client.host if http_request.client else None,
         )
-        webhook_repository.trigger_event(
+        trigger_webhook_event(
             str(company_id),
             "recruitment.hired",
             {"candidate_id": str(candidate_id), "employee_id": emp_id},

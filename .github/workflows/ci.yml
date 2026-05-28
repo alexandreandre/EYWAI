@@ -164,7 +164,7 @@ jobs:
   # 4) Frontend — bloquant : lint + build
   # ----------------------------------------------------------------------------
   frontend:
-    name: Frontend (lint + build)
+    name: Frontend (lint + test + build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -180,7 +180,12 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
+      - run: npm run test
       - run: npm run build
+      - name: Verify page import paths
+        run: |
+          node scripts/verify-pages-imports.mjs
+          node scripts/verify-no-pages-imports-in-ui.mjs
         env:
           # Repli pour les forks sans variable dépôt ; la prod utilise vars.VITE_API_URL.
           VITE_API_URL: ${{ vars.VITE_API_URL || 'https://example.com' }}

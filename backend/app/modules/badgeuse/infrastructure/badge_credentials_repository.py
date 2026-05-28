@@ -8,6 +8,29 @@ from app.core.database import supabase
 from app.modules.badgeuse.infrastructure.db_errors import execute_supabase
 
 
+def _maybe_single_row(result: Any) -> Optional[Dict[str, Any]]:
+    """PostgREST + maybe_single : .execute() peut renvoyer None si aucune ligne."""
+    if not result:
+        return None
+    data = result.data
+    if data is None:
+        return None
+    if isinstance(data, list):
+        return data[0] if data else None
+    return data
+
+
+def _first_mutation_row(result: Any) -> Optional[Dict[str, Any]]:
+    if not result:
+        return None
+    data = result.data
+    if data is None:
+        return None
+    if isinstance(data, list):
+        return data[0] if data else None
+    return data
+
+
 class BadgeCredentialsRepository:
     table_name = "employee_badge_credentials"
 
@@ -22,7 +45,7 @@ class BadgeCredentialsRepository:
             .maybe_single()
             .execute()
         )
-        return result.data
+        return _maybe_single_row(result)
 
     def ensure_credentials(
         self, *, employee_id: str, company_id: str
@@ -49,7 +72,7 @@ class BadgeCredentialsRepository:
                 .eq("id", existing["id"])
                 .execute()
             )
-            row = (result.data or [None])[0]
+            row = _first_mutation_row(result)
             if row:
                 return row
         else:
@@ -57,7 +80,7 @@ class BadgeCredentialsRepository:
             result = execute_supabase(
                 lambda: supabase.table(self.table_name).insert(payload).execute()
             )
-            row = (result.data or [None])[0]
+            row = _first_mutation_row(result)
             if row:
                 return row
         raise RuntimeError("Impossible de créer les credentials badge")
@@ -85,14 +108,14 @@ class BadgeCredentialsRepository:
                 .eq("id", existing["id"])
                 .execute()
             )
-            row = (result.data or [None])[0]
+            row = _first_mutation_row(result)
             if row:
                 return row
         payload["created_at"] = now
         result = execute_supabase(
             lambda: supabase.table(self.table_name).insert(payload).execute()
         )
-        row = (result.data or [None])[0]
+        row = _first_mutation_row(result)
         if not row:
             raise RuntimeError("Impossible de régénérer le badge")
         return row

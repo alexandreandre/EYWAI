@@ -145,24 +145,41 @@ class TestCreateSalaryAdvance:
         advance_data = _advance_create(
             employee_id=USER_ID, requested_amount=Decimal("50")
         )
-        ctx = UserContext(user_id=USER_ID, role="collaborateur")
+        ctx = UserContext(
+            user_id=USER_ID,
+            role="collaborateur",
+            active_company_id=COMPANY_ID,
+        )
         created = {"id": "adv-2", "status": "pending"}
-        with patch(f"{SERVICE_MODULE}.employee_company_provider") as prov:
-            with patch(f"{SERVICE_MODULE}.build_advance_available") as build:
-                with patch(f"{SERVICE_MODULE}.advance_repository") as repo:
-                    prov.get_company_id.return_value = COMPANY_ID
-                    build.return_value = {"available_amount": Decimal("200")}
-                    repo.create.return_value = created
-                    result = commands.create_salary_advance(advance_data, ctx)
+        with patch(
+            f"{SERVICE_MODULE}.resolve_employee_id_for_advance_account",
+            return_value=EMPLOYEE_ID,
+        ):
+            with patch(f"{SERVICE_MODULE}.employee_company_provider") as prov:
+                with patch(f"{SERVICE_MODULE}.build_advance_available") as build:
+                    with patch(f"{SERVICE_MODULE}.advance_repository") as repo:
+                        prov.get_company_id.return_value = COMPANY_ID
+                        build.return_value = {"available_amount": Decimal("200")}
+                        repo.create.return_value = created
+                        result = commands.create_salary_advance(advance_data, ctx)
         assert result == created
         call_data = repo.create.call_args[0][0]
         assert call_data["status"] == "pending"
+        assert call_data["employee_id"] == EMPLOYEE_ID
 
     def test_create_salary_advance_collaborator_for_other_forbidden(self):
         advance_data = _advance_create(employee_id="other-employee-id")
-        ctx = UserContext(user_id=USER_ID, role="collaborateur")
-        with pytest.raises(Exception) as exc_info:
-            commands.create_salary_advance(advance_data, ctx)
+        ctx = UserContext(
+            user_id=USER_ID,
+            role="collaborateur",
+            active_company_id=COMPANY_ID,
+        )
+        with patch(
+            f"{SERVICE_MODULE}.resolve_employee_id_for_advance_account",
+            return_value=EMPLOYEE_ID,
+        ):
+            with pytest.raises(Exception) as exc_info:
+                commands.create_salary_advance(advance_data, ctx)
         assert (
             "vous-même" in str(exc_info.value).lower()
             or "forbidden" in str(exc_info.value).lower()
@@ -172,13 +189,21 @@ class TestCreateSalaryAdvance:
         advance_data = _advance_create(
             employee_id=USER_ID, requested_amount=Decimal("300")
         )
-        ctx = UserContext(user_id=USER_ID, role="collaborateur")
-        with patch(f"{SERVICE_MODULE}.employee_company_provider") as prov:
-            with patch(f"{SERVICE_MODULE}.build_advance_available") as build:
-                prov.get_company_id.return_value = COMPANY_ID
-                build.return_value = {"available_amount": Decimal("100")}
-                with pytest.raises(Exception) as exc_info:
-                    commands.create_salary_advance(advance_data, ctx)
+        ctx = UserContext(
+            user_id=USER_ID,
+            role="collaborateur",
+            active_company_id=COMPANY_ID,
+        )
+        with patch(
+            f"{SERVICE_MODULE}.resolve_employee_id_for_advance_account",
+            return_value=USER_ID,
+        ):
+            with patch(f"{SERVICE_MODULE}.employee_company_provider") as prov:
+                with patch(f"{SERVICE_MODULE}.build_advance_available") as build:
+                    prov.get_company_id.return_value = COMPANY_ID
+                    build.return_value = {"available_amount": Decimal("100")}
+                    with pytest.raises(Exception) as exc_info:
+                        commands.create_salary_advance(advance_data, ctx)
                 assert "Montant" in str(exc_info.value) or "disponible" in str(
                     exc_info.value
                 )

@@ -426,7 +426,7 @@ class TestEmployeesMeAPI:
         from app.core.security import get_current_user
 
         with patch(
-            "app.modules.saisies_avances.application.queries.get_my_salary_advances"
+            "app.modules.saisies_avances.application.queries.get_my_salary_advances_for_user_account"
         ) as q:
             q.return_value = [_salary_advance_row()]
             app.dependency_overrides[get_current_user] = lambda: (
@@ -442,7 +442,7 @@ class TestEmployeesMeAPI:
         from app.core.security import get_current_user
 
         with patch(
-            "app.modules.saisies_avances.application.queries.get_my_advance_available"
+            "app.modules.saisies_avances.application.queries.get_my_advance_available_for_user_account"
         ) as q:
             from app.modules.saisies_avances.schemas import AdvanceAvailableAmount
 

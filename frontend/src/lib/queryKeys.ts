@@ -4,6 +4,9 @@ export function companyQueryKey(companyId: string | undefined, ...parts: unknown
 }
 
 export const queryKeys = {
+  myCompanies: () => ['my-companies'] as const,
+  adminGlobalStats: () => ['admin', 'global-stats'] as const,
+  adminCompanies: () => ['admin', 'companies'] as const,
   employees: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'employees'),
   dashboardAll: (companyId: string | undefined) =>
@@ -28,6 +31,12 @@ export const queryKeys = {
     companyQueryKey(companyId, 'absences'),
   planning: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'planning'),
+  planningWeek: (companyId: string | undefined, weekStart: string) =>
+    companyQueryKey(companyId, 'planning', 'week', weekStart),
+  employeesPlanning: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'planning', 'employees'),
+  planningShiftTypes: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'planning', 'shift-types'),
   saisies: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'saisies'),
   rates: (companyId: string | undefined) =>
@@ -38,4 +47,21 @@ export const queryKeys = {
     companyQueryKey(companyId, 'salary-advances'),
   documents: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'documents'),
+  employeeDashboard: (userId: string | undefined) =>
+    ['employee', userId ?? 'none', 'dashboard'] as const,
+  employeeDashboardAbsences: (
+    userId: string | undefined,
+    year: number,
+    month: number
+  ) => ['employee', userId ?? 'none', 'dashboard', 'absences', year, month] as const,
+  employeeBadgeuseToday: (userId: string | undefined) =>
+    ['employee', userId ?? 'none', 'badgeuse', 'today'] as const,
+  formationDashboardCerts: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'formation', 'dashboard', 'cert-counts'),
+  formationDashboardOverdue: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'formation', 'dashboard', 'overdue'),
+  formationDashboardBudget: (companyId: string | undefined, year: number) =>
+    companyQueryKey(companyId, 'formation', 'dashboard', 'budget', year),
+  formationDashboardAchievement: (companyId: string | undefined, year: number) =>
+    companyQueryKey(companyId, 'formation', 'dashboard', 'achievement', year),
 } as const;

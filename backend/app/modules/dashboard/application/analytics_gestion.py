@@ -32,7 +32,7 @@ from app.modules.medical_follow_up.application.service import get_obligation_rep
 from app.modules.objectives.application.queries import get_achievement_rate
 from app.modules.promotions.application.queries import get_promotion_stats_query
 from app.modules.training.application.queries import get_evaluations_summary
-from app.modules.training.infrastructure.repository import training_repository
+from app.modules.training.application.queries import get_total_consumed
 from app.modules.training_budget.application.queries import get_budget
 
 ACTIONABLE_STATUSES = frozenset({"planifie", "en_attente_acceptation", "accepte"})
@@ -351,7 +351,7 @@ def _build_medical(company_id: str) -> MedicalAnalytics:
 
 
 def _build_formation(company_id: str, year: int) -> FormationAnalytics:
-    consumed_year = float(training_repository.get_total_consumed(company_id, year))
+    consumed_year = float(get_total_consumed(company_id, year))
     eval_items = get_evaluations_summary(company_id)
     eval_count = len(eval_items)
     eval_avg: Optional[float] = None

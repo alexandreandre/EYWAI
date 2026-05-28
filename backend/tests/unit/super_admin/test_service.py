@@ -57,7 +57,7 @@ class TestVerifySuperAdminAndReturnRow:
         ):
             with pytest.raises(SuperAdminAccessError) as exc_info:
                 verify_super_admin_and_return_row(USER_ID)
-        assert "super administrateur" in str(exc_info.value)
+        assert "administrateur plateforme" in str(exc_info.value)
 
     def test_returns_row_when_super_admin_found(self):
         """Retourne le dict row quand un super admin actif existe."""

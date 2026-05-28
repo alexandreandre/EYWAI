@@ -6,7 +6,9 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.security import get_current_user
-from app.modules.audit.infrastructure.repository import audit_repository
+from app.core.http_dependencies import require_active_company, require_rh_access
+from app.core.platform_admin import is_platform_admin
+from app.modules.audit.application import queries as audit_queries
 from app.modules.audit.schemas.responses import AuditLogEntry
 from app.modules.users.schemas.responses import User
 
@@ -16,12 +18,10 @@ _log = logging.getLogger(__name__)
 
 
 def _require_rh_company_context(current_user: User) -> str:
-    company_id = current_user.active_company_id
-    if not company_id:
-        raise HTTPException(status_code=400, detail="Aucune entreprise active")
-    if not current_user.has_rh_access_in_company(company_id):
-        raise HTTPException(status_code=403, detail="Accès non autorisé")
-    return str(company_id)
+    company_id = require_active_company(current_user)
+    if not is_platform_admin(current_user):
+        require_rh_access(current_user, company_id)
+    return company_id
 
 
 @router.get("/logs", response_model=List[AuditLogEntry])
@@ -42,7 +42,7 @@ def list_audit_logs_route(
     """Journal d'audit pour l'entreprise active (profil RH)."""
     company_id = _require_rh_company_context(current_user)
     try:
-        rows = audit_repository.list_logs(
+        rows = audit_queries.list_audit_logs_query(
             company_id,
             resource_type=resource_type,
             resource_id=resource_id,

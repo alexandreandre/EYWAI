@@ -39,6 +39,8 @@ export function DelegationHourModal({
     mutationFn: (data: DelegationHourCreate) => createDelegationHour(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cse", "delegation"] });
+      queryClient.invalidateQueries({ queryKey: ["cse", "my-delegation-quota"] });
+      queryClient.invalidateQueries({ queryKey: ["cse", "my-delegation-hours"] });
       toast({
         title: "Heure saisie",
         description: "L'heure de délégation a été enregistrée avec succès.",

@@ -25,19 +25,7 @@ FORBIDDEN_IMPORT_PATTERNS = (
 # Le but est de bloquer les accès DB/SQL directs, pas la logique HTTP.
 # Routers encore couplés à la persistance (refactor progressif : services / DI).
 # Retirer une entrée dès que le router ne dépend plus des imports / patterns listés.
-ROUTER_PERSISTENCE_ALLOWLIST: frozenset[str] = frozenset(
-    {
-        "app/modules/absences/api/router.py",
-        "app/modules/audit/api/router.py",
-        "app/modules/competencies/api/router.py",
-        "app/modules/documents/api/router.py",
-        "app/modules/employees/api/router.py",
-        "app/modules/payslips/api/router.py",
-        "app/modules/recruitment/api/router.py",
-        "app/modules/training/api/router.py",
-        "app/modules/webhooks/api/router.py",
-    }
-)
+ROUTER_PERSISTENCE_ALLOWLIST: frozenset[str] = frozenset()
 
 FORBIDDEN_CODE_PATTERNS: tuple[tuple[str, str], ...] = (
     (r"\bsupabase\b", "usage direct de 'supabase'"),
@@ -114,4 +102,62 @@ def test_routers_do_not_access_persistence_directly():
     assert not all_violations, (
         "Accès persistance interdit détecté dans des routers:\n- "
         + "\n- ".join(all_violations)
+    )
+
+
+def test_router_persistence_allowlist_does_not_grow():
+    """L'allowlist ne doit pas grossir sans revue explicite (objectif : 0)."""
+    max_allowed = 0
+    assert len(ROUTER_PERSISTENCE_ALLOWLIST) <= max_allowed, (
+        f"ROUTER_PERSISTENCE_ALLOWLIST a {len(ROUTER_PERSISTENCE_ALLOWLIST)} entrées "
+        f"(max {max_allowed}). Retirer des routers refactorés au lieu d'en ajouter."
+    )
+
+
+APPLICATION_FASTAPI_ALLOWLIST: frozenset[str] = frozenset(
+    {
+        "app/modules/access_control/application/commands.py",
+        "app/modules/access_control/application/queries.py",
+        "app/modules/access_control/application/service.py",
+        "app/modules/auth/application/commands.py",
+        "app/modules/auth/application/queries.py",
+        "app/modules/auth/application/refresh.py",
+        "app/modules/auth/application/service.py",
+        "app/modules/bonus_types/application/service.py",
+        "app/modules/collective_agreements/application/service.py",
+        "app/modules/copilot/application/dto.py",
+        "app/modules/cse/application/service.py",
+        "app/modules/dashboard/application/service.py",
+        "app/modules/employee_exits/application/dto.py",
+        "app/modules/employees/application/commands.py",
+        "app/modules/medical_follow_up/application/commands.py",
+        "app/modules/medical_follow_up/application/queries.py",
+        "app/modules/medical_follow_up/application/service.py",
+        "app/modules/mutuelle_types/application/commands.py",
+        "app/modules/mutuelle_types/application/queries.py",
+        "app/modules/mutuelle_types/application/service.py",
+        "app/modules/promotions/application/commands.py",
+        "app/modules/promotions/application/queries.py",
+        "app/modules/saisies_avances/application/dto.py",
+        "app/modules/super_admin/application/service.py",
+        "app/modules/uploads/application/commands.py",
+        "app/modules/uploads/application/service.py",
+    }
+)
+
+
+def test_application_layer_avoids_fastapi_imports():
+    """La couche application ne doit pas importer FastAPI (hors allowlist temporaire)."""
+    app_dir = BACKEND_ROOT / "app" / "modules"
+    violations: list[str] = []
+    for py_file in sorted(app_dir.glob("**/application/**/*.py")):
+        rel = py_file.relative_to(BACKEND_ROOT).as_posix()
+        if rel in APPLICATION_FASTAPI_ALLOWLIST:
+            continue
+        source = py_file.read_text(encoding="utf-8")
+        if "fastapi" in source.lower():
+            violations.append(rel)
+    assert not violations, (
+        "Import FastAPI interdit en application (hors allowlist):\n- "
+        + "\n- ".join(violations)
     )

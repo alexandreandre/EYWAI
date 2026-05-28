@@ -172,9 +172,15 @@ class TestAnnualReviewsWithRhUser:
         from app.core.security import get_current_user
 
         app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
-        with patch(
-            "app.modules.annual_reviews.application.service.get_repository",
-            return_value=mock_repo,
+        with (
+            patch(
+                "app.modules.annual_reviews.application.service.get_repository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.modules.annual_reviews.api.router._resolve_employee_id_for_current_user",
+                return_value=None,
+            ),
         ):
             yield client
         app.dependency_overrides.pop(get_current_user, None)

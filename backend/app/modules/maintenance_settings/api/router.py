@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/maintenance-settings", tags=["MaintenanceSetting
 
 
 def _can_write_maintenance_settings(user: User, company_id: str) -> bool:
-    if user.is_super_admin:
+    if user.is_platform_admin:
         return True
     role = user.get_role_in_company(company_id)
     return role in ("admin", "rh")

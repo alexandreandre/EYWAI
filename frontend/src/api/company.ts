@@ -1,4 +1,5 @@
 import apiClient from "@/api/apiClient";
+import { downloadBlob } from '@/lib/downloadBlob';
 
 export interface MonthlyEvolution {
   month: string;
@@ -137,10 +138,5 @@ export async function downloadCompanyExport(): Promise<void> {
     responseType: "blob",
   });
   const blob = new Blob([response.data], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "mon_entreprise.csv";
-  link.click();
-  URL.revokeObjectURL(url);
+  downloadBlob(blob, "mon_entreprise.csv");
 }

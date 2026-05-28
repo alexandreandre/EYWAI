@@ -26,7 +26,7 @@ def get_company_id_required(current_user: User = Depends(get_current_user)) -> s
 
 def require_rh(current_user: User = Depends(get_current_user)) -> User:
     """Vérifie que l'utilisateur a les droits RH ; lève 403 sinon. Retourne l'utilisateur."""
-    if getattr(current_user, "is_super_admin", False):
+    if getattr(current_user, 'is_platform_admin', False) or current_user.is_platform_admin:
         return current_user
     if not current_user.active_company_id:
         raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
@@ -45,7 +45,7 @@ def require_rh_and_company(
 
 def can_approve_reject(user: User, company_id: str) -> bool:
     """Indique si l'utilisateur peut approuver/rejeter une promotion (admin ou super_admin)."""
-    if getattr(user, "is_super_admin", False):
+    if getattr(user, 'is_platform_admin', False) or getattr(user, 'is_super_admin', False):
         return True
     return user.is_admin_in_company(company_id)
 

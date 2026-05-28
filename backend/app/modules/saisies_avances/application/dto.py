@@ -45,3 +45,4 @@ class UserContext:
 
     user_id: Any  # str ou UUID
     role: str
+    active_company_id: str | None = None

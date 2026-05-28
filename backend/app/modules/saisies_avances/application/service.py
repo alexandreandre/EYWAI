@@ -55,6 +55,36 @@ from app.modules.saisies_avances.schemas import (
 AUTO_APPROVAL_THRESHOLD = Decimal(str(AUTO_APPROVAL_THRESHOLD_EUR))
 
 
+def resolve_employee_id_for_advance_account(
+    user_id: str, company_id: str | None
+) -> str | None:
+    """Résout employees.id pour un compte collaborateur."""
+    if not company_id:
+        return None
+    from app.modules.employees.infrastructure.queries import (
+        resolve_employee_id_for_user_account,
+    )
+
+    return resolve_employee_id_for_user_account(str(user_id), str(company_id))
+
+
+def _resolve_collaborator_advance_employee_id(
+    ctx: UserContext, requested_employee_id: str
+) -> str:
+    """Accepte encore employee_id = auth uid ; enregistre sous employees.id."""
+    resolved = resolve_employee_id_for_advance_account(
+        str(ctx.user_id), ctx.active_company_id
+    )
+    if not resolved:
+        raise NotFoundError("Profil collaborateur sans employé associé.")
+    uid = str(ctx.user_id)
+    if str(requested_employee_id) not in (str(resolved), uid):
+        raise ForbiddenError(
+            "Vous ne pouvez créer une demande d'avance que pour vous-même."
+        )
+    return str(resolved)
+
+
 # ----- Requêtes (lecture) -----
 
 
@@ -203,17 +233,20 @@ def delete_salary_seizure(seizure_id: str) -> None:
 
 def create_salary_advance(advance_data: Any, ctx: UserContext) -> Dict[str, Any]:
     """Crée une demande d'avance (employé ou RH)."""
-    if ctx.role == "collaborateur" and advance_data.employee_id != ctx.user_id:
-        raise ForbiddenError(
-            "Vous ne pouvez créer une demande d'avance que pour vous-même."
+    if ctx.role == "collaborateur":
+        employee_id = _resolve_collaborator_advance_employee_id(
+            ctx, advance_data.employee_id
         )
-    company_id = employee_company_provider.get_company_id(advance_data.employee_id)
+    else:
+        employee_id = advance_data.employee_id
+
+    company_id = employee_company_provider.get_company_id(employee_id)
     if not company_id:
         raise NotFoundError("Employé non trouvé.")
 
-    if advance_data.employee_id == ctx.user_id:
+    if ctx.role == "collaborateur":
         data = build_advance_available(
-            advance_data.employee_id,
+            employee_id,
             advance_data.requested_date.year,
             advance_data.requested_date.month,
         )
@@ -223,9 +256,7 @@ def create_salary_advance(advance_data: Any, ctx: UserContext) -> Dict[str, Any]
                 f"Montant demandé supérieur au disponible ({available}€)"
             )
 
-    is_employee_request = (
-        ctx.role == "collaborateur" and advance_data.employee_id == ctx.user_id
-    )
+    is_employee_request = ctx.role == "collaborateur"
     initial_status = domain_rules.initial_advance_status(
         is_employee_request,
         Decimal(str(advance_data.requested_amount)),
@@ -234,7 +265,7 @@ def create_salary_advance(advance_data: Any, ctx: UserContext) -> Dict[str, Any]
 
     db_data = {
         "company_id": company_id,
-        "employee_id": advance_data.employee_id,
+        "employee_id": employee_id,
         "requested_amount": float(advance_data.requested_amount),
         "requested_date": advance_data.requested_date.isoformat(),
         "repayment_mode": advance_data.repayment_mode,

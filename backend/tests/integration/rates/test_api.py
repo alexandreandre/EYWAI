@@ -5,7 +5,7 @@ Route : GET /api/rates/all (récupération des configs actives de taux, groupée
 Utilise : client (TestClient), dependency_overrides pour get_all_rates_reader et get_current_user.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -27,17 +27,17 @@ def _make_mock_reader(rows):
 
 def _make_rh_user():
     user = MagicMock()
-    user.is_super_admin = False
+    user.is_platform_admin = False
     user.active_company_id = "company-1"
-    user.has_rh_access_in_company.return_value = True
+    user.has_rh_access_in_company = lambda _cid: True
     return user
 
 
 def _make_non_rh_user():
     user = MagicMock()
-    user.is_super_admin = False
+    user.is_platform_admin = False
     user.active_company_id = "company-1"
-    user.has_rh_access_in_company.return_value = False
+    user.has_rh_access_in_company = lambda _cid: False
     return user
 
 
@@ -161,3 +161,75 @@ class TestGetAllRatesEndpoint:
 
         assert response.status_code == 403
         assert "rh" in response.json().get("detail", "").lower()
+
+
+class TestRatesSyncEndpoints:
+    """POST /api/rates/sync et GET /api/rates/sync/{sync_id}/status."""
+
+    @patch("app.modules.rates.api.router.start_rates_sync")
+    def test_post_sync_returns_batch(self, mock_start, client: TestClient):
+        mock_start.return_value = {
+            "sync_id": "sync-abc",
+            "jobs": [{"source_key": "smic", "job_id": "j1", "status": "running"}],
+            "total": 1,
+            "message": "ok",
+        }
+        app.dependency_overrides[get_current_user] = _make_rh_user
+        try:
+            response = client.post("/api/rates/sync")
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+        assert response.status_code == 200
+        assert response.json()["sync_id"] == "sync-abc"
+
+    @patch("app.modules.rates.api.router.start_rates_sync")
+    def test_post_sync_with_rate_keys(self, mock_start, client: TestClient):
+        mock_start.return_value = {"sync_id": "s1", "jobs": [], "total": 0, "message": "ok"}
+        app.dependency_overrides[get_current_user] = _make_rh_user
+        try:
+            response = client.post("/api/rates/sync", json={"rate_keys": ["smic"]})
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+        assert response.status_code == 200
+        mock_start.assert_called_once()
+        assert mock_start.call_args.kwargs.get("rate_keys") == ["smic"]
+
+    @patch("app.modules.rates.api.router.get_rates_sync_sources_manifest")
+    def test_get_sync_sources(self, mock_manifest, client: TestClient):
+        mock_manifest.return_value = {"rate_categories": [], "all_critical_count": 0}
+        app.dependency_overrides[get_current_user] = _make_rh_user
+        try:
+            response = client.get("/api/rates/sync/sources")
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+        assert response.status_code == 200
+
+    @patch("app.modules.rates.api.router.get_rates_sync_status")
+    def test_get_sync_status(self, mock_status, client: TestClient):
+        mock_status.return_value = {
+            "sync_id": "sync-abc",
+            "status": "running",
+            "progress": {"total": 1, "running": 1, "completed": 0, "failed": 0, "done": 0, "percent": 0},
+            "jobs": [],
+            "created_at": "2025-01-01T00:00:00Z",
+        }
+        app.dependency_overrides[get_current_user] = _make_rh_user
+        try:
+            response = client.get("/api/rates/sync/sync-abc/status")
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "running"
+
+    def test_post_sync_403_non_rh(self, client: TestClient):
+        app.dependency_overrides[get_current_user] = _make_non_rh_user
+        try:
+            response = client.post("/api/rates/sync")
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+        assert response.status_code == 403

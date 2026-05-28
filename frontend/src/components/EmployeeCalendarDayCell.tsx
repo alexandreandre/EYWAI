@@ -1,116 +1,177 @@
-import { DayCellContentArg } from "@fullcalendar/react";
-import { cn } from "@/lib/utils";
-import { DayData } from "./ScheduleModal";
+import type { ActualHoursData, PlannedEventData } from '@/api/calendar';
+import type { Shift } from '@/api/planning';
+import { cn } from '@/lib/utils';
 import {
-  Clock,
-  Coffee,
-  Home,
-  Plane,
-  BriefcaseMedical,
-} from "lucide-react";
+  CALENDAR_TYPE_BAR_COLORS,
+  formatCalendarValue,
+  getCalendarTypeLabel,
+} from '@/lib/calendarTypes';
+import { dayHasSignificantEcart } from '@/lib/employeeCalendarUtils';
+import { formatShiftPastille, isPayrollRestDay } from '@/lib/employeeCalendarPlanning';
 
-interface EmployeeCalendarDayCellProps {
-  arg: DayCellContentArg;
-  plannedCalendar: DayData[];
-  actualHours: DayData[];
+export interface EmployeeCalendarDayCellProps {
+  day: number;
+  isToday: boolean;
+  plannedCalendar: PlannedEventData[];
+  actualHours: ActualHoursData[];
+  isForfaitJour: boolean;
+  dayShifts?: Shift[];
+  onDayClick?: (day: number) => void;
 }
 
-const typeStyles: Record<
-  string,
-  { icon: React.ElementType; bg: string; text: string; border: string }
-> = {
-  travail: {
-    icon: Clock,
-    bg: "bg-blue-50/80 dark:bg-blue-950/40",
-    text: "text-blue-700 dark:text-blue-300",
-    border: "border-blue-100 dark:border-blue-900",
-  },
-  conge: {
-    icon: Plane,
-    bg: "bg-green-50/80 dark:bg-green-950/40",
-    text: "text-green-700 dark:text-green-300",
-    border: "border-green-100 dark:border-green-900",
-  },
-  ferie: {
-    icon: Home,
-    bg: "bg-indigo-50/80 dark:bg-indigo-950/40",
-    text: "text-indigo-700 dark:text-indigo-300",
-    border: "border-indigo-100 dark:border-indigo-900",
-  },
-  weekend: {
-    icon: Coffee,
-    bg: "bg-gray-50/80 dark:bg-slate-800/50",
-    text: "text-gray-500 dark:text-gray-400",
-    border: "border-gray-100 dark:border-slate-700",
-  },
-  arret_maladie: {
-    icon: BriefcaseMedical,
-    bg: "bg-orange-50/80 dark:bg-orange-950/40",
-    text: "text-orange-700 dark:text-orange-300",
-    border: "border-orange-100 dark:border-orange-900",
-  },
-};
+const DEFAULT_SCALE_HOURS = 10;
 
-export function EmployeeCalendarDayCell({
-  arg,
-  plannedCalendar,
-  actualHours,
-}: EmployeeCalendarDayCellProps) {
-  const dayNumber = arg.dayNumberText.replace("日", "");
-  const dayData = plannedCalendar.find((d) => d.jour === parseInt(dayNumber));
-  const actualData = actualHours.find((d) => d.jour === parseInt(dayNumber));
+function CompactGauges({
+  planned,
+  actual,
+  isForfaitJour,
+}: {
+  planned: number | null | undefined;
+  actual: number | null | undefined;
+  isForfaitJour: boolean;
+}) {
+  const hasPlanned = planned !== null && planned !== undefined;
+  const hasActual = actual !== null && actual !== undefined;
 
-  const dayType = dayData?.type || "weekend";
-  const style = typeStyles[dayType] || typeStyles.weekend;
-  const Icon = style.icon;
+  if (!hasPlanned && !hasActual) {
+    return (
+      <p className="text-[9px] text-muted-foreground/80 italic px-1.5 pb-1.5">—</p>
+    );
+  }
 
-  const isOutside = arg.isOther;
-  const isToday = arg.isToday;
+  if (isForfaitJour) {
+    const pVal = hasPlanned ? (planned === 1 ? 1 : 0) : null;
+    const aVal = hasActual ? (actual === 1 ? 1 : 0) : null;
+    return (
+      <div className="flex flex-col gap-1 px-1.5 pb-1.5">
+        <GaugeMini label="P" filled={pVal === 1} barClass="bg-sky-500" />
+        <GaugeMini label="R" filled={aVal === 1} barClass="bg-teal-500" />
+      </div>
+    );
+  }
+
+  const p = hasPlanned ? planned! : 0;
+  const a = hasActual ? actual! : 0;
+  const max = Math.max(DEFAULT_SCALE_HOURS, p, a, 1);
+  const pPct = hasPlanned ? Math.min(100, (p / max) * 100) : 0;
+  const aPct = hasActual ? Math.min(100, (a / max) * 100) : 0;
 
   return (
-    <div
-      className={cn(
-        "relative flex flex-col h-full w-full rounded-lg transition-all duration-200",
-        "hover:scale-[1.02] hover:shadow-md",
-        style.bg,
-        style.border,
-        "border p-2 backdrop-blur-sm",
-        isOutside && "opacity-50 grayscale",
-        isToday && "ring-2 ring-primary/70 shadow-lg"
-      )}
-    >
-      <div className={cn("flex justify-between items-center")}>
-        <span className={cn("font-semibold text-sm", style.text)}>
-          {dayNumber}
-        </span>
+    <div className="flex flex-col gap-1 px-1.5 pb-1.5">
+      <GaugeMini label="P" percent={pPct} barClass="bg-sky-500" />
+      <GaugeMini label="R" percent={aPct} barClass="bg-teal-500" />
+    </div>
+  );
+}
+
+function GaugeMini({
+  label,
+  percent = 0,
+  filled,
+  barClass,
+}: {
+  label: string;
+  percent?: number;
+  filled?: boolean;
+  barClass: string;
+}) {
+  const width = filled !== undefined ? (filled ? 100 : 0) : percent;
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-[8px] font-semibold text-muted-foreground w-2">{label}</span>
+      <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
+        <div className={cn('h-full rounded-full', barClass)} style={{ width: `${width}%` }} />
+      </div>
+    </div>
+  );
+}
+
+export function EmployeeCalendarDayCell({
+  day,
+  isToday,
+  plannedCalendar,
+  actualHours,
+  isForfaitJour,
+  dayShifts = [],
+  onDayClick,
+}: EmployeeCalendarDayCellProps) {
+  const dayData = plannedCalendar.find((d) => d.jour === day);
+  const actualData = actualHours.find((d) => d.jour === day);
+  const dayType = dayData?.type ?? 'weekend';
+  const barColor = CALENDAR_TYPE_BAR_COLORS[dayType] ?? CALENDAR_TYPE_BAR_COLORS.weekend;
+  const hasEcart = dayHasSignificantEcart(
+    dayData?.heures_prevues,
+    actualData?.heures_faites,
+    isForfaitJour
+  );
+  const shiftPastille = formatShiftPastille(dayShifts);
+  const shiftMismatch =
+    shiftPastille != null && isPayrollRestDay(dayType) && dayShifts.length > 0;
+
+  const content = (
+    <>
+      <div className="flex items-start justify-between gap-0.5 px-1.5 pt-1.5">
+        <span className="text-xs font-semibold tabular-nums">{day}</span>
         {isToday && (
-          <span className="text-[10px] font-medium text-primary">Aujourd’hui</span>
+          <span className="text-[8px] font-medium text-primary leading-none">Auj.</span>
         )}
       </div>
-
-      {dayData && !isOutside && (
-        <div className="mt-2 flex-grow flex flex-col justify-center items-center text-center">
-          <Icon className={cn("h-5 w-5 mb-1", style.text)} />
-          <p
-            className={cn(
-              "text-xs font-medium capitalize leading-tight",
-              style.text
-            )}
-          >
-            {dayType.replace("_", " ")}
-          </p>
-          {dayType === "travail" && (
-            <div className="text-xs mt-2 text-muted-foreground">
-              <p>
-                Prévu: <strong>{dayData.heures_prevues ?? 0}h</strong>
-              </p>
-              <p>
-                Fait: <strong>{actualData?.heures_faites ?? 0}h</strong>
-              </p>
-            </div>
-          )}
-        </div>
+      <p className="truncate px-1.5 text-[9px] font-medium text-muted-foreground leading-tight">
+        {getCalendarTypeLabel(dayType)}
+      </p>
+      {dayType === 'travail' && (
+        <CompactGauges
+          planned={dayData?.heures_prevues}
+          actual={actualData?.heures_faites}
+          isForfaitJour={isForfaitJour}
+        />
       )}
+      {dayType !== 'travail' && dayData && (
+        <p className="px-1.5 pb-1 text-[9px] text-muted-foreground tabular-nums">
+          {formatCalendarValue(dayData.heures_prevues, isForfaitJour)}
+        </p>
+      )}
+      {shiftPastille && (
+        <p
+          className={cn(
+            'mx-1.5 mb-1.5 truncate rounded px-1 py-0.5 text-[8px] font-medium tabular-nums',
+            shiftMismatch
+              ? 'border border-amber-400/80 bg-amber-50/90 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100'
+              : 'bg-violet-100/90 text-violet-900 dark:bg-violet-950/50 dark:text-violet-100'
+          )}
+        >
+          {shiftPastille}
+        </p>
+      )}
+    </>
+  );
+
+  const className = cn(
+    'relative flex h-full min-h-[5.5rem] w-full flex-col rounded-xl border bg-card text-left transition-colors',
+    'hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+    isToday && 'ring-2 ring-primary',
+    hasEcart && !isToday && 'ring-2 ring-amber-400',
+    hasEcart && isToday && 'ring-2 ring-primary ring-offset-1 ring-offset-amber-300'
+  );
+
+  if (onDayClick) {
+    return (
+      <button
+        type="button"
+        onClick={() => onDayClick(day)}
+        className={className}
+        aria-label={`${getCalendarTypeLabel(dayType)}, jour ${day}`}
+      >
+        <span className={cn('absolute left-0 top-2 bottom-2 w-1 rounded-r', barColor)} aria-hidden />
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className={className}>
+      <span className={cn('absolute left-0 top-2 bottom-2 w-1 rounded-r', barColor)} aria-hidden />
+      {content}
     </div>
   );
 }

@@ -266,7 +266,7 @@ def create_group(
     current_user: CurrentUserForCompanyGroups = Depends(get_current_user),
 ):
     """Crée un nouveau groupe (super_admin ou admin d'au moins 2 entreprises)."""
-    if not current_user.is_super_admin:
+    if not current_user.is_platform_admin:
         admin_companies = [
             acc for acc in current_user.accessible_companies if acc.role == "admin"
         ]
@@ -298,7 +298,7 @@ def update_group(
     current_user: CurrentUserForCompanyGroups = Depends(get_current_user),
 ):
     """Modifie un groupe (super_admin ou admin de toutes les entreprises du groupe)."""
-    if not current_user.is_super_admin:
+    if not current_user.is_platform_admin:
         company_ids = get_group_company_ids_for_permission_check(group_id)
         for cid in company_ids:
             if not current_user.is_admin_in_company(cid):
@@ -329,7 +329,7 @@ def add_company_to_group(
     current_user: CurrentUserForCompanyGroups = Depends(get_current_user),
 ):
     """Ajoute une entreprise à un groupe (admin de l'entreprise ou super_admin)."""
-    if not current_user.is_super_admin:
+    if not current_user.is_platform_admin:
         if not current_user.is_admin_in_company(company_id):
             raise HTTPException(
                 status_code=403,
@@ -353,7 +353,7 @@ def remove_company_from_group(
     current_user: CurrentUserForCompanyGroups = Depends(get_current_user),
 ):
     """Retire une entreprise d'un groupe (admin de l'entreprise ou super_admin)."""
-    if not current_user.is_super_admin:
+    if not current_user.is_platform_admin:
         if not current_user.is_admin_in_company(company_id):
             raise HTTPException(
                 status_code=403,
@@ -381,7 +381,7 @@ def bulk_add_companies_to_group(
             status_code=400,
             detail="La liste des entreprises est vide",
         )
-    if not current_user.is_super_admin:
+    if not current_user.is_platform_admin:
         for cid in request.company_ids:
             if not current_user.is_admin_in_company(cid):
                 raise HTTPException(
@@ -409,7 +409,7 @@ def manage_user_access_in_group(
     current_user: CurrentUserForCompanyGroups = Depends(get_current_user),
 ):
     """Gère les accès d'un utilisateur aux entreprises du groupe (Super Admin uniquement)."""
-    if not current_user.is_super_admin:
+    if not current_user.is_platform_admin:
         raise HTTPException(
             status_code=403,
             detail="Accès réservé aux super administrateurs",
@@ -435,7 +435,7 @@ def remove_user_from_group(
     current_user: CurrentUserForCompanyGroups = Depends(get_current_user),
 ):
     """Retire tous les accès d'un utilisateur aux entreprises du groupe (Super Admin uniquement)."""
-    if not current_user.is_super_admin:
+    if not current_user.is_platform_admin:
         raise HTTPException(
             status_code=403,
             detail="Accès réservé aux super administrateurs",

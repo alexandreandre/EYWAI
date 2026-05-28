@@ -35,8 +35,24 @@ router = APIRouter(prefix="/api/expenses", tags=["Expenses"])
 _expense_service = ExpenseApplicationService()
 
 
+def _require_my_employee_id(current_user: User) -> str:
+    """employees.id pour création / upload (compte auth ≠ fiche si user_id renseigné)."""
+    company_id = current_user.active_company_id
+    if not company_id:
+        raise HTTPException(status_code=400, detail="Aucune entreprise active.")
+    employee_id = _expense_service.resolve_employee_id_for_expense_account(
+        str(current_user.id), company_id
+    )
+    if not employee_id:
+        raise HTTPException(
+            status_code=404,
+            detail="Profil collaborateur sans employé associé.",
+        )
+    return employee_id
+
+
 def _require_rh_or_admin(current_user: User) -> None:
-    if current_user.is_super_admin:
+    if current_user.is_platform_admin:
         return
     active_company_id = current_user.active_company_id
     if not active_company_id or not current_user.has_rh_access_in_company(active_company_id):
@@ -53,7 +69,10 @@ async def get_upload_url(
 ):
     """Génère une URL signée pour uploader un justificatif avec son nom original."""
     try:
-        return _expense_service.get_signed_upload_url(current_user.id, filename)
+        employee_id = _require_my_employee_id(current_user)
+        return _expense_service.get_signed_upload_url(employee_id, filename)
+    except HTTPException:
+        raise
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Erreur de stockage Supabase: {e}")
@@ -66,8 +85,9 @@ async def create_expense_report(
 ):
     """Crée une nouvelle note de frais pour l'utilisateur connecté."""
     try:
+        employee_id = _require_my_employee_id(current_user)
         input_ = CreateExpenseInput(
-            employee_id=current_user.id,
+            employee_id=employee_id,
             date=expense_data.date,
             amount=expense_data.amount,
             type=expense_data.type,
@@ -76,6 +96,8 @@ async def create_expense_report(
             filename=expense_data.filename,
         )
         return _expense_service.create_expense(input_)
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
@@ -87,7 +109,9 @@ async def create_expense_report(
 async def get_my_expenses(current_user: User = Depends(get_current_user)):
     """Récupère toutes les notes de frais de l'employé connecté, avec les URLs des justificatifs."""
     try:
-        return _expense_service.get_my_expenses(current_user.id)
+        return _expense_service.get_my_expenses_for_user_account(
+            str(current_user.id), current_user.active_company_id
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

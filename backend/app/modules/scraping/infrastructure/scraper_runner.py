@@ -23,6 +23,10 @@ from app.modules.scraping.infrastructure.repository import ScrapingRepository
 
 logger = get_logger("modules.scraping")
 
+_ACTIVE_PROCESSES: Dict[str, subprocess.Popen] = {}
+_CANCEL_REQUESTED: set[str] = set()
+_process_lock = threading.Lock()
+
 # Aligné sur api/routers/scraping.py : certains source_key ne correspondent pas au nom du dossier
 SOURCE_KEY_TO_FOLDER_MAPPING = {
     "ALLOCATIONS_FAMILIALES": "alloc",
@@ -38,6 +42,64 @@ SOURCE_KEY_TO_FOLDER_MAPPING = {
     "BAREME_INDEMNITE_KILOMETRIQUE": "bareme-indemnite-kilometrique",
     "SAISIE_ARRET": "saisie-arret",
 }
+
+
+def is_job_cancel_requested(job_id: str) -> bool:
+    with _process_lock:
+        return job_id in _CANCEL_REQUESTED
+
+
+def clear_cancel_request(job_id: str) -> None:
+    with _process_lock:
+        _CANCEL_REQUESTED.discard(job_id)
+
+
+def cancel_scraper_job(
+    job_id: str,
+    repository: Optional[ScrapingRepository] = None,
+) -> bool:
+    """Demande l'arrêt d'un job (kill subprocess si actif, statut cancelled en base)."""
+    repo = repository or ScrapingRepository()
+    with _process_lock:
+        _CANCEL_REQUESTED.add(job_id)
+        process = _ACTIVE_PROCESSES.get(job_id)
+
+    if process is not None and process.poll() is None:
+        try:
+            process.kill()
+            process.wait(timeout=10)
+        except Exception as exc:
+            logger.warning("Kill job %s: %s", job_id, exc)
+        with _process_lock:
+            _ACTIVE_PROCESSES.pop(job_id, None)
+
+    job = repo.get_job(job_id)
+    if not job:
+        clear_cancel_request(job_id)
+        return False
+
+    if job.get("status") in ("pending", "running"):
+        repo.update_job(
+            job_id,
+            {
+                "status": "cancelled",
+                "completed_at": datetime.now().isoformat(),
+                "success": False,
+                "error_message": "Annulé par l'utilisateur",
+            },
+        )
+        clear_cancel_request(job_id)
+        return True
+
+    clear_cancel_request(job_id)
+    return False
+
+
+def reset_scraper_runner_state_for_tests() -> None:
+    """Vide les registres en mémoire (tests uniquement)."""
+    with _process_lock:
+        _ACTIVE_PROCESSES.clear()
+        _CANCEL_REQUESTED.clear()
 
 
 def get_scraper_folder_name(source_key: str) -> str:
@@ -110,6 +172,23 @@ def run_scraper_script(
     if not Path(script_path).exists():
         raise FileNotFoundError(f"Script non trouvé : {script_path}")
 
+    if job_id is not None and is_job_cancel_requested(job_id):
+        repo.update_job(
+            job_id,
+            {
+                "status": "cancelled",
+                "completed_at": datetime.now().isoformat(),
+                "success": False,
+                "error_message": "Annulé par l'utilisateur",
+            },
+        )
+        clear_cancel_request(job_id)
+        return {
+            "job_id": job_id,
+            "success": False,
+            "error_message": "Annulé par l'utilisateur",
+        }
+
     if job_id is None:
         job_data = {
             "source_id": source_data["id"],
@@ -173,6 +252,8 @@ def run_scraper_script(
         cwd=str(script_path_obj.parent),
         env=__import__("os").environ.copy(),
     )
+    with _process_lock:
+        _ACTIVE_PROCESSES[job_id] = process
 
     stdout_thread = threading.Thread(target=read_output, args=(process.stdout, ""))
     stderr_thread = threading.Thread(
@@ -182,8 +263,15 @@ def run_scraper_script(
     stderr_thread.start()
 
     return_code: int
+    was_cancelled = False
     try:
-        return_code = process.wait(timeout=300)
+        if is_job_cancel_requested(job_id):
+            process.kill()
+            process.wait(timeout=10)
+            was_cancelled = True
+            return_code = -1
+        else:
+            return_code = process.wait(timeout=300)
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait()
@@ -207,9 +295,31 @@ def run_scraper_script(
             "success": False,
             "error_message": error_msg,
         }
+    finally:
+        if not was_cancelled:
+            was_cancelled = is_job_cancel_requested(job_id)
+        with _process_lock:
+            _ACTIVE_PROCESSES.pop(job_id, None)
+        clear_cancel_request(job_id)
 
     stdout_thread.join(timeout=2)
     stderr_thread.join(timeout=2)
+
+    if was_cancelled:
+        repo.update_job(
+            job_id,
+            {
+                "status": "cancelled",
+                "completed_at": datetime.now().isoformat(),
+                "success": False,
+                "error_message": "Annulé par l'utilisateur",
+            },
+        )
+        return {
+            "job_id": job_id,
+            "success": False,
+            "error_message": "Annulé par l'utilisateur",
+        }
 
     end_time = datetime.now()
     duration_ms = int((end_time - start_time).total_seconds() * 1000)
@@ -297,6 +407,21 @@ def run_scraper_script_background(
     (avant ou pendant l'exécution) met à jour le job en failed.
     """
     repo = repository or ScrapingRepository()
+    if is_job_cancel_requested(job_id):
+        try:
+            repo.update_job(
+                job_id,
+                {
+                    "status": "cancelled",
+                    "completed_at": datetime.now().isoformat(),
+                    "success": False,
+                    "error_message": "Annulé par l'utilisateur",
+                },
+            )
+        except Exception:
+            pass
+        clear_cancel_request(job_id)
+        return
     try:
         run_scraper_script(
             source_data,

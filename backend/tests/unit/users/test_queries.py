@@ -21,7 +21,7 @@ def _user_super_admin():
         email="super@example.com",
         first_name="Super",
         last_name="Admin",
-        is_super_admin=True,
+        is_platform_admin=True,
         is_group_admin=False,
         accessible_companies=[],
         active_company_id=None,
@@ -34,7 +34,7 @@ def _user_rh_in_company(company_id: str = "c1"):
         email="rh@example.com",
         first_name="Marie",
         last_name="RH",
-        is_super_admin=False,
+        is_platform_admin=False,
         is_group_admin=False,
         accessible_companies=[
             CompanyAccess(
@@ -54,7 +54,7 @@ def _user_with_companies():
         email="user@example.com",
         first_name="Jean",
         last_name="Dupont",
-        is_super_admin=False,
+        is_platform_admin=False,
         is_group_admin=False,
         accessible_companies=[
             CompanyAccess(
@@ -92,7 +92,7 @@ class TestGetMyCompanies:
         assert len(result) == 1
         assert result[0].company_id == "c1"
         assert result[0].company_name == "Comp1"
-        assert result[0].role == "super_admin"
+        assert result[0].role == "admin"
         infra_queries.fetch_active_companies_with_groups.assert_called_once()
 
     def test_non_super_admin_returns_accessible_companies(self):

@@ -17,7 +17,7 @@ from app.modules.documents.application.explorer_queries import get_documents_exp
 from app.modules.documents.schemas.explorer import DocumentsExplorerResponse
 from app.modules.documents.schemas.responses import DownloadUrlResponse, GeneratedDocument
 from app.modules.users.schemas.responses import User
-from app.modules.webhooks.infrastructure.repository import webhook_repository
+from app.modules.webhooks.application.service import trigger_webhook_event
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
 
@@ -214,7 +214,7 @@ def update_status_route(
             updated_by_user_id=str(current_user.id),
         )
         if body.status == "signe":
-            webhook_repository.trigger_event(
+            trigger_webhook_event(
                 str(cid),
                 "document.signed",
                 {

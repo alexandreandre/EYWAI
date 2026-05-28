@@ -18,6 +18,7 @@ pytestmark = pytest.mark.integration
 
 TEST_COMPANY_ID = "cse-wiring-co"
 TEST_USER_ID = "cse-wiring-rh"
+TEST_ELECTED_EMPLOYEE_ID = "770e8400-e29b-41d4-a716-446655440099"
 
 
 def _rh_user():
@@ -34,6 +35,27 @@ def _rh_user():
                 company_id=TEST_COMPANY_ID,
                 company_name="CSE Wiring Co",
                 role="rh",
+                is_primary=True,
+            ),
+        ],
+        active_company_id=TEST_COMPANY_ID,
+    )
+
+
+def _elected_user():
+    """Élu CSE (collaborateur) avec active_company_id."""
+    return User(
+        id="cse-wiring-elected",
+        email="elu@cse-wiring.com",
+        first_name="Elu",
+        last_name="CSE",
+        is_super_admin=False,
+        is_group_admin=False,
+        accessible_companies=[
+            CompanyAccess(
+                company_id=TEST_COMPANY_ID,
+                company_name="CSE Wiring Co",
+                role="collaborateur",
                 is_primary=True,
             ),
         ],
@@ -119,6 +141,39 @@ class TestCSEWiringMeetings:
             status=None,
             meeting_type=None,
             participant_id=None,
+        )
+
+    def test_list_meetings_elected_filters_by_participant(self, client: TestClient):
+        """Un élu ne voit que les réunions où il est participant."""
+        from app.core.security import get_current_user
+
+        elected = _elected_user()
+        app.dependency_overrides[get_current_user] = lambda: elected
+        try:
+            with (
+                patch(
+                    "app.modules.cse.api.router._resolve_employee_id_for_current_user",
+                    return_value=TEST_ELECTED_EMPLOYEE_ID,
+                ),
+                patch(
+                    "app.modules.cse.api.router.queries.is_elected_member",
+                    return_value=True,
+                ),
+                patch(
+                    "app.modules.cse.application.queries.meeting_repository"
+                ) as mock_repo,
+            ):
+                mock_repo.list_by_company.return_value = []
+                response = client.get("/api/cse/meetings")
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+        assert response.status_code == 200
+        mock_repo.list_by_company.assert_called_once_with(
+            TEST_COMPANY_ID,
+            status=None,
+            meeting_type=None,
+            participant_id=TEST_ELECTED_EMPLOYEE_ID,
         )
 
 

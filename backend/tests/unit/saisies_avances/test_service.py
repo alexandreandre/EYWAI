@@ -105,9 +105,17 @@ class TestCreateSalaryAdvanceForbidden:
             requested_amount=Decimal("100"),
             requested_date=date(2025, 3, 1),
         )
-        ctx = UserContext(user_id=USER_ID, role="collaborateur")
-        with pytest.raises(service.ForbiddenError) as exc_info:
-            service.create_salary_advance(advance_data, ctx)
+        ctx = UserContext(
+            user_id=USER_ID,
+            role="collaborateur",
+            active_company_id=COMPANY_ID,
+        )
+        with patch(
+            f"{SERVICE_MODULE}.resolve_employee_id_for_advance_account",
+            return_value=EMPLOYEE_ID,
+        ):
+            with pytest.raises(service.ForbiddenError) as exc_info:
+                service.create_salary_advance(advance_data, ctx)
         assert "vous-même" in str(exc_info.value).lower()
 
 

@@ -1,6 +1,6 @@
 /**
- * Section « Documents générés » (PDF créés par les RH, module Documents).
- * Intégrée en bas de la page Mes documents collaborateur.
+ * @deprecated Remplacé par l'explorateur de dossiers sur `/employee/documents`.
+ * Helpers de statut conservés pour d'éventuels usages ; la page employé n'importe plus ce composant.
  */
 
 import { useCallback } from 'react';

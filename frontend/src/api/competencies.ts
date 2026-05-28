@@ -1,4 +1,5 @@
 import apiClient from "./apiClient";
+import { downloadBlob } from '@/lib/downloadBlob';
 
 export type CompetencyCategory =
   | "technique"
@@ -166,12 +167,7 @@ export async function exportMatrixExcel(params?: {
     const m = cd.match(/filename="?([^";]+)"?/);
     if (m?.[1]) filename = m[1];
   }
-  const url = window.URL.createObjectURL(res.data);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  window.URL.revokeObjectURL(url);
+  downloadBlob(res.data as Blob, filename);
 }
 
 /** Analyse mobilité IA (RH). L’entreprise active est lue via l’intercepteur (X-Active-Company). */

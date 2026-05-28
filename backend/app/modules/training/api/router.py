@@ -6,9 +6,10 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 
+from app.core.platform_admin import is_platform_admin
 from app.core.security import get_current_user
 from app.modules.training.application import commands, queries
-from app.modules.training.infrastructure.repository import training_repository
+from app.modules.training.application import router_support as training_router
 from app.modules.training.schemas.requests import (
     EnrollmentRequestBySalarie,
     ManagerApprovalRequest,
@@ -57,7 +58,7 @@ def _company_id(user: User) -> str:
 
 
 def _is_rh(user: User) -> bool:
-    if getattr(user, "is_super_admin", False):
+    if is_platform_admin(user):
         return True
     if not user.active_company_id:
         return False
@@ -234,7 +235,7 @@ def route_pending_manager_approval(current_user: User = Depends(get_current_user
     cid = _company_id(current_user)
     try:
         if _is_rh(current_user):
-            rows = training_repository.list_pending_manager_approval(cid, None)
+            rows = training_router.list_pending_manager_approval(cid, None)
         else:
             my_emp = _employee_scope_id(current_user, cid)
             if not my_emp:
@@ -242,7 +243,7 @@ def route_pending_manager_approval(current_user: User = Depends(get_current_user
                     status_code=403,
                     detail="Profil collaborateur introuvable pour cette entreprise.",
                 )
-            rows = training_repository.list_pending_manager_approval(cid, my_emp)
+            rows = training_router.list_pending_manager_approval(cid, my_emp)
         return [queries.training_enrollment_from_row(dict(x)) for x in rows]
     except HTTPException:
         raise
@@ -259,7 +260,7 @@ def route_pending_rh_approval(current_user: User = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
     cid = _company_id(current_user)
     try:
-        rows = training_repository.list_pending_rh_approval(cid)
+        rows = training_router.list_pending_rh_approval(cid)
         return [queries.training_enrollment_from_row(dict(x)) for x in rows]
     except HTTPException:
         raise
@@ -280,7 +281,7 @@ def route_enrollment_request(
             detail="Aucun profil collaborateur lié à votre compte pour cette entreprise.",
         )
     try:
-        row = training_repository.create_enrollment_request(
+        row = training_router.create_enrollment_request(
             emp,
             cid,
             data.training_id,
@@ -370,7 +371,7 @@ def route_manager_approve(
 ):
     cid = _company_id(current_user)
     try:
-        row = training_repository.get_enrollment_by_id(enrollment_id, cid)
+        row = training_router.get_enrollment_by_id(enrollment_id, cid)
         if not row:
             raise HTTPException(status_code=404, detail="Inscription non trouvée.")
         if str(row.get("status") or "") != "demande_salarie":
@@ -380,7 +381,7 @@ def route_manager_approve(
             )
         if not _can_manager_act_on_enrollment(current_user, row, cid):
             raise HTTPException(status_code=403, detail="Accès refusé.")
-        updated = training_repository.approve_by_manager(
+        updated = training_router.approve_enrollment_by_manager(
             enrollment_id,
             cid,
             body.approved,
@@ -403,7 +404,7 @@ def route_rh_approve(
         raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
     cid = _company_id(current_user)
     try:
-        row = training_repository.get_enrollment_by_id(enrollment_id, cid)
+        row = training_router.get_enrollment_by_id(enrollment_id, cid)
         if not row:
             raise HTTPException(status_code=404, detail="Inscription non trouvée.")
         if str(row.get("status") or "") != "approuve_manager":
@@ -411,7 +412,7 @@ def route_rh_approve(
                 status_code=400,
                 detail="Cette inscription n'est pas en attente de validation RH.",
             )
-        updated = training_repository.approve_by_rh(
+        updated = training_router.approve_enrollment_by_rh(
             enrollment_id,
             cid,
             body.approved,
@@ -440,7 +441,7 @@ def route_submit_evaluation(
 ):
     cid = _company_id(current_user)
     try:
-        row = training_repository.get_enrollment_by_id(enrollment_id, cid)
+        row = training_router.get_enrollment_by_id(enrollment_id, cid)
         if not row:
             raise HTTPException(status_code=404, detail="Inscription non trouvée.")
         if not _can_access_enrollment_eval_or_cert(current_user, row, cid):
@@ -453,7 +454,7 @@ def route_submit_evaluation(
                     status_code=403,
                     detail="Profil collaborateur introuvable pour cette entreprise.",
                 )
-        updated = training_repository.submit_evaluation(
+        updated = training_router.submit_enrollment_evaluation(
             enrollment_id,
             cid,
             actor,
@@ -478,7 +479,7 @@ async def route_upload_enrollment_certificate(
 ):
     cid = _company_id(current_user)
     try:
-        row = training_repository.get_enrollment_by_id(enrollment_id, cid)
+        row = training_router.get_enrollment_by_id(enrollment_id, cid)
         if not row:
             raise HTTPException(status_code=404, detail="Inscription non trouvée.")
         if not _can_access_enrollment_eval_or_cert(current_user, row, cid):
@@ -495,7 +496,7 @@ async def route_upload_enrollment_certificate(
                 detail="Format non autorisé (PDF, JPG ou PNG uniquement).",
             )
         fname = file.filename or "certificat.pdf"
-        url = training_repository.upload_enrollment_certificate(
+        url = training_router.upload_enrollment_certificate(
             enrollment_id, cid, body, fname, ct
         )
         return CertificateUploadResponse(certificate_url=url)

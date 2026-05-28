@@ -7,8 +7,10 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.security import get_current_user
-from app.modules.documents.application.queries import get_employee_id_for_user_scope
 from app.modules.notifications.application import queries as notification_queries
+from app.modules.notifications.application.employee_scope import (
+    resolve_employee_id_for_notifications,
+)
 from app.modules.notifications.schemas.responses import NotificationResponse, UnreadCountResponse
 from app.modules.users.schemas.responses import User
 
@@ -23,8 +25,10 @@ def _company_id(user: User) -> str:
 
 
 def _employee_scope_or_403(user: User, company_id: str) -> str:
-    """Résolution employé — même pattern que documents / certifications."""
-    eid = get_employee_id_for_user_scope(str(user.id), company_id)
+    """Résolution employé — id, user_id ou email."""
+    eid = resolve_employee_id_for_notifications(
+        str(user.id), company_id, user_email=user.email
+    )
     if not eid:
         raise HTTPException(
             status_code=403,
@@ -35,11 +39,9 @@ def _employee_scope_or_403(user: User, company_id: str) -> str:
 
 def _employee_id_for_notifications_read(user: User, company_id: str) -> str | None:
     """GET liste / compteur : pas d'employé → vide silencieux (pas 403/500)."""
-    try:
-        eid = get_employee_id_for_user_scope(str(user.id), company_id)
-        return str(eid) if eid else None
-    except Exception:
-        return None
+    return resolve_employee_id_for_notifications(
+        str(user.id), company_id, user_email=user.email
+    )
 
 
 def _row_to_response(row: Dict[str, Any]) -> NotificationResponse:

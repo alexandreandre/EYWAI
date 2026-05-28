@@ -46,16 +46,8 @@ const eur = new Intl.NumberFormat("fr-FR", {
   currency: "EUR",
 });
 
-function triggerDownload(blob: Blob, filename: string): void {
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.setAttribute("download", filename);
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  window.URL.revokeObjectURL(url);
-}
+import { downloadBlob as triggerDownload } from '@/lib/downloadBlob';
+
 
 function escapeCsvCell(v: string): string {
   if (/[;\n"]/.test(v)) {

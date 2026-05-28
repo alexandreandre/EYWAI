@@ -7,11 +7,55 @@ Comportement identique à l'application ; pas de FastAPI.
 
 from __future__ import annotations
 
-from typing import Any, Dict
+import logging
+from typing import Any, Dict, Optional
 
 from app.core.database import get_supabase_client
 
 from app.modules.super_admin.infrastructure import providers
+
+_log = logging.getLogger(__name__)
+
+# Groupe plateforme unique — toute nouvelle entreprise y est rattachée automatiquement.
+DEFAULT_PLATFORM_GROUP_NAME = "MAJI"
+
+
+def _resolve_default_group_id(supabase: Any) -> Optional[str]:
+    """Retourne l'id du groupe MAJI, ou le seul groupe existant."""
+    by_name = (
+        supabase.table("company_groups")
+        .select("id")
+        .ilike("group_name", DEFAULT_PLATFORM_GROUP_NAME)
+        .limit(1)
+        .execute()
+    )
+    if by_name.data:
+        return str(by_name.data[0]["id"])
+    all_groups = supabase.table("company_groups").select("id").limit(2).execute()
+    if all_groups.data and len(all_groups.data) == 1:
+        return str(all_groups.data[0]["id"])
+    return None
+
+
+def _attach_company_to_default_group(supabase: Any, company_id: str) -> Optional[str]:
+    """Rattache l'entreprise au groupe MAJI (best effort)."""
+    group_id = _resolve_default_group_id(supabase)
+    if not group_id:
+        _log.warning(
+            "Groupe %s introuvable : entreprise %s non rattachée",
+            DEFAULT_PLATFORM_GROUP_NAME,
+            company_id,
+        )
+        return None
+    updated = (
+        supabase.table("companies")
+        .update({"group_id": group_id})
+        .eq("id", company_id)
+        .execute()
+    )
+    if updated.data:
+        return group_id
+    return None
 
 
 def create_company_with_admin(
@@ -35,6 +79,10 @@ def create_company_with_admin(
     if not new_company.data:
         raise RuntimeError("Erreur lors de la création de l'entreprise")
     company_id = new_company.data[0]["id"]
+    group_id = _attach_company_to_default_group(supabase, company_id)
+    company_row = dict(new_company.data[0])
+    if group_id:
+        company_row["group_id"] = group_id
     admin_info = None
     if create_admin:
         try:
@@ -73,7 +121,7 @@ def create_company_with_admin(
             raise ValueError(
                 f"Erreur lors de la création du profil: {str(profile_error)}"
             ) from profile_error
-    result = {"success": True, "company": new_company.data[0]}
+    result = {"success": True, "company": company_row}
     if admin_info:
         result["admin"] = admin_info
     return result

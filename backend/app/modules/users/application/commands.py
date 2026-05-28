@@ -127,7 +127,7 @@ def revoke_company_access(
     domain_rules.validate_cannot_revoke_last_admin(
         is_revoking_self=(
             user_id == current_user.id
-            and not getattr(current_user, "is_super_admin", False)
+            and not getattr(current_user, "is_platform_admin", False)
         ),
         admin_count=access_repo.count_admins(company_id),
     )
@@ -306,7 +306,7 @@ def update_user_with_permissions(
         raise LookupError("Utilisateur n'a pas d'accès à cette entreprise")
     target_role = access["role"]
 
-    if not getattr(current_user, "is_super_admin", False):
+    if not getattr(current_user, 'is_platform_admin', False) or current_user.is_platform_admin:
         if not current_user.has_access_to_company(company_id):
             raise PermissionError("Vous n'avez pas accès à cette entreprise")
         creator_role = current_user.get_role_in_company(company_id) or ""

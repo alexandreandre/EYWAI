@@ -188,7 +188,7 @@ class TestPayslipsMyPayslipsRoute:
         from app.core.security import get_current_user
 
         with patch(
-            "app.modules.payslips.api.router.get_my_payslips",
+            "app.modules.payslips.api.router.get_my_payslips_for_user_account",
             return_value=[
                 {
                     "id": "ps-1",
@@ -310,9 +310,15 @@ class TestPayslipsDetailRoute:
         """Bulletin inexistant → 404."""
         from app.core.security import get_current_user
 
-        with patch(
-            "app.modules.payslips.api.router.get_payslip_details_for_user"
-        ) as mock_get:
+        with (
+            patch(
+                "app.modules.payslips.api.router.resolve_employee_id_for_user_account",
+                return_value=TEST_EMPLOYEE_ID,
+            ),
+            patch(
+                "app.modules.payslips.api.router.get_payslip_details_for_user"
+            ) as mock_get,
+        ):
             from app.modules.payslips.application.dto import PayslipNotFoundError
 
             mock_get.side_effect = PayslipNotFoundError("Bulletin non trouvé")
@@ -328,9 +334,15 @@ class TestPayslipsDetailRoute:
         """Utilisateur sans droit → 403."""
         from app.core.security import get_current_user
 
-        with patch(
-            "app.modules.payslips.api.router.get_payslip_details_for_user"
-        ) as mock_get:
+        with (
+            patch(
+                "app.modules.payslips.api.router.resolve_employee_id_for_user_account",
+                return_value=TEST_EMPLOYEE_ID,
+            ),
+            patch(
+                "app.modules.payslips.api.router.get_payslip_details_for_user"
+            ) as mock_get,
+        ):
             from app.modules.payslips.application.dto import PayslipForbiddenError
 
             mock_get.side_effect = PayslipForbiddenError("Accès refusé")
@@ -366,9 +378,15 @@ class TestPayslipsDetailRoute:
             "edit_history": [],
             "cumuls": None,
         }
-        with patch(
-            "app.modules.payslips.api.router.get_payslip_details_for_user",
-            return_value=detail,
+        with (
+            patch(
+                "app.modules.payslips.api.router.resolve_employee_id_for_user_account",
+                return_value=TEST_EMPLOYEE_ID,
+            ),
+            patch(
+                "app.modules.payslips.api.router.get_payslip_details_for_user",
+                return_value=detail,
+            ),
         ):
             app.dependency_overrides[get_current_user] = lambda: _make_employee_user()
             try:

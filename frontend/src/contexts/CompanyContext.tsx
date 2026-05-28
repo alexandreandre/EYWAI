@@ -10,9 +10,10 @@
 
 import { log } from '@/lib/logger';
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
 import apiClient from '../api/apiClient';
+import { queryKeys } from '@/lib/queryKeys';
 
 // ===== Types =====
 
@@ -45,94 +46,83 @@ const CompanyContext = createContext<CompanyContextType | null>(null);
 
 // ===== Provider =====
 
+async function fetchMyCompanies(): Promise<CompanyAccess[]> {
+  const response = await apiClient.get('/api/users/my-companies');
+  return response.data as CompanyAccess[];
+}
+
 export const CompanyProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [accessibleCompanies, setAccessibleCompanies] = useState<CompanyAccess[]>([]);
   const [activeCompany, setActiveCompanyState] = useState<CompanyAccess | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  /**
-   * Charge les entreprises accessibles depuis l'API
-   */
-  const loadCompanies = async () => {
+  const companiesQuery = useQuery({
+    queryKey: queryKeys.myCompanies(),
+    queryFn: fetchMyCompanies,
+    enabled: Boolean(user),
+    staleTime: 10 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
+  });
+
+  const accessibleCompanies = companiesQuery.data ?? [];
+  const isLoading =
+    Boolean(user) && companiesQuery.isLoading && !companiesQuery.data;
+
+  useEffect(() => {
+    if (companiesQuery.isError) {
+      const err = companiesQuery.error as {
+        response?: { data?: { detail?: string } };
+        message?: string;
+      };
+      if (import.meta.env.DEV) {
+        log.error('[CompanyContext] Erreur chargement entreprises:', companiesQuery.error);
+      }
+      setError(
+        err.response?.data?.detail ||
+          err.message ||
+          'Erreur lors du chargement des entreprises',
+      );
+      return;
+    }
+    setError(null);
+  }, [companiesQuery.isError, companiesQuery.error]);
+
+  useEffect(() => {
     if (!user) {
-      setIsLoading(false);
+      setActiveCompanyState(null);
       return;
     }
 
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const response = await apiClient.get('/api/users/my-companies');
-      const companies = response.data as CompanyAccess[];
-
-      setAccessibleCompanies(companies);
-
-      if (companies.length > 0) {
-        const savedCompanyId = localStorage.getItem('activeCompanyId');
-        let companyToActivate: CompanyAccess | undefined;
-
-        if (savedCompanyId) {
-          companyToActivate = companies.find((c) => c.company_id === savedCompanyId);
-          if (!companyToActivate) {
-            localStorage.removeItem('activeCompanyId');
-          }
-        }
-
-        if (!companyToActivate) {
-          companyToActivate = companies.find((c) => c.is_primary);
-        }
-
-        if (!companyToActivate) {
-          companyToActivate = companies[0];
-        }
-
-        setActiveCompanyState(companyToActivate);
-        localStorage.setItem('activeCompanyId', companyToActivate.company_id);
-      } else {
+    const companies = companiesQuery.data;
+    if (!companies?.length) {
+      if (!companiesQuery.isLoading) {
         setActiveCompanyState(null);
       }
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { detail?: string } }; message?: string };
-      if (import.meta.env.DEV) {
-        log.error('[CompanyContext] Erreur chargement entreprises:', err);
+      return;
+    }
+
+    const savedCompanyId = localStorage.getItem('activeCompanyId');
+    let companyToActivate: CompanyAccess | undefined;
+
+    if (savedCompanyId) {
+      companyToActivate = companies.find((c) => c.company_id === savedCompanyId);
+      if (!companyToActivate) {
+        localStorage.removeItem('activeCompanyId');
       }
-      setError(
-        axiosErr.response?.data?.detail ||
-          axiosErr.message ||
-          'Erreur lors du chargement des entreprises',
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  /**
-   * Initialisation au montage ou quand l'utilisateur change
-   */
-  useEffect(() => {
-    const isSuperAdmin = user?.is_super_admin === true || user?.role === 'super_admin';
-
-    if (user && !isSuperAdmin) {
-      const timer = setTimeout(() => {
-        setIsLoading(false);
-        setError('Timeout lors du chargement des entreprises');
-      }, 10000);
-
-      void loadCompanies().finally(() => clearTimeout(timer));
-
-      return () => clearTimeout(timer);
     }
 
-    if (isSuperAdmin) {
-      setIsLoading(false);
-    } else {
-      setIsLoading(false);
+    if (!companyToActivate) {
+      companyToActivate = companies.find((c) => c.is_primary);
     }
-  }, [user]);
+
+    if (!companyToActivate) {
+      companyToActivate = companies[0];
+    }
+
+    setActiveCompanyState(companyToActivate);
+    localStorage.setItem('activeCompanyId', companyToActivate.company_id);
+  }, [user, companiesQuery.data, companiesQuery.isLoading]);
 
   /**
    * Change l'entreprise active
@@ -155,7 +145,7 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
    * Rafraîchir manuellement les entreprises
    */
   const refreshCompanies = async () => {
-    await loadCompanies();
+    await companiesQuery.refetch();
   };
 
   return (

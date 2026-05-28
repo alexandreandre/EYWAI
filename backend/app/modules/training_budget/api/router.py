@@ -6,6 +6,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.core.platform_admin import is_platform_admin
 from app.core.security import get_current_user
 from app.modules.training_budget.application import commands, queries
 from app.modules.training_budget.schemas.requests import TrainingBudgetPutBody
@@ -41,7 +42,7 @@ def _company_id(user: User) -> str:
 
 
 def _is_rh(user: User) -> bool:
-    if getattr(user, "is_super_admin", False):
+    if is_platform_admin(user):
         return True
     if not user.active_company_id:
         return False

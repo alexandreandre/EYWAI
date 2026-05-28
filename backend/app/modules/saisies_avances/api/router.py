@@ -46,11 +46,15 @@ _ERR_RH_REQUIRED = "Accès réservé aux RH et administrateurs."
 
 
 def _user_ctx(user) -> UserContext:
-    return UserContext(user_id=user.id, role=getattr(user, "role", ""))
+    return UserContext(
+        user_id=user.id,
+        role=user.role,
+        active_company_id=user.active_company_id,
+    )
 
 
 def _require_rh_or_admin(current_user: User) -> None:
-    if current_user.is_super_admin:
+    if current_user.is_platform_admin:
         return
     active_company_id = current_user.active_company_id
     if not active_company_id or not current_user.has_rh_access_in_company(active_company_id):
@@ -169,7 +173,9 @@ async def get_my_salary_advances(
 ):
     """Récupère mes avances (employé)."""
     try:
-        return queries.get_my_salary_advances(str(current_user.id))
+        return queries.get_my_salary_advances_for_user_account(
+            str(current_user.id), current_user.active_company_id
+        )
     except Exception as e:
         _handle_error(e)
 
@@ -183,7 +189,9 @@ async def get_my_advance_available(
 ):
     """Récupère le montant disponible pour une avance (employé)."""
     try:
-        return queries.get_my_advance_available(str(current_user.id))
+        return queries.get_my_advance_available_for_user_account(
+            str(current_user.id), current_user.active_company_id
+        )
     except SaisiesAvancesError as e:
         _handle_error(e)
     except Exception as e:

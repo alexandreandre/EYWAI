@@ -17,33 +17,33 @@ from app.modules.collective_agreements.application.service import (
 
 def create_catalog_item(
     data: CatalogCreateInput,
-    is_super_admin: bool,
+    is_platform_admin: bool,
     service: Optional[CollectiveAgreementsService] = None,
 ) -> dict[str, Any]:
     """Crée une entrée catalogue (super admin)."""
     svc = service or get_collective_agreements_service()
-    return svc.create_catalog_item(data, is_super_admin)
+    return svc.create_catalog_item(data, is_platform_admin)
 
 
 def update_catalog_item(
     agreement_id: str,
     update_dict_raw: dict[str, Any],
-    is_super_admin: bool,
+    is_platform_admin: bool,
     service: Optional[CollectiveAgreementsService] = None,
 ) -> Optional[dict[str, Any]]:
     """Met à jour une entrée catalogue (super admin). update_dict_raw = model_dump(exclude_unset=True)."""
     svc = service or get_collective_agreements_service()
-    return svc.update_catalog_item(agreement_id, update_dict_raw, is_super_admin)
+    return svc.update_catalog_item(agreement_id, update_dict_raw, is_platform_admin)
 
 
 def delete_catalog_item(
     agreement_id: str,
-    is_super_admin: bool,
+    is_platform_admin: bool,
     service: Optional[CollectiveAgreementsService] = None,
 ) -> bool:
     """Supprime une entrée catalogue (super admin)."""
     svc = service or get_collective_agreements_service()
-    return svc.delete_catalog_item(agreement_id, is_super_admin)
+    return svc.delete_catalog_item(agreement_id, is_platform_admin)
 
 
 def assign_agreement_to_company(
@@ -73,9 +73,9 @@ def unassign_agreement_from_company(
 
 def refresh_text_cache(
     agreement_id: str,
-    is_super_admin: bool,
+    is_platform_admin: bool,
     service: Optional[CollectiveAgreementsService] = None,
 ) -> None:
     """Force le rafraîchissement du cache texte PDF (super admin)."""
     svc = service or get_collective_agreements_service()
-    svc.refresh_text_cache(agreement_id, is_super_admin)
+    svc.refresh_text_cache(agreement_id, is_platform_admin)

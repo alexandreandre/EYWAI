@@ -22,6 +22,7 @@ from app.modules.employees.infrastructure.queries import (
     fetch_published_exit_documents,
     get_company_id_for_user_from_profile,
     get_employee_company_id,
+    resolve_employee_id_for_user_account,
 )
 from app.modules.employees.infrastructure.repository import EmployeeRepository
 
@@ -38,6 +39,17 @@ def get_employees(company_id: str) -> List[Dict[str, Any]]:
     return [enrich_employee_with_residence_permit_status(row) for row in rows]
 
 
+def get_employees_summary(
+    company_id: str,
+    *,
+    active_only: bool = False,
+) -> List[Dict[str, Any]]:
+    """Liste légère sans enrichissement (grilles RH, planning)."""
+    return _employee_repository.get_summary_by_company(
+        company_id, active_only=active_only
+    )
+
+
 def get_employee_by_id(employee_id: str, company_id: str) -> Optional[Dict[str, Any]]:
     """
     Détail d'un employé (enrichi titre de séjour + entretien annuel).
@@ -49,6 +61,16 @@ def get_employee_by_id(employee_id: str, company_id: str) -> Optional[Dict[str, 
     data = enrich_employee_with_residence_permit_status(data)
     data = enrich_employee_with_annual_review(data)
     return data
+
+
+def get_my_employee_profile(user_id: str, company_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Fiche collaborateur de l'utilisateur connecté (résolution user_id → employees.id).
+    """
+    employee_id = resolve_employee_id_for_user_account(user_id, company_id)
+    if not employee_id:
+        return None
+    return get_employee_by_id(employee_id, company_id)
 
 
 def get_my_contract_url(employee_id: str) -> Optional[str]:

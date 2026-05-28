@@ -97,6 +97,77 @@ def fetch_published_exit_documents(
     return documents
 
 
+def _employee_id_from_row_response(res: Any) -> Optional[str]:
+    if res and res.data and res.data.get("id"):
+        return str(res.data["id"])
+    return None
+
+
+def _resolve_employee_id_by_auth_email(user_id: str, company_id: str) -> Optional[str]:
+    """Dernier recours : même e-mail Auth que la fiche employees."""
+    try:
+        auth_user = supabase.auth.admin.get_user_by_id(str(user_id))
+        email = (
+            (auth_user.user.email or "").strip().lower()
+            if auth_user and auth_user.user
+            else ""
+        )
+    except Exception:
+        logger.debug("resolve_employee: email auth indisponible pour %s", user_id)
+        return None
+    if not email:
+        return None
+    res = (
+        supabase.table("employees")
+        .select("id")
+        .eq("company_id", str(company_id))
+        .ilike("email", email)
+        .maybe_single()
+        .execute()
+    )
+    return _employee_id_from_row_response(res)
+
+
+def resolve_employee_id_for_user_account(
+    user_id: str, company_id: str
+) -> Optional[str]:
+    """
+    Résout l'id employé pour un compte utilisateur dans une entreprise.
+
+    - Liaison explicite via employees.user_id
+    - Sinon employees.id == user_id (convention à la création : id = uid auth)
+    - Sinon même e-mail que le compte Auth (fiches sans user_id renseigné)
+    """
+    uid = str(user_id)
+    cid = str(company_id)
+
+    by_user_id = (
+        supabase.table("employees")
+        .select("id")
+        .eq("user_id", uid)
+        .eq("company_id", cid)
+        .maybe_single()
+        .execute()
+    )
+    found = _employee_id_from_row_response(by_user_id)
+    if found:
+        return found
+
+    by_primary_id = (
+        supabase.table("employees")
+        .select("id")
+        .eq("id", uid)
+        .eq("company_id", cid)
+        .maybe_single()
+        .execute()
+    )
+    found = _employee_id_from_row_response(by_primary_id)
+    if found:
+        return found
+
+    return _resolve_employee_id_by_auth_email(uid, cid)
+
+
 def get_employee_company_id(employee_id: str) -> Optional[str]:
     """Retourne le company_id d'un employé (pour les URLs storage)."""
     response = (

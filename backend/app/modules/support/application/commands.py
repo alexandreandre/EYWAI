@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.modules.support.infrastructure.repository import support_repository
 from app.modules.support.infrastructure.email_service import send_support_ticket_email
+from app.modules.audit.infrastructure.repository import audit_repository
 
 
 def create_ticket(
@@ -60,4 +61,15 @@ def update_ticket_status(ticket_id: str, new_status: str, changed_by: str) -> di
         "changed_by": changed_by,
     })
     updated["status_history"] = support_repository.get_status_history(ticket_id)
+    company_id = str(ticket.get("company_id") or "")
+    if company_id:
+        audit_repository.log(
+            company_id,
+            changed_by,
+            None,
+            "support.ticket_status_change",
+            "support_ticket",
+            ticket_id,
+            {"old_status": old_status, "new_status": new_status},
+        )
     return updated

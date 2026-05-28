@@ -140,21 +140,36 @@ class TestCanViewPayslip:
             can_view_payslip(
                 payslip,
                 user_id="user-1",
-                is_super_admin=False,
+                is_platform_admin=False,
                 has_rh_access_in_company=lambda c: False,
                 active_company_id="co-2",
             )
             is True
         )
 
-    def test_super_admin_can_view_any_payslip(self):
-        """Un super admin peut consulter n'importe quel bulletin."""
+    def test_employee_can_view_payslip_via_resolved_employee_id(self):
+        """Compte auth lié à une fiche employé distincte (user_id sur employees)."""
+        payslip = {"employee_id": "emp-99", "company_id": "co-1"}
+        assert (
+            can_view_payslip(
+                payslip,
+                user_id="auth-1",
+                is_platform_admin=False,
+                has_rh_access_in_company=lambda c: False,
+                active_company_id="co-1",
+                resolved_employee_id="emp-99",
+            )
+            is True
+        )
+
+    def test_platform_admin_can_view_any_payslip(self):
+        """Un admin plateforme peut consulter n'importe quel bulletin."""
         payslip = {"employee_id": "emp-1", "company_id": "co-1"}
         assert (
             can_view_payslip(
                 payslip,
                 user_id="other-user",
-                is_super_admin=True,
+                is_platform_admin=True,
                 has_rh_access_in_company=lambda c: False,
                 active_company_id=None,
             )
@@ -168,7 +183,7 @@ class TestCanViewPayslip:
             can_view_payslip(
                 payslip,
                 user_id="rh-user",
-                is_super_admin=False,
+                is_platform_admin=False,
                 has_rh_access_in_company=lambda c: c == "co-1",
                 active_company_id="co-1",
             )
@@ -182,7 +197,7 @@ class TestCanViewPayslip:
             can_view_payslip(
                 payslip,
                 user_id="rh-user",
-                is_super_admin=False,
+                is_platform_admin=False,
                 has_rh_access_in_company=lambda c: c == "co-1",
                 active_company_id="co-2",
             )
@@ -196,7 +211,7 @@ class TestCanViewPayslip:
             can_view_payslip(
                 payslip,
                 user_id="other-user",
-                is_super_admin=False,
+                is_platform_admin=False,
                 has_rh_access_in_company=lambda c: False,
                 active_company_id="co-1",
             )
@@ -210,7 +225,7 @@ class TestCanViewPayslip:
             can_view_payslip(
                 payslip,
                 user_id="other-user",
-                is_super_admin=False,
+                is_platform_admin=False,
                 has_rh_access_in_company=lambda c: True,
                 active_company_id="co-1",
             )
@@ -224,7 +239,7 @@ class TestCanViewPayslip:
             can_view_payslip(
                 payslip,
                 user_id="rh-user",
-                is_super_admin=False,
+                is_platform_admin=False,
                 has_rh_access_in_company=lambda c: c == "co-1",
                 active_company_id=None,
             )
@@ -244,7 +259,7 @@ class TestCanEditOrRestorePayslip:
         assert (
             can_edit_or_restore_payslip(
                 payslip,
-                is_super_admin=True,
+                is_platform_admin=True,
                 has_rh_access_in_company=lambda c: False,
                 active_company_id=None,
             )
@@ -257,7 +272,7 @@ class TestCanEditOrRestorePayslip:
         assert (
             can_edit_or_restore_payslip(
                 payslip,
-                is_super_admin=False,
+                is_platform_admin=False,
                 has_rh_access_in_company=lambda c: c == "co-1",
                 active_company_id="co-1",
             )
@@ -270,7 +285,7 @@ class TestCanEditOrRestorePayslip:
         assert (
             can_edit_or_restore_payslip(
                 payslip,
-                is_super_admin=False,
+                is_platform_admin=False,
                 has_rh_access_in_company=lambda c: c == "co-1",
                 active_company_id="co-2",
             )
@@ -283,7 +298,7 @@ class TestCanEditOrRestorePayslip:
         assert (
             can_edit_or_restore_payslip(
                 payslip,
-                is_super_admin=False,
+                is_platform_admin=False,
                 has_rh_access_in_company=lambda c: True,
                 active_company_id="co-1",
             )
@@ -296,7 +311,7 @@ class TestCanEditOrRestorePayslip:
         assert (
             can_edit_or_restore_payslip(
                 payslip,
-                is_super_admin=False,
+                is_platform_admin=False,
                 has_rh_access_in_company=lambda c: False,
                 active_company_id="co-1",
             )

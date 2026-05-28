@@ -255,70 +255,19 @@ frontend/
 │   ├── lib/                       # Utilitaires
 │   │   └── utils.ts              # Fonctions utilitaires (cn, etc.)
 │   │
-│   ├── pages/                     # Pages de l'application
-│   │   ├── Login.tsx             # Page de connexion
-│   │   ├── ForgotPassword.tsx    # Mot de passe oublié
-│   │   ├── ResetPassword.tsx     # Réinitialisation mot de passe
-│   │   ├── NotFound.tsx          # Page 404
-│   │   │
-│   │   ├── Dashboard.tsx         # Tableau de bord RH
-│   │   ├── Employees.tsx         # Liste des employés
-│   │   ├── EmployeeDetail.tsx    # Détails d'un employé
-│   │   ├── Payroll.tsx           # Liste des bulletins
-│   │   ├── PayrollDetail.tsx     # Détails bulletins d'un employé
-│   │   ├── PayslipEdit.tsx      # Édition d'un bulletin
-│   │   ├── Saisies.tsx          # Saisies mensuelles
-│   │   ├── Rates.tsx            # Suivi des taux
-│   │   ├── Absences.tsx          # Gestion des absences (RH)
-│   │   ├── Expenses.tsx          # Notes de frais (RH)
-│   │   ├── Schedules.tsx        # Calendriers et plannings
-│   │   ├── CompanyPage.tsx      # Paramètres entreprise
-│   │   ├── EmployeeExits.tsx    # Sorties de salariés
-│   │   ├── ExitDocumentEdit.tsx # Édition documents de sortie
-│   │   ├── Simulation.tsx       # Simulation de paie
-│   │   ├── UserManagement.tsx   # Gestion des utilisateurs
-│   │   ├── UserCreation.tsx     # Création d'utilisateur
-│   │   ├── UserEdit.tsx        # Édition d'utilisateur
-│   │   ├── GroupDashboard.tsx  # Tableau de bord groupe
-│   │   ├── Exports.tsx         # Exports (RH/Paie)
-│   │   ├── ResidencePermits.tsx # Titres de séjour
-│   │   ├── MedicalFollowUp.tsx  # Suivi médical (RH)
-│   │   ├── AnnualReviews.tsx   # Entretiens annuels
-│   │   ├── AnnualReviewDetail.tsx # Détails entretien
-│   │   ├── Promotions.tsx
-│   │   ├── PromotionDetail.tsx
-│   │   ├── CSE.tsx              # CSE (RH)
-│   │   ├── Recruitment.tsx
-│   │   ├── SalarySeizures.tsx   # Saisies sur salaire
-│   │   ├── SalaryAdvances.tsx   # Avances sur salaire
-│   │   └── UserProfile.tsx      # Fiche utilisateur (/users/:userId)
-│   │   │
-│   │   ├── employee/            # Pages collaborateur (routes à la racine pour ce rôle)
-│   │   │   ├── Dashboard.tsx
-│   │   │   ├── Profile.tsx
-│   │   │   ├── Payslips.tsx
-│   │   │   ├── Absences.tsx
-│   │   │   ├── Calendar.tsx
-│   │   │   ├── Expenses.tsx
-│   │   │   ├── Documents.tsx
-│   │   │   ├── AnnualReviews.tsx
-│   │   │   ├── AnnualReviewDetail.tsx
-│   │   │   ├── CSE.tsx
-│   │   │   └── MedicalFollowUp.tsx
-│   │   │
-│   │   └── super-admin/         # Préfixe URL /super-admin/...
-│   │       ├── SuperAdminLayout.tsx
-│   │       ├── SuperAdminDashboard.tsx
-│   │       ├── Companies.tsx
-│   │       ├── CompanyDetails.tsx
-│   │       ├── Users.tsx
-│   │       ├── Monitoring.tsx
-│   │       ├── Tests.tsx        # Outils / tests Super Admin
-│   │       ├── ReductionFillon.tsx
-│   │       ├── Scraping.tsx
-│   │       ├── CollectiveAgreementsCatalog.tsx
-│   │       ├── CompanyGroups.tsx
-│   │       └── CompanyGroupDetail.tsx
+│   ├── pages/                     # Pages (3 espaces : admin, rh, employee)
+│   │   ├── admin/
+│   │   │   ├── eywai/            # Admin plateforme EYWAI (layout, sociétés, support…)
+│   │   │   └── super/            # Routes /super-admin/… (réexport layout/dashboard eywai)
+│   │   ├── rh/                   # Espace RH + modules transverses (auth, support, onboarding)
+│   │   │   ├── auth/             # Login, mot de passe oublié / reset
+│   │   │   ├── support/
+│   │   │   ├── onboarding/
+│   │   │   ├── formation/, company/, cse/, manager/
+│   │   │   └── *.tsx             # Dashboard, Payroll, Employees, Planning, etc.
+│   │   └── employee/             # Espace collaborateur (routes racine pour ce rôle)
+│   │       ├── Dashboard.tsx, Profile.tsx, Payslips.tsx, …
+│   │       └── formation/
 │   │
 │   └── integrations/             # Intégrations externes
 │       └── supabase/

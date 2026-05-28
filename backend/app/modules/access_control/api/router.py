@@ -7,7 +7,7 @@ Aucune logique métier lourde ni accès DB direct. Comportement HTTP identique a
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.security import get_current_user
 from app.modules.access_control.application import commands, queries
@@ -22,6 +22,7 @@ from app.modules.access_control.schemas import (
     RoleTemplateQuickCreate,
     RoleTemplateWithPermissions,
     UserPermissionsSummary,
+    UserPermissionsUpdate,
 )
 from app.modules.users.schemas.responses import User
 
@@ -85,6 +86,46 @@ async def get_user_permissions(
 ):
     """Résumé des permissions d'un utilisateur dans une entreprise. Hiérarchie et RH gérés par l'application."""
     return queries.get_user_permissions_summary(current_user, user_id, company_id)
+
+
+@router.put("/users/{user_id}/permissions")
+async def put_user_permissions(
+    user_id: str,
+    data: UserPermissionsUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    """Remplace la liste complète des permissions d'un utilisateur pour une entreprise."""
+    if str(data.user_id) != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="L'identifiant utilisateur ne correspond pas",
+        )
+    return commands.replace_user_permissions(
+        current_user,
+        user_id,
+        str(data.company_id),
+        [str(p) for p in data.permission_ids],
+    )
+
+
+@router.post("/users/{user_id}/permissions", status_code=status.HTTP_200_OK)
+async def post_user_permissions(
+    user_id: str,
+    data: UserPermissionsUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    """Accorde des permissions supplémentaires sans supprimer les existantes."""
+    if str(data.user_id) != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="L'identifiant utilisateur ne correspond pas",
+        )
+    return commands.grant_user_permissions(
+        current_user,
+        user_id,
+        str(data.company_id),
+        [str(p) for p in data.permission_ids],
+    )
 
 
 # --- Templates de rôles ---
