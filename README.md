@@ -484,6 +484,7 @@ Dans la console Cloud Run, configurer les variables d'environnement pour chaque 
 
 ### Documentation supplémentaire
 
+- [docs/commercial/](docs/commercial/) — Documents commerciaux (propositions, cession).
 - [DEPLOIEMENT.md](DEPLOIEMENT.md) — Déploiement (ex. Cloud Run, Docker).
 - Documentation technique par module sous `backend/app/modules/*/(*.md)` (décisions, migrations de code).
 

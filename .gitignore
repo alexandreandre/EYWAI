@@ -120,6 +120,10 @@ backend/.venv-ci
 backend/.venv-ci-local
 .venv-ci*
 
+# Artefacts locaux (génération OpenAPI, etc.)
+backend/openapi-local.json
+*.local.json
+
 # Spyder project settings
 .spyderproject
 .spyproject
