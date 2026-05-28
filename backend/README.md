@@ -578,9 +578,15 @@ pip install -r requirements.txt
 
 4. **Configurer les variables d'environnement**
 
-Créer un fichier `.env` à la racine de `backend/` (les noms exacts sont centralisés dans `app/core` — reprendre ceux utilisés en production / Cloud Run).
+Copier le modèle versionné puis adapter les valeurs :
 
-Exemples courants :
+```bash
+cp .env.example .env
+```
+
+Les noms exacts sont centralisés dans `app/core/settings.py` — reprendre ceux utilisés en production / Cloud Run si besoin.
+
+Exemples courants (voir aussi `.env.example`) :
 
 ```env
 SUPABASE_URL=https://votre-projet.supabase.co
