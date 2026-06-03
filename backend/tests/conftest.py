@@ -10,8 +10,8 @@ from app.main import app
 
 # Scripts manuels nommés test_*.py mais non destinés à pytest (code au niveau module).
 collect_ignore = [
-    "test_login.py",
-    "test_absenteeism.py",
+    "integration/legacy/test_login.py",
+    "integration/legacy/test_absenteeism.py",
 ]
 
 
