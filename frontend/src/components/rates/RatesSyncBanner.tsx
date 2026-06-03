@@ -1,26 +1,51 @@
-import { AlertCircle, ChevronDown, ChevronRight, Loader2, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { AlertCircle, AlertTriangle, CheckCircle2, Info, X, XCircle } from 'lucide-react';
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import { Progress } from '@/components/ui/progress';
 import type { RatesSyncStatusResponse } from '@/api/rates';
 import {
-  formatSyncEta,
-  jobProgressPercent,
-  jobStatusLabel,
-  syncProgressLabel,
+  aggregateSyncProgress,
+  collectSyncRateTargets,
+  computeActiveSyncElapsedSec,
+  displaySyncProgressPercent,
+  formatSyncProgressEstimate,
+  formatSyncProgressEstimateFromJobs,
+  partitionSyncRateTargets,
+  shouldPartitionSyncTargets,
+  type SyncRateTarget,
 } from '@/lib/ratesSyncProgress';
+import {
+  sumStoredSyncDurationForFullSync,
+  sumStoredSyncDurationForTarget,
+} from '@/lib/ratesSyncDurationStorage';
+import type { RatesSyncTarget } from '@/lib/ratesSyncManifest';
+import {
+  buildSyncOutcomePresentation,
+  humanizeSyncError,
+} from '@/lib/ratesSyncOutcome';
 import { cn } from '@/lib/utils';
 
 type ActiveSyncView = {
   syncId: string;
   label: string;
+  target: RatesSyncTarget;
   status: RatesSyncStatusResponse | null;
   isMonthly?: boolean;
 };
@@ -28,35 +53,286 @@ type ActiveSyncView = {
 type RatesSyncBannerProps = {
   isSyncing: boolean;
   syncError: string | null;
+  syncOutcome: RatesSyncStatusResponse | null;
   activeSyncs: ActiveSyncView[];
   onCancelSync?: (syncId: string) => void;
+  onCancelAll?: () => void;
+  onDismissOutcome?: () => void;
 };
 
-function SyncJobRow({
-  sourceName,
-  statusLabel,
-  percent,
-  lastLog,
-  isActive,
+function RateTargetChip({
+  target,
+  muted = false,
 }: {
-  sourceName: string;
-  statusLabel: string;
-  percent: number;
-  lastLog?: string;
-  isActive: boolean;
+  target: SyncRateTarget;
+  muted?: boolean;
 }) {
   return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between gap-2 text-xs">
-        <span className={cn('truncate font-medium', isActive && 'text-foreground')}>
-          {sourceName}
-        </span>
-        <span className="shrink-0 text-muted-foreground">{statusLabel}</span>
+    <span
+      className={cn(
+        'inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium',
+        muted && 'border-border/50 bg-muted/20 text-muted-foreground/80',
+        !muted && 'border-border/80 bg-muted/40 text-muted-foreground',
+        !muted && target.status === 'running' && 'text-foreground',
+        target.status === 'failed' &&
+          'border-destructive/30 bg-destructive/[0.04] text-destructive/90',
+      )}
+    >
+      {target.status === 'running' ? (
+        <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden />
+      ) : target.status === 'done' ? (
+        <CheckCircle2
+          className={cn('h-3 w-3', muted ? 'text-muted-foreground/60' : 'text-emerald-600/80')}
+          aria-hidden
+        />
+      ) : target.status === 'failed' ? (
+        <XCircle className="h-3 w-3 shrink-0 text-destructive/80" aria-hidden />
+      ) : (
+        <span className="h-1.5 w-1.5 rounded-full bg-current opacity-50" aria-hidden />
+      )}
+      <span className="truncate max-w-[14rem]">{target.label}</span>
+    </span>
+  );
+}
+
+const MAX_VISIBLE_CHIPS = 8;
+
+function SyncTargetChipSection({
+  label,
+  targets,
+  muted = false,
+}: {
+  label: string;
+  targets: SyncRateTarget[];
+  muted?: boolean;
+}) {
+  if (targets.length === 0) return null;
+
+  const visible = targets.slice(0, MAX_VISIBLE_CHIPS);
+  const hiddenCount = targets.length - visible.length;
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-medium text-muted-foreground">
+        {label}
+        <span className="ml-1.5 font-normal tabular-nums">({targets.length})</span>
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {visible.map((target) => (
+          <RateTargetChip key={target.label} target={target} muted={muted} />
+        ))}
+        {hiddenCount > 0 && (
+          <span className="inline-flex h-7 items-center rounded-md border border-border/80 bg-muted/40 px-2.5 text-xs font-medium text-muted-foreground">
+            +{hiddenCount} autre{hiddenCount > 1 ? 's' : ''}
+          </span>
+        )}
       </div>
-      <Progress value={percent} className="h-1" />
-      {isActive && lastLog ? (
-        <p className="text-[11px] text-muted-foreground truncate font-mono">{lastLog}</p>
-      ) : null}
+    </div>
+  );
+}
+
+function SyncProgressTargets({
+  statuses,
+  totalJobs,
+  syncScopes,
+}: {
+  statuses: Array<RatesSyncStatusResponse | null>;
+  totalJobs: number;
+  syncScopes: Array<RatesSyncTarget['scope']>;
+}) {
+  const targets = collectSyncRateTargets(statuses);
+  if (targets.length === 0) return null;
+
+  const isMultiStep = shouldPartitionSyncTargets(totalJobs, targets.length, syncScopes);
+  if (!isMultiStep) {
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {targets.map((target) => (
+          <RateTargetChip key={target.label} target={target} />
+        ))}
+      </div>
+    );
+  }
+
+  const { remaining, completed, failed } = partitionSyncRateTargets(statuses);
+  const processed = [...completed, ...failed];
+
+  return (
+    <div className="space-y-3">
+      <SyncTargetChipSection label="Restants" targets={remaining} />
+      <SyncTargetChipSection label="Traités" targets={processed} muted />
+    </div>
+  );
+}
+
+function resolveLastKnownDurationSec(activeSyncs: ActiveSyncView[]): number | null {
+  let maxSec = 0;
+  let found = false;
+
+  for (const sync of activeSyncs) {
+    const sectionEstimate =
+      sync.target.scope === 'all'
+        ? sumStoredSyncDurationForFullSync()
+        : sumStoredSyncDurationForTarget(sync.target);
+    if (sectionEstimate != null) {
+      maxSec = Math.max(maxSec, sectionEstimate);
+      found = true;
+    }
+  }
+
+  return found ? maxSec : null;
+}
+
+function buildSummaryLine(
+  awaitingStatus: boolean,
+  agg: ReturnType<typeof aggregateSyncProgress>,
+  estimateLine: string | null,
+): string {
+  if (awaitingStatus) {
+    return 'Préparation de la mise à jour…';
+  }
+
+  const parts: string[] = [];
+
+  if (agg.totalJobs > 1) {
+    parts.push(
+      `${agg.doneJobs} sur ${agg.totalJobs} étape${agg.totalJobs > 1 ? 's' : ''} terminée${agg.doneJobs > 1 ? 's' : ''}`,
+    );
+  } else if (agg.totalJobs === 1 && agg.doneJobs === 0) {
+    parts.push('Récupération des données officielles…');
+  } else if (agg.totalJobs === 1 && agg.doneJobs === 1) {
+    parts.push('Finalisation…');
+  }
+
+  if (agg.failedJobs > 0) {
+    parts.push(`${agg.failedJobs} en échec — poursuite des autres`);
+  }
+
+  if (estimateLine) {
+    parts.push(estimateLine);
+  }
+
+  return parts.length > 0 ? parts.join(' · ') : 'Mise à jour des taux en cours…';
+}
+
+function SyncLogsPanel({ jobs }: { jobs: RatesSyncStatusResponse['jobs'] }) {
+  if (jobs.length === 0) return null;
+
+  return (
+    <Accordion type="multiple" className="w-full">
+      {jobs.map((job) => {
+        const logs = job.execution_logs ?? [];
+        if (logs.length === 0) return null;
+        return (
+          <AccordionItem key={job.job_id ?? job.source_key} value={job.source_key} className="border-border/60">
+            <AccordionTrigger className="py-2 text-xs font-medium hover:no-underline">
+              Journal — {job.source_name}
+              <span className="ml-2 font-normal text-muted-foreground">
+                ({logs.length} ligne{logs.length > 1 ? 's' : ''})
+              </span>
+            </AccordionTrigger>
+            <AccordionContent>
+              <pre className="max-h-48 overflow-auto rounded-md border border-border/60 bg-muted/30 p-3 text-[11px] leading-relaxed text-foreground/90 whitespace-pre-wrap break-words">
+                {logs.join('\n')}
+              </pre>
+            </AccordionContent>
+          </AccordionItem>
+        );
+      })}
+    </Accordion>
+  );
+}
+
+function SyncOutcomeBanner({
+  outcome,
+  onDismiss,
+}: {
+  outcome: RatesSyncStatusResponse;
+  onDismiss?: () => void;
+}) {
+  const presentation = buildSyncOutcomePresentation(outcome);
+  const Icon =
+    presentation.tone === 'success'
+      ? CheckCircle2
+      : presentation.tone === 'warning'
+        ? AlertTriangle
+        : presentation.tone === 'error'
+          ? AlertCircle
+          : Info;
+
+  const borderClass =
+    presentation.tone === 'success'
+      ? 'border-emerald-500/40 bg-emerald-500/5'
+      : presentation.tone === 'warning'
+        ? 'border-amber-500/40 bg-amber-500/5'
+        : presentation.tone === 'error'
+          ? 'border-destructive/50 bg-destructive/10'
+          : 'border-border/80 bg-muted/30';
+
+  const iconClass =
+    presentation.tone === 'success'
+      ? 'text-emerald-600'
+      : presentation.tone === 'warning'
+        ? 'text-amber-600'
+        : presentation.tone === 'error'
+          ? 'text-destructive'
+          : 'text-muted-foreground';
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={cn('rounded-lg border p-4', borderClass)}
+    >
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+          <div className="flex min-w-0 gap-3">
+            <Icon className={cn('mt-0.5 h-5 w-5 shrink-0', iconClass)} aria-hidden />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground">{presentation.title}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{presentation.summary}</p>
+            </div>
+          </div>
+          {onDismiss && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 shrink-0 text-muted-foreground"
+              onClick={onDismiss}
+            >
+              <X className="mr-1.5 h-3.5 w-3.5" />
+              Fermer
+            </Button>
+          )}
+        </div>
+
+        {presentation.failedJobs.length > 0 && (
+          <ul className="space-y-2 rounded-md border border-border/60 bg-background/60 p-3">
+            {presentation.failedJobs.map((job) => (
+              <li key={job.job_id ?? job.source_key} className="text-sm">
+                <span className="font-medium text-foreground">{job.source_name}</span>
+                <span className="text-muted-foreground"> — </span>
+                <span className="text-muted-foreground">
+                  {humanizeSyncError(job.error_message)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {presentation.jobsWithLogs.length > 0 && (
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">
+              Journal technique
+              <span className="ml-1 font-normal">
+                (pour diagnostic — copiez ces lignes en cas de problème)
+              </span>
+            </p>
+            <SyncLogsPanel jobs={presentation.jobsWithLogs} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -64,161 +340,157 @@ function SyncJobRow({
 export function RatesSyncBanner({
   isSyncing,
   syncError,
+  syncOutcome,
   activeSyncs,
-  onCancelSync,
+  onCancelAll,
+  onDismissOutcome,
 }: RatesSyncBannerProps) {
-  const [detailsOpen, setDetailsOpen] = useState<Record<string, boolean>>({});
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [, setProgressTick] = useState(0);
+
+  useEffect(() => {
+    if (!isSyncing) return;
+    const id = window.setInterval(() => setProgressTick((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [isSyncing]);
+
+  const handleConfirmCancel = () => {
+    setCancelDialogOpen(false);
+    onCancelAll?.();
+  };
 
   if (syncError) {
     return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Échec de la mise à jour</AlertTitle>
-        <AlertDescription>{syncError}</AlertDescription>
-      </Alert>
+      <div
+        role="alert"
+        className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive"
+      >
+        <div className="flex gap-3">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">Échec de la mise à jour</p>
+            <p className="mt-1 text-sm">{syncError}</p>
+          </div>
+        </div>
+      </div>
     );
   }
 
-  if (!isSyncing || activeSyncs.length === 0) return null;
-
-  return (
-    <div className="space-y-2">
-      {activeSyncs.map(({ syncId, label, status, isMonthly }) => {
-        const progress = status?.progress;
-        const failedJobs =
-          status?.jobs.filter((j) => j.status === 'failed' || j.success === false) ?? [];
-        const title = isMonthly ? 'Mise à jour du mois (1er)' : label;
-        const percentValue = progress?.percent_exact ?? progress?.percent ?? 0;
-        const eta = formatSyncEta(progress?.eta_seconds);
-        const showDetails = detailsOpen[syncId] ?? true;
-        const runningJobs = status?.jobs.filter((j) => j.status === 'running') ?? [];
-        const pendingJobs = status?.jobs.filter((j) => j.status === 'pending') ?? [];
-        const doneJobs =
-          status?.jobs.filter(
-            (j) =>
-              j.status === 'completed' ||
-              j.status === 'failed' ||
-              j.status === 'cancelled',
-          ) ?? [];
-
-        return (
-          <Alert key={syncId}>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex-1 space-y-2 min-w-0">
-                <AlertTitle>{title}</AlertTitle>
-                <AlertDescription className="space-y-2">
-                  {progress ? (
-                    <>
-                      <p className="text-sm font-medium text-foreground">
-                        {syncProgressLabel(status)}
-                      </p>
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>
-                            {progress.done} / {progress.total} source
-                            {progress.total > 1 ? 's' : ''}
-                            {progress.running > 0
-                              ? ` · ${progress.running} en cours`
-                              : ''}
-                            {(progress.pending ?? 0) > 0
-                              ? ` · ${progress.pending} en attente`
-                              : ''}
-                          </span>
-                          <span>{Math.round(percentValue)} %</span>
-                        </div>
-                        <Progress value={percentValue} className="h-2" />
-                        {eta ? (
-                          <p className="text-xs text-muted-foreground">{eta}</p>
-                        ) : null}
-                      </div>
-
-                      {status?.jobs && status.jobs.length > 0 ? (
-                        <Collapsible
-                          open={showDetails}
-                          onOpenChange={(open) =>
-                            setDetailsOpen((prev) => ({ ...prev, [syncId]: open }))
-                          }
-                        >
-                          <CollapsibleTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 px-0 text-xs text-muted-foreground hover:text-foreground"
-                            >
-                              {showDetails ? (
-                                <ChevronDown className="mr-1 h-3.5 w-3.5" />
-                              ) : (
-                                <ChevronRight className="mr-1 h-3.5 w-3.5" />
-                              )}
-                              Détail par source ({status.jobs.length})
-                            </Button>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent className="space-y-2 pt-1 max-h-48 overflow-y-auto">
-                            {runningJobs.map((j) => (
-                              <SyncJobRow
-                                key={j.source_key}
-                                sourceName={j.source_name}
-                                statusLabel={jobStatusLabel(j)}
-                                percent={jobProgressPercent(j)}
-                                lastLog={j.last_log_line || j.current_step}
-                                isActive
-                              />
-                            ))}
-                            {pendingJobs.map((j) => (
-                              <SyncJobRow
-                                key={j.source_key}
-                                sourceName={j.source_name}
-                                statusLabel={jobStatusLabel(j)}
-                                percent={jobProgressPercent(j)}
-                                isActive={false}
-                              />
-                            ))}
-                            {doneJobs.map((j) => (
-                              <SyncJobRow
-                                key={j.source_key}
-                                sourceName={j.source_name}
-                                statusLabel={jobStatusLabel(j)}
-                                percent={100}
-                                isActive={false}
-                              />
-                            ))}
-                          </CollapsibleContent>
-                        </Collapsible>
-                      ) : null}
-                    </>
-                  ) : (
-                    <p>Initialisation…</p>
-                  )}
-                  {failedJobs.length > 0 && (
-                    <ul className="text-xs text-muted-foreground list-disc pl-4">
-                      {failedJobs.slice(0, 3).map((j) => (
-                        <li key={j.source_key}>
-                          {j.source_name}
-                          {j.error_message ? ` : ${j.error_message}` : ''}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </AlertDescription>
+  if (isSyncing) {
+    if (activeSyncs.length === 0) {
+      return (
+        <div
+          role="status"
+          aria-live="polite"
+          className="sticky top-2 z-30 rounded-lg border border-border/80 bg-card p-4 shadow-sm"
+        >
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <span className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+              <div>
+                <p className="text-sm font-semibold">Mise à jour en cours</p>
+                <p className="text-xs text-muted-foreground">Reprise de la mise à jour…</p>
               </div>
-              {onCancelSync && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 h-8"
-                  onClick={() => onCancelSync(syncId)}
-                >
-                  <X className="mr-1.5 h-3.5 w-3.5" />
-                  Arrêter
-                </Button>
+            </div>
+            <Progress value={12} className="h-3 w-full bg-muted" />
+          </div>
+        </div>
+      );
+    }
+
+    const statuses = activeSyncs.map((s) => s.status);
+    const awaitingStatus = statuses.every((s) => !s);
+    const agg = aggregateSyncProgress(statuses);
+    const allJobs = statuses.flatMap((s) => s?.jobs ?? []);
+    const elapsedSec = computeActiveSyncElapsedSec(statuses);
+    const lastKnownSec = resolveLastKnownDurationSec(activeSyncs);
+    const estimateLine =
+      allJobs.length > 0
+        ? formatSyncProgressEstimateFromJobs(allJobs, elapsedSec)
+        : formatSyncProgressEstimate(elapsedSec, lastKnownSec);
+    const barPercent = displaySyncProgressPercent(agg, true, {
+      elapsedSec,
+      referenceSec: lastKnownSec,
+      awaitingStatus,
+      jobs: allJobs,
+    });
+    const hasTargetChips = collectSyncRateTargets(statuses).length > 0;
+
+    const isMonthly = activeSyncs.some((s) => s.isMonthly);
+    const title = isMonthly ? 'Mise à jour automatique du mois en cours' : 'Mise à jour en cours';
+    const summaryLine = buildSummaryLine(awaitingStatus, agg, estimateLine);
+
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        className="sticky top-2 z-30 rounded-lg border border-border/80 bg-card p-4 shadow-sm"
+      >
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+            <div className="flex min-w-0 gap-3">
+              <span className="mt-0.5 h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">{title}</p>
+                <p className="text-xs text-muted-foreground">{summaryLine}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xl font-semibold tabular-nums text-foreground">
+                {awaitingStatus ? '…' : `${barPercent} %`}
+              </span>
+              {onCancelAll && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 shrink-0"
+                    onClick={() => setCancelDialogOpen(true)}
+                  >
+                    <X className="mr-1.5 h-3.5 w-3.5" />
+                    {activeSyncs.length > 1 ? 'Tout arrêter' : 'Arrêter'}
+                  </Button>
+                  <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Êtes-vous sûr ?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          La synchronisation sera interrompue immédiatement.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Non</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleConfirmCancel}>
+                          Oui, arrêter
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </>
               )}
             </div>
-          </Alert>
-        );
-      })}
-    </div>
-  );
+          </div>
+
+          <Progress value={barPercent} className="h-3 w-full bg-muted" />
+
+          {hasTargetChips && (
+            <SyncProgressTargets
+              statuses={statuses}
+              totalJobs={agg.totalJobs}
+              syncScopes={activeSyncs.map((s) => s.target.scope)}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (syncOutcome) {
+    return (
+      <SyncOutcomeBanner outcome={syncOutcome} onDismiss={onDismissOutcome} />
+    );
+  }
+
+  return null;
 }

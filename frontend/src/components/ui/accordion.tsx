@@ -45,16 +45,20 @@ const AccordionHeaderWithActions = React.forwardRef<
   React.ElementRef<typeof AccordionPrimitive.Trigger>,
   AccordionHeaderWithActionsProps
 >(({ className, children, actions, ...props }, ref) => (
-  <AccordionPrimitive.Header className="flex items-center gap-2">
+  <AccordionPrimitive.Header className="grid w-full grid-cols-1 gap-x-2 gap-y-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
     <AccordionPrimitive.Trigger
       ref={ref}
-      className={cn(accordionTriggerClassName, className)}
+      className={cn(accordionTriggerClassName, "min-w-0 py-2", className)}
       {...props}
     >
-      {children}
+      <div className="min-w-0 flex-1 overflow-hidden text-left">{children}</div>
       <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
     </AccordionPrimitive.Trigger>
-    {actions ? <div className="flex shrink-0 flex-wrap items-center gap-1 py-2">{actions}</div> : null}
+    {actions ? (
+      <div className="flex flex-wrap items-center justify-start gap-1 sm:justify-end sm:py-2">
+        {actions}
+      </div>
+    ) : null}
   </AccordionPrimitive.Header>
 ));
 AccordionHeaderWithActions.displayName = "AccordionHeaderWithActions";

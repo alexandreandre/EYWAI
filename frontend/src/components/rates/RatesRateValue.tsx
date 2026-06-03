@@ -1,3 +1,4 @@
+import { COTISATION_PATRONAL_MARKERS } from '@/lib/ratesLabels';
 import { formatPercent, formatRateKey } from '@/lib/ratesUtils';
 
 export function RatesRateValue({ value }: { value: unknown }) {
@@ -19,5 +20,10 @@ export function RatesRateValue({ value }: { value: unknown }) {
       </div>
     );
   }
-  return <span>{String(value)}</span>;
+  const text = String(value).trim();
+  const marker = COTISATION_PATRONAL_MARKERS[text.toLowerCase()];
+  if (marker) {
+    return <span className="text-sm text-muted-foreground">{marker}</span>;
+  }
+  return <span>{text}</span>;
 }

@@ -1,27 +1,28 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import type { RateCategory, RatesResponse, RatesSyncSourcesManifest } from '@/api/rates';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionHeaderWithActions,
 } from '@/components/ui/accordion';
-import { Button } from '@/components/ui/button';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import { RatesVersionBadge } from '@/components/rates/RatesVersionBadge';
-import { RatesComplexObject, RatesPasView } from '@/components/rates/RatesComplexData';
-import { RatesSourceLinks } from '@/components/rates/RatesSourceLinks';
+import {
+  RatesAvantagesEnNatureView,
+  RatesComplexObject,
+  RatesPasView,
+} from '@/components/rates/RatesComplexData';
+import { RatesHeuresSuppView } from '@/components/rates/RatesHeuresSuppView';
+import { RatesPrimesView } from '@/components/rates/RatesPrimesView';
+import { RatesLastCheckedMeta } from '@/components/rates/RatesLastCheckedMeta';
+import { RatesSectionHeader } from '@/components/rates/RatesSectionHeader';
+import { RatesSectionUpdateMenu } from '@/components/rates/RatesSectionUpdateMenu';
 import { RatesSourceUpdateList } from '@/components/rates/RatesSourceUpdateList';
-import { RatesUpdateButton } from '@/components/rates/RatesUpdateButton';
-import { formatRateDate, getCategoryTitle, getRateDateColor } from '@/lib/ratesUtils';
-import { sourcesForRateKey } from '@/lib/ratesSyncManifest';
+import { RatesSingleUpdateMenu } from '@/components/rates/RatesActionsMenu';
+import { RatesPanelFooter, ratesPanelSurfaceClass } from '@/components/rates/RatesPanelShell';
+import { getCategoryTitle } from '@/lib/ratesUtils';
+import { getBaremesRateKeysFromData, sourceLinksForRateKey, sourcesForRateKey } from '@/lib/ratesSyncManifest';
 import { cn } from '@/lib/utils';
 
 const KNOWN_KEYS = new Set([
@@ -32,6 +33,8 @@ const KNOWN_KEYS = new Set([
   'pas',
   'frais_pro',
   'avantages_en_nature',
+  'heures_supp',
+  'primes',
 ]);
 
 type BaremeEntry = { key: string; category: RateCategory };
@@ -42,6 +45,15 @@ function renderBaremeContent(key: string, category: RateCategory) {
   if (key === 'frais_pro') {
     const frais = cfg.FRAIS_PRO as Array<{ sections?: Record<string, unknown> }> | undefined;
     return <RatesComplexObject obj={frais?.[0]?.sections ?? cfg} />;
+  }
+  if (key === 'avantages_en_nature') {
+    return <RatesAvantagesEnNatureView configData={cfg} />;
+  }
+  if (key === 'heures_supp') {
+    return <RatesHeuresSuppView configData={cfg} />;
+  }
+  if (key === 'primes') {
+    return <RatesPrimesView configData={cfg} />;
   }
   return <RatesComplexObject obj={cfg} />;
 }
@@ -54,8 +66,10 @@ type RatesBaremesSectionProps = {
   manifest?: RatesSyncSourcesManifest;
   onUpdateRateKey: (rateKey: string) => void;
   onUpdateSource: (sourceKey: string) => void;
+  onUpdateSection: (rateKeys: string[], sectionLabel: string) => void;
   isTargetRunning: (rateKey: string) => boolean;
   isSourceRunning: (sourceKey: string) => boolean;
+  updatesLocked?: boolean;
 };
 
 export function RatesBaremesSection({
@@ -66,12 +80,17 @@ export function RatesBaremesSection({
   manifest,
   onUpdateRateKey,
   onUpdateSource,
+  onUpdateSection,
   isTargetRunning,
   isSourceRunning,
+  updatesLocked,
 }: RatesBaremesSectionProps) {
+  const sectionRateKeys = useMemo(() => getBaremesRateKeysFromData(data), [data]);
+  const sectionRunning = sectionRateKeys.some((k) => isTargetRunning(k));
+
   const entries = useMemo(() => {
     const items: BaremeEntry[] = [];
-    const ordered = ['pas', 'frais_pro', 'avantages_en_nature'] as const;
+    const ordered = ['pas', 'frais_pro', 'avantages_en_nature', 'heures_supp', 'primes'] as const;
     for (const key of ordered) {
       if (data[key]) items.push({ key, category: data[key] });
     }
@@ -96,21 +115,29 @@ export function RatesBaremesSection({
   return (
     <section>
       <Collapsible open={open} onOpenChange={onOpenChange}>
-        <CollapsibleTrigger asChild>
-          <Button
-            variant="ghost"
-            className="mb-4 w-full justify-start gap-2 rounded-none border-b border-border/70 px-0 pb-2 text-foreground hover:bg-transparent hover:text-foreground"
-          >
-            {open ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-            <h2 className="text-2xl font-semibold text-foreground">Barèmes & abattements</h2>
-          </Button>
-        </CollapsibleTrigger>
+        <RatesSectionHeader
+          open={open}
+          title="Barèmes & abattements"
+          description="Prélèvement à la source, frais professionnels, avantages en nature"
+          onToggle={() => onOpenChange(!open)}
+          actions={
+            <RatesSectionUpdateMenu
+              rateKeys={sectionRateKeys}
+              manifest={manifest}
+              onUpdateSection={(rateKeys) =>
+                onUpdateSection(rateKeys, 'Barèmes & abattements')
+              }
+              isRunning={sectionRunning}
+              disabled={updatesLocked}
+            />
+          }
+        />
         <CollapsibleContent>
           <Accordion
             type="multiple"
             value={openBaremes}
             onValueChange={setOpenBaremes}
-            className="space-y-2"
+            className="space-y-3"
           >
             {entries.map(({ key, category }) => {
               const sources = sourcesForRateKey(manifest, key);
@@ -120,51 +147,48 @@ export function RatesBaremesSection({
                 <AccordionItem
                   key={key}
                   value={key}
-                  className={cn(
-                    'border rounded-lg px-3 bg-card shadow-sm',
-                    highlightedKeys?.has(key) && 'ring-2 ring-primary/40',
-                  )}
+                  className={cn(ratesPanelSurfaceClass(highlightedKeys?.has(key)), 'border-0')}
                 >
                   <AccordionHeaderWithActions
-                    className="hover:no-underline py-3"
+                    className="px-4 py-3 hover:no-underline"
                     actions={
                       sources.length > 0 ? (
                         singleSource ? (
-                          <RatesUpdateButton
-                            label="Mettre à jour"
-                            onClick={() => onUpdateRateKey(key)}
+                          <RatesSingleUpdateMenu
+                            onUpdate={() => onUpdateRateKey(key)}
                             isRunning={isTargetRunning(key)}
-                            size="sm"
+                            disabled={updatesLocked}
+                            compact
                           />
                         ) : (
                           <RatesSourceUpdateList
                             sources={sources}
                             onUpdateSource={onUpdateSource}
                             isSourceRunning={isSourceRunning}
+                            updatesLocked={updatesLocked}
                             compact
                           />
                         )
                       ) : undefined
                     }
                   >
-                    <div className="flex flex-1 items-center gap-2 pr-2 text-left">
-                      <span className="font-semibold">{getCategoryTitle(key)}</span>
-                      <TooltipProvider>
-                        <RatesVersionBadge
-                          version={category.version}
-                          comment={category.comment}
-                        />
-                      </TooltipProvider>
+                    <div className="flex min-w-0 flex-col gap-2 text-left">
+                      <span className="min-w-0 truncate font-semibold">
+                        {getCategoryTitle(key)}
+                      </span>
+                      <RatesLastCheckedMeta
+                        lastCheckedAt={category.last_checked_at}
+                      />
                     </div>
                   </AccordionHeaderWithActions>
-                  <AccordionContent className="pb-4">
-                    {renderBaremeContent(key, category)}
-                    <RatesSourceLinks links={category.source_links} />
-                    <p
-                      className={`text-xs mt-4 text-right font-medium ${getRateDateColor(category.last_checked_at)}`}
-                    >
-                      Contrôlé le : {formatRateDate(category.last_checked_at)}
-                    </p>
+                  <AccordionContent className="pb-0 pt-0">
+                    <div className="border-t border-border/60 px-4 pb-3 pt-3">
+                      {renderBaremeContent(key, category)}
+                    </div>
+                    <RatesPanelFooter
+                      category={category}
+                      links={sourceLinksForRateKey(manifest, key, category.source_links)}
+                    />
                   </AccordionContent>
                 </AccordionItem>
               );

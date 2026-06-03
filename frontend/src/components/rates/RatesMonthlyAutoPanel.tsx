@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import type { MonthlyAutoSyncState } from '@/lib/ratesMonthlyAuto';
+import { cn } from '@/lib/utils';
 
 type RatesMonthlyAutoPanelProps = {
   state: MonthlyAutoSyncState;
@@ -12,6 +13,8 @@ type RatesMonthlyAutoPanelProps = {
   onToggleEnabled: (enabled: boolean) => void;
   onRunMonthly: () => void;
   onRestartMonthly: () => void;
+  /** Intégré dans la barre de commandes unifiée (sans bordure propre). */
+  embedded?: boolean;
 };
 
 export function RatesMonthlyAutoPanel({
@@ -21,6 +24,7 @@ export function RatesMonthlyAutoPanel({
   onToggleEnabled,
   onRunMonthly,
   onRestartMonthly,
+  embedded = false,
 }: RatesMonthlyAutoPanelProps) {
   const showRunMonthly =
     state.enabled && state.isFirstDayOfMonth && !state.completedThisMonth && !isSyncing;
@@ -28,41 +32,64 @@ export function RatesMonthlyAutoPanel({
     state.enabled && state.isFirstDayOfMonth && state.completedThisMonth && !isSyncing;
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 px-4 py-3 text-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <CalendarClock className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <div className="min-w-0">
-            <Label htmlFor="rates-monthly-auto" className="font-medium cursor-pointer">
-              Mise à jour automatique le 1er du mois
-            </Label>
-            <p className="text-xs text-muted-foreground mt-0.5">{state.statusLabel}</p>
-          </div>
-        </div>
-        <Switch
-          id="rates-monthly-auto"
-          checked={state.enabled}
-          onCheckedChange={onToggleEnabled}
-          disabled={isMonthlySyncRunning}
-        />
+    <div
+      className={cn(
+        'flex min-w-0 gap-3',
+        !embedded && 'rounded-lg border border-border/80 bg-card p-4',
+      )}
+    >
+      <div
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border/80 bg-muted/40"
+        aria-hidden
+      >
+        <CalendarClock className="h-4 w-4 text-muted-foreground" />
       </div>
 
-      {(showRunMonthly || showRestart) && (
-        <div className="flex flex-wrap gap-2 border-t border-border/60 pt-3">
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Label
+            htmlFor="rates-monthly-auto"
+            className="cursor-pointer text-sm font-medium leading-snug"
+          >
+            Mise à jour automatique le 1er du mois
+          </Label>
+          <Switch
+            id="rates-monthly-auto"
+            checked={state.enabled}
+            onCheckedChange={onToggleEnabled}
+            disabled={isMonthlySyncRunning}
+            className="shrink-0"
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
+          <p className="text-xs leading-relaxed text-muted-foreground">{state.statusLabel}</p>
           {showRunMonthly && (
-            <Button type="button" variant="secondary" size="sm" onClick={onRunMonthly}>
-              <Play className="mr-2 h-3.5 w-3.5" />
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-7 shrink-0 px-2.5 text-xs"
+              onClick={onRunMonthly}
+            >
+              <Play className="mr-1.5 h-3.5 w-3.5" aria-hidden />
               Lancer la mise à jour du mois
             </Button>
           )}
           {showRestart && (
-            <Button type="button" variant="outline" size="sm" onClick={onRestartMonthly}>
-              <RotateCcw className="mr-2 h-3.5 w-3.5" />
-              Recommencer la mise à jour du mois
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 shrink-0 px-2.5 text-xs"
+              onClick={onRestartMonthly}
+            >
+              <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              Recommencer
             </Button>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

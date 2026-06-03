@@ -100,6 +100,50 @@ export interface ScrapingAlert {
   };
 }
 
+export interface ScrapingAiCandidate {
+  label?: string;
+  value?: any;
+  citation_url?: string;
+  citation_date?: string;
+  citation_label?: string;
+}
+
+export interface ScrapingDiscrepancy {
+  label: string;
+  is_ai: boolean;
+  signature: any;
+}
+
+export interface ScrapingPendingChange {
+  id: string;
+  source_id?: string;
+  scraper_name: string;
+  config_key: string;
+  tier: string;
+  persistence_mode: string;
+  proposed_config_data: any;
+  current_config_data?: any;
+  current_version?: number;
+  source_links?: string[];
+  decision_case?: 'A' | 'B' | 'C' | string;
+  sources_agreement?: boolean;
+  discrepancies?: ScrapingDiscrepancy[];
+  ai_candidate?: ScrapingAiCandidate;
+  warnings?: string[];
+  status: 'pending' | 'approved' | 'rejected' | 'superseded';
+  created_by_job_id?: string;
+  created_at: string;
+  reviewed_at?: string;
+  reviewed_by?: string;
+  review_note?: string;
+  applied_at?: string;
+  applied_payroll_config_id?: string;
+  scraping_sources?: {
+    source_name: string;
+    source_key: string;
+  };
+}
+
 export interface ScrapingDashboardStats {
   stats: {
     total_sources: number;
@@ -109,6 +153,7 @@ export interface ScrapingDashboardStats {
     jobs_last_24h: number;
     success_rate_last_30d: number;
     pending_alerts: number;
+    pending_changes?: number;
     active_schedules: number;
   };
   recent_jobs: ScrapingJob[];
@@ -268,5 +313,103 @@ export async function resolveAlert(
   const response = await apiClient.patch(`/api/scraping/alerts/${alertId}/resolve`, {
     resolution_note: resolutionNote,
   });
+  return response.data;
+}
+
+// =====================================================
+// API REVUE MENSUELLE (changements en attente)
+// =====================================================
+
+export async function listPendingChanges(params?: {
+  status?: string;
+  tier?: string;
+  limit?: number;
+}): Promise<{ pending: ScrapingPendingChange[]; total: number }> {
+  const response = await apiClient.get('/api/scraping/pending', { params });
+  return response.data;
+}
+
+export async function getPendingChange(
+  pendingId: string
+): Promise<ScrapingPendingChange> {
+  const response = await apiClient.get(`/api/scraping/pending/${pendingId}`);
+  return response.data;
+}
+
+export async function approvePendingChange(
+  pendingId: string,
+  overrideValue?: any
+): Promise<{ success: boolean; pending_id: string; logs?: string[] }> {
+  const response = await apiClient.post(
+    `/api/scraping/pending/${pendingId}/approve`,
+    { override_value: overrideValue ?? null }
+  );
+  return response.data;
+}
+
+export async function rejectPendingChange(
+  pendingId: string,
+  reviewNote?: string
+): Promise<{ success: boolean; pending_id: string }> {
+  const response = await apiClient.post(
+    `/api/scraping/pending/${pendingId}/reject`,
+    { review_note: reviewNote ?? null }
+  );
+  return response.data;
+}
+
+// =====================================================
+// API TRIPWIRE (snapshot/diff des pages, sans écriture)
+// =====================================================
+
+export async function runTripwire(
+  sourceKey?: string
+): Promise<{ message: string; sources_count: number; job_ids: string[] }> {
+  const response = await apiClient.post('/api/scraping/tripwire', null, {
+    params: sourceKey ? { source_key: sourceKey } : undefined,
+  });
+  return response.data;
+}
+
+// =====================================================
+// API AGENT RÉPARATION AUTONOME
+// =====================================================
+
+export interface ScrapingRepairJob {
+  id: string;
+  scraper_name: string;
+  source_id?: string;
+  trigger: string;
+  status: 'queued' | 'running' | 'tests_failed' | 'tests_passed' | 'merged' | 'aborted';
+  error_message?: string;
+  context?: Record<string, unknown>;
+  attempts: number;
+  model_used?: string;
+  diff_summary?: string;
+  history?: string[];
+  pr_url?: string;
+  ci_run_url?: string;
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  scraping_sources?: {
+    source_name: string;
+    source_key: string;
+    primary_url?: string;
+  };
+}
+
+export async function listRepairJobs(params?: {
+  status?: string;
+  scraper_name?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ jobs: ScrapingRepairJob[]; total: number; active: number }> {
+  const response = await apiClient.get('/api/scraping/repair-jobs', { params });
+  return response.data;
+}
+
+export async function getRepairJob(jobId: string): Promise<ScrapingRepairJob> {
+  const response = await apiClient.get(`/api/scraping/repair-jobs/${jobId}`);
   return response.data;
 }

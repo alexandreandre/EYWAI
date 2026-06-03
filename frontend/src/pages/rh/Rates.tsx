@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Inbox, RefreshCw } from 'lucide-react';
+import { Inbox, RefreshCw, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useRatesQuery } from '@/hooks/queries/useRatesQuery';
@@ -9,19 +9,20 @@ import { TableSkeleton } from '@/components/skeletons/TableSkeleton';
 import { RhPageHeader } from '@/components/layout';
 import { PageFetchIndicator } from '@/components/skeletons/PageFetchIndicator';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { RatesSummaryBand } from '@/components/rates/RatesSummaryBand';
 import { RatesSyncBanner } from '@/components/rates/RatesSyncBanner';
 import { RatesPageToolbar } from '@/components/rates/RatesPageToolbar';
 import { RatesKeyParamsSection } from '@/components/rates/RatesKeyParamsSection';
 import { RatesCotisationsSection } from '@/components/rates/RatesCotisationsSection';
 import { RatesBaremesSection } from '@/components/rates/RatesBaremesSection';
-import { computeRatesSummary, getCategoryTitle, parseRatesError } from '@/lib/ratesUtils';
+import { getCategoryTitle, parseRatesError } from '@/lib/ratesUtils';
+import { getCotisationTitle } from '@/lib/ratesLabels';
 import type { RatesSyncTarget } from '@/lib/ratesSyncManifest';
 import type { RatesResponse } from '@/api/rates';
 
@@ -31,10 +32,14 @@ function syncTargetLabel(target: RatesSyncTarget): string {
       return 'Mise à jour complète';
     case 'rate_key':
       return getCategoryTitle(target.rateKey);
+    case 'rate_keys':
+      return target.sectionLabel ?? 'Mise à jour de section';
     case 'source_key':
       return target.sourceKey;
     case 'cotisation_id':
-      return target.cotisationId;
+      return getCotisationTitle(target.cotisationId);
+    case 'cotisation_bundle':
+      return target.cotisationIds.map((id) => getCotisationTitle(id)).join(', ');
     default:
       return 'Mise à jour';
   }
@@ -77,6 +82,29 @@ function RatesErrorBlock({
   );
 }
 
+function RatesLoadingSkeleton() {
+  return <TableSkeleton rows={8} columns={3} />;
+}
+
+function RatesEmptyState({ onFullSync }: { onFullSync: () => void }) {
+  return (
+    <Card className="border-border/80 shadow-none">
+      <CardContent className="flex flex-col items-center justify-center px-4 py-12 text-center">
+        <Inbox className="h-10 w-10 text-muted-foreground" />
+        <p className="mt-4 text-lg font-medium text-foreground">Aucune donnée de configuration</p>
+        <p className="mt-2 max-w-md text-sm text-muted-foreground">
+          Lancez une mise à jour complète pour alimenter le référentiel depuis les sources
+          officielles.
+        </p>
+        <Button type="button" className="mt-6" size="sm" onClick={onFullSync}>
+          <Upload className="mr-2 h-4 w-4" />
+          Mise à jour complète
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Rates() {
   const ratesQuery = useRatesQuery();
   const data = ratesQuery.data as RatesResponse | undefined;
@@ -97,37 +125,38 @@ export default function Rates() {
   const onSyncComplete = useCallback(
     (changedKeys: string[]) => {
       monthly.refresh();
+      void ratesQuery.refetch();
       if (changedKeys.length === 0) return;
       setHighlightedKeys(new Set(changedKeys));
       window.setTimeout(() => setHighlightedKeys(new Set()), 8000);
     },
-    [monthly],
+    [monthly, ratesQuery],
   );
 
   const {
     startSync,
     cancelSync,
+    cancelAllSyncs,
     isSyncing,
+    isSyncProgressVisible,
     isMonthlySyncRunning,
     isSourceRunning,
     isRateKeyRunning,
     isCotisationRunning,
     syncError,
+    syncOutcome,
     activeSyncs,
     manifest,
     clearSyncError,
+    dismissSyncOutcome,
   } = useRatesSync(onSyncComplete);
-
-  const summary = useMemo(
-    () => (data ? computeRatesSummary(data) : null),
-    [data],
-  );
 
   const activeSyncViews = useMemo(
     () =>
       activeSyncs.map((s) => ({
         syncId: s.syncId,
         label: syncTargetLabel(s.target),
+        target: s.target,
         status: s.status,
         isMonthly: s.isMonthly,
       })),
@@ -174,29 +203,49 @@ export default function Rates() {
 
   const handleUpdateRateKey = useCallback(
     (rateKey: string) => {
+      if (isSyncing) return;
       clearSyncError();
       void startSync({ scope: 'rate_key', rateKey });
     },
-    [clearSyncError, startSync],
+    [clearSyncError, isSyncing, startSync],
+  );
+
+  const handleUpdateSection = useCallback(
+    (rateKeys: string[], sectionLabel: string) => {
+      if (isSyncing) return;
+      clearSyncError();
+      void startSync({ scope: 'rate_keys', rateKeys, sectionLabel });
+    },
+    [clearSyncError, isSyncing, startSync],
   );
 
   const handleUpdateSource = useCallback(
     (sourceKey: string) => {
+      if (isSyncing) return;
       clearSyncError();
       void startSync({ scope: 'source_key', sourceKey });
     },
-    [clearSyncError, startSync],
+    [clearSyncError, isSyncing, startSync],
   );
 
   const handleUpdateCotisation = useCallback(
     (cotisationId: string) => {
+      if (isSyncing) return;
       clearSyncError();
       void startSync({ scope: 'cotisation_id', cotisationId });
     },
-    [clearSyncError, startSync],
+    [clearSyncError, isSyncing, startSync],
   );
 
-  // Auto uniquement le 1er du mois, si activé et pas encore fait ce mois-ci
+  const handleUpdateCotisationBundle = useCallback(
+    (cotisationIds: string[]) => {
+      if (isSyncing) return;
+      clearSyncError();
+      void startSync({ scope: 'cotisation_bundle', cotisationIds });
+    },
+    [clearSyncError, isSyncing, startSync],
+  );
+
   useEffect(() => {
     if (autoMonthlyStarted.current || loading || loadError || !data || isSyncing) return;
     if (!monthly.shouldAutoStart) return;
@@ -206,48 +255,61 @@ export default function Rates() {
     void startSync({ scope: 'all' }, { monthly: true });
   }, [loading, loadError, data, isSyncing, monthly.shouldAutoStart, startSync]);
 
-  const toolbar = (
-    <RatesPageToolbar
-      onRefresh={handleRefresh}
-      onFullSync={handleFullSync}
-      isFetching={ratesQuery.isFetching}
-      isSyncing={isSyncing}
-      isMonthlySyncRunning={isMonthlySyncRunning}
-      monthlyState={monthly.state}
-      onMonthlyToggle={handleMonthlyToggle}
-      onRunMonthly={handleMonthlySync}
-      onRestartMonthly={handleRestartMonthly}
-    />
-  );
+  const toolbarProps = {
+    onRefresh: handleRefresh,
+    onFullSync: handleFullSync,
+    isFetching: ratesQuery.isFetching,
+    isSyncing,
+    isMonthlySyncRunning,
+    monthlyState: monthly.state,
+    onMonthlyToggle: handleMonthlyToggle,
+    onRunMonthly: handleMonthlySync,
+    onRestartMonthly: handleRestartMonthly,
+  };
 
   const header = (
     <RhPageHeader
-      title="Suivi des Taux"
+      title="Suivi des taux"
       description="Consultez les taux réglementaires et mettez à jour chaque bloc ou l’ensemble du référentiel."
-      actions={toolbar}
     />
+  );
+
+  const commandBar = <RatesPageToolbar {...toolbarProps} />;
+
+  const syncBanner = (
+    <RatesSyncBanner
+      isSyncing={isSyncing}
+      syncError={syncError}
+      syncOutcome={syncOutcome}
+      activeSyncs={activeSyncViews}
+      onCancelSync={cancelSync}
+      onCancelAll={cancelAllSyncs}
+      onDismissOutcome={dismissSyncOutcome}
+    />
+  );
+
+  const pageChrome = (
+    <>
+      {header}
+      {commandBar}
+      {syncBanner}
+    </>
   );
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        {header}
+      <div className="space-y-8">
+        {pageChrome}
         <PageFetchIndicator isFetching={ratesQuery.isFetching} />
-        <TableSkeleton rows={10} columns={3} />
+        <RatesLoadingSkeleton />
       </div>
     );
   }
 
   if (loadError && !data) {
     return (
-      <div className="space-y-6">
-        {header}
-        <RatesSyncBanner
-          isSyncing={isSyncing}
-          syncError={syncError}
-          activeSyncs={activeSyncViews}
-          onCancelSync={cancelSync}
-        />
+      <div className="space-y-8">
+        {pageChrome}
         <RatesErrorBlock
           message={loadError.message}
           status={loadError.status}
@@ -259,39 +321,18 @@ export default function Rates() {
 
   if (!data || Object.keys(data).length === 0) {
     return (
-      <div className="space-y-6">
-        {header}
-        <div className="flex flex-col justify-center items-center h-40 text-muted-foreground border rounded-lg px-4 text-center">
-          <Inbox className="h-10 w-10" />
-          <span className="mt-4 text-lg font-medium">Aucune donnée de configuration</span>
-          <span className="text-sm mt-2">
-            Utilisez « Mise à jour complète » dans le panneau ci-dessus.
-          </span>
-        </div>
+      <div className="space-y-8">
+        {pageChrome}
+        <RatesEmptyState onFullSync={handleFullSync} />
       </div>
     );
   }
 
   return (
     <div className="space-y-8 animate-fade-in">
-      {header}
+      {pageChrome}
+
       <PageFetchIndicator isFetching={ratesQuery.isFetching} />
-
-      {summary && (
-        <RatesSummaryBand
-          categoryCount={summary.categoryCount}
-          obsoleteCount={summary.obsoleteCount}
-          oldestCheck={summary.oldestCheck}
-          health={summary.health}
-        />
-      )}
-
-      <RatesSyncBanner
-        isSyncing={isSyncing}
-        syncError={syncError}
-        activeSyncs={activeSyncViews}
-        onCancelSync={cancelSync}
-      />
 
       <RatesKeyParamsSection
         data={data}
@@ -300,7 +341,9 @@ export default function Rates() {
         highlightedKeys={highlightedKeys}
         manifest={manifest}
         onUpdateRateKey={handleUpdateRateKey}
+        onUpdateSection={handleUpdateSection}
         isTargetRunning={isRateKeyRunning}
+        updatesLocked={isSyncing}
       />
 
       {data.cotisations && (
@@ -310,10 +353,14 @@ export default function Rates() {
           onOpenChange={setCotisationsSectionOpen}
           highlightedKeys={highlightedKeys}
           manifest={manifest}
-          onUpdateSource={handleUpdateSource}
           onUpdateCotisation={handleUpdateCotisation}
-          isSourceRunning={isSourceRunning}
+          onUpdateSource={handleUpdateSource}
+          onUpdateCotisationBundle={handleUpdateCotisationBundle}
+          onUpdateSection={handleUpdateSection}
           isCotisationRunning={isCotisationRunning}
+          isSourceRunning={isSourceRunning}
+          isTargetRunning={isRateKeyRunning}
+          updatesLocked={isSyncing}
         />
       )}
 
@@ -325,8 +372,10 @@ export default function Rates() {
         manifest={manifest}
         onUpdateRateKey={handleUpdateRateKey}
         onUpdateSource={handleUpdateSource}
+        onUpdateSection={handleUpdateSection}
         isTargetRunning={isRateKeyRunning}
         isSourceRunning={isSourceRunning}
+        updatesLocked={isSyncing}
       />
     </div>
   );

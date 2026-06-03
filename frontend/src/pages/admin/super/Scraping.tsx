@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Loader2, AlertTriangle, RefreshCw, CheckCircle2, XCircle, Clock,
-  Play, Calendar, Bell, Database, TrendingUp, AlertCircle
+  Play, Calendar, Bell, Database, TrendingUp, AlertCircle, ShieldCheck, ExternalLink, Wrench
 } from 'lucide-react';
 import apiClient from '@/api/apiClient';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -21,13 +21,18 @@ import {
   markAlertAsRead,
   resolveAlert,
   getJobLogs,
+  listPendingChanges,
+  listRepairJobs,
   ScrapingSource,
   ScrapingJob,
   ScrapingAlert,
   ScrapingDashboardStats,
+  ScrapingRepairJob,
 } from '@/api/scraping';
 
 import { AdminPageHeader } from '@/features/admin/components/eywai/AdminPageHeader';
+import { MonthlyReviewTab } from '@/features/admin/components/scraping/MonthlyReviewTab';
+import { RepairAgentTab } from '@/features/admin/components/scraping/RepairAgentTab';
 import { log } from '@/lib/logger';
 // Types pour les données scrapées
 type RateCategory = {
@@ -54,6 +59,11 @@ export default function ScrapingPage() {
   const [jobLogs, setJobLogs] = useState<string[]>([]);
   const [jobStatus, setJobStatus] = useState<string | null>(null);
   const [logPollingInterval, setLogPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [repairJobs, setRepairJobs] = useState<ScrapingRepairJob[]>([]);
+  const [activeRepairCount, setActiveRepairCount] = useState(0);
+
+  const pendingFromStats = dashboardStats?.stats?.pending_changes ?? pendingCount;
 
   // Mapping entre source keys et rate keys
   const sourceToRateMapping: Record<string, string> = {
@@ -83,12 +93,14 @@ export default function ScrapingPage() {
       setLoading(true);
       setError(null);
 
-      const [dashData, sourcesData, jobsData, alertsData, ratesResp] = await Promise.all([
+      const [dashData, sourcesData, jobsData, alertsData, ratesResp, pendingResp, repairResp] = await Promise.all([
         getScrapingDashboard(),
         listSources({ is_active: true }),
         listJobs({ limit: 20 }),
         listAlerts({ is_read: false, limit: 10 }),
         apiClient.get<RatesResponse>('/api/rates/all'),
+        listPendingChanges({ status: 'pending' }).catch(() => ({ pending: [], total: 0 })),
+        listRepairJobs({ limit: 30 }).catch(() => ({ jobs: [], total: 0, active: 0 })),
       ]);
 
       setDashboardStats(dashData);
@@ -96,6 +108,11 @@ export default function ScrapingPage() {
       setJobs(jobsData.jobs);
       setAlerts(alertsData.alerts);
       setRatesData(ratesResp.data);
+      setPendingCount(
+        dashData.stats?.pending_changes ?? pendingResp.total ?? pendingResp.pending?.length ?? 0
+      );
+      setRepairJobs(repairResp.jobs);
+      setActiveRepairCount(repairResp.active ?? 0);
     } catch (e: any) {
       log.error('Erreur lors du chargement des données:', e);
       setError(e.response?.data?.detail || e.message || 'Une erreur est survenue.');
@@ -234,6 +251,94 @@ export default function ScrapingPage() {
     return <Badge className={colors[severity as keyof typeof colors] || ''}>{severity}</Badge>;
   };
 
+  const renderJobChangesPreview = (job: ScrapingJob) => {
+    const changes = job.changes_detected;
+    if (changes && typeof changes === 'object' && Object.keys(changes).length > 0) {
+      const preview = Object.entries(changes as Record<string, unknown>)
+        .slice(0, 2)
+        .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
+        .join(' · ');
+      return <span className="text-xs text-muted-foreground">{preview}</span>;
+    }
+    if (job.data_before != null || job.data_after != null) {
+      return (
+        <span className="text-xs text-muted-foreground">
+          {job.data_before != null ? 'modif détectée' : '—'}
+        </span>
+      );
+    }
+    return <span className="text-muted-foreground">—</span>;
+  };
+  const renderJobDecisionMeta = (job: ScrapingJob) => {
+    const vr = job.validation_results as Record<string, unknown> | undefined;
+    if (!vr && job.sources_agreement === undefined) return <span className="text-muted-foreground">—</span>;
+    const decisionCase = vr?.decision_case as string | undefined;
+    const agreement = job.sources_agreement ?? vr?.sources_agreement;
+    return (
+      <div className="flex flex-col gap-1 text-xs">
+        {decisionCase && <Badge variant="outline">Cas {decisionCase}</Badge>}
+        {agreement === true && (
+          <span className="text-emerald-600">Sources concordent</span>
+        )}
+        {agreement === false && (
+          <span className="text-amber-600">Sources divergent</span>
+        )}
+        {Boolean(vr?.requires_review) && (
+          <span className="text-purple-600">Revue requise</span>
+        )}
+      </div>
+    );
+  };
+
+  const renderAlertDetails = (details: Record<string, unknown> | undefined) => {
+    if (!details || Object.keys(details).length === 0) return null;
+    const ai = details.ai_candidate as Record<string, unknown> | undefined;
+    const patch = details.patch as string | undefined;
+    return (
+      <div className="mt-3 space-y-2 rounded-md bg-muted/50 p-3 text-sm">
+        {details.config_key != null && (
+          <p><span className="font-medium">Config :</span> {String(details.config_key)}</p>
+        )}
+        {details.decision_case != null && (
+          <p><span className="font-medium">Cas :</span> {String(details.decision_case)}</p>
+        )}
+        {ai?.citation_url != null && (
+          <a
+            href={String(ai.citation_url)}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-primary hover:underline"
+          >
+            <ExternalLink className="h-3 w-3" />
+            Citation IA
+            {ai.citation_date ? ` (${String(ai.citation_date)})` : ''}
+          </a>
+        )}
+        {ai?.value != null && (
+          <p className="text-xs text-muted-foreground">
+            Valeur IA : {JSON.stringify(ai.value)}
+          </p>
+        )}
+        {details.url != null && (
+          <a
+            href={String(details.url)}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-primary hover:underline text-xs"
+          >
+            <ExternalLink className="h-3 w-3" />
+            Page modifiée (tripwire)
+          </a>
+        )}
+        {patch && (
+          <pre className="mt-2 max-h-32 overflow-auto rounded bg-slate-950 p-2 text-xs text-slate-100">
+            {patch}
+          </pre>
+        )}
+      </div>
+    );
+  };
+
   // Fonction pour obtenir les données d'une source
   const getSourceData = (sourceKey: string): any => {
     const rateKey = sourceToRateMapping[sourceKey];
@@ -313,10 +418,17 @@ export default function ScrapingPage() {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-4">
+        <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-6">
           <TabsTrigger value="dashboard">
             <TrendingUp className="h-4 w-4 mr-2" />
             Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="review">
+            <ShieldCheck className="h-4 w-4 mr-2" />
+            Revue mensuelle
+            {pendingFromStats > 0 && (
+              <Badge className="ml-2 bg-purple-600 hover:bg-purple-600">{pendingFromStats}</Badge>
+            )}
           </TabsTrigger>
           <TabsTrigger value="sources">
             <Database className="h-4 w-4 mr-2" />
@@ -330,14 +442,31 @@ export default function ScrapingPage() {
             <Bell className="h-4 w-4 mr-2" />
             Alertes ({alerts.filter(a => !a.is_read).length})
           </TabsTrigger>
+          <TabsTrigger value="repair-agent">
+            <Wrench className="h-4 w-4 mr-2" />
+            Agent réparation
+            {activeRepairCount > 0 && (
+              <Badge className="ml-2 bg-amber-600 hover:bg-amber-600">{activeRepairCount}</Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
+
+        {/* ONGLET REVUE MENSUELLE */}
+        <TabsContent value="review" className="space-y-4">
+          <MonthlyReviewTab />
+        </TabsContent>
+
+        {/* ONGLET AGENT RÉPARATION */}
+        <TabsContent value="repair-agent" className="space-y-4">
+          <RepairAgentTab jobs={repairJobs} activeCount={activeRepairCount} />
+        </TabsContent>
 
         {/* ONGLET DASHBOARD */}
         <TabsContent value="dashboard" className="space-y-6">
           {dashboardStats && (
             <>
               {/* Stats Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <Card>
                   <CardHeader className="pb-2">
                     <CardDescription>Sources actives</CardDescription>
@@ -346,6 +475,21 @@ export default function ScrapingPage() {
                   <CardContent>
                     <p className="text-xs text-muted-foreground">
                       Sur {dashboardStats.stats.total_sources} sources
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card
+                  className={pendingFromStats > 0 ? 'border-purple-500/50 cursor-pointer' : ''}
+                  onClick={() => pendingFromStats > 0 && setActiveTab('review')}
+                >
+                  <CardHeader className="pb-2">
+                    <CardDescription>Validations en attente</CardDescription>
+                    <CardTitle className="text-3xl text-purple-700">{pendingFromStats}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">
+                      Taux critiques à valider
                     </p>
                   </CardContent>
                 </Card>
@@ -385,6 +529,71 @@ export default function ScrapingPage() {
                 </Card>
               </div>
 
+              {/* Alertes récentes non lues */}
+              {dashboardStats.unread_alerts?.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Alertes récentes</CardTitle>
+                    <CardDescription>Revue, tripwire, réparation parser</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {dashboardStats.unread_alerts.map((alert) => (
+                      <div key={alert.id} className="rounded-lg border p-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          {renderSeverityBadge(alert.severity)}
+                          <span className="text-xs text-muted-foreground">
+                            {formatDate(alert.created_at)}
+                          </span>
+                          <Badge variant="outline">{alert.alert_type}</Badge>
+                        </div>
+                        <p className="font-medium">{alert.title}</p>
+                        <p className="text-sm text-muted-foreground">{alert.message}</p>
+                        {renderAlertDetails(alert.details as Record<string, unknown> | undefined)}
+                      </div>
+                    ))}
+                    <Button variant="outline" size="sm" onClick={() => setActiveTab('alerts')}>
+                      Voir toutes les alertes
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Sources critiques */}
+              {dashboardStats.critical_sources?.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Sources critiques</CardTitle>
+                    <CardDescription>Dernier job par source — gate validation humaine</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Source</TableHead>
+                          <TableHead>Dernier job</TableHead>
+                          <TableHead>Statut</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {dashboardStats.critical_sources.map((src) => (
+                          <TableRow key={src.id}>
+                            <TableCell className="font-medium">{src.source_name}</TableCell>
+                            <TableCell className="text-sm">
+                              {src.last_job?.completed_at
+                                ? formatDate(src.last_job.completed_at)
+                                : '—'}
+                            </TableCell>
+                            <TableCell>
+                              {src.last_job ? renderJobStatus(src.last_job as ScrapingJob) : '—'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Jobs récents */}
               <Card>
                 <CardHeader>
@@ -396,6 +605,8 @@ export default function ScrapingPage() {
                       <TableRow>
                         <TableHead>Source</TableHead>
                         <TableHead>Statut</TableHead>
+                        <TableHead>Cas / Concordance</TableHead>
+                        <TableHead>Changements</TableHead>
                         <TableHead>Début</TableHead>
                         <TableHead>Durée</TableHead>
                       </TableRow>
@@ -407,6 +618,8 @@ export default function ScrapingPage() {
                             {job.scraping_sources?.source_name || job.source_id}
                           </TableCell>
                           <TableCell>{renderJobStatus(job)}</TableCell>
+                          <TableCell>{renderJobDecisionMeta(job)}</TableCell>
+                          <TableCell>{renderJobChangesPreview(job)}</TableCell>
                           <TableCell className="text-sm">{formatDate(job.created_at)}</TableCell>
                           <TableCell className="text-sm">{formatDuration(job.duration_ms)}</TableCell>
                         </TableRow>
@@ -515,6 +728,8 @@ export default function ScrapingPage() {
                     <TableHead>Source</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Statut</TableHead>
+                    <TableHead>Cas / Concordance</TableHead>
+                    <TableHead>Changements</TableHead>
                     <TableHead>Début</TableHead>
                     <TableHead>Fin</TableHead>
                     <TableHead>Durée</TableHead>
@@ -528,6 +743,8 @@ export default function ScrapingPage() {
                       </TableCell>
                       <TableCell>{job.job_type}</TableCell>
                       <TableCell>{renderJobStatus(job)}</TableCell>
+                      <TableCell>{renderJobDecisionMeta(job)}</TableCell>
+                      <TableCell>{renderJobChangesPreview(job)}</TableCell>
                       <TableCell className="text-sm">{formatDate(job.created_at)}</TableCell>
                       <TableCell className="text-sm">{formatDate(job.completed_at)}</TableCell>
                       <TableCell className="text-sm">{formatDuration(job.duration_ms)}</TableCell>
@@ -563,6 +780,7 @@ export default function ScrapingPage() {
                         </div>
                         <CardTitle className="text-lg">{alert.title}</CardTitle>
                         <CardDescription className="mt-1">{alert.message}</CardDescription>
+                        {renderAlertDetails(alert.details as Record<string, unknown> | undefined)}
                         {alert.scraping_sources && (
                           <p className="text-sm text-muted-foreground mt-2">
                             Source: {alert.scraping_sources.source_name}

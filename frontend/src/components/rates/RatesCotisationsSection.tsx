@@ -1,30 +1,32 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 
 import type { RateCategory, RatesSyncSourcesManifest } from '@/api/rates';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionHeaderWithActions,
-  AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import { RatesVersionBadge } from '@/components/rates/RatesVersionBadge';
-import { RatesRateValue } from '@/components/rates/RatesRateValue';
-import { RatesSourceUpdateList } from '@/components/rates/RatesSourceUpdateList';
-import { RatesUpdateButton } from '@/components/rates/RatesUpdateButton';
-import { formatRateDate, formatRateKey, getRateDateColor, type Cotisation } from '@/lib/ratesUtils';
-import { findCotisationUnit, sourcesForCotisationId, sourcesForRateKey } from '@/lib/ratesSyncManifest';
+import { RatesCotisationBundleCard } from '@/components/rates/RatesCotisationBundleCard';
+import { RatesCotisationRatesTable } from '@/components/rates/RatesCotisationRatesTable';
+import { RatesLastCheckedMeta } from '@/components/rates/RatesLastCheckedMeta';
+import { RatesSectionHeader } from '@/components/rates/RatesSectionHeader';
+import { RatesSectionUpdateMenu } from '@/components/rates/RatesSectionUpdateMenu';
+import { RatesSingleUpdateMenu } from '@/components/rates/RatesActionsMenu';
+import {
+  buildCotisationDisplayRows,
+  rowMatchesSearch,
+} from '@/lib/cotisationDisplayGroups';
+import { findCotisationUnit, sourceLinksForCotisationId, sourcesForCotisationId } from '@/lib/ratesSyncManifest';
+import {
+  resolveCotisationLastCheckedAt,
+  shouldShowCotisationInRates,
+  type Cotisation,
+} from '@/lib/ratesUtils';
+import { RatesPanelFooter, ratesPanelSurfaceClass } from '@/components/rates/RatesPanelShell';
 
 type RatesCotisationsSectionProps = {
   cotisations: RateCategory;
@@ -32,10 +34,14 @@ type RatesCotisationsSectionProps = {
   onOpenChange: (open: boolean) => void;
   highlightedKeys?: Set<string>;
   manifest?: RatesSyncSourcesManifest;
-  onUpdateSource: (sourceKey: string) => void;
   onUpdateCotisation: (cotisationId: string) => void;
-  isSourceRunning: (sourceKey: string) => boolean;
+  onUpdateSource: (sourceKey: string) => void;
+  onUpdateCotisationBundle: (cotisationIds: string[]) => void;
+  onUpdateSection: (rateKeys: string[], sectionLabel: string) => void;
   isCotisationRunning: (cotisationId: string) => boolean;
+  isSourceRunning: (sourceKey: string) => boolean;
+  isTargetRunning: (rateKey: string) => boolean;
+  updatesLocked?: boolean;
 };
 
 export function RatesCotisationsSection({
@@ -44,84 +50,63 @@ export function RatesCotisationsSection({
   onOpenChange: setSectionOpen,
   highlightedKeys,
   manifest,
-  onUpdateSource,
   onUpdateCotisation,
-  isSourceRunning,
+  onUpdateSource,
+  onUpdateCotisationBundle,
+  onUpdateSection,
   isCotisationRunning,
+  isSourceRunning,
+  isTargetRunning,
+  updatesLocked,
 }: RatesCotisationsSectionProps) {
-  const list = (cotisations.config_data as { cotisations?: Cotisation[] }).cotisations || [];
+  const list = (
+    (cotisations.config_data as { cotisations?: Cotisation[] }).cotisations || []
+  ).filter(shouldShowCotisationInRates);
   const [search, setSearch] = useState('');
 
-  const sectionSources = sourcesForRateKey(manifest, 'cotisations');
+  const sectionRateKeys = ['cotisations'];
+  const sectionRunning = isTargetRunning('cotisations');
 
-  const filtered = useMemo(() => {
+  const displayRows = useMemo(
+    () => buildCotisationDisplayRows(manifest, list),
+    [manifest, list],
+  );
+
+  const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return list;
-    return list.filter(
-      (c) =>
-        c.libelle.toLowerCase().includes(q) || c.base.toLowerCase().includes(q),
-    );
-  }, [list, search]);
+    if (!q) return displayRows;
+    return displayRows.filter((row) => rowMatchesSearch(row, q));
+  }, [displayRows, search]);
 
   useEffect(() => {
     if (highlightedKeys?.has('cotisations')) setSectionOpen(true);
   }, [highlightedKeys, setSectionOpen]);
 
-  const groupedByBase = useMemo(() => {
-    const map = new Map<string, Cotisation[]>();
-    for (const coti of filtered) {
-      const base = coti.base?.trim() || 'autre';
-      const group = map.get(base) ?? [];
-      group.push(coti);
-      map.set(base, group);
-    }
-    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b, 'fr'));
-  }, [filtered]);
-
   return (
     <section>
       <Collapsible open={sectionOpen} onOpenChange={setSectionOpen}>
-        <div className="flex flex-col gap-3 mb-4 border-b border-border/70 pb-2">
-          <div className="flex flex-wrap justify-between items-end gap-3">
-            <CollapsibleTrigger asChild>
-              <Button
-                variant="ghost"
-                className="gap-2 px-0 text-foreground hover:bg-transparent hover:text-foreground"
-              >
-                {sectionOpen ? (
-                  <ChevronDown className="h-5 w-5" />
-                ) : (
-                  <ChevronRight className="h-5 w-5" />
-                )}
-                <h2 className="text-2xl font-semibold text-foreground">Cotisations sociales</h2>
-                <Badge variant="secondary">{list.length}</Badge>
-              </Button>
-            </CollapsibleTrigger>
-            <div className="flex flex-wrap items-center gap-3 text-sm">
-              <span className={`font-medium ${getRateDateColor(cotisations.last_checked_at)}`}>
-                Dernier contrôle : {formatRateDate(cotisations.last_checked_at)}
-              </span>
-              <TooltipProvider>
-                <RatesVersionBadge
-                  version={cotisations.version}
-                  comment={cotisations.comment}
-                />
-              </TooltipProvider>
-            </div>
-          </div>
-        </div>
+        <RatesSectionHeader
+          open={sectionOpen}
+          title="Cotisations sociales"
+          description="Taux salariaux et patronaux par base de cotisation"
+          onToggle={() => setSectionOpen(!sectionOpen)}
+          actions={
+            <>
+              <RatesSectionUpdateMenu
+                rateKeys={sectionRateKeys}
+                manifest={manifest}
+                onUpdateSection={(rateKeys) =>
+                  onUpdateSection(rateKeys, 'Cotisations sociales')
+                }
+                isRunning={sectionRunning}
+                disabled={updatesLocked}
+              />
+            </>
+          }
+        />
 
         <CollapsibleContent>
-          {sectionSources.length > 0 && (
-            <RatesSourceUpdateList
-              sources={sectionSources}
-              onUpdateSource={onUpdateSource}
-              isSourceRunning={isSourceRunning}
-              compact
-              className="mb-3"
-            />
-          )}
-          <div className="mb-3 max-w-sm relative">
+          <div className="relative mb-4">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Rechercher une cotisation…"
@@ -130,93 +115,88 @@ export function RatesCotisationsSection({
               className="pl-8"
             />
           </div>
-          <div className="bg-card border rounded-lg p-4 shadow-sm">
-            {filtered.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">
-                Aucune cotisation ne correspond à votre recherche.
-              </p>
-            ) : (
-              <Accordion type="multiple" defaultValue={[]} className="w-full space-y-1">
-                {groupedByBase.map(([base, items]) => (
-                  <AccordionItem key={base} value={`base-${base}`} className="border rounded-lg px-2">
-                    <AccordionTrigger className="hover:no-underline py-3">
-                      <span className="font-medium">{formatRateKey(base)}</span>
-                      <Badge variant="secondary" className="ml-2 text-xs">
-                        {items.length}
-                      </Badge>
-                    </AccordionTrigger>
-                    <AccordionContent className="pb-2">
-                      <Accordion type="multiple" defaultValue={[]} className="w-full">
-                        {items.map((coti) => {
-                          const unit = findCotisationUnit(manifest, coti.id);
-                          const rowSources =
-                            unit?.sources ?? sourcesForCotisationId(manifest, coti.id);
-                          const showRowUpdate = rowSources.length > 0;
 
-                          return (
-                            <AccordionItem key={coti.id} value={coti.id} className="border-0 border-t">
-                              <AccordionHeaderWithActions
-                                className="hover:no-underline py-2"
-                                actions={
-                                  showRowUpdate ? (
-                                    rowSources.length === 1 ? (
-                                      <RatesUpdateButton
-                                        label="Mettre à jour"
-                                        onClick={() => onUpdateCotisation(coti.id)}
-                                        isRunning={isCotisationRunning(coti.id)}
-                                        size="sm"
-                                      />
-                                    ) : (
-                                      <>
-                                        {rowSources.map((src) => (
-                                          <RatesUpdateButton
-                                            key={src.source_key}
-                                            label={src.source_name}
-                                            onClick={() => onUpdateSource(src.source_key)}
-                                            isRunning={isSourceRunning(src.source_key)}
-                                            size="sm"
-                                          />
-                                        ))}
-                                      </>
-                                    )
-                                  ) : undefined
-                                }
-                              >
-                                <span className="font-medium truncate text-left text-sm pr-2">
-                                  {coti.libelle}
-                                </span>
-                              </AccordionHeaderWithActions>
-                              <AccordionContent>
-                                <Table>
-                                  <TableBody>
-                                    {Object.entries(coti)
-                                      .filter(
-                                        ([key]) =>
-                                          key.includes('salarial') || key.includes('patronal'),
-                                      )
-                                      .map(([key, value]) => (
-                                        <TableRow key={key}>
-                                          <TableCell className="h-auto p-1.5 text-sm text-muted-foreground">
-                                            {formatRateKey(key)}
-                                          </TableCell>
-                                          <TableCell className="h-auto p-1.5 text-right font-medium">
-                                            <RatesRateValue value={value} />
-                                          </TableCell>
-                                        </TableRow>
-                                      ))}
-                                  </TableBody>
-                                </Table>
-                              </AccordionContent>
-                            </AccordionItem>
-                          );
-                        })}
-                      </Accordion>
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
-            )}
-          </div>
+          {filteredRows.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Aucune cotisation ne correspond à votre recherche.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {filteredRows.map((row) => {
+                if (row.type === 'bundle') {
+                  const bundleRunning = row.cotisationIds.some((id) =>
+                    isCotisationRunning(id),
+                  );
+                  const onBundleUpdate = row.sourceKey
+                    ? () => onUpdateSource(row.sourceKey!)
+                    : () => onUpdateCotisationBundle(row.cotisationIds);
+
+                  return (
+                    <RatesCotisationBundleCard
+                      key={row.bundleKey}
+                      bundleKey={row.bundleKey}
+                      sourceName={row.sourceName}
+                      cotisations={row.cotisations}
+                      category={cotisations}
+                      manifest={manifest}
+                      onUpdate={onBundleUpdate}
+                      isRunning={
+                        bundleRunning ||
+                        Boolean(row.sourceKey && isSourceRunning(row.sourceKey))
+                      }
+                      updatesLocked={updatesLocked}
+                    />
+                  );
+                }
+
+                const coti = row.cotisation;
+                const unit = findCotisationUnit(manifest, coti.id);
+                const rowSources =
+                  unit?.sources ?? sourcesForCotisationId(manifest, coti.id);
+                const showRowUpdate = rowSources.length > 0;
+
+                return (
+                  <div key={coti.id} className={ratesPanelSurfaceClass()}>
+                    <Accordion type="single" collapsible defaultValue="">
+                      <AccordionItem value={coti.id} className="border-0">
+                        <AccordionHeaderWithActions
+                          className="hover:no-underline px-4 py-3"
+                          actions={
+                            showRowUpdate ? (
+                              <RatesSingleUpdateMenu
+                                label="Mise à jour"
+                                onUpdate={() => onUpdateCotisation(coti.id)}
+                                isRunning={isCotisationRunning(coti.id)}
+                                disabled={updatesLocked}
+                                compact
+                              />
+                            ) : undefined
+                          }
+                        >
+                          <div className="flex min-w-0 flex-col gap-1 text-left">
+                            <span className="block min-w-0 font-medium">{coti.libelle}</span>
+                            <RatesLastCheckedMeta
+                              lastCheckedAt={resolveCotisationLastCheckedAt(coti)}
+                            />
+                          </div>
+                        </AccordionHeaderWithActions>
+                        <AccordionContent className="border-t border-border/60 px-2 pb-0">
+                          <RatesCotisationRatesTable cotisation={coti} />
+                          <RatesPanelFooter
+                            links={sourceLinksForCotisationId(
+                              manifest,
+                              coti.id,
+                              cotisations.source_links,
+                            )}
+                          />
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CollapsibleContent>
       </Collapsible>
     </section>

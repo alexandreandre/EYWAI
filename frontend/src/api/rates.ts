@@ -13,7 +13,11 @@ export type RatesResponse = Record<string, RateCategory>;
 export type RatesSyncSourceUnit = {
   source_key: string;
   source_name: string;
+  /** URL canonique de la source (scraping_sources.primary_url) */
+  primary_url?: string | null;
   is_running: boolean;
+  /** Présent lorsque is_running — permet de reprendre le suivi après rechargement */
+  sync_id?: string | null;
 };
 
 export type RatesSyncCotisationUnit = {
@@ -52,6 +56,7 @@ export type RatesSyncJob = {
   current_step?: string;
   last_log_line?: string;
   rate_keys?: string[];
+  cotisation_ids?: string[];
 };
 
 export type RatesSyncStartResponse = {

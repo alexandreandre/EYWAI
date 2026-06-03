@@ -9,5 +9,6 @@ export function useRatesQuery(enabled = true) {
     queryKey: queryKeys.rates(companyId),
     queryFn: fetchAllRates,
     enabled: enabled && Boolean(companyId),
+    staleTime: 0,
   });
 }

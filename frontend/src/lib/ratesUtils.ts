@@ -18,49 +18,39 @@ export function formatPercent(val: unknown): string {
   return `${v.toFixed(2).replace('.', ',')} %`;
 }
 
-export function formatRateKey(key: string): string {
-  const normalized = key
-    .replace(/_/g, ' ')
-    .replace('taux moins 50', 'Taux < 50')
-    .replace('taux 50 et plus', 'Taux 50+')
-    .replace('patronal ', '')
-    .replace('salarial ', '');
+export {
+  formatEurAmount,
+  formatFraisProArrayItemTitle,
+  formatAvantagesEnNatureAmount,
+  formatEffectifRange,
+  formatHeuresSupPlage,
+  formatIsoDateFr,
+  formatPayrollPercent,
+  formatPasZone,
+  formatRateDisplayValue,
+  formatRateKey,
+  getCategoryTitle,
+  getRateValueSuffix,
+  getRateValueUnit,
+  isRateKeyUnitless,
+  isRepasForfaitRecord,
+  buildSmicDisplaySections,
+  buildIjPlafondsDisplaySections,
+  resolvePssSections,
+  resolveSmicSections,
+  pickAvantagesEnNatureValue,
+  AVANTAGES_EN_NATURE_FORFAIT_ROWS,
+  REPAS_FORFAIT_SITUATION_KEYS,
+} from '@/lib/ratesLabels';
 
-  const acronyms = new Set(['smic', 'pss', 'ijss', 'pas', 'csg', 'crds']);
-  return normalized
-    .split(' ')
-    .filter(Boolean)
-    .map((part) => {
-      const lower = part.toLowerCase();
-      if (acronyms.has(lower)) return lower.toUpperCase();
-      return lower.charAt(0).toUpperCase() + lower.slice(1);
-    })
-    .join(' ');
-}
-
-/** Vert < 14j, orange < 6 mois, rouge sinon */
+/** Couleur indicative discrète : récent &lt; 14 j, intermédiaire &lt; 6 mois, ancien sinon. */
 export function getRateDateColor(d?: string | null): string {
-  if (!d) return 'text-red-500';
-  const checkDate = new Date(d);
-  const now = new Date();
-  const diffDays = (now.getTime() - checkDate.getTime()) / (1000 * 60 * 60 * 24);
-  if (diffDays < 14) return 'text-green-600';
-  if (diffDays < 180) return 'text-orange-500';
-  return 'text-red-500';
-}
-
-export function isRateStale(d?: string | null): boolean {
-  if (!d) return true;
+  if (!d) return 'text-red-600 dark:text-red-400';
   const diffDays =
     (Date.now() - new Date(d).getTime()) / (1000 * 60 * 60 * 24);
-  return diffDays >= 14;
-}
-
-export function isRateVeryStale(d?: string | null): boolean {
-  if (!d) return true;
-  const diffDays =
-    (Date.now() - new Date(d).getTime()) / (1000 * 60 * 60 * 24);
-  return diffDays >= 180;
+  if (diffDays < 14) return 'text-emerald-700 dark:text-emerald-500';
+  if (diffDays < 180) return 'text-amber-700 dark:text-amber-500';
+  return 'text-red-600 dark:text-red-400';
 }
 
 export function buildRatesSnapshot(data: RatesResponse): RatesSnapshot {
@@ -93,36 +83,6 @@ export function countChangedCategories(
     }
   }
   return changed;
-}
-
-export function computeRatesSummary(data: RatesResponse) {
-  const entries = Object.entries(data);
-  let obsolete = 0;
-  let oldest: string | null = null;
-  let oldestDate: Date | null = null;
-
-  for (const [, cat] of entries) {
-    if (isRateStale(cat.last_checked_at)) obsolete += 1;
-    if (cat.last_checked_at) {
-      const d = new Date(cat.last_checked_at);
-      if (!oldestDate || d < oldestDate) {
-        oldestDate = d;
-        oldest = cat.last_checked_at;
-      }
-    } else {
-      obsolete += 1;
-    }
-  }
-
-  const health =
-    obsolete === 0 ? 'ok' : obsolete <= Math.ceil(entries.length / 3) ? 'warning' : 'critical';
-
-  return {
-    categoryCount: entries.length,
-    obsoleteCount: obsolete,
-    oldestCheck: oldest,
-    health,
-  } as const;
 }
 
 export {
@@ -163,6 +123,23 @@ export function parseRatesError(error: unknown): { message: string; status?: num
   };
 }
 
+/** Cotisations gérées dans la fiche entreprise (ex. VM), pas via Suivi des taux. */
+export const COMPANY_MANAGED_COTISATION_IDS = new Set(['versement_mobilite']);
+
+export function isCompanyManagedCotisation(coti: Cotisation): boolean {
+  const id = coti.id?.trim().toLowerCase() ?? '';
+  if (COMPANY_MANAGED_COTISATION_IDS.has(id)) return true;
+  const patronal = coti.patronal;
+  return (
+    typeof patronal === 'string' &&
+    patronal.trim().toLowerCase() === 'specifique_entreprise'
+  );
+}
+
+export function shouldShowCotisationInRates(coti: Cotisation): boolean {
+  return !isCompanyManagedCotisation(coti);
+}
+
 export type Cotisation = {
   id: string;
   libelle: string;
@@ -172,17 +149,31 @@ export type Cotisation = {
   patronal_plein?: number;
   patronal_reduit?: number;
   salarial_Alsace_Moselle?: number;
+  /** Horodatage du dernier contrôle scraping de cette ligne (si renseigné en base). */
+  last_checked_at?: string | null;
 };
 
-export function getCategoryTitle(key: string): string {
-  const titles: Record<string, string> = {
-    smic: 'SMIC',
-    pss: 'Plafond Sécurité Sociale (PSS)',
-    ij_plafonds: 'Plafonds IJSS',
-    cotisations: 'Cotisations Sociales',
-    pas: 'Prélèvement à la source (PAS)',
-    frais_pro: 'Frais professionnels',
-    avantages_en_nature: 'Avantages en nature',
-  };
-  return titles[key] ?? key.replaceAll('_', ' ');
+export function resolveCotisationLastCheckedAt(
+  coti: Cotisation,
+): string | null | undefined {
+  return coti.last_checked_at ?? null;
 }
+
+/** Date la plus récente parmi les cotisations d’un même groupe (base), sans repli section. */
+export function latestCotisationLastCheckedAt(
+  items: Cotisation[],
+): string | null | undefined {
+  let best: string | null | undefined = null;
+  let bestMs = -1;
+  for (const coti of items) {
+    const at = resolveCotisationLastCheckedAt(coti);
+    if (!at) continue;
+    const ms = Date.parse(at);
+    if (Number.isFinite(ms) && ms > bestMs) {
+      bestMs = ms;
+      best = at;
+    }
+  }
+  return best ?? null;
+}
+
