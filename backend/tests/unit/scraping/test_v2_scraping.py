@@ -6,6 +6,7 @@ Hermétiques : mocks Supabase / subprocess, pas de DB ni réseau réels.
 from __future__ import annotations
 
 import json
+from contextlib import redirect_stdout
 from io import StringIO
 from unittest.mock import MagicMock, patch
 
@@ -52,25 +53,27 @@ def _scraping_client():
 
 
 class TestEmitOrchestratorResultV2:
-    def test_emits_v2_metadata_fields(self, capsys):
+    def test_emits_v2_metadata_fields(self):
         from core.supabase_io import emit_orchestrator_result
 
-        emit_orchestrator_result(
-            scraper="SMIC",
-            success=True,
-            config_key="smic",
-            data={"cas_general": 11.88},
-            sources_used=["SMIC.py"],
-            decision_case="A",
-            sources_agreement=True,
-            discrepancies=[{"label": "SMIC.py", "is_ai": False}],
-            current_value={"cas_general": 11.65},
-            proposed_value={"cas_general": 11.88},
-            ai_candidate={"value": 11.88, "citation_url": "https://www.urssaf.fr/x"},
-            tier="critical",
-            requires_review=True,
-        )
-        out = json.loads(capsys.readouterr().out.strip())
+        buf = StringIO()
+        with redirect_stdout(buf):
+            emit_orchestrator_result(
+                scraper="SMIC",
+                success=True,
+                config_key="smic",
+                data={"cas_general": 11.88},
+                sources_used=["SMIC.py"],
+                decision_case="A",
+                sources_agreement=True,
+                discrepancies=[{"label": "SMIC.py", "is_ai": False}],
+                current_value={"cas_general": 11.65},
+                proposed_value={"cas_general": 11.88},
+                ai_candidate={"value": 11.88, "citation_url": "https://www.urssaf.fr/x"},
+                tier="critical",
+                requires_review=True,
+            )
+        out = json.loads(buf.getvalue().strip())
         assert out["decision_case"] == "A"
         assert out["sources_agreement"] is True
         assert out["tier"] == "critical"
@@ -351,13 +354,13 @@ class TestScrapingV2ApiRoutes:
 
 class TestRateSpecTier:
     def test_rate_spec_has_tier_and_source_key_fields(self):
-        from SMIC.spec import SPEC
+        from scraping.SMIC.spec import SPEC
 
         assert SPEC.tier is None or SPEC.tier in ("critical", "standard", "static")
         assert hasattr(SPEC, "source_key")
 
     def test_smic_resolves_critical_via_tier_for(self):
-        from SMIC.spec import SPEC
+        from scraping.SMIC.spec import SPEC
         from scraper_manifest import tier_for
 
         effective = SPEC.tier or tier_for(SPEC.scraper_name)

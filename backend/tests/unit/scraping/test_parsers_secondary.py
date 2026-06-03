@@ -1,4 +1,4 @@
-"""Tests parsers secondaires (LegiSocial) sur fixtures HTML."""
+"""Tests parsers secondaires (sources complémentaires) sur fixtures HTML."""
 
 import importlib.util
 from unittest.mock import MagicMock, patch
@@ -15,24 +15,24 @@ def _load_module(folder: str, filename: str, mod_name: str):
     return mod
 
 
-def test_dialogue_legisocial_parse_taux():
-    dialogue = _load_module(
-        "dialoguesocial", "dialoguesocial_LegiSocial.py", "dialogue_ls"
-    )
+def test_dialogue_urssaf_parse_taux():
+    dialogue = _load_module("dialoguesocial", "dialoguesocial.py", "dialogue_primary")
     assert dialogue.parse_taux("0,016 %") == 0.00016
 
 
 @patch("requests.get")
-def test_dialogue_legisocial_scrape_from_fixture(mock_get):
-    dialogue = _load_module(
-        "dialoguesocial", "dialoguesocial_LegiSocial.py", "dialogue_ls2"
-    )
+def test_dialogue_urssaf_scrape_from_fixture(mock_get):
+    dialogue = _load_module("dialoguesocial", "dialoguesocial.py", "dialogue_primary2")
     mock_resp = MagicMock()
-    mock_resp.text = load_scraping_fixture("dialogue", "legisocial.html")
+    mock_resp.text = """
+    <html><body><table>
+    <tr><th>Contribution au dialogue social</th><td>0,016 %</td></tr>
+    </table></body></html>
+    """
     mock_resp.raise_for_status = MagicMock()
     mock_get.return_value = mock_resp
 
-    rate = dialogue.scrape_dialogue_social_rate_legisocial()
+    rate = dialogue.scrape_dialogue_social_rate()
     assert rate is not None
     assert 0.0 < rate < 0.001
 

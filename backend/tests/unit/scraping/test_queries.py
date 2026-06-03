@@ -34,11 +34,16 @@ class TestGetScrapingDashboard:
             "id": "job-last",
             "success": True,
         }
+        mock_repo.count_pending_changes.return_value = 2
 
         with patch(f"{QUERIES_MODULE}.ScrapingRepository", return_value=mock_repo):
             result = queries.get_scraping_dashboard()
 
-        assert result["stats"] == {"total_jobs": 100, "success_rate": 0.95}
+        assert result["stats"] == {
+            "total_jobs": 100,
+            "success_rate": 0.95,
+            "pending_changes": 2,
+        }
         assert len(result["recent_jobs"]) == 1
         assert result["recent_jobs"][0]["id"] == "job-1"
         assert len(result["unread_alerts"]) == 1
