@@ -1,149 +1,157 @@
 # scripts/SMIC/SMIC.py
 
 import json
-import re
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from pathlib import Path
+from typing import Optional
 
-import requests
+_SCRAPING = Path(__file__).resolve().parent.parent
+if str(_SCRAPING) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING))
+
 from bs4 import BeautifulSoup
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+
+from core.http import build_session, fetch_html  # noqa: E402
+from core.urssaf_parser import (  # noqa: E402
+    UrssafTableSegment,
+    iter_segments_from_soup,
+    parse_french_amount,
+    select_applicable_segment,
+    smic_monthly_hours,
+)
 
 URL_URSSAF = (
     "https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/montant-smic.html"
 )
 
-
-def get_session() -> requests.Session:
-    session = requests.Session()
-    retry = Retry(
-        total=3,
-        backoff_factor=2,
-        status_forcelist=[429, 500, 502, 503, 504],
-    )
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount("https://", adapter)
-    session.headers.update(
-        {
-            "User-Agent": (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            ),
-            "Accept": (
-                "text/html,application/xhtml+xml,"
-                "application/xml;q=0.9,*/*;q=0.8"
-            ),
-            "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "none",
-        }
-    )
-    return session
+# Réexport pour les tests existants
+parse_montant = parse_french_amount
 
 
 def iso_now() -> str:
-    """Retourne la date et l'heure actuelles au format ISO 8601 UTC."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def parse_montant(texte: str) -> float:
-    """Convertit '1 823,03 €' ou '1\xa0823,03 €' en 1823.03"""
-    import re
-    # Normalise : supprime espaces normaux, insécables,
-    # apostrophes, points de milliers
-    cleaned = (texte
-               .replace('\xa0', '')
-               .replace('\u202f', '')
-               .replace(' ', '')
-               .replace('\u2009', '')
-               .strip())
-    # Remplace virgule décimale par point
-    cleaned = cleaned.replace(',', '.')
-    # Extrait le premier nombre décimal ou entier
-    match = re.search(r'\d+\.?\d*', cleaned)
-    if match:
-        return float(match.group())
-    return 0.0
+def _smic_horaire_from_segment(segment: UrssafTableSegment) -> dict[str, float]:
+    """Extrait les taux horaires SMIC d'un segment cohérent."""
+    general: Optional[float] = None
+    jeune_17: Optional[float] = None
+    jeune_moins_17: Optional[float] = None
+    mensuel: Optional[float] = None
 
+    for label, val in segment.label_values.items():
+        if "mensuel" in label and val > 500:
+            if mensuel is None or val > mensuel:
+                mensuel = val
+            continue
+        if "smic horaire brut" not in label:
+            continue
+        if "moins de 17" in label:
+            jeune_moins_17 = val
+        elif "17" in label:
+            jeune_17 = val
+        elif general is None:
+            general = val
 
-def extract_smic_data(soup: BeautifulSoup) -> dict:
-    """
-    Extrait les données SMIC depuis les tableaux URSSAF.
-    Parcourt tous les tr : chaque ligne « Smic horaire brut »
-    ajoute une valeur (> 5 €) dans l'ordre (cas général, 17–18 ans, etc.).
-    """
-    rows = soup.find_all("tr")
+    if general is None:
+        raise ValueError("Smic horaire brut introuvable dans le segment applicable")
 
-    horaires: list[float] = []
-    smic_mensuel_brut = None
-    annee = datetime.now().year
+    if jeune_17 is None:
+        jeune_17 = round(general * 0.90, 2)
+    if jeune_moins_17 is None:
+        jeune_moins_17 = round(general * 0.80, 2)
 
-    for tr in rows:
-        text = tr.get_text(strip=True, separator=" | ")
+    jeune_17 = min(jeune_17, general)
+    jeune_moins_17 = min(jeune_moins_17, jeune_17)
 
-        if "Smic horaire brut" in text:
-            tds = tr.find_all(["td", "th"])
-            for td in tds:
-                val = parse_montant(td.get_text())
-                if val > 5:
-                    horaires.append(val)
-                    break
-
-        if "mensuel" in text.lower() and smic_mensuel_brut is None:
-            tds = tr.find_all(["td", "th"])
-            for td in tds:
-                val = parse_montant(td.get_text())
-                if val > 1000:
-                    smic_mensuel_brut = val
-                    break
-
-        if "janvier" in text.lower():
-            m = re.search(r"20\d{2}", text)
-            if m:
-                annee = int(m.group())
-
-    if not horaires:
-        raise ValueError("Impossible d'extraire le SMIC horaire brut")
-
-    smic_horaire_brut = horaires[0]
-    if smic_mensuel_brut is None:
-        smic_mensuel_brut = round(smic_horaire_brut * 35 * 52 / 12, 2)
-
-    cas_general = horaires[0]
-    jeune_17 = horaires[1] if len(horaires) > 1 else horaires[0]
-    jeune_moins_17 = horaires[2] if len(horaires) > 2 else horaires[0]
+    if mensuel is None:
+        mensuel = round(general * smic_monthly_hours(), 2)
 
     return {
-        "smic_horaire_brut": smic_horaire_brut,
-        "smic_mensuel_brut": smic_mensuel_brut,
-        "annee": annee,
-        "source": "URSSAF",
-        "cas_general": cas_general,
+        "smic_horaire_brut": general,
+        "smic_mensuel_brut": mensuel,
+        "cas_general": general,
         "jeune_17_ans": jeune_17,
         "jeune_moins_17_ans": jeune_moins_17,
     }
 
 
+def fetch_soup() -> BeautifulSoup:
+    """Charge la page URSSAF SMIC (partagée primary + Sonar)."""
+    html = fetch_html(URL_URSSAF, timeout=20, session=build_session())
+    return BeautifulSoup(html, "html.parser")
+
+
+def applicable_segment_table_text(
+    soup: BeautifulSoup,
+    *,
+    reference_date: Optional[date] = None,
+) -> str:
+    """Texte du segment métropole applicable — contexte injecté pour Sonar."""
+    ref = reference_date or datetime.now().date()
+    segments = iter_segments_from_soup(
+        soup, default_year=ref.year, reference_date=ref
+    )
+    segment = select_applicable_segment(
+        segments,
+        reference_date=ref,
+        target_year=ref.year,
+        prefer_mainland=True,
+    )
+    if segment is None:
+        return ""
+    lines = [
+        f"Barème SMIC métropole URSSAF — révision du "
+        f"{segment.effective_from.strftime('%d/%m/%Y')}",
+        "Utilise UNIQUEMENT ce segment (pas Mayotte, pas les révisions antérieures).",
+        "",
+    ]
+    for lk, lv in segment.label_values.items():
+        lines.append(f"- {lk} : {lv} €")
+    return "\n".join(lines)
+
+
+def extract_smic_data(
+    soup: BeautifulSoup,
+    *,
+    reference_date: Optional[date] = None,
+) -> dict:
+    """
+    Extrait le SMIC métropole en vigueur à reference_date (révision URSSAF la plus récente).
+    """
+    ref = reference_date or datetime.now().date()
+    segments = iter_segments_from_soup(
+        soup, default_year=ref.year, reference_date=ref
+    )
+    segment = select_applicable_segment(
+        segments,
+        reference_date=ref,
+        target_year=ref.year,
+        prefer_mainland=True,
+    )
+    if segment is None:
+        raise ValueError("Aucun segment SMIC applicable trouvé sur la page URSSAF")
+
+    rates = _smic_horaire_from_segment(segment)
+    return {
+        **rates,
+        "annee": segment.year,
+        "source": "URSSAF",
+        "effective_from": segment.effective_from.isoformat(),
+    }
+
+
 def get_tous_les_smic() -> dict | None:
-    """Scrape l'URSSAF et retourne le dict sections (taux horaires + agrégats)."""
     try:
         print(f"Scraping de l'URL : {URL_URSSAF}...", file=sys.stderr)
-        session = get_session()
-        r = session.get(URL_URSSAF, timeout=20)
-        r.raise_for_status()
-
-        soup = BeautifulSoup(r.text, "html.parser")
+        soup = fetch_soup()
         data = extract_smic_data(soup)
 
         print(
             f"  - SMIC horaire brut (réf.): {data['smic_horaire_brut']} € | "
-            f"mensuel: {data['smic_mensuel_brut']} € | année: {data['annee']}",
+            f"mensuel: {data['smic_mensuel_brut']} € | année: {data['annee']} | "
+            f"effet: {data.get('effective_from', '?')}",
             file=sys.stderr,
         )
         print(
@@ -152,7 +160,6 @@ def get_tous_les_smic() -> dict | None:
             file=sys.stderr,
         )
 
-        # Pour l'orchestrateur : comparer uniquement des nombres (pas la clé str "source")
         sections = {k: v for k, v in data.items() if k != "source"}
         return sections
 
@@ -162,7 +169,6 @@ def get_tous_les_smic() -> dict | None:
 
 
 def main():
-    """Orchestre le scraping et génère la sortie JSON pour l'orchestrateur."""
     smic_data = get_tous_les_smic()
 
     if not smic_data:

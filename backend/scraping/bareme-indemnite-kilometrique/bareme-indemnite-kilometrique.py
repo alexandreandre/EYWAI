@@ -175,11 +175,12 @@ def scrape_cyclo(soup: BeautifulSoup) -> List[Dict]:
 
 
 def build_payload(voitures: List[Dict], motos: List[Dict], cyclos: List[Dict]) -> dict:
+    cy = datetime.now().year
     return {
         "id": "baremes_km",
         "type": "barème_kilométrique",
-        "libelle": "Barème kilométrique 2025 (Service-Public)",
-        "annee": 2025,
+        "libelle": f"Barème kilométrique {cy} (Service-Public)",
+        "annee": cy,
         "vehicules": {
             "voitures": {
                 "base": "distance_km",

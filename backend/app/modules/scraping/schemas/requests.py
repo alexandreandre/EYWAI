@@ -7,7 +7,7 @@ Comportement identique : mêmes champs, mêmes types, mêmes valeurs par défaut
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -39,3 +39,12 @@ class ScheduleUpdate(BaseModel):
 
 class AlertResolve(BaseModel):
     resolution_note: Optional[str] = None
+
+
+class PendingApprove(BaseModel):
+    # Valeur éditée optionnelle à écrire à la place de la valeur proposée.
+    override_value: Optional[Dict[str, Any]] = None
+
+
+class PendingReject(BaseModel):
+    review_note: Optional[str] = None

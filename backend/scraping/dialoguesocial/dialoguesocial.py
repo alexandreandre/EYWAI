@@ -104,7 +104,8 @@ def main():
         "id": "dialogue_social",
         "type": "cotisation",
         "libelle": "Contribution au dialogue social",
-        "sections": {"salarial": None, "patronal": rate_data},
+        "base": "brut",
+        "valeurs": {"salarial": None, "patronal": rate_data},
         "meta": {
             "source": [
                 {

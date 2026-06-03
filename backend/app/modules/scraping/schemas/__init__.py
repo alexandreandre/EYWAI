@@ -5,6 +5,8 @@
 #   )
 from app.modules.scraping.schemas.requests import (
     AlertResolve,
+    PendingApprove,
+    PendingReject,
     ScheduleCreate,
     ScheduleUpdate,
     ScraperExecutionRequest,
@@ -29,6 +31,8 @@ __all__ = [
     "ScheduleCreate",
     "ScheduleUpdate",
     "AlertResolve",
+    "PendingApprove",
+    "PendingReject",
     # Réponses
     "ScrapingDashboardResponse",
     "SourcesListResponse",

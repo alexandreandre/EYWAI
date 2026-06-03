@@ -52,16 +52,18 @@ def make_payload(
 
 
 # -------- Scraper --------
-def run() -> dict:
+def fetch_soup():
     r = requests.get(URL_URSSAF, timeout=25, headers={"User-Agent": UA})
     r.raise_for_status()
-    soup = BeautifulSoup(r.text, "lxml")
+    return BeautifulSoup(r.text, "lxml")
 
+
+def scrape_from_soup(soup) -> dict:
+    """Extraction primary depuis une soupe déjà chargée."""
     repas_val: Optional[float] = None
     tr_exo: Optional[float] = None
     logement_bareme: List[Dict] = []
 
-    # --- Repas ---
     repas_h = soup.find(id=lambda x: x and "repas" in x.lower())
     if not repas_h:
         repas_h = soup.find(
@@ -82,7 +84,6 @@ def run() -> dict:
                         repas_val = parse_number(_txt(td))
                         break
 
-    # --- Titres-restaurant (exonération maximale) ---
     tr_h = soup.find(id=lambda x: x and "titre" in x.lower())
     if not tr_h:
         tr_h = soup.find(
@@ -99,7 +100,6 @@ def run() -> dict:
                     if td:
                         tr_exo = parse_number(_txt(td))
 
-    # --- Logement (barème forfaitaire) ---
     log_h = soup.find(id=lambda x: x and "logement" in x.lower())
     if not log_h:
         log_h = soup.find(
@@ -114,12 +114,8 @@ def run() -> dict:
                 if len(tds) < 3:
                     continue
                 tranche_txt = _txt(tds[0]).lower()
-
                 nums = re.findall(r"(\d[\d\s\u202f\u00a0,.]*)\s*€?", tranche_txt)
-                rem_max = None
-                if nums:
-                    rem_max = parse_number(nums[-1])
-
+                rem_max = parse_number(nums[-1]) if nums else None
                 v1p = parse_number(_txt(tds[1]))
                 vpp = parse_number(_txt(tds[2]))
                 if v1p is not None and vpp is not None:
@@ -132,6 +128,40 @@ def run() -> dict:
                     )
 
     return make_payload(repas_val, tr_exo, logement_bareme)
+
+
+def section_table_text(soup, section: str) -> str:
+    """Texte du tableau URSSAF pour repas, titre ou logement."""
+    if section == "repas":
+        header = soup.find(id=lambda x: x and "repas" in x.lower()) or soup.find(
+            lambda t: t.name in ("h2", "h3") and "repas" in _txt(t).lower()
+        )
+    elif section == "titre":
+        header = soup.find(id=lambda x: x and "titre" in x.lower()) or soup.find(
+            lambda t: t.name in ("h2", "h3") and "titre-restaurant" in _txt(t).lower()
+        )
+    elif section == "logement":
+        header = soup.find(id=lambda x: x and "logement" in x.lower()) or soup.find(
+            lambda t: t.name in ("h2", "h3") and "logement" in _txt(t).lower()
+        )
+    else:
+        raise ValueError(f"Section inconnue : {section}")
+
+    if not header:
+        raise ValueError(f"Section URSSAF introuvable : {section}")
+
+    lines = [_txt(header)]
+    tbl = header.find_next("table")
+    if tbl:
+        for tr in tbl.find_all("tr"):
+            cells = [_txt(c) for c in tr.find_all(["th", "td"])]
+            if cells:
+                lines.append(" | ".join(cells))
+    return "\n".join(lines)
+
+
+def run() -> dict:
+    return scrape_from_soup(fetch_soup())
 
 
 if __name__ == "__main__":

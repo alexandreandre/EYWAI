@@ -1,137 +1,113 @@
-# scripts/IJmaladie/IJmaladie.py
+#!/usr/bin/env python3
+"""Source primary IJSS — page officielle Service Public."""
+
+from __future__ import annotations
+
 import json
 import re
+import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
-import requests
 from bs4 import BeautifulSoup
 
-URL_AMELI = "https://www.ameli.fr/entreprise/vos-salaries/montants-reference/indemnites-journalieres-montants-maximum"
+_SCRAPING = Path(__file__).resolve().parent.parent
+if str(_SCRAPING) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING))
+
+from core.http import build_session, fetch_html  # noqa: E402
+
+URL_SERVICE_PUBLIC = (
+    "https://www.service-public.gouv.fr/particuliers/actualites/A18779"
+)
+
+PATTERNS = {
+    "maladie": re.compile(
+        r"maladie,\s*à\s*([\d\s,\.\u202f\u00a0]+)\s*€",
+        re.IGNORECASE,
+    ),
+    "maternite_paternite": re.compile(
+        r"maternité et de paternité,\s*à\s*([\d\s,\.\u202f\u00a0]+)\s*€",
+        re.IGNORECASE,
+    ),
+    "at_mp": re.compile(
+        r"([\d\s,\.\u202f\u00a0]+)\s*€/jour pendant les 28",
+        re.IGNORECASE,
+    ),
+    "at_mp_majoree": re.compile(
+        r"([\d\s,\.\u202f\u00a0]+)\s*€/jour à partir du 29",
+        re.IGNORECASE,
+    ),
+}
+
+
+def parse_montant(text: str) -> float:
+    cleaned = (
+        text.replace("\xa0", "")
+        .replace("\u202f", "")
+        .replace(" ", "")
+        .replace(",", ".")
+        .strip()
+    )
+    match = re.search(r"\d+\.?\d*", cleaned)
+    if not match:
+        raise ValueError(f"Montant invalide: {text!r}")
+    return float(match.group())
+
+
+def extract_plafonds_ij(html: str) -> dict[str, float]:
+    """Extrait les 4 plafonds IJSS depuis la page Service Public A18779."""
+    text = BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
+    if "Plafonds des indemnités journalières" not in text:
+        raise ValueError("Section plafonds IJSS introuvable sur la page")
+
+    plafonds: dict[str, float] = {}
+    for key, pattern in PATTERNS.items():
+        match = pattern.search(text)
+        if not match:
+            raise ValueError(f"Plafond IJ manquant: {key}")
+        plafonds[key] = round(parse_montant(match.group(1)), 2)
+
+    return plafonds
+
+
+def get_plafonds_ij_service_public() -> tuple[dict[str, float], str]:
+    print(f"Scraping de l'URL : {URL_SERVICE_PUBLIC}...", file=sys.stderr)
+    html = fetch_html(URL_SERVICE_PUBLIC, session=build_session(), timeout=20)
+    plafonds = extract_plafonds_ij(html)
+    for key, value in plafonds.items():
+        print(f"  - Plafond '{key}' : {value} €/jour", file=sys.stderr)
+    return plafonds, URL_SERVICE_PUBLIC
 
 
 def iso_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _to_float_eur(text: str) -> float | None:
-    if not text:
-        return None
-    # garde le premier nombre décimal, traite espaces insécables et virgules
-    cleaned = text.replace("\xa0", " ").replace("\u202f", " ").replace("€", "").strip()
-    m = re.search(r"(\d+(?:[.,]\d+)?)", cleaned)
-    if not m:
-        return None
-    try:
-        return round(float(m.group(1).replace(",", ".")), 2)
-    except Exception:
-        return None
-
-
-def _fetch_page(url: str) -> BeautifulSoup:
-    r = requests.get(
-        url,
-        timeout=25,
-        headers={
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "fr-FR,fr;q=0.9",
-        },
-    )
-    r.raise_for_status()
-    return BeautifulSoup(r.text, "html.parser")
-
-
-def _norm(s: str) -> str:
-    return re.sub(r"\s+", " ", s.lower().strip()) if s else ""
-
-
-def scrape_ij_plafonds() -> dict[str, float | None]:
-    """
-    Extrait les montants maximums journaliers (en euros) :
-      - maladie
-      - maternité_paternite
-      - at_mp
-      - at_mp_majoree  (à compter du 29e jour)
-    """
-    soup = _fetch_page(URL_AMELI)
-    vals = {
-        "maladie": None,
-        "maternite_paternite": None,
-        "at_mp": None,
-        "at_mp_majoree": None,
-    }
-
-    # Parcours de tous les tableaux et lignes
-    for table in soup.find_all("table"):
-        for tr in table.find_all("tr"):
-            cells = tr.find_all(["th", "td"])
-            if len(cells) < 2:
-                continue
-            label = _norm(cells[0].get_text(" ", strip=True))
-            value_text = cells[-1].get_text(" ", strip=True)
-            val = _to_float_eur(value_text)
-            if val is None:
-                continue
-
-            # Règles de mapping robustes
-            if (
-                ("maternité" in label)
-                or ("paternité" in label)
-                or ("adoption" in label)
-            ):
-                vals["maternite_paternite"] = val
-            elif (
-                ("accident du travail" in label)
-                or ("maladie professionnelle" in label)
-                or ("at/mp" in label)
-                or ("at mp" in label)
-            ):
-                if ("29" in label) or ("à compter du 29" in label) or ("maj" in label):
-                    vals["at_mp_majoree"] = val
-                else:
-                    vals["at_mp"] = val
-            elif ("arrêt maladie" in label) or (
-                ("maladie" in label)
-                and ("accident" not in label)
-                and ("professionnelle" not in label)
-            ):
-                vals["maladie"] = val
-
-    return vals
-
-
-def build_payload(vals: dict[str, float | None]) -> dict:
-    return {
+def main() -> None:
+    plafonds, source_url = get_plafonds_ij_service_public()
+    payload = {
         "id": "ij_maladie",
         "type": "secu",
         "libelle": "Indemnités journalières — montants maximums",
         "base": None,
         "valeurs": {
-            "maladie": vals.get("maladie"),
-            "maternite_paternite": vals.get("maternite_paternite"),
-            "at_mp": vals.get("at_mp"),
-            "at_mp_majoree": vals.get("at_mp_majoree"),
+            **plafonds,
             "unite": "EUR/jour",
         },
         "meta": {
             "source": [
                 {
-                    "url": URL_AMELI,
-                    "label": "ameli.fr — IJ montants maximum",
-                    "date_doc": "",
+                    "url": source_url,
+                    "label": "Service Public — IJSS montants 2026",
+                    "date_doc": "26/01/2026",
                 }
             ],
             "scraped_at": iso_now(),
-            "generator": "scripts/IJmaladie/IJmaladie.py",
+            "generator": "IJmaladie/IJmaladie.py",
             "method": "primary",
         },
     }
-
-
-def main() -> None:
-    vals = scrape_ij_plafonds()
-    payload = build_payload(vals)
-    # Sortie JSON stricte, aucun autre print
     print(json.dumps(payload, ensure_ascii=False))
 
 

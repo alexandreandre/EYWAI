@@ -1,220 +1,111 @@
-# scripts/taxeapprentissage/taxeapprentissage_AI.py
-
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
-"""
-taxeapprentissage_AI.py
-Recherche les taux de la taxe d'apprentissage (part principale et solde)
-sur le web via DDGS, analyse les pages avec 'requests' et 'BeautifulSoup',
-et utilise l'IA (GPT) pour extraire les taux officiels métropole/Alsace-Moselle.
-"""
+#!/usr/bin/env python3
+"""Source IA — taxe d'apprentissage (recherche web)."""
 
 import json
-import os
 import sys
-import time
-from datetime import datetime, timezone
+from pathlib import Path
 
-import requests
-from bs4 import BeautifulSoup
-from dotenv import load_dotenv
-from ddgs.ddgs import DDGS
+_SCRAPING = Path(__file__).resolve().parent.parent
+if str(_SCRAPING) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING))
 
-# --- Configuration ---
-load_dotenv()
+from core.ai_extractor import build_standard_payload, emit_ai_payload_or_exit, extract_with_web_search  # noqa: E402
+from core.year_utils import current_year  # noqa: E402
 
-import sys
-from pathlib import Path as _Path
-
-_SCRAPING_ROOT = _Path(__file__).resolve().parents[1]
-if str(_SCRAPING_ROOT) not in sys.path:
-    sys.path.insert(0, str(_SCRAPING_ROOT))
-from openrouter_client import chat_completions_create, require_api_key
-
-
-SEARCH_QUERY_TEMPLATE = "taux taxe d'apprentissage URSSAF {year}"
-USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
+URL = (
+    "https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/"
+    "taux-cotisations-secteur-prive.html"
 )
 
-# --- Fonctions utilitaires ---
+OFFICIAL = [
+    "urssaf.fr",
+    "service-public.fr",
+    "legifrance.gouv.fr",
+    "agirc-arrco.fr",
+    "bofip.impots.gouv.fr",
+]
+
+ZONE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "taux_metropole": {"type": ["number", "null"]},
+        "taux_alsace_moselle": {"type": ["number", "null"]},
+    },
+    "required": ["taux_metropole", "taux_alsace_moselle"],
+    "additionalProperties": False,
+}
+
+SCHEMA = {
+    "type": "object",
+    "properties": {
+        "part_principale": ZONE_SCHEMA,
+        "solde": ZONE_SCHEMA,
+    },
+    "required": ["part_principale", "solde"],
+    "additionalProperties": False,
+}
 
 
-def iso_now() -> str:
-    """Retourne l'heure actuelle au format ISO UTC."""
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def _fetch_text_with_requests(url: str) -> str | None:
-    """Récupère le texte brut d'une page via requests et BeautifulSoup."""
-    try:
-        r = requests.get(url, timeout=15, headers={"User-Agent": USER_AGENT})
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
-        return soup.get_text(" ", strip=True)
-    except Exception as e:
-        print(f"ERREUR (TAXEAPP_AI): échec fetch sur {url}: {e}", file=sys.stderr)
-        return None
-
-
-def _extract_rates_with_gpt(page_text: str) -> dict | None:
-    """Extrait la part principale et le solde via GPT."""
-    try:
-        require_api_key()
-    except ValueError:
-        print("ERREUR: OPENROUTER_API_KEY manquante.", file=sys.stderr)
-        return None
-
-        current_year = datetime.now().year
-
-    prompt = (
-        f"Analyse ce texte et extrait les taux de la taxe d'apprentissage applicables en {current_year}.\n"
-        "Je veux la décomposition suivante :\n"
-        "- 'part_principale' (taux métropole et taux Alsace-Moselle)\n"
-        "- 'solde' (taux métropole et taux Alsace-Moselle)\n"
-        "Si un taux n’existe pas, mets 0.\n"
-        "Réponds uniquement en JSON strict du format suivant :\n"
-        "{\n"
-        '  "part_principale": {"taux_metropole": 0.59, "taux_alsace_moselle": 0.44},\n'
-        '  "solde": {"taux_metropole": 0.09, "taux_alsace_moselle": 0.0}\n'
-        "}\n"
-        "Aucune explication. Uniquement le JSON.\n\n"
-        "Texte à analyser (max 15000 caractères):\n---\n" + page_text[:15000]
-    )
-
-    try:
-        resp = chat_completions_create(
-            response_format={"type": "json_object"},
-            temperature=0,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Assistant d'extraction JSON pur, spécialisé URSSAF.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-        )
-        data = json.loads(resp.choices[0].message.content.strip())
-        return data
-    except Exception as e:
-        print(f"ERREUR (TAXEAPP_AI): extraction IA échouée: {e}", file=sys.stderr)
-        return None
-
-
-def build_payload(rates: dict | None, found_url: str | None) -> dict:
-    """Construit la charge utile JSON finale dans le format strict."""
-
-    def _to_rate(val):
-        if val is None:
+def _zone_to_rates(zone: dict) -> dict:
+    def _one(v):
+        if v is None:
             return None
-        try:
-            return round(float(str(val).replace(",", ".")) / 100.0, 6)
-        except Exception:
-            return None
-
-    part_principale = rates.get("part_principale") if rates else {}
-    solde = rates.get("solde") if rates else {}
-
-    # Conversion des pourcentages en taux
-    part_principale = {
-        "taux_metropole": _to_rate(part_principale.get("taux_metropole")),
-        "taux_alsace_moselle": _to_rate(part_principale.get("taux_alsace_moselle")),
-    }
-    solde = {
-        "taux_metropole": _to_rate(solde.get("taux_metropole")),
-        "taux_alsace_moselle": _to_rate(solde.get("taux_alsace_moselle")),
-    }
-
-    total = {
-        "taux_metropole": (
-            (part_principale["taux_metropole"] or 0) + (solde["taux_metropole"] or 0)
-        ),
-        "taux_alsace_moselle": (
-            (part_principale["taux_alsace_moselle"] or 0)
-            + (solde["taux_alsace_moselle"] or 0)
-        ),
-    }
-
-    source_url = found_url or "N/A"
-    source_label = (
-        "Source IA (via DDGS)" if found_url else "N/A (Taux non trouvé par l'IA)"
-    )
+        return round(float(v) / 100.0, 6)
 
     return {
-        "id": "taxe_apprentissage",
-        "type": "cotisation",
-        "libelle": "Taxe d'Apprentissage",
-        "sections": {
-            "salarial": None,
-            "part_principale": part_principale,
-            "solde": solde,
-            "total": total,
-        },
-        "meta": {
-            "source": [{"url": source_url, "label": source_label, "date_doc": ""}],
-            "scraped_at": iso_now(),
-            "generator": "scripts/taxeapprentissage/taxeapprentissage_AI.py",
-            "method": "ai",
-        },
+        "taux_metropole": _one(zone.get("taux_metropole")),
+        "taux_alsace_moselle": _one(zone.get("taux_alsace_moselle")),
     }
 
 
 def main() -> None:
-    """Orchestre la recherche et l'extraction IA."""
-    current_year = datetime.now().year
-    SEARCH_QUERY = SEARCH_QUERY_TEMPLATE.format(year=current_year)
-    print(f"INFO (TAXEAPP_AI): Recherche DDGS: '{SEARCH_QUERY}'", file=sys.stderr)
+    cy = current_year()
+    data = extract_with_web_search(
+        task_prompt=(
+            f"Extrais les taux de la taxe d'apprentissage applicables en {cy} : "
+            f"part_principale et solde, chacune avec taux_metropole et taux_alsace_moselle. "
+            f"Renvoie les valeurs en pourcentage (0 si absent pour Alsace-Moselle solde)."
+        ),
+        json_schema=SCHEMA,
+        schema_name="taxe_apprentissage",
+        include_domains=OFFICIAL,
+    )
+    if not data or not data.get("part_principale") or not data.get("solde"):
+        print("ERREUR CRITIQUE: extraction IA taxe apprentissage échouée.", file=sys.stderr)
+        sys.exit(1)
 
-    results = []
-    try:
-        search_results = DDGS().text(SEARCH_QUERY, region="fr-fr", max_results=5)
-        if search_results:
-            results = [r["href"] for r in search_results]
-        if not results:
-            print(
-                "ERREUR (TAXEAPP_AI): DDGS n'a retourné aucun résultat.",
-                file=sys.stderr,
-            )
-    except Exception as e:
-        print(f"ERREUR (TAXEAPP_AI): Échec recherche DuckDuckGo: {e}", file=sys.stderr)
+    part_principale = _zone_to_rates(data["part_principale"])
+    solde = _zone_to_rates(data["solde"])
+    if part_principale["taux_metropole"] is None or solde["taux_metropole"] is None:
+        print("ERREUR CRITIQUE: taux taxe apprentissage incomplets.", file=sys.stderr)
+        sys.exit(1)
 
-    final_rates = None
-    successful_url = None
-
-    for url in results:
-        print(f"INFO (TAXEAPP_AI): Analyse URL: {url}", file=sys.stderr)
-        txt = _fetch_text_with_requests(url)
-        if not txt:
-            continue
-
-        rates = _extract_rates_with_gpt(txt)
-        if (
-            rates
-            and "part_principale" in rates
-            and "solde" in rates
-            and "taux_metropole" in rates["part_principale"]
-            and "taux_alsace_moselle" in rates["part_principale"]
-            and "taux_metropole" in rates["solde"]
-            and "taux_alsace_moselle" in rates["solde"]
-        ):
-            print("✅ Structure complète extraite avec succès.", file=sys.stderr)
-            final_rates = rates
-            successful_url = url
-            break
-        else:
-            print(
-                "INFO (TAXEAPP_AI): Données incomplètes, passage à l'URL suivante.",
-                file=sys.stderr,
-            )
-        time.sleep(1)
-
-    if final_rates is None:
-        print("ERREUR (TAXEAPP_AI): Aucune donnée valide extraite.", file=sys.stderr)
-
-    payload = build_payload(final_rates, successful_url)
-    print(json.dumps(payload, ensure_ascii=False))
+    total = {
+        "taux_metropole": round(
+            (part_principale["taux_metropole"] or 0) + (solde["taux_metropole"] or 0), 6
+        ),
+        "taux_alsace_moselle": round(
+            (part_principale["taux_alsace_moselle"] or 0)
+            + (solde["taux_alsace_moselle"] or 0),
+            6,
+        ),
+    }
+    sections = {
+        "salarial": None,
+        "part_principale": part_principale,
+        "solde": solde,
+        "total": total,
+    }
+    payload = build_standard_payload(
+        item_id="taxe_apprentissage",
+        item_type="cotisation",
+        libelle="Taxe d'Apprentissage",
+        sections_or_valeurs=sections,
+        generator="taxeapprentissage/taxeapprentissage_AI.py",
+        source_url=URL,
+        source_label="URSSAF taxe apprentissage (IA web)",
+    )
+    emit_ai_payload_or_exit(payload, "taxe_apprentissage")
 
 
 if __name__ == "__main__":

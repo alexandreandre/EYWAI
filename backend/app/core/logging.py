@@ -185,4 +185,21 @@ def configure_logging(
     logging.getLogger("uvicorn.access").setLevel(access_level)
 
     _quiet_noisy_libraries(level)
+    _configure_scraping_terminal_logging(fmt)
     install_legacy_print_shim()
+
+
+def _configure_scraping_terminal_logging(fmt: str) -> None:
+    """
+    Affiche toujours les logs du runner scraping en terminal (INFO+),
+    indépendamment du LOG_LEVEL global (souvent WARNING en local).
+    """
+    scraping_logger = logging.getLogger(f"{LOGGER_NAME}.modules.scraping")
+    scraping_logger.setLevel(logging.INFO)
+    scraping_logger.propagate = False
+
+    if not scraping_logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(logging.INFO)
+        handler.setFormatter(logging.Formatter(fmt))
+        scraping_logger.addHandler(handler)

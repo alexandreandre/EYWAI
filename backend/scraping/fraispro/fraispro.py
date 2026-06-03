@@ -140,29 +140,28 @@ def scrape_grand_deplacement(soup) -> dict:
                             ),
                         }
                     )
-    om_headers = header.find_all_next("h4", limit=2)
-    for i, om_header in enumerate(om_headers):
-        key = f"outre_mer_groupe{i + 1}"
-        tabs_container = om_header.find_next("div", class_="tabs_custom_2")
-        if tabs_container:
-            panel = tabs_container.find("div", role="tabpanel")
-            if panel:
-                table = panel.find("table", class_="d-none d-md-table")
-                if table and table.find("tbody"):
-                    for row in table.find("tbody").find_all("tr"):
-                        cells = row.find_all(["th", "td"])
-                        if len(cells) == 3:
-                            data[key].append(
-                                {
-                                    "periode_sejour": cells[0].get_text(strip=True),
-                                    "hebergement": parse_valeur_numerique(
-                                        cells[1].get_text()
-                                    ),
-                                    "repas": parse_valeur_numerique(
-                                        cells[2].get_text()
-                                    ),
-                                }
-                            )
+
+    om_patterns = (
+        ("outre_mer_groupe1", r"Martinique, Guadeloupe"),
+        ("outre_mer_groupe2", r"Nouvelle-Calédonie"),
+    )
+    for key, pattern in om_patterns:
+        om_header = header.find_next("h4", string=re.compile(pattern))
+        if not om_header:
+            continue
+        table = om_header.find_next("table", class_="d-none d-md-table")
+        if not table or not table.find("tbody"):
+            continue
+        for row in table.find("tbody").find_all("tr"):
+            cells = row.find_all(["th", "td"])
+            if len(cells) == 3:
+                data[key].append(
+                    {
+                        "periode_sejour": cells[0].get_text(strip=True),
+                        "hebergement": parse_valeur_numerique(cells[1].get_text()),
+                        "repas": parse_valeur_numerique(cells[2].get_text()),
+                    }
+                )
     return data
 
 
@@ -354,23 +353,19 @@ def scrape_teletravail(soup) -> dict:
     return data
 
 
-# --- FONCTION PRINCIPALE ---
-
-
-def main():
-    """Orchestre le scraping et génère la sortie JSON pour l'orchestrateur."""
-    response = make_robust_request(URL_URSSAF)
+def fetch_soup(url: str = URL_URSSAF):
+    """Télécharge et parse la page URSSAF frais professionnels."""
+    response = make_robust_request(url)
     if not response:
-        print(
-            "ERREUR CRITIQUE: Impossible de récupérer la page web après plusieurs tentatives.",
-            file=sys.stderr,
+        raise RuntimeError(
+            "Impossible de récupérer la page URSSAF frais professionnels."
         )
-        sys.exit(1)
+    return BeautifulSoup(response.text, "html.parser")
 
-    soup = BeautifulSoup(response.text, "html.parser")
 
-    print("\nDébut de l'extraction des données...", file=sys.stderr)
-    sections_data = {
+def scrape_all_sections(soup) -> dict:
+    """Extrait toutes les sections (primary)."""
+    return {
         "repas": scrape_repas(soup),
         "petit_deplacement": scrape_petit_deplacement(soup),
         "grand_deplacement": scrape_grand_deplacement(soup),
@@ -378,6 +373,79 @@ def main():
         "mobilite_durable": scrape_mobilite_durable(soup),
         "teletravail": scrape_teletravail(soup),
     }
+
+
+def section_text(soup, anchor_id: str) -> str:
+    """Texte des tableaux et titres d'une section (contexte Sonar)."""
+    header = soup.find("h2", id=anchor_id)
+    if not header:
+        raise ValueError(f"Section URSSAF introuvable : {anchor_id}")
+    return _text_from_header_until_next_h2(header)
+
+
+def _text_from_header_until_next_h2(header) -> str:
+    lines: list[str] = [header.get_text(" ", strip=True)]
+    for tag in header.find_all_next():
+        if tag.name == "h2" and tag is not header:
+            break
+        if tag.name == "table":
+            for tr in tag.find_all("tr"):
+                cells = [
+                    c.get_text(" ", strip=True)
+                    for c in tr.find_all(["th", "td"])
+                ]
+                if cells:
+                    lines.append(" | ".join(cells))
+        elif tag.name in ("h3", "h4"):
+            text = tag.get_text(" ", strip=True)
+            if text:
+                lines.append(text)
+    return "\n".join(line for line in lines if line)
+
+
+def subsection_text(soup, start_pattern: str, stop_pattern: str | None = None) -> str:
+    """Texte ciblé entre deux titres h3/h4 (sous-section grand déplacement)."""
+    header = soup.find("h2", id="ancre-grand-deplacement")
+    if not header:
+        raise ValueError("Section grand déplacement introuvable.")
+    start = header.find_next(
+        ["h3", "h4"], string=re.compile(start_pattern, re.I)
+    )
+    if not start:
+        raise ValueError(f"Sous-section introuvable : {start_pattern}")
+    stop = (
+        header.find_next(["h3", "h4"], string=re.compile(stop_pattern, re.I))
+        if stop_pattern
+        else header.find_next("h2")
+    )
+    lines = [start.get_text(" ", strip=True)]
+    for tag in start.find_all_next():
+        if tag is stop:
+            break
+        if tag.name == "table":
+            for tr in tag.find_all("tr"):
+                cells = [
+                    c.get_text(" ", strip=True)
+                    for c in tr.find_all(["th", "td"])
+                ]
+                if cells:
+                    lines.append(" | ".join(cells))
+    return "\n".join(line for line in lines if line)
+
+
+# --- FONCTION PRINCIPALE ---
+
+
+def main():
+    """Orchestre le scraping et génère la sortie JSON pour l'orchestrateur."""
+    try:
+        soup = fetch_soup(URL_URSSAF)
+    except RuntimeError as e:
+        print(f"ERREUR CRITIQUE: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    print("\nDébut de l'extraction des données...", file=sys.stderr)
+    sections_data = scrape_all_sections(soup)
     print("Extraction des données terminée.", file=sys.stderr)
 
     # Assemblage du payload final conforme à la structure de l'orchestrateur

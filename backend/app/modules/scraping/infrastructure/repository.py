@@ -76,6 +76,15 @@ class ScrapingRepository:
         )
         return r.data or []
 
+    def count_pending_changes(self, status: str = "pending") -> int:
+        r = (
+            supabase.table("scraping_pending_changes")
+            .select("id", count="exact")
+            .eq("status", status)
+            .execute()
+        )
+        return r.count or 0
+
     def get_critical_sources(self) -> List[Dict[str, Any]]:
         r = (
             supabase.table("scraping_sources")
@@ -261,6 +270,57 @@ class ScrapingRepository:
         r = q.order("created_at", desc=True).limit(limit).execute()
         return r.data or []
 
+    # --- Changements en attente de validation (scraping_pending_changes) ---
+
+    def list_pending_changes(
+        self,
+        status: Optional[str] = None,
+        tier: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        q = supabase.table("scraping_pending_changes").select(
+            "*, scraping_sources(source_name, source_key)"
+        )
+        if status:
+            q = q.eq("status", status)
+        if tier:
+            q = q.eq("tier", tier)
+        r = q.order("created_at", desc=True).limit(limit).execute()
+        return r.data or []
+
+    def get_pending_change(self, pending_id: str) -> Optional[Dict[str, Any]]:
+        r = (
+            supabase.table("scraping_pending_changes")
+            .select("*, scraping_sources(source_name, source_key)")
+            .eq("id", pending_id)
+            .maybe_single()
+            .execute()
+        )
+        return r.data if r and r.data else None
+
+    def update_pending_change(
+        self, pending_id: str, data: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        r = (
+            supabase.table("scraping_pending_changes")
+            .update(data)
+            .eq("id", pending_id)
+            .execute()
+        )
+        return r.data[0] if r.data else None
+
+    def backfill_pending_source_id(
+        self, config_key: Optional[str], source_id: Optional[str]
+    ) -> None:
+        """Rattache un source_id aux pending déposés sans (orchestrateur en CLI)."""
+        if not config_key or not source_id:
+            return
+        supabase.table("scraping_pending_changes").update(
+            {"source_id": source_id}
+        ).eq("config_key", config_key).eq("status", "pending").is_(
+            "source_id", "null"
+        ).execute()
+
     def mark_alert_read(self, alert_id: str) -> bool:
         r = (
             supabase.table("scraping_alerts")
@@ -273,3 +333,41 @@ class ScrapingRepository:
     def resolve_alert(self, alert_id: str, data: Dict[str, Any]) -> bool:
         r = supabase.table("scraping_alerts").update(data).eq("id", alert_id).execute()
         return bool(r.data)
+
+    # --- Agent autonome de réparation (scraping_repair_jobs) ---
+
+    def list_repair_jobs(
+        self,
+        status: Optional[str] = None,
+        scraper_name: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[Dict[str, Any]]:
+        q = supabase.table("scraping_repair_jobs").select(
+            "*, scraping_sources(source_name, source_key, primary_url)"
+        )
+        if status:
+            q = q.eq("status", status)
+        if scraper_name:
+            q = q.eq("scraper_name", scraper_name)
+        r = q.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+        return r.data or []
+
+    def get_repair_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+        r = (
+            supabase.table("scraping_repair_jobs")
+            .select("*, scraping_sources(source_name, source_key, primary_url)")
+            .eq("id", job_id)
+            .maybe_single()
+            .execute()
+        )
+        return r.data if r and r.data else None
+
+    def count_active_repair_jobs(self) -> int:
+        r = (
+            supabase.table("scraping_repair_jobs")
+            .select("id", count="exact")
+            .in_("status", ["queued", "running"])
+            .execute()
+        )
+        return r.count or 0

@@ -1,165 +1,233 @@
-# scripts/Avantages/Avantages_AI.py
+#!/usr/bin/env python3
+"""Source IA — avantages en nature (Sonar par bloc, tableaux URSSAF injectés)."""
 
+from __future__ import annotations
+
+import importlib.util
 import json
-import os
 import sys
-import requests
-from bs4 import BeautifulSoup
-from googlesearch import search
-from dotenv import load_dotenv
+from pathlib import Path
+from typing import Any, Callable
 
-load_dotenv()
+_SCRAPING = Path(__file__).resolve().parent.parent
+_DIR = Path(__file__).resolve().parent
+if str(_SCRAPING) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING))
+if str(_DIR) not in sys.path:
+    sys.path.insert(0, str(_DIR))
 
-import sys
-from pathlib import Path as _Path
+from core.ai_extractor import extract_structured_json  # noqa: E402
+from core.year_utils import current_year  # noqa: E402
 
-_SCRAPING_ROOT = _Path(__file__).resolve().parents[1]
-if str(_SCRAPING_ROOT) not in sys.path:
-    sys.path.insert(0, str(_SCRAPING_ROOT))
-from openrouter_client import chat_completions_create, require_api_key
+from _logic import compare_floats, logement_values_equal, normalize_bareme, payload_to_core  # noqa: E402
+
+_AV_FILE = Path(__file__).resolve().parent / "Avantages.py"
+_spec = importlib.util.spec_from_file_location("avantages_primary", _AV_FILE)
+assert _spec and _spec.loader
+av_module = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(av_module)
+
+URL = av_module.URL_URSSAF
+
+LOGEMENT_ITEM = {
+    "type": "object",
+    "properties": {
+        "remuneration_max": {"type": ["number", "null"]},
+        "valeur_1_piece": {"type": "number"},
+        "valeur_par_piece": {"type": "number"},
+    },
+    "required": ["remuneration_max", "valeur_1_piece", "valeur_par_piece"],
+    "additionalProperties": False,
+}
+
+REPAS_SCHEMA = {
+    "type": "object",
+    "properties": {"repas": {"type": "number"}},
+    "required": ["repas"],
+    "additionalProperties": False,
+}
+
+TITRE_SCHEMA = {
+    "type": "object",
+    "properties": {"titre_restaurant": {"type": "number"}},
+    "required": ["titre_restaurant"],
+    "additionalProperties": False,
+}
+
+LOGEMENT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "logement": {"type": "array", "items": LOGEMENT_ITEM, "minItems": 3},
+    },
+    "required": ["logement"],
+    "additionalProperties": False,
+}
 
 
-SEARCH_QUERY = "barème avantages en nature actuel"
-UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+def _normalize_bareme_from_ai(lst: list) -> list[dict]:
+    out = []
+    for obj in lst or []:
+        if not isinstance(obj, dict):
+            continue
+        rem_max = av_module.parse_number(str(obj.get("remuneration_max")))
+        v1 = av_module.parse_number(str(obj.get("valeur_1_piece")))
+        vpp = av_module.parse_number(str(obj.get("valeur_par_piece")))
+        if v1 is None or vpp is None:
+            continue
+        out.append(
+            {
+                "remuneration_max_eur": rem_max,
+                "valeur_1_piece_eur": v1,
+                "valeur_par_piece_suppl_eur": vpp,
+            }
+        )
+    return normalize_bareme(out)
 
 
-def make_payload(repas, titre_restaurant, logement_bareme, source_url=None):
+def _align_logement_with_reference(
+    got: list[dict], reference: list[dict]
+) -> list[dict]:
+    """Recopie remuneration_max_eur du parse primary (dernière tranche « au-delà »)."""
+    ref_sorted = normalize_bareme(reference)
+    got_sorted = normalize_bareme(got)
+    if len(ref_sorted) != len(got_sorted):
+        return got_sorted
+    aligned = []
+    for row, ref in zip(got_sorted, ref_sorted):
+        aligned.append(
+            {
+                **row,
+                "remuneration_max_eur": ref["remuneration_max_eur"],
+            }
+        )
+    return aligned
+
+
+def _section_prompt(section: str, table_text: str) -> str:
+    return (
+        f"Bloc URSSAF « {section} » — avantages en nature {current_year()}.\n"
+        f"Extrais EXACTEMENT les montants du tableau ci-dessous (euros).\n\n"
+        f"--- TABLEAU OFFICIEL ---\n{table_text}\n--- FIN TABLEAU ---\n\n"
+        f"Recopie les chiffres tels quels."
+    )
+
+
+def _extract_block(
+    *,
+    section: str,
+    schema_name: str,
+    schema: dict,
+    table_text: str,
+    post_process: Callable[[dict], Any],
+    reference_value: Any,
+    matcher: Callable[[Any, Any], bool],
+    citation_date: str,
+) -> Any | None:
+    for attempt in range(1, 4):
+        retry = f"\n(Tentative {attempt}/3.)" if attempt > 1 else ""
+        data = extract_structured_json(
+            task_prompt=_section_prompt(section, table_text) + retry,
+            json_schema=schema,
+            schema_name=schema_name,
+            citation_url=URL,
+            citation_date=citation_date,
+            use_web_search=False,
+        )
+        if not data:
+            continue
+        try:
+            parsed = post_process(data)
+        except (KeyError, TypeError):
+            continue
+        if matcher(parsed, reference_value):
+            return parsed
+        print(
+            f"[Avantages_AI] Bloc {section} : écart vs parse URSSAF.",
+            file=sys.stderr,
+        )
+    return None
+
+
+def build_payload() -> dict | None:
+    citation_date = f"01/01/{current_year()}"
+    soup = av_module.fetch_soup()
+    reference = av_module.scrape_from_soup(soup)
+    ref_core = payload_to_core(reference)
+
+    repas = _extract_block(
+        section="repas",
+        schema_name="avantages_repas",
+        schema=REPAS_SCHEMA,
+        table_text=av_module.section_table_text(soup, "repas"),
+        post_process=lambda d: av_module.parse_number(str(d["repas"])),
+        reference_value=ref_core["repas"],
+        matcher=lambda a, b: compare_floats(a, b),
+        citation_date=citation_date,
+    )
+    if repas is None:
+        return None
+
+    titre = _extract_block(
+        section="titre-restaurant",
+        schema_name="avantages_titre",
+        schema=TITRE_SCHEMA,
+        table_text=av_module.section_table_text(soup, "titre"),
+        post_process=lambda d: av_module.parse_number(str(d["titre_restaurant"])),
+        reference_value=ref_core["titre"],
+        matcher=lambda a, b: compare_floats(a, b),
+        citation_date=citation_date,
+    )
+    if titre is None:
+        return None
+
+    logement_raw = _extract_block(
+        section="logement",
+        schema_name="avantages_logement",
+        schema=LOGEMENT_SCHEMA,
+        table_text=av_module.section_table_text(soup, "logement"),
+        post_process=lambda d: _normalize_bareme_from_ai(d.get("logement")),
+        reference_value=ref_core["logement"],
+        matcher=logement_values_equal,
+        citation_date=citation_date,
+    )
+    if logement_raw is None:
+        return None
+
+    logement = _align_logement_with_reference(logement_raw, ref_core["logement"])
+
     return {
         "id": "avantages_en_nature",
         "type": "param_bundle",
         "items": [
             {"key": "repas_valeur_forfaitaire_eur", "value": repas},
-            {"key": "titre_restaurant_exoneration_max_eur", "value": titre_restaurant},
-            {"key": "logement_bareme_forfaitaire", "value": logement_bareme},
+            {"key": "titre_restaurant_exoneration_max_eur", "value": titre},
+            {"key": "logement_bareme_forfaitaire", "value": logement},
         ],
         "meta": {
-            "source": (
-                [{"url": source_url, "label": "Source détectée par IA", "date_doc": ""}]
-                if source_url
-                else []
-            ),
-            "generator": "scripts/Avantages/Avantages_AI.py",
+            "source": [
+                {
+                    "url": URL,
+                    "label": "URSSAF avantages (Sonar par bloc, tableaux officiels)",
+                    "date_doc": citation_date,
+                }
+            ],
+            "generator": "Avantages/Avantages_AI.py",
+            "method": "ai_web_search",
         },
     }
 
 
-def extract_json_with_gpt(page_text: str, prompt: str):
-    try:
-        require_api_key()
-    except ValueError:
-        return None
-    try:
-        resp = chat_completions_create(
-            response_format={"type": "json_object"},
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Tu es un expert en extraction de données qui répond en JSON strict.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0,
+def main() -> None:
+    print(f"[Avantages_AI] URL URSSAF : {URL}", file=sys.stderr)
+    payload = build_payload()
+    if not payload:
+        print(
+            "ERREUR CRITIQUE: extraction IA avantages échouée (Sonar par bloc).",
+            file=sys.stderr,
         )
-        return json.loads(resp.choices[0].message.content.strip())
-    except Exception:
-        return None
-
-
-def normalize_number(v):
-    if v is None:
-        return None
-    try:
-        # accepte "7,26" ou "7.26" ou nombres
-        if isinstance(v, str):
-            v = (
-                v.replace("\u202f", "")
-                .replace("\xa0", "")
-                .replace("€", "")
-                .replace(" ", "")
-                .replace(",", ".")
-            )
-        return float(v)
-    except Exception:
-        return None
-
-
-def normalize_bareme(lst):
-    out = []
-    if not isinstance(lst, list):
-        return out
-    for obj in lst:
-        if not isinstance(obj, dict):
-            continue
-        rem_max = normalize_number(obj.get("remuneration_max"))
-        v1 = normalize_number(obj.get("valeur_1_piece"))
-        vpp = normalize_number(obj.get("valeur_par_piece"))
-        if v1 is None or vpp is None:
-            continue
-        out.append(
-            {
-                "remuneration_max_eur": rem_max
-                if rem_max is not None
-                else 9_999_999.99,
-                "valeur_1_piece_eur": v1,
-                "valeur_par_piece_suppl_eur": vpp,
-            }
-        )
-    return out
-
-
-def get_avantages_via_ai():
-    prompt_template = """
-Analyse le texte suivant et extrais les 3 informations pour 2025. Retourne UNIQUEMENT un JSON minifié:
-{"repas":..,"titre_restaurant":..,"logement":[{"remuneration_max":..,"valeur_1_piece":..,"valeur_par_piece":},{"remuneration_max":2354.99,"valeur_1_piece":91.80,"valeur_par_piece":58.90},{"remuneration_max":2747.49,"valeur_1_piece":104.80,"valeur_par_piece":78.70},{"remuneration_max":3532.49,"valeur_1_piece":117.90,"valeur_par_piece":98.20},{"remuneration_max":4317.49,"valeur_1_piece":144.50,"valeur_par_piece":124.50},{"remuneration_max":5102.49,"valeur_1_piece":170.40,"valeur_par_piece":150.40},{"remuneration_max":5887.49,"valeur_1_piece":196.80,"valeur_par_piece":183.30},{"remuneration_max":999999.99,"valeur_1_piece":222.70,"valeur_par_piece":209.60}]}
-- "repas": valeur forfaitaire d'1 repas (en euros, nombre).
-- "titre_restaurant": exonération maximale de la part patronale d'un titre-restaurant (en euros, nombre).
-- "logement": barème complet, chaque objet avec "remuneration_max","valeur_1_piece","valeur_par_piece" (euros).
-Aucune explication hors JSON.
-
-Texte:
----
-"""
-
-    try:
-        results = list(search(SEARCH_QUERY, num_results=50, lang="fr"))
-    except Exception:
-        results = []
-
-    for url in results:
-        try:
-            r = requests.get(url, timeout=20, headers={"User-Agent": UA})
-            r.raise_for_status()
-            soup = BeautifulSoup(r.text, "html.parser")
-            txt = soup.get_text(" ", strip=True)
-
-            data = extract_json_with_gpt(txt[:15000], prompt_template + txt[:15000])
-            if not data:
-                continue
-
-            repas = normalize_number(data.get("repas"))
-            titre = normalize_number(data.get("titre_restaurant"))
-            logement = normalize_bareme(data.get("logement"))
-
-            if (
-                repas is not None
-                and titre is not None
-                and logement
-                and len(logement) >= 3
-            ):
-                return repas, titre, logement, url
-        except Exception:
-            continue
-    return None, None, [], None
+        sys.exit(1)
+    print(json.dumps(payload, ensure_ascii=False))
 
 
 if __name__ == "__main__":
-    repas, titre, logement, src = get_avantages_via_ai()
-    payload = make_payload(repas, titre, logement, src)
-    ok = (
-        payload["items"][0]["value"] is not None
-        and payload["items"][1]["value"] is not None
-        and isinstance(payload["items"][2]["value"], list)
-        and len(payload["items"][2]["value"]) > 0
-    )
-    print(json.dumps(payload, ensure_ascii=False))
-    sys.exit(0 if ok else 2)
+    main()

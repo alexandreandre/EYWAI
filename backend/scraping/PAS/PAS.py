@@ -3,49 +3,72 @@
 import json
 import re
 import sys
+import unicodedata
 from datetime import datetime, timezone
 
 import requests
 from bs4 import BeautifulSoup
 
 BASE_URL = "https://bofip.impots.gouv.fr"
-SEARCH_URL = (
-    "https://bofip.impots.gouv.fr/bofip/ext/refs/"
-    "recherche/chp?query=BOI-BAREME-000037"
-    "&domain=bofip"
+# Page série BOI-BAREME-000037 (liste des versions publiées)
+SERIE_PAGE_URL = f"{BASE_URL}/bofip/11255-PGP.html"
+# Dernière version connue (BOI-BAREME-000037 du 07/04/2026, applicable au 1er mai 2026)
+FALLBACK_DOCUMENT_URL = (
+    f"{BASE_URL}/bofip/11255-PGP.html/identifiant%3DBOI-BAREME-000037-20260407"
 )
-
-
-def get_latest_bofip_url() -> str:
-    """
-    Cherche la dernière version de BOI-BAREME-000037.
-    Fallback : URL connue si la recherche échoue.
-    """
-    FALLBACK = "https://bofip.impots.gouv.fr/bofip/9188-PGP"
-    try:
-        resp = requests.get(
-            SEARCH_URL,
-            timeout=15,
-            headers={"User-Agent": "Mozilla/5.0"},
-        )
-        if resp.status_code == 200:
-            soup = BeautifulSoup(resp.text, "html.parser")
-            link = soup.find(
-                "a",
-                href=lambda h: h and "BOI-BAREME-000037" in h,
-            )
-            if link:
-                href = link["href"]
-                if href.startswith("http"):
-                    return href
-                return BASE_URL + href
-    except Exception as e:
-        print(f"[PAS] Recherche BOFIP échouée : {e}", file=sys.stderr)
-    return FALLBACK
 
 NBSP = "\xa0"
 NNBSP = "\u202f"
 THIN = "\u2009"
+
+
+def norm(txt: str) -> str:
+    if not txt:
+        return ""
+    txt = txt.strip().lower()
+    txt = unicodedata.normalize("NFD", txt)
+    return "".join(ch for ch in txt if unicodedata.category(ch) != "Mn")
+
+
+def get_latest_bofip_url() -> str:
+    """
+    Récupère l'URL de la dernière version publiée de BOI-BAREME-000037
+    depuis la page série BOFIP, sinon repli sur l'URL documentée.
+    """
+    try:
+        resp = requests.get(
+            SERIE_PAGE_URL,
+            timeout=20,
+            headers={"User-Agent": "Mozilla/5.0", "Accept-Language": "fr-FR"},
+        )
+        if resp.status_code == 200:
+            soup = BeautifulSoup(resp.text, "html.parser")
+            candidates: list[tuple[str, str]] = []
+            for link in soup.find_all("a", href=True):
+                href = link["href"]
+                if "BOI-BAREME-000037" not in href:
+                    continue
+                if any(
+                    bad in href.lower()
+                    for bad in ("facebook.com", "twitter.com", "linkedin.com", "mailto:")
+                ):
+                    continue
+                url = href if href.startswith("http") else BASE_URL + href
+                if "bofip.impots.gouv.fr/bofip/" not in url.lower():
+                    continue
+                date_match = re.search(r"BOI-BAREME-000037-(\d{8})", href)
+                date_key = date_match.group(1) if date_match else "00000000"
+                candidates.append((date_key, url))
+            if candidates:
+                candidates.sort(key=lambda x: x[0], reverse=True)
+                chosen = candidates[0][1]
+                print(f"[PAS] Version BOFIP la plus récente : {chosen}", file=sys.stderr)
+                return chosen
+    except Exception as e:
+        print(f"[PAS] Lecture page série BOFIP échouée : {e}", file=sys.stderr)
+
+    print(f"[PAS] Repli sur URL documentée : {FALLBACK_DOCUMENT_URL}", file=sys.stderr)
+    return FALLBACK_DOCUMENT_URL
 
 
 # -------- Helpers --------
@@ -75,18 +98,28 @@ def _clean_percent(txt: str) -> float:
 
 
 def _upper_bound_from_label(label: str) -> float | None:
-    low = label.lower()
-    # Trouve tous les nombres (y compris ceux avec des espaces comme séparateurs de milliers)
+    low = norm(label)
     nums = re.findall(r"\d[\d\s\u00A0\u202F\u2009\.]*", label)
     if not nums:
         return None
-    if "inférieure à" in low:
+    if "inferieure a" in low and "superieure" not in low:
         return _clean_amount(nums[-1])
-    if "supérieure ou égale" in low and "inférieure à" in low and len(nums) >= 2:
+    if "superieure ou egale" in low and "inferieure a" in low and len(nums) >= 2:
         return _clean_amount(nums[1])
-    if "supérieure ou égale" in low and "inférieure à" not in low:
-        return None  # C'est la dernière tranche, sans plafond supérieur
+    if "superieure ou egale" in low and "inferieure a" not in low:
+        return None
     return _clean_amount(nums[-1])
+
+
+def _zone_from_caption(caption: str) -> str | None:
+    c = norm(caption)
+    if any(k in c for k in ["guyane", "mayotte"]):
+        return "guyane_mayotte"
+    if any(k in c for k in ["guadeloupe", "reunion", "martinique"]):
+        return "guadeloupe_reunion_martinique"
+    if any(k in c for k in ["metropole", "hors de france"]):
+        return "metropole"
+    return None
 
 
 def _extract_tranches_from_table(table: BeautifulSoup) -> list[dict]:
@@ -105,37 +138,26 @@ def _extract_tranches_from_table(table: BeautifulSoup) -> list[dict]:
     return tranches
 
 
-# -------- Scraper --------
-def scrape_bofip(url: str) -> dict:
-    print(f"Scraping de l'URL du BOFIP : {url}", file=sys.stderr)
-    r = requests.get(
-        url,
-        timeout=30,
-        headers={"User-Agent": "Mozilla/5.0", "Accept-Language": "fr,en;q=0.8"},
-    )
-    r.raise_for_status()
-    soup = BeautifulSoup(r.text, "lxml")
-
-    zones = {
+def _parse_zones_from_soup(soup: BeautifulSoup) -> dict[str, list[dict]]:
+    zones: dict[str, list[dict] | None] = {
         "metropole": None,
         "guadeloupe_reunion_martinique": None,
         "guyane_mayotte": None,
     }
 
     for tbl in soup.find_all("table"):
-        caption = (
-            tbl.find("caption").get_text(" ", strip=True).lower()
-            if tbl.find("caption")
-            else ""
-        )
-        if any(k in caption for k in ["métropole", "metropole", "hors de france"]):
-            zones["metropole"] = _extract_tranches_from_table(tbl)
-        elif any(
-            k in caption for k in ["guadeloupe", "réunion", "reunion", "martinique"]
-        ):
-            zones["guadeloupe_reunion_martinique"] = _extract_tranches_from_table(tbl)
-        elif any(k in caption for k in ["guyane", "mayotte"]):
-            zones["guyane_mayotte"] = _extract_tranches_from_table(tbl)
+        caption_el = tbl.find("caption")
+        caption = caption_el.get_text(" ", strip=True) if caption_el else ""
+        if not caption:
+            prev = tbl.find_previous(["h1", "h2", "h3"])
+            if prev:
+                caption = prev.get_text(" ", strip=True)
+        zone_key = _zone_from_caption(caption)
+        if not zone_key or zones.get(zone_key):
+            continue
+        tranches = _extract_tranches_from_table(tbl)
+        if tranches:
+            zones[zone_key] = tranches
 
     if not zones["metropole"]:
         raise ValueError("Table pour la métropole non trouvée ou vide.")
@@ -145,6 +167,47 @@ def scrape_bofip(url: str) -> dict:
         )
     if not zones["guyane_mayotte"]:
         raise ValueError("Table pour Guyane/Mayotte non trouvée ou vide.")
+    return zones  # type: ignore[return-value]
+
+
+def fetch_bofip_soup(url: str) -> BeautifulSoup:
+    r = requests.get(
+        url,
+        timeout=30,
+        headers={"User-Agent": "Mozilla/5.0", "Accept-Language": "fr-FR,en;q=0.8"},
+    )
+    r.raise_for_status()
+    return BeautifulSoup(r.text, "html.parser")
+
+
+def zone_table_text(soup: BeautifulSoup, zone_key: str) -> str:
+    """Texte du tableau BOFIP pour une zone (contexte Sonar ciblé)."""
+    for tbl in soup.find_all("table"):
+        caption_el = tbl.find("caption")
+        caption = caption_el.get_text(" ", strip=True) if caption_el else ""
+        if not caption:
+            prev = tbl.find_previous(["h1", "h2", "h3"])
+            if prev:
+                caption = prev.get_text(" ", strip=True)
+        if _zone_from_caption(caption) != zone_key:
+            continue
+        lines = [caption, ""]
+        for tr in tbl.find_all("tr"):
+            cells = [
+                c.get_text(" ", strip=True) for c in tr.find_all(["td", "th"])
+            ]
+            if len(cells) >= 2 and "%" in cells[1]:
+                lines.append(f"{cells[0]} | {cells[1]}")
+        if len(lines) > 2:
+            return "\n".join(lines)
+    raise ValueError(f"Table BOFIP introuvable pour la zone {zone_key}.")
+
+
+# -------- Scraper --------
+def scrape_bofip(url: str) -> dict:
+    print(f"Scraping de l'URL du BOFIP : {url}", file=sys.stderr)
+    soup = fetch_bofip_soup(url)
+    zones = _parse_zones_from_soup(soup)
 
     print(
         f"  - Données extraites : {len(zones['metropole'])} tranches (métropole), "
@@ -188,7 +251,6 @@ def main():
         },
     }
 
-    # Impression du JSON final sur la sortie standard
     print(json.dumps(payload, ensure_ascii=False))
 
 

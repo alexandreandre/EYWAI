@@ -150,6 +150,11 @@ def extract_pss_data(soup: BeautifulSoup) -> dict:
     if not annuel:
         raise ValueError("Impossible d'extraire le plafond annuel SS")
 
+    if horaire is None and mensuel is not None:
+        horaire = int(round(float(mensuel) / 151.67))
+    if horaire is None and journalier is not None:
+        horaire = int(round(float(journalier) / 7))
+
     return {
         "annuel": annuel,
         "trimestriel": trimestriel,

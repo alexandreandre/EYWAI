@@ -10,7 +10,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 # Durée médiane par défaut si aucun historique (scraping + écriture config)
 DEFAULT_JOB_DURATION_SEC = 90
-MAX_JOB_DURATION_SEC = 300
+# Orchestrateurs multi-scrapers (IJ, cotisations…) : jusqu'à ~10 min
+MAX_JOB_DURATION_SEC = 600
 
 _LOG_STAGE_RULES: Tuple[Tuple[re.Pattern[str], float], ...] = (
     (re.compile(r"initialisation|lancé en arrière", re.I), 0.06),
@@ -151,10 +152,11 @@ def compute_batch_progress(
     )
 
     enriched: List[Dict[str, Any]] = []
-    fraction_sum = 0.0
+    weighted_done = 0.0
+    total_weight = 0.0
     current_source: Optional[str] = None
     current_step = "Initialisation…"
-    remaining_sec = 0.0
+    max_remaining_sec = 0.0
 
     for entry in jobs:
         item = dict(entry)
@@ -164,7 +166,13 @@ def compute_batch_progress(
         logs = item.get("execution_logs") or []
         if logs and isinstance(logs, list):
             item["last_log_line"] = _sanitize_log_line(str(logs[-1]))
-        fraction_sum += frac
+
+        weight = avg_duration
+        completed_dur = job_duration_seconds(item)
+        if completed_dur:
+            weight = completed_dur
+        weighted_done += frac * weight
+        total_weight += weight
 
         status = (item.get("status") or "pending").lower()
         if status in ("running", "pending") and current_source is None:
@@ -173,16 +181,16 @@ def compute_batch_progress(
                 current_step = step
 
         if status in ("running", "pending"):
-            remaining_sec += (1.0 - frac) * avg_duration
+            max_remaining_sec = max(max_remaining_sec, (1.0 - frac) * weight)
 
         enriched.append(item)
 
-    percent_exact = (fraction_sum / total) * 100.0
+    percent_exact = (weighted_done / total_weight * 100.0) if total_weight > 0 else 0.0
     percent = int(min(99, percent_exact)) if percent_exact < 100 else 100
 
     eta_seconds: Optional[int] = None
-    if remaining_sec > 3 and percent < 100:
-        eta_seconds = int(max(5, remaining_sec))
+    if max_remaining_sec > 3 and percent < 100:
+        eta_seconds = int(max(5, max_remaining_sec))
 
     terminal = ("completed", "failed", "cancelled")
     completed_ok = sum(

@@ -18,6 +18,9 @@ def get_dashboard_data(repo: ScrapingRepository) -> Dict[str, Any]:
     Même structure de retour que le routeur legacy.
     """
     stats = repo.get_scraping_stats()
+    if not isinstance(stats, dict):
+        stats = {}
+    stats["pending_changes"] = repo.count_pending_changes(status="pending")
     recent_jobs = repo.get_recent_jobs(limit=10)
     unread_alerts = repo.get_unread_alerts(limit=5)
     critical_sources = repo.get_critical_sources()

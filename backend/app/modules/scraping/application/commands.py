@@ -7,7 +7,7 @@ Comportement identique au routeur legacy.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, Optional
 
 from app.modules.scraping.domain.rules import (
@@ -17,8 +17,10 @@ from app.modules.scraping.domain.rules import (
 )
 from app.modules.scraping.infrastructure.repository import ScrapingRepository
 from app.modules.scraping.infrastructure.scraper_runner import (
+    apply_pending_change_sync,
     resolve_script_path,
     run_scraper_script_background,
+    run_tripwire_background,
 )
 
 
@@ -32,6 +34,7 @@ def execute_scraper(
     use_orchestrator: bool = True,
     triggered_by: str = "",
     background_task_fn: Optional[Callable[..., None]] = None,
+    sync_cotisation_ids: Optional[list[str]] = None,
 ) -> Dict[str, Any]:
     """
     Lance l'exécution d'un scraper : récupère la source, crée le job, lance le script en arrière-plan.
@@ -52,7 +55,7 @@ def execute_scraper(
         "scraper_used": script_type,
         "triggered_by": triggered_by,
         "status": "pending",
-        "started_at": datetime.now().isoformat(),
+        "started_at": datetime.now(timezone.utc).isoformat(),
         "execution_logs": [f"Initialisation du job - Script: {script_path}"],
     }
     created = repo.create_job(job_data)
@@ -67,6 +70,7 @@ def execute_scraper(
             use_orchestrator,
             triggered_by,
             job_id,
+            sync_cotisation_ids=sync_cotisation_ids,
         )
 
     return {
@@ -74,6 +78,45 @@ def execute_scraper(
         "source": source["source_name"],
         "source_key": source_key,
         "job_id": job_id,
+    }
+
+
+def run_tripwire(
+    source_key: Optional[str] = None,
+    triggered_by: str = "",
+    background_task_fn: Optional[Callable[..., None]] = None,
+) -> Dict[str, Any]:
+    """Lance le tripwire (snapshot/diff de pages, sans écriture) pour une source
+    ou toutes les sources critiques actives. Crée un job par source."""
+    repo = _repo()
+    if source_key:
+        source = repo.get_source_by_key(source_key)
+        require_source_for_execution(source)
+        sources = [source]
+    else:
+        sources = repo.get_critical_sources()
+
+    job_ids: list[str] = []
+    for source in sources:
+        job = repo.create_job(
+            {
+                "source_id": source["id"],
+                "job_type": "tripwire",
+                "scraper_used": "tripwire",
+                "triggered_by": triggered_by,
+                "status": "running",
+                "started_at": datetime.now(timezone.utc).isoformat(),
+                "execution_logs": [f"Tripwire — {source.get('source_name')}"],
+            }
+        )
+        job_ids.append(job["id"])
+        if background_task_fn:
+            background_task_fn(run_tripwire_background, source, job["id"])
+
+    return {
+        "message": "Tripwire lancé en arrière-plan",
+        "sources_count": len(sources),
+        "job_ids": job_ids,
     }
 
 
@@ -138,6 +181,71 @@ def mark_alert_as_read(alert_id: str) -> Dict[str, Any]:
     if not ok:
         raise ValueError("Alerte non trouvée")
     return {"success": True}
+
+
+def approve_pending_change(
+    pending_id: str,
+    reviewed_by: str = "",
+    override_value: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Valide un changement en attente et l'applique à payroll_config.
+
+    `override_value` permet d'éditer la valeur proposée avant écriture (la valeur
+    éditée remplace `proposed_config_data` et est tracée dans `review_note`).
+    """
+    repo = _repo()
+    pending = repo.get_pending_change(pending_id)
+    if pending is None:
+        raise ValueError("Changement en attente non trouvé")
+    if pending.get("status") != "pending":
+        raise ValueError("Ce changement a déjà été traité")
+
+    if override_value is not None:
+        repo.update_pending_change(
+            pending_id,
+            {
+                "proposed_config_data": override_value,
+                "review_note": "Valeur éditée manuellement avant validation",
+            },
+        )
+
+    result = apply_pending_change_sync(pending_id, reviewed_by=reviewed_by)
+    if not result.get("success"):
+        raise RuntimeError(
+            result.get("error") or "Échec de l'application du changement"
+        )
+    return {
+        "success": True,
+        "pending_id": pending_id,
+        "logs": result.get("logs", []),
+    }
+
+
+def reject_pending_change(
+    pending_id: str,
+    reviewed_by: str = "",
+    review_note: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Rejette un changement en attente (payroll_config inchangé)."""
+    repo = _repo()
+    pending = repo.get_pending_change(pending_id)
+    if pending is None:
+        raise ValueError("Changement en attente non trouvé")
+    if pending.get("status") != "pending":
+        raise ValueError("Ce changement a déjà été traité")
+
+    updated = repo.update_pending_change(
+        pending_id,
+        {
+            "status": "rejected",
+            "reviewed_at": datetime.now(timezone.utc).isoformat(),
+            "reviewed_by": reviewed_by,
+            "review_note": review_note,
+        },
+    )
+    if updated is None:
+        raise ValueError("Changement en attente non trouvé")
+    return {"success": True, "pending_id": pending_id}
 
 
 def resolve_alert(

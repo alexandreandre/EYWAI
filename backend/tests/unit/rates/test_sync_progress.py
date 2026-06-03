@@ -1,6 +1,7 @@
 """Tests estimation progression sync taux (logs + ETA)."""
 
 from app.modules.rates.application.sync_progress import (
+    DEFAULT_JOB_DURATION_SEC,
     compute_batch_progress,
     infer_progress_from_logs,
 )
@@ -70,3 +71,22 @@ class TestComputeBatchProgress:
         assert result["done"] == 1
         assert len(result["jobs"]) == 2
         assert result["jobs"][0]["progress_fraction"] == 1.0
+
+    def test_parallel_eta_uses_max_not_sum(self):
+        jobs = [
+            {
+                "source_name": "A",
+                "status": "running",
+                "started_at": "2026-05-27T10:00:00+00:00",
+                "execution_logs": ["Démarrage"],
+            },
+            {
+                "source_name": "B",
+                "status": "running",
+                "started_at": "2026-05-27T10:00:00+00:00",
+                "execution_logs": ["Démarrage"],
+            },
+        ]
+        result = compute_batch_progress(jobs)
+        assert result["eta_seconds"] is not None
+        assert result["eta_seconds"] < DEFAULT_JOB_DURATION_SEC * 2

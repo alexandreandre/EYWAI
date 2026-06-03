@@ -134,15 +134,63 @@ def convert_xlsx_to_data(xlsx_path):
     return data
 
 
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
+}
+DOWNLOAD_FOLDER = "fichiers_urssaf"
+
+
+def scrape_vmrr_from_urssaf(
+    download_folder: str = DOWNLOAD_FOLDER,
+) -> tuple[list[dict] | None, list[str]]:
+    """
+    Télécharge et convertit la table nationale VMRR (Versement mobilité).
+    Retourne (données, source_links) ou (None, []) en cas d'échec.
+    """
+    if not os.path.exists(download_folder):
+        os.makedirs(download_folder)
+
+    print(f"Scraping VMRR : {PAGE_URL}")
+    last_error: Exception | None = None
+    for attempt in range(1, 4):
+        try:
+            response = requests.get(PAGE_URL, headers=HEADERS, timeout=45)
+            response.raise_for_status()
+            break
+        except requests.exceptions.RequestException as e:
+            last_error = e
+            if attempt < 3:
+                print(f"Tentative {attempt}/3 échouée, nouvel essai… ({e})")
+            continue
+    else:
+        print(f"Impossible d'accéder à la page URSSAF. Erreur : {last_error}")
+        return None, []
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    link_tag = soup.find("a", id="url_vmrr")
+    if not link_tag or not link_tag.has_attr("href"):
+        print("❌ Lien 'url_vmrr' introuvable sur la page URSSAF.")
+        return None, []
+
+    absolute_url = urljoin(PAGE_URL, link_tag["href"])
+    downloaded_file_path = download_file(absolute_url, download_folder, HEADERS)
+    if not downloaded_file_path:
+        return None, []
+
+    if not downloaded_file_path.lower().endswith(".xlsx"):
+        print(f"❌ Format VMRR non géré: {downloaded_file_path}")
+        return None, []
+
+    data = convert_xlsx_to_data(downloaded_file_path)
+    if not data:
+        return None, []
+    return data, [PAGE_URL, absolute_url]
+
+
 def main():
     """
     Télécharge les fichiers URSSAF (transport, VM), les convertit en JSON et pousse dans Supabase (payroll_config).
     """
-    DOWNLOAD_FOLDER = "fichiers_urssaf"
-    HEADERS = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
-    }
-
     if not os.path.exists(DOWNLOAD_FOLDER):
         os.makedirs(DOWNLOAD_FOLDER)
         print(f"Dossier '{DOWNLOAD_FOLDER}' créé.")

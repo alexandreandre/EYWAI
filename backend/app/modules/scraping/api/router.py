@@ -17,6 +17,8 @@ from app.modules.scraping.api.dependencies import verify_super_admin
 from app.modules.scraping.application import commands, queries
 from app.modules.scraping.schemas import (
     AlertResolve,
+    PendingApprove,
+    PendingReject,
     ScheduleCreate,
     ScheduleUpdate,
     ScraperExecutionRequest,
@@ -32,12 +34,15 @@ _NOT_FOUND = (
     "Job non trouvé",
     "Alerte non trouvée",
     "Planification non trouvée",
+    "Changement en attente non trouvé",
+    "Job repair non trouvé",
 )
 _BAD_REQUEST = (
     "Cette source est désactivée",
     "Expression cron requise",
     "Intervalle en jours requis",
     "Aucune donnée à mettre à jour",
+    "Ce changement a déjà été traité",
 )
 
 
@@ -115,6 +120,26 @@ async def execute_scraper(
         source_key=request.source_key,
         scraper_name=request.scraper_name,
         use_orchestrator=request.use_orchestrator,
+        triggered_by=current_user.id,
+        background_task_fn=background_tasks.add_task,
+    )
+
+
+# --- Tripwire ---
+
+
+@router.post("/tripwire")
+async def run_tripwire(
+    background_tasks: BackgroundTasks,
+    source_key: Optional[str] = None,
+    super_admin: dict = Depends(verify_super_admin),
+    current_user: User = Depends(get_current_user),
+):
+    """Lance le tripwire (snapshot/diff, sans écriture) pour une source ou toutes
+    les sources critiques."""
+    return _app(
+        commands.run_tripwire,
+        source_key=source_key,
         triggered_by=current_user.id,
         background_task_fn=background_tasks.add_task,
     )
@@ -211,6 +236,96 @@ async def delete_schedule(
 ):
     """Supprime une planification."""
     return _app(commands.delete_schedule, schedule_id)
+
+
+# --- Changements en attente de validation (Revue mensuelle) ---
+
+
+@router.get("/pending")
+async def list_pending_changes(
+    status: Optional[str] = "pending",
+    tier: Optional[str] = None,
+    limit: int = 100,
+    super_admin: dict = Depends(verify_super_admin),
+):
+    """Liste les changements de taux en attente de validation humaine."""
+    return _app(
+        queries.list_pending_changes,
+        status=status,
+        tier=tier,
+        limit=limit,
+    )
+
+
+@router.get("/pending/{pending_id}")
+async def get_pending_change(
+    pending_id: str,
+    super_admin: dict = Depends(verify_super_admin),
+):
+    """Détail d'un changement en attente."""
+    return _app(queries.get_pending_change, pending_id)
+
+
+@router.post("/pending/{pending_id}/approve")
+async def approve_pending_change(
+    pending_id: str,
+    approval: PendingApprove,
+    super_admin: dict = Depends(verify_super_admin),
+    current_user: User = Depends(get_current_user),
+):
+    """Valide un changement en attente et l'applique à payroll_config."""
+    return _app(
+        commands.approve_pending_change,
+        pending_id,
+        reviewed_by=current_user.id,
+        override_value=approval.override_value,
+    )
+
+
+@router.post("/pending/{pending_id}/reject")
+async def reject_pending_change(
+    pending_id: str,
+    rejection: PendingReject,
+    super_admin: dict = Depends(verify_super_admin),
+    current_user: User = Depends(get_current_user),
+):
+    """Rejette un changement en attente (payroll_config inchangé)."""
+    return _app(
+        commands.reject_pending_change,
+        pending_id,
+        reviewed_by=current_user.id,
+        review_note=rejection.review_note,
+    )
+
+
+# --- Agent autonome de réparation ---
+
+
+@router.get("/repair-jobs")
+async def list_repair_jobs(
+    status: Optional[str] = None,
+    scraper_name: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    super_admin: dict = Depends(verify_super_admin),
+):
+    """Liste les jobs de réparation autonome (lecture seule)."""
+    return _app(
+        queries.list_repair_jobs,
+        status=status,
+        scraper_name=scraper_name,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/repair-jobs/{job_id}")
+async def get_repair_job(
+    job_id: str,
+    super_admin: dict = Depends(verify_super_admin),
+):
+    """Détail d'un job repair agent."""
+    return _app(queries.get_repair_job, job_id)
 
 
 # --- Alertes ---

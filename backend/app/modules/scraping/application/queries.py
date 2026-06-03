@@ -115,3 +115,49 @@ def list_alerts(
         limit=limit,
     )
     return {"alerts": alerts, "total": len(alerts)}
+
+
+def list_pending_changes(
+    status: Optional[str] = "pending",
+    tier: Optional[str] = None,
+    limit: int = 100,
+) -> Dict[str, Any]:
+    """Liste les changements en attente de validation humaine."""
+    repo = _repo()
+    pending = repo.list_pending_changes(status=status, tier=tier, limit=limit)
+    return {"pending": pending, "total": len(pending)}
+
+
+def get_pending_change(pending_id: str) -> Dict[str, Any]:
+    """Détail d'un changement en attente."""
+    repo = _repo()
+    pending = repo.get_pending_change(pending_id)
+    if pending is None:
+        raise ValueError("Changement en attente non trouvé")
+    return pending
+
+
+def list_repair_jobs(
+    status: Optional[str] = None,
+    scraper_name: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> Dict[str, Any]:
+    """Liste les jobs de l'agent autonome de réparation scraping."""
+    repo = _repo()
+    jobs = repo.list_repair_jobs(
+        status=status,
+        scraper_name=scraper_name,
+        limit=limit,
+        offset=offset,
+    )
+    return {"jobs": jobs, "total": len(jobs), "active": repo.count_active_repair_jobs()}
+
+
+def get_repair_job(job_id: str) -> Dict[str, Any]:
+    """Détail d'un job repair agent."""
+    repo = _repo()
+    job = repo.get_repair_job(job_id)
+    if job is None:
+        raise ValueError("Job repair non trouvé")
+    return job

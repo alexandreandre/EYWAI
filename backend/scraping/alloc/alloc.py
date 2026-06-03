@@ -133,4 +133,10 @@ def payload(plein: Optional[float], reduit: Optional[float]) -> Dict[str, Any]:
 
 if __name__ == "__main__":
     plein, reduit = get_allocations_rates()
+    if plein is None or reduit is None:
+        print(
+            "[alloc][ERREUR] Taux plein ou réduit introuvable sur URSSAF.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     print(json.dumps(payload(plein, reduit), ensure_ascii=False))

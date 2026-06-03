@@ -1,185 +1,111 @@
-# scripts/PSS/PSS_AI.py
-
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
-"""
-PSS_AI.py
-Recherche et extrait via l'IA les plafonds de la Sécurité Sociale (URSSAF) pour l'année courante.
-Utilise DDGS pour trouver les pages pertinentes, BeautifulSoup pour extraire le texte,
-et GPT pour obtenir les plafonds officiels. Format JSON final strictement conforme.
-"""
-
-import json
-import os
-import sys
-import time
-from datetime import datetime, timezone
-
-import requests
-from bs4 import BeautifulSoup
-from dotenv import load_dotenv
-from ddgs.ddgs import DDGS
-
-# --- CONFIGURATION ---
-load_dotenv()
+#!/usr/bin/env python3
+"""Source IA — plafonds Sécurité sociale (recherche web Sonar, témoin URSSAF)."""
 
 import sys
-from pathlib import Path as _Path
+from pathlib import Path
 
-_SCRAPING_ROOT = _Path(__file__).resolve().parents[1]
-if str(_SCRAPING_ROOT) not in sys.path:
-    sys.path.insert(0, str(_SCRAPING_ROOT))
-from openrouter_client import chat_completions_create, require_api_key
+_SCRAPING = Path(__file__).resolve().parent.parent
+if str(_SCRAPING) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING))
 
-SEARCH_QUERY = "plafonds sécurité sociale URSSAF {year}"
-USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
+from core.ai_extractor import build_standard_payload, emit_ai_payload_or_exit, extract_with_web_search  # noqa: E402
+from core.year_utils import current_year  # noqa: E402
+
+URL = (
+    "https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/"
+    "plafonds-securite-sociale.html"
 )
 
-# --- UTILITAIRES ---
+# Base mensuelle URSSAF pour le plafond horaire (aligné PSS.py).
+PSS_MONTHLY_HOURS = 151.67
+
+PLAFOND_KEYS = (
+    "annuel",
+    "trimestriel",
+    "mensuel",
+    "quinzaine",
+    "hebdomadaire",
+    "journalier",
+    "horaire",
+)
+
+SCHEMA = {
+    "type": "object",
+    "properties": {k: {"type": ["number", "null"]} for k in PLAFOND_KEYS},
+    "required": list(PLAFOND_KEYS),
+    "additionalProperties": False,
+}
 
 
-def iso_now() -> str:
-    """Retourne la date et l'heure actuelles au format ISO 8601 UTC."""
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def extract_json_with_gpt(page_text: str) -> dict | None:
-    """Interroge GPT pour extraire les plafonds de la Sécurité Sociale."""
-    try:
-        require_api_key()
-    except ValueError:
-        print("ERREUR: OPENROUTER_API_KEY manquante.", file=sys.stderr)
+def _to_int(value: object | None) -> int | None:
+    if value is None:
         return None
-
-        current_year = datetime.now().year
-    today = datetime.now().strftime("%d/%m/%Y")
-
-    prompt = f"""
-Aujourd'hui, nous sommes le {today}.
-Tu es un assistant expert URSSAF. Extrait du texte suivant le barème complet des plafonds de la Sécurité Sociale applicables en {current_year}.
-Je veux toutes les périodicités : Année, Trimestre, Mois, Quinzaine, Semaine, Jour, Heure.
-
-Format strict attendu :
-{{"annuel":47100,"trimestriel":11775,"mensuel":3925,"quinzaine":1963,"hebdomadaire":906,"journalier":216,"horaire":29}}
-
-- Toutes les valeurs doivent être des entiers.
-- Ne fournis que du JSON valide, sans texte additionnel.
-Texte :
----
-{page_text[:15000]}
----
-""".strip()
-
     try:
-        resp = chat_completions_create(
-            response_format={"type": "json_object"},
-            temperature=0,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Assistant d'extraction JSON strict pour les barèmes URSSAF.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-        )
-        raw = resp.choices[0].message.content.strip()
-        return json.loads(raw)
-    except Exception as e:
-        print(f"ERREUR extraction IA : {e}", file=sys.stderr)
+        return int(round(float(value)))
+    except (TypeError, ValueError):
         return None
 
 
-# --- SCRAPER IA ---
+def _complete_pss_plafonds(raw: dict) -> dict[str, int]:
+    """Complète / corrige le barème (formules URSSAF, aligné PSS.py)."""
+    annuel = _to_int(raw.get("annuel"))
+    mensuel = _to_int(raw.get("mensuel"))
+    if annuel is None or mensuel is None:
+        raise ValueError("annuel et mensuel obligatoires")
 
+    trimestriel = _to_int(raw.get("trimestriel")) or int(round(annuel / 4))
+    quinzaine = _to_int(raw.get("quinzaine")) or (mensuel + 1) // 2
+    hebdomadaire = _to_int(raw.get("hebdomadaire")) or int(round(annuel / 52))
+    journalier = _to_int(raw.get("journalier")) or int(round(annuel / 218))
+    expected_horaire = int(round(mensuel / PSS_MONTHLY_HOURS))
+    horaire = _to_int(raw.get("horaire"))
+    if horaire is None or abs(horaire - expected_horaire) > 2:
+        horaire = expected_horaire
 
-def get_plafonds_ss_via_ai() -> dict | None:
-    """Recherche et extraction IA des plafonds de la Sécurité Sociale."""
-    current_year = datetime.now().year
-    query = SEARCH_QUERY.format(year=current_year)
-    candidates = []
-
-    try:
-        print(f"Recherche DDGS : '{query}'", file=sys.stderr)
-        for r in DDGS().text(query, region="fr-fr", max_results=5):
-            url = r.get("href")
-            if url and url not in candidates:
-                candidates.append(url)
-
-    except Exception as e:
-        print(f"ERREUR recherche DDGS : {e}", file=sys.stderr)
-
-    if not candidates:
-        print("ERREUR : Aucun résultat valide trouvé.", file=sys.stderr)
-        return None
-
-    for url in candidates:
-        print(f"\n--- Tentative sur : {url} ---", file=sys.stderr)
-        try:
-            r = requests.get(url, timeout=20, headers={"User-Agent": USER_AGENT})
-            r.raise_for_status()
-            soup = BeautifulSoup(r.text, "html.parser")
-            text = soup.get_text(" ", strip=True)
-
-            data = extract_json_with_gpt(text)
-            expected_keys = {
-                "annuel",
-                "trimestriel",
-                "mensuel",
-                "quinzaine",
-                "hebdomadaire",
-                "journalier",
-                "horaire",
-            }
-
-            if data and expected_keys.issubset(data.keys()):
-                print("✅ Extraction réussie et complète.", file=sys.stderr)
-                return data
-            print("   - Données incomplètes, essai suivant.", file=sys.stderr)
-
-        except Exception as e:
-            print(f"   - ERREUR lors du traitement de {url}: {e}", file=sys.stderr)
-            time.sleep(1)
-
-    print(
-        "\n❌ Aucune donnée valide extraite après toutes les tentatives.",
-        file=sys.stderr,
-    )
-    return None
-
-
-# --- MAIN ---
-
-
-def main():
-    """Orchestre l'extraction et produit la sortie JSON finale."""
-    plafonds = get_plafonds_ss_via_ai()
-    if not plafonds:
-        print("ERREUR CRITIQUE : Extraction échouée.", file=sys.stderr)
-        sys.exit(1)
-
-    payload = {
-        "id": "plafonds_securite_sociale",
-        "type": "bareme_plafond",
-        "libelle": "Plafonds de la Sécurité Sociale",
-        "sections": plafonds,
-        "meta": {
-            "source": [
-                {
-                    "url": "https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/plafonds-securite-sociale.html",
-                    "label": "URSSAF - Plafonds de la Sécurité Sociale",
-                    "date_doc": "",
-                }
-            ],
-            "scraped_at": iso_now(),
-            "generator": "scripts/PSS/PSS_AI.py",
-            "method": "ai",
-        },
+    return {
+        "annuel": annuel,
+        "trimestriel": trimestriel,
+        "mensuel": mensuel,
+        "quinzaine": quinzaine,
+        "hebdomadaire": hebdomadaire,
+        "journalier": journalier,
+        "horaire": horaire,
     }
 
-    print(json.dumps(payload, ensure_ascii=False))
+
+def main() -> None:
+    cy = current_year()
+    data = extract_with_web_search(
+        task_prompt=(
+            f"Extrais le barème complet des plafonds de la Sécurité sociale applicables "
+            f"en {cy} depuis la page URSSAF plafonds-securite-sociale : annuel, trimestriel, "
+            f"mensuel, quinzaine, hebdomadaire, journalier, horaire (montants en euros, entiers). "
+            f"Cite en priorité l'URL URSSAF plafonds-securite-sociale.html comme citation_url."
+        ),
+        json_schema=SCHEMA,
+        schema_name="plafonds_ss",
+        include_domains=["urssaf.fr", "service-public.gouv.fr", "legifrance.gouv.fr"],
+    )
+    if not data or data.get("annuel") is None or data.get("mensuel") is None:
+        print("ERREUR CRITIQUE: extraction IA plafonds SS échouée.", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        sections = _complete_pss_plafonds(data)
+    except ValueError:
+        print("ERREUR CRITIQUE: extraction IA plafonds SS échouée.", file=sys.stderr)
+        sys.exit(1)
+
+    payload = build_standard_payload(
+        item_id="plafonds_securite_sociale",
+        item_type="bareme_plafond",
+        libelle="Plafonds de la Sécurité Sociale",
+        sections_or_valeurs=sections,
+        generator="PSS/PSS_AI.py",
+        source_url=URL,
+        source_label="URSSAF plafonds SS (IA web)",
+    )
+    emit_ai_payload_or_exit(payload, "plafonds_securite_sociale")
 
 
 if __name__ == "__main__":

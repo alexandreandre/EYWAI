@@ -1,213 +1,164 @@
-# scripts/SMIC/SMIC_AI.py
+#!/usr/bin/env python3
+"""Source IA SMIC — Sonar + tableau URSSAF injecté (témoin, pas recherche libre)."""
 
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+from __future__ import annotations
 
-"""
-SMIC_AI.py
-Recherche le montant du SMIC horaire brut 2025 via le web, extrait le texte
-et interroge GPT pour obtenir les trois montants (cas général, jeunes 17 ans, moins de 17 ans).
-Produit un JSON strictement conforme au format attendu.
-"""
-
-import json
-import os
+import importlib.util
 import sys
-from datetime import datetime, timezone
+from pathlib import Path
 
-import requests
-from bs4 import BeautifulSoup
-from dotenv import load_dotenv
-from ddgs.ddgs import DDGS
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+_SCRAPING = Path(__file__).resolve().parent.parent
+_DIR = Path(__file__).resolve().parent
+if str(_SCRAPING) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING))
+if str(_DIR) not in sys.path:
+    sys.path.insert(0, str(_DIR))
 
-# --- CONFIGURATION ---
-load_dotenv()
+from core.ai_extractor import (  # noqa: E402
+    build_standard_payload,
+    emit_ai_payload_or_exit,
+    extract_structured_json,
+)
+from core.urssaf_parser import smic_monthly_hours  # noqa: E402
+from core.validation import normalize_smic_sections  # noqa: E402
 
-import sys
-from pathlib import Path as _Path
+from spec import _equal  # noqa: E402
 
-_SCRAPING_ROOT = _Path(__file__).resolve().parents[1]
-if str(_SCRAPING_ROOT) not in sys.path:
-    sys.path.insert(0, str(_SCRAPING_ROOT))
-from openrouter_client import chat_completions_create, require_api_key
+_SMIC_FILE = _DIR / "SMIC.py"
+_spec = importlib.util.spec_from_file_location("smic_primary", _SMIC_FILE)
+assert _spec and _spec.loader
+smic_module = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(smic_module)
 
-SEARCH_QUERY = "montant smic horaire brut URSSAF {year}"
+URL = smic_module.URL_URSSAF
+
+SCHEMA = {
+    "type": "object",
+    "properties": {
+        "cas_general": {"type": "number"},
+        "jeune_17_ans": {"type": "number"},
+        "jeune_moins_17_ans": {"type": "number"},
+        "smic_mensuel_brut": {"type": "number"},
+    },
+    "required": [
+        "cas_general",
+        "jeune_17_ans",
+        "jeune_moins_17_ans",
+        "smic_mensuel_brut",
+    ],
+    "additionalProperties": False,
+}
 
 
-def get_session() -> requests.Session:
-    session = requests.Session()
-    retry = Retry(
-        total=3,
-        backoff_factor=2,
-        status_forcelist=[429, 500, 502, 503, 504],
-    )
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount("https://", adapter)
-    session.headers.update(
+def _iso_to_fr(iso: str) -> str:
+    if isinstance(iso, str) and len(iso) >= 10:
+        return f"{iso[8:10]}/{iso[5:7]}/{iso[0:4]}"
+    return ""
+
+
+def _reference_core(reference: dict) -> dict:
+    return normalize_smic_sections(
         {
-            "User-Agent": (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            ),
-            "Accept": (
-                "text/html,application/xhtml+xml,"
-                "application/xml;q=0.9,*/*;q=0.8"
-            ),
-            "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "none",
+            "cas_general": reference["cas_general"],
+            "jeune_17_ans": reference["jeune_17_ans"],
+            "jeune_moins_17_ans": reference["jeune_moins_17_ans"],
+            "smic_mensuel_brut": reference["smic_mensuel_brut"],
+            "smic_horaire_brut": reference["cas_general"],
         }
     )
-    return session
 
 
-# --- UTILITAIRES ---
-def iso_now() -> str:
-    """Retourne la date et l'heure actuelles au format ISO 8601 UTC."""
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def extract_json_with_gpt(page_text: str) -> dict | None:
-    """Interroge GPT-4o-mini pour extraire les trois montants du SMIC horaire."""
-    try:
-        require_api_key()
-    except ValueError:
-        print("ERREUR: OPENROUTER_API_KEY manquante.", file=sys.stderr)
-        return None
-
-        current_year = datetime.now().year
-    today = datetime.now().strftime("%d/%m/%Y")
-
-    prompt = f"""
-Aujourd'hui, nous sommes le {today}.
-Tu es un assistant expert en réglementation sociale française (URSSAF).
-Extrait les montants du SMIC horaire brut pour {current_year}, pour :
-1. Le cas général.
-2. Les salariés entre 17 et 18 ans.
-3. Les salariés de moins de 17 ans.
-
-Format JSON strict attendu :
-{{"cas_general":11.88,"entre_17_et_18_ans":10.69,"moins_de_17_ans":9.50}}
-
-- Toutes les valeurs doivent être des nombres (float).
-- Pas d'explication, pas de texte additionnel.
-Texte :
----
-{page_text[:15000]}
----
-""".strip()
-
-    try:
-        resp = chat_completions_create(
-            response_format={"type": "json_object"},
-            temperature=0,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Assistant d'extraction. Ne renvoie que du JSON valide.",
-                },
-                {"role": "user", "content": prompt},
-            ],
+def _sections_from_ai(data: dict, reference: dict) -> dict:
+    cas_general = float(data["cas_general"])
+    jeune_17 = float(data["jeune_17_ans"])
+    jeune_moins_17 = float(data["jeune_moins_17_ans"])
+    jeune_17 = min(jeune_17, cas_general)
+    jeune_moins_17 = min(jeune_moins_17, jeune_17)
+    mensuel = float(data.get("smic_mensuel_brut") or 0)
+    if mensuel <= 0:
+        mensuel = reference.get("smic_mensuel_brut") or round(
+            cas_general * smic_monthly_hours(), 2
         )
-        raw = resp.choices[0].message.content.strip()
-        return json.loads(raw)
-    except Exception as e:
-        print(f"ERREUR extraction IA : {e}", file=sys.stderr)
-        return None
+    return normalize_smic_sections(
+        {
+            "cas_general": cas_general,
+            "jeune_17_ans": jeune_17,
+            "jeune_moins_17_ans": jeune_moins_17,
+            "smic_horaire_brut": cas_general,
+            "smic_mensuel_brut": mensuel,
+            "annee": reference.get("annee"),
+        }
+    )
 
 
-# --- SCRAPER IA ---
-def get_smic_via_ai() -> dict | None:
-    """Recherche et extraction IA des montants du SMIC horaire."""
-    current_year = datetime.now().year
-    query = SEARCH_QUERY.format(year=current_year)
+def extract_smic(max_attempts: int = 3) -> dict | None:
+    soup = smic_module.fetch_soup()
+    reference = smic_module.extract_smic_data(soup)
+    ref_core = _reference_core(reference)
+    table_text = smic_module.applicable_segment_table_text(soup)
+    citation_date = _iso_to_fr(str(reference.get("effective_from", ""))) or (
+        f"01/01/{reference.get('annee', 2026)}"
+    )
 
-    candidates = []
-    try:
-        print(f"Recherche DDGS : '{query}'", file=sys.stderr)
-        for r in DDGS().text(query, region="fr-fr", max_results=5):
-            url = r.get("href")
-            if url and url not in candidates:
-                candidates.append(url)
-    except Exception as e:
-        print(f"ERREUR recherche DDGS : {e}", file=sys.stderr)
+    for attempt in range(1, max_attempts + 1):
+        use_web = attempt > 1
+        retry = f"\n(Tentative {attempt}/{max_attempts}.)" if attempt > 1 else ""
+        prompt = (
+            f"Extrais le SMIC horaire et mensuel métropole en vigueur depuis le "
+            f"tableau URSSAF ci-dessous.\n\n"
+            f"--- TABLEAU OFFICIEL ---\n{table_text}\n--- FIN TABLEAU ---\n\n"
+            f"Champs : cas_general (Smic horaire brut), jeune_17_ans (17-18 ans), "
+            f"jeune_moins_17_ans (<17 ans), smic_mensuel_brut (mensuel). "
+            f"Recopie les montants en euros tels quels.{retry}"
+        )
+        kwargs: dict = {
+            "task_prompt": prompt,
+            "json_schema": SCHEMA,
+            "schema_name": "smic",
+            "citation_url": URL,
+            "citation_date": citation_date,
+            "use_web_search": use_web,
+        }
+        if use_web:
+            kwargs["include_domains"] = [
+                "urssaf.fr",
+                "service-public.gouv.fr",
+                "legifrance.gouv.fr",
+            ]
 
-    if not candidates:
-        print("ERREUR : Aucun résultat trouvé.", file=sys.stderr)
-        return None
-
-    session = get_session()
-    for url in candidates:
-        print(f"\n--- Tentative sur : {url} ---", file=sys.stderr)
-        try:
-            r = session.get(url, timeout=20)
-            r.raise_for_status()
-            soup = BeautifulSoup(r.text, "html.parser")
-            text = soup.get_text(" ", strip=True)
-
-            data = extract_json_with_gpt(text)
-            expected = {"cas_general", "entre_17_et_18_ans", "moins_de_17_ans"}
-
-            if data and expected.issubset(data.keys()):
-                print("✅ Extraction réussie.", file=sys.stderr)
-                return data
-            print("   - Données incomplètes, essai suivant.", file=sys.stderr)
-
-        except Exception as e:
-            print(f"   - ERREUR page : {e}", file=sys.stderr)
-
-    print("\n❌ Aucune donnée valide extraite.", file=sys.stderr)
+        data = extract_structured_json(**kwargs)
+        if not data or data.get("cas_general") is None:
+            continue
+        sections = _sections_from_ai(data, reference)
+        if _equal(sections, ref_core):
+            return {**sections, "effective_from": reference.get("effective_from")}
+        print(
+            "[SMIC_AI] Écart vs parse URSSAF primary.",
+            file=sys.stderr,
+        )
     return None
 
 
-# --- MAIN ---
-def main():
-    """Orchestre l'extraction IA et génère le JSON final."""
-    data = get_smic_via_ai()
-    if not data:
-        print("ERREUR CRITIQUE : Extraction échouée.", file=sys.stderr)
+def main() -> None:
+    print(f"[SMIC_AI] Source : {URL}", file=sys.stderr)
+    sections = extract_smic()
+    if not sections:
+        print("ERREUR CRITIQUE: extraction IA SMIC échouée.", file=sys.stderr)
         sys.exit(1)
 
-    cas = data.get("cas_general")
-    mensuel_est = (
-        round(float(cas) * 35 * 52 / 12, 2) if cas is not None else None
+    payload = build_standard_payload(
+        item_id="smic_horaire",
+        item_type="bareme_horaire",
+        libelle="SMIC horaire",
+        sections_or_valeurs=sections,
+        generator="SMIC/SMIC_AI.py",
+        source_url=URL,
+        source_label="URSSAF SMIC (Sonar + tableau officiel)",
+        citation_url=URL,
+        citation_date=_iso_to_fr(str(sections.get("effective_from", ""))),
+        method="ai_structured",
     )
-    smic_data = {
-        "cas_general": cas,
-        "jeune_17_ans": data.get("entre_17_et_18_ans"),
-        "jeune_moins_17_ans": data.get("moins_de_17_ans"),
-        "smic_horaire_brut": cas,
-        "smic_mensuel_brut": mensuel_est,
-        "annee": datetime.now().year,
-    }
-
-    payload = {
-        "id": "smic_horaire",
-        "type": "bareme_horaire",
-        "libelle": "Salaire Minimum Interprofessionnel de Croissance (SMIC) - Taux horaire",
-        "sections": smic_data,
-        "meta": {
-            "source": [
-                {
-                    "url": "https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/montant-smic.html",
-                    "label": "URSSAF - Montant du Smic",
-                    "date_doc": "",
-                }
-            ],
-            "scraped_at": iso_now(),
-            "generator": "scripts/SMIC/SMIC_AI.py",
-            "method": "ai",
-        },
-    }
-
-    print(json.dumps(payload, ensure_ascii=False))
+    emit_ai_payload_or_exit(payload, "smic_horaire")
 
 
 if __name__ == "__main__":

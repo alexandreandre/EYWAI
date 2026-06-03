@@ -46,6 +46,7 @@ pillow
 
 # --- Dates ---
 python-dateutil
+pandas>=2.0.0
 
 # --- Exports CSV/XLSX ---
 openpyxl

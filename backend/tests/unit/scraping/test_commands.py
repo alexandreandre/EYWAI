@@ -17,6 +17,9 @@ from app.modules.scraping.application.commands import (
     delete_schedule,
     mark_alert_as_read,
     resolve_alert,
+    approve_pending_change,
+    reject_pending_change,
+    run_tripwire,
 )
 
 COMMANDS_MODULE = "app.modules.scraping.application.commands"
@@ -317,3 +320,114 @@ class TestResolveAlert:
         with patch(f"{COMMANDS_MODULE}.ScrapingRepository", return_value=mock_repo):
             with pytest.raises(ValueError, match="Alerte non trouvée"):
                 resolve_alert("alert-unknown", resolved_by="user-1")
+
+
+class TestApprovePendingChange:
+    """Commande approve_pending_change (gate de validation humaine)."""
+
+    def test_approves_and_applies(self):
+        mock_repo = MagicMock()
+        mock_repo.get_pending_change.return_value = {"id": "p-1", "status": "pending"}
+
+        with (
+            patch(f"{COMMANDS_MODULE}.ScrapingRepository", return_value=mock_repo),
+            patch(
+                f"{COMMANDS_MODULE}.apply_pending_change_sync",
+                return_value={"success": True, "logs": ["ok"], "error": None},
+            ) as mock_apply,
+        ):
+            result = approve_pending_change("p-1", reviewed_by="admin-1")
+
+        assert result["success"] is True
+        assert result["pending_id"] == "p-1"
+        mock_apply.assert_called_once_with("p-1", reviewed_by="admin-1")
+
+    def test_override_value_persisted_before_apply(self):
+        mock_repo = MagicMock()
+        mock_repo.get_pending_change.return_value = {"id": "p-1", "status": "pending"}
+
+        with (
+            patch(f"{COMMANDS_MODULE}.ScrapingRepository", return_value=mock_repo),
+            patch(
+                f"{COMMANDS_MODULE}.apply_pending_change_sync",
+                return_value={"success": True, "logs": [], "error": None},
+            ),
+        ):
+            approve_pending_change(
+                "p-1", reviewed_by="admin-1", override_value={"cas_general": 12.0}
+            )
+
+        mock_repo.update_pending_change.assert_called_once()
+        _, payload = mock_repo.update_pending_change.call_args[0]
+        assert payload["proposed_config_data"] == {"cas_general": 12.0}
+
+    def test_raises_when_not_found(self):
+        mock_repo = MagicMock()
+        mock_repo.get_pending_change.return_value = None
+
+        with patch(f"{COMMANDS_MODULE}.ScrapingRepository", return_value=mock_repo):
+            with pytest.raises(ValueError, match="Changement en attente non trouvé"):
+                approve_pending_change("p-x", reviewed_by="admin-1")
+
+    def test_raises_when_already_processed(self):
+        mock_repo = MagicMock()
+        mock_repo.get_pending_change.return_value = {"id": "p-1", "status": "approved"}
+
+        with patch(f"{COMMANDS_MODULE}.ScrapingRepository", return_value=mock_repo):
+            with pytest.raises(ValueError, match="déjà été traité"):
+                approve_pending_change("p-1", reviewed_by="admin-1")
+
+    def test_raises_when_apply_fails(self):
+        mock_repo = MagicMock()
+        mock_repo.get_pending_change.return_value = {"id": "p-1", "status": "pending"}
+
+        with (
+            patch(f"{COMMANDS_MODULE}.ScrapingRepository", return_value=mock_repo),
+            patch(
+                f"{COMMANDS_MODULE}.apply_pending_change_sync",
+                return_value={"success": False, "logs": [], "error": "boom"},
+            ),
+        ):
+            with pytest.raises(RuntimeError, match="boom"):
+                approve_pending_change("p-1", reviewed_by="admin-1")
+
+
+class TestRejectPendingChange:
+    """Commande reject_pending_change."""
+
+    def test_rejects_pending(self):
+        mock_repo = MagicMock()
+        mock_repo.get_pending_change.return_value = {"id": "p-1", "status": "pending"}
+        mock_repo.update_pending_change.return_value = {"id": "p-1", "status": "rejected"}
+
+        with patch(f"{COMMANDS_MODULE}.ScrapingRepository", return_value=mock_repo):
+            result = reject_pending_change("p-1", reviewed_by="admin-1", review_note="non")
+
+        assert result["success"] is True
+        _, payload = mock_repo.update_pending_change.call_args[0]
+        assert payload["status"] == "rejected"
+        assert payload["review_note"] == "non"
+
+
+class TestRunTripwire:
+    """Commande run_tripwire (snapshot/diff, sans écriture)."""
+
+    def test_runs_for_all_critical_sources(self):
+        mock_repo = MagicMock()
+        mock_repo.get_critical_sources.return_value = [
+            {"id": "s1", "source_name": "SMIC"},
+            {"id": "s2", "source_name": "PSS"},
+        ]
+        mock_repo.create_job.side_effect = [{"id": "j1"}, {"id": "j2"}]
+        calls = []
+
+        with patch(f"{COMMANDS_MODULE}.ScrapingRepository", return_value=mock_repo):
+            result = run_tripwire(
+                source_key=None,
+                triggered_by="admin-1",
+                background_task_fn=lambda fn, *a, **k: calls.append((fn, a)),
+            )
+
+        assert result["sources_count"] == 2
+        assert result["job_ids"] == ["j1", "j2"]
+        assert len(calls) == 2

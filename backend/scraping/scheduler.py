@@ -29,29 +29,35 @@ logger = logging.getLogger(__name__)
 SCRAPING_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = SCRAPING_DIR.parent
 
-# Mapping source_key → dossier orchestrateur
+# Mapping source_key → (dossier orchestrateur, script orchestrateur)
 SOURCE_KEY_MAP = {
-    "smic": "SMIC",
-    "pss": "PSS",
-    "csg": "CSG",
-    "ags": "AGS",
-    "agirc_arrco": "AGIRC-ARRCO",
-    "avantages": "Avantages",
-    "cfp": "CFP",
-    "csa": "CSA",
-    "fnal": "FNAL",
-    "ij_maladie": "IJmaladie",
-    "mmid_patronal": "MMIDpatronal",
-    "mmid_salarial": "MMIDsalarial",
-    "pas": "PAS",
-    "alloc": "alloc",
-    "assurance_chomage": "assurancechomage",
-    "baremes_km": "bareme-indemnite-kilometrique",
-    "dialogue_social": "dialoguesocial",
-    "frais_pro": "fraispro",
-    "taxe_apprentissage": "taxeapprentissage",
-    "vieillesse_patronal": "vieillessepatronal",
-    "vieillesse_salarial": "vieillessesalarial",
+    "smic": ("SMIC", "orchestrator.py"),
+    "pss": ("PSS", "orchestrator.py"),
+    "csg": ("CSG", "orchestrator.py"),
+    "ags": ("AGS", "orchestrator.py"),
+    "agirc_arrco": ("AGIRC-ARRCO", "orchestrator.py"),
+    "avantages": ("Avantages", "orchestrator.py"),
+    "cfp": ("CFP", "orchestrator.py"),
+    "csa": ("CSA", "orchestrator.py"),
+    "fnal": ("FNAL", "orchestrator.py"),
+    "ij_maladie": ("IJmaladie", "orchestrator.py"),
+    "mmid_patronal": ("MMIDpatronal", "orchestrator.py"),
+    "mmid_salarial": ("MMIDsalarial", "orchestrator.py"),
+    "pas": ("PAS", "orchestrator.py"),
+    "alloc": ("alloc", "orchestrator.py"),
+    "assurance_chomage": ("assurancechomage", "orchestrator.py"),
+    "baremes_km": ("bareme-indemnite-kilometrique", "orchestrator.py"),
+    "dialogue_social": ("dialoguesocial", "orchestrator.py"),
+    "frais_pro": ("fraispro", "orchestrator.py"),
+    "heures_supp": ("heuressupp", "orchestrator.py"),
+    "primes": ("primes", "orchestrator.py"),
+    "taxe_apprentissage": ("taxeapprentissage", "orchestrator.py"),
+    "vieillesse_patronal": ("vieillessepatronal", "orchestrator.py"),
+    "vieillesse_salarial": ("vieillessesalarial", "orchestrator.py"),
+    "prevoyance_cadre": ("prevoyance", "orchestrator_cadre.py"),
+    "prevoyance_non_cadre": ("prevoyance", "orchestrator_non_cadre.py"),
+    "vm": ("versement_mobilite", "orchestrator.py"),
+    "versement_mobilite": ("versement_mobilite", "orchestrator.py"),
 }
 
 DEFAULT_TIMEOUT = 300  # 5 minutes par scraper
@@ -122,14 +128,15 @@ def compute_next_run(frequency: str) -> str:
 
 def run_scraper(source_key: str) -> dict:
     """Lance l'orchestrateur correspondant à source_key."""
-    folder = SOURCE_KEY_MAP.get(source_key)
-    if not folder:
+    entry = SOURCE_KEY_MAP.get(source_key)
+    if not entry:
         return {
             "success": False,
             "error": f"source_key inconnu : {source_key}"
         }
 
-    orchestrator = SCRAPING_DIR / folder / "orchestrator.py"
+    folder, script_name = entry
+    orchestrator = SCRAPING_DIR / folder / script_name
     if not orchestrator.exists():
         return {
             "success": False,
@@ -242,8 +249,24 @@ def main():
     """
     Mode daemon : vérifie toutes les 15 minutes.
     Passer --once pour un seul cycle (mode cron).
+    Passer --validate-sources pour la validation mensuelle des URLs officielles
+    (sans scraping des taux — Sonar + sync pastilles Suivi des taux).
     """
     supabase = load_env_and_supabase()
+
+    if "--validate-sources" in sys.argv:
+        from agent.source_validator import validate_all_official_sources
+
+        logger.info("Validation mensuelle des URLs officielles")
+        result = validate_all_official_sources(supabase=supabase)
+        failed = result.get("failed", 0)
+        logger.info(
+            "Validation terminée : %s confirmées, %s mises à jour, %s échecs",
+            result.get("confirmed", 0),
+            result.get("updated", 0),
+            failed,
+        )
+        sys.exit(0 if failed == 0 else 1)
 
     if "--once" in sys.argv:
         logger.info("Mode --once : cycle unique")

@@ -17,8 +17,19 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 # Modèle scraping (aligné sur app.shared.infrastructure.ai.models.MODEL_SCRAPING_EXTRACTION)
 MODEL_SCRAPING_EXTRACTION = "openai/gpt-4o-mini"
 
+# Modèle avec recherche web native (Perplexity Sonar) — tous les scripts *_AI.py
+MODEL_WEB_SEARCH = "perplexity/sonar"
+
+# Agent de réparation scraping (code / URL)
+MODEL_CODE_REPAIR = "moonshotai/kimi-k2.6"
+MODEL_CODE_REPAIR_RETRY = "moonshotai/kimi-k2.6"
+MODEL_URL_SEARCH = MODEL_WEB_SEARCH
+
 _MODEL_ALIASES: dict[str, str] = {
     "gpt-4o-mini": MODEL_SCRAPING_EXTRACTION,
+    "kimi-k2.6": MODEL_CODE_REPAIR,
+    "kimi-k2.5": "moonshotai/kimi-k2.5",
+    "sonar": MODEL_WEB_SEARCH,
 }
 
 

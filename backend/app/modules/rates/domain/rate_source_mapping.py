@@ -14,7 +14,10 @@ RATE_KEY_TO_SOURCE_KEYS: dict[str, list[str]] = {
     "pas": ["PAS"],
     "frais_pro": ["FRAIS_PRO"],
     "avantages_en_nature": ["AVANTAGES"],
+    "heures_supp": ["HEURES_SUPP"],
+    "primes": ["PRIMES"],
     "baremes_km": ["BAREME_INDEMNITE_KILOMETRIQUE"],
+    "taux_vmrr": ["VM"],
     "cotisations": [
         "AGIRC-ARRCO",
         "AGS",
@@ -30,6 +33,8 @@ RATE_KEY_TO_SOURCE_KEYS: dict[str, list[str]] = {
         "VIEILLESSE_SALARIAL",
         "CFP",
         "TAXE_APPRENTISSAGE",
+        "PREVOYANCE_CADRE",
+        "PREVOYANCE_NON_CADRE",
     ],
 }
 
@@ -50,10 +55,15 @@ COTISATION_ID_TO_SOURCE_KEYS: dict[str, list[str]] = {
     "dialogue_social": ["DIALOGUE_SOCIAL"],
     "securite_sociale_maladie": ["MMID_PATRONAL", "MMID_SALARIAL"],
     "CFP": ["CFP"],
+    "cfp": ["CFP"],
     "taxe_apprentissage": ["TAXE_APPRENTISSAGE"],
     "taxe_apprentissage_solde": ["TAXE_APPRENTISSAGE"],
+    "retraite_secu_plafond": ["VIEILLESSE_PATRONAL", "VIEILLESSE_SALARIAL"],
+    "retraite_secu_deplafond": ["VIEILLESSE_PATRONAL", "VIEILLESSE_SALARIAL"],
     "vieillesse_patronal": ["VIEILLESSE_PATRONAL"],
     "vieillesse_salarial": ["VIEILLESSE_SALARIAL"],
+    "prevoyance_cadre": ["PREVOYANCE_CADRE"],
+    "prevoyance_non_cadre": ["PREVOYANCE_NON_CADRE"],
 }
 
 
@@ -82,7 +92,12 @@ def resolve_source_keys(
 
     if cotisation_ids:
         for cid in cotisation_ids:
-            for sk in COTISATION_ID_TO_SOURCE_KEYS.get(cid, []):
+            keys = COTISATION_ID_TO_SOURCE_KEYS.get(cid)
+            if keys is None:
+                keys = COTISATION_ID_TO_SOURCE_KEYS.get(cid.strip().upper())
+            if keys is None and cid:
+                keys = COTISATION_ID_TO_SOURCE_KEYS.get(cid.strip().lower())
+            for sk in keys or []:
                 add(sk)
     if source_keys:
         for sk in source_keys:
@@ -97,3 +112,17 @@ def resolve_source_keys(
 
 def all_known_rate_keys() -> list[str]:
     return list(RATE_KEY_TO_SOURCE_KEYS.keys())
+
+
+def all_page_source_keys() -> list[str]:
+    """Clés scraping couvrant toute la page Suivi des taux (mise à jour complète)."""
+    seen: set[str] = set()
+    resolved: list[str] = []
+    for source_keys in RATE_KEY_TO_SOURCE_KEYS.values():
+        for source_key in source_keys:
+            norm = normalize_source_key(source_key)
+            if norm in seen:
+                continue
+            seen.add(norm)
+            resolved.append(source_key)
+    return resolved

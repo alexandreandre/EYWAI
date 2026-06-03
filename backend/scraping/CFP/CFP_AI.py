@@ -1,207 +1,78 @@
-# scripts/CFP/CFP_AI.py
-
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
-"""
-CFP_AI.py
-Recherche les taux de la Contribution à la Formation Professionnelle (CFP)
-pour les entreprises de moins de 11 salariés et de 11 salariés et plus.
-Analyse des pages via DDGS/BeautifulSoup, puis extraction IA (GPT).
-"""
+#!/usr/bin/env python3
+"""Source IA — contribution formation professionnelle (recherche web)."""
 
 import json
-import os
 import sys
-from datetime import datetime, timezone
+from pathlib import Path
 
-import requests
-from bs4 import BeautifulSoup
-from dotenv import load_dotenv
-from ddgs.ddgs import DDGS
+_SCRAPING = Path(__file__).resolve().parent.parent
+if str(_SCRAPING) not in sys.path:
+    sys.path.insert(0, str(_SCRAPING))
 
-load_dotenv()
+from core.ai_extractor import build_standard_payload, emit_ai_payload_or_exit, extract_with_web_search  # noqa: E402
+from core.year_utils import current_year  # noqa: E402
 
-import sys
-from pathlib import Path as _Path
-
-_SCRAPING_ROOT = _Path(__file__).resolve().parents[1]
-if str(_SCRAPING_ROOT) not in sys.path:
-    sys.path.insert(0, str(_SCRAPING_ROOT))
-from openrouter_client import chat_completions_create, require_api_key
-
-
-SEARCH_QUERY_TEMPLATE = (
-    "taux contribution formation professionnelle CFP URSSAF "
-    "{year} moins de 11 salariés 11 et plus site:urssaf.fr OR site:legisocial.fr"
+URL = (
+    "https://www.urssaf.fr/accueil/employeur/cotisations/liste-cotisations/"
+    "formation-professionnelle.html"
 )
 
-USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
-)
+OFFICIAL = [
+    "urssaf.fr",
+    "service-public.fr",
+    "legifrance.gouv.fr",
+    "agirc-arrco.fr",
+    "bofip.impots.gouv.fr",
+]
 
-
-# --- UTILITAIRES ---
-
-
-def iso_now() -> str:
-    """Retourne la date et l'heure actuelles au format ISO 8601 UTC."""
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def _fetch_text_with_requests(url: str) -> str | None:
-    """Récupère le texte brut d'une page web via requests/BeautifulSoup."""
-    try:
-        r = requests.get(url, timeout=15, headers={"User-Agent": USER_AGENT})
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
-        return soup.get_text(" ", strip=True)
-    except Exception as e:
-        print(f"ERREUR (CFP_AI): Échec fetch Requests sur {url}: {e}", file=sys.stderr)
-        return None
-
-
-def _extract_rates_with_gpt(page_text: str) -> dict[str, float | None] | None:
-    """Demande au modèle d'extraire les deux taux CFP."""
-    try:
-        require_api_key()
-    except ValueError:
-        print("ERREUR: OPENROUTER_API_KEY manquante.", file=sys.stderr)
-        return None
-
-        current_year = datetime.now().year
-
-    prompt = (
-        f"Analyse ce texte pour extraire les taux de la Contribution à la Formation Professionnelle (CFP) "
-        f"applicables en France pour l'année {current_year}.\n"
-        "- Deux taux sont attendus :\n"
-        '  1. "taux_moins_11" (moins de 11 salariés)\n'
-        '  2. "taux_11_et_plus" (11 salariés et plus)\n\n'
-        "Retourne un JSON strict avec ces deux clés et leurs valeurs en pourcentage (ex: 0.55 ou 1.0) :\n"
-        "{\n"
-        '  "taux_moins_11": <float|null>,\n'
-        '  "taux_11_et_plus": <float|null>\n'
-        "}\n"
-        "- Toutes les clés doivent être présentes.\n"
-        "- Si une valeur est absente, mets null.\n"
-        "- Ne renvoie que du JSON pur.\n"
-        "Vérifie bien que la source soit fiable, et prend du recul. Choisi les valeurs comme si t'étais un humain qui lisait l'article.\n\n"
-        "Texte à analyser (max 15000 caractères):\n---\n" + page_text[:15000]
-    )
-
-    try:
-        resp = chat_completions_create(
-            response_format={"type": "json_object"},
-            temperature=0,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Assistant d'extraction JSON pur pour les taux CFP.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-        )
-        data = json.loads(resp.choices[0].message.content.strip())
-        return {
-            "taux_moins_11": data.get("taux_moins_11"),
-            "taux_11_et_plus": data.get("taux_11_et_plus"),
-        }
-
-    except Exception as e:
-        print(f"ERREUR (CFP_AI): Extraction IA échouée: {e}", file=sys.stderr)
-        return None
-
-
-def build_payload(rates: dict[str, float | None] | None, found_url: str | None) -> dict:
-    """Construit la charge utile JSON finale pour l'orchestrateur."""
-
-    def _to_rate(val):
-        if val is None:
-            return None
-        try:
-            return round(float(str(val).replace(",", ".")) / 100.0, 6)
-        except Exception:
-            return None
-
-    taux_moins_11 = _to_rate(rates.get("taux_moins_11")) if rates else None
-    taux_11_et_plus = _to_rate(rates.get("taux_11_et_plus")) if rates else None
-
-    source_url = (
-        found_url
-        or "https://www.urssaf.fr/accueil/employeur/cotisations/liste-cotisations/formation-professionnelle.html"
-    )
-    source_label = "URSSAF - Contribution à la formation professionnelle"
-
-    return {
-        "id": "cfp",
-        "type": "cotisation",
-        "libelle": "Contribution à la Formation Professionnelle (CFP)",
-        "sections": {
-            "salarial": None,
-            "patronal_moins_11": taux_moins_11,
-            "patronal_11_et_plus": taux_11_et_plus,
+SCHEMA = {
+    "type": "object",
+    "properties": {
+        "taux_moins_11": {
+            "type": ["number", "null"],
+            "description": "Taux CFP entreprises < 11 salariés en %",
         },
-        "meta": {
-            "source": [{"url": source_url, "label": source_label, "date_doc": ""}],
-            "scraped_at": iso_now(),
-            "generator": "scripts/CFP/CFP.py",
-            "method": "primary",
+        "taux_11_et_plus": {
+            "type": ["number", "null"],
+            "description": "Taux CFP entreprises ≥ 11 salariés en %",
         },
-    }
+    },
+    "required": ["taux_moins_11", "taux_11_et_plus"],
+    "additionalProperties": False,
+}
 
 
 def main() -> None:
-    """Orchestre la recherche et l'extraction des deux taux CFP via l'IA."""
-    current_year = datetime.now().year
-    SEARCH_QUERY = SEARCH_QUERY_TEMPLATE.format(year=current_year)
-    print(
-        f"INFO (CFP_AI): Démarrage. Recherche DDGS: '{SEARCH_QUERY}'", file=sys.stderr
+    cy = current_year()
+    data = extract_with_web_search(
+        task_prompt=(
+            f"Extrais les taux de la Contribution à la Formation Professionnelle (CFP) "
+            f"applicables en {cy} : taux_moins_11 (< 11 salariés) et taux_11_et_plus "
+            f"(≥ 11 salariés). Renvoie les valeurs en pourcentage."
+        ),
+        json_schema=SCHEMA,
+        schema_name="cfp",
+        include_domains=OFFICIAL,
     )
+    if not data or data.get("taux_moins_11") is None or data.get("taux_11_et_plus") is None:
+        print("ERREUR CRITIQUE: extraction IA CFP échouée.", file=sys.stderr)
+        sys.exit(1)
 
-    results = []
-    try:
-        search_results = DDGS().text(SEARCH_QUERY, region="fr-fr", max_results=10)
-        if search_results:
-            results = [r["href"] for r in search_results]
-        if not results:
-            print("ERREUR (CFP_AI): DDGS n'a retourné aucun résultat.", file=sys.stderr)
-    except Exception as e:
-        print(
-            f"ERREUR (CFP_AI): Échec de la recherche DuckDuckGo: {e}", file=sys.stderr
-        )
-
-    rates = None
-    successful_url = None
-
-    for url in results:
-        print(f"INFO (CFP_AI): Analyse URL: {url}", file=sys.stderr)
-        txt = _fetch_text_with_requests(url)
-        if not txt:
-            print("INFO (CFP_AI): ...Échec fetch ou texte vide.", file=sys.stderr)
-            continue
-
-        rates = _extract_rates_with_gpt(txt)
-        if rates and (
-            rates.get("taux_moins_11") is not None
-            or rates.get("taux_11_et_plus") is not None
-        ):
-            print(
-                f"INFO (CFP_AI): Taux trouvés sur cette URL: "
-                f"moins_11={rates.get('taux_moins_11')} plus_11={rates.get('taux_11_et_plus')}",
-                file=sys.stderr,
-            )
-            successful_url = url
-            break
-        else:
-            print("INFO (CFP_AI): ...Taux non trouvés sur cette URL.", file=sys.stderr)
-
-    if rates is None:
-        print("ERREUR (CFP_AI): Aucun taux trouvé après analyse.", file=sys.stderr)
-        rates = {}
-
-    payload = build_payload(rates, successful_url)
-    print(json.dumps(payload, ensure_ascii=False))
+    sections = {
+        "salarial": None,
+        "patronal_moins_11": round(float(data["taux_moins_11"]) / 100.0, 6),
+        "patronal_11_et_plus": round(float(data["taux_11_et_plus"]) / 100.0, 6),
+    }
+    payload = build_standard_payload(
+        item_id="cfp",
+        item_type="cotisation",
+        libelle="Contribution à la Formation Professionnelle (CFP)",
+        sections_or_valeurs=sections,
+        generator="CFP/CFP_AI.py",
+        source_url=URL,
+        source_label="URSSAF CFP (IA web)",
+    )
+    emit_ai_payload_or_exit(payload, "cfp")
 
 
 if __name__ == "__main__":
