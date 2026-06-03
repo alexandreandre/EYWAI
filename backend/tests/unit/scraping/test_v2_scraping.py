@@ -6,8 +6,6 @@ Hermétiques : mocks Supabase / subprocess, pas de DB ni réseau réels.
 from __future__ import annotations
 
 import json
-from contextlib import redirect_stdout
-from io import StringIO
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -56,8 +54,7 @@ class TestEmitOrchestratorResultV2:
     def test_emits_v2_metadata_fields(self):
         from core.supabase_io import emit_orchestrator_result
 
-        buf = StringIO()
-        with redirect_stdout(buf):
+        with patch("core.supabase_io.print") as mock_print:
             emit_orchestrator_result(
                 scraper="SMIC",
                 success=True,
@@ -73,7 +70,9 @@ class TestEmitOrchestratorResultV2:
                 tier="critical",
                 requires_review=True,
             )
-        out = json.loads(buf.getvalue().strip())
+
+        mock_print.assert_called_once()
+        out = json.loads(mock_print.call_args[0][0])
         assert out["decision_case"] == "A"
         assert out["sources_agreement"] is True
         assert out["tier"] == "critical"
