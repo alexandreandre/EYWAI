@@ -1,0 +1,2 @@
+-- Remplacé par 20260529200000_scraping_source_prevoyance_split.sql (deux sources distinctes).
+-- Migration volontairement vide pour éviter la source combinée PREVOYANCE.
