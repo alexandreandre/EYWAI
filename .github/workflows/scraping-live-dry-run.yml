@@ -1,0 +1,41 @@
+# Dry-run live scraping — informatif, ne bloque pas les PR.
+# Tier critical (~10 scrapers), sans IA, sans écriture Supabase.
+name: Scraping live dry-run
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run:
+    name: Dry-run critical scrapers
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      EYWAI_SCRAPING_DISABLE_AI: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Live dry-run (critical, no AI)
+        run: python scraping/test_scrapers.py --live --no-ai --tier critical

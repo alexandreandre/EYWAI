@@ -86,6 +86,24 @@ jobs:
       - name: Pytest unit (bloquant)
         run: python -m pytest tests/unit -v --tb=short -p no:cacheprovider
 
+      - name: Scraping compile + validation (hermétique)
+        run: python scraping/test_scrapers.py
+
+      - name: Scraping pytest (fixtures + validateurs)
+        run: >-
+          python -m pytest
+          tests/unit/scraping/test_parsers_primary.py
+          tests/unit/scraping/test_parsers_secondary.py
+          tests/unit/scraping/test_validation_extended.py
+          tests/unit/scraping/test_orchestrator_manifest.py
+          tests/unit/scraping/test_consensus.py
+          tests/unit/scraping/test_vm_scraper.py
+          tests/unit/scraping/test_scrapers_harness.py
+          tests/unit/scraping/test_source_validator.py
+          tests/unit/scraping/test_official_domains.py
+          tests/unit/scraping/test_agent_safety.py
+          -v --tb=short -p no:cacheprovider
+
       - name: OpenAPI artifact
         run: |
           python - <<'PY'
