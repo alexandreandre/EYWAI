@@ -22,7 +22,12 @@ from core.ai_extractor import (  # noqa: E402
 from core.urssaf_parser import smic_monthly_hours  # noqa: E402
 from core.validation import normalize_smic_sections  # noqa: E402
 
-from spec import _equal  # noqa: E402
+_smic_spec_file = _DIR / "spec.py"
+_smic_spec_mod = importlib.util.spec_from_file_location("smic_spec", _smic_spec_file)
+assert _smic_spec_mod and _smic_spec_mod.loader
+smic_spec = importlib.util.module_from_spec(_smic_spec_mod)
+_smic_spec_mod.loader.exec_module(smic_spec)
+_equal = smic_spec._equal
 
 _SMIC_FILE = _DIR / "SMIC.py"
 _spec = importlib.util.spec_from_file_location("smic_primary", _SMIC_FILE)

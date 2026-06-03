@@ -23,22 +23,26 @@ from core.ai_extractor import (  # noqa: E402
 )
 from core.year_utils import current_year  # noqa: E402
 
-from _logic import (  # noqa: E402
-    _eq_metropole,
-    _eq_mobilite,
-    _eq_mutation,
-    _eq_outre_mer,
-    _eq_petit_dep,
-    _eq_repas,
-    _eq_teletravail,
-    _norm_metropole,
-    _norm_mobilite,
-    _norm_mutation,
-    _norm_outre_mer,
-    _norm_petit_dep,
-    _norm_repas,
-    _norm_teletravail,
-)
+_logic_file = _DIR / "_logic.py"
+_logic_spec = importlib.util.spec_from_file_location("fraispro_logic", _logic_file)
+assert _logic_spec and _logic_spec.loader
+_logic = importlib.util.module_from_spec(_logic_spec)
+_logic_spec.loader.exec_module(_logic)
+
+_eq_metropole = _logic._eq_metropole
+_eq_mobilite = _logic._eq_mobilite
+_eq_mutation = _logic._eq_mutation
+_eq_outre_mer = _logic._eq_outre_mer
+_eq_petit_dep = _logic._eq_petit_dep
+_eq_repas = _logic._eq_repas
+_eq_teletravail = _logic._eq_teletravail
+_norm_metropole = _logic._norm_metropole
+_norm_mobilite = _logic._norm_mobilite
+_norm_mutation = _logic._norm_mutation
+_norm_outre_mer = _logic._norm_outre_mer
+_norm_petit_dep = _logic._norm_petit_dep
+_norm_repas = _logic._norm_repas
+_norm_teletravail = _logic._norm_teletravail
 
 _FRAISPRO_FILE = Path(__file__).resolve().parent / "fraispro.py"
 _spec = importlib.util.spec_from_file_location("fraispro_primary", _FRAISPRO_FILE)
