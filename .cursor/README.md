@@ -59,7 +59,7 @@ Il complète (sans les remplacer) les fichiers à la racine comme [`AGENTS.md`](
 | | |
 |--|--|
 | **Nature** | Règle projet au format **`.mdc`** (YAML + Markdown). Contient les conventions Python / FastAPI pour tout ce qui est sous `backend/`. |
-| **Contenu actuel (résumé)** | Point d’entrée `app.main:app`, couches et imports, style et logging, pas de refactor hors scope, français pour les messages utilisateur, pas de migration SQL hors processus (aligné `AGENTS.md`). |
+| **Contenu actuel (résumé)** | Modular monolith, **DRY**, couches API→application→domain→infra, résolution employé **canonique** (`resolve_employee_id_for_user_account`, 2 args), tests unit hermétiques, hygiène `.env` / venv. |
 | **Frontmatter actuel** | `globs: backend/**`, `alwaysApply: false`. |
 
 **Comment Cursor l’utilise**
@@ -88,7 +88,7 @@ Il complète (sans les remplacer) les fichiers à la racine comme [`AGENTS.md`](
 | | |
 |--|--|
 | **Nature** | Règle projet **`.mdc`** pour tout ce qui est sous `frontend/`. |
-| **Contenu actuel (résumé)** | React, Vite, TypeScript, UI (Radix / shadcn selon le code), Supabase si déjà le pattern du fichier, imports, pas de gros refactors hors demande, textes UI en français, `npm run lint` et captures pour PR UI. |
+| **Contenu actuel (résumé)** | **DRY**, couche **`@/api/*`** (pas d’`apiClient` dans pages/composants), pas de Supabase client dans `src/`, structure `pages/` / `features/`, scripts CI verify-pages, découpage fichiers < 600 lignes, français UI. |
 | **Frontmatter actuel** | `globs: frontend/**`, `alwaysApply: false`. |
 
 **Comment Cursor l’utilise**

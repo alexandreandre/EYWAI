@@ -1,13 +1,69 @@
 ---
-description: Conventions React/Vite/TS pour frontend/
+description: Conventions React/Vite/TS pour frontend/ — architecture, DRY, couche API
 globs: frontend/**
 alwaysApply: false
 ---
 
 # Frontend (`frontend/`)
 
-- **Stack** : React, Vite, TypeScript ; UI (Radix / shadcn selon le code existant). Supabase côté client quand c’est déjà le pattern du fichier.
-- **Imports** : ordre et alias comme dans le projet ; pas d’imports inutilisés laissés en chemin.
-- **Portée** : pas de refactors massifs non demandés ; rester focalisé sur la fonctionnalité ou le correctif.
-- **UX / copie** : textes visibles par l’utilisateur en **français** (libellés, erreurs, toasts), sauf contrainte produit explicite.
-- **Qualité** : `npm run lint` avant PR ; pour une PR qui touche l’UI, une capture d’écran dans la description aide la revue (voir template PR).
+## Stack et portée
+
+- **Stack** : React, Vite, TypeScript ; UI Radix / shadcn selon le code existant.
+- **Portée** : pas de refactors massifs non demandés ; chaque ligne du diff sert la tâche en cours.
+- **UX / copie** : textes visibles utilisateur en **français** (libellés, erreurs, toasts).
+- **Qualité** : `npm run lint`, `npm run test`, `npm run build` avant PR ; scripts `scripts/verify-pages-imports.mjs` et `verify-no-pages-imports-in-ui.mjs` (comme la CI).
+
+## Principe DRY (obligatoire)
+
+Avant d’ajouter du code, **chercher l’existant** (`@/api/*`, `@/hooks/*`, `@/components/*`, `@/features/*`, `@/lib/*`).
+
+| Situation | Action |
+|-----------|--------|
+| Appel HTTP métier | **Réutiliser ou étendre** un module `@/api/<domaine>.ts` — ne pas recopier URL, headers ou gestion d’erreur. |
+| Même logique UI à 2 endroits | **Un composant** paramétrable (props), pas deux fichiers copiés-collés. |
+| État serveur / cache | **Hook React Query** dans `hooks/queries/` ou hook domaine — pas de `useEffect` + `fetch` ad hoc. |
+| Utilitaire pur | `lib/` — pas dupliqué dans une page. |
+| Formulaire / écran déjà présent | Étendre `features/<domaine>/` — ne pas créer un second formulaire parallèle. |
+
+**Interdit** : dupliquer un composant « presque identique » (ex. deux calendriers annuels) ; laisser du code mort après remplacement.
+
+## Couche API HTTP (refacto en cours — respecter strictement)
+
+- **Instance unique** : `apiClient` dans `@/api/apiClient.ts` (intercepteurs auth, société, retry). Ne jamais créer un second client Axios/fetch pour l’API métier.
+- **Modules par domaine** : un fichier `@/api/<domaine>.ts` exporte fonctions typées (`getX`, `createY`, …) qui encapsulent `apiClient`.
+- **Pages** (`src/pages/**`) : **ne pas** appeler `apiClient.get/post/...` directement pour du métier — importer depuis `@/api/<domaine>`. Si la page touchée appelle encore `apiClient` en direct, **migrer vers `@/api/*` dans le même diff** (ou au minimum ajouter la fonction manquante dans le module API puis l’utiliser).
+- **Composants / hooks** : idem — `@/api/*` uniquement, jamais `apiClient` sauf dans les fichiers sous `src/api/` eux-mêmes.
+- **Supabase côté navigateur** : **pas de client Supabase** dans `src/` — pas de clés en dur ; données et auth passent par le **backend** (`VITE_API_URL`). Variables d’env : `frontend/.env.example` (`VITE_*` uniquement).
+
+## Organisation des dossiers
+
+```
+src/
+├── api/           # Couche HTTP (seul endroit qui importe apiClient)
+├── app/           # Routes, lazyPages
+├── pages/         # Écrans par rôle : rh/, employee/, admin/eywai/, admin/super/ (shims)
+├── features/      # UI + logique par domaine (employees, planning, formation, …)
+├── components/    # Composants transverses réutilisables
+├── hooks/         # Hooks dont queries/ pour React Query
+└── lib/           # Utilitaires purs
+```
+
+- **Nouvelle feature métier** : préférer `features/<domaine>/` (composants, hooks locaux) ; la page ne fait que composer et router.
+- **`admin/eywai/`** : pages plateforme EYWAI canoniques ; `admin/super/` = ré-exports dépréciés — ne pas ajouter de nouvelle logique dans `super/` sauf shim de compat.
+- **Couche pages** : `components/` et `hooks/` **ne doivent pas** importer `@/pages/` (vérifié en CI).
+
+## Taille et découpage
+
+- Cible : **< 600 lignes** par fichier `.tsx` ; au-delà, extraire sous-composants, hooks (`useXxxForm`, `useXxxQueries`) ou onglets dans le même feature.
+- Page = orchestration (layout, tabs, wiring) ; formulaires lourds vivent dans `features/`.
+
+## Imports et nommage
+
+- Alias `@/` comme dans le projet ; pas d’imports inutilisés.
+- Nommage fichiers API : camelCase (`planning.ts`, `medicalFollowUp.ts`) — éviter d’introduire de nouveaux kebab-case sauf fichier déjà existant (`planning-employee.ts`).
+
+## Quand tu modifies une page existante
+
+1. Vérifier si `@/api/<domaine>` existe → l’utiliser ou l’enrichir.
+2. Ne pas réintroduire `integrations/supabase` ni clés Supabase.
+3. Si tu extrais de la logique réutilisable, la placer au bon niveau (`features/`, `hooks/`, `lib/`) — pas la laisser en doublon dans la page.

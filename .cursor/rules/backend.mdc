@@ -1,15 +1,85 @@
 ---
-description: Conventions Python/FastAPI pour backend/ (app modulaire)
+description: Conventions Python/FastAPI pour backend/ — modules, DRY, résolution employé
 globs: backend/**
 alwaysApply: false
 ---
 
 # Backend (`backend/`)
 
-- **Point d’entrée** : `app.main:app` ; code applicatif sous `backend/app/` (voir `backend/app/README.md`).
-- **Imports** : respecter les couches (API → application → domain / infrastructure). Pas d’import de détail croisé entre modules métier ; utiliser ports / schémas partagés. Pour les tests, mêmes conventions d’import que la doc `app/`.
-- **Style** : suivre le code existant (nommage, structure des modules, logging via `app.core.logging`, pas de `print` en logique durable).
-- **Portée** : ne pas faire de refactors « drive-by » hors demande ; chaque ligne du diff doit servir la tâche.
-- **Messages utilisateur** : si des chaînes sont exposées au front ou à l’utilisateur final, privilégier le **français** (cohérent avec le produit).
-- **Base de données** : pas de migration SQL improvisée sans process (revue + alignement Supabase / RLS). Voir `AGENTS.md` à la racine.
-- **Tests / CI** : le job bloquant `Backend (lint + unit + OpenAPI)` ne lance **que `pytest tests/unit`** (hermétique, mocks, sans réseau) ; les secrets Supabase sont optionnels (fakes injectés sinon). Les tests d'intégration vivent dans un job `Backend integration (info)` non bloquant : il consomme `SUPABASE_URL` / `SUPABASE_KEY` / `SUPABASE_SERVICE_KEY` si dispos, sinon est skippé. Les tests **unitaires** doivent rester hermétiques (jamais d'appel DB réel) ; les tests **d'intégration** peuvent appeler Supabase mais leur échec ne bloque pas la chaîne.
+## Point d’entrée et stack
+
+- **App** : `app.main:app` ; code sous `backend/app/` (voir `backend/app/README.md`).
+- **Config** : variables dans `app/core/settings.py` ; copie locale via `backend/.env.example` → `.env` (jamais versionner `.env` ni les venvs `backend/.venv-ci*`).
+- **Style** : logging via `app.core.logging`, pas de `print` durable.
+- **Messages** exposés au front : **français**.
+- **Migrations SQL** : uniquement `supabase/migrations/` avec process revue / RLS — pas de SQL improvisé dans le code app.
+
+## Principe DRY (obligatoire)
+
+Avant d’ajouter une fonction, **chercher** dans `app/modules/<domaine>/`, `app/shared/`, `app/core/`.
+
+| Situation | Action |
+|-----------|--------|
+| Lecture / écriture DB d’un domaine | `application/commands.py` ou `queries.py` + `infrastructure/` — **pas** de gros blocs SQL dans le router. |
+| Logique métier réutilisée | `domain/rules.py` ou service application — **une** implémentation. |
+| Schémas entrée/sortie | `schemas/requests.py` / `responses.py` — pas de dicts ad hoc dans le router. |
+| Utilitaire transverse | `app/shared/` — pas copié dans 3 modules. |
+
+**Interdit** : redéfinir une résolution employé, un client Supabase ou un chemin moteur de paie en parallèle de l’existant.
+
+## Architecture modular monolith (respect des couches)
+
+```
+modules/<domaine>/
+├── api/router.py       # HTTP fin : validation, Depends, map erreurs → HTTP
+├── application/        # Orchestration cas d’usage (commands, queries, service)
+├── domain/             # Règles pures, entités, interfaces (ports)
+├── infrastructure/     # Repositories, requêtes Supabase, mappers
+└── schemas/            # Pydantic API
+```
+
+**Dépendances** : API → application → domain / infrastructure. Domain sans FastAPI ni DB. **Pas d’import de détail** entre modules métier — passer par `shared`, schémas communs ou ports documentés.
+
+- **Router** : mince — délègue tout de suite à `application` ; pas de logique métier longue ni requêtes Supabase directes dans le router sauf exception documentée et existante.
+- **DB** : `from app.core.database import supabase` (ou client admin via `get_supabase_admin_client()`) **dans infrastructure**, pas éparpillé dans les routers.
+- **Chemins paie** : `app.core.paths` uniquement — pas de chemins en dur.
+
+## Résolution employé ↔ compte utilisateur (canonique — DRY strict)
+
+**Une seule implémentation** :
+
+```python
+from app.shared.employee_resolution import resolve_employee_id_for_user_account
+
+employee_id = resolve_employee_id_for_user_account(str(user.id), str(company_id))
+```
+
+- Définie dans `app/modules/employees/infrastructure/queries.py` ; réexport `app/shared/employee_resolution.py`.
+- Signature : **`(user_id: str, company_id: str)`** — **pas** d’argument `user_email` (l’email Auth est résolu en interne via `_resolve_employee_id_by_auth_email`).
+- Alias module autorisés (délégation uniquement) : ex. `notifications/application/employee_scope.py` → même fonction, pas de nouvelle implémentation.
+- **Interdit** : `def resolve_employee_id_for_*` dupliqué ailleurs ; appeler avec des kwargs non supportés.
+
+## Modules et routes
+
+- Nouveau domaine : suivre `app/modules/_template/` et enregistrer le router dans `app/api/router.py`.
+- Préfixes API stables (`/api/<ressource>`) pour compatibilité front.
+- Auth : `Depends(get_current_user)` ; contexte entreprise : header `X-Active-Company`.
+
+## Tests et CI
+
+- **Bloquant** : `pytest tests/unit` — tests **hermétiques** (mocks, pas de DB réelle).
+- **Info** : `tests/integration` (non bloquant si secrets absents).
+- Nouveau comportement métier : test unitaire dans `tests/unit/<module>/` ; mocker Supabase, ne pas dupliquer des fixtures géantes — factoriser dans `conftest` du module si besoin.
+- **Legacy** : `tests/integration/legacy/` — ne pas y ajouter de nouveaux tests ; préférer `tests/integration/<module>/` ou unit.
+
+## Quand tu modifies un endpoint
+
+1. Logique dans `application/` (ou `infrastructure/` si persistance).
+2. Résolution employé via `resolve_employee_id_for_user_account` si besoin — signature à 2 args.
+3. Pas de secret en dur ; pas de nouveau fichier `.env` commité.
+4. Si le front consomme l’endpoint, rappeler qu’il doit passer par `@/api/*` côté frontend (voir règle `frontend.mdc`).
+
+## Hygiène dépôt (ne pas régresser)
+
+- Ne **jamais** versionner `backend/.venv-ci`, `backend/.venv-ci-local`, `openapi-local.json`.
+- Pas de client Supabase ou clés dans le frontend — API backend seulement.
