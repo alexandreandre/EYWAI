@@ -7,6 +7,7 @@ import {
   recordSyncDurationForKeys,
   recordSyncDurationFromStatus,
   storageKeysFromTarget,
+  maxStoredSyncDurationFromStore,
   sumStoredSyncDurationForFullSync,
   sumStoredSyncDurationForTarget,
 } from '@/lib/ratesSyncDurationStorage';
@@ -77,10 +78,11 @@ describe('ratesSyncDurationStorage', () => {
     ).toBe(55);
   });
 
-  it('estime la durée d’une sync complète à partir des cartes ou du lot global', () => {
+  it('estime la durée murale d’une sync complète (max parallèle ou lot global)', () => {
     recordSyncDurationForKeys(['smic'], 12);
     recordSyncDurationForKeys(['pss'], 25);
-    expect(sumStoredSyncDurationForFullSync()).toBe(37);
+    expect(maxStoredSyncDurationFromStore()).toBe(25);
+    expect(sumStoredSyncDurationForFullSync()).toBe(25);
 
     recordSyncDurationForKeys(['__all__'], 180);
     expect(sumStoredSyncDurationForFullSync()).toBe(180);
