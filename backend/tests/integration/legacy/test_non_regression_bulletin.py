@@ -86,6 +86,9 @@ def _make_contexte_mock() -> SimpleNamespace:
         est_dernier_mois_cdd=lambda *_args, **_kwargs: False,
         is_interim=False,
         est_dernier_mois_mission=lambda *_args, **_kwargs: False,
+        is_apprenti=False,
+        is_alternant=False,
+        type_contrat="CDI",
     )
 
 
