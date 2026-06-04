@@ -83,14 +83,11 @@ export function ChangePasswordModal({ open, onOpenChange }: ChangePasswordModalP
     setIsSubmitting(true);
 
     try {
-      log.debug('🔐 [CHANGE PASSWORD] Changement de mot de passe...');
-
       await apiClient.post('/api/auth/change-password', {
         current_password: currentPassword,
         new_password: newPassword,
       });
 
-      log.debug('✅ [CHANGE PASSWORD] Mot de passe changé avec succès');
       setIsSuccess(true);
 
       // Réinitialiser le formulaire après 2 secondes et fermer

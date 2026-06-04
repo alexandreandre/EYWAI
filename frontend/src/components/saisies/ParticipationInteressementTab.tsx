@@ -156,21 +156,6 @@ export function ParticipationInteressementTab() {
           });
         });
         
-        // Log pour debug
-        log.debug(`[Participation] Données chargées pour ${year}:`, {
-          employeesCount: employeesDataFromApi.length,
-          salaries: employeesDataFromApi.map((e: any) => ({ 
-            name: `${e.first_name} ${e.last_name}`, 
-            salary: e.annual_salary, 
-            hasReal: e.has_real_salary 
-          })),
-          presences: employeesDataFromApi.map((e: any) => ({ 
-            name: `${e.first_name} ${e.last_name}`, 
-            days: e.presence_days, 
-            hasReal: e.has_real_presence 
-          }))
-        });
-        
         setEmployees(employeesList);
         setEmployeeData(initialData);
       } catch (error) {

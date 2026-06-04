@@ -354,24 +354,13 @@ export const getUserDetail = async (
   userId: string,
   companyId: string
 ): Promise<any> => {
-  log.debug('[API permissions.ts] getUserDetail called with:', { userId, companyId });
   const url = `/api/users/${userId}?company_id=${companyId}`;
-  log.debug('[API permissions.ts] Making GET request to:', url);
 
   try {
-    log.debug('[API permissions.ts] BEFORE apiClient.get...');
     const response = await apiClient.get(url);
-    log.debug('[API permissions.ts] ✅ Response received:', response);
-    log.debug('[API permissions.ts] Response data:', response.data);
     return response.data;
   } catch (error: any) {
-    log.error('[API permissions.ts] ❌ Error in getUserDetail:', error);
-    log.error('[API permissions.ts] Error details:', {
-      message: error.message,
-      response: error.response,
-      status: error.response?.status,
-      data: error.response?.data
-    });
+    log.error('[API permissions.ts] Erreur getUserDetail:', error);
     throw error;
   }
 };

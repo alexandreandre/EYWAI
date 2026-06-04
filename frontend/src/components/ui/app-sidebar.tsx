@@ -1,4 +1,3 @@
-import { log } from '@/lib/logger';
 import { Fragment, useState, useEffect, useMemo } from "react";
 import {
   LayoutDashboard,
@@ -738,10 +737,6 @@ export function AppSidebar() {
       ? computeAccessibleGroups(companyContext.accessibleCompanies)
       : [];
 
-  if (!companyContext) {
-    log.debug('%c[AppSidebar] Pas de CompanyContext disponible', 'color: orange');
-  }
-
   // Mettre à jour le logo affiché seulement quand un nouveau logo est disponible
   useEffect(() => {
     if (activeCompany?.logo_url) {
@@ -751,11 +746,6 @@ export function AppSidebar() {
       });
     }
   }, [activeCompany?.logo_url, activeCompany?.logo_scale]);
-
-  log.debug('%c[AppSidebar] User:', 'color: purple', user);
-  log.debug('%c[AppSidebar] Sidebar state:', 'color: purple', state);
-  log.debug('%c[AppSidebar] Collapsed:', 'color: purple', collapsed);
-  log.debug('%c[AppSidebar] Accessible Groups:', 'color: purple', accessibleGroups);
 
   const isActive = (path: string) => {
     if (path === "/") {
@@ -862,11 +852,8 @@ export function AppSidebar() {
 
   // Si l'utilisateur n'est pas encore chargé, on n'affiche rien ou un loader
   if (!user) {
-    log.debug('%c[AppSidebar] ❌ Pas d\'utilisateur - Retour null', 'color: red');
     return null;
   }
-
-  log.debug('%c[AppSidebar] ✅ Utilisateur chargé, affichage de la sidebar', 'color: green');
 
   // Déterminer quel menu afficher selon le rôle et la vue
   let userRole = user.role as keyof typeof menuItems;
@@ -889,9 +876,6 @@ export function AppSidebar() {
   if (userRole === "rh" && collapsed) {
     items = rhCollapsedNavItems;
   }
-
-  log.debug('%c[AppSidebar] Role:', 'color: purple', userRole);
-  log.debug('%c[AppSidebar] Menu items:', 'color: purple', items.length, 'items');
 
   const showRhAccordion = userRole === "rh" && !collapsed;
 

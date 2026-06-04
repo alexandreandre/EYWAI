@@ -92,6 +92,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
       contract_type: "CDI", statut: "Non-Cadre", job_title: "",
       date_conclusion_contrat: "",
       date_debut_execution: "",
+      contract_end_date: "",
       team_id: "",
       // periode_essai: { duree_initiale: 2, unite: "mois", renouvellement_possible: true },
       is_temps_partiel: false,
@@ -237,8 +238,6 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
       const extractedData = response.data.extracted_data;
       const warnings = response.data.warnings || [];
 
-      log.debug("Données extraites du PDF :", extractedData);
-
       // Préremplir le formulaire avec les données extraites
       const mergeFormValues = (extracted: any) => {
         const currentValues = form.getValues();
@@ -359,8 +358,6 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
 
       const extractedData = response.data.extracted_data;
       const warnings = response.data.warnings || [];
-
-      log.debug("Données bancaires extraites du RIB :", extractedData);
 
       // Préremplir les champs bancaires avec les données extraites
       const currentValues = form.getValues();
@@ -499,8 +496,6 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
       const extractedData = response.data.extracted_data;
       const warnings = response.data.warnings || [];
 
-      log.debug("Données extraites du questionnaire d'embauche :", extractedData);
-
       // Préremplir le formulaire avec les données extraites
       const mergeFormValues = (extracted: any) => {
         const currentValues = form.getValues();
@@ -600,8 +595,6 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
   setServerError(null);
   setServerFieldErrors(null);
   
-  log.debug("Validation réussie, données brutes du formulaire :", values);
-
   // On prépare le payload final pour le backend
   const payload = {
     ...values,
@@ -624,8 +617,6 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
       },
     }
   };
-
-  log.debug("Payload final envoyé au backend :", payload);
 
   try {
     // 1. Créer un objet FormData
@@ -716,10 +707,6 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
 
   // Cette fonction est appelée UNIQUEMENT si la validation Zod échoue
   const onValidationErrors = (errors: any) => {
-    log.debug("%c❌ Validation Échouée !", "color: red; font-weight: bold;");
-    log.debug("Champs en erreur :", errors);
-    log.debug("Détails complets :", JSON.stringify(errors, null, 2));
-
     // Fonction récursive pour extraire tous les messages d'erreur avec les chemins
     const extractErrorMessages = (obj: any, path: string = ""): string[] => {
       if (!obj) return [];
@@ -738,7 +725,6 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
     };
 
     const messages = extractErrorMessages(errors);
-    log.debug("Messages d'erreur extraits:", messages);
     setValidationErrorSummary(messages);
     setServerError(null); // On s'assure de ne pas afficher une ancienne erreur serveur
   };
@@ -1140,6 +1126,14 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                           <FormField control={form.control} name="contract_type" render={({ field }) => (<FormItem><FormLabel>Type de contrat</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                           <FormField control={form.control} name="statut" render={({ field }) => (<FormItem><FormLabel>Statut</FormLabel><FormControl><Input placeholder="Non-Cadre" {...field} /></FormControl><FormMessage /></FormItem>)} />
                         </div>
+                        {(() => {
+                          const ct = (form.watch("contract_type") || "").toLowerCase();
+                          const estDuree = (ct.includes("cdd") && !ct.includes("cdi")) || ct.includes("stage");
+                          if (!estDuree) return null;
+                          return (
+                            <FormField control={form.control} name="contract_end_date" render={({ field }) => (<FormItem><FormLabel>Date de fin de contrat (CDD / stage)</FormLabel><FormControl><Input type="date" {...field} value={field.value ?? ""} /></FormControl><p className="text-xs text-muted-foreground">Déclenche la prime de précarité CDD et le prorata de sortie au dernier mois.</p><FormMessage /></FormItem>)} />
+                          );
+                        })()}
                         {(() => {
                           const ct = (form.watch("contract_type") || "").toLowerCase();
                           const estAlternance = ct.includes("apprentissage") || ct.includes("professionnalisation");

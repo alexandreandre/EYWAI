@@ -71,8 +71,6 @@ export default function EmployeeAnnualReviewDetail() {
   const queryClient = useQueryClient();
   const [localNotes, setLocalNotes] = useState("");
 
-  log.debug("[AnnualReviewDetail] Composant monté avec reviewId:", reviewId);
-
   const {
     data: review,
     isLoading,
@@ -88,7 +86,6 @@ export default function EmployeeAnnualReviewDetail() {
       }
       try {
         const res = await getAnnualReview(reviewId);
-        log.debug("[AnnualReviewDetail] Données reçues:", res.data);
         return res.data;
       } catch (err) {
         log.error("[AnnualReviewDetail] Erreur lors de la récupération:", err);
@@ -175,8 +172,6 @@ export default function EmployeeAnnualReviewDetail() {
     if (!review?.id) return;
     refuseMutation.mutate(review.id);
   };
-
-  log.debug("[AnnualReviewDetail] État:", { isLoading, isError, review, reviewId, error });
 
   // Fallback de sécurité : toujours retourner quelque chose
   if (!reviewId) {
@@ -332,11 +327,6 @@ export default function EmployeeAnnualReviewDetail() {
       });
     }
   };
-
-  log.debug("[AnnualReviewDetail] Rendu avec review:", review);
-  log.debug("[AnnualReviewDetail] Statut:", review.status);
-  log.debug("[AnnualReviewDetail] canAcceptOrRefuse:", canAcceptOrRefuse);
-  log.debug("[AnnualReviewDetail] canEditNotes:", canEditNotes);
 
   return (
     <EmployeePageShell>

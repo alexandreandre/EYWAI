@@ -95,7 +95,6 @@ export default function PayslipsPage() {
               return b.month - a.month;
             });
             setPayslips(sortedPayslips);
-            log.debug("Bulletins chargés:", sortedPayslips); // Debug
           } else {
             log.error("Erreur chargement bulletins:", results[0].reason);
             fetchError = true;
@@ -104,7 +103,6 @@ export default function PayslipsPage() {
           // Traitement des infos salaire
           if (results[1].status === 'fulfilled') {
             setSalaryInfo(results[1].value.data);
-            log.debug("Infos salaire chargées:", results[1].value.data); // Debug
           } else {
             log.error("Erreur chargement infos salaire:", results[1].reason);
             fetchError = true;
@@ -116,9 +114,7 @@ export default function PayslipsPage() {
              const cumulsData = results[2].value.data;
              if (cumulsData && (cumulsData.periode || cumulsData.cumuls)) {
                  setCumuls(cumulsData);
-                 log.debug("Cumuls chargés:", cumulsData); // Debug
              } else {
-                 log.debug("Aucun cumul trouvé ou données vides.");
                  setCumuls(null); // Assure la réinitialisation si vide
              }
           } else {

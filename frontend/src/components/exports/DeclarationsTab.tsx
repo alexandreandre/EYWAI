@@ -8,6 +8,7 @@ import { FileText, Shield, FileCheck, History } from "lucide-react";
 import { ExportCommonModel } from "./ExportCommonModel";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ExportHistoryModal } from "./ExportHistoryModal";
+import DsnTransmissionsPanel from "@/features/net-entreprises/components/DsnTransmissionsPanel";
 
 export function DeclarationsTab() {
   const [selectedExport, setSelectedExport] = useState<string | null>(null);
@@ -95,6 +96,9 @@ export function DeclarationsTab() {
           );
         })}
       </div>
+
+      {/* Suivi des télétransmissions DSN (Net-entreprises) */}
+      <DsnTransmissionsPanel />
 
       {/* Modal d'export */}
       {selectedExport && (

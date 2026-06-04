@@ -31,6 +31,8 @@ export const createEmployeeFormSchema = z.object({
   // Dates spécifiques alternance (optionnelles)
   date_conclusion_contrat: z.string().optional(),
   date_debut_execution: z.string().optional(),
+  // Fin de contrat planifiée (CDD / stage) — précarité et prorata de sortie.
+  contract_end_date: z.string().optional(),
   statut: z.string().min(2),
   job_title: z.string().min(2),
   /** Équipe (optionnel, vide = aucune) — affecté à la création si supporté par l’API */

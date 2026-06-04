@@ -1,6 +1,5 @@
 // src/components/ScheduleModal.tsx
 
-import { log } from '@/lib/logger';
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -37,8 +36,6 @@ export function ScheduleModal({ isOpen, onClose, dayData, onSave, selectedDate }
   const handleSave = () => {
     if (editableDay) {
         onClose(); // Fermer la modale avant de sauvegarder
-        // AJOUTEZ CETTE LIGNE DE DÉBOGAGE
-        log.debug('[MODAL] Données envoyées au parent :', editableDay);
         onSave(editableDay);
     }
     };

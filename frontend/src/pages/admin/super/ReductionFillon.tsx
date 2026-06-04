@@ -263,6 +263,12 @@ export default function ReductionFillon() {
 
   const selectedEmployee = employees.find((e) => e.id === selectedEmployeeId);
 
+  // Aiguillage d'affichage : RGDU à partir de 2026, Fillon (RGCP) avant.
+  const resultYear = result?.input_data?.year ?? year;
+  const isRgdu = resultYear >= 2026;
+  const dispositifLabel = isRgdu ? 'RGDU 2026' : 'Fillon (RGCP)';
+  const seuilSortieLabel = isRgdu ? 'Seuil de sortie (3 × SMIC)' : 'Seuil 1.6 SMIC';
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(value);
   };
@@ -274,9 +280,11 @@ export default function ReductionFillon() {
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">🧮 Test Réduction Fillon</h1>
+        <h1 className="text-3xl font-bold text-gray-900">🧮 Test Réduction Générale</h1>
         <p className="text-gray-600 mt-2">
-          Testez le calcul de la réduction générale (Fillon) avec les données réelles de Supabase
+          Testez le calcul de la réduction générale des cotisations patronales avec les
+          données réelles de Supabase. La formule appliquée dépend de la période :
+          <strong> RGDU</strong> à partir de 2026, <strong>Fillon (RGCP)</strong> avant.
         </p>
       </div>
 
@@ -362,7 +370,7 @@ export default function ReductionFillon() {
             disabled={loading || !selectedEmployeeId}
             className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed transition-all font-semibold shadow-lg"
           >
-            {loading ? '⏳ Calcul en cours...' : '🧮 Calculer la réduction Fillon'}
+            {loading ? '⏳ Calcul en cours...' : '🧮 Calculer la réduction générale'}
           </button>
         </div>
       </div>
@@ -408,7 +416,7 @@ export default function ReductionFillon() {
               <h3 className="font-semibold text-gray-800 mb-3 text-sm">📋 Récapitulatif des valeurs clés</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                 <div>
-                  <span className="text-gray-600 block">Paramètre T:</span>
+                  <span className="text-gray-600 block">{isRgdu ? 'Coefficient max (Tmax)' : 'Paramètre T'}:</span>
                   <span className="font-semibold">{formatPercent(result.calcul_detail.parametre_T)}</span>
                 </div>
                 <div>
@@ -424,7 +432,7 @@ export default function ReductionFillon() {
                   <span className="font-semibold">{result.calcul_detail.ratio_brut_smic.toFixed(4)}</span>
                 </div>
                 <div>
-                  <span className="text-gray-600 block">Seuil 1.6 SMIC:</span>
+                  <span className="text-gray-600 block">{seuilSortieLabel}:</span>
                   <span className="font-semibold">{formatCurrency(result.calcul_detail.seuil_eligibilite_1_6_smic)}</span>
                 </div>
                 <div>
@@ -816,11 +824,17 @@ export default function ReductionFillon() {
 
             {/* Étape 3: Paramètre T */}
             <div className="mb-6 p-4 bg-white rounded-lg">
-              <h4 className="font-semibold text-indigo-700 mb-3 text-base">Étape 3 : Calcul du paramètre T (taux de cotisations patronales)</h4>
+              <h4 className="font-semibold text-indigo-700 mb-3 text-base">
+                {isRgdu
+                  ? 'Étape 3 : Paramètres de la RGDU (Tmin, Tdelta, P)'
+                  : 'Étape 3 : Calcul du paramètre T (taux de cotisations patronales)'}
+              </h4>
               
               <div className="mb-4">
                 <p className="text-sm text-gray-600 mb-3">
-                  Le paramètre T est la somme de tous les taux de cotisations patronales concernées par la réduction Fillon.
+                  {isRgdu
+                    ? "La RGDU s'appuie sur des paramètres fixés par décret : Tmin (plancher), Tdelta (amplitude, selon l'effectif via le taux FNAL) et l'exposant P. Coefficient max = Tmin + Tdelta."
+                    : 'Le paramètre T est la somme de tous les taux de cotisations patronales concernées par la réduction Fillon.'}
                 </p>
                 
                 {result.calcul_detail.taux_details_explicatifs && (
@@ -855,7 +869,7 @@ export default function ReductionFillon() {
               
               <div className="mt-4 p-4 bg-indigo-100 rounded-lg border-2 border-indigo-300">
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-indigo-700 font-medium text-base">Paramètre T (somme de tous les taux):</span>
+                  <span className="text-indigo-700 font-medium text-base">{isRgdu ? 'Coefficient max (Tmin + Tdelta):' : 'Paramètre T (somme de tous les taux):'}</span>
                   <span className="font-bold text-indigo-700 text-2xl">{formatPercent(result.calcul_detail.parametre_T)}</span>
                 </div>
                 {result.calcul_detail.calcul_T_detail && (
@@ -886,7 +900,7 @@ export default function ReductionFillon() {
                   <h5 className="font-semibold text-blue-800 mb-3">4.1 - Calcul du SMIC de référence cumulé</h5>
                   <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 md:grid-cols-3">
                     <div className="p-3 bg-white rounded border border-blue-100">
-                      <span className="text-gray-600 block text-xs mb-1">SMIC horaire (2025)</span>
+                      <span className="text-gray-600 block text-xs mb-1">SMIC horaire</span>
                       <span className="font-bold text-lg">{formatCurrency(result.calcul_detail.calcul_smic.smic_horaire)}/h</span>
                     </div>
                     <div className="p-3 bg-white rounded border border-blue-100">
@@ -906,14 +920,14 @@ export default function ReductionFillon() {
               
               {result.calcul_detail.calcul_seuil && (
                 <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
-                  <h5 className="font-semibold text-purple-800 mb-3">4.2 - Calcul du seuil d'éligibilité (1.6 × SMIC)</h5>
+                  <h5 className="font-semibold text-purple-800 mb-3">4.2 - Calcul du seuil de sortie ({isRgdu ? '3' : '1.6'} × SMIC)</h5>
                   <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                     <div className="p-3 bg-white rounded border border-purple-100">
                       <span className="text-gray-600 block text-xs mb-1">SMIC référence cumulé</span>
                       <span className="font-bold text-lg">{formatCurrency(result.calcul_detail.calcul_seuil.smic_reference)}</span>
                     </div>
                     <div className="p-3 bg-purple-100 rounded border-2 border-purple-400">
-                      <span className="text-purple-700 block text-xs mb-1 font-medium">= Seuil 1.6 × SMIC</span>
+                      <span className="text-purple-700 block text-xs mb-1 font-medium">= {seuilSortieLabel}</span>
                       <span className="font-bold text-xl text-purple-700">{formatCurrency(result.calcul_detail.calcul_seuil.seuil_1_6)}</span>
                     </div>
                   </div>
@@ -932,7 +946,7 @@ export default function ReductionFillon() {
                       <span className="font-bold text-lg">{formatCurrency(result.calcul_detail.verification_eligibilite.brut_cumule)}</span>
                     </div>
                     <div className="p-3 bg-white rounded border">
-                      <span className="text-gray-600 block text-xs mb-1">Seuil 1.6 × SMIC</span>
+                      <span className="text-gray-600 block text-xs mb-1">{seuilSortieLabel}</span>
                       <span className="font-bold text-lg">{formatCurrency(result.calcul_detail.verification_eligibilite.seuil)}</span>
                     </div>
                   </div>
@@ -948,8 +962,8 @@ export default function ReductionFillon() {
                     <div className="mt-3 pt-3 border-t border-yellow-300">
                       <span className={`font-bold text-lg ${result.calcul_detail.verification_eligibilite.eligible ? 'text-green-600' : 'text-red-600'}`}>
                         {result.calcul_detail.verification_eligibilite.eligible 
-                          ? '✅ Éligible (ratio < 1.6)' 
-                          : '❌ Non éligible (ratio ≥ 1.6)'}
+                          ? `✅ Éligible (ratio < ${isRgdu ? '3' : '1.6'})` 
+                          : `❌ Non éligible (ratio ≥ ${isRgdu ? '3' : '1.6'})`}
                       </span>
                     </div>
                   </div>

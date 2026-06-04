@@ -2,6 +2,7 @@ import { CalendarDays, Percent } from "lucide-react";
 import type { CompanyDetails } from "@/api/company";
 import CollectiveAgreementCard from "@/components/CollectiveAgreementCard";
 import MaintenanceSettingsCard from "@/features/company/components/MaintenanceSettingsCard";
+import NetEntreprisesConfigCard from "@/features/net-entreprises/components/NetEntreprisesConfigCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import {
@@ -125,6 +126,8 @@ export function CompanyPayrollTab({
           </CardContent>
         </Card>
       </div>
+
+      <NetEntreprisesConfigCard />
 
       <Collapsible defaultOpen={false}>
         <CollapsibleTrigger asChild>

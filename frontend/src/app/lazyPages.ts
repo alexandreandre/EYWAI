@@ -80,6 +80,8 @@ export const SuperAdminTests = lazy(() => import('@/pages/admin/super/Tests'));
 export const SuperAdminReductionFillon = lazy(() => import('@/pages/admin/super/ReductionFillon'));
 export const AdminRates = lazy(() => import('@/pages/admin/eywai/RatesAdmin'));
 export const SuperAdminScraping = lazy(() => import('@/pages/admin/super/Scraping'));
+export const SuperAdminDsnTransmissions = lazy(() => import('@/pages/admin/eywai/DsnTransmissions'));
+export const SuperAdminEmailSettings = lazy(() => import('@/pages/admin/eywai/EmailSettings'));
 export const CollectiveAgreementsCatalog = lazy(() => import('@/pages/admin/super/CollectiveAgreementsCatalog'));
 export const CompanyGroups = lazy(() => import('@/pages/admin/super/CompanyGroups'));
 export const CompanyGroupDetail = lazy(() => import('@/pages/admin/super/CompanyGroupDetail'));

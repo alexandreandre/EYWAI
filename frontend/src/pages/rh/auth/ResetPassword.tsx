@@ -37,12 +37,10 @@ export default function ResetPasswordPage() {
       }
 
       try {
-        log.debug('🔍 [RESET PASSWORD] Validation du token...');
         const response = await apiClient.post('/api/auth/verify-reset-token', null, {
           params: { token }
         });
 
-        log.debug('✅ [RESET PASSWORD] Token valide');
         setIsValidToken(true);
         setEmail(response.data.email);
       } catch (err: any) {
@@ -93,14 +91,11 @@ export default function ResetPasswordPage() {
     setIsSubmitting(true);
 
     try {
-      log.debug('🔐 [RESET PASSWORD] Réinitialisation du mot de passe...');
-
       await apiClient.post('/api/auth/reset-password', {
         token,
         new_password: newPassword
       });
 
-      log.debug('✅ [RESET PASSWORD] Mot de passe réinitialisé avec succès');
       setIsSuccess(true);
 
       // Rediriger vers la page de connexion après 3 secondes

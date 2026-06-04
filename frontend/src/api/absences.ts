@@ -180,7 +180,6 @@ export const getUploadUrl = async (filename: string) => {
  * Uploade le fichier directement vers le stockage Supabase via l'URL signée.
  */
 export const uploadFile = async (signedUrl: string, file: File) => {
-  log.debug(`[DEBUG] Début de l'upload vers: ${signedUrl.split('?')[0]}...`);
   try {
     const response = await fetch(signedUrl, {
       method: 'PUT',
@@ -195,8 +194,6 @@ export const uploadFile = async (signedUrl: string, file: File) => {
       log.error(`[ERREUR UPLOAD] Statut: ${response.status}, Réponse: ${errorBody}`);
       throw new Error(`Échec de l'upload vers Supabase Storage. Statut: ${response.status}`);
     }
-
-    log.debug(`[DEBUG] Upload terminé avec succès. Statut: ${response.status}`);
 
   } catch (error) {
     log.error("[ERREUR UPLOAD] Exception lors du fetch:", error);

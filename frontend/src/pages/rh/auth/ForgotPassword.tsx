@@ -23,13 +23,10 @@ export default function ForgotPasswordPage() {
     setIsSubmitting(true);
 
     try {
-      log.debug('🔐 [FORGOT PASSWORD] Envoi de la demande pour:', email);
-
       await apiClient.post('/api/auth/request-password-reset', {
         email: email.trim().toLowerCase()
       });
 
-      log.debug('✅ [FORGOT PASSWORD] Demande envoyée avec succès');
       setIsSuccess(true);
 
     } catch (err: any) {

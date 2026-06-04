@@ -14,7 +14,6 @@ import {
   getAccessToken,
   shouldRefreshAccessToken,
 } from '@/lib/authSession';
-import { isAppDebugEnabled, log } from '@/lib/logger';
 
 export { getApiBaseUrl } from './apiConfig';
 
@@ -145,8 +144,6 @@ apiClient.interceptors.response.use(
     };
     if (status && status >= 500) {
       log.error('[apiClient] Erreur HTTP:', payload);
-    } else if (isAppDebugEnabled()) {
-      log.debug('[apiClient] Erreur HTTP:', payload);
     }
     return Promise.reject(error);
   },

@@ -6,6 +6,7 @@ import * as collectiveAgreementsApi from '../../../api/collectiveAgreements';
 import { LogoUploader } from '../../../components/LogoUploader';
 import { AdminPageHeader } from '@/features/admin/components/eywai/AdminPageHeader';
 import { Button } from '@/components/ui/button';
+import NetEntreprisesConfigCard from '@/features/net-entreprises/components/NetEntreprisesConfigCard';
 
 import { log } from '@/lib/logger';
 import { showErrorToast } from '@/lib/errorMessages';
@@ -495,6 +496,13 @@ export default function CompanyDetails() {
           </div>
         )}
       </div>
+
+      {/* Connexion Net-entreprises (pilotage plateforme) */}
+      {companyId && (
+        <div className="mb-6">
+          <NetEntreprisesConfigCard companyId={companyId} />
+        </div>
+      )}
 
       {/* Liste des utilisateurs */}
       <div className="bg-white rounded-lg shadow p-6">

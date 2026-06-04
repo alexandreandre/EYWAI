@@ -44,14 +44,10 @@ export default function PayrollDetail() {
     if (!employeeId) return;
     setLoading(true);
     try {
-      log.debug("--- DÉBOGAGE (Frontend): Lancement de la récupération des données ---");
       const [employeeRes, payslipsRes] = await Promise.all([
         apiClient.get(`/api/employees/${employeeId}`),
         apiClient.get(`/api/employees/${employeeId}/payslips`)
       ]);
-      
-      log.debug("DEBUG (Frontend): Données de l'employé reçues:", employeeRes.data);
-      log.debug("DEBUG (Frontend): Liste des bulletins reçue:", payslipsRes.data);
 
       setEmployee(employeeRes.data);
       setAllPayslips(payslipsRes.data);
@@ -74,7 +70,6 @@ export default function PayrollDetail() {
       const initialStatuses = months.reduce((acc, month) => {
         const generated = filteredPayslips.find((p: Payslip) => p.month === month);
         if (generated) {
-            log.debug(`DEBUG (Frontend): Bulletin trouvé pour le mois ${month}, URL: ${generated.url}`);
             acc[month] = { status: 'success', url: generated.url, payslipId: generated.id };
         } else {
             acc[month] = { status: 'idle' };

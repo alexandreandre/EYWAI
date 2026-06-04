@@ -10,6 +10,8 @@ import {
   Radar,
   UsersRound,
   Percent,
+  Send,
+  Mail,
 } from "lucide-react";
 
 export type AdminNavItem = {
@@ -68,11 +70,19 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         href: "/super-admin/scraping",
         icon: Radar,
       },
+      {
+        name: "Télétransmissions DSN",
+        href: "/super-admin/dsn-transmissions",
+        icon: Send,
+      },
     ],
   },
   {
     label: "Équipe EYWAI",
-    items: [{ name: "Accès plateforme", href: "/super-admin/admins", icon: Shield }],
+    items: [
+      { name: "Accès plateforme", href: "/super-admin/admins", icon: Shield },
+      { name: "Mails automatiques", href: "/super-admin/email-settings", icon: Mail },
+    ],
   },
 ];
 

@@ -1,4 +1,3 @@
-import { log } from '@/lib/logger';
 import { useEffect, useState, useRef } from "react"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
@@ -42,7 +41,6 @@ export function CopilotModalAgent({ isOpen, onClose }: CopilotModalProps) {
   const [input, setInput] = useState("")
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [showDebug, setShowDebug] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll vers le bas
@@ -99,12 +97,6 @@ export function CopilotModalAgent({ isOpen, onClose }: CopilotModalProps) {
           content: data.answer
         }
         setMessages(prev => [...prev, assistantMessage])
-
-        // Afficher le debug si disponible (optionnel)
-        if (data.thought_process && showDebug) {
-          log.debug("Processus de pensée:", data.thought_process)
-          log.debug("Requêtes SQL:", data.sql_queries)
-        }
       }
     } catch (e: any) {
       const errorMessage: Message = {
@@ -135,13 +127,6 @@ export function CopilotModalAgent({ isOpen, onClose }: CopilotModalProps) {
             <h2 className="text-lg font-semibold text-gray-900">Assistant IA</h2>
             <span className="text-xs text-gray-500 bg-white px-2 py-0.5 rounded-full">Agent Intelligent</span>
           </div>
-          <button
-            onClick={() => setShowDebug(!showDebug)}
-            className="text-xs text-gray-500 hover:text-gray-700"
-            title="Toggle debug mode"
-          >
-            {showDebug ? "🐛 Debug ON" : ""}
-          </button>
         </div>
 
         {/* Zone de messages */}

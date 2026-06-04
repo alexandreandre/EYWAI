@@ -12,6 +12,17 @@ const RATE_KEY_LABELS: Record<string, string> = {
   primes: 'Primes',
   baremes_km: 'Barème kilométrique',
   alternance: 'Alternance (apprentis / pro)',
+  reduction_generale: 'Réduction générale (RGDU 2026)',
+
+  // Réduction générale dégressive unique (RGDU)
+  actif: 'Dispositif actif',
+  type: 'Type de dispositif',
+  point_sortie_smic: 'Point de sortie (× SMIC)',
+  p: 'Exposant de dégressivité (P)',
+  tmin: 'Tmin (taux plancher)',
+  tdelta: 'Tdelta (amplitude)',
+  fnal_moins_50: 'FNAL < 50 salariés',
+  fnal_50_et_plus: 'FNAL ≥ 50 salariés',
 
   // Alternance
   apprenti: 'Apprenti',

@@ -75,21 +75,13 @@ const UserEdit: React.FC = () => {
 
   const loadUserData = async () => {
     if (!userId || !companyId) {
-      log.debug('[UserEdit] ❌ Missing userId or companyId', { userId, companyId });
       return;
     }
 
-    log.debug('[UserEdit] 🚀 START Loading user data...', { userId, companyId });
-    log.debug('[UserEdit] 🔍 getUserDetail function:', getUserDetail);
-
     try {
       setLoading(true);
-      log.debug('[UserEdit] ⏳ BEFORE calling getUserDetail...');
-      log.debug('[UserEdit] 📡 URL will be:', `/api/users/${userId}?company_id=${companyId}`);
 
       const data = await getUserDetail(userId, companyId);
-
-      log.debug('[UserEdit] ✅ AFTER getUserDetail - User data received:', data);
 
       setFormData({
         first_name: data.first_name,
@@ -104,28 +96,14 @@ const UserEdit: React.FC = () => {
       setPermissionIds(data.permission_ids || []);
       setCanEdit(data.can_edit);
 
-      log.debug('[UserEdit] State updated:', {
-        role: data.role,
-        templateId: data.role_template_id,
-        permissionsCount: data.permission_ids?.length || 0,
-        canEdit: data.can_edit
-      });
-
       if (!data.can_edit) {
         setError("Vous n'avez pas les droits pour modifier cet utilisateur");
       }
     } catch (err: any) {
-      log.error('[UserEdit] ❌ CATCH - Error loading user data:', err);
-      log.error('[UserEdit] Error name:', err.name);
-      log.error('[UserEdit] Error message:', err.message);
-      log.error('[UserEdit] Error response:', err.response);
-      log.error('[UserEdit] Error response status:', err.response?.status);
-      log.error('[UserEdit] Error response data:', err.response?.data);
-      log.error('[UserEdit] Full error object:', JSON.stringify(err, null, 2));
+      log.error('[UserEdit] Erreur chargement utilisateur:', err);
       setError(err.response?.data?.detail || 'Erreur lors du chargement de l\'utilisateur');
     } finally {
       setLoading(false);
-      log.debug('[UserEdit] 🏁 FINALLY - Loading complete');
     }
   };
 
