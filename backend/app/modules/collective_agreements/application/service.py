@@ -275,17 +275,23 @@ class CollectiveAgreementsService:
             agreement = self._repo.get_agreement_for_chat(agreement_id)
             if not agreement:
                 raise NotFoundError("Convention collective non trouvée")
-            if not agreement.get("rules_pdf_path"):
-                raise ValidationError("Aucun PDF disponible pour cette convention")
             agreement_name = agreement["name"]
             agreement_idcc = agreement["idcc"]
             agreement_description = agreement.get("description", "")
-            pdf_url = self._storage.create_signed_url(agreement["rules_pdf_path"], 3600)
-            if not pdf_url:
-                raise ValidationError("Impossible de générer l'URL du PDF")
-            full_text = self._get_or_cache_pdf_text(
-                agreement_id, pdf_url, agreement_name
-            )
+            full_text = self._text_cache.get_full_text(agreement_id)
+            if not full_text:
+                if not agreement.get("rules_pdf_path"):
+                    raise ValidationError(
+                        "Aucun texte disponible — importez depuis Légifrance ou uploadez un PDF"
+                    )
+                pdf_url = self._storage.create_signed_url(
+                    agreement["rules_pdf_path"], 3600
+                )
+                if not pdf_url:
+                    raise ValidationError("Impossible de générer l'URL du PDF")
+                full_text = self._get_or_cache_pdf_text(
+                    agreement_id, pdf_url, agreement_name
+                )
             system_prompt = f"""Tu es un assistant expert spécialisé dans la convention collective suivante :
 
 📋 **Convention Collective : {agreement_name}**

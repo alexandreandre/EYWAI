@@ -95,3 +95,77 @@ class AllAssignmentsCompanyItem(BaseModel):
     id: str
     company_name: str
     assigned_agreements: List[dict[str, Any]]
+
+
+# --- Règles paie (extraction IA) ---
+
+
+class KaliImportRulesSummary(BaseModel):
+    success: bool
+    error: Optional[str] = None
+    confidence: Optional[str] = None
+
+
+class KaliImportResponse(BaseModel):
+    success: bool
+    idcc: str
+    agreement_id: Optional[str] = None
+    title: Optional[str] = None
+    legifrance_url: Optional[str] = None
+    character_count: int = 0
+    created: bool = False
+    error: Optional[str] = None
+    rules: Optional[KaliImportRulesSummary] = None
+
+
+class KaliImportBatchResponse(BaseModel):
+    results: List[KaliImportResponse]
+    total: int
+    succeeded: int
+    failed: int
+
+
+class ExtractRulesResponse(BaseModel):
+    """Réponse POST extract-rules."""
+
+    success: bool
+    idcc: str
+    agreement_id: Optional[str] = None
+    rules: Optional[dict[str, Any]] = None
+    error: Optional[str] = None
+    tokens_used: int = 0
+    confidence: Optional[str] = None
+    log_id: Optional[str] = None
+
+
+class ExtractRulesBatchResponse(BaseModel):
+    """Réponse POST extract-rules/batch."""
+
+    results: List[ExtractRulesResponse]
+    total: int
+    succeeded: int
+    failed: int
+
+
+class RulesStatusResponse(BaseModel):
+    """Réponse GET rules-status."""
+
+    idcc: str
+    agreement_id: str
+    has_rules: bool
+    rules: Optional[dict[str, Any]] = None
+    source_text_hash: Optional[str] = None
+    extracted_at: Optional[str] = None
+    extraction_model: Optional[str] = None
+    latest_log_status: Optional[str] = None
+    latest_log_error: Optional[str] = None
+    confidence: Optional[str] = None
+    text_source: Optional[str] = None
+
+
+class RollbackRulesResponse(BaseModel):
+    """Réponse POST rules/rollback."""
+
+    success: bool
+    rules: Optional[dict[str, Any]] = None
+    message: Optional[str] = None

@@ -77,3 +77,37 @@ class QuestionRequest(BaseModel):
 
     agreement_id: str = Field(..., description="ID de la convention collective")
     question: str = Field(..., description="Question posée à l'assistant")
+
+
+# --- Extraction règles paie (super admin) ---
+
+
+class KaliImportRequest(BaseModel):
+    """Corps POST import Légifrance."""
+
+    idcc: str = Field(..., description="Numéro IDCC (ex. 1486)")
+    extract_rules: bool = Field(
+        True, description="Lancer l'extraction IA des règles paie après import"
+    )
+    sector: Optional[str] = None
+
+
+class KaliImportBatchRequest(BaseModel):
+    """Corps POST import batch Légifrance."""
+
+    idcc_list: Optional[list[str]] = None
+    priority_only: bool = False
+    extract_rules: bool = True
+
+
+class ExtractRulesBatchRequest(BaseModel):
+    """Corps POST batch extract-rules."""
+
+    idcc_list: Optional[list[str]] = Field(
+        None, description="Liste d'IDCC à traiter"
+    )
+    all_catalog: bool = Field(False, description="Traiter tout le catalogue actif")
+    priority_only: bool = Field(
+        False, description="Traiter uniquement les IDCC prioritaires (lot 1)"
+    )
+    dry_run: bool = Field(False, description="Simuler sans appel IA")

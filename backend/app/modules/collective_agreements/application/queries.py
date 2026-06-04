@@ -85,3 +85,41 @@ def ask_question_query(
     """Chat : pose une question sur une convention."""
     svc = service or get_collective_agreements_service()
     return svc.ask_question(agreement_id, question, company_id, has_rh_access)
+
+
+def get_rules_status_query(
+    agreement_id: str,
+    is_platform_admin: bool,
+) -> dict:
+    """Statut des règles paie extraites pour une convention (super admin)."""
+    if not is_platform_admin:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=403, detail="Accès réservé au super administrateur"
+        )
+    from app.modules.collective_agreements.application.kali_import import (
+        get_kali_import_service,
+    )
+    from app.modules.collective_agreements.application.service import _to_http
+    from app.modules.collective_agreements.domain.exceptions import NotFoundError
+    from app.modules.collective_agreements.rules.service import get_cc_rules_service
+
+    try:
+        status = get_cc_rules_service().get_rules_status(agreement_id)
+    except NotFoundError as exc:
+        raise _to_http(exc)
+    text_source = get_kali_import_service().get_text_source(agreement_id)
+    return {
+        "idcc": status.idcc,
+        "agreement_id": status.agreement_id,
+        "has_rules": status.has_rules,
+        "rules": status.rules,
+        "source_text_hash": status.source_text_hash,
+        "extracted_at": status.extracted_at,
+        "extraction_model": status.extraction_model,
+        "latest_log_status": status.latest_log_status,
+        "latest_log_error": status.latest_log_error,
+        "confidence": status.confidence,
+        "text_source": text_source,
+    }

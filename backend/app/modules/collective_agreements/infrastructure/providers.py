@@ -84,12 +84,17 @@ class AgreementTextCacheProvider:
         return None
 
     def set_full_text(
-        self, agreement_id: str, full_text: str, character_count: int
+        self,
+        agreement_id: str,
+        full_text: str,
+        character_count: int,
+        *,
+        source_hash: str = "cached",
     ) -> None:
         cache_data = {
             "agreement_id": agreement_id,
             "full_text": full_text,
-            "pdf_hash": "cached",
+            "pdf_hash": source_hash,
             "character_count": character_count,
         }
         try:

@@ -16,6 +16,14 @@ MODEL_CONTRACT_EXTRACTION = GPT_4O_MINI
 MODEL_RECRUITMENT_SCORING = GPT_4O_MINI
 MODEL_COMPETENCIES_MOBILITY = GPT_4O_MINI
 MODEL_CSE_RECORDING = GPT_4O_MINI
+MODEL_CC_RULES_EXTRACTION = "google/gemini-2.5-flash"
+
+# Saisie assistée du calendrier (page Calendriers RH)
+# - Instruction en langage naturel -> heures par jour
+MODEL_SCHEDULE_NL_FILL = GPT_4O_MINI
+# - Relevé de pointeuse (PDF/image OCR) -> heures par jour : Gemini pour
+#   les tableaux denses multi-employés
+MODEL_TIMESHEET_EXTRACTION = "google/gemini-2.5-flash"
 
 # --- Scripts de scraping ---
 

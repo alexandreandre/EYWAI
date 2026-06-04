@@ -24,9 +24,18 @@ from app.modules.collective_agreements.schemas import (
     CollectiveAgreementCatalogCreate,
     CollectiveAgreementCatalogUpdate,
     CompanyCollectiveAgreementWithDetails,
+    KaliImportBatchRequest,
+    KaliImportBatchResponse,
+    KaliImportRequest,
+    KaliImportResponse,
+    ExtractRulesBatchRequest,
+    ExtractRulesBatchResponse,
+    ExtractRulesResponse,
     GetUploadUrlBody,
     QuestionRequest,
     QuestionResponse,
+    RollbackRulesResponse,
+    RulesStatusResponse,
 )
 
 # --- Router principal (catalogue + assignations) ---
@@ -281,6 +290,171 @@ async def get_all_company_assignments(
                 status_code=403, detail="Accès réservé au super administrateur"
             )
         return queries.get_all_assignments_query(is_platform_admin=True)
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Import Légifrance KALI (super admin) ---
+
+
+@router.post(
+    "/catalog/import-legifrance",
+    response_model=KaliImportResponse,
+)
+async def import_from_legifrance(
+    body: KaliImportRequest,
+    current_user: CollectiveAgreementUserContext = Depends(get_current_user),
+):
+    """Importe une CC depuis Légifrance (KALI) + extraction règles paie optionnelle."""
+    try:
+        return commands.import_from_legifrance(
+            body.idcc,
+            is_platform_admin=current_user.is_platform_admin,
+            extract_rules=body.extract_rules,
+            sector=body.sector,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/catalog/import-legifrance/batch",
+    response_model=KaliImportBatchResponse,
+)
+async def import_from_legifrance_batch(
+    body: KaliImportBatchRequest,
+    current_user: CollectiveAgreementUserContext = Depends(get_current_user),
+):
+    """Import batch depuis Légifrance (lot prioritaire ou liste IDCC)."""
+    try:
+        return commands.import_from_legifrance_batch(
+            is_platform_admin=current_user.is_platform_admin,
+            idcc_list=body.idcc_list,
+            priority_only=body.priority_only,
+            extract_rules=body.extract_rules,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/catalog/{agreement_id}/import-legifrance",
+    response_model=KaliImportResponse,
+)
+async def import_agreement_from_legifrance(
+    agreement_id: str,
+    extract_rules: bool = Query(True),
+    current_user: CollectiveAgreementUserContext = Depends(get_current_user),
+):
+    """Ré-importe depuis Légifrance pour une fiche catalogue existante (par IDCC)."""
+    try:
+        item = queries.get_catalog_item_query(agreement_id)
+        if not item:
+            raise HTTPException(status_code=404, detail="Convention non trouvée")
+        return commands.import_from_legifrance(
+            item["idcc"],
+            is_platform_admin=current_user.is_platform_admin,
+            extract_rules=extract_rules,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Règles paie — extraction IA (super admin) ---
+
+
+@router.post(
+    "/catalog/{agreement_id}/extract-rules",
+    response_model=ExtractRulesResponse,
+)
+async def extract_rules(
+    agreement_id: str,
+    dry_run: bool = Query(False, description="Simuler sans appel IA"),
+    current_user: CollectiveAgreementUserContext = Depends(get_current_user),
+):
+    """Extrait les règles paie depuis le texte CC et les persiste (super admin)."""
+    try:
+        return commands.extract_rules(
+            agreement_id,
+            is_platform_admin=current_user.is_platform_admin,
+            dry_run=dry_run,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/catalog/extract-rules/batch",
+    response_model=ExtractRulesBatchResponse,
+)
+async def extract_rules_batch(
+    body: ExtractRulesBatchRequest,
+    current_user: CollectiveAgreementUserContext = Depends(get_current_user),
+):
+    """Extraction batch des règles paie (super admin)."""
+    try:
+        return commands.extract_rules_batch(
+            is_platform_admin=current_user.is_platform_admin,
+            idcc_list=body.idcc_list,
+            all_catalog=body.all_catalog,
+            priority_only=body.priority_only,
+            dry_run=body.dry_run,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/catalog/{agreement_id}/rules-status",
+    response_model=RulesStatusResponse,
+)
+async def get_rules_status(
+    agreement_id: str,
+    current_user: CollectiveAgreementUserContext = Depends(get_current_user),
+):
+    """Statut des règles paie extraites pour une convention (super admin)."""
+    try:
+        return queries.get_rules_status_query(
+            agreement_id, is_platform_admin=current_user.is_platform_admin
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/catalog/rules/rollback/{log_id}",
+    response_model=RollbackRulesResponse,
+)
+async def rollback_rules(
+    log_id: str,
+    current_user: CollectiveAgreementUserContext = Depends(get_current_user),
+):
+    """Restaure les règles paie depuis le journal d'extraction (super admin)."""
+    try:
+        return commands.rollback_rules(
+            log_id, is_platform_admin=current_user.is_platform_admin
+        )
     except HTTPException:
         raise
     except Exception as e:
