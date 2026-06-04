@@ -214,6 +214,16 @@ def approve_pending_change(
         raise RuntimeError(
             result.get("error") or "Échec de l'application du changement"
         )
+
+    config_key = pending.get("config_key")
+    if config_key:
+        repo.resolve_review_alerts_for_config(
+            config_key=str(config_key),
+            source_id=pending.get("source_id"),
+            resolved_by=reviewed_by,
+            resolution_note="Changement validé depuis la revue mensuelle.",
+        )
+
     return {
         "success": True,
         "pending_id": pending_id,

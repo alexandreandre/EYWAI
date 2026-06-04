@@ -327,7 +327,12 @@ class TestApprovePendingChange:
 
     def test_approves_and_applies(self):
         mock_repo = MagicMock()
-        mock_repo.get_pending_change.return_value = {"id": "p-1", "status": "pending"}
+        mock_repo.get_pending_change.return_value = {
+            "id": "p-1",
+            "status": "pending",
+            "config_key": "smic",
+            "source_id": "src-1",
+        }
 
         with (
             patch(f"{COMMANDS_MODULE}.ScrapingRepository", return_value=mock_repo),
@@ -341,6 +346,12 @@ class TestApprovePendingChange:
         assert result["success"] is True
         assert result["pending_id"] == "p-1"
         mock_apply.assert_called_once_with("p-1", reviewed_by="admin-1")
+        mock_repo.resolve_review_alerts_for_config.assert_called_once_with(
+            config_key="smic",
+            source_id="src-1",
+            resolved_by="admin-1",
+            resolution_note="Changement validé depuis la revue mensuelle.",
+        )
 
     def test_override_value_persisted_before_apply(self):
         mock_repo = MagicMock()

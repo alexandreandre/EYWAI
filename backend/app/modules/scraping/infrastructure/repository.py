@@ -6,7 +6,7 @@ Logique strictement persistance ; pas de règles métier.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
@@ -84,6 +84,62 @@ class ScrapingRepository:
             .execute()
         )
         return r.count or 0
+
+    def list_latest_approved_by_config_keys(
+        self, config_keys: list[str]
+    ) -> dict[str, dict[str, Any]]:
+        """Dernière validation approuvée par config_key (applied_at desc)."""
+        if not config_keys:
+            return {}
+        r = (
+            supabase.table("scraping_pending_changes")
+            .select("*")
+            .eq("status", "approved")
+            .in_("config_key", config_keys)
+            .order("applied_at", desc=True)
+            .execute()
+        )
+        latest: dict[str, dict[str, Any]] = {}
+        for row in r.data or []:
+            key = row.get("config_key")
+            if key and key not in latest:
+                latest[key] = row
+        return latest
+
+    def resolve_review_alerts_for_config(
+        self,
+        *,
+        config_key: str,
+        source_id: str | None,
+        resolved_by: str = "",
+        resolution_note: str | None = None,
+    ) -> int:
+        """Résout les alertes review_required non traitées pour un taux validé."""
+        q = (
+            supabase.table("scraping_alerts")
+            .select("id, details")
+            .eq("alert_type", "review_required")
+            .eq("is_resolved", False)
+        )
+        if source_id:
+            q = q.eq("source_id", source_id)
+        rows = q.execute().data or []
+        update_data = {
+            "is_resolved": True,
+            "is_read": True,
+            "resolved_at": datetime.now(timezone.utc).isoformat(),
+            "resolved_by": resolved_by or None,
+            "resolution_note": resolution_note
+            or f"Taux validé ({config_key}) — alerte clôturée automatiquement.",
+        }
+        resolved = 0
+        for row in rows:
+            details = row.get("details") or {}
+            if details.get("config_key") != config_key:
+                continue
+            if self.resolve_alert(row["id"], update_data):
+                resolved += 1
+        return resolved
 
     def get_critical_sources(self) -> List[Dict[str, Any]]:
         r = (

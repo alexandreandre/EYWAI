@@ -9,6 +9,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
+from app.modules.scraping.application.review_status import (
+    filter_actionable_pending,
+    load_active_configs_by_key,
+)
+from app.modules.rates.infrastructure.repository import SupabaseAllRatesReader
 from app.modules.scraping.infrastructure.repository import ScrapingRepository
 
 
@@ -20,7 +25,13 @@ def get_dashboard_data(repo: ScrapingRepository) -> Dict[str, Any]:
     stats = repo.get_scraping_stats()
     if not isinstance(stats, dict):
         stats = {}
-    stats["pending_changes"] = repo.count_pending_changes(status="pending")
+    pending_rows = repo.list_pending_changes(status="pending", limit=500)
+    active_configs = load_active_configs_by_key(
+        SupabaseAllRatesReader().get_all_active_rows()
+    )
+    stats["pending_changes"] = len(
+        filter_actionable_pending(pending_rows, active_configs)
+    )
     recent_jobs = repo.get_recent_jobs(limit=10)
     unread_alerts = repo.get_unread_alerts(limit=5)
     critical_sources = repo.get_critical_sources()

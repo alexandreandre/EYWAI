@@ -35,8 +35,35 @@ class TestGetScrapingDashboard:
             "success": True,
         }
         mock_repo.count_pending_changes.return_value = 2
+        mock_repo.list_pending_changes.return_value = [
+            {
+                "id": "p-1",
+                "status": "pending",
+                "config_key": "smic",
+                "persistence_mode": "full",
+                "proposed_config_data": {"v": 2},
+            },
+            {
+                "id": "p-2",
+                "status": "pending",
+                "config_key": "pss",
+                "persistence_mode": "full",
+                "proposed_config_data": {"v": 9},
+            },
+        ]
+        mock_reader = MagicMock()
+        mock_reader.get_all_active_rows.return_value = [
+            {"config_key": "smic", "config_data": {"v": 1}},
+            {"config_key": "pss", "config_data": {"v": 8}},
+        ]
 
-        with patch(f"{QUERIES_MODULE}.ScrapingRepository", return_value=mock_repo):
+        with (
+            patch(f"{QUERIES_MODULE}.ScrapingRepository", return_value=mock_repo),
+            patch(
+                "app.modules.scraping.infrastructure.queries.SupabaseAllRatesReader",
+                return_value=mock_reader,
+            ),
+        ):
             result = queries.get_scraping_dashboard()
 
         assert result["stats"] == {
@@ -251,10 +278,25 @@ class TestListAlerts:
     def test_returns_alerts_and_total(self):
         mock_repo = MagicMock()
         mock_repo.list_alerts.return_value = [
-            {"id": "alert-1", "severity": "error", "is_read": False},
+            {
+                "id": "alert-1",
+                "severity": "error",
+                "is_read": False,
+                "alert_type": "failure",
+            },
         ]
+        mock_repo.list_pending_changes.return_value = []
+        mock_repo.list_latest_approved_by_config_keys.return_value = {}
+        mock_reader = MagicMock()
+        mock_reader.get_all_active_rows.return_value = []
 
-        with patch(f"{QUERIES_MODULE}.ScrapingRepository", return_value=mock_repo):
+        with (
+            patch(f"{QUERIES_MODULE}.ScrapingRepository", return_value=mock_repo),
+            patch(
+                f"{QUERIES_MODULE}.SupabaseAllRatesReader",
+                return_value=mock_reader,
+            ),
+        ):
             result = queries.list_alerts(
                 is_read=False,
                 is_resolved=False,

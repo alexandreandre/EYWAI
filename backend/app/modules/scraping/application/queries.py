@@ -15,11 +15,40 @@ from app.modules.scraping.infrastructure.queries import (
     get_source_details_enriched as infra_get_source_details_enriched,
     list_sources_enriched as infra_list_sources_enriched,
 )
+from app.modules.rates.infrastructure.repository import SupabaseAllRatesReader
+from app.modules.scraping.application.review_status import (
+    filter_actionable_alerts,
+    filter_actionable_pending,
+    load_active_configs_by_key,
+)
 from app.modules.scraping.infrastructure.repository import ScrapingRepository
 
 
 def _repo() -> ScrapingRepository:
     return ScrapingRepository()
+
+
+def _review_context(
+    repo: ScrapingRepository,
+    *,
+    pending_rows: list[dict[str, Any]] | None = None,
+    alerts: list[dict[str, Any]] | None = None,
+) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    active_configs = load_active_configs_by_key(
+        SupabaseAllRatesReader().get_all_active_rows()
+    )
+    config_keys: set[str] = set()
+    for row in pending_rows or []:
+        key = row.get("config_key")
+        if key:
+            config_keys.add(str(key))
+    for alert in alerts or []:
+        details = alert.get("details") or {}
+        key = details.get("config_key")
+        if key:
+            config_keys.add(str(key))
+    latest_approved = repo.list_latest_approved_by_config_keys(sorted(config_keys))
+    return active_configs, latest_approved
 
 
 def get_scraping_dashboard() -> Dict[str, Any]:
@@ -114,7 +143,19 @@ def list_alerts(
         severity=severity,
         limit=limit,
     )
-    return {"alerts": alerts, "total": len(alerts)}
+    pending_rows = repo.list_pending_changes(status="pending", limit=500)
+    active_configs, latest_approved = _review_context(
+        repo,
+        pending_rows=pending_rows,
+        alerts=alerts,
+    )
+    actionable = filter_actionable_alerts(
+        alerts,
+        pending_rows=pending_rows,
+        active_configs=active_configs,
+        latest_approved=latest_approved,
+    )
+    return {"alerts": actionable, "total": len(actionable)}
 
 
 def list_pending_changes(
@@ -125,7 +166,12 @@ def list_pending_changes(
     """Liste les changements en attente de validation humaine."""
     repo = _repo()
     pending = repo.list_pending_changes(status=status, tier=tier, limit=limit)
-    return {"pending": pending, "total": len(pending)}
+    if status != "pending":
+        return {"pending": pending, "total": len(pending)}
+
+    active_configs, _ = _review_context(repo, pending_rows=pending)
+    actionable = filter_actionable_pending(pending, active_configs)
+    return {"pending": actionable, "total": len(actionable)}
 
 
 def get_pending_change(pending_id: str) -> Dict[str, Any]:
