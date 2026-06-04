@@ -189,10 +189,10 @@ class TestCreateAbsenceRequest:
             ), patch(
                 "app.modules.absences.api.router.commands.create_absence_request"
             ) as create_cmd, patch(
-                "app.modules.absences.api.router.absence_router.get_team_manager_employee_id_for_employee",
+                "app.modules.absences.api.router.absence_router.get_team_manager_employee_id",
                 return_value=None,
             ), patch(
-                "app.modules.absences.api.router.absence_router.update",
+                "app.modules.absences.api.router.absence_router.update_absence",
                 side_effect=lambda rid, payload: {
                     "id": rid,
                     "employee_id": "emp-resolved",
