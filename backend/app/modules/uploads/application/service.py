@@ -38,7 +38,7 @@ def ensure_can_edit_entity_logo(
 
     allowed = infra_queries.can_edit_entity_logo(
         user_id=current_user.id,
-        is_platform_admin=current_user.is_platform_admin,
+        is_super_admin=current_user.is_platform_admin,
         entity_type=entity_type,
         entity_id=entity_id,
     )
