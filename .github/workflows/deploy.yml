@@ -87,11 +87,45 @@ jobs:
           tags: ${{ steps.images.outputs.frontend }}
 
   # ----------------------------------------------------------------------------
-  # 2) Staging — déploiement automatique
+  # 1bis) Migrations Supabase — appliquées avant tout déploiement backend
+  # Idempotentes (ADD COLUMN IF NOT EXISTS / INSERT ... WHERE NOT EXISTS).
+  # Bloquant : si la migration échoue, on ne déploie pas de code qui en dépend.
+  # Secret requis : SUPABASE_DB_URL (connexion Postgres du projet, ex. pooler).
+  # ----------------------------------------------------------------------------
+  migrate:
+    name: DB migrations (supabase db push)
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Vérifier secret SUPABASE_DB_URL
+        run: |
+          if [ -z "${{ secrets.SUPABASE_DB_URL }}" ]; then
+            echo "::error::Manquant : SUPABASE_DB_URL (secret). Voir .github/workflows/GUIDE_SIMPLE.md."
+            exit 1
+          fi
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: supabase db push
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: supabase db push --db-url "$SUPABASE_DB_URL"
+
+  # ----------------------------------------------------------------------------
+  # 2) Staging — déploiement automatique (après migrations)
   # ----------------------------------------------------------------------------
   staging:
     name: Deploy staging
-    needs: build
+    needs: [build, migrate]
     runs-on: ubuntu-latest
     steps:
       - uses: google-github-actions/auth@v2

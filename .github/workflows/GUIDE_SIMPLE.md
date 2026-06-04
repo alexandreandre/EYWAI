@@ -83,8 +83,9 @@ Deux comportements dans le même fichier :
 
 **Enchaînement :** push `main` → **CI** verte → **Deploy** se lance automatiquement (workflow_run). Le checkout et les tags d'images utilisent **le même SHA** que le run CI qui vient de réussir. Tu peux toujours lancer un déploiement à la main via *Run workflow*.
 
-**Trois jobs séquentiels :**
+**Jobs :**
 1. **Build & push images** : Docker backend + frontend → GCR.
+1bis. **DB migrations (`supabase db push`)** : applique les fichiers `supabase/migrations/` sur le projet Supabase **avant** tout déploiement backend. Idempotent (`ADD COLUMN IF NOT EXISTS`, `INSERT … WHERE NOT EXISTS`). Bloquant : staging attend ce job.
 2. **Deploy staging** : Cloud Run + smoke tests (`/health`, `/openapi.json`, frontend `/`).
 3. **Deploy production** : protégé par l'environnement GitHub `production` (peut exiger une approbation manuelle dans *Settings → Environments*) + smoke tests.
 
@@ -94,6 +95,7 @@ Deux comportements dans le même fichier :
 |------|-----|------|
 | Secret | `GCP_SA_KEY` | JSON du compte de service GCP. |
 | Secret | `SUPABASE_URL`, `SUPABASE_KEY` | Variables passées à Cloud Run au déploiement. |
+| Secret | `SUPABASE_DB_URL` | Chaîne de connexion Postgres du projet Supabase (ex. pooler `postgresql://…`). Utilisée par le job **DB migrations** (`supabase db push`). Sans elle, le job échoue avec un message clair. |
 | Secret | `OPENROUTER_API_KEY` | Clé OpenRouter pour l'IA en prod (copilot, parsing PDF, etc.). Sans elle, l'app tourne mais l'IA renvoie une erreur de configuration. |
 | Variable | `GCP_PROJECT_ID` | Projet GCP cible. |
 | Variable | `VITE_API_URL` | URL HTTPS publique du backend (utilisée au build de l'image frontend). |
