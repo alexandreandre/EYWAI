@@ -8,12 +8,12 @@ logger = get_logger("modules.payroll.engine.idcc")
 
 import requests
 import json
-import time  # <--- Assurez-vous que cette ligne est bien présente !
+import os
+import time
 
-# --- Configuration ---
-# Remplacez par vos identifiants obtenus sur PISTE
-CLIENT_ID = "13ff509c-9cc0-451c-85c0-5f34007c3ccf"
-CLIENT_SECRET = "9e9e26ed-c705-446c-a6d9-894939b4be9c"
+# --- Configuration (variables d'environnement) ---
+CLIENT_ID = os.environ.get("PISTE_CLIENT_ID", "")
+CLIENT_SECRET = os.environ.get("PISTE_CLIENT_SECRET", "")
 
 # Liste des IDCC que nous allons tester
 IDCC_A_TESTER = [
@@ -88,6 +88,9 @@ def main():
     """
     token = obtenir_token()
     if not token:
+        logger.warning(
+            "PISTE_CLIENT_ID / PISTE_CLIENT_SECRET requis pour l'API KALI."
+        )
         return
 
     log_payroll_debug(logger, "Token d'accès obtenu avec succès.\n")

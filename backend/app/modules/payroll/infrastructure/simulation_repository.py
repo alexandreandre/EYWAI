@@ -41,6 +41,25 @@ def fetch_active_payroll_config_rows() -> List[Dict[str, Any]]:
     return response.data or []
 
 
+def fetch_convention_collective_rules() -> Dict[str, Any]:
+    """Règles CC indexées idcc_{idcc} (aligné sur ContextePaie)."""
+    try:
+        response = (
+            supabase.table("convention_collective_rules")
+            .select("idcc, rules")
+            .execute()
+        )
+        out: Dict[str, Any] = {}
+        for row in response.data or []:
+            idcc = row.get("idcc")
+            rules = row.get("rules")
+            if idcc and rules is not None:
+                out[f"idcc_{idcc}"] = rules if isinstance(rules, dict) else {}
+        return out
+    except Exception:
+        return {}
+
+
 def fetch_simulation_row(
     simulation_id: str, company_id: str
 ) -> Optional[Dict[str, Any]]:

@@ -10,6 +10,7 @@ from datetime import date, timedelta
 from typing import Any, Dict, List, Optional
 
 from .contexte import ContextePaie
+from . import legal_constants as lc
 
 # --- Dates & utilitaires ---
 
@@ -48,17 +49,17 @@ def _compter_jours_calendaires(d1: date, d2: date) -> int:
     return (d2 - d1).days + 1
 
 
-def _extraire_pss_annuel(baremes_pss: Any) -> float:
+def _extraire_pss_annuel(baremes_pss: Any) -> Optional[float]:
     """
-    Extrait le plafond SS annuel depuis contexte.baremes['pss'].
-    Formes supportées : dict avec 'annuel', 'annuelle', ou mensuel * 12.
+    Extrait le plafond SS annuel depuis baremes['pss'].
+    Retourne None si absent (pas de repli silencieux).
     """
     if baremes_pss is None:
-        return 48000.0
+        return None
     if isinstance(baremes_pss, (int, float)):
         return float(baremes_pss)
     if not isinstance(baremes_pss, dict):
-        return 48000.0
+        return None
     for key in ("annuel", "annuelle", "valeur_annuelle", "plafond_annuel"):
         v = baremes_pss.get(key)
         if isinstance(v, (int, float)) and v > 0:
@@ -66,7 +67,36 @@ def _extraire_pss_annuel(baremes_pss: Any) -> float:
     mensuel = baremes_pss.get("mensuel")
     if isinstance(mensuel, (int, float)) and mensuel > 0:
         return float(mensuel) * 12.0
-    return 48000.0
+    return None
+
+
+def plafond_ij_pour(
+    arret_type: str,
+    jour_arret_1based: int,
+    ij_plafonds: Optional[Dict[str, Any]],
+) -> Optional[float]:
+    """Plafond journalier IJSS (€/jour) selon le type d'arrêt."""
+    if not ij_plafonds or not isinstance(ij_plafonds, dict):
+        return None
+    t = (arret_type or "maladie_simple").strip()
+    types_at_mp = frozenset(
+        {
+            "accident_travail",
+            "maladie_professionnelle",
+            "accident_trajet",
+            "rechute_at",
+        }
+    )
+    if t in types_at_mp:
+        key = "at_mp_majoree" if jour_arret_1based >= 29 else "at_mp"
+    elif t in ("maternite", "paternite", "maternite_paternite"):
+        key = "maternite_paternite"
+    else:
+        key = "maladie"
+    val = ij_plafonds.get(key)
+    if isinstance(val, (int, float)) and val > 0:
+        return float(val)
+    return None
 
 
 # --- Bloc 1 : qualification ---
@@ -88,16 +118,15 @@ def _qualifier_arret(arret_type: str) -> Dict[str, Any]:
 
     if t in types_at_mp:
         carence_ss_jours = 0
-        taux_ijss_base = 0.60
+        taux_ijss_base = lc.TAUX_IJSS_AT_MP_J1_28
         est_at_mp = True
     elif t in types_3j_ss:
         carence_ss_jours = 3
-        taux_ijss_base = 0.50
+        taux_ijss_base = lc.TAUX_IJSS_MALADIE
         est_at_mp = False
     else:
-        # Type inconnu : aligné maladie simple
         carence_ss_jours = 3
-        taux_ijss_base = 0.50
+        taux_ijss_base = lc.TAUX_IJSS_MALADIE
         est_at_mp = False
 
     est_ald = t == "ald"
@@ -196,14 +225,18 @@ def _taux_ijss_pour_jour_arret(
         "rechute_at",
     }
     if at_mp:
-        return 0.80 if jour_index_1based >= 29 else 0.60
+        return (
+            lc.TAUX_IJSS_AT_MP_J29
+            if jour_index_1based >= 29
+            else lc.TAUX_IJSS_AT_MP_J1_28
+        )
     if t in ("maladie_simple", "ald", "arret_exceptionnel"):
         if nombre_enfants >= 3:
-            return 0.66
-        return 0.50
+            return lc.TAUX_IJSS_MALADIE_3_ENFANTS
+        return lc.TAUX_IJSS_MALADIE
     if t == "mi_temps_therapeutique":
-        return 0.50
-    return 0.50
+        return lc.TAUX_IJSS_MI_TEMPS
+    return lc.TAUX_IJSS_MALADIE
 
 
 def _contexte_is_forfait_jours(contexte: ContextePaie) -> bool:
@@ -257,12 +290,26 @@ def _calculer_ijss(
         return out
 
     salaire_mensuel = float(contexte.salaire_base_mensuel or 0.0)
-    salaire_journalier_base = salaire_mensuel / 30.42 if salaire_mensuel else 0.0
+    salaire_journalier_base = (
+        salaire_mensuel / lc.DIVISEUR_JOURS_CALENDAIRES if salaire_mensuel else 0.0
+    )
 
-    pss_annuel = _extraire_pss_annuel(contexte.baremes.get("pss"))
-    plafond_ss_journalier = pss_annuel / 365.0
-    base_plafonnee = min(
-        salaire_journalier_base, plafond_ss_journalier * 1.8
+    pss_data = contexte.get_bareme_value("pss") if hasattr(contexte, "get_bareme_value") else contexte.baremes.get("pss")
+    pss_annuel = _extraire_pss_annuel(pss_data)
+    if pss_annuel is None:
+        plafond_ss_journalier = 0.0
+        base_plafonnee = 0.0
+    else:
+        plafond_ss_journalier = pss_annuel / 365.0
+        base_plafonnee = min(
+            salaire_journalier_base,
+            plafond_ss_journalier * lc.COEFF_PLAFOND_IJ_PSS,
+        )
+
+    ij_plafonds = (
+        contexte.get_bareme_value("ij_plafonds")
+        if hasattr(contexte, "get_bareme_value")
+        else contexte.baremes.get("ij_plafonds")
     )
 
     carence_ss = int(carence.get("carence_ss_jours") or 0)
@@ -301,6 +348,11 @@ def _calculer_ijss(
                     arret_type, jour_arret_1based, nombre_enfants
                 )
                 ijss_j = base_plafonnee * taux_j
+                plafond_j = plafond_ij_pour(
+                    arret_type, jour_arret_1based, ij_plafonds
+                )
+                if plafond_j is not None:
+                    ijss_j = min(ijss_j, plafond_j)
                 if is_tp:
                     ijss_j *= quotite
                 ijss_total += ijss_j
@@ -339,11 +391,11 @@ def _taux_legal_pour_jour_maintien(
     if jour_index_1based > limite_avec_extension:
         return 0.0
     if jour_index_1based <= 30:
-        return 0.90
+        return lc.TRANCHE_MAINTIEN_90
     if jour_index_1based <= 60:
-        return 2 / 3
+        return lc.TRANCHE_MAINTIEN_66
     if ext > 0:
-        return 0.90
+        return lc.TRANCHE_MAINTIEN_90
     return 0.0
 
 
@@ -405,7 +457,9 @@ def _calculer_maintien_employeur(
         }
 
     salaire_mensuel = float(contexte.salaire_base_mensuel or 0.0)
-    brut_journalier = salaire_mensuel / 30.42 if salaire_mensuel else 0.0
+    brut_journalier = (
+        salaire_mensuel / lc.DIVISEUR_JOURS_CALENDAIRES if salaire_mensuel else 0.0
+    )
 
     extension = 0
     if settings.get("apply_legal_maintenance"):

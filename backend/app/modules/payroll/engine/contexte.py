@@ -7,8 +7,17 @@ import os
 import tempfile
 import shutil
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 from supabase import create_client, Client
+
+from .baremes_loader import (
+    assembler_baremes,
+    baremes_lookup,
+    charger_conventions_collectives,
+    charger_db_baremes,
+    controler_integrite_baremes,
+)
+from . import legal_constants as lc
 
 
 def ChargerContexte(
@@ -27,6 +36,9 @@ def ChargerContexte(
         contrat = {
             "contrat": {
                 "statut": employee_data.get("statut", "Non-Cadre"),
+                "type_contrat": employee_data.get("type_contrat")
+                or employee_data.get("contract_type")
+                or "",
                 "temps_travail": {
                     "duree_hebdomadaire": float(
                         employee_data.get("duree_hebdomadaire", 35)
@@ -34,6 +46,12 @@ def ChargerContexte(
                 },
                 "emploi": employee_data.get("emploi", ""),
                 "date_entree": employee_data.get("date_entree", ""),
+                "date_conclusion_contrat": employee_data.get(
+                    "date_conclusion_contrat"
+                )
+                or "",
+                "date_debut_execution": employee_data.get("date_debut_execution")
+                or "",
             },
             "remuneration": {
                 "salaire_de_base": {
@@ -51,6 +69,7 @@ def ChargerContexte(
                 "prenom": employee_data.get("first_name", ""),
                 "nom": employee_data.get("last_name", ""),
                 "nir": employee_data.get("nir", ""),
+                "date_naissance": employee_data.get("date_naissance") or "",
             },
             "saisie_du_mois": {},
             "specificites_paie": {
@@ -63,6 +82,9 @@ def ChargerContexte(
                 "transport": employee_data.get("transport") or {},
                 "is_alsace_moselle": bool(
                     employee_data.get("is_alsace_moselle", False)
+                ),
+                "maintien_regime_apprenti": bool(
+                    employee_data.get("maintien_regime_apprenti", False)
                 ),
             },
         }
@@ -87,6 +109,7 @@ def ChargerContexte(
             chemin_entreprise=str(chemin_entreprise),
             chemin_cumuls=str(chemin_cumuls),
             chemin_data_dir=str(temp_dir),
+            baremes_override=baremes if baremes else None,
         )
         return ctx
     except Exception:
@@ -101,10 +124,13 @@ class ContextePaie:
         chemin_entreprise: str,
         chemin_cumuls: str,
         chemin_data_dir: str = "data",
+        baremes_override: Optional[Dict[str, Any]] = None,
+        supabase_client: Optional[Client] = None,
     ):
         """
         Initialise le contexte en chargeant les données statiques (contrat, entreprise)
         puis en les surchargeant avec les barèmes dynamiques de Supabase.
+        Si baremes_override est fourni, aucun accès Supabase (chemin test).
         """
         # ✅ CORRECTION: Tous les 'print' sont redirigés vers sys.stderr
         log_payroll_debug(logger, 'INFO: Initialisation du contexte de paie (Mode Supabase)...')
@@ -136,108 +162,50 @@ class ContextePaie:
         )
         log_payroll_debug(logger, f"  -> Données 'prevoyance' lues du contrat: {json.dumps(prevoyance_data)}")
         log_payroll_debug(logger, '--- FIN DEBUG CONTEXTE ---\n')
+
+        self.alertes_baremes: List[Dict[str, Any]] = []
+
+        if baremes_override is not None:
+            self.baremes = baremes_override
+            self.alertes_baremes.extend(controler_integrite_baremes(self.baremes))
+            log_payroll_debug(logger, 'INFO: Contexte chargé avec barèmes injectés (mode test).')
+            return
+
         # --- ÉTAPE 2 : Connexion à Supabase ---
         try:
-            supabase_url = os.environ["SUPABASE_URL"]
-            supabase_key = os.environ[
-                "SUPABASE_SERVICE_KEY"
-            ]  # Doit être la clé de service
-            if not supabase_url or not supabase_key:
-                raise KeyError
-            supabase: Client = create_client(supabase_url, supabase_key)
+            if supabase_client is not None:
+                supabase = supabase_client
+            else:
+                supabase_url = os.environ["SUPABASE_URL"]
+                supabase_key = os.environ[
+                    "SUPABASE_SERVICE_KEY"
+                ]  # Doit être la clé de service
+                if not supabase_url or not supabase_key:
+                    raise KeyError
+                supabase = create_client(supabase_url, supabase_key)
         except KeyError:
-            # ✅ CORRECTION: Redirigé vers sys.stderr
             logger.warning('ERREUR: Variables SUPABASE_URL ou SUPABASE_SERVICE_KEY manquantes.')
             raise RuntimeError("Variables d'environnement Supabase non configurées.")
         except Exception as e:
-            # ✅ CORRECTION: Redirigé vers sys.stderr
             logger.warning(f"ERREUR: Échec de l'initialisation du client Supabase: {e}")
             raise
 
-        # ✅ CORRECTION: Redirigé vers sys.stderr
         log_payroll_debug(logger, 'INFO: Connexion Supabase établie. Chargement des barèmes...')
 
         # --- ÉTAPE 3 : Chargement des barèmes depuis Supabase ---
         try:
-            configs = (
-                supabase.table("payroll_config")
-                .select("config_key, config_data")
-                .eq("is_active", True)
-                .execute()
-            )
-
-            if not configs.data:
-                raise RuntimeError(
-                    "Aucune configuration de paie active trouvée dans Supabase."
-                )
-
-            def _ensure_dict(val: Any) -> Dict[str, Any]:
-                """Si config_data est renvoyé comme chaîne JSON (ex. par le client), le parser."""
-                if val is None:
-                    return {}
-                if isinstance(val, str):
-                    try:
-                        return json.loads(val)
-                    except json.JSONDecodeError:
-                        return {}
-                return val if isinstance(val, dict) else {}
-
-            db_baremes = {
-                c["config_key"]: _ensure_dict(c.get("config_data"))
-                for c in configs.data
-            }
-
+            db_baremes = charger_db_baremes(supabase)
         except Exception as e:
-            # ✅ CORRECTION: Redirigé vers sys.stderr
             logger.warning(f"ERREUR CRITIQUE: Impossible de lire 'payroll_config' depuis Supabase. {e}")
             raise
 
-        # --- ÉTAPE 3b : Chargement des règles par convention collective (table convention_collective_rules) ---
-        conventions_collectives = {}
-        try:
-            cc_rules_resp = (
-                supabase.table("convention_collective_rules")
-                .select("idcc, rules")
-                .execute()
-            )
-            if cc_rules_resp.data:
-                for row in cc_rules_resp.data:
-                    idcc = row.get("idcc")
-                    rules = _ensure_dict(row.get("rules"))
-                    if idcc:
-                        conventions_collectives[f"idcc_{idcc}"] = rules
-        except Exception as e:
-            logger.warning(f"WARN: Impossible de lire 'convention_collective_rules' depuis Supabase: {e}. Règles CC vides.")
+        # --- ÉTAPE 3b : Conventions collectives ---
+        conventions_collectives = charger_conventions_collectives(supabase)
 
         # --- ÉTAPE 4 : Assignation à self.baremes ---
-        # 'pas' stocke un objet avec clé 'baremes' ; les autres config_data sont des dicts
-        pas_data = db_baremes.get("pas", {})
-        if isinstance(pas_data, dict):
-            pas_baremes = pas_data.get("baremes", [])
-        else:
-            pas_baremes = []
+        self.baremes = assembler_baremes(db_baremes, conventions_collectives)
+        self.alertes_baremes.extend(controler_integrite_baremes(self.baremes))
 
-        # 'primes' : catalogue depuis payroll_config (config_key='primes')
-        primes_data = db_baremes.get("primes", {})
-        if isinstance(primes_data, dict):
-            primes_list = primes_data.get("primes", [])
-        elif isinstance(primes_data, list):
-            primes_list = primes_data
-        else:
-            primes_list = []
-        if not isinstance(primes_list, list):
-            primes_list = []
-
-        self.baremes = {
-            "cotisations": db_baremes.get("cotisations", {}),
-            "pas": pas_baremes,
-            "smic": db_baremes.get("smic", {}),
-            "pss": db_baremes.get("pss", {}),
-            "frais_pro": db_baremes.get("frais_pro", {}),
-            "heures_supp": db_baremes.get("heures_supp", {}),
-            "primes": primes_list,
-            "conventions_collectives": conventions_collectives,
-        }
         if not self.baremes["heures_supp"]:
             logger.warning("WARN: 'heures_supp' absent de payroll_config. Exécutez le seed ou la migration pour insérer les règles heures supplémentaires.")
         if not self.baremes["primes"]:
@@ -342,6 +310,79 @@ class ContextePaie:
             return False
         return "forfait jour" in statut.lower()
 
+    # --- Type de contrat / alternance ---
+
+    @property
+    def type_contrat(self) -> str:
+        """Type de contrat du salarié (ex. 'Apprentissage', 'CDI')."""
+        return self.contrat.get("contrat", {}).get("type_contrat") or ""
+
+    @property
+    def is_apprenti(self) -> bool:
+        """Vrai si le contrat est un contrat d'apprentissage."""
+        return "apprentissage" in self.type_contrat.lower()
+
+    @property
+    def is_professionnalisation(self) -> bool:
+        """Vrai si le contrat est un contrat de professionnalisation."""
+        return "professionnalisation" in self.type_contrat.lower()
+
+    @property
+    def is_alternant(self) -> bool:
+        """Vrai pour tout contrat en alternance (apprentissage ou pro)."""
+        return self.is_apprenti or self.is_professionnalisation
+
+    @property
+    def date_conclusion_contrat(self) -> str:
+        """Date de signature/conclusion du contrat (peut différer du début)."""
+        return self.contrat.get("contrat", {}).get("date_conclusion_contrat") or ""
+
+    @property
+    def date_debut_execution(self) -> str:
+        """1er jour d'exécution du contrat (fait générateur du régime apprenti).
+
+        Fallback sur la date d'entrée si non renseignée.
+        """
+        contrat = self.contrat.get("contrat", {})
+        return (
+            contrat.get("date_debut_execution")
+            or contrat.get("date_entree")
+            or ""
+        )
+
+    @property
+    def date_naissance(self) -> str:
+        """Date de naissance du salarié (utile pour les exonérations par âge)."""
+        return self.contrat.get("salarie", {}).get("date_naissance") or ""
+
+    # --- SMIC (deux notions distinctes, voir plan : anti-régression) ---
+
+    @property
+    def smic_horaire(self) -> float:
+        """SMIC horaire brut (cas général) issu des barèmes dynamiques."""
+        return self.baremes.get("smic", {}).get("cas_general", 0.0) or 0.0
+
+    @property
+    def smic_mensuel(self) -> float:
+        """SMIC mensuel TEMPS PLEIN 35h, NON proratisé.
+
+        Sert aux seuils légaux existants (maladie 2,5×, allocations familiales
+        3,5×). Ne PAS proratiser ici : cela modifierait les bulletins des
+        temps partiels.
+        """
+        return self.smic_horaire * lc.DUREE_LEGALE_HEBDO * 52 / 12
+
+    def smic_mensuel_proratise(self, proratiser: bool = True) -> float:
+        """SMIC mensuel proratisé selon la durée contractuelle.
+
+        Réservé au plafond d'exonération apprenti (suit le temps partiel).
+        """
+        base = self.smic_mensuel
+        duree = self.duree_hebdo_contrat
+        if proratiser and duree and duree < lc.DUREE_LEGALE_HEBDO:
+            return base * (duree / lc.DUREE_LEGALE_HEBDO)
+        return base
+
     # --- Propriétés d'accès rapide (Données "variables" du mois) ---
 
     @property
@@ -395,3 +436,18 @@ class ContextePaie:
             if coti.get("id") == coti_id:
                 return coti
         return None
+
+    def get_bareme_value(
+        self,
+        config_key: str,
+        *chemin: str,
+        critique: bool = False,
+    ) -> Any:
+        """Accès sécurisé aux barèmes scrapés (None + alerte si absent)."""
+        return baremes_lookup(
+            self.baremes,
+            config_key,
+            *chemin,
+            alertes=self.alertes_baremes,
+            critique=critique,
+        )

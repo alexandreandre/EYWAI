@@ -8,6 +8,7 @@ import json
 from typing import Any, Dict, List, Optional
 
 from app.modules.payroll.application import simulation_commands
+from app.modules.payroll.engine.baremes_loader import assembler_baremes, ensure_dict
 from app.modules.payroll.infrastructure import simulation_repository
 
 
@@ -28,28 +29,10 @@ def parse_json_dict(value: Any) -> Dict[str, Any]:
 def load_baremes() -> Dict[str, Any]:
     rows = simulation_repository.fetch_active_payroll_config_rows()
     db_baremes = {
-        r["config_key"]: parse_json_dict(r.get("config_data")) for r in rows
+        r["config_key"]: ensure_dict(r.get("config_data")) for r in rows
     }
-    pas_data = db_baremes.get("pas", {})
-    pas_baremes = pas_data.get("baremes", []) if isinstance(pas_data, dict) else []
-    primes_data = db_baremes.get("primes", {})
-    if isinstance(primes_data, dict):
-        primes_list = primes_data.get("primes", [])
-    elif isinstance(primes_data, list):
-        primes_list = primes_data
-    else:
-        primes_list = []
-
-    return {
-        "cotisations": db_baremes.get("cotisations", {}),
-        "pas": pas_baremes if isinstance(pas_baremes, list) else [],
-        "smic": db_baremes.get("smic", {}),
-        "pss": db_baremes.get("pss", {}),
-        "frais_pro": db_baremes.get("frais_pro", {}),
-        "heures_supp": db_baremes.get("heures_supp", {}),
-        "primes": primes_list if isinstance(primes_list, list) else [],
-        "conventions_collectives": {},
-    }
+    conventions = simulation_repository.fetch_convention_collective_rules()
+    return assembler_baremes(db_baremes, conventions)
 
 
 def load_company(company_id: str) -> Dict[str, Any]:
@@ -80,6 +63,9 @@ def employee_to_payroll_payload(employee: Dict[str, Any]) -> Dict[str, Any]:
     salaire_base = 0.0
     if isinstance(salaire_de_base, dict):
         salaire_base = float(salaire_de_base.get("valeur") or 0)
+    specificites = employee.get("specificites_paie")
+    if not isinstance(specificites, dict):
+        specificites = {}
     return {
         "id": employee.get("id"),
         "first_name": employee.get("first_name") or "",
@@ -90,6 +76,13 @@ def employee_to_payroll_payload(employee: Dict[str, Any]) -> Dict[str, Any]:
         "taux_prelevement_source": float(employee.get("taux_prelevement_source") or 0),
         "job_title": employee.get("job_title") or "",
         "hire_date": employee.get("hire_date") or "",
+        "type_contrat": employee.get("contract_type") or "",
+        "date_conclusion_contrat": employee.get("date_conclusion_contrat") or "",
+        "date_debut_execution": employee.get("date_debut_execution") or "",
+        "date_naissance": employee.get("date_naissance") or "",
+        "maintien_regime_apprenti": bool(
+            specificites.get("maintien_regime_apprenti", False)
+        ),
     }
 
 
@@ -110,6 +103,15 @@ def manual_employee_payload(options: Dict[str, Any]) -> Dict[str, Any]:
         ),
         "taux_prelevement_source": float(
             manual_params.get("taux_prelevement_source") or 0
+        ),
+        "type_contrat": manual_params.get("type_contrat")
+        or manual_params.get("contract_type")
+        or "",
+        "date_conclusion_contrat": manual_params.get("date_conclusion_contrat") or "",
+        "date_debut_execution": manual_params.get("date_debut_execution") or "",
+        "date_naissance": manual_params.get("date_naissance") or "",
+        "maintien_regime_apprenti": bool(
+            manual_params.get("maintien_regime_apprenti", False)
         ),
     }
 

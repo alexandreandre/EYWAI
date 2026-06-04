@@ -18,6 +18,8 @@ from app.modules.payroll.engine.calcul_net import calculer_net_et_impot
 from app.modules.payroll.engine.calcul_reduction_generale import (
     calculer_reduction_generale,
 )
+from app.modules.payroll.engine.baremes_loader import comparer_taux_vm_entreprise
+from app.modules.payroll.engine.calcul_frais import appliquer_exoneration_note_frais
 from app.modules.payroll.engine.contexte import ContextePaie
 
 from .payslip_run_common import (
@@ -125,6 +127,7 @@ def run_payslip_generation_heures(
     month: int,
     engine_root: Path,
     company_id: str | None = None,
+    baremes_override: dict | None = None,
 ) -> dict:
     """
     Génère un bulletin heures en processus (sans subprocess).
@@ -148,6 +151,7 @@ def run_payslip_generation_heures(
         chemin_entreprise=str(engine_root / "data" / "entreprise.json"),
         chemin_cumuls=str(chemin_cumuls),
         chemin_data_dir=str(engine_root / "data"),
+        baremes_override=baremes_override,
     )
 
     date_debut_periode, date_fin_periode = definir_periode_de_paie(
@@ -188,6 +192,22 @@ def run_payslip_generation_heures(
                 or saisie.get("name")
                 or prime_id.replace("_", " ")
             )
+
+            if cle == "notes_de_frais" and montant > 0:
+                _exo, reint, _plafond = appliquer_exoneration_note_frais(
+                    saisie, contexte.baremes.get("frais_pro")
+                )
+                if reint > 0:
+                    primes_soumises.append(
+                        {
+                            "libelle": f"Réintégration NDF {libelle}",
+                            "montant": reint,
+                            "prime_id": "reintegration_ndf",
+                        }
+                    )
+                if _exo and _exo > 0 and _plafond is not None:
+                    montant = _exo
+
             regles = catalogue_primes.get(prime_id)
             if regles:
                 soumise_cotis = regles.get("soumise_a_cotisations", True)
@@ -309,6 +329,17 @@ def run_payslip_generation_heures(
         montant_acompte,
         primes_soumises_impot,
     )
+
+    taux_vm = (
+        contexte.entreprise.get("parametres_paie", {})
+        .get("taux_specifiques", {})
+        .get("taux_versement_mobilite")
+    )
+    alerte_vm = comparer_taux_vm_entreprise(
+        taux_vm, contexte.baremes.get("taux_vmrr")
+    )
+    if alerte_vm:
+        contexte.alertes_baremes.append(alerte_vm)
 
     bulletin_final = creer_bulletin_final(
         contexte,

@@ -4,6 +4,7 @@ logger = get_logger("modules.payroll.engine.calcul_conges")
 # moteur_paie/calcul_conges.py
 
 from .contexte import ContextePaie
+from . import legal_constants as lc
 from typing import Dict, Any
 
 
@@ -17,8 +18,10 @@ def calculer_indemnite_conges(
     log_payroll_debug(logger, "INFO: Démarrage du calcul de l'indemnité de congés payés...")
 
     # --- Calcul des heures et montants pour le maintien de salaire ---
-    heures_normales_par_jour = 35 / 5
-    heures_supp_structurelles_par_jour = (contexte.duree_hebdo_contrat - 35) / 5
+    heures_normales_par_jour = lc.DUREE_LEGALE_HEBDO / 5
+    heures_supp_structurelles_par_jour = (
+        contexte.duree_hebdo_contrat - lc.DUREE_LEGALE_HEBDO
+    ) / 5
 
     total_heures_normales_absence = nombre_jours_conges * heures_normales_par_jour
     total_heures_supp_absence = nombre_jours_conges * heures_supp_structurelles_par_jour
@@ -26,13 +29,28 @@ def calculer_indemnite_conges(
         total_heures_normales_absence + total_heures_supp_absence
     )
 
-    majoration_hs = (
-        contexte.baremes.get("heures_supp", {})
-        .get("regles_calcul_communes", {})
-        .get("taux_majoration_par_defaut", {})
-        .get("heures_supplementaires", [{}])[0]
-        .get("taux", 0.25)
-    )
+    majoration_hs = None
+    if hasattr(contexte, "get_bareme_value"):
+        majoration_hs = contexte.get_bareme_value(
+            "heures_supp",
+            "regles_calcul_communes",
+            "taux_majoration_par_defaut",
+            "heures_supplementaires",
+            0,
+            "taux",
+        )
+    else:
+        majoration_hs = (
+            contexte.baremes.get("heures_supp", {})
+            .get("regles_calcul_communes", {})
+            .get("taux_majoration_par_defaut", {})
+            .get("heures_supplementaires", [{}])[0]
+            .get("taux")
+        )
+    if majoration_hs is None:
+        majoration_hs = 0.0
+    else:
+        majoration_hs = float(majoration_hs)
     salaire_horaire_majore = salaire_horaire_base * (1 + majoration_hs)
 
     # Calcul des montants sans arrondi initial

@@ -1,9 +1,40 @@
 # moteur_paie/calcul_brut.py
 
 from .contexte import ContextePaie
+from . import legal_constants as lc
 from datetime import datetime, date
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from .calcul_conges import calculer_indemnite_conges
+
+
+def _taux_majoration_hs(contexte: ContextePaie, index: int = 0) -> Optional[float]:
+    """Lit le taux de majoration HS depuis heures_supp (None si absent)."""
+    if hasattr(contexte, "get_bareme_value"):
+        val = contexte.get_bareme_value(
+            "heures_supp",
+            "regles_calcul_communes",
+            "taux_majoration_par_defaut",
+            "heures_supplementaires",
+            index,
+            "taux",
+        )
+    else:
+        hs_list = (
+            (getattr(contexte, "baremes", {}) or {})
+            .get("heures_supp", {})
+            .get("regles_calcul_communes", {})
+            .get("taux_majoration_par_defaut", {})
+            .get("heures_supplementaires", [])
+        )
+        val = None
+        if isinstance(hs_list, list) and len(hs_list) > index:
+            val = hs_list[index].get("taux")
+    if val is None:
+        return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
 
 
 def _get_salaire_horaire_base(
@@ -11,7 +42,7 @@ def _get_salaire_horaire_base(
 ) -> float:
     # Cette fonction reste inchangée
     salaire_mensuel = contexte.salaire_base_mensuel
-    duree_legale_hebdo = 35.0
+    duree_legale_hebdo = lc.DUREE_LEGALE_HEBDO
     if duree_hebdo_reelle <= duree_legale_hebdo:
         heures_mensuelles = round((duree_hebdo_reelle * 52) / 12, 2)
         return salaire_mensuel / heures_mensuelles if heures_mensuelles > 0 else 0.0
@@ -19,13 +50,9 @@ def _get_salaire_horaire_base(
     heures_sup_structurelles_mensuelles = round(
         ((duree_hebdo_reelle - duree_legale_hebdo) * 52) / 12, 2
     )
-    majoration_hs = (
-        contexte.baremes.get("heures_supp", {})
-        .get("regles_calcul_communes", {})
-        .get("taux_majoration_par_defaut", {})
-        .get("heures_supplementaires", [{}])[0]
-        .get("taux", 0.25)
-    )
+    majoration_hs = _taux_majoration_hs(contexte, 0)
+    if majoration_hs is None:
+        majoration_hs = 0.0
     heures_equivalentes_majorees = heures_mensuelles_legales + (
         heures_sup_structurelles_mensuelles * (1 + majoration_hs)
     )
@@ -178,7 +205,7 @@ def calculer_salaire_brut(
     Calcule le salaire brut à partir d'une liste d'événements de paie déjà analysés.
     """
     lignes_composants_brut = []
-    duree_legale_hebdo = 35.0
+    duree_legale_hebdo = lc.DUREE_LEGALE_HEBDO
     duree_contrat_hebdo = contexte.duree_hebdo_contrat
     salaire_contractuel = contexte.salaire_base_mensuel
     taux_horaire_de_base = _get_salaire_horaire_base(contexte, duree_contrat_hebdo)
@@ -250,14 +277,12 @@ def calculer_salaire_brut(
             )
 
     # 2. Préparation des taux et des accumulateurs
-    baremes_hs = (
-        contexte.baremes.get("heures_supp", {})
-        .get("regles_calcul_communes", {})
-        .get("taux_majoration_par_defaut", {})
-        .get("heures_supplementaires", [{}, {}])
-    )
-    majoration_hs25 = baremes_hs[0].get("taux", 0.25)
-    majoration_hs50 = baremes_hs[1].get("taux", 0.50)
+    majoration_hs25 = _taux_majoration_hs(contexte, 0)
+    majoration_hs50 = _taux_majoration_hs(contexte, 1)
+    if majoration_hs25 is None:
+        majoration_hs25 = 0.0
+    if majoration_hs50 is None:
+        majoration_hs50 = 0.0
 
     taux_hs25 = taux_horaire_de_base * (1 + majoration_hs25)
     taux_hs50 = taux_horaire_de_base * (1 + majoration_hs50)

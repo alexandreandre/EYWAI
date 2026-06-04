@@ -8,6 +8,9 @@ from datetime import datetime
 import logging
 import copy
 
+from app.modules.payroll.engine.baremes_loader import baremes_lookup
+from app.modules.payroll.engine import legal_constants as lc
+
 logger = logging.getLogger(__name__)
 
 
@@ -445,16 +448,16 @@ def _calculer_cotisations_reelles(
     total_patronal = 0.0
 
     # Récupérer PSS et SMIC
-    pss_mensuel = baremes.get("pss", {}).get(
-        "mensuel", 3864.0
-    )  # Valeur 2025 par défaut
-    smic_horaire = baremes.get("smic", {}).get("cas_general", 11.88)
-    smic_mensuel = smic_horaire * 35 * 52 / 12
+    pss_mensuel_raw = baremes_lookup(baremes, "pss", "mensuel")
+    pss_mensuel = float(pss_mensuel_raw) if pss_mensuel_raw is not None else 0.0
+    smic_horaire_raw = baremes_lookup(baremes, "smic", "cas_general")
+    smic_horaire = float(smic_horaire_raw) if smic_horaire_raw is not None else 0.0
+    smic_mensuel = smic_horaire * lc.DUREE_LEGALE_HEBDO * 52 / 12
 
     # Calculer les assiettes
     brut_plafonne = min(brut, pss_mensuel)
     assiette_tranche_2 = (
-        max(0, min(brut, 8 * pss_mensuel) - pss_mensuel) if brut > pss_mensuel else 0.0
+        max(0, min(brut, lc.FACTEUR_PLAFOND_TRANCHE_2 * pss_mensuel) - pss_mensuel) if brut > pss_mensuel else 0.0
     )
 
     # Récupérer l'effectif pour FNAL et CFP
@@ -519,13 +522,13 @@ def _calculer_cotisations_reelles(
             if coti_id == "fnal":
                 taux_patronal = (
                     taux_patronal.get("taux_moins_50", 0.0)
-                    if effectif < 50
+                    if effectif < lc.SEUIL_EFFECTIF_FNAL
                     else taux_patronal.get("taux_50_et_plus", 0.0)
                 )
             elif coti_id == "CFP":
                 taux_patronal = (
                     taux_patronal.get("taux_moins_11", 0.0)
-                    if effectif < 11
+                    if effectif < lc.SEUIL_EFFECTIF_CFP
                     else taux_patronal.get("taux_11_et_plus", 0.0)
                 )
             else:

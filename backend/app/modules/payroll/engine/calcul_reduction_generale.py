@@ -8,6 +8,7 @@ logger = get_logger("modules.payroll.engine.calcul_reduction_generale")
 from typing import Any
 
 from app.modules.payroll.engine.contexte import ContextePaie
+from app.modules.payroll.engine import legal_constants as lc
 
 # Note: Ce module suppose l'existence d'un objet "contexte" qui contient
 # les informations de l'employé, de l'entreprise et les barèmes/taux.
@@ -56,7 +57,7 @@ def _calculer_parametre_T(contexte: ContextePaie) -> float:
     # 3. Taux variables selon l'entreprise
     effectif = contexte.entreprise.get("effectif", 0)
     fnal_taux = catalogue_cotisations.get("fnal", {}).get("patronal", {})
-    if effectif >= 50:
+    if effectif >= lc.SEUIL_EFFECTIF_FNAL:
         taux_a_sommer["fnal"] = fnal_taux.get("taux_50_et_plus", 0.0)
     else:
         taux_a_sommer["fnal"] = fnal_taux.get("taux_moins_50", 0.0)

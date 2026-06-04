@@ -285,3 +285,22 @@ def compute_compliance_flags(company_data: Dict[str, Any], headcount: int) -> Di
         ),
         "cse_obligation": headcount >= 11,
     }
+
+
+def check_vm_rate_coherence(
+    company_data: Dict[str, Any],
+    taux_vmrr_baremes: Any,
+    *,
+    commune: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Contrôle cohérence taux VM entreprise vs barème scrapé (alerte uniquement)."""
+    from app.modules.payroll.engine.baremes_loader import comparer_taux_vm_entreprise
+
+    taux_vm = company_data.get("taux_vm")
+    if taux_vm is None:
+        taux_vm = (
+            (company_data.get("taux_specifiques") or {}).get("taux_versement_mobilite")
+        )
+    return comparer_taux_vm_entreprise(
+        taux_vm, taux_vmrr_baremes, commune=commune
+    )
