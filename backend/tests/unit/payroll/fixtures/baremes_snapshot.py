@@ -84,7 +84,11 @@ def baremes_snapshot() -> Dict[str, Any]:
                     "heures_supplementaires": [
                         {"taux": 0.25},
                         {"taux": 0.50},
-                    ]
+                    ],
+                    "heures_complementaires": [
+                        {"taux": 0.10},
+                        {"taux": 0.25},
+                    ],
                 }
             }
         },
@@ -185,6 +189,56 @@ def baremes_snapshot() -> Dict[str, Any]:
                     "Apprentissage": "64",
                     "Contrat de professionnalisation": "61",
                 }
+            },
+        },
+        "reduction_generale": {
+            "actif": True,
+            "type": "RGDU",
+            "annee": 2026,
+            "point_sortie_smic": 3.0,
+            "p": 1.75,
+            "tmin": 0.0200,
+            "tdelta": {
+                "fnal_moins_50": 0.3781,
+                "fnal_50_et_plus": 0.3821,
+            },
+        },
+        "stage": {
+            "actif": True,
+            "pct_plafond_horaire_ss": 0.15,
+        },
+        "cdd": {
+            "precarite": {
+                "actif": True,
+                "taux": 0.10,
+            },
+            "indemnite_conges": {
+                "actif": True,
+                "taux": 0.10,
+            },
+        },
+        "interim": {
+            "ifm": {
+                "actif": True,
+                "taux": 0.10,
+            },
+            "indemnite_conges": {
+                "actif": True,
+                "taux": 0.10,
+            },
+        },
+        "mandataire": {
+            "cotisations_exclues": [
+                "assurance_chomage",
+                "ags",
+                "chomage",
+                "apec",
+            ],
+        },
+        "maladie": {
+            "csg_ijss": {
+                "taux_deductible": 0.038,
+                "taux_non_deductible": 0.029,
             },
         },
     }

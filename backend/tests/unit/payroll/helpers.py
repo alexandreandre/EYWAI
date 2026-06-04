@@ -38,7 +38,13 @@ def build_test_contexte(
     date_debut_execution: str = "",
     date_conclusion_contrat: str = "",
     date_naissance: str = "",
+    date_entree: str = "2020-01-01",
+    date_fin_contrat: str = "",
     maintien_regime_apprenti: bool = False,
+    cumuls: Optional[Dict[str, Any]] = None,
+    specificites_extra: Optional[Dict[str, Any]] = None,
+    is_temps_partiel: bool = False,
+    proratiser_plafond_ss: bool = False,
 ) -> ContextePaie:
     tmp = Path(tempfile.mkdtemp(prefix="payroll_test_"))
     contrat = {
@@ -49,13 +55,18 @@ def build_test_contexte(
             "date_naissance": date_naissance,
         },
         "contrat": {
-            "date_entree": "2020-01-01",
+            "date_entree": date_entree,
+            "date_fin_contrat": date_fin_contrat,
             "statut": statut,
             "emploi": "Employé",
             "type_contrat": type_contrat,
             "date_debut_execution": date_debut_execution,
             "date_conclusion_contrat": date_conclusion_contrat,
-            "temps_travail": {"duree_hebdomadaire": duree_hebdo},
+            "temps_travail": {
+                "duree_hebdomadaire": duree_hebdo,
+                "is_temps_partiel": is_temps_partiel,
+                "proratiser_plafond_ss": proratiser_plafond_ss,
+            },
         },
         "remuneration": {
             "salaire_de_base": {"valeur": salaire_base},
@@ -67,12 +78,13 @@ def build_test_contexte(
             "prelevement_a_la_source": {"taux": taux_pas},
             "is_alsace_moselle": False,
             "maintien_regime_apprenti": maintien_regime_apprenti,
+            **(specificites_extra or {}),
         },
     }
     entreprise = {"entreprise": entreprise_snapshot(effectif)}
     _write_json(tmp / "contrat.json", contrat)
     _write_json(tmp / "entreprise.json", entreprise)
-    _write_json(tmp / "cumuls.json", {"cumuls": {}})
+    _write_json(tmp / "cumuls.json", {"cumuls": cumuls or {}})
     return ContextePaie(
         chemin_contrat=str(tmp / "contrat.json"),
         chemin_entreprise=str(tmp / "entreprise.json"),
@@ -108,6 +120,7 @@ def run_bulletin_pipeline_heures(
     primes_soumises: Optional[List[Dict[str, Any]]] = None,
     calendrier: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, float]:
+    contexte.year = year
     date_debut = date(year, month, 1)
     _, num_days = calendar.monthrange(year, month)
     date_fin = date(year, month, num_days)
@@ -123,7 +136,7 @@ def run_bulletin_pipeline_heures(
     hs = brut_res["remuneration_brute_heures_supp"]
     ths = brut_res["total_heures_supp"]
     lignes, total_sal = calculer_cotisations(contexte, brut, hs, ths)
-    heures_mois = round((contexte.duree_hebdo_contrat * 52) / 12, 2)
+    heures_mois = (contexte.duree_hebdo_contrat * 52) / 12
     red = calculer_reduction_generale(contexte, brut, heures_mois)
     if red:
         lignes.append(red)
@@ -148,6 +161,7 @@ def run_bulletin_pipeline_forfait(
     month: int = 4,
     primes_soumises: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, float]:
+    contexte.year = year
     date_debut = date(year, month, 1)
     _, num_days = calendar.monthrange(year, month)
     date_fin = date(year, month, num_days)
