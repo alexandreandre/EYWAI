@@ -380,6 +380,9 @@ async def create_employee(
         "residence_permit_expiry_date",
         "residence_permit_type",
         "residence_permit_number",
+        "date_conclusion_contrat",
+        "date_debut_execution",
+        "contract_end_date",
     ):
         if key in data_dict and data_dict[key] == "":
             data_dict[key] = None

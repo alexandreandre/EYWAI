@@ -696,12 +696,6 @@ def calculate_reduction_fillon(
         "source": "taux_at_mp de companies (divisé par 100)",
         "note": f"Taux en base: {taux_at_mp_pourcentage}% → {taux_at_mp} en décimal",
     }
-    parametre_T = sum(taux_details.values())
-    calcul_T_detail = {
-        "somme_taux": round(parametre_T, 6),
-        "nombre_taux": len(taux_details),
-        "verification": round(sum(round(v, 6) for v in taux_details.values()), 6),
-    }
     brut_cumule_precedent = cumuls_precedents.get("brut_total", 0.0)
     heures_cumulees_precedent = cumuls_precedents.get("heures_remunerees", 0.0)
     reduction_deja_appliquee = abs(
@@ -710,65 +704,154 @@ def calculate_reduction_fillon(
     brut_total_cumule = brut_cumule_precedent + salaire_brut_mois
     heures_total_cumulees = heures_cumulees_precedent + heures_remunerees_mois
     smic_reference_cumule = smic_horaire * heures_total_cumulees
-    seuil_eligibilite = 1.6 * smic_reference_cumule
     calcul_coefficient_C_detail: Dict[str, Any] = {}
-    if brut_total_cumule >= seuil_eligibilite:
-        coefficient_C = 0.0
-        reduction_totale_due = 0.0
-        montant_reduction_mois = -reduction_deja_appliquee
-        eligible = False
-        calcul_coefficient_C_detail = {
-            "condition": f"Brut cumulé ({brut_total_cumule:.2f}) >= Seuil 1.6 SMIC ({seuil_eligibilite:.2f})",
-            "resultat": "Non éligible - Coefficient C = 0",
-            "reduction_totale": 0,
-            "remboursement": f"Remboursement de {reduction_deja_appliquee:.2f} € déjà appliquée",
+
+    # Garde-fou par période : RGDU à partir de 2026, Fillon (RGCP) avant.
+    from app.modules.payroll.engine import legal_constants as _lc
+    from app.modules.payroll.engine.calcul_reduction_generale import (
+        calculer_coefficient_rgdu as _calculer_coefficient_rgdu,
+    )
+
+    if year >= _lc.ANNEE_BASCULE_RGDU:
+        # --- Branche RGDU (>= 2026) : paramètres scrapables dans payroll_config ---
+        rgdu_cfg = baremes.get("reduction_generale", {}) or {}
+        tmin = float(rgdu_cfg.get("tmin", 0.02))
+        p_expo = float(rgdu_cfg.get("p", 1.75))
+        point_sortie = float(rgdu_cfg.get("point_sortie_smic", 3.0))
+        tdelta_cfg = rgdu_cfg.get("tdelta", {}) or {}
+        tdelta = float(
+            tdelta_cfg.get("fnal_50_et_plus", 0.0)
+            if effectif >= 50
+            else tdelta_cfg.get("fnal_moins_50", 0.0)
+        )
+        actif = bool(rgdu_cfg) and bool(rgdu_cfg.get("actif", False))
+        tmax = round(tmin + tdelta, 4)
+
+        # Affichage : remplacer les taux Fillon par les paramètres RGDU.
+        taux_details = {"tmin": tmin, "tdelta": tdelta}
+        taux_details_explicatifs = {
+            "tmin": {
+                "libelle": "Tmin (seuil minimal d'exonération, 2 %)",
+                "valeur": tmin,
+                "source": "reduction_generale.tmin",
+            },
+            "tdelta": {
+                "libelle": f"Tdelta (FNAL {'≥50' if effectif >= 50 else '<50'} salariés)",
+                "valeur": tdelta,
+                "source": (
+                    "reduction_generale.tdelta."
+                    + ("fnal_50_et_plus" if effectif >= 50 else "fnal_moins_50")
+                ),
+                "condition": f"effectif {effectif} {'≥' if effectif >= 50 else '<'} 50",
+            },
+            "p": {
+                "libelle": "P (exposant de dégressivité)",
+                "valeur": p_expo,
+                "source": "reduction_generale.p",
+            },
         }
+        parametre_T = tmax
+        calcul_T_detail = {"somme_taux": tmax, "nombre_taux": 2, "verification": tmax}
+        seuil_eligibilite = point_sortie * smic_reference_cumule
+        seuil_multiplicateur = point_sortie
+        formule_C = (
+            "C = Tmin + (Tdelta × [ (1/2) × (point_sortie × SMIC / Brut − 1) ]^P)"
+        )
+
+        if not actif:
+            coefficient_C = 0.0
+            reduction_totale_due = 0.0
+            montant_reduction_mois = -reduction_deja_appliquee
+            eligible = False
+            calcul_coefficient_C_detail = {
+                "condition": "Dispositif RGDU désactivé (actif = false)",
+                "resultat": "Aucune réduction — Coefficient C = 0",
+                "reduction_totale": 0,
+                "remboursement": f"Remboursement de {reduction_deja_appliquee:.2f} € déjà appliquée",
+            }
+        else:
+            coefficient_C, calcul_coefficient_C_detail = _calculer_coefficient_rgdu(
+                brut_total_cumule,
+                smic_reference_cumule,
+                tmin=tmin,
+                tdelta=tdelta,
+                p=p_expo,
+                point_sortie=point_sortie,
+            )
+            eligible = coefficient_C > 0
+            reduction_totale_due = round(brut_total_cumule * coefficient_C, 2)
+            montant_reduction_mois = reduction_totale_due - reduction_deja_appliquee
     else:
-        ratio_T_06 = parametre_T / 0.6
-        ratio_16_smic_brut = seuil_eligibilite / brut_total_cumule
-        difference = ratio_16_smic_brut - 1
-        coefficient_C_avant_bornage = ratio_T_06 * difference
-        coefficient_C = min(max(0, coefficient_C_avant_bornage), parametre_T)
-        bornee_inf = coefficient_C_avant_bornage < 0
-        bornee_sup = coefficient_C_avant_bornage > parametre_T
-        bornee = bornee_inf or bornee_sup
-        reduction_totale_due = brut_total_cumule * coefficient_C
-        montant_reduction_mois = reduction_totale_due - reduction_deja_appliquee
-        eligible = True
-        calcul_coefficient_C_detail = {
-            "formule_complete": "C = (T / 0.6) × ((1.6 × SMIC_cumulé / Brut_cumulé) - 1)",
-            "etape_1": {
-                "calcul": "T / 0.6",
-                "valeur": f"{parametre_T:.6f} / 0.6",
-                "resultat": round(ratio_T_06, 6),
-            },
-            "etape_2": {
-                "calcul": "1.6 × SMIC_cumulé / Brut_cumulé",
-                "valeur": f"1.6 × {smic_reference_cumule:.2f} / {brut_total_cumule:.2f}",
-                "resultat": round(ratio_16_smic_brut, 6),
-            },
-            "etape_3": {
-                "calcul": "Ratio - 1",
-                "valeur": f"{ratio_16_smic_brut:.6f} - 1",
-                "resultat": round(difference, 6),
-            },
-            "etape_4": {
-                "calcul": "(T / 0.6) × (Ratio - 1)",
-                "valeur": f"{ratio_T_06:.6f} × {difference:.6f}",
-                "resultat": round(coefficient_C_avant_bornage, 6),
-                "avant_bornage": True,
-            },
-            "bornage": {
-                "necessaire": bornee,
-                "bornee_inferieure": bornee_inf,
-                "bornee_superieure": bornee_sup,
-                "avant_bornage": round(coefficient_C_avant_bornage, 6),
-                "apres_bornage": round(coefficient_C, 6),
-                "borne_min": 0,
-                "borne_max": round(parametre_T, 6),
-            },
-            "coefficient_C_final": round(coefficient_C, 6),
+        # --- Branche Fillon (RGCP, périodes < 2026), conservée à l'identique ---
+        parametre_T = sum(taux_details.values())
+        calcul_T_detail = {
+            "somme_taux": round(parametre_T, 6),
+            "nombre_taux": len(taux_details),
+            "verification": round(sum(round(v, 6) for v in taux_details.values()), 6),
         }
+        seuil_eligibilite = 1.6 * smic_reference_cumule
+        seuil_multiplicateur = 1.6
+        formule_C = (
+            f"({parametre_T:.6f} / 0.6) × ((1.6 × {smic_reference_cumule:.2f}) "
+            f"/ {brut_total_cumule:.2f} - 1)"
+        )
+        if brut_total_cumule >= seuil_eligibilite:
+            coefficient_C = 0.0
+            reduction_totale_due = 0.0
+            montant_reduction_mois = -reduction_deja_appliquee
+            eligible = False
+            calcul_coefficient_C_detail = {
+                "condition": f"Brut cumulé ({brut_total_cumule:.2f}) >= Seuil 1.6 SMIC ({seuil_eligibilite:.2f})",
+                "resultat": "Non éligible - Coefficient C = 0",
+                "reduction_totale": 0,
+                "remboursement": f"Remboursement de {reduction_deja_appliquee:.2f} € déjà appliquée",
+            }
+        else:
+            ratio_T_06 = parametre_T / 0.6
+            ratio_16_smic_brut = seuil_eligibilite / brut_total_cumule
+            difference = ratio_16_smic_brut - 1
+            coefficient_C_avant_bornage = ratio_T_06 * difference
+            coefficient_C = min(max(0, coefficient_C_avant_bornage), parametre_T)
+            bornee_inf = coefficient_C_avant_bornage < 0
+            bornee_sup = coefficient_C_avant_bornage > parametre_T
+            bornee = bornee_inf or bornee_sup
+            reduction_totale_due = brut_total_cumule * coefficient_C
+            montant_reduction_mois = reduction_totale_due - reduction_deja_appliquee
+            eligible = True
+            calcul_coefficient_C_detail = {
+                "formule_complete": "C = (T / 0.6) × ((1.6 × SMIC_cumulé / Brut_cumulé) - 1)",
+                "etape_1": {
+                    "calcul": "T / 0.6",
+                    "valeur": f"{parametre_T:.6f} / 0.6",
+                    "resultat": round(ratio_T_06, 6),
+                },
+                "etape_2": {
+                    "calcul": "1.6 × SMIC_cumulé / Brut_cumulé",
+                    "valeur": f"1.6 × {smic_reference_cumule:.2f} / {brut_total_cumule:.2f}",
+                    "resultat": round(ratio_16_smic_brut, 6),
+                },
+                "etape_3": {
+                    "calcul": "Ratio - 1",
+                    "valeur": f"{ratio_16_smic_brut:.6f} - 1",
+                    "resultat": round(difference, 6),
+                },
+                "etape_4": {
+                    "calcul": "(T / 0.6) × (Ratio - 1)",
+                    "valeur": f"{ratio_T_06:.6f} × {difference:.6f}",
+                    "resultat": round(coefficient_C_avant_bornage, 6),
+                    "avant_bornage": True,
+                },
+                "bornage": {
+                    "necessaire": bornee,
+                    "bornee_inferieure": bornee_inf,
+                    "bornee_superieure": bornee_sup,
+                    "avant_bornage": round(coefficient_C_avant_bornage, 6),
+                    "apres_bornage": round(coefficient_C, 6),
+                    "borne_min": 0,
+                    "borne_max": round(parametre_T, 6),
+                },
+                "coefficient_C_final": round(coefficient_C, 6),
+            }
     montant_final = -round(montant_reduction_mois, 2)
     return {
         "result": {
@@ -857,7 +940,7 @@ def calculate_reduction_fillon(
             "taux_details_explicatifs": taux_details_explicatifs,
             "calcul_T_detail": calcul_T_detail,
             "coefficient_C": round(coefficient_C, 6),
-            "formule_C": f"({parametre_T:.6f} / 0.6) × ((1.6 × {smic_reference_cumule:.2f}) / {brut_total_cumule:.2f} - 1)",
+            "formule_C": formule_C,
             "calcul_coefficient_C_detail": calcul_coefficient_C_detail,
             "reduction_totale_due": round(reduction_totale_due, 2),
             "reduction_deja_appliquee": round(reduction_deja_appliquee, 2),
@@ -883,7 +966,7 @@ def calculate_reduction_fillon(
             "calcul_seuil": {
                 "smic_reference": round(smic_reference_cumule, 2),
                 "seuil_1_6": round(seuil_eligibilite, 2),
-                "formule": f"1.6 × {smic_reference_cumule:.2f} = {seuil_eligibilite:.2f}",
+                "formule": f"{seuil_multiplicateur} × {smic_reference_cumule:.2f} = {seuil_eligibilite:.2f}",
             },
             "verification_eligibilite": {
                 "brut_cumule": round(brut_total_cumule, 2),

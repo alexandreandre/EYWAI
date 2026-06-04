@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 
+from app.core.logging import get_logger, log_app_debug
 from app.shared.infrastructure.ai import is_llm_configured
 from app.modules.copilot.application.dto import (
     AgentQueryInput,
@@ -31,6 +32,8 @@ from app.modules.copilot.application.service import (
 )
 from app.modules.copilot.domain.rules import only_select_allowed
 
+logger = get_logger(__name__)
+
 
 def execute_text_to_sql(input_: TextToSqlInput) -> TextToSqlResult:
     """
@@ -48,7 +51,7 @@ def execute_text_to_sql(input_: TextToSqlInput) -> TextToSqlResult:
         logging.warning(f"Requête non-SELECT bloquée: {sql_query}")
         raise PermissionError("Requête non autorisée. Seuls les SELECT sont permis.")
 
-    logging.info(f"Exécution SQL (Text-to-SQL): {sql_query}")
+    log_app_debug(logger, "Exécution SQL (Text-to-SQL): %s", sql_query)
     raw_data = execute_sql_query(sql_query)
     final_answer = format_answer_from_data(input_.prompt, raw_data, sql_query)
 
@@ -77,13 +80,15 @@ def handle_agent_query(input_: AgentQueryInput) -> AgentQueryResult:
         raise LookupError("Company ID non trouvé pour cet utilisateur")
 
     company_agreements = get_company_collective_agreements(company_id)
-    logging.info(
-        f"Conventions collectives trouvées pour l'entreprise: {len(company_agreements)}"
+    log_app_debug(
+        logger,
+        "Conventions collectives trouvées pour l'entreprise: %s",
+        len(company_agreements),
     )
 
     plan = analyze_intent_and_plan(prompt, conversation_history, company_agreements)
     thought_process = f"Plan d'action: {json.dumps(plan, ensure_ascii=False, indent=2)}"
-    logging.info(thought_process)
+    log_app_debug(logger, "%s", thought_process)
 
     if plan.get("needs_clarification"):
         return AgentQueryResult(
@@ -106,8 +111,10 @@ def handle_agent_query(input_: AgentQueryInput) -> AgentQueryResult:
 
         if len(company_agreements) == 1:
             selected_agreement = company_agreements[0]
-            logging.info(
-                f"Une seule convention trouvée, utilisation automatique: {selected_agreement['name']}"
+            log_app_debug(
+                logger,
+                "Une seule convention trouvée, utilisation automatique: %s",
+                selected_agreement['name'],
             )
         else:
             collective_agreement_query = plan.get("collective_agreement_query")
@@ -189,15 +196,18 @@ def handle_agent_query(input_: AgentQueryInput) -> AgentQueryResult:
         context["employee_name"] = (
             f"{best_match['first_name']} {best_match['last_name']}"
         )
-        logging.info(
-            f"Employé identifié: {context['employee_name']} (similarité: {employee_matches[0]['similarity']})"
+        log_app_debug(
+            logger,
+            "Employé identifié: %s (similarité: %s)",
+            context['employee_name'],
+            employee_matches[0]['similarity'],
         )
 
     retrieval_results = []
     if plan.get("requires_data_retrieval"):
         steps = plan.get("data_retrieval_steps", ["Récupérer les données demandées"])
         for step in steps:
-            logging.info(f"Exécution de l'étape: {step}")
+            log_app_debug(logger, "Exécution de l'étape: %s", step)
             result = execute_retrieval_step(step, context)
             retrieval_results.append(result)
 

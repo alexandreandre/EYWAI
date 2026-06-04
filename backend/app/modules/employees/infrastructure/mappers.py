@@ -40,6 +40,7 @@ def prepare_employee_insert_data(
         "residence_permit_expiry_date",
         "date_conclusion_contrat",
         "date_debut_execution",
+        "contract_end_date",
     ):
         val = data.get(date_key)
         if isinstance(val, date):

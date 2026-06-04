@@ -12,6 +12,7 @@ logger = get_logger("modules.employees.application.commands")
 
 import secrets
 import string
+from datetime import date as _date
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -368,6 +369,10 @@ def update_employee(employee_id: str, update_data: Dict[str, Any]) -> Dict[str, 
     Met à jour un employé (dont alertes RIB si coordonnées bancaires modifiées).
     Comportement identique à update_employee (router legacy).
     """
+    for _key, _val in list(update_data.items()):
+        if isinstance(_val, _date):
+            update_data[_key] = _val.isoformat()
+
     if "coordonnees_bancaires" in update_data:
         try:
             curr = _employee_repository.get_by_id_only(employee_id)

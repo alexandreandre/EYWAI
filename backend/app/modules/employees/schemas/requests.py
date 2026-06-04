@@ -37,6 +37,8 @@ class NewFullEmployee(BaseModel):
     # l'option de maintien de l'ancien régime.
     date_conclusion_contrat: date | None = None
     date_debut_execution: date | None = None
+    # Fin de contrat planifiée (CDD, stage) : précarité CDD et prorata de sortie.
+    contract_end_date: date | None = None
     statut: str
     job_title: str
     periode_essai: Dict[str, Any] | None = None
@@ -68,6 +70,7 @@ class UpdateEmployee(BaseModel):
     phone_number: str | None = None
     adresse: Dict[str, Any] | None = None
     coordonnees_bancaires: Dict[str, Any] | None = None
+    contract_end_date: date | None = None
 
 
 __all__ = ["NewFullEmployee", "UpdateEmployee"]

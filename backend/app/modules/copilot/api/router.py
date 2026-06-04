@@ -11,6 +11,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from openai import APIConnectionError, AuthenticationError, RateLimitError
 
+from app.core.logging import is_app_debug_enabled
 from app.core.security import get_current_user
 from app.modules.copilot.api.dependencies import AuthenticatedUser
 from app.modules.copilot.schemas import (
@@ -40,10 +41,11 @@ async def handle_query(
         result = commands.execute_text_to_sql(
             TextToSqlInput(prompt=request.prompt, user_id=current_user.id)
         )
+        debug = is_app_debug_enabled()
         return QueryResponse(
             answer=result.answer,
-            sql_query=result.sql_query,
-            data=result.data,
+            sql_query=result.sql_query if debug else "",
+            data=result.data if debug else None,
         )
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -81,13 +83,14 @@ async def handle_agent_query(
                 user_id=current_user.id,
             )
         )
+        debug = is_app_debug_enabled()
         return AgentResponse(
             answer=result.answer,
             needs_clarification=result.needs_clarification,
             clarification_question=result.clarification_question,
-            sql_queries=result.sql_queries,
-            data=result.data,
-            thought_process=result.thought_process,
+            sql_queries=result.sql_queries if debug else None,
+            data=result.data if debug else None,
+            thought_process=result.thought_process if debug else None,
         )
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
