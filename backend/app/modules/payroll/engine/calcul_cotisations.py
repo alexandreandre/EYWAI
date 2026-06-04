@@ -5,6 +5,13 @@ logger = get_logger("modules.payroll.engine.calcul_cotisations")
 
 import os
 from .contexte import ContextePaie
+from . import legal_constants as lc
+from .exoneration_alternance import (
+    assiette_residuelle,
+    contexte_exoneration_apprenti,
+    controle_salaire_minimum_alternant,
+    exonerations_patronales_professionnalisation,
+)
 from typing import Dict, Any, List, Tuple
 import json
 from supabase import create_client, Client
@@ -19,7 +26,7 @@ def _calculer_assiettes(
 ) -> Dict[str, float]:
     """Prépare toutes les bases de calcul (assiettes) nécessaires pour les cotisations."""
     pss_mensuel = contexte.baremes.get("pss", {}).get("mensuel", 0.0)
-    duree_legale_hebdo = 35.0
+    duree_legale_hebdo = lc.DUREE_LEGALE_HEBDO
 
     # --- NOUVEAU BLOC : CALCUL DU PLAFOND AU PRORATA ---
     pss_calcule = pss_mensuel
@@ -42,8 +49,8 @@ def _calculer_assiettes(
     assiette_cet = 0.0
     # On utilise maintenant le pss_calcule (proratisé ou non)
     if salaire_brut > pss_calcule:
-        assiette_tranche_2 = max(0, min(salaire_brut, 8 * pss_calcule) - pss_calcule)
-        assiette_cet = min(salaire_brut, 8 * pss_calcule)
+        assiette_tranche_2 = max(0, min(salaire_brut, lc.FACTEUR_PLAFOND_TRANCHE_2 * pss_calcule) - pss_calcule)
+        assiette_cet = min(salaire_brut, lc.FACTEUR_PLAFOND_TRANCHE_2 * pss_calcule)
 
     # Parts patronales pour la base CSG (inchangé)
     mutuelle_spec = contexte.contrat.get("specificites_paie", {}).get("mutuelle", {})
@@ -167,6 +174,10 @@ def calculer_cotisations(
     liste_cotisations_brutes = contexte.baremes["cotisations"].get(root_key, [])
     bulletin_cotisations = []
 
+    # Exonération apprenti (None si non applicable). Tout est dynamique (barèmes).
+    exo_apprenti = contexte_exoneration_apprenti(contexte)
+    exoneration_salariale_apprenti = 0.0
+
     for coti_data in liste_cotisations_brutes:
         coti_id = coti_data.get("id")
 
@@ -203,13 +214,13 @@ def calculer_cotisations(
             if coti_id == "fnal":
                 taux_patronal_final = (
                     taux_patronal_brut.get("taux_moins_50")
-                    if contexte.effectif < 50
+                    if contexte.effectif < lc.SEUIL_EFFECTIF_FNAL
                     else taux_patronal_brut.get("taux_50_et_plus")
                 )
             elif coti_id == "CFP":
                 taux_patronal_final = (
                     taux_patronal_brut.get("taux_moins_11")
-                    if contexte.effectif < 11
+                    if contexte.effectif < lc.SEUIL_EFFECTIF_CFP
                     else taux_patronal_brut.get("taux_11_et_plus")
                 )
             elif coti_id in ["taxe_apprentissage", "taxe_apprentissage_solde"]:
@@ -221,9 +232,9 @@ def calculer_cotisations(
             else:
                 taux_patronal_final = 0.0
 
-        smic_mensuel = (
-            contexte.baremes.get("smic", {}).get("cas_general", 0.0) * 35 * 52 / 12
-        )
+        # SMIC mensuel TEMPS PLEIN (non proratisé) — seuils légaux maladie/AF.
+        # Centralisé sur le contexte (DRY) sans changer le comportement existant.
+        smic_mensuel = contexte.smic_mensuel
         if coti_id == "allocations_familiales":
             taux_patronal_final = (
                 coti_data.get("patronal_reduit")
@@ -252,6 +263,36 @@ def calculer_cotisations(
             taux_csg_deductible = taux_salarial.get("deductible", 0.0)
             taux_csg_non_deductible = taux_salarial.get("non_deductible", 0.0)
             taux_csg_total = taux_csg_deductible + taux_csg_non_deductible
+
+            # --- Cas apprenti : base CSG/CRDS ISOLÉE (pas de parts patronales) ---
+            if exo_apprenti is not None:
+                if not exo_apprenti["csg_crds_assujettie"]:
+                    # Régime ancien : apprenti totalement exonéré de CSG/CRDS.
+                    continue
+                # Régime récent : CSG/CRDS sur la fraction au-delà du plafond,
+                # après abattement frais pro. Sans parts patronales mutuelle/prévoyance.
+                base_csg_apprenti = round(
+                    assiette_residuelle(salaire_brut, exo_apprenti["plafond"])
+                    * (1.0 - exo_apprenti["abattement_csg"]),
+                    2,
+                )
+                for ligne in [
+                    _calculer_une_ligne(
+                        "CSG déductible",
+                        base_csg_apprenti,
+                        taux_csg_deductible,
+                        None,
+                    ),
+                    _calculer_une_ligne(
+                        "CSG/CRDS non déductible",
+                        base_csg_apprenti,
+                        taux_csg_non_deductible,
+                        None,
+                    ),
+                ]:
+                    if ligne:
+                        bulletin_cotisations.append(ligne)
+                continue
 
             for ligne in [
                 _calculer_une_ligne(
@@ -286,6 +327,47 @@ def calculer_cotisations(
 
         if ligne_calculee:
             bulletin_cotisations.append(ligne_calculee)
+
+        # --- Exonération salariale apprenti (cotisations légales/conv. non exclues) ---
+        # On accumule la part salariale calculée sur la fraction <= plafond.
+        # Mutuelle/prévoyance/APEC restent dues (listées dans cotisations_exclues).
+        if (
+            exo_apprenti is not None
+            and taux_salarial
+            and not isinstance(taux_salarial, dict)
+            and coti_id not in exo_apprenti["cotisations_exclues"]
+            and coti_id
+            not in ("csg", "csg_deductible", "csg_non_deductible", "crds")
+        ):
+            base_exoneree = min(assiette, exo_apprenti["plafond"])
+            exoneration_salariale_apprenti += round(
+                taux_salarial * base_exoneree, 2
+            )
+
+    # Contrat de professionnalisation : exonérations patronales éventuelles
+    # (vides par défaut — la réduction générale couvre déjà l'historique).
+    for ligne_pro in exonerations_patronales_professionnalisation(
+        contexte, salaire_brut
+    ):
+        bulletin_cotisations.append(ligne_pro)
+
+    # Contrôle (non bloquant) du salaire minimum conventionnel alternant.
+    alerte_salaire = controle_salaire_minimum_alternant(contexte, salaire_brut)
+    if alerte_salaire is not None and isinstance(contexte.alertes_baremes, list):
+        contexte.alertes_baremes.append(alerte_salaire)
+
+    # Ligne d'allègement visible : exonération des cotisations salariales apprenti.
+    if exo_apprenti is not None and exoneration_salariale_apprenti > 0:
+        bulletin_cotisations.append(
+            {
+                "libelle": "Exonération cotisations salariales apprenti",
+                "base": round(min(salaire_brut, exo_apprenti["plafond"]), 2),
+                "taux_salarial": None,
+                "montant_salarial": -round(exoneration_salariale_apprenti, 2),
+                "taux_patronal": None,
+                "montant_patronal": 0.0,
+            }
+        )
 
     # Ajout manuel des cotisations forfaitaires (mutuelle, etc.)
     mutuelle_spec = contexte.contrat.get("specificites_paie", {}).get("mutuelle", {})

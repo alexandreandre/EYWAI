@@ -72,6 +72,7 @@ def creer_bulletin_final(
         "réduction générale",
         "réduction de cotisations sur heures sup",
         "déduction forfaitaire",
+        "exonération cotisations salariales apprenti",
     ]
 
     for ligne in lignes_cotisations:
@@ -127,11 +128,23 @@ def creer_bulletin_final(
     ]
     periode_formatee = f"{mois_nom_francais[mois - 1]} {annee}"
 
+    # Base du PAS : net imposable, sauf apprenti exonéré d'IR (base réduite).
+    base_pas = resultats_nets.get("base_pas")
+    if base_pas is None:
+        base_pas = resultats_nets.get("net_imposable")
+    exoneration_ir_apprenti = bool(
+        contexte.is_apprenti
+        and base_pas is not None
+        and resultats_nets.get("net_imposable") is not None
+        and base_pas < resultats_nets.get("net_imposable")
+    )
+
     synthese_net: Dict[str, Any] = {
         "net_social_avant_impot": resultats_nets.get("net_social"),
         "net_imposable": resultats_nets.get("net_imposable"),
+        "exoneration_ir_apprenti": exoneration_ir_apprenti,
         "impot_prelevement_a_la_source": {
-            "base": resultats_nets.get("net_imposable"),
+            "base": base_pas,
             "taux": contexte.contrat.get("specificites_paie", {})
             .get("prelevement_a_la_source", {})
             .get("taux", 0.0),
@@ -158,6 +171,11 @@ def creer_bulletin_final(
             "subrogation_active", False
         )
 
+    alertes_baremes = getattr(contexte, "alertes_baremes", []) or []
+    donnees_non_officielles = any(
+        a.get("donnee_non_officielle") for a in alertes_baremes
+    )
+
     bulletin = {
         "en_tete": {
             "periode": periode_formatee,
@@ -173,6 +191,8 @@ def creer_bulletin_final(
                 "nir": contexte.contrat.get("salarie", {}).get("nir"),
                 "emploi": contexte.contrat.get("contrat", {}).get("emploi"),
                 "statut": contexte.statut_salarie,
+                "type_contrat": contexte.type_contrat,
+                "is_alternant": contexte.is_alternant,
                 "date_entree": contexte.contrat.get("contrat", {}).get("date_entree"),
             },
         },
@@ -214,6 +234,8 @@ def creer_bulletin_final(
                 "heures_supplementaires_cumulees": 0,
             },
         },
+        "alertes_baremes": alertes_baremes,
+        "donnees_non_officielles": donnees_non_officielles,
     }
     log_payroll_debug(logger, 'INFO: Bulletin de paie final assemblé.')
     return bulletin

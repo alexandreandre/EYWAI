@@ -241,8 +241,19 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
             files_to_cleanup.append(file_path)
 
         contrat_json_content = {
+            "salarie": {
+                "nom": employee_data.get("last_name"),
+                "prenom": employee_data.get("first_name"),
+                "nir": employee_data.get("nir"),
+                "date_naissance": employee_data.get("date_naissance"),
+            },
             "contrat": {
                 "date_entree": employee_data.get("hire_date"),
+                "type_contrat": employee_data.get("contract_type"),
+                "date_conclusion_contrat": employee_data.get(
+                    "date_conclusion_contrat"
+                ),
+                "date_debut_execution": employee_data.get("date_debut_execution"),
                 "statut": statut,
                 "temps_travail": {"duree_hebdomadaire": duree_hebdo},
             },

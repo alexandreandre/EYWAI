@@ -287,6 +287,10 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
             "contrat": {
                 "date_entree": employee_data.get("hire_date"),
                 "type_contrat": employee_data.get("contract_type"),
+                "date_conclusion_contrat": employee_data.get(
+                    "date_conclusion_contrat"
+                ),
+                "date_debut_execution": employee_data.get("date_debut_execution"),
                 "statut": employee_data.get("statut"),
                 "emploi": employee_data.get("job_title"),
                 "periode_essai": _parse_if_json_string(

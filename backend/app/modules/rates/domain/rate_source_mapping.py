@@ -18,6 +18,7 @@ RATE_KEY_TO_SOURCE_KEYS: dict[str, list[str]] = {
     "primes": ["PRIMES"],
     "baremes_km": ["BAREME_INDEMNITE_KILOMETRIQUE"],
     "taux_vmrr": ["VM"],
+    "alternance": ["ALTERNANCE"],
     "cotisations": [
         "AGIRC-ARRCO",
         "AGS",

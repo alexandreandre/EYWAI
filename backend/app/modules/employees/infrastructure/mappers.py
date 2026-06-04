@@ -34,7 +34,13 @@ def prepare_employee_insert_data(
     data["company_id"] = company_id
     data["username"] = username
 
-    for date_key in ("date_naissance", "hire_date", "residence_permit_expiry_date"):
+    for date_key in (
+        "date_naissance",
+        "hire_date",
+        "residence_permit_expiry_date",
+        "date_conclusion_contrat",
+        "date_debut_execution",
+    ):
         val = data.get(date_key)
         if isinstance(val, date):
             data[date_key] = val.isoformat()

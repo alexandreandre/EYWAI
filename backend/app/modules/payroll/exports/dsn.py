@@ -9,6 +9,40 @@ from xml.dom import minidom
 from app.core.database import supabase
 
 
+def get_alternance_dsn_config() -> Dict[str, Any]:
+    """Lit dynamiquement le bloc DSN alternance depuis payroll_config.
+
+    Aucune valeur en dur : codes dispositif politique publique, etc.
+    Retourne {} si absent (pas d'enrichissement DSN spécifique).
+    """
+    try:
+        resp = (
+            supabase.table("payroll_config")
+            .select("config_data")
+            .eq("config_key", "alternance")
+            .eq("is_active", True)
+            .limit(1)
+            .execute()
+        )
+        if resp.data:
+            data = resp.data[0].get("config_data") or {}
+            if isinstance(data, dict):
+                return data.get("dsn", {}) or {}
+    except Exception:
+        pass
+    return {}
+
+
+def code_dispositif_politique_publique(
+    dsn_config: Dict[str, Any], contract_type: Optional[str]
+) -> Optional[str]:
+    """Code DSN dispositif de politique publique pour un alternant (dynamique)."""
+    if not contract_type:
+        return None
+    mapping = dsn_config.get("codes_dispositif_politique_publique", {}) or {}
+    return mapping.get(contract_type)
+
+
 def validate_nir(nir: Optional[str]) -> Tuple[bool, Optional[str]]:
     """
     Valide un NIR français (15 chiffres)
@@ -347,12 +381,24 @@ def check_dsn_data(
             mutuelle = specificites.get("mutuelle", {})
             prevoyance = specificites.get("prevoyance", {})
 
-            if contract_type in ["CDI", "CDD"] and not mutuelle.get("adhesion"):
+            # La mutuelle/prévoyance restent dues pour les alternants (apprentis,
+            # contrats de professionnalisation) : on étend le contrôle d'adhésion.
+            contrats_avec_couverture = [
+                "CDI",
+                "CDD",
+                "Apprentissage",
+                "Contrat de professionnalisation",
+            ]
+            if contract_type in contrats_avec_couverture and not mutuelle.get(
+                "adhesion"
+            ):
                 warnings.append(
                     f"Salarié {employee_name} : mutuelle absente alors que contrat actif"
                 )
 
-            if contract_type in ["CDI", "CDD"] and not prevoyance.get("adhesion"):
+            if contract_type in contrats_avec_couverture and not prevoyance.get(
+                "adhesion"
+            ):
                 warnings.append(
                     f"Salarié {employee_name} : prévoyance absente alors que contrat actif"
                 )
@@ -541,6 +587,8 @@ def generate_dsn_xml(
         ET.SubElement(adresse_etab, "CodePostal").text = address.get("code_postal", "")
         ET.SubElement(adresse_etab, "Ville").text = address.get("ville", "")
 
+    alternance_dsn_config = get_alternance_dsn_config()
+
     salaries = ET.SubElement(root, "Salaries")
     for emp_data in employees_data:
         employee = emp_data["employee"]
@@ -554,8 +602,15 @@ def generate_dsn_xml(
         ET.SubElement(identite, "NIR").text = employee.get("nir", "")
 
         contrat = ET.SubElement(salarie, "Contrat")
-        ET.SubElement(contrat, "TypeContrat").text = employee.get("contract_type", "")
+        contract_type = employee.get("contract_type", "")
+        ET.SubElement(contrat, "TypeContrat").text = contract_type
         ET.SubElement(contrat, "DateEntree").text = employee.get("hire_date", "")
+        # Dispositif de politique publique (alternance) — code dynamique si applicable.
+        code_dispositif = code_dispositif_politique_publique(
+            alternance_dsn_config, contract_type
+        )
+        if code_dispositif:
+            ET.SubElement(contrat, "DispositifPolitiquePublique").text = code_dispositif
 
         remuneration = ET.SubElement(salarie, "Remuneration")
         ET.SubElement(remuneration, "Brut").text = str(emp_data.get("brut", 0))

@@ -310,6 +310,9 @@
             {% if en_tete.salarie.statut %}
             <p class="employee-info">Statut : {{ en_tete.salarie.statut }}</p>
             {% endif %}
+            {% if en_tete.salarie.type_contrat %}
+            <p class="employee-info">Type de contrat : {{ en_tete.salarie.type_contrat }}</p>
+            {% endif %}
             {% if en_tete.salarie.nir %}
             <p class="employee-info">NIR : {{ en_tete.salarie.nir }}</p>
             {% endif %}
@@ -568,6 +571,9 @@
         <p><strong>Net à payer avant impôt :</strong><span>{{ "%.2f"|format(synthese_net.net_social_avant_impot) }} €</span></p>
         <p><strong>Net Imposable :</strong><span>{{ "%.2f"|format(synthese_net.net_imposable) }} €</span></p>
 
+        {% if synthese_net.exoneration_ir_apprenti %}
+        <p class="employee-info"><em>Apprenti : rémunération exonérée d'impôt sur le revenu dans la limite du SMIC annuel.</em></p>
+        {% endif %}
         {% if synthese_net.impot_prelevement_a_la_source and synthese_net.impot_prelevement_a_la_source.montant %}
         <p><strong>Impôt sur le revenu (Prélèvement à la source) :</strong><span class="perte">- {{ "%.2f"|format(synthese_net.impot_prelevement_a_la_source.montant) }} €</span></p>
         {% endif %}

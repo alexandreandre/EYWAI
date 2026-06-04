@@ -4,6 +4,7 @@ logger = get_logger("modules.payroll.engine.calcul_net")
 # moteur_paie/calcul_net.py
 import os
 from .contexte import ContextePaie
+from .exoneration_alternance import contexte_exoneration_apprenti
 from typing import Dict, Any, List
 from supabase import create_client, Client
 
@@ -121,6 +122,46 @@ def _calculer_net_imposable(
     return round(net_imposable_final, 2)
 
 
+def _base_pas_du_mois(contexte: ContextePaie, net_imposable_mois: float) -> float:
+    """Base mensuelle du prélèvement à la source.
+
+    Cas général : la base PAS = net imposable du mois.
+
+    Apprenti : la rémunération est exonérée d'impôt jusqu'au SMIC annuel.
+    On ne rabote QUE la base PAS (le net imposable affiché/déclaré DSN reste
+    inchangé). L'exonération étant annuelle, on raisonne en cumul : la base
+    imposable du mois est la fraction du cumul annuel dépassant le plafond.
+    Conséquence connue : un « saut » de PAS le mois où le cumul franchit le
+    SMIC annuel (comportement correct sur l'année).
+    """
+    net_imposable_mois = _get_safe_float(net_imposable_mois)
+
+    exo = contexte_exoneration_apprenti(contexte)
+    if exo is None:
+        return net_imposable_mois
+
+    exoneration_ir = exo.get("exoneration_ir") or {}
+    if not exoneration_ir.get("actif"):
+        return net_imposable_mois
+
+    pct_annuel = _get_safe_float(exoneration_ir.get("plafond_annuel_pct_smic"))
+    if pct_annuel <= 0:
+        return net_imposable_mois
+
+    plafond_ir_annuel = contexte.smic_mensuel * 12 * pct_annuel
+
+    cumuls = contexte.cumuls_annee_precedente if isinstance(
+        contexte.cumuls, dict
+    ) else {}
+    net_imposable_cumule_avant = _get_safe_float(cumuls.get("net_imposable"))
+    net_imposable_cumule_avec = net_imposable_cumule_avant + net_imposable_mois
+
+    base_pas_cumulee_avant = max(0.0, net_imposable_cumule_avant - plafond_ir_annuel)
+    base_pas_cumulee_avec = max(0.0, net_imposable_cumule_avec - plafond_ir_annuel)
+    base_pas_mois = base_pas_cumulee_avec - base_pas_cumulee_avant
+    return round(max(0.0, base_pas_mois), 2)
+
+
 def _calculer_prelevement_a_la_source(
     contexte: ContextePaie, net_imposable: float
 ) -> float:
@@ -129,8 +170,65 @@ def _calculer_prelevement_a_la_source(
         .get("prelevement_a_la_source", {})
         .get("taux")
     )
-    montant_pas = _get_safe_float(net_imposable) * (taux_pas / 100.0)
+    # Base PAS éventuellement réduite (exonération IR apprenti). Pour un taux
+    # personnalisé DGFiP comme pour un taux neutre/0, on applique le taux sur
+    # la base réduite ; un taux 0 donne donc 0 (cohérent).
+    base_pas = _base_pas_du_mois(contexte, net_imposable)
+    montant_pas = base_pas * (taux_pas / 100.0)
     return round(montant_pas, 2)
+
+
+def _zone_pas(contexte: ContextePaie) -> str:
+    if contexte.is_alsace_moselle:
+        return "alsace_moselle"
+    return "metropole"
+
+
+def taux_pas_neutre(
+    baremes_pas: List[Dict[str, Any]],
+    net_imposable: float,
+    zone: str = "metropole",
+) -> float:
+    """
+    Taux neutre PAS depuis le barème scrapé (simulation / contrôle / sans taux individuel).
+    """
+    if not baremes_pas or net_imposable <= 0:
+        return 0.0
+    zone_norm = zone.lower().replace("-", "_")
+    selected = None
+    for entry in baremes_pas:
+        if not isinstance(entry, dict):
+            continue
+        z = str(entry.get("zone", "")).lower().replace("-", "_")
+        if z == zone_norm or zone_norm in z or z in zone_norm:
+            selected = entry
+            break
+    if selected is None and baremes_pas:
+        selected = baremes_pas[0] if isinstance(baremes_pas[0], dict) else None
+    if not selected:
+        return 0.0
+    tranches = selected.get("tranches") or []
+    if not isinstance(tranches, list):
+        return 0.0
+
+    def _plafond_key(t: Dict[str, Any]) -> float:
+        p = t.get("plafond")
+        return float("inf") if p is None else float(p)
+
+    tranches_sorted = sorted(tranches, key=_plafond_key)
+    for tr in tranches_sorted:
+        plafond = tr.get("plafond")
+        if plafond is None or net_imposable <= float(plafond):
+            try:
+                return float(tr.get("taux") or 0.0)
+            except (TypeError, ValueError):
+                return 0.0
+    if tranches_sorted:
+        try:
+            return float(tranches_sorted[-1].get("taux") or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+    return 0.0
 
 
 def _calculer_net_a_payer(
@@ -242,6 +340,7 @@ def calculer_net_et_impot(
     )
 
     montant_impot = _calculer_prelevement_a_la_source(contexte, net_imposable)
+    base_pas = _base_pas_du_mois(contexte, net_imposable)
     net_a_payer, remboursement_transport = _calculer_net_a_payer(
         net_social,
         montant_impot,
@@ -254,6 +353,7 @@ def calculer_net_et_impot(
     return {
         "net_social": net_social,
         "net_imposable": net_imposable,
+        "base_pas": base_pas,
         "montant_impot_pas": montant_impot,
         "net_a_payer": net_a_payer,
         "remboursement_transport": remboursement_transport,

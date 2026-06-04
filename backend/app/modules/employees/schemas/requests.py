@@ -32,6 +32,11 @@ class NewFullEmployee(BaseModel):
     # Contrat
     hire_date: date
     contract_type: str
+    # Dates spécifiques alternance (optionnelles) : la date de début d'exécution
+    # est le fait générateur du régime apprenti ; la date de conclusion sert à
+    # l'option de maintien de l'ancien régime.
+    date_conclusion_contrat: date | None = None
+    date_debut_execution: date | None = None
     statut: str
     job_title: str
     periode_essai: Dict[str, Any] | None = None
