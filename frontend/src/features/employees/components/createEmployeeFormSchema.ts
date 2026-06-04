@@ -28,6 +28,9 @@ export const createEmployeeFormSchema = z.object({
   // --- SECTION CONTRAT (COMPLÉTÉE) ---
   hire_date: z.string().refine((d) => !isNaN(Date.parse(d)), { message: "Date invalide." }),
   contract_type: z.string().min(2),
+  // Dates spécifiques alternance (optionnelles)
+  date_conclusion_contrat: z.string().optional(),
+  date_debut_execution: z.string().optional(),
   statut: z.string().min(2),
   job_title: z.string().min(2),
   /** Équipe (optionnel, vide = aucune) — affecté à la création si supporté par l’API */
@@ -66,6 +69,9 @@ export const createEmployeeFormSchema = z.object({
    // --- SECTION SPÉCIFICITÉS (DÉTAILLÉE) ---
   specificites_paie: z.object({
     is_alsace_moselle: z.boolean(),
+    // Apprenti : maintien de l'ancien régime d'exonération (contrat conclu avant
+    // le 01/03/2025 mais débutant après). Optionnel.
+    maintien_regime_apprenti: z.boolean().optional(),
     prelevement_a_la_source: z.object({
       is_personnalise: z.boolean(),
       taux: z.coerce.number().min(0).max(100).optional(),

@@ -90,6 +90,8 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
       residence_permit_number: "",
       hire_date: new Date().toISOString().split('T')[0],
       contract_type: "CDI", statut: "Non-Cadre", job_title: "",
+      date_conclusion_contrat: "",
+      date_debut_execution: "",
       team_id: "",
       // periode_essai: { duree_initiale: 2, unite: "mois", renouvellement_possible: true },
       is_temps_partiel: false,
@@ -111,6 +113,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
       
       specificites_paie: {
         is_alsace_moselle: false,
+        maintien_regime_apprenti: false,
         prelevement_a_la_source: {
           is_personnalise: false,
           taux: 0,
@@ -1137,6 +1140,40 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                           <FormField control={form.control} name="contract_type" render={({ field }) => (<FormItem><FormLabel>Type de contrat</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                           <FormField control={form.control} name="statut" render={({ field }) => (<FormItem><FormLabel>Statut</FormLabel><FormControl><Input placeholder="Non-Cadre" {...field} /></FormControl><FormMessage /></FormItem>)} />
                         </div>
+                        {(() => {
+                          const ct = (form.watch("contract_type") || "").toLowerCase();
+                          const estAlternance = ct.includes("apprentissage") || ct.includes("professionnalisation");
+                          const estApprenti = ct.includes("apprentissage");
+                          if (!estAlternance) return null;
+                          return (
+                            <div className="space-y-4 rounded-md border border-dashed p-4">
+                              <p className="text-sm font-medium text-muted-foreground">
+                                Alternance — les dates ci-dessous déterminent le régime d'exonération.
+                              </p>
+                              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <FormField control={form.control} name="date_debut_execution" render={({ field }) => (<FormItem><FormLabel>1er jour d'exécution</FormLabel><FormControl><Input type="date" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="date_conclusion_contrat" render={({ field }) => (<FormItem><FormLabel>Date de conclusion (signature)</FormLabel><FormControl><Input type="date" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
+                              </div>
+                              {estApprenti && (
+                                <FormField
+                                  control={form.control}
+                                  name="specificites_paie.maintien_regime_apprenti"
+                                  render={({ field }) => (
+                                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                                      <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                                      <div className="space-y-1 leading-none">
+                                        <FormLabel>Maintien de l'ancien régime (exonération 79 % SMIC)</FormLabel>
+                                        <p className="text-xs text-muted-foreground">
+                                          Contrat conclu avant le 01/03/2025 mais débutant après cette date.
+                                        </p>
+                                      </div>
+                                    </FormItem>
+                                  )}
+                                />
+                              )}
+                            </div>
+                          );
+                        })()}
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end">
                           <FormField control={form.control} name="duree_hebdomadaire" render={({ field }) => (<FormItem><FormLabel>Durée hebdo. (heures)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
                           <FormField

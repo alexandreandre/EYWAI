@@ -11,6 +11,20 @@ const RATE_KEY_LABELS: Record<string, string> = {
   heures_supplementaires: 'Heures supplémentaires',
   primes: 'Primes',
   baremes_km: 'Barème kilométrique',
+  alternance: 'Alternance (apprentis / pro)',
+
+  // Alternance
+  apprenti: 'Apprenti',
+  professionnalisation: 'Professionnalisation',
+  regimes: 'Régimes par date',
+  plafond_exoneration_pct_smic: 'Plafond exonération (% SMIC)',
+  csg_crds_assujettie_au_dela_plafond: 'CSG/CRDS au-delà du plafond',
+  abattement_csg_frais_pro: 'Abattement CSG frais pro',
+  cotisations_exclues_exoneration: 'Cotisations toujours dues',
+  exoneration_ir: 'Exonération impôt sur le revenu',
+  plafond_annuel_pct_smic: 'Plafond annuel (% SMIC)',
+  date_execution_min: 'Exécution à partir du',
+  date_execution_max: "Exécution jusqu'au",
 
   // SMIC / PSS
   annee: 'Année',
