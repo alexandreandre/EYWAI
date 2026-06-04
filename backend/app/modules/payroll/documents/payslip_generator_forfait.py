@@ -24,11 +24,11 @@ from app.core.database import supabase
 from app.core.paths import (
     payroll_engine_root,
     payroll_engine_employee_folder,
-    payroll_engine_entreprise_json,
 )
 
 
 from app.shared.domain.employment_rules import is_forfait_jour as is_forfait_jour
+from app.modules.payroll.documents.payslip_generator import resolve_date_sortie
 
 
 def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
@@ -254,6 +254,8 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
                     "date_conclusion_contrat"
                 ),
                 "date_debut_execution": employee_data.get("date_debut_execution"),
+                "date_fin_contrat": employee_data.get("contract_end_date"),
+                "date_sortie": resolve_date_sortie(employee_data),
                 "statut": statut,
                 "temps_travail": {"duree_hebdomadaire": duree_hebdo},
             },
@@ -274,7 +276,9 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
 
         write_temp_json(employee_path / "contrat.json", contrat_json_content)
 
-        entreprise_json_path = payroll_engine_entreprise_json()
+        # Isolation par génération : écrit dans le dossier de l'employé plutôt que
+        # dans le fichier partagé data/entreprise.json (concurrence multi-tenant).
+        entreprise_json_path = employee_path / "entreprise.json"
         entreprise_json_content = {
             "_commentaire": "Ce fichier est généré dynamiquement à chaque cycle de paie.",
             "entreprise": {
@@ -349,7 +353,7 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
         )
 
         payslip_json_data = run_payslip_generation_forfait(
-            employee_path, year, month, engine_root
+            employee_path, year, month, engine_root, company_id=str(company_id)
         )
 
         # --- ÉTAPE 5 : SAUVEGARDER ---

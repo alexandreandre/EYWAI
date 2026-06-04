@@ -30,6 +30,10 @@ from .payslip_run_common import (
     definir_periode_de_paie,
     mettre_a_jour_cumuls,
 )
+from .payslip_run_heures import (
+    _appliquer_maintien_arret_maladie,
+    _extraire_arret_pour_maintien,
+)
 
 
 def _preparer_calendrier_enrichi_forfait(
@@ -80,6 +84,7 @@ def run_payslip_generation_forfait(
     month: int,
     engine_root: Path,
     baremes_override: dict | None = None,
+    company_id: str | None = None,
 ) -> dict:
     """
     Génère un bulletin forfait jour en processus (sans subprocess).
@@ -97,13 +102,23 @@ def run_payslip_generation_forfait(
     year if month > 1 else year - 1
     chemin_cumuls = employee_path / "cumuls" / f"{prev_month:02d}.json"
 
+    # entreprise.json isolé par génération (évite la concurrence multi-tenant sur
+    # le fichier partagé data/entreprise.json) ; repli sur le partagé si absent.
+    chemin_entreprise_isole = employee_path / "entreprise.json"
+    chemin_entreprise = (
+        chemin_entreprise_isole
+        if chemin_entreprise_isole.exists()
+        else engine_root / "data" / "entreprise.json"
+    )
     contexte = ContextePaie(
         chemin_contrat=str(employee_path / "contrat.json"),
-        chemin_entreprise=str(engine_root / "data" / "entreprise.json"),
+        chemin_entreprise=str(chemin_entreprise),
         chemin_cumuls=str(chemin_cumuls),
         chemin_data_dir=str(engine_root / "data"),
         baremes_override=baremes_override,
     )
+    # Aiguillage Fillon (< 2026) / RGDU (>= 2026) et suppression des bandeaux maladie/AF.
+    contexte.year = year
 
     if not contexte.is_forfait_jour:
         raise ValueError(
@@ -250,9 +265,64 @@ def run_payslip_generation_forfait(
     remuneration_hs = resultat_brut["remuneration_brute_heures_supp"]
     total_heures_supp = resultat_brut["total_heures_supp"]
 
+    # Arrêt maladie (forfait jour) : maintien employeur + IJSS subrogées.
+    resultats_maintien: Dict[str, Any] | None = None
+    if company_id:
+        arret_data = _extraire_arret_pour_maintien(
+            calendrier_etendu, contexte, date_debut_periode, date_fin_periode
+        )
+        if arret_data:
+            try:
+                from app.modules.maintenance_settings.application.queries import (
+                    get_maintenance_settings,
+                )
+                from app.modules.payroll.engine.maintien_salaire_service import (
+                    calculer_maintien,
+                )
+
+                settings_maintien = get_maintenance_settings(company_id)
+                settings_dict = settings_maintien.model_dump(mode="json")
+                resultats_maintien = calculer_maintien(
+                    arret_data,
+                    contexte,
+                    settings_dict,
+                    date_debut_periode,
+                    date_fin_periode,
+                )
+            except Exception as exc:
+                logging.warning(
+                    "Maintien de salaire non calculé (forfait, company_id=%s): %s",
+                    company_id,
+                    exc,
+                )
+                resultats_maintien = None
+
+    lignes_csg_ijss, ijss_imposables, brut_modifie = _appliquer_maintien_arret_maladie(
+        contexte, resultats_maintien, details_brut
+    )
+    if brut_modifie:
+        salaire_brut_calcule = round(
+            sum(
+                (ligne.get("gain", 0.0) or 0.0)
+                for ligne in details_brut
+                if not ligne.get("is_sous_total")
+            )
+            - sum((ligne.get("perte", 0.0) or 0.0) for ligne in details_brut),
+            2,
+        )
+
     lignes_cotisations, total_salarial = calculer_cotisations(
         contexte, salaire_brut_calcule, remuneration_hs, total_heures_supp
     )
+    if lignes_csg_ijss:
+        lignes_cotisations.extend(lignes_csg_ijss)
+        total_salarial = round(
+            total_salarial
+            + sum(l.get("montant_salarial", 0.0) or 0.0 for l in lignes_csg_ijss),
+            2,
+        )
+    if ijss_imposables:
+        primes_soumises_impot = list(primes_soumises_impot) + ijss_imposables
 
     nombre_jours_travailles = resultat_brut.get("nombre_jours_travailles", 0)
     heures_equivalentes = nombre_jours_travailles * 7.0
@@ -293,6 +363,7 @@ def run_payslip_generation_forfait(
         primes_non_soumises,
         year,
         month,
+        resultats_maintien=resultats_maintien,
     )
 
     smic_calcule_mois = (

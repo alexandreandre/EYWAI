@@ -126,6 +126,42 @@ def analyser_horaires_du_mois(
             )
             h_hs50 = max(0, fin_compteur - max(debut_compteur, seuil_hs25_legal))
 
+            # Heures complémentaires (temps partiel) : heures au-delà de la durée
+            # contractuelle mais sous le seuil légal (3500 centièmes = 35 h).
+            # Majoration à 10 % dans la limite du 1/10e du contrat, 25 % au-delà.
+            if duree_contrat_centiemes < seuil_base_legal:
+                seuil_hc10_centiemes = duree_contrat_centiemes + max(
+                    1, duree_contrat_centiemes // 10
+                )
+                h_hc10 = max(
+                    0,
+                    min(fin_compteur, seuil_hc10_centiemes, seuil_base_legal)
+                    - max(debut_compteur, duree_contrat_centiemes),
+                )
+                h_hc25 = max(
+                    0,
+                    min(fin_compteur, seuil_base_legal)
+                    - max(debut_compteur, seuil_hc10_centiemes),
+                )
+                if h_hc10 > 0:
+                    evenements_finaux.append(
+                        {
+                            "jour": jour_reel["jour"],
+                            "mois": jour_reel["mois"],
+                            "type": "travail_hc10",
+                            "heures": h_hc10 / 100.0,
+                        }
+                    )
+                if h_hc25 > 0:
+                    evenements_finaux.append(
+                        {
+                            "jour": jour_reel["jour"],
+                            "mois": jour_reel["mois"],
+                            "type": "travail_hc25",
+                            "heures": h_hc25 / 100.0,
+                        }
+                    )
+
             if h_hs25 > 0:
                 evenements_finaux.append(
                     {

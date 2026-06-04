@@ -17,7 +17,6 @@ from app.core.logging import get_logger, log_payroll_debug
 from app.core.paths import (
     payroll_engine_root,
     payroll_engine_employee_folder,
-    payroll_engine_entreprise_json,
 )
 from app.modules.payroll.application.analyzer import (
     analyser_horaires_du_mois as payroll_analyzer_analyser,
@@ -34,6 +33,38 @@ def _parse_if_json_string(value: Any) -> Any:
         except json.JSONDecodeError:
             return value
     return value
+
+
+def resolve_date_sortie(employee_data: dict) -> Any:
+    """Date de sortie effective d'un employé pour le bulletin.
+
+    Priorité : sortie effective (employee_exits.last_working_day du dossier de
+    sortie en cours) puis fin de contrat planifiée (employees.contract_end_date).
+    Tolérant aux erreurs réseau (retourne contract_end_date en repli).
+    """
+    contract_end = employee_data.get("contract_end_date")
+    exit_id = employee_data.get("current_exit_id")
+    if not exit_id:
+        return contract_end
+    try:
+        exit_res = (
+            supabase.table("employee_exits")
+            .select("last_working_day, status")
+            .eq("id", exit_id)
+            .maybe_single()
+            .execute()
+        )
+        exit_row = exit_res.data if exit_res else None
+        if exit_row and (exit_row.get("status") or "").lower() not in (
+            "cancelled",
+            "canceled",
+            "annule",
+            "annulee",
+        ):
+            return exit_row.get("last_working_day") or contract_end
+    except Exception as exc:  # pragma: no cover - réseau best-effort
+        logger.warning(f"[Generator] Lecture employee_exits échouée: {exc}")
+    return contract_end
 
 
 def process_payslip_generation(employee_id: str, year: int, month: int):
@@ -291,6 +322,8 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
                     "date_conclusion_contrat"
                 ),
                 "date_debut_execution": employee_data.get("date_debut_execution"),
+                "date_fin_contrat": employee_data.get("contract_end_date"),
+                "date_sortie": resolve_date_sortie(employee_data),
                 "statut": employee_data.get("statut"),
                 "emploi": employee_data.get("job_title"),
                 "periode_essai": _parse_if_json_string(
@@ -337,7 +370,9 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
         log_payroll_debug(logger, '=' * 80 + '\n')
         write_temp_json(employee_path / "contrat.json", contrat_json_content)
 
-        entreprise_json_path = payroll_engine_entreprise_json()
+        # Isolation par génération : écrit dans le dossier de l'employé plutôt que
+        # dans le fichier partagé data/entreprise.json (concurrence multi-tenant).
+        entreprise_json_path = employee_path / "entreprise.json"
         entreprise_json_content = {
             "_commentaire": "Ce fichier est généré dynamiquement à chaque cycle de paie.",
             "entreprise": {

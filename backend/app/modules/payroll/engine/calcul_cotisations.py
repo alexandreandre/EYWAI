@@ -12,6 +12,10 @@ from .exoneration_alternance import (
     controle_salaire_minimum_alternant,
     exonerations_patronales_professionnalisation,
 )
+from .exoneration_stage import (
+    assiette_stage_residuelle,
+    contexte_exoneration_stage,
+)
 from typing import Dict, Any, List, Tuple
 import json
 from supabase import create_client, Client
@@ -38,10 +42,24 @@ def _calculer_assiettes(
     )
 
     if proratiser and duree_contrat_hebdo < duree_legale_hebdo:
-        # Formule URSSAF : Plafond × (Durée contractuelle / Durée légale)
-        # Note : les heures complémentaires ne sont pas encore gérées ici.
-        pss_calcule = pss_mensuel * (duree_contrat_hebdo / duree_legale_hebdo)
-        log_payroll_debug(logger, f'INFO: Plafond SS proratisé pour temps partiel : {pss_calcule:.2f} €')
+        # Formule URSSAF : Plafond × (Durée retenue / Durée légale).
+        # Les heures complémentaires du mois relèvent la durée retenue
+        # (plafonnée à la durée légale) : on les convertit en heures mensuelles.
+        heures_contrat_mois = round((duree_contrat_hebdo * 52) / 12, 2)
+        heures_legales_mois = round((duree_legale_hebdo * 52) / 12, 2)
+        heures_comp_mois = float(
+            getattr(contexte, "heures_complementaires_mois", 0.0) or 0.0
+        )
+        ratio = (
+            min(
+                1.0,
+                (heures_contrat_mois + heures_comp_mois) / heures_legales_mois,
+            )
+            if heures_legales_mois > 0
+            else 1.0
+        )
+        pss_calcule = pss_mensuel * ratio
+        log_payroll_debug(logger, f'INFO: Plafond SS proratisé pour temps partiel (HC {heures_comp_mois}h) : {pss_calcule:.2f} €')
     # --- FIN DU NOUVEAU BLOC ---
 
     # Assiettes conditionnelles
@@ -90,6 +108,17 @@ def _calculer_assiettes(
                 "part_patronale_soumise_a_csg", True
             ):  # True par défaut pour la compatibilité
                 part_patronale_frais_sante += ligne.get("montant_patronal", 0.0) or 0.0
+
+        # Fallback : montants inline sur mutuelle (sans mutuelle_type_ids ni lignes_specifiques)
+        if (
+            not mutuelle_type_ids
+            and not mutuelle_spec.get("lignes_specifiques")
+            and mutuelle_spec.get("montant_patronal") is not None
+        ):
+            if mutuelle_spec.get("part_patronale_soumise_a_csg", True):
+                part_patronale_frais_sante += float(
+                    mutuelle_spec.get("montant_patronal", 0.0) or 0.0
+                )
 
     part_patronale_prevoyance = 0.0
     prevoyance_spec = contexte.contrat.get("specificites_paie", {}).get(
@@ -166,7 +195,36 @@ def calculer_cotisations(
     """
     log_payroll_debug(logger, 'INFO: Démarrage du calcul des cotisations...')
 
-    assiettes = _calculer_assiettes(contexte, salaire_brut, remuneration_heures_supp)
+    heures_mois_ref = (contexte.duree_hebdo_contrat * 52) / 12
+    exo_stage = contexte_exoneration_stage(contexte, heures_mois_ref)
+    brut_cotisable = salaire_brut
+    ligne_exo_stage = None
+
+    if exo_stage is not None:
+        plafond_stage = exo_stage["plafond"]
+        if salaire_brut <= plafond_stage + 0.01:
+            return [
+                {
+                    "libelle": "Gratification de stage exonérée",
+                    "base": round(salaire_brut, 2),
+                    "taux_salarial": None,
+                    "montant_salarial": 0.0,
+                    "taux_patronal": None,
+                    "montant_patronal": 0.0,
+                }
+            ], 0.0
+        part_exo = round(min(salaire_brut, plafond_stage), 2)
+        ligne_exo_stage = {
+            "libelle": "Gratification de stage exonérée",
+            "base": part_exo,
+            "taux_salarial": None,
+            "montant_salarial": 0.0,
+            "taux_patronal": None,
+            "montant_patronal": 0.0,
+        }
+        brut_cotisable = assiette_stage_residuelle(salaire_brut, plafond_stage)
+
+    assiettes = _calculer_assiettes(contexte, brut_cotisable, remuneration_heures_supp)
     root_key = next(
         (k for k, v in contexte.baremes["cotisations"].items() if isinstance(v, list)),
         "cotisations",
@@ -196,6 +254,17 @@ def calculer_cotisations(
             continue
         if coti_id == "mutuelle":
             continue  # Géré manuellement plus bas
+
+        # Mandataire social assimilé salarié : exclu de l'assurance chômage et de
+        # l'AGS. Liste surchargeable via payroll_config.mandataire.cotisations_exclues.
+        if contexte.is_mandataire:
+            cfg_mandataire = contexte.baremes.get("mandataire", {}) or {}
+            cotis_exclues = cfg_mandataire.get(
+                "cotisations_exclues",
+                ["assurance_chomage", "ags", "chomage", "apec"],
+            )
+            if coti_id in cotis_exclues:
+                continue
 
         libelle = coti_data.get("libelle", "")
         base_id = coti_data.get("base", "brut")
@@ -235,18 +304,22 @@ def calculer_cotisations(
         # SMIC mensuel TEMPS PLEIN (non proratisé) — seuils légaux maladie/AF.
         # Centralisé sur le contexte (DRY) sans changer le comportement existant.
         smic_mensuel = contexte.smic_mensuel
+        # Bandeaux maladie/AF : supprimés à partir de 2026 (absorbés par la RGDU,
+        # cf. legal_constants.ANNEE_BASCULE_RGDU). Avant 2026 : taux réduit sous seuil.
+        annee_paie = getattr(contexte, "year", None) or lc.ANNEE_BASCULE_RGDU
+        bandeaux_supprimes = annee_paie >= lc.ANNEE_BASCULE_RGDU
         if coti_id == "allocations_familiales":
             taux_patronal_final = (
-                coti_data.get("patronal_reduit")
-                if salaire_brut <= 3.5 * smic_mensuel
-                else coti_data.get("patronal_plein")
+                coti_data.get("patronal_plein")
+                if bandeaux_supprimes or brut_cotisable > 3.5 * smic_mensuel
+                else coti_data.get("patronal_reduit")
             )
 
         elif coti_id == "securite_sociale_maladie":
             taux_patronal_final = (
-                coti_data.get("patronal_reduit")
-                if salaire_brut <= 2.5 * smic_mensuel
-                else coti_data.get("patronal_plein")
+                coti_data.get("patronal_plein")
+                if bandeaux_supprimes or brut_cotisable > 2.5 * smic_mensuel
+                else coti_data.get("patronal_reduit")
             )
             if contexte.is_alsace_moselle:
                 taux_salarial = coti_data.get("salarial_Alsace_Moselle", 0.0)
@@ -272,7 +345,7 @@ def calculer_cotisations(
                 # Régime récent : CSG/CRDS sur la fraction au-delà du plafond,
                 # après abattement frais pro. Sans parts patronales mutuelle/prévoyance.
                 base_csg_apprenti = round(
-                    assiette_residuelle(salaire_brut, exo_apprenti["plafond"])
+                    assiette_residuelle(brut_cotisable, exo_apprenti["plafond"])
                     * (1.0 - exo_apprenti["abattement_csg"]),
                     2,
                 )
@@ -429,7 +502,32 @@ def calculer_cotisations(
                 }
             )
 
-    # --- 🔍 DEBUG PRÉVOYANCE: DÉBUT DE LA SECTION SPÉCIFIQUE ---
+        # Fallback montants inline (sans mutuelle_type_ids ni lignes_specifiques)
+        if (
+            not mutuelle_type_ids
+            and not lignes_specifiques
+            and (
+                mutuelle_spec.get("montant_salarial") is not None
+                or mutuelle_spec.get("montant_patronal") is not None
+            )
+        ):
+            bulletin_cotisations.append(
+                {
+                    "libelle": mutuelle_spec.get("libelle", "Mutuelle Frais de Santé"),
+                    "base": None,
+                    "taux_salarial": None,
+                    "montant_salarial": float(
+                        mutuelle_spec.get("montant_salarial", 0.0) or 0.0
+                    ),
+                    "taux_patronal": None,
+                    "montant_patronal": float(
+                        mutuelle_spec.get("montant_patronal", 0.0) or 0.0
+                    ),
+                }
+            )
+
+    if ligne_exo_stage is not None:
+        bulletin_cotisations.insert(0, ligne_exo_stage)
     log_payroll_debug(logger, '\n--- 🔍 DEBUG PRÉVOYANCE ---')
     prevoyance_spec = contexte.contrat.get("specificites_paie", {}).get(
         "prevoyance", {}

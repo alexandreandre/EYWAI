@@ -12,6 +12,10 @@ DIVISEUR_JOURS_CALENDAIRES = 30.42
 SEUIL_EFFECTIF_FNAL = 50
 SEUIL_EFFECTIF_CFP = 11
 
+# Bascule réduction générale : Fillon (RGCP) jusqu'en 2025, RGDU à partir de 2026
+# (réforme des allègements généraux, LFSS 2025 art. 18 / décret n°2025-887).
+ANNEE_BASCULE_RGDU = 2026
+
 # Plafonds SS / assiettes
 COEFF_PLAFOND_IJ_PSS = 1.8
 FACTEUR_PLAFOND_TRANCHE_2 = 8

@@ -29,6 +29,88 @@ from .payslip_run_common import (
 )
 
 
+def _appliquer_maintien_arret_maladie(
+    contexte: ContextePaie,
+    resultats_maintien: Dict[str, Any] | None,
+    details_brut: List[Dict[str, Any]],
+) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]], bool]:
+    """Réinjecte le maintien employeur et les IJSS subrogées sur le bulletin.
+
+    - Maintien employeur (complément soumis cotisations) : ajouté au brut
+      cotisable (ligne de gain) -> cotisations et RGDU recalculées sur ce brut.
+    - IJSS subrogées : ajoutées au net imposable (revenu de remplacement) avec
+      leur CSG/CRDS (taux dans payroll_config.maladie.csg_ijss).
+
+    Retourne (lignes_csg_ijss, ijss_imposables, brut_modifie).
+    """
+    if not resultats_maintien:
+        return [], [], False
+
+    bloc_maintien = resultats_maintien.get("maintien", {}) or {}
+    maintien_verse = float(bloc_maintien.get("maintien_verse") or 0.0)
+    subrogation = bool(resultats_maintien.get("subrogation_active"))
+    ijss_theorique = float(
+        (resultats_maintien.get("ijss", {}) or {}).get("ijss_theorique") or 0.0
+    )
+
+    brut_modifie = False
+    if maintien_verse > 0:
+        details_brut.append(
+            {
+                "libelle": "Maintien de salaire employeur",
+                "quantite": None,
+                "taux": None,
+                "gain": round(maintien_verse, 2),
+                "perte": None,
+                "is_maintien_employeur": True,
+            }
+        )
+        brut_modifie = True
+
+    lignes_csg_ijss: List[Dict[str, Any]] = []
+    ijss_imposables: List[Dict[str, Any]] = []
+    if subrogation and ijss_theorique > 0:
+        cfg_csg = (contexte.baremes.get("maladie", {}) or {}).get("csg_ijss", {}) or {}
+        taux_deductible = float(cfg_csg.get("taux_deductible", 0.038))
+        taux_non_deductible = float(cfg_csg.get("taux_non_deductible", 0.029))
+        base = round(ijss_theorique, 2)
+        csg_deductible = round(base * taux_deductible, 2)
+        csg_non_deductible = round(base * taux_non_deductible, 2)
+        if csg_deductible > 0:
+            lignes_csg_ijss.append(
+                {
+                    "libelle": "CSG déductible IJSS",
+                    "base": base,
+                    "taux_salarial": taux_deductible,
+                    "montant_salarial": csg_deductible,
+                    "taux_patronal": 0.0,
+                    "montant_patronal": 0.0,
+                }
+            )
+        if csg_non_deductible > 0:
+            lignes_csg_ijss.append(
+                {
+                    "libelle": "CSG/CRDS IJSS non déductible",
+                    "base": base,
+                    "taux_salarial": taux_non_deductible,
+                    "montant_salarial": csg_non_deductible,
+                    "taux_patronal": 0.0,
+                    "montant_patronal": 0.0,
+                }
+            )
+        # IJSS = revenu de remplacement : imposable et ajouté au net à payer
+        # (avance employeur), non soumis aux cotisations sociales.
+        ijss_imposables.append(
+            {
+                "prime_id": "ijss_subrogees",
+                "libelle": "IJSS subrogées",
+                "montant": base,
+            }
+        )
+
+    return lignes_csg_ijss, ijss_imposables, brut_modifie
+
+
 def _extraire_arret_pour_maintien(
     calendrier_etendu: List[Dict[str, Any]],
     contexte: ContextePaie,
@@ -146,13 +228,23 @@ def run_payslip_generation_heures(
     year if month > 1 else year - 1
     chemin_cumuls = employee_path / "cumuls" / f"{prev_month:02d}.json"
 
+    # entreprise.json isolé par génération (évite la concurrence multi-tenant sur
+    # le fichier partagé data/entreprise.json) ; repli sur le partagé si absent.
+    chemin_entreprise_isole = employee_path / "entreprise.json"
+    chemin_entreprise = (
+        chemin_entreprise_isole
+        if chemin_entreprise_isole.exists()
+        else engine_root / "data" / "entreprise.json"
+    )
     contexte = ContextePaie(
         chemin_contrat=str(employee_path / "contrat.json"),
-        chemin_entreprise=str(engine_root / "data" / "entreprise.json"),
+        chemin_entreprise=str(chemin_entreprise),
         chemin_cumuls=str(chemin_cumuls),
         chemin_data_dir=str(engine_root / "data"),
         baremes_override=baremes_override,
     )
+    # Aiguillage Fillon (< 2026) / RGDU (>= 2026) et suppression des bandeaux maladie/AF.
+    contexte.year = year
 
     date_debut_periode, date_fin_periode = definir_periode_de_paie(
         contexte, year, month
@@ -255,9 +347,9 @@ def run_payslip_generation_heures(
     total_heures_supp = resultat_brut["total_heures_supp"]
 
     # Moteur maintien (arrêt maladie typé) — sans company_id pas d’accès paramètres entreprise.
-    # TODO V1 : proratiser le PSS au prorata jours travaillés / jours du mois si arrêt.
-    # TODO V1 : CSG 6,2 % sur ijss_theorique si subrogation_active.
-    # TODO V1 : recalcul réduction Fillon si le brut est modifié par l’arrêt.
+    # Le maintien employeur est réinjecté dans le brut cotisable ci-dessous, puis
+    # les cotisations et la RGDU sont calculées sur le brut corrigé ; les IJSS
+    # subrogées sont ajoutées au net avec leur CSG/CRDS.
     resultats_maintien: Dict[str, Any] | None = None
     if company_id:
         arret_data = _extraire_arret_pour_maintien(
@@ -289,9 +381,34 @@ def run_payslip_generation_heures(
                 )
                 resultats_maintien = None
 
+    # Arrêt maladie : recomposer le brut (maintien employeur soumis cotisations)
+    # AVANT cotisations/RGDU ; préparer les IJSS subrogées et leur CSG/CRDS.
+    lignes_csg_ijss, ijss_imposables, brut_modifie = _appliquer_maintien_arret_maladie(
+        contexte, resultats_maintien, details_brut
+    )
+    if brut_modifie:
+        salaire_brut_calcule = round(
+            sum(
+                (ligne.get("gain", 0.0) or 0.0)
+                for ligne in details_brut
+                if not ligne.get("is_sous_total")
+            )
+            - sum((ligne.get("perte", 0.0) or 0.0) for ligne in details_brut),
+            2,
+        )
+
     lignes_cotisations, total_salarial = calculer_cotisations(
         contexte, salaire_brut_calcule, remuneration_hs, total_heures_supp
     )
+    if lignes_csg_ijss:
+        lignes_cotisations.extend(lignes_csg_ijss)
+        total_salarial = round(
+            total_salarial
+            + sum(l.get("montant_salarial", 0.0) or 0.0 for l in lignes_csg_ijss),
+            2,
+        )
+    if ijss_imposables:
+        primes_soumises_impot = list(primes_soumises_impot) + ijss_imposables
 
     duree_contrat_hebdo = contexte.duree_hebdo_contrat
     jours_ouvrables_du_mois = sum(
@@ -310,7 +427,7 @@ def run_payslip_generation_heures(
     heures_sup_conjoncturelles_mois = max(
         0, heures_travaillees_reelles - heures_dues_hors_conges
     )
-    heures_contractuelles_mois = round((duree_contrat_hebdo * 52) / 12, 2)
+    heures_contractuelles_mois = (duree_contrat_hebdo * 52) / 12
     total_heures_mois = heures_contractuelles_mois + heures_sup_conjoncturelles_mois
 
     ligne_reduction_generale = calculer_reduction_generale(

@@ -6,6 +6,7 @@ import sys
 import os
 import tempfile
 import shutil
+from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from supabase import create_client, Client
@@ -164,6 +165,9 @@ class ContextePaie:
         log_payroll_debug(logger, '--- FIN DEBUG CONTEXTE ---\n')
 
         self.alertes_baremes: List[Dict[str, Any]] = []
+        # Période du bulletin (année). Posée par les run_* après construction.
+        # Sert d'aiguillage Fillon (< 2026) / RGDU (>= 2026) sans threader les signatures.
+        self.year: Optional[int] = None
 
         if baremes_override is not None:
             self.baremes = baremes_override
@@ -331,6 +335,83 @@ class ContextePaie:
     def is_alternant(self) -> bool:
         """Vrai pour tout contrat en alternance (apprentissage ou pro)."""
         return self.is_apprenti or self.is_professionnalisation
+
+    @property
+    def is_stagiaire(self) -> bool:
+        """Vrai si le contrat est une convention de stage."""
+        return "stage" in self.type_contrat.lower()
+
+    @property
+    def is_cdd(self) -> bool:
+        """Vrai si le contrat est un CDD."""
+        tc = self.type_contrat.lower()
+        return "cdd" in tc and "cdi" not in tc
+
+    @property
+    def is_interim(self) -> bool:
+        """Vrai pour un contrat de travail temporaire (intérim / mission).
+
+        Détection : type_contrat (intérim / mission) ou flag explicite
+        specificites_paie.is_interim.
+        """
+        spec = self.contrat.get("specificites_paie", {}) or {}
+        if spec.get("is_interim"):
+            return True
+        tc = self.type_contrat.lower()
+        return "intérim" in tc or "interim" in tc or "mission" in tc or "ctt" in tc
+
+    @property
+    def is_mandataire(self) -> bool:
+        """Vrai pour un mandataire social assimilé salarié.
+
+        Détection : flag specificites_paie.is_mandataire ou type_contrat
+        contenant 'mandataire' / 'mandat social'.
+        """
+        spec = self.contrat.get("specificites_paie", {}) or {}
+        if spec.get("is_mandataire") or spec.get("is_mandataire_social"):
+            return True
+        tc = self.type_contrat.lower()
+        return "mandataire" in tc or "mandat social" in tc
+
+    @property
+    def date_entree(self) -> str:
+        return self.contrat.get("contrat", {}).get("date_entree") or ""
+
+    @property
+    def date_fin_contrat(self) -> str:
+        """Date de fin prévue du contrat (CDD, stage, etc.)."""
+        contrat = self.contrat.get("contrat", {}) or {}
+        return contrat.get("date_fin_contrat") or contrat.get("date_sortie") or ""
+
+    def est_dernier_mois_cdd(
+        self, date_debut_periode: date, date_fin_periode: date
+    ) -> bool:
+        """Vrai si la période de paie couvre le dernier mois du CDD."""
+        if not self.is_cdd:
+            return False
+        fin = self.date_fin_contrat
+        if not fin:
+            return False
+        try:
+            date_fin = date.fromisoformat(str(fin)[:10])
+        except ValueError:
+            return False
+        return date_debut_periode <= date_fin <= date_fin_periode
+
+    def est_dernier_mois_mission(
+        self, date_debut_periode: date, date_fin_periode: date
+    ) -> bool:
+        """Vrai si la période couvre le dernier mois d'une mission d'intérim."""
+        if not self.is_interim:
+            return False
+        fin = self.date_fin_contrat
+        if not fin:
+            return False
+        try:
+            date_fin = date.fromisoformat(str(fin)[:10])
+        except ValueError:
+            return False
+        return date_debut_periode <= date_fin <= date_fin_periode
 
     @property
     def date_conclusion_contrat(self) -> str:

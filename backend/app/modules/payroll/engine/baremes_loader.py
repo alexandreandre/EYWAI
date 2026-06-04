@@ -114,6 +114,9 @@ def assembler_baremes(
         "baremes_km": db_baremes.get("baremes_km", {}),
         "taux_vmrr": vmrr_payload,
         "alternance": db_baremes.get("alternance", {}),
+        "reduction_generale": db_baremes.get("reduction_generale", {}),
+        "stage": db_baremes.get("stage", {}),
+        "cdd": db_baremes.get("cdd", {}),
     }
 
 
@@ -241,6 +244,39 @@ def controler_integrite_baremes(baremes: Dict[str, Any]) -> List[Dict[str, Any]]
                 "donnee_non_officielle": True,
             }
         )
+
+    reduction_generale = baremes.get("reduction_generale") or {}
+    if isinstance(reduction_generale, dict) and reduction_generale:
+        # Contrôles de plausibilité des paramètres RGDU (cohérent avec baremes_lookup).
+        controles_rgdu = [
+            ("reduction_generale.tmin", reduction_generale.get("tmin"), 0.0, 0.05),
+            ("reduction_generale.p", reduction_generale.get("p"), 1.0, 3.0),
+            (
+                "reduction_generale.point_sortie_smic",
+                reduction_generale.get("point_sortie_smic"),
+                3.0,
+                3.0,
+            ),
+        ]
+        tdelta = reduction_generale.get("tdelta")
+        if isinstance(tdelta, dict):
+            controles_rgdu.append(
+                ("reduction_generale.tdelta.fnal_moins_50", tdelta.get("fnal_moins_50"), 0.30, 0.45)
+            )
+            controles_rgdu.append(
+                ("reduction_generale.tdelta.fnal_50_et_plus", tdelta.get("fnal_50_et_plus"), 0.30, 0.45)
+            )
+        for nom, valeur, min_v, max_v in controles_rgdu:
+            msg = _float_in_range(valeur, name=nom, min_v=min_v, max_v=max_v)
+            if msg:
+                alertes.append(
+                    {
+                        "code": "integrite_reduction_generale",
+                        "severity": "warning",
+                        "message": msg,
+                        "donnee_non_officielle": True,
+                    }
+                )
 
     cotisations = baremes.get("cotisations") or {}
     liste: List[Any] = []

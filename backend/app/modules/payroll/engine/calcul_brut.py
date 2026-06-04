@@ -7,6 +7,209 @@ from typing import Dict, Any, List, Optional
 from .calcul_conges import calculer_indemnite_conges
 
 
+def _heures_journalieres_contrat(duree_hebdo: float) -> float:
+    """Durée journalière contractuelle (lun–ven), repli 7 h si durée nulle."""
+    if duree_hebdo and duree_hebdo > 0:
+        return duree_hebdo / 5.0
+    return 7.0
+
+
+def _heures_evenement_absence(evenement: Dict[str, Any], duree_hebdo: float) -> float:
+    """Heures imputées sur une absence (impute la journée si heures absentes/nulles)."""
+    heures = evenement.get("heures")
+    if heures is None or heures == 0:
+        return _heures_journalieres_contrat(duree_hebdo)
+    return float(heures)
+
+
+def _parse_date_contrat(value: Any) -> date | None:
+    if not value:
+        return None
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
+
+
+def _facteur_prorata_entree_sortie(
+    contexte: ContextePaie,
+    date_debut_periode: date,
+    date_fin_periode: date,
+) -> float:
+    """Prorata calendaire entrée / sortie en cours de mois (jours présents / jours du mois)."""
+    contrat = contexte.contrat.get("contrat", {}) or {}
+    date_entree = _parse_date_contrat(contrat.get("date_entree"))
+    date_sortie = _parse_date_contrat(
+        contrat.get("date_sortie") or contrat.get("date_fin_contrat")
+    )
+
+    debut_effectif = (
+        max(date_debut_periode, date_entree) if date_entree else date_debut_periode
+    )
+    fin_effective = (
+        min(date_fin_periode, date_sortie) if date_sortie else date_fin_periode
+    )
+
+    if fin_effective < debut_effectif:
+        return 0.0
+
+    jours_calendaires_mois = (date_fin_periode - date_debut_periode).days + 1
+    jours_presence = (fin_effective - debut_effectif).days + 1
+    if jours_calendaires_mois <= 0:
+        return 1.0
+    return jours_presence / jours_calendaires_mois
+
+
+def _calculer_prime_precarite_cdd(
+    contexte: ContextePaie,
+    salaire_brut_hors_precarite: float,
+    date_debut_periode: date,
+    date_fin_periode: date,
+) -> Dict[str, Any] | None:
+    """Prime de précarité CDD (dernier mois), taux depuis payroll_config.cdd."""
+    if not contexte.is_cdd or not contexte.est_dernier_mois_cdd(
+        date_debut_periode, date_fin_periode
+    ):
+        return None
+
+    spec = contexte.contrat.get("specificites_paie", {}) or {}
+    if spec.get("exclure_prime_precarite") or spec.get("cdd_sans_precarite"):
+        return None
+
+    cfg = (contexte.baremes.get("cdd", {}) or {}).get("precarite", {}) or {}
+    if cfg.get("actif") is False:
+        return None
+    taux = float(cfg.get("taux", 0.10))
+
+    cumuls = (
+        contexte.cumuls.get("cumuls", {})
+        if isinstance(contexte.cumuls, dict)
+        else {}
+    )
+    brut_cumule_contrat = float(cumuls.get("brut_total", 0.0)) + salaire_brut_hors_precarite
+    montant = round(brut_cumule_contrat * taux, 2)
+    if montant <= 0:
+        return None
+
+    return {
+        "libelle": "Prime de précarité (CDD)",
+        "quantite": None,
+        "taux": taux,
+        "gain": montant,
+        "perte": None,
+    }
+
+
+def _calculer_ifm_interim(
+    contexte: ContextePaie,
+    salaire_brut_hors_indemnites: float,
+    date_debut_periode: date,
+    date_fin_periode: date,
+) -> Dict[str, Any] | None:
+    """Indemnité de fin de mission (intérim), dernier mois de mission.
+
+    Base légale : 10 % de la rémunération brute totale de la mission. Taux dans
+    payroll_config.interim.ifm (défaut 0,10). Désactivable par flag
+    specificites_paie.exclure_ifm.
+    """
+    if not contexte.is_interim or not contexte.est_dernier_mois_mission(
+        date_debut_periode, date_fin_periode
+    ):
+        return None
+
+    spec = contexte.contrat.get("specificites_paie", {}) or {}
+    if spec.get("exclure_ifm"):
+        return None
+
+    cfg = (contexte.baremes.get("interim", {}) or {}).get("ifm", {}) or {}
+    if cfg.get("actif") is False:
+        return None
+    taux = float(cfg.get("taux", 0.10))
+
+    cumuls = (
+        contexte.cumuls.get("cumuls", {})
+        if isinstance(contexte.cumuls, dict)
+        else {}
+    )
+    base = float(cumuls.get("brut_total", 0.0)) + salaire_brut_hors_indemnites
+    montant = round(base * taux, 2)
+    if montant <= 0:
+        return None
+
+    return {
+        "libelle": "Indemnité de fin de mission (intérim)",
+        "quantite": None,
+        "taux": taux,
+        "gain": montant,
+        "perte": None,
+    }
+
+
+def _calculer_iccp_cdd(
+    contexte: ContextePaie,
+    salaire_brut_hors_precarite: float,
+    montant_precarite: float,
+    date_debut_periode: date,
+    date_fin_periode: date,
+) -> Dict[str, Any] | None:
+    """Indemnité compensatrice de congés payés (dernier mois), méthode du 1/10e.
+
+    Applicable au CDD et à la mission d'intérim. Base légale : 1/10 de la
+    rémunération brute totale du contrat, prime de précarité / IFM comprise.
+    Taux dans payroll_config.cdd.indemnite_conges (ou interim.indemnite_conges),
+    défaut 0,10. Désactivable par flag specificites_paie.cdd_sans_iccp.
+    """
+    is_cdd_fin = contexte.is_cdd and contexte.est_dernier_mois_cdd(
+        date_debut_periode, date_fin_periode
+    )
+    is_interim_fin = contexte.is_interim and contexte.est_dernier_mois_mission(
+        date_debut_periode, date_fin_periode
+    )
+    if not (is_cdd_fin or is_interim_fin):
+        return None
+
+    spec = contexte.contrat.get("specificites_paie", {}) or {}
+    if spec.get("cdd_sans_iccp") or spec.get("exclure_iccp"):
+        return None
+
+    cle_regime = "interim" if is_interim_fin else "cdd"
+    cfg = (contexte.baremes.get(cle_regime, {}) or {}).get(
+        "indemnite_conges", {}
+    ) or {}
+    if cfg.get("actif") is False:
+        return None
+    taux = float(cfg.get("taux", 0.10))
+
+    cumuls = (
+        contexte.cumuls.get("cumuls", {})
+        if isinstance(contexte.cumuls, dict)
+        else {}
+    )
+    base = (
+        float(cumuls.get("brut_total", 0.0))
+        + salaire_brut_hors_precarite
+        + max(montant_precarite, 0.0)
+    )
+    montant = round(base * taux, 2)
+    if montant <= 0:
+        return None
+
+    libelle_iccp = (
+        "Indemnité compensatrice de congés payés (intérim)"
+        if is_interim_fin
+        else "Indemnité compensatrice de congés payés (CDD)"
+    )
+    return {
+        "libelle": libelle_iccp,
+        "quantite": None,
+        "taux": taux,
+        "gain": montant,
+        "perte": None,
+    }
+
+
 def _taux_majoration_hs(contexte: ContextePaie, index: int = 0) -> Optional[float]:
     """Lit le taux de majoration HS depuis heures_supp (None si absent)."""
     if hasattr(contexte, "get_bareme_value"):
@@ -29,6 +232,40 @@ def _taux_majoration_hs(contexte: ContextePaie, index: int = 0) -> Optional[floa
         val = None
         if isinstance(hs_list, list) and len(hs_list) > index:
             val = hs_list[index].get("taux")
+    if val is None:
+        return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def _taux_majoration_hc(contexte: ContextePaie, index: int = 0) -> Optional[float]:
+    """Lit le taux de majoration des heures complémentaires (temps partiel).
+
+    Source : heures_supp.regles_calcul_communes.taux_majoration_par_defaut
+    .heures_complementaires[index].taux (None si absent).
+    """
+    if hasattr(contexte, "get_bareme_value"):
+        val = contexte.get_bareme_value(
+            "heures_supp",
+            "regles_calcul_communes",
+            "taux_majoration_par_defaut",
+            "heures_complementaires",
+            index,
+            "taux",
+        )
+    else:
+        hc_list = (
+            (getattr(contexte, "baremes", {}) or {})
+            .get("heures_supp", {})
+            .get("regles_calcul_communes", {})
+            .get("taux_majoration_par_defaut", {})
+            .get("heures_complementaires", [])
+        )
+        val = None
+        if isinstance(hc_list, list) and len(hc_list) > index:
+            val = hc_list[index].get("taux")
     if val is None:
         return None
     try:
@@ -208,17 +445,29 @@ def calculer_salaire_brut(
     duree_legale_hebdo = lc.DUREE_LEGALE_HEBDO
     duree_contrat_hebdo = contexte.duree_hebdo_contrat
     salaire_contractuel = contexte.salaire_base_mensuel
+    facteur_prorata = _facteur_prorata_entree_sortie(
+        contexte, date_debut_periode, date_fin_periode
+    )
+    if facteur_prorata < 1.0:
+        salaire_contractuel = round(salaire_contractuel * facteur_prorata, 2)
     taux_horaire_de_base = _get_salaire_horaire_base(contexte, duree_contrat_hebdo)
 
     # 1. Décomposition du salaire de base
     if duree_contrat_hebdo < duree_legale_hebdo:
         heures_mensuelles_contrat = round((duree_contrat_hebdo * 52) / 12, 2)
+        gain_base = round(salaire_contractuel, 2)
+        if facteur_prorata < 1.0:
+            taux_affichage = (
+                gain_base / heures_mensuelles_contrat if heures_mensuelles_contrat else 0
+            )
+        else:
+            taux_affichage = round(taux_horaire_de_base, 4)
         lignes_composants_brut.append(
             {
                 "libelle": "Salaire de base",
                 "quantite": heures_mensuelles_contrat,
-                "taux": round(taux_horaire_de_base, 4),
-                "gain": round(salaire_contractuel, 2),
+                "taux": round(taux_affichage, 4),
+                "gain": gain_base,
                 "perte": None,
             }
         )
@@ -226,12 +475,20 @@ def calculer_salaire_brut(
         heures_sup_structurelles_mensuelles = 0.0
     else:
         heures_mensuelles_legales = round((duree_legale_hebdo * 52) / 12, 2)
-        salaire_base_35h = heures_mensuelles_legales * taux_horaire_de_base
+        if facteur_prorata < 1.0:
+            salaire_base_35h = round(salaire_contractuel, 2)
+        else:
+            salaire_base_35h = heures_mensuelles_legales * taux_horaire_de_base
         lignes_composants_brut.append(
             {
                 "libelle": "Salaire de base",
                 "quantite": heures_mensuelles_legales,
-                "taux": round(taux_horaire_de_base, 4),
+                "taux": round(
+                    salaire_base_35h / heures_mensuelles_legales
+                    if heures_mensuelles_legales
+                    else taux_horaire_de_base,
+                    4,
+                ),
                 "gain": round(salaire_base_35h, 2),
                 "perte": None,
             }
@@ -287,9 +544,21 @@ def calculer_salaire_brut(
     taux_hs25 = taux_horaire_de_base * (1 + majoration_hs25)
     taux_hs50 = taux_horaire_de_base * (1 + majoration_hs50)
 
+    # Heures complémentaires (temps partiel) : majorations dédiées (10 % puis 25 %).
+    majoration_hc1 = _taux_majoration_hc(contexte, 0)
+    majoration_hc2 = _taux_majoration_hc(contexte, 1)
+    if majoration_hc1 is None:
+        majoration_hc1 = 0.10
+    if majoration_hc2 is None:
+        majoration_hc2 = 0.25
+    taux_hc1 = taux_horaire_de_base * (1 + majoration_hc1)
+    taux_hc2 = taux_horaire_de_base * (1 + majoration_hc2)
+
     heures_travail_base_total = 0.0
     heures_travail_hs25_total = 0.0
     heures_travail_hs50_total = 0.0
+    heures_travail_hc1_total = 0.0
+    heures_travail_hc2_total = 0.0
     heures_absence_hs_total = 0.0  #
 
     jours_dans_periode = [
@@ -314,20 +583,22 @@ def calculer_salaire_brut(
             heures_travail_hs25_total += heures
         elif type_ev == "travail_hs50":
             heures_travail_hs50_total += heures
+        elif type_ev in ("travail_hc", "travail_hc10"):
+            heures_travail_hc1_total += heures
+        elif type_ev == "travail_hc25":
+            heures_travail_hc2_total += heures
         elif "absence_injustifiee" in type_ev:
             taux_deduction = taux_horaire_de_base
             is_hs_absence = False
             if "hs25" in type_ev:
                 taux_deduction = taux_hs25
                 is_hs_absence = True
-            # elif "hs50" in type_ev:
-            #     taux_deduction = taux_hs50
-            #     is_hs_absence = True
 
+            heures_abs = _heures_evenement_absence(evenement, duree_contrat_hebdo)
             if is_hs_absence:
-                heures_absence_hs_total += heures
+                heures_absence_hs_total += heures_abs
 
-            montant_deduction = round(heures * taux_deduction, 2)
+            montant_deduction = round(heures_abs * taux_deduction, 2)
             date_absence = date.fromisoformat(evenement["date_complete"]).strftime(
                 "%d/%m/%y"
             )
@@ -337,7 +608,7 @@ def calculer_salaire_brut(
             lignes_composants_brut.append(
                 {
                     "libelle": libelle_absence,
-                    "quantite": heures,
+                    "quantite": heures_abs,
                     "taux": round(taux_deduction, 4),
                     "gain": None,
                     "perte": montant_deduction,
@@ -345,14 +616,15 @@ def calculer_salaire_brut(
             )
 
         elif type_ev == "absence_non_remuneree":
-            montant_deduction = round(heures * taux_horaire_de_base, 2)
+            heures_abs = _heures_evenement_absence(evenement, duree_contrat_hebdo)
+            montant_deduction = round(heures_abs * taux_horaire_de_base, 2)
             date_absence = date.fromisoformat(evenement["date_complete"]).strftime(
                 "%d/%m/%y"
             )
             lignes_composants_brut.append(
                 {
                     "libelle": f"Absence non rémunérée du {date_absence}",
-                    "quantite": heures,
+                    "quantite": heures_abs,
                     "taux": round(taux_horaire_de_base, 4),
                     "gain": None,
                     "perte": montant_deduction,
@@ -361,12 +633,13 @@ def calculer_salaire_brut(
         elif type_ev == "conges_payes":
             jours_conges_dans_periode.append(evenement)
         elif type_ev == "arret_maladie":
-            montant_deduction = round(heures * taux_horaire_de_base, 2)
+            heures_abs = _heures_evenement_absence(evenement, duree_contrat_hebdo)
+            montant_deduction = round(heures_abs * taux_horaire_de_base, 2)
             deduction_arret_maladie_total += montant_deduction
             lignes_composants_brut.append(
                 {
                     "libelle": "Absence arrêt maladie (jours déduction)",
-                    "quantite": heures,
+                    "quantite": heures_abs,
                     "taux": round(taux_horaire_de_base, 4),
                     "gain": None,
                     "perte": montant_deduction,
@@ -395,6 +668,30 @@ def calculer_salaire_brut(
                 "libelle": f"Heures suppl. majorées à {majoration_hs50 * 100:.0f}%",
                 "quantite": round(heures_travail_hs50_total, 2),
                 "taux": round(taux_hs50, 4),
+                "gain": gain,
+                "perte": None,
+            }
+        )
+    # Heures complémentaires (temps partiel) : rémunération ordinaire majorée,
+    # sans régime social des heures supplémentaires.
+    if heures_travail_hc1_total > 0:
+        gain = round(heures_travail_hc1_total * taux_hc1, 2)
+        lignes_composants_brut.append(
+            {
+                "libelle": f"Heures complémentaires majorées à {majoration_hc1 * 100:.0f}%",
+                "quantite": round(heures_travail_hc1_total, 2),
+                "taux": round(taux_hc1, 4),
+                "gain": gain,
+                "perte": None,
+            }
+        )
+    if heures_travail_hc2_total > 0:
+        gain = round(heures_travail_hc2_total * taux_hc2, 2)
+        lignes_composants_brut.append(
+            {
+                "libelle": f"Heures complémentaires majorées à {majoration_hc2 * 100:.0f}%",
+                "quantite": round(heures_travail_hc2_total, 2),
+                "taux": round(taux_hc2, 4),
                 "gain": gain,
                 "perte": None,
             }
@@ -465,6 +762,43 @@ def calculer_salaire_brut(
     if ligne_aen:
         lignes_composants_brut.append(ligne_aen)
 
+    # Prime de précarité CDD (dernier mois) — calculée avant le total brut.
+    total_gains_inter = sum(
+        ligne.get("gain", 0.0) or 0.0
+        for ligne in lignes_composants_brut
+        if not ligne.get("is_sous_total")
+    )
+    total_pertes_inter = sum(
+        ligne.get("perte", 0.0) or 0.0 for ligne in lignes_composants_brut
+    )
+    brut_hors_precarite = total_gains_inter - total_pertes_inter
+    ligne_precarite = _calculer_prime_precarite_cdd(
+        contexte, brut_hors_precarite, date_debut_periode, date_fin_periode
+    )
+    montant_indemnite_fin = 0.0
+    if ligne_precarite:
+        lignes_composants_brut.append(ligne_precarite)
+        montant_indemnite_fin = ligne_precarite.get("gain", 0.0) or 0.0
+
+    # Indemnité de fin de mission (intérim), dernier mois — équivalent précarité.
+    ligne_ifm = _calculer_ifm_interim(
+        contexte, brut_hors_precarite, date_debut_periode, date_fin_periode
+    )
+    if ligne_ifm:
+        lignes_composants_brut.append(ligne_ifm)
+        montant_indemnite_fin = ligne_ifm.get("gain", 0.0) or 0.0
+
+    # Indemnité compensatrice de congés payés (1/10e), dernier mois CDD/mission.
+    ligne_iccp = _calculer_iccp_cdd(
+        contexte,
+        brut_hors_precarite,
+        montant_indemnite_fin,
+        date_debut_periode,
+        date_fin_periode,
+    )
+    if ligne_iccp:
+        lignes_composants_brut.append(ligne_iccp)
+
     # Le calcul du brut total reste inchangé
     total_gains = sum(
         ligne.get("gain", 0.0) or 0.0
@@ -508,10 +842,22 @@ def calculer_salaire_brut(
 
     # --- FIN DU BLOC CORRIGÉ ---
 
+    # Heures complémentaires du mois : exposées au calcul des cotisations pour
+    # relever le prorata du plafond SS temps partiel (assiette).
+    try:
+        contexte.heures_complementaires_mois = round(
+            heures_travail_hc1_total + heures_travail_hc2_total, 2
+        )
+    except Exception:
+        pass
+
     return {
         "salaire_brut_total": round(total_brut, 2),
         "lignes_composants_brut": lignes_composants_brut,
         "remuneration_brute_heures_supp": round(remuneration_hs_totale, 2),
         "total_heures_supp": round(total_heures_supp_mois, 2),
         "deduction_arret_maladie": round(deduction_arret_maladie_total, 2),
+        "heures_complementaires": round(
+            heures_travail_hc1_total + heures_travail_hc2_total, 2
+        ),
     }
