@@ -95,7 +95,7 @@ Deux comportements dans le même fichier :
 |------|-----|------|
 | Secret | `GCP_SA_KEY` | JSON du compte de service GCP. |
 | Secret | `SUPABASE_URL`, `SUPABASE_KEY` | Variables passées à Cloud Run au déploiement. |
-| Secret | `SUPABASE_DB_URL` | Chaîne de connexion Postgres du projet Supabase (ex. pooler `postgresql://…`). Utilisée par le job **DB migrations** (`supabase db push`). Sans elle, le job échoue avec un message clair. |
+| Secret | `SUPABASE_DB_URL` | *(Optionnel)* Chaîne Postgres Supabase pour `supabase db push` en CI. Si absent, le job migrations affiche un avertissement et le déploiement continue (schéma appliqué manuellement). |
 | Secret | `OPENROUTER_API_KEY` | Clé OpenRouter pour l'IA en prod (copilot, parsing PDF, etc.). Sans elle, l'app tourne mais l'IA renvoie une erreur de configuration. |
 | Variable | `GCP_PROJECT_ID` | Projet GCP cible. |
 | Variable | `VITE_API_URL` | URL HTTPS publique du backend (utilisée au build de l'image frontend). |

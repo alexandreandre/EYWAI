@@ -105,17 +105,22 @@ jobs:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Vérifier secret SUPABASE_DB_URL
+        id: db_url
         run: |
           if [ -z "${{ secrets.SUPABASE_DB_URL }}" ]; then
-            echo "::error::Manquant : SUPABASE_DB_URL (secret). Voir .github/workflows/GUIDE_SIMPLE.md."
-            exit 1
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::SUPABASE_DB_URL absent — supabase db push ignoré (migrations à appliquer manuellement si besoin). Voir GUIDE_SIMPLE.md."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: supabase/setup-cli@v1
+        if: steps.db_url.outputs.skip != 'true'
         with:
           version: latest
 
       - name: supabase db push
+        if: steps.db_url.outputs.skip != 'true'
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: supabase db push --db-url "$SUPABASE_DB_URL"
