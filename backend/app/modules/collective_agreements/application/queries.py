@@ -15,7 +15,9 @@ from app.modules.collective_agreements.application.dto import (
 from app.modules.collective_agreements.application.service import (
     CollectiveAgreementsService,
     get_collective_agreements_service,
+    _to_http,
 )
+from app.modules.collective_agreements.domain.exceptions import ForbiddenError, NotFoundError
 
 
 def list_catalog_query(
@@ -93,16 +95,10 @@ def get_rules_status_query(
 ) -> dict:
     """Statut des règles paie extraites pour une convention (super admin)."""
     if not is_platform_admin:
-        from fastapi import HTTPException
-
-        raise HTTPException(
-            status_code=403, detail="Accès réservé au super administrateur"
-        )
+        raise _to_http(ForbiddenError("Accès réservé au super administrateur"))
     from app.modules.collective_agreements.application.kali_import import (
         get_kali_import_service,
     )
-    from app.modules.collective_agreements.application.service import _to_http
-    from app.modules.collective_agreements.domain.exceptions import NotFoundError
     from app.modules.collective_agreements.rules.service import get_cc_rules_service
 
     try:

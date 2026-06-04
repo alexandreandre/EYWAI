@@ -95,11 +95,7 @@ def extract_rules(
 ) -> dict:
     """Extrait et persiste les règles paie pour une convention (super admin)."""
     if not is_platform_admin:
-        from fastapi import HTTPException
-
-        raise HTTPException(
-            status_code=403, detail="Accès réservé au super administrateur"
-        )
+        raise _to_http(ForbiddenError("Accès réservé au super administrateur"))
     from app.modules.collective_agreements.rules.service import get_cc_rules_service
 
     try:
@@ -130,11 +126,7 @@ def extract_rules_batch(
 ) -> dict:
     """Extraction batch des règles paie (super admin)."""
     if not is_platform_admin:
-        from fastapi import HTTPException
-
-        raise HTTPException(
-            status_code=403, detail="Accès réservé au super administrateur"
-        )
+        raise _to_http(ForbiddenError("Accès réservé au super administrateur"))
     from app.modules.collective_agreements.rules.service import get_cc_rules_service
 
     outcomes = get_cc_rules_service().extract_batch(
@@ -195,11 +187,7 @@ def import_from_legifrance(
 ) -> dict:
     """Importe une CC depuis Légifrance KALI (super admin)."""
     if not is_platform_admin:
-        from fastapi import HTTPException
-
-        raise HTTPException(
-            status_code=403, detail="Accès réservé au super administrateur"
-        )
+        raise _to_http(ForbiddenError("Accès réservé au super administrateur"))
     from app.modules.collective_agreements.application.kali_import import (
         get_kali_import_service,
     )
@@ -219,11 +207,7 @@ def import_from_legifrance_batch(
 ) -> dict:
     """Import batch depuis Légifrance KALI (super admin)."""
     if not is_platform_admin:
-        from fastapi import HTTPException
-
-        raise HTTPException(
-            status_code=403, detail="Accès réservé au super administrateur"
-        )
+        raise _to_http(ForbiddenError("Accès réservé au super administrateur"))
     from app.modules.collective_agreements.application.kali_import import (
         get_kali_import_service,
     )
@@ -249,11 +233,7 @@ def rollback_rules(
 ) -> dict:
     """Restaure les règles paie depuis le journal d'extraction (super admin)."""
     if not is_platform_admin:
-        from fastapi import HTTPException
-
-        raise HTTPException(
-            status_code=403, detail="Accès réservé au super administrateur"
-        )
+        raise _to_http(ForbiddenError("Accès réservé au super administrateur"))
     from app.modules.collective_agreements.rules.service import get_cc_rules_service
 
     row = get_cc_rules_service().rollback(log_id)

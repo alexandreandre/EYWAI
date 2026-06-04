@@ -27,7 +27,7 @@ def _normalize_security(value: Optional[str]) -> SmtpSecurity:
 
 
 def _normalize_recipients(raw: Any) -> tuple[str, ...]:
-    if isinstance(raw, list):
+    if isinstance(raw, (list, tuple)):
         cleaned = [str(x).strip() for x in raw if str(x).strip()]
         if cleaned:
             return tuple(cleaned)
