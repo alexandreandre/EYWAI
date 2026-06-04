@@ -83,7 +83,7 @@ class TestEnsureCanEditEntityLogo:
         )
         mock_can_edit.assert_called_once_with(
             user_id="user-1",
-            is_platform_admin=False,
+            is_super_admin=False,
             entity_type="company",
             entity_id="company-1",
         )
