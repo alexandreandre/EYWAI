@@ -1,4 +1,11 @@
 # Schemas for schedules — ré-exports pour préparation migration.
+from .ai import (
+    AiCalendarProposalResponse,
+    AiDayEntry,
+    AiEmployeeProposal,
+    ParseInstructionRequest,
+    RosterEmployee,
+)
 from .requests import (
     ActualHoursEntry,
     ActualHoursRequest,
@@ -19,6 +26,9 @@ from .responses import (
 __all__ = [
     "ActualHoursEntry",
     "ActualHoursRequest",
+    "AiCalendarProposalResponse",
+    "AiDayEntry",
+    "AiEmployeeProposal",
     "ApplyModelRequest",
     "CalendarData",
     "CalendarResponse",
@@ -26,7 +36,9 @@ __all__ = [
     "CumulsResponse",
     "CumulsValues",
     "DayConfigModel",
+    "ParseInstructionRequest",
     "PlannedCalendarEntry",
     "PlannedCalendarRequest",
+    "RosterEmployee",
     "WeekConfigModel",
 ]

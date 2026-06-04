@@ -5,17 +5,22 @@ Aucune logique métier ni accès DB : validation (schémas), Depends, appel appl
 conversion ScheduleAppError -> HTTPException, retour HTTP. Comportement identique aux anciens endpoints.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+import json
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from app.core.security import get_current_user
-from app.modules.schedules.application import commands, queries
+from app.modules.schedules.application import ai_fill, commands, queries
 from app.modules.schedules.application.exceptions import ScheduleAppError
 from app.modules.schedules.schemas import (
     ActualHoursRequest,
+    AiCalendarProposalResponse,
     ApplyModelRequest,
     CalendarResponse,
     CumulsResponse,
+    ParseInstructionRequest,
     PlannedCalendarRequest,
+    RosterEmployee,
 )
 from app.modules.users.schemas.responses import User
 
@@ -146,6 +151,72 @@ async def apply_schedule_model(
     """Applique un modèle de planning à plusieurs employés pour un mois donné. Réservé aux RH."""
     try:
         return commands.apply_schedule_model(request, current_user)
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+
+_MAX_TIMESHEET_BYTES = 15 * 1024 * 1024  # 15 Mo
+
+
+@router_rh.post(
+    "/assisted-fill/parse-text", response_model=AiCalendarProposalResponse
+)
+def assisted_fill_parse_text(
+    payload: ParseInstructionRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Convertit une instruction en langage naturel en proposition d'heures réelles.
+
+    Ne persiste rien : la proposition est revue par le RH avant enregistrement.
+    """
+    try:
+        _ = current_user
+        return ai_fill.parse_instruction(
+            year=payload.year,
+            month=payload.month,
+            instruction=payload.instruction,
+            roster=payload.employees,
+        )
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+
+@router_rh.post(
+    "/assisted-fill/extract-timesheet", response_model=AiCalendarProposalResponse
+)
+async def assisted_fill_extract_timesheet(
+    file: UploadFile = File(...),
+    year: int = Form(...),
+    month: int = Form(...),
+    employees: str = Form("[]"),
+    current_user: User = Depends(get_current_user),
+):
+    """Analyse un relevé de pointeuse (PDF/image) en proposition d'heures réelles.
+
+    `employees` est une chaîne JSON [{id, first_name, last_name}] pour la
+    résolution des noms. Ne persiste rien.
+    """
+    _ = current_user
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Le fichier est vide.")
+    if len(content) > _MAX_TIMESHEET_BYTES:
+        raise HTTPException(
+            status_code=400, detail="Fichier trop volumineux (max 15 Mo)."
+        )
+    try:
+        raw_roster = json.loads(employees or "[]")
+        roster = [RosterEmployee(**item) for item in raw_roster]
+    except (json.JSONDecodeError, TypeError, ValueError):
+        roster = []
+    try:
+        return ai_fill.extract_timesheet(
+            year=year,
+            month=month,
+            file_content=content,
+            filename=file.filename or "",
+            roster=roster,
+        )
     except ScheduleAppError as e:
         _handle_schedule_error(e)
 
