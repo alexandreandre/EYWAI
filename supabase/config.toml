@@ -1,4 +1,0 @@
-# Projet Supabase canonique pour les migrations du dépôt.
-# Les fichiers SQL vivent dans supabase/migrations/ et sont appliqués en CI
-# (job `migrate` de .github/workflows/deploy.yml) via `supabase db push`.
-project_id = "xwpaukpireqzghidirsd"
