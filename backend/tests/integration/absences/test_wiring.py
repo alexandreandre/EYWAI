@@ -161,13 +161,13 @@ class TestAbsencesCreateRequestWiring:
         with patch(
             "app.modules.absences.api.router.commands.create_absence_request"
         ) as create_cmd, patch(
-            "app.modules.absences.api.router.absence_repository.get_team_manager_employee_id_for_employee",
+            "app.modules.absences.api.router.absence_router.get_team_manager_employee_id_for_employee",
             return_value=None,
         ), patch(
-            "app.modules.absences.api.router.absence_repository.update",
+            "app.modules.absences.api.router.absence_router.update",
             side_effect=lambda rid, payload: {**created, **payload},
         ), patch(
-            "app.modules.absences.api.router.resolve_employee_id_for_user",
+            "app.modules.absences.api.router.absence_router.resolve_employee_id_for_user",
             return_value="emp-1",
         ), patch(
             "app.modules.absences.api.router._enrich_single_absence_row",

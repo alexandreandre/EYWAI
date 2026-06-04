@@ -51,9 +51,10 @@ class TestCopilotQuery:
         )
         assert response.status_code == 401
 
+    @patch("app.modules.copilot.api.router.is_app_debug_enabled", return_value=True)
     @patch("app.modules.copilot.api.router.commands.execute_text_to_sql")
     def test_query_with_auth_returns_200_and_response_body(
-        self, mock_execute, client_with_copilot_user: TestClient
+        self, mock_execute, _mock_debug, client_with_copilot_user: TestClient
     ):
         """Avec auth (override) et commande mockée → 200, answer + sql_query + data."""
         mock_execute.return_value = MagicMock(
@@ -122,9 +123,10 @@ class TestCopilotQueryAgent:
         )
         assert response.status_code == 401
 
+    @patch("app.modules.copilot.api.router.is_app_debug_enabled", return_value=True)
     @patch("app.modules.copilot.api.router.commands.handle_agent_query")
     def test_query_agent_with_auth_returns_200_and_response_body(
-        self, mock_handle, client_with_copilot_user: TestClient
+        self, mock_handle, _mock_debug, client_with_copilot_user: TestClient
     ):
         """Avec auth (override) et commande mockée → 200, answer, needs_clarification, etc."""
         mock_handle.return_value = MagicMock(

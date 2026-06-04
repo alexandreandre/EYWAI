@@ -61,7 +61,7 @@ def _make_rh_user():
         email="rh@payslips.test",
         first_name="RH",
         last_name="Payslips",
-        is_super_admin=False,
+        is_platform_admin=False,
         is_group_admin=False,
         accessible_companies=[access],
         active_company_id=TEST_COMPANY_ID,
@@ -81,7 +81,7 @@ def _make_employee_user(employee_id: str = TEST_EMPLOYEE_ID):
         email="emp@payslips.test",
         first_name="Jean",
         last_name="Dupont",
-        is_super_admin=False,
+        is_platform_admin=False,
         is_group_admin=False,
         accessible_companies=[access],
         active_company_id=TEST_COMPANY_ID,
@@ -101,7 +101,7 @@ def _make_non_rh_user():
         email="collab@payslips.test",
         first_name="Collab",
         last_name="Test",
-        is_super_admin=False,
+        is_platform_admin=False,
         is_group_admin=False,
         accessible_companies=[access],
         active_company_id=TEST_COMPANY_ID,
@@ -418,6 +418,9 @@ class TestPayslipsEditRoute:
             "new_pdf_url": "https://new.pdf",
         }
         with patch(
+            "app.modules.payslips.api.router.resolve_employee_id_for_user_account",
+            return_value=None,
+        ), patch(
             "app.modules.payslips.api.router.edit_payslip_for_user",
             return_value=result,
         ):
@@ -444,6 +447,9 @@ class TestPayslipsEditRoute:
         from app.core.security import get_current_user
 
         with patch(
+            "app.modules.payslips.api.router.resolve_employee_id_for_user_account",
+            return_value=None,
+        ), patch(
             "app.modules.payslips.api.router.edit_payslip_for_user"
         ) as mock_edit:
             from app.modules.payslips.application.dto import PayslipNotFoundError
@@ -484,6 +490,9 @@ class TestPayslipsHistoryRoute:
             },
         ]
         with patch(
+            "app.modules.payslips.api.router.resolve_employee_id_for_user_account",
+            return_value=None,
+        ), patch(
             "app.modules.payslips.api.router.get_payslip_history_for_user",
             return_value=history,
         ):
@@ -516,6 +525,9 @@ class TestPayslipsRestoreRoute:
             "restored_version": 2,
         }
         with patch(
+            "app.modules.payslips.api.router.resolve_employee_id_for_user_account",
+            return_value=None,
+        ), patch(
             "app.modules.payslips.api.router.restore_payslip_for_user",
             return_value=result,
         ):

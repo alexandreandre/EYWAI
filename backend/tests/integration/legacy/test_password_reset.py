@@ -57,13 +57,14 @@ def test_smtp_sender_config():
     )
 
     sender = get_password_reset_smtp_sender()
-    print(f"   SMTP Host: {sender.smtp_host}")
-    print(f"   SMTP Port: {sender.smtp_port}")
-    print(f"   SMTP User: {sender.smtp_user or '(Non configuré)'}")
-    print(f"   From Email: {sender.from_email}")
-    print(f"   Frontend URL: {sender.frontend_url}")
+    config = sender._load_config()
+    print(f"   SMTP Host: {config.smtp_host}")
+    print(f"   SMTP Port: {config.smtp_port}")
+    print(f"   SMTP User: {config.smtp_user or '(Non configuré)'}")
+    print(f"   From Email: {config.from_email}")
+    print(f"   Frontend URL: {config.frontend_url}")
 
-    if sender.smtp_user and sender.smtp_password:
+    if config.smtp_user and config.smtp_password:
         print("✅ Service SMTP configuré\n")
     else:
         print("⚠️  Service SMTP non configuré (mode développement)\n")

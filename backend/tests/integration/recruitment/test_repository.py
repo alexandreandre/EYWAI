@@ -151,14 +151,18 @@ class TestCandidateRepository:
         ) as supabase:
             table_mock = MagicMock()
             chain = MagicMock()
+            chain.execute.return_value = MagicMock(data=[])
             table_mock.delete.return_value.eq.return_value = chain
+            table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(
+                data=[]
+            )
             supabase.table.return_value = table_mock
 
             repo = CandidateRepository()
             repo.delete("cand-1", "co-1")
 
             supabase.table.assert_called_with("recruitment_candidates")
-            table_mock.delete.return_value.eq.assert_called_once_with("id", "cand-1")
+            table_mock.delete.return_value.eq.assert_called_with("id", "cand-1")
 
 
 class TestPipelineStageRepository:

@@ -233,7 +233,7 @@ class TestDashboardAnalyticsGestion:
         )
         assert response.status_code == 401
 
-    @patch("app.modules.dashboard.application.analytics_gestion.build_analytics_gestion")
+    @patch("app.modules.dashboard.api.router.build_analytics_gestion")
     def test_with_rh_user_returns_200_and_shape(
         self, mock_build, client: TestClient
     ):

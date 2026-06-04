@@ -27,7 +27,7 @@ def _employee_user():
         email="emp@wiring.test",
         first_name="Jean",
         last_name="Wiring",
-        is_super_admin=False,
+        is_platform_admin=False,
         is_group_admin=False,
         accessible_companies=[
             CompanyAccess(
@@ -48,7 +48,7 @@ def _rh_user():
         email="rh@wiring.test",
         first_name="RH",
         last_name="Wiring",
-        is_super_admin=False,
+        is_platform_admin=False,
         is_group_admin=False,
         accessible_companies=[
             CompanyAccess(
@@ -108,7 +108,7 @@ class TestPayslipsWiringMyPayslips:
         """La route appelle get_my_payslips avec current_user.id."""
         from app.core.security import get_current_user
 
-        with patch("app.modules.payslips.api.router.get_my_payslips") as mock_get:
+        with patch("app.modules.payslips.api.router.get_my_payslips_for_user_account") as mock_get:
             mock_get.return_value = [
                 {
                     "id": "ps-1",
@@ -126,7 +126,7 @@ class TestPayslipsWiringMyPayslips:
                 app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
         assert response.json()[0]["id"] == "ps-1"
-        mock_get.assert_called_once_with(TEST_EMPLOYEE_ID)
+        mock_get.assert_called_once_with(TEST_EMPLOYEE_ID, TEST_COMPANY_ID)
 
 
 class TestPayslipsWiringDetailAndAuth:
@@ -156,6 +156,9 @@ class TestPayslipsWiringDetailAndAuth:
             "cumuls": None,
         }
         with patch(
+            "app.modules.payslips.api.router.resolve_employee_id_for_user_account",
+            return_value=None,
+        ), patch(
             "app.modules.payslips.api.router.get_payslip_details_for_user",
             return_value=detail,
         ) as mock_get:

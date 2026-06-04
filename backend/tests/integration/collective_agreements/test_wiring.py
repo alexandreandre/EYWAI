@@ -57,7 +57,7 @@ class TestCommandsWiring:
             rules_pdf_filename=None,
         )
         result = commands.create_catalog_item(
-            data, is_super_admin=True, service=mock_svc
+            data, is_platform_admin=True, service=mock_svc
         )
         assert result["id"] == "new-id"
         mock_svc.create_catalog_item.assert_called_once_with(data, True)

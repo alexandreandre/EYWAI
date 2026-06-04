@@ -82,6 +82,8 @@ def _make_contexte_mock() -> SimpleNamespace:
             },
         },
         cumuls={"cumuls": {"brut_reference_n_1": 0.0}},
+        is_cdd=False,
+        est_dernier_mois_cdd=lambda *_args, **_kwargs: False,
     )
 
 

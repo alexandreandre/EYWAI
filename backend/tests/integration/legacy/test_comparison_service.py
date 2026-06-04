@@ -18,7 +18,7 @@ from app.modules.payslips.domain.comparison_engine import ComparisonResult, Pays
 def _ctx_rh() -> UserContext:
     return UserContext(
         user_id="u-rh",
-        is_super_admin=False,
+        is_platform_admin=False,
         has_rh_access_in_company=lambda _cid: True,
         active_company_id="c1",
         first_name="Rh",

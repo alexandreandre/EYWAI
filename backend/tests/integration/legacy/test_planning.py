@@ -22,7 +22,7 @@ from app.modules.planning.domain.conflict_engine import (
 # Chemins repo (backend/tests → racine EYWAI)
 # ---------------------------------------------------------------------------
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 _FRONTEND_PLANNING_TS = _REPO_ROOT / "frontend" / "src" / "api" / "planning.ts"
 _PLANNING_MIGRATION_SQL = (
     _REPO_ROOT / "supabase" / "migrations" / "20260422100001_planning_module.sql"

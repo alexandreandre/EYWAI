@@ -157,7 +157,7 @@ class TestCreateAbsenceRequest:
         app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
         try:
             with patch(
-                "app.modules.absences.api.router.resolve_employee_id_for_user",
+                "app.modules.absences.api.router.absence_router.resolve_employee_id_for_user",
                 return_value="emp-resolved",
             ):
                 response = client.post(
@@ -184,15 +184,15 @@ class TestCreateAbsenceRequest:
         app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
         try:
             with patch(
-                "app.modules.absences.api.router.resolve_employee_id_for_user",
+                "app.modules.absences.api.router.absence_router.resolve_employee_id_for_user",
                 return_value="emp-resolved",
             ), patch(
                 "app.modules.absences.api.router.commands.create_absence_request"
             ) as create_cmd, patch(
-                "app.modules.absences.api.router.absence_repository.get_team_manager_employee_id_for_employee",
+                "app.modules.absences.api.router.absence_router.get_team_manager_employee_id_for_employee",
                 return_value=None,
             ), patch(
-                "app.modules.absences.api.router.absence_repository.update",
+                "app.modules.absences.api.router.absence_router.update",
                 side_effect=lambda rid, payload: {
                     "id": rid,
                     "employee_id": "emp-resolved",
@@ -435,7 +435,7 @@ class TestGetMyAbsencesPageData:
             "history": [],
         }
         with patch(
-            "app.modules.absences.api.router.resolve_employee_id_for_user",
+            "app.modules.absences.api.router.absence_router.resolve_employee_id_for_user",
             return_value="emp-resolved",
         ), patch(
             "app.modules.absences.api.router.queries.get_my_absences_page_data",

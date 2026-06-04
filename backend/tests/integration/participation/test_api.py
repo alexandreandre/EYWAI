@@ -29,7 +29,7 @@ def _make_user_with_company():
     user = MagicMock()
     user.id = TEST_USER_ID
     user.active_company_id = TEST_COMPANY_ID
-    user.is_super_admin = False
+    user.is_platform_admin = False
     user.has_rh_access_in_company.return_value = True
     return user
 
@@ -39,7 +39,7 @@ def _make_user_without_company():
     user = MagicMock()
     user.id = TEST_USER_ID
     user.active_company_id = None
-    user.is_super_admin = False
+    user.is_platform_admin = False
     user.has_rh_access_in_company.return_value = False
     return user
 
@@ -49,7 +49,7 @@ def _make_non_rh_user_with_company():
     user = MagicMock()
     user.id = TEST_USER_ID
     user.active_company_id = TEST_COMPANY_ID
-    user.is_super_admin = False
+    user.is_platform_admin = False
     user.has_rh_access_in_company.return_value = False
     return user
 
