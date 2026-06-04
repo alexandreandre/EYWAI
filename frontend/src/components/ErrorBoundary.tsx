@@ -37,22 +37,23 @@ export class ErrorBoundaryClass extends Component<Props, State> {
   render() {
     if (this.state.hasError && this.state.error) {
       if (this.props.fallback) return this.props.fallback;
-      return (
-        <ErrorFallback error={this.state.error} />
-      );
+      return <ErrorFallback />;
     }
     return this.props.children;
   }
 }
 
-function ErrorFallback({ error }: { error: Error }) {
+function ErrorFallback() {
   // useNavigate doit être utilisé dans un composant sous Router
   const navigate = useNavigate();
   return (
     <div className="flex flex-col items-center justify-center min-h-[320px] p-6 text-center">
       <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
       <h2 className="text-lg font-semibold mb-2">Une erreur s&apos;est produite</h2>
-      <p className="text-muted-foreground text-sm mb-4 max-w-md">{error.message}</p>
+      <p className="text-muted-foreground text-sm mb-4 max-w-md">
+        Cette page n&apos;a pas pu s&apos;afficher correctement. Réessayez ou
+        revenez à l&apos;accueil. Si le problème persiste, contactez le support.
+      </p>
       <Button variant="outline" onClick={() => navigate("/")}>
         Retour à l&apos;accueil
       </Button>

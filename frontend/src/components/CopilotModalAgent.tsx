@@ -4,6 +4,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import apiClient from "@/api/apiClient"
+import { getUserErrorMessage } from "@/lib/errorMessages"
 import { Loader2, Send, Sparkles, Brain } from "lucide-react"
 
 // --- Types ---
@@ -108,7 +109,10 @@ export function CopilotModalAgent({ isOpen, onClose }: CopilotModalProps) {
     } catch (e: any) {
       const errorMessage: Message = {
         role: 'assistant',
-        content: `❌ Erreur: ${e.response?.data?.detail || e.message || "Erreur de connexion"}`
+        content: getUserErrorMessage(
+          e,
+          "Le service d'assistance est momentanément indisponible. Réessayez.",
+        ),
       }
       setMessages(prev => [...prev, errorMessage])
     } finally {

@@ -31,7 +31,7 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     const validateToken = async () => {
       if (!token) {
-        setError('Token manquant. Le lien est invalide.');
+        setError('Ce lien de réinitialisation est invalide ou expiré. Demandez-en un nouveau.');
         setIsValidating(false);
         return;
       }

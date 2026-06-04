@@ -240,7 +240,7 @@ export function TeamPanel({
       return <p className="text-xs text-emerald-600">✓ Disponible</p>;
     }
     if (nameAvailable === false) {
-      return <p className="text-xs text-destructive">✗ Ce nom est déjà utilisé</p>;
+      return <p className="text-xs text-destructive">Ce nom d’équipe est déjà utilisé.</p>;
     }
     return null;
   };

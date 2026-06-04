@@ -21,6 +21,7 @@ import { RatesPageToolbar } from '@/components/rates/RatesPageToolbar';
 import { RatesKeyParamsSection } from '@/components/rates/RatesKeyParamsSection';
 import { RatesCotisationsSection } from '@/components/rates/RatesCotisationsSection';
 import { RatesBaremesSection } from '@/components/rates/RatesBaremesSection';
+import { RatesAdminPanel } from '@/components/rates/RatesAdminPanel';
 import { getCategoryTitle, parseRatesError } from '@/lib/ratesUtils';
 import { getCotisationTitle } from '@/lib/ratesLabels';
 import type { RatesSyncTarget } from '@/lib/ratesSyncManifest';
@@ -105,8 +106,9 @@ function RatesEmptyState({ onFullSync }: { onFullSync: () => void }) {
   );
 }
 
-export default function Rates() {
-  const ratesQuery = useRatesQuery();
+export default function Rates({ admin = false }: { admin?: boolean } = {}) {
+  // En mode admin (plateforme), le référentiel est consultable sans entreprise active.
+  const ratesQuery = useRatesQuery(true, !admin);
   const data = ratesQuery.data as RatesResponse | undefined;
   const loading = ratesQuery.isLoading && !ratesQuery.data;
 
@@ -247,13 +249,16 @@ export default function Rates() {
   );
 
   useEffect(() => {
+    // Le déclenchement automatique mensuel reste piloté côté RH pour éviter
+    // un double lancement depuis l'espace administrateur.
+    if (admin) return;
     if (autoMonthlyStarted.current || loading || loadError || !data || isSyncing) return;
     if (!monthly.shouldAutoStart) return;
 
     autoMonthlyStarted.current = true;
     toast.info('Mise à jour automatique du 1er du mois…');
     void startSync({ scope: 'all' }, { monthly: true });
-  }, [loading, loadError, data, isSyncing, monthly.shouldAutoStart, startSync]);
+  }, [admin, loading, loadError, data, isSyncing, monthly.shouldAutoStart, startSync]);
 
   const toolbarProps = {
     onRefresh: handleRefresh,
@@ -270,7 +275,11 @@ export default function Rates() {
   const header = (
     <RhPageHeader
       title="Suivi des taux"
-      description="Consultez les taux réglementaires et mettez à jour chaque bloc ou l’ensemble du référentiel."
+      description={
+        admin
+          ? 'Référentiel réglementaire global : consultez, validez les changements en attente et ajustez les taux à la main.'
+          : 'Consultez les taux réglementaires et mettez à jour chaque bloc ou l’ensemble du référentiel.'
+      }
     />
   );
 
@@ -333,6 +342,10 @@ export default function Rates() {
       {pageChrome}
 
       <PageFetchIndicator isFetching={ratesQuery.isFetching} />
+
+      {admin && (
+        <RatesAdminPanel data={data} onManualSaved={() => void ratesQuery.refetch()} />
+      )}
 
       <RatesKeyParamsSection
         data={data}

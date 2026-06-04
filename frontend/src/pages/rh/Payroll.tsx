@@ -5,6 +5,7 @@ import { RhPageHeader } from '@/components/layout';
 import { Link } from "react-router-dom";
 import apiClient from '../../api/apiClient';
 import { useEmployeesQuery } from '@/hooks/queries/useEmployeesQuery';
+import { getUserErrorMessage, sanitizeBackendMessage } from '@/lib/errorMessages';
 import { TableSkeleton } from '@/components/skeletons/TableSkeleton';
 import { PageFetchIndicator } from '@/components/skeletons/PageFetchIndicator';
 import { Button } from "@/components/ui/button";
@@ -112,15 +113,14 @@ function GeneratePayrollModal({ isOpen, onClose, employees }: { isOpen: boolean,
           errorsList.push({
             id: employeeId,
             name: employeeName,
-            error: response.data.message || 'Erreur inconnue'
+            error: sanitizeBackendMessage(response.data.message) || 'La génération a échoué.'
           });
         }
       } catch (error: any) {
-        const errorMessage = error.response?.data?.detail || error.message || 'Erreur inconnue';
         errorsList.push({
           id: employeeId,
           name: employeeName,
-          error: errorMessage
+          error: getUserErrorMessage(error, 'La génération a échoué.')
         });
       }
     }
@@ -256,7 +256,7 @@ export default function Payroll() {
   const employees = (employeesQuery.data ?? []) as Employee[];
   const loading = employeesQuery.isLoading && !employeesQuery.data;
   const error = employeesQuery.error
-    ? "Erreur : Impossible de récupérer la liste des collaborateurs."
+    ? "Impossible de charger la liste des collaborateurs. Réessayez."
     : null;
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
 

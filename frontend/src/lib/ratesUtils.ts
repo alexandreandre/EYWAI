@@ -1,4 +1,9 @@
 import type { RateCategory, RatesResponse } from '@/api/rates';
+import {
+  getApiErrorStatus,
+  getUserErrorMessage,
+  sanitizeBackendMessage,
+} from '@/lib/errorMessages';
 
 export type RatesSnapshot = Record<string, { version: number; last_checked_at: string | null }>;
 
@@ -96,21 +101,19 @@ export {
 } from '@/lib/ratesMonthlyAuto';
 
 export function parseRatesError(error: unknown): { message: string; status?: number } {
-  const err = error as {
-    response?: { status?: number; data?: { detail?: string } };
-    message?: string;
-  };
-  const status = err.response?.status;
-  const detail = err.response?.data?.detail;
+  const status = getApiErrorStatus(error);
+  const detail = sanitizeBackendMessage(
+    (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail,
+  );
   if (status === 403) {
     return { message: 'Accès réservé aux RH et administrateurs.', status };
   }
   if (status === 404) {
     return {
       message:
-        detail?.includes('configuration') || detail?.includes('source')
+        detail && (detail.includes('configuration') || detail.includes('source'))
           ? detail
-          : 'Référentiel vide — lancez une mise à jour depuis les sources officielles.',
+          : 'Les taux ne sont pas encore disponibles. Lancez une mise à jour.',
       status,
     };
   }
@@ -118,7 +121,7 @@ export function parseRatesError(error: unknown): { message: string; status?: num
     return { message: detail || 'Une mise à jour est déjà en cours.', status };
   }
   return {
-    message: detail || err.message || 'Une erreur est survenue.',
+    message: getUserErrorMessage(error, 'Une erreur est survenue.'),
     status,
   };
 }

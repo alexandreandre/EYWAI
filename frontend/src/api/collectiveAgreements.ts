@@ -216,3 +216,136 @@ export interface AskQuestionResponse {
 export const askQuestion = (data: AskQuestionRequest) => {
   return apiClient.post<AskQuestionResponse>('/api/collective-agreements-chat/ask', data);
 };
+
+// =====================================================================
+// API - RÈGLES PAIE (extraction IA, super admin)
+// =====================================================================
+
+/**
+ * Importe une convention depuis Légifrance (KALI) par IDCC
+ */
+export const importFromLegifrance = (data: {
+  idcc: string;
+  extract_rules?: boolean;
+  sector?: string;
+}) => {
+  return apiClient.post<KaliImportResponse>(
+    '/api/collective-agreements/catalog/import-legifrance',
+    data
+  );
+};
+
+/**
+ * Import batch depuis Légifrance
+ */
+export const importFromLegifranceBatch = (data: {
+  idcc_list?: string[];
+  priority_only?: boolean;
+  extract_rules?: boolean;
+}) => {
+  return apiClient.post<KaliImportBatchResponse>(
+    '/api/collective-agreements/catalog/import-legifrance/batch',
+    data
+  );
+};
+
+/**
+ * Ré-import Légifrance pour une fiche existante
+ */
+export const reimportFromLegifrance = (agreementId: string, extractRules = true) => {
+  return apiClient.post<KaliImportResponse>(
+    `/api/collective-agreements/catalog/${agreementId}/import-legifrance`,
+    null,
+    { params: { extract_rules: extractRules } }
+  );
+};
+
+export interface KaliImportResponse {
+  success: boolean;
+  idcc: string;
+  agreement_id?: string | null;
+  title?: string | null;
+  legifrance_url?: string | null;
+  character_count?: number;
+  created?: boolean;
+  error?: string | null;
+  rules?: {
+    success: boolean;
+    error?: string | null;
+    confidence?: string | null;
+  } | null;
+}
+
+export interface KaliImportBatchResponse {
+  results: KaliImportResponse[];
+  total: number;
+  succeeded: number;
+  failed: number;
+}
+
+export interface ExtractRulesResponse {
+  success: boolean;
+  idcc: string;
+  agreement_id?: string | null;
+  rules?: Record<string, unknown> | null;
+  error?: string | null;
+  tokens_used?: number;
+  confidence?: string | null;
+  log_id?: string | null;
+}
+
+export interface ExtractRulesBatchResponse {
+  results: ExtractRulesResponse[];
+  total: number;
+  succeeded: number;
+  failed: number;
+}
+
+export interface RulesStatusResponse {
+  idcc: string;
+  agreement_id: string;
+  has_rules: boolean;
+  rules?: Record<string, unknown> | null;
+  source_text_hash?: string | null;
+  extracted_at?: string | null;
+  extraction_model?: string | null;
+  latest_log_status?: string | null;
+  latest_log_error?: string | null;
+  confidence?: string | null;
+  text_source?: string | null;
+}
+
+/**
+ * Extrait les règles paie depuis le texte CC (super admin)
+ */
+export const extractRules = (agreementId: string, dryRun = false) => {
+  return apiClient.post<ExtractRulesResponse>(
+    `/api/collective-agreements/catalog/${agreementId}/extract-rules`,
+    null,
+    { params: { dry_run: dryRun } }
+  );
+};
+
+/**
+ * Extraction batch des règles paie (super admin)
+ */
+export const extractRulesBatch = (data: {
+  idcc_list?: string[];
+  all_catalog?: boolean;
+  priority_only?: boolean;
+  dry_run?: boolean;
+}) => {
+  return apiClient.post<ExtractRulesBatchResponse>(
+    '/api/collective-agreements/catalog/extract-rules/batch',
+    data
+  );
+};
+
+/**
+ * Statut des règles paie pour une convention (super admin)
+ */
+export const getRulesStatus = (agreementId: string) => {
+  return apiClient.get<RulesStatusResponse>(
+    `/api/collective-agreements/catalog/${agreementId}/rules-status`
+  );
+};

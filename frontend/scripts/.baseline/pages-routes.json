@@ -70,6 +70,7 @@
     "groups",
     "groups/:groupId",
     "monitoring",
+    "rates",
     "reduction-fillon",
     "scraping",
     "support",
@@ -81,6 +82,7 @@
   "lazyExportNames": [
     "AdminAccessRH",
     "AdminActivityLog",
+    "AdminRates",
     "AdminSuperAdminsPage",
     "AdminSupportCenter",
     "AnalyticsGestionPage",

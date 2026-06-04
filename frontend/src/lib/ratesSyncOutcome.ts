@@ -1,5 +1,9 @@
 import type { RatesSyncJob, RatesSyncStatusResponse } from '@/api/rates';
 import { getCategoryTitle } from '@/lib/ratesLabels';
+import { sanitizeBackendMessage } from '@/lib/errorMessages';
+
+const SYNC_GENERIC_ERROR =
+  'La mise à jour des taux a échoué. Réessayez ou contactez le support.';
 
 export function humanizeSyncError(message: string | null | undefined): string {
   if (!message?.trim()) {
@@ -15,15 +19,13 @@ export function humanizeSyncError(message: string | null | undefined): string {
     normalized.includes('délai dépassé') ||
     normalized.includes('Timeout')
   ) {
-    return normalized;
+    return 'La mise à jour a été interrompue (délai dépassé). Réessayez.';
   }
   if (normalized.includes('Script non trouvé') || normalized.includes('.py')) {
-    return 'Impossible d’accéder au script de récupération. Contactez le support.';
+    return SYNC_GENERIC_ERROR;
   }
-  if (normalized.startsWith('[ERREUR]')) {
-    return normalized.replace(/^\[ERREUR\]\s*/, '');
-  }
-  return normalized.length > 220 ? `${normalized.slice(0, 220)}…` : normalized;
+  // Nettoie le message restant : si technique, on retombe sur un message propre.
+  return sanitizeBackendMessage(normalized) ?? SYNC_GENERIC_ERROR;
 }
 
 export type SyncOutcomePresentation = {

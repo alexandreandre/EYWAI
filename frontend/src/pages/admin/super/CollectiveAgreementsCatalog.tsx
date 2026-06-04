@@ -51,7 +51,10 @@ import {
   Search,
   Trash2,
   CheckCircle,
-  XCircle
+  XCircle,
+  Sparkles,
+  Eye,
+  Landmark,
 } from 'lucide-react';
 import * as collectiveAgreementsApi from '@/api/collectiveAgreements';
 import { AdminPageHeader } from '@/features/admin/components/eywai/AdminPageHeader';
@@ -94,6 +97,21 @@ export default function CollectiveAgreementsCatalog() {
   const [companyAssignments, setCompanyAssignments] = useState<
     collectiveAgreementsApi.CompanyWithAssignments[]
   >([]);
+
+  // Règles paie (extraction IA)
+  const [rulesStatusMap, setRulesStatusMap] = useState<
+    Record<string, collectiveAgreementsApi.RulesStatusResponse>
+  >({});
+  const [extractingId, setExtractingId] = useState<string | null>(null);
+  const [rulesModalOpen, setRulesModalOpen] = useState(false);
+  const [rulesModalContent, setRulesModalContent] = useState<Record<string, unknown> | null>(null);
+  const [rulesModalTitle, setRulesModalTitle] = useState('');
+
+  // Import Légifrance (KALI)
+  const [importIdcc, setImportIdcc] = useState('');
+  const [isImportingKali, setIsImportingKali] = useState(false);
+  const [isBatchImportingKali, setIsBatchImportingKali] = useState(false);
+  const [reimportingId, setReimportingId] = useState<string | null>(null);
 
   // Liste des secteurs
   const sectors = [
@@ -149,7 +167,9 @@ export default function CollectiveAgreementsCatalog() {
     setIsLoading(true);
     try {
       const response = await collectiveAgreementsApi.getCatalog({ active_only: false });
-      setCatalog(response.data || []);
+      const items = response.data || [];
+      setCatalog(items);
+      void fetchRulesStatuses(items);
     } catch (err: any) {
       log.error('Erreur lors de la récupération du catalogue:', err);
       toast({
@@ -159,6 +179,225 @@ export default function CollectiveAgreementsCatalog() {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchRulesStatuses = async (
+    items: collectiveAgreementsApi.CollectiveAgreementCatalog[]
+  ) => {
+    const results = await Promise.allSettled(
+      items.map((item) => collectiveAgreementsApi.getRulesStatus(item.id))
+    );
+    const map: Record<string, collectiveAgreementsApi.RulesStatusResponse> = {};
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        map[items[index].id] = result.value.data;
+      }
+    });
+    setRulesStatusMap(map);
+  };
+
+  const handleExtractRules = async (
+    agreement: collectiveAgreementsApi.CollectiveAgreementCatalog
+  ) => {
+    const textSource = rulesStatusMap[agreement.id]?.text_source;
+    const hasText =
+      textSource === 'kali' || textSource === 'text' || textSource === 'pdf';
+    if (!agreement.rules_pdf_path && !hasText) {
+      toast({
+        title: 'Texte requis',
+        description:
+          'Importez depuis Légifrance ou uploadez un PDF avant d\'extraire les règles paie.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setExtractingId(agreement.id);
+    try {
+      const response = await collectiveAgreementsApi.extractRules(agreement.id);
+      const data = response.data;
+      if (data.success) {
+        toast({
+          title: 'Règles extraites',
+          description: `IDCC ${data.idcc} — confiance ${data.confidence ?? 'n/a'}`,
+        });
+        if (data.confidence === 'low') {
+          toast({
+            title: 'Attention',
+            description: 'Confiance faible : vérifiez le JSON extrait.',
+            variant: 'destructive',
+          });
+        }
+      } else {
+        toast({
+          title: 'Extraction échouée',
+          description: data.error ?? 'Validation ou IA en échec',
+          variant: 'destructive',
+        });
+      }
+      const statusRes = await collectiveAgreementsApi.getRulesStatus(agreement.id);
+      setRulesStatusMap((prev) => ({ ...prev, [agreement.id]: statusRes.data }));
+    } catch (err: any) {
+      toast({
+        title: 'Erreur',
+        description: err.response?.data?.detail ?? 'Extraction impossible',
+        variant: 'destructive',
+      });
+    } finally {
+      setExtractingId(null);
+    }
+  };
+
+  const handleViewRules = (
+    agreement: collectiveAgreementsApi.CollectiveAgreementCatalog
+  ) => {
+    const status = rulesStatusMap[agreement.id];
+    setRulesModalTitle(`${agreement.name} (IDCC ${agreement.idcc})`);
+    setRulesModalContent(status?.rules ?? null);
+    setRulesModalOpen(true);
+  };
+
+  const renderRulesBadge = (agreementId: string) => {
+    const status = rulesStatusMap[agreementId];
+    if (!status) {
+      return <Badge variant="secondary">…</Badge>;
+    }
+    if (status.has_rules) {
+      const lowConf = status.confidence === 'low';
+      return (
+        <Badge variant={lowConf ? 'destructive' : 'default'} className={lowConf ? '' : 'bg-green-600'}>
+          {lowConf ? 'OK (faible)' : 'OK'}
+        </Badge>
+      );
+    }
+    if (status.latest_log_status === 'rejected_validation' || status.latest_log_status === 'error') {
+      return <Badge variant="destructive">Erreur</Badge>;
+    }
+    return <Badge variant="outline">Manquant</Badge>;
+  };
+
+  const renderTextSourceBadge = (agreementId: string) => {
+    const source = rulesStatusMap[agreementId]?.text_source;
+    if (!source) return <Badge variant="secondary">…</Badge>;
+    if (source === 'kali') {
+      return <Badge className="bg-blue-600">Légifrance</Badge>;
+    }
+    if (source === 'pdf') {
+      return <Badge variant="secondary">PDF</Badge>;
+    }
+    if (source === 'text') {
+      return <Badge variant="secondary">Texte</Badge>;
+    }
+    return <Badge variant="outline">Manquant</Badge>;
+  };
+
+  const refreshAgreementStatus = async (agreementId: string) => {
+    const statusRes = await collectiveAgreementsApi.getRulesStatus(agreementId);
+    setRulesStatusMap((prev) => ({ ...prev, [agreementId]: statusRes.data }));
+  };
+
+  const handleImportKali = async () => {
+    const idcc = importIdcc.trim();
+    if (!idcc) {
+      toast({ title: 'IDCC requis', description: 'Saisissez un numéro IDCC.', variant: 'destructive' });
+      return;
+    }
+    setIsImportingKali(true);
+    try {
+      const res = await collectiveAgreementsApi.importFromLegifrance({
+        idcc,
+        extract_rules: true,
+      });
+      const data = res.data;
+      if (data.success) {
+        toast({
+          title: 'Import Légifrance réussi',
+          description: `${data.title ?? 'CC'} — ${data.character_count?.toLocaleString('fr-FR') ?? 0} caractères`,
+        });
+        if (data.rules && !data.rules.success) {
+          toast({
+            title: 'Règles paie non extraites',
+            description: data.rules.error ?? 'Validation IA en échec',
+            variant: 'destructive',
+          });
+        }
+        await fetchCatalog();
+        if (data.agreement_id) {
+          await refreshAgreementStatus(data.agreement_id);
+        }
+        setImportIdcc('');
+      } else {
+        toast({
+          title: 'Import échoué',
+          description: data.error ?? 'Erreur API Légifrance',
+          variant: 'destructive',
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: 'Erreur',
+        description: err.response?.data?.detail ?? 'Import impossible',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsImportingKali(false);
+    }
+  };
+
+  const handleBatchImportKali = async () => {
+    setIsBatchImportingKali(true);
+    try {
+      const res = await collectiveAgreementsApi.importFromLegifranceBatch({
+        priority_only: true,
+        extract_rules: true,
+      });
+      const data = res.data;
+      toast({
+        title: 'Import lot prioritaire terminé',
+        description: `${data.succeeded}/${data.total} réussis`,
+        variant: data.failed > 0 ? 'destructive' : 'default',
+      });
+      await fetchCatalog();
+    } catch (err: any) {
+      toast({
+        title: 'Erreur',
+        description: err.response?.data?.detail ?? 'Import batch impossible',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsBatchImportingKali(false);
+    }
+  };
+
+  const handleReimportKali = async (
+    agreement: collectiveAgreementsApi.CollectiveAgreementCatalog
+  ) => {
+    setReimportingId(agreement.id);
+    try {
+      const res = await collectiveAgreementsApi.reimportFromLegifrance(agreement.id);
+      const data = res.data;
+      if (data.success) {
+        toast({
+          title: 'Texte Légifrance mis à jour',
+          description: `${data.character_count?.toLocaleString('fr-FR') ?? 0} caractères`,
+        });
+        await refreshAgreementStatus(agreement.id);
+        await fetchCatalog();
+      } else {
+        toast({
+          title: 'Ré-import échoué',
+          description: data.error ?? 'Erreur',
+          variant: 'destructive',
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: 'Erreur',
+        description: err.response?.data?.detail ?? 'Ré-import impossible',
+        variant: 'destructive',
+      });
+    } finally {
+      setReimportingId(null);
     }
   };
 
@@ -395,6 +634,53 @@ export default function CollectiveAgreementsCatalog() {
         }
       />
 
+      <Card className="border-blue-200 bg-blue-50/40 dark:border-blue-900 dark:bg-blue-950/20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Landmark className="h-5 w-5 text-blue-600" />
+            Importer depuis Légifrance (officiel)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Récupère le texte officiel KALI via l&apos;API PISTE, crée ou met à jour la fiche
+            catalogue, puis extrait automatiquement les règles paie. Nécessite{' '}
+            <code className="text-xs">PISTE_CLIENT_ID</code> et{' '}
+            <code className="text-xs">PISTE_CLIENT_SECRET</code> côté backend.
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="import-idcc">IDCC</Label>
+              <Input
+                id="import-idcc"
+                placeholder="Ex. 1486"
+                value={importIdcc}
+                onChange={(e) => setImportIdcc(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && void handleImportKali()}
+              />
+            </div>
+            <Button onClick={() => void handleImportKali()} disabled={isImportingKali}>
+              {isImportingKali ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Landmark className="mr-2 h-4 w-4" />
+              )}
+              Importer
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void handleBatchImportKali()}
+              disabled={isBatchImportingKali}
+            >
+              {isBatchImportingKali ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Lot prioritaire (5 IDCC)
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Assignations par entreprise</CardTitle>
@@ -472,6 +758,8 @@ export default function CollectiveAgreementsCatalog() {
                 <TableHead>IDCC</TableHead>
                 <TableHead>Secteur</TableHead>
                 <TableHead>PDF</TableHead>
+                <TableHead>Texte</TableHead>
+                <TableHead>Règles paie</TableHead>
                 <TableHead>Statut</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -479,7 +767,7 @@ export default function CollectiveAgreementsCatalog() {
             <TableBody>
               {filteredCatalog.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     <FileText className="mx-auto h-8 w-8 mb-2" />
                     Aucune convention trouvée
                   </TableCell>
@@ -509,6 +797,8 @@ export default function CollectiveAgreementsCatalog() {
                         <XCircle className="h-4 w-4 text-muted-foreground" />
                       )}
                     </TableCell>
+                    <TableCell>{renderTextSourceBadge(agreement.id)}</TableCell>
+                    <TableCell>{renderRulesBadge(agreement.id)}</TableCell>
                     <TableCell>
                       {agreement.is_active ? (
                         <Badge variant="default" className="bg-green-600">
@@ -524,6 +814,41 @@ export default function CollectiveAgreementsCatalog() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Importer / mettre à jour depuis Légifrance"
+                          disabled={reimportingId === agreement.id}
+                          onClick={() => void handleReimportKali(agreement)}
+                        >
+                          {reimportingId === agreement.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Landmark className="h-4 w-4 text-blue-600" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Extraire règles paie (IA)"
+                          disabled={extractingId === agreement.id}
+                          onClick={() => handleExtractRules(agreement)}
+                        >
+                          {extractingId === agreement.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Sparkles className="h-4 w-4 text-violet-600" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Voir JSON règles"
+                          disabled={!rulesStatusMap[agreement.id]?.has_rules}
+                          onClick={() => handleViewRules(agreement)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -705,6 +1030,28 @@ export default function CollectiveAgreementsCatalog() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Modal JSON règles paie */}
+      <Dialog open={rulesModalOpen} onOpenChange={setRulesModalOpen}>
+        <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Règles paie — {rulesModalTitle}</DialogTitle>
+            <DialogDescription>
+              JSON structuré consommé par le moteur de paie (lecture seule).
+            </DialogDescription>
+          </DialogHeader>
+          <pre className="rounded-md bg-muted p-4 text-xs overflow-x-auto whitespace-pre-wrap">
+            {rulesModalContent
+              ? JSON.stringify(rulesModalContent, null, 2)
+              : 'Aucune règle extraite.'}
+          </pre>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRulesModalOpen(false)}>
+              Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import type { SimpleEmployee } from '@/features/dashboard/types';
+import { getUserErrorMessage, sanitizeBackendMessage } from '@/lib/errorMessages';
 
 interface GeneratePayrollModalProps {
   isOpen: boolean;
@@ -91,16 +92,14 @@ export function GeneratePayrollModal({ isOpen, onClose, employees }: GeneratePay
           errorsList.push({
             id: employeeId,
             name: employeeName,
-            error: response.data.message || 'Erreur inconnue',
+            error: sanitizeBackendMessage(response.data.message) || 'La génération a échoué.',
           });
         }
       } catch (error: unknown) {
-        const err = error as { response?: { data?: { detail?: string } }; message?: string };
-        const errorMessage = err.response?.data?.detail || err.message || 'Erreur inconnue';
         errorsList.push({
           id: employeeId,
           name: employeeName,
-          error: errorMessage,
+          error: getUserErrorMessage(error, 'La génération a échoué.'),
         });
       }
     }

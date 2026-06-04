@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
+import { getUserErrorMessage } from "@/lib/errorMessages";
 import { cn } from "@/lib/utils";
 
 const DOC_MAX = 40;
@@ -135,10 +136,9 @@ export function PendingSignaturesWidget({ mode }: PendingSignaturesWidgetProps) 
       }
     },
     onError: (e: unknown) => {
-      const msg = e instanceof Error ? e.message : "Erreur réseau.";
       toast({
         title: "Relance impossible",
-        description: msg,
+        description: getUserErrorMessage(e, "La relance n’a pas pu être envoyée. Réessayez."),
         variant: "destructive",
       });
     },

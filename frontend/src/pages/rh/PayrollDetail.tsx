@@ -1,6 +1,7 @@
 // src/pages/PayrollDetail.tsx
 
 import { log } from '@/lib/logger';
+import { showErrorToast } from '@/lib/errorMessages';
 import { pageTitleClassName } from '@/components/layout';
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
@@ -130,7 +131,10 @@ export default function PayrollDetail() {
       await fetchPayslipData();
     } catch (error) {
       log.error("Erreur lors de la suppression", error);
-      alert("La suppression a échoué.");
+      showErrorToast(error, {
+        title: 'Suppression impossible',
+        fallback: 'La suppression du bulletin a échoué. Réessayez.',
+      });
     }
   };
 

@@ -1,5 +1,5 @@
-import axios from "axios";
 import type { Candidate, PipelineStage } from "@/api/recruitment";
+import { getUserErrorMessage } from "@/lib/errorMessages";
 
 export function recruitmentAiPalette(score: number) {
   if (score >= 80) {
@@ -31,16 +31,7 @@ export const eurFmt = new Intl.NumberFormat("fr-FR", { style: "currency", curren
 export const SEARCH_DEBOUNCE_MS = 300;
 
 export function recruitmentApiErrorMessage(err: unknown): string {
-  if (axios.isAxiosError(err)) {
-    const raw = err.response?.data as { detail?: unknown } | undefined;
-    const d = raw?.detail;
-    if (typeof d === "string") return d;
-    if (Array.isArray(d)) {
-      const first = d[0] as { msg?: string } | undefined;
-      if (first?.msg) return first.msg;
-    }
-  }
-  return err instanceof Error ? err.message : "Erreur inattendue";
+  return getUserErrorMessage(err, 'L’opération a échoué. Réessayez.');
 }
 
 /** Pipeline commun à tous les postes (aligné sur le modèle backend par défaut). */

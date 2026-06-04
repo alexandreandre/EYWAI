@@ -16,6 +16,7 @@ import { CalendarEmployeeTable } from '@/components/schedules/CalendarEmployeeTa
 import { CalendarEmployeeDrawer } from '@/components/schedules/CalendarEmployeeDrawer';
 import { CalendarBulkActionsBar } from '@/components/schedules/CalendarBulkActionsBar';
 import { ApplyModelDialog } from '@/components/schedules/ApplyModelDialog';
+import { AssistedFillDialog } from '@/components/schedules/assisted-fill/AssistedFillDialog';
 import { TeamPlanningView } from '@/components/schedules/TeamPlanningView';
 import type {
   ModeFilter,
@@ -65,6 +66,7 @@ export default function Schedules() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [drawerEmployeeId, setDrawerEmployeeId] = useState<string | null>(null);
   const [applyModelOpen, setApplyModelOpen] = useState(false);
+  const [assistedFillOpen, setAssistedFillOpen] = useState(false);
   const [isCalculatingPayroll, setIsCalculatingPayroll] = useState(false);
 
   const [sortKey, setSortKey] = useState<SortKey>('name');
@@ -169,6 +171,16 @@ export default function Schedules() {
     ? employees.find((e) => e.id === drawerEmployeeId) ?? null
     : null;
 
+  const assistedFillRoster = useMemo(
+    () =>
+      employees.map((e) => ({
+        id: e.id,
+        first_name: e.first_name,
+        last_name: e.last_name,
+      })),
+    [employees]
+  );
+
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -249,6 +261,7 @@ export default function Schedules() {
         kpis={globalKpis}
         isLoading={isPageLoading}
         onCalculatePayroll={() => void calculatePayrollAll()}
+        onOpenAssistedFill={() => setAssistedFillOpen(true)}
         isCalculatingPayroll={isCalculatingPayroll}
         canCalculatePayroll={
           !isPageLoading && globalKpis.aSaisir === 0 && employees.length > 0
@@ -362,6 +375,15 @@ export default function Schedules() {
           setSelectedIds(new Set());
           void refetch();
         }}
+      />
+
+      <AssistedFillDialog
+        open={assistedFillOpen}
+        onOpenChange={setAssistedFillOpen}
+        year={selectedYear}
+        month={selectedMonth}
+        roster={assistedFillRoster}
+        onApplied={() => void refetch()}
       />
     </div>
   );

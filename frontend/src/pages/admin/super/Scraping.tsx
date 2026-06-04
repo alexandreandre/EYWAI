@@ -33,6 +33,7 @@ import {
 import { AdminPageHeader } from '@/features/admin/components/eywai/AdminPageHeader';
 import { MonthlyReviewTab } from '@/features/admin/components/scraping/MonthlyReviewTab';
 import { RepairAgentTab } from '@/features/admin/components/scraping/RepairAgentTab';
+import { getUserErrorMessage, showErrorToast } from '@/lib/errorMessages';
 import { log } from '@/lib/logger';
 // Types pour les données scrapées
 type RateCategory = {
@@ -115,7 +116,7 @@ export default function ScrapingPage() {
       setActiveRepairCount(repairResp.active ?? 0);
     } catch (e: any) {
       log.error('Erreur lors du chargement des données:', e);
-      setError(e.response?.data?.detail || e.message || 'Une erreur est survenue.');
+      setError(getUserErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -179,7 +180,7 @@ export default function ScrapingPage() {
       }
     } catch (error: any) {
       log.error('Erreur lors du lancement du scraping:', error);
-      alert('❌ Erreur: ' + (error.response?.data?.detail || error.message));
+      showErrorToast(error, { title: 'Lancement impossible' });
     } finally {
       // Réinitialiser executing après un court délai pour laisser le temps au dialog de s'ouvrir
       setTimeout(() => {
@@ -201,7 +202,7 @@ export default function ScrapingPage() {
       loadData();
     } catch (error: any) {
       log.error('Erreur:', error);
-      alert('❌ Erreur: ' + (error.response?.data?.detail || error.message));
+      showErrorToast(error);
     }
   };
 
@@ -211,7 +212,7 @@ export default function ScrapingPage() {
       loadData();
     } catch (error: any) {
       log.error('Erreur:', error);
-      alert('❌ Erreur: ' + (error.response?.data?.detail || error.message));
+      showErrorToast(error);
     }
   };
 

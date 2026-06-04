@@ -4,6 +4,7 @@
  */
 
 import { log } from '@/lib/logger';
+import { getUserErrorMessage, showErrorToast } from '@/lib/errorMessages';
 import { RhPageHeader } from '@/components/layout';
 import React, { useState, useEffect, useRef } from 'react';
 import { Calculator, FileText, Loader2, Stethoscope } from 'lucide-react';
@@ -83,7 +84,7 @@ const Simulation: React.FC = () => {
     } catch (error: any) {
       log.error('Erreur calcul inverse:', error);
       setReverseError(
-        error.response?.data?.detail || 'Une erreur est survenue lors du calcul inverse'
+        getUserErrorMessage(error, 'Le calcul inverse a échoué. Vérifiez les données saisies.')
       );
     } finally {
       setReverseLoading(false);
@@ -104,7 +105,7 @@ const Simulation: React.FC = () => {
     } catch (error: any) {
       log.error('Erreur simulation bulletin:', error);
       setPayslipError(
-        error.response?.data?.detail || 'Une erreur est survenue lors de la simulation'
+        getUserErrorMessage(error, 'La simulation a échoué. Vérifiez les données saisies.')
       );
     } finally {
       setPayslipLoading(false);
@@ -282,7 +283,10 @@ const Simulation: React.FC = () => {
                       await downloadSimulationPDF(payslipResult.simulation_id);
                     } catch (error) {
                       log.error('Erreur téléchargement PDF:', error);
-                      alert('Erreur lors du téléchargement du PDF');
+                      showErrorToast(error, {
+                        title: 'Téléchargement impossible',
+                        fallback: 'Le téléchargement du PDF a échoué. Réessayez.',
+                      });
                     }
                   }
                 }}

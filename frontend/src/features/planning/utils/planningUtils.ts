@@ -1,4 +1,3 @@
-import axios from 'axios';
 import {
   addDays,
   eachDayOfInterval,
@@ -10,22 +9,17 @@ import {
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import type { Shift, WeekPlanning } from '@/api/planning';
+import { getUserErrorMessage } from '@/lib/errorMessages';
 
-export function apiErrorMessage(err: unknown, fallback = 'Erreur inattendue'): string {
-  if (axios.isAxiosError(err)) {
-    const data = err.response?.data as { detail?: unknown } | undefined;
-    const d = data?.detail;
-    if (typeof d === 'string' && d.trim()) {
-      return d;
-    }
-    if (err.response?.status === 503) {
-      return 'Service temporairement indisponible. Réessayez dans quelques secondes.';
-    }
-  }
-  if (err instanceof Error && err.message) {
-    return err.message;
-  }
-  return fallback;
+/**
+ * @deprecated Utiliser directement `getUserErrorMessage` depuis `@/lib/errorMessages`.
+ * Conservé pour compatibilité : délègue désormais au système d'erreur central.
+ */
+export function apiErrorMessage(
+  err: unknown,
+  fallback = 'L’opération a échoué. Réessayez.',
+): string {
+  return getUserErrorMessage(err, fallback);
 }
 
 export function coerceWeekPlanning(raw: unknown): WeekPlanning {

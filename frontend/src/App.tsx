@@ -273,6 +273,7 @@ export default function App() {
                       <Route path="access" element={<Pages.AdminAccessRH />} />
                       <Route path="admins" element={<Pages.AdminSuperAdminsPage />} />
                       <Route path="collective-agreements" element={<Pages.CollectiveAgreementsCatalog />} />
+                      <Route path="rates" element={<Pages.AdminRates />} />
                       <Route path="reduction-fillon" element={<Pages.SuperAdminReductionFillon />} />
                       <Route path="scraping" element={<Pages.SuperAdminScraping />} />
                       <Route path="monitoring" element={<Pages.SuperAdminMonitoring />} />

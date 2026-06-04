@@ -3,6 +3,7 @@
  */
 
 import { log } from '@/lib/logger';
+import { showErrorToast } from '@/lib/errorMessages';
 import React from 'react';
 import { Calendar, FileText, Trash2, Eye, GitCompare, Download } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -155,7 +156,10 @@ export const SimulationHistory: React.FC<SimulationHistoryProps> = ({
                             await downloadSimulationPDF(sim.id);
                           } catch (error) {
                             log.error('Erreur téléchargement PDF:', error);
-                            alert('Erreur lors du téléchargement du PDF');
+                            showErrorToast(error, {
+                              title: 'Téléchargement impossible',
+                              fallback: 'Le téléchargement du PDF a échoué. Réessayez.',
+                            });
                           }
                         }}
                         title="Télécharger le bulletin (PDF)"

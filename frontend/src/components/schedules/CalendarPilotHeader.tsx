@@ -15,9 +15,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { pageTitleClassName } from '@/components/layout';
-import { Calculator, Loader2 } from 'lucide-react';
+import { Calculator, Loader2, Sparkles } from 'lucide-react';
 import type { GlobalOverviewKpis } from '@/lib/schedulesOverview';
-import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const MONTHS = [
@@ -42,46 +41,10 @@ interface CalendarPilotHeaderProps {
   onMonthChange: (month: number) => void;
   kpis: GlobalOverviewKpis;
   onCalculatePayroll: () => void;
+  onOpenAssistedFill: () => void;
   isCalculatingPayroll: boolean;
   canCalculatePayroll: boolean;
   isLoading?: boolean;
-}
-
-function KpiCard({
-  label,
-  value,
-  sub,
-  variant,
-  isLoading,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  variant?: 'default' | 'warning' | 'danger';
-  isLoading?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        'rounded-lg border bg-card px-3 py-2 min-w-[6.5rem]',
-        !isLoading && variant === 'warning' && 'border-amber-300/80 bg-amber-50/50 dark:bg-amber-950/20',
-        !isLoading && variant === 'danger' && 'border-destructive/30 bg-destructive/5'
-      )}
-    >
-      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      {isLoading ? (
-        <>
-          <Skeleton className="h-7 w-20 mt-0.5" />
-          {sub && <Skeleton className="h-3 w-24 mt-1.5" />}
-        </>
-      ) : (
-        <>
-          <p className="text-lg font-semibold tabular-nums">{value}</p>
-          {sub && <p className="text-[10px] text-muted-foreground">{sub}</p>}
-        </>
-      )}
-    </div>
-  );
 }
 
 export function CalendarPilotHeader({
@@ -91,6 +54,7 @@ export function CalendarPilotHeader({
   onMonthChange,
   kpis,
   onCalculatePayroll,
+  onOpenAssistedFill,
   isCalculatingPayroll,
   canCalculatePayroll,
   isLoading = false,
@@ -141,6 +105,16 @@ export function CalendarPilotHeader({
             </Select>
           </div>
 
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onOpenAssistedFill}
+            className="h-9"
+          >
+            <Sparkles className="mr-2 h-4 w-4 text-primary" />
+            Remplissage assisté
+          </Button>
+
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -172,47 +146,24 @@ export function CalendarPilotHeader({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2" aria-busy={isLoading}>
-        <KpiCard
-          label="Saisis"
-          value={`${kpis.saisis} / ${kpis.total}`}
-          sub={`${kpis.progressPercent} % du mois`}
-          isLoading={isLoading}
-        />
-        <KpiCard
-          label="À saisir"
-          value={String(kpis.aSaisir)}
-          variant={kpis.aSaisir > 0 ? 'warning' : 'default'}
-          isLoading={isLoading}
-        />
-        <KpiCard
-          label="Avec écart"
-          value={String(kpis.avecEcart)}
-          variant={kpis.avecEcart > 0 ? 'warning' : 'default'}
-          isLoading={isLoading}
-        />
-        <KpiCard
-          label="Conflits absences"
-          value={String(kpis.conflitsAbsences)}
-          variant={kpis.conflitsAbsences > 0 ? 'danger' : 'default'}
-          isLoading={isLoading}
-        />
-        <KpiCard
-          label="H. totales"
-          value={`${kpis.heuresFaitesTotal.toFixed(0)} / ${kpis.heuresPrevuesTotal.toFixed(0)} h`}
-          sub="faites / prévues"
-          isLoading={isLoading}
-        />
-      </div>
-
-      <div className="space-y-1">
+      <div className="space-y-1" aria-busy={isLoading}>
         <div className="flex justify-between text-xs text-muted-foreground">
-          <span>Progression de saisie</span>
           {isLoading ? (
-            <Skeleton className="h-3.5 w-8" />
+            <Skeleton className="h-3.5 w-40" />
+          ) : kpis.aSaisir > 0 ? (
+            <span>
+              Reste à saisir :{' '}
+              <span className="font-medium text-foreground">
+                {kpis.aSaisir} calendrier{kpis.aSaisir > 1 ? 's' : ''}
+              </span>{' '}
+              sur {kpis.total}
+            </span>
           ) : (
-            <span>{kpis.progressPercent} %</span>
+            <span className="font-medium text-emerald-600">
+              Tous les calendriers sont saisis
+            </span>
           )}
+          {!isLoading && <span>{kpis.progressPercent} %</span>}
         </div>
         {isLoading ? (
           <Skeleton className="h-2 w-full" />

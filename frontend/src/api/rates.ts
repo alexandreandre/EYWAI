@@ -114,3 +114,26 @@ export async function cancelRatesSync(syncId: string): Promise<RatesSyncStatusRe
   const res = await apiClient.post<RatesSyncStatusResponse>(`/api/rates/sync/${syncId}/cancel`);
   return res.data;
 }
+
+export type ManualRateUpdateRequest = {
+  config_key: string;
+  config_data: Record<string, unknown>;
+  comment?: string | null;
+  source_links?: string[] | null;
+};
+
+export type ManualRateUpdateResponse = {
+  success: boolean;
+  config_key: string;
+  version: number;
+  changed: boolean;
+  id: string | null;
+};
+
+/** Saisie manuelle d'un bloc de taux (réservé aux administrateurs plateforme). */
+export async function saveManualRate(
+  request: ManualRateUpdateRequest,
+): Promise<ManualRateUpdateResponse> {
+  const res = await apiClient.post<ManualRateUpdateResponse>('/api/rates/manual', request);
+  return res.data;
+}

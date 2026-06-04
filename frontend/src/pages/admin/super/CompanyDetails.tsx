@@ -8,6 +8,8 @@ import { AdminPageHeader } from '@/features/admin/components/eywai/AdminPageHead
 import { Button } from '@/components/ui/button';
 
 import { log } from '@/lib/logger';
+import { showErrorToast } from '@/lib/errorMessages';
+import { toast } from '@/hooks/use-toast';
 interface CompanyDetails {
   id: string;
   company_name: string;
@@ -137,7 +139,10 @@ export default function CompanyDetails() {
       loadCompanyDetails(); // Refresh stats
     } catch (error: any) {
       log.error('Erreur:', error);
-      alert(error.response?.data?.detail || 'Erreur lors de la création de l\'utilisateur');
+      showErrorToast(error, {
+        title: 'Création impossible',
+        fallback: "La création de l'utilisateur a échoué. Réessayez.",
+      });
     } finally {
       setCreatingUser(false);
     }
@@ -165,10 +170,13 @@ export default function CompanyDetails() {
       setEditingUser(null);
       loadUsers(selectedRole || undefined);
       loadCompanyDetails();
-      alert('Utilisateur mis à jour avec succès');
+      toast({ title: 'Utilisateur mis à jour' });
     } catch (error: any) {
       log.error('Erreur:', error);
-      alert(error.response?.data?.detail || 'Erreur lors de la mise à jour de l\'utilisateur');
+      showErrorToast(error, {
+        title: 'Mise à jour impossible',
+        fallback: "La mise à jour de l'utilisateur a échoué. Réessayez.",
+      });
     } finally {
       setUpdatingUser(false);
     }
@@ -190,10 +198,13 @@ export default function CompanyDetails() {
       setDeletingUser(null);
       loadUsers(selectedRole || undefined);
       loadCompanyDetails();
-      alert(response.data.message || 'Utilisateur supprimé avec succès');
+      toast({ title: 'Utilisateur supprimé' });
     } catch (error: any) {
       log.error('Erreur:', error);
-      alert(error.response?.data?.detail || 'Erreur lors de la suppression de l\'utilisateur');
+      showErrorToast(error, {
+        title: 'Suppression impossible',
+        fallback: "La suppression de l'utilisateur a échoué. Réessayez.",
+      });
     } finally {
       setIsDeleting(false);
     }

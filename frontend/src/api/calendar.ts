@@ -66,3 +66,79 @@ export const calculatePayrollEvents = (employeeId: string, year: number, month: 
     month,
   });
 };
+
+// --- SAISIE ASSISTÉE PAR IA (page Calendriers RH) ---
+
+export interface RosterEmployee {
+  id: string;
+  first_name: string;
+  last_name: string;
+}
+
+export type DayNature = 'prevu' | 'reel';
+
+export interface AiDayEntry {
+  jour: number;
+  heures: number | null;
+  type: string;
+  nature: DayNature;
+}
+
+export type AiMatchConfidence = 'high' | 'medium' | 'none';
+
+export interface AiEmployeeProposal {
+  raw_name: string;
+  employee_id: string | null;
+  matched_name: string | null;
+  match_confidence: AiMatchConfidence;
+  days: AiDayEntry[];
+  warnings: string[];
+}
+
+export interface AiCalendarProposal {
+  year: number;
+  month: number;
+  source: string;
+  employees: AiEmployeeProposal[];
+  warnings: string[];
+}
+
+/**
+ * Analyse une instruction en langage naturel (texte ou dictée transcrite)
+ * et renvoie une proposition d'heures réelles (non persistée).
+ */
+export const parseScheduleInstruction = async (
+  year: number,
+  month: number,
+  instruction: string,
+  employees: RosterEmployee[],
+): Promise<AiCalendarProposal> => {
+  const { data } = await apiClient.post<AiCalendarProposal>(
+    '/api/schedules/assisted-fill/parse-text',
+    { year, month, instruction, employees },
+  );
+  return data;
+};
+
+/**
+ * Analyse un relevé de pointeuse (PDF / image) et renvoie une proposition
+ * d'heures réelles (non persistée).
+ */
+export const extractTimesheet = async (
+  file: File,
+  year: number,
+  month: number,
+  employees: RosterEmployee[],
+): Promise<AiCalendarProposal> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('year', String(year));
+  formData.append('month', String(month));
+  formData.append('employees', JSON.stringify(employees));
+  const { data } = await apiClient.post<AiCalendarProposal>(
+    '/api/schedules/assisted-fill/extract-timesheet',
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return data;
+};

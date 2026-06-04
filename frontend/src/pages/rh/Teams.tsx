@@ -1,6 +1,6 @@
 import { pageTitleClassName } from '@/components/layout';
 import { useCallback, useMemo, useState } from 'react';
-import axios from 'axios';
+import { getUserErrorMessage } from '@/lib/errorMessages';
 import { Link } from 'react-router-dom';
 import {
   useMutation,
@@ -50,16 +50,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { cn } from '@/lib/utils';
 
 function apiErrorMessage(err: unknown): string {
-  if (axios.isAxiosError(err)) {
-    const raw = err.response?.data as { detail?: unknown } | undefined;
-    const d = raw?.detail;
-    if (typeof d === 'string') return d;
-    if (Array.isArray(d)) {
-      const first = d[0] as { msg?: string } | undefined;
-      if (first?.msg) return first.msg;
-    }
-  }
-  return err instanceof Error ? err.message : 'Erreur inattendue';
+  return getUserErrorMessage(err, 'L’opération a échoué. Réessayez.');
 }
 
 type SortKey = 'name' | 'employee_count' | 'manager';

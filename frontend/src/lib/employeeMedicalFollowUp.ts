@@ -1,4 +1,5 @@
 import type { ObligationListItem } from '@/api/medicalFollowUp';
+import { getApiErrorStatus, getUserErrorMessage } from '@/lib/errorMessages';
 import {
   hasMedicalOverdue,
   isDueWithinDays,
@@ -39,16 +40,8 @@ export function shouldShowEmployeeMedicalNavBadge(
 }
 
 export function getMedicalFollowUpErrorMessage(error: unknown): string {
-  if (error && typeof error === 'object' && 'response' in error) {
-    const res = (error as { response?: { status?: number; data?: { detail?: string } } })
-      .response;
-    if (res?.status === 403) {
-      return "Le suivi médical n'est pas activé pour votre entreprise.";
-    }
-    if (typeof res?.data?.detail === 'string') {
-      return res.data.detail;
-    }
+  if (getApiErrorStatus(error) === 403) {
+    return "Le suivi médical n'est pas activé pour votre entreprise.";
   }
-  if (error instanceof Error) return error.message;
-  return 'Impossible de charger le suivi médical.';
+  return getUserErrorMessage(error, 'Impossible de charger le suivi médical.');
 }

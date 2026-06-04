@@ -9,6 +9,7 @@ import {
   FileText,
   Radar,
   UsersRound,
+  Percent,
 } from "lucide-react";
 
 export type AdminNavItem = {
@@ -52,6 +53,11 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
   {
     label: "Référentiels",
     items: [
+      {
+        name: "Suivi des taux",
+        href: "/super-admin/rates",
+        icon: Percent,
+      },
       {
         name: "Conventions collectives",
         href: "/super-admin/collective-agreements",

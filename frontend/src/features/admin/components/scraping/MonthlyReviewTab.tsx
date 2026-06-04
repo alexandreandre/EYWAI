@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -75,6 +76,7 @@ function formatValue(v: unknown): string {
 }
 
 export function MonthlyReviewTab() {
+  const queryClient = useQueryClient();
   const [pending, setPending] = useState<ScrapingPendingChange[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
@@ -107,6 +109,10 @@ export function MonthlyReviewTab() {
     return () => clearInterval(interval);
   }, [load]);
 
+  const refreshAdminBadges = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ['rates-admin'] });
+  }, [queryClient]);
+
   const handleApprove = useCallback(
     async (item: ScrapingPendingChange, overrideValue?: any) => {
       setActionId(item.id);
@@ -114,6 +120,7 @@ export function MonthlyReviewTab() {
       try {
         await approvePendingChange(item.id, overrideValue);
         await load();
+        refreshAdminBadges();
       } catch (e) {
         log.error('Validation du changement échouée', e);
         setError("La validation a échoué — payroll_config n'a pas été modifié.");
@@ -121,7 +128,7 @@ export function MonthlyReviewTab() {
         setActionId(null);
       }
     },
-    [load]
+    [load, refreshAdminBadges]
   );
 
   const handleReject = useCallback(
@@ -131,6 +138,7 @@ export function MonthlyReviewTab() {
       try {
         await rejectPendingChange(item.id);
         await load();
+        refreshAdminBadges();
       } catch (e) {
         log.error('Rejet du changement échoué', e);
         setError('Le rejet a échoué.');
@@ -138,7 +146,7 @@ export function MonthlyReviewTab() {
         setActionId(null);
       }
     },
-    [load]
+    [load, refreshAdminBadges]
   );
 
   const handleTripwire = useCallback(async () => {

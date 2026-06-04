@@ -2,6 +2,7 @@
 // Historique des exports - ÉTAPE 2 : Utilisation des données réelles
 
 import { log } from '@/lib/logger';
+import { showErrorToast } from '@/lib/errorMessages';
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -95,7 +96,10 @@ export function ExportHistory({ exportType, hideHeader = false }: ExportHistoryP
       window.URL.revokeObjectURL(url);
     } catch (err: any) {
       log.error("Erreur lors du téléchargement:", err);
-      alert(err.response?.data?.detail || "Erreur lors du téléchargement de l'export");
+      showErrorToast(err, {
+        title: 'Téléchargement impossible',
+        fallback: "Le téléchargement de l'export a échoué. Réessayez.",
+      });
     } finally {
       setDownloadingIds((prev) => {
         const newSet = new Set(prev);
