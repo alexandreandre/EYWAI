@@ -38,6 +38,13 @@ from app.modules.employee_exits.api.router import router as employee_exits_route
 from app.modules.exports.api.router import router as exports_router
 from app.modules.expenses.api.router import router as expenses_router
 from app.modules.monthly_inputs.api.router import router as monthly_inputs_router
+from app.modules.net_entreprises.api.router import (
+    router as net_entreprises_router,
+    router_admin as net_entreprises_admin_router,
+)
+from app.modules.platform_settings.api.router import (
+    router as platform_email_settings_router,
+)
 from app.modules.notifications.api.router import router as notifications_router
 from app.modules.maintenance_settings.api.router import router as maintenance_settings_router
 from app.modules.document_library.api.router import router as document_library_router
@@ -99,6 +106,9 @@ router.include_router(dashboard_router)
 router.include_router(employees_router)
 router.include_router(employee_exits_router)
 router.include_router(exports_router)
+router.include_router(net_entreprises_router)
+router.include_router(net_entreprises_admin_router)
+router.include_router(platform_email_settings_router)
 router.include_router(webhooks_router)
 router.include_router(absences_router)
 router.include_router(monthly_inputs_router)

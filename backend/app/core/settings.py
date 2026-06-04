@@ -22,6 +22,37 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    """Lit une variable d'environnement booléenne (1/true/yes/on)."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
+# Net-entreprises / télétransmission DSN.
+# Flag global d'activation de la couche API (envoi automatique). Désactivé par défaut :
+# tant qu'il est à false, seul le mode « manuel » (dépôt manuel) est possible, quelle
+# que soit la config par entreprise. Empêche tout appel réseau tant que rien n'est branché.
+NET_ENTREPRISES_ENABLED = _env_bool("NET_ENTREPRISES_ENABLED", False)
+
+# SMTP / e-mails transactionnels (repli si config plateforme inactive ou absente).
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+SMTP_SECURITY = os.getenv("SMTP_SECURITY", "starttls").strip().lower()
+FROM_EMAIL = os.getenv("FROM_EMAIL")
+FROM_NAME = os.getenv("FROM_NAME", "SIRH - Système de Gestion RH")
+REPLY_TO = os.getenv("REPLY_TO")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:8080")
+
+_support_raw = os.getenv("SUPPORT_RECIPIENTS", "contact@eywai.fr")
+SUPPORT_RECIPIENTS = tuple(
+    e.strip() for e in _support_raw.split(",") if e.strip()
+) or ("contact@eywai.fr",)
+
+
 def require_supabase_env() -> tuple[str, str]:
     """Retourne (SUPABASE_URL, SUPABASE_KEY) ou lève RuntimeError si manquants."""
     if not SUPABASE_URL or not SUPABASE_KEY:

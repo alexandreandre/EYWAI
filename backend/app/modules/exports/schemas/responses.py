@@ -272,6 +272,10 @@ class DSNGenerateResponse(BaseModel):
     message_teletransmission: str = (
         "Ce fichier doit être télétransmis manuellement sur net-entreprises.fr"
     )
+    # Suivi de la télétransmission Net-entreprises (mode manuel par défaut).
+    transmission_id: Optional[str] = None
+    transmission_status: Optional[str] = None
+    transmission_mode: Optional[str] = None
 
 
 __all__ = [

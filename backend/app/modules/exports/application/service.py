@@ -435,6 +435,13 @@ def _generate_dsn(
     }
     export_id = commands.record_export_history(export_record)
 
+    # Suivi de télétransmission Net-entreprises. Tolérant aux pannes : en cas
+    # d'erreur ou d'API non branchée, on retombe sur le mode manuel sans casser
+    # la génération de la DSN.
+    transmission = _record_dsn_transmission(
+        company_id, export_id, request.period, dsn_type, dsn_xml_content, user_id
+    )
+
     return DSNGenerateResponse(
         export_id=export_id,
         period=request.period,
@@ -449,8 +456,44 @@ def _generate_dsn(
         ],
         report=dsn_report,
         download_urls={filename: signed_url},
-        message_teletransmission="Ce fichier doit être télétransmis manuellement sur net-entreprises.fr",
+        message_teletransmission=transmission["message"],
+        transmission_id=transmission["transmission_id"],
+        transmission_status=transmission["status"],
+        transmission_mode=transmission["mode"],
     )
+
+
+def _record_dsn_transmission(
+    company_id: str,
+    export_id: str,
+    period: str,
+    dsn_type: str,
+    xml_content: bytes,
+    user_id: str,
+) -> Dict[str, Any]:
+    """Crée le suivi de transmission DSN (mode manuel par défaut).
+
+    N'interrompt jamais la génération : tout échec retombe sur le message manuel.
+    """
+    default = {
+        "transmission_id": None,
+        "status": "manual",
+        "mode": "manual",
+        "message": "Ce fichier doit être télétransmis manuellement sur net-entreprises.fr",
+    }
+    try:
+        from app.modules.net_entreprises.application import service as ne_service
+
+        return ne_service.record_and_transmit_dsn(
+            company_id=company_id,
+            export_id=export_id or None,
+            period=period,
+            dsn_type=dsn_type,
+            xml_content=xml_content,
+            user_id=user_id,
+        )
+    except Exception:
+        return default
 
 
 def _generate_virement_salaires(

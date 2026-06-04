@@ -9,9 +9,10 @@ import html
 import traceback
 from datetime import datetime, timezone
 
-from app.shared.infrastructure.email.password_reset_smtp import (
-    get_password_reset_smtp_sender,
+from app.modules.platform_settings.application.email_config import (
+    get_support_recipients,
 )
+from app.shared.infrastructure.email.smtp_sender import get_smtp_mail_sender
 
 
 def send_support_ticket_email(
@@ -248,14 +249,18 @@ L'équipe EYWAI
 </html>
 """
 
-        sender = get_password_reset_smtp_sender()
-        ok_support = sender.send_multipart_email(
-            to_email="contact@eywai.fr",
-            subject=subject_support,
-            text_content=text_support,
-            html_content=html_support,
-        )
-        ok_user = sender.send_multipart_email(
+        sender = get_smtp_mail_sender()
+        support_emails = get_support_recipients()
+        ok_support = True
+        for recipient in support_emails:
+            sent, _ = sender.send_multipart_email(
+                to_email=recipient,
+                subject=subject_support,
+                text_content=text_support,
+                html_content=html_support,
+            )
+            ok_support = ok_support and sent
+        ok_user, _ = sender.send_multipart_email(
             to_email=user_email,
             subject=subject_confirm,
             text_content=text_confirm,
