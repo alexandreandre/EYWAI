@@ -6,10 +6,14 @@ Fournit le reader (implémentation du port IAllRatesReader) pour injection dans 
 
 from __future__ import annotations
 
-from app.modules.rates.domain.interfaces import IAllRatesReader
-from app.modules.rates.infrastructure.repository import SupabaseAllRatesReader
+from app.modules.rates.domain.interfaces import IAllRatesReader, IRatesWriter
+from app.modules.rates.infrastructure.repository import (
+    SupabaseAllRatesReader,
+    SupabaseRatesWriter,
+)
 
 _reader: SupabaseAllRatesReader | None = None
+_writer: SupabaseRatesWriter | None = None
 
 
 def get_all_rates_reader() -> IAllRatesReader:
@@ -18,3 +22,11 @@ def get_all_rates_reader() -> IAllRatesReader:
     if _reader is None:
         _reader = SupabaseAllRatesReader()
     return _reader
+
+
+def get_rates_writer() -> IRatesWriter:
+    """Retourne le writer des configs taux (saisie manuelle versionnée)."""
+    global _writer
+    if _writer is None:
+        _writer = SupabaseRatesWriter()
+    return _writer

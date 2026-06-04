@@ -25,3 +25,33 @@ class IAllRatesReader(Protocol):
         last_checked_at, created_at, comment, source_links.
         """
         ...
+
+
+class IRatesWriter(Protocol):
+    """
+    Écriture manuelle versionnée d'une configuration de taux (table payroll_config).
+
+    Préserve l'invariant « une seule ligne is_active par config_key + historique
+    immuable versionné » : désactive la version courante et insère une nouvelle
+    version. Aucune réécriture en place des taux actifs.
+    """
+
+    def get_active_config(self, config_key: str) -> dict[str, Any] | None:
+        """Ligne active (is_active=True) pour un config_key, ou None."""
+        ...
+
+    def save_manual_version(
+        self,
+        *,
+        config_key: str,
+        new_config_data: dict[str, Any],
+        comment: str,
+        source_links: list[str],
+    ) -> dict[str, Any]:
+        """
+        Versionne un bloc config_data complet (saisie manuelle).
+
+        Retourne un dict de résultat : config_key, version (nouvelle), changed (bool),
+        et id de la ligne active résultante.
+        """
+        ...

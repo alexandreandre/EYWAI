@@ -13,20 +13,23 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 from app.core.security import get_current_user
 from app.modules.users.schemas.responses import User
-from app.modules.rates.api.dependencies import get_all_rates_reader
+from app.modules.rates.api.dependencies import get_all_rates_reader, get_rates_writer
 from app.modules.rates.application import (
     IAllRatesReader,
+    IRatesWriter,
+    apply_manual_rate_override,
     cancel_rates_sync,
     get_all_rates,
     get_rates_sync_sources_manifest,
     get_rates_sync_status,
     start_rates_sync,
 )
-from app.modules.rates.schemas.requests import RatesSyncRequest
+from app.modules.rates.schemas.requests import ManualRateUpdateRequest, RatesSyncRequest
 
 router = APIRouter(tags=["Rates"])
 
 _ERR_RH_REQUIRED = "Accès réservé aux RH et administrateurs."
+_ERR_ADMIN_REQUIRED = "Saisie manuelle réservée aux administrateurs plateforme."
 
 
 def _require_rh_or_admin(current_user: User) -> None:
@@ -35,6 +38,11 @@ def _require_rh_or_admin(current_user: User) -> None:
     active_company_id = current_user.active_company_id
     if not active_company_id or not current_user.has_rh_access_in_company(active_company_id):
         raise HTTPException(status_code=403, detail=_ERR_RH_REQUIRED)
+
+
+def _require_platform_admin(current_user: User) -> None:
+    if not current_user.is_platform_admin:
+        raise HTTPException(status_code=403, detail=_ERR_ADMIN_REQUIRED)
 
 
 @router.get("/all")
@@ -59,6 +67,39 @@ async def get_all_rates_endpoint(
         raise
     except Exception as e:
         logging.exception("❌ Erreur lors de la récupération des taux : %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/manual")
+async def manual_rate_update_endpoint(
+    body: ManualRateUpdateRequest,
+    writer: IRatesWriter = Depends(get_rates_writer),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """
+    Saisie manuelle d'un bloc de taux (versioning immuable de payroll_config).
+
+    Réservé aux administrateurs plateforme. Désactive la version active et insère
+    une nouvelle version ; no-op horodaté si le contenu est identique.
+    """
+    try:
+        _require_platform_admin(current_user)
+        actor_label = getattr(current_user, "email", None) or str(current_user.id)
+        result = apply_manual_rate_override(
+            writer,
+            config_key=body.config_key,
+            config_data=body.config_data,
+            actor_label=actor_label,
+            comment=body.comment,
+            source_links=body.source_links,
+        )
+        return {"success": True, **result}
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logging.exception("❌ Erreur saisie manuelle taux : %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 

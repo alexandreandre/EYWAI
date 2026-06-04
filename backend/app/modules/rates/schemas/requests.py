@@ -20,3 +20,26 @@ class RatesSyncRequest(BaseModel):
         default=None,
         description="Identifiants de lignes dans config_data.cotisations",
     )
+
+
+class ManualRateUpdateRequest(BaseModel):
+    """Saisie manuelle d'un bloc de configuration de taux (admin plateforme)."""
+
+    config_key: str = Field(
+        ...,
+        min_length=1,
+        description="Clé payroll_config à versionner (smic, pss, cotisations, …)",
+    )
+    config_data: dict = Field(
+        ...,
+        description="Nouveau contenu complet de config_data pour ce config_key",
+    )
+    comment: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Note libre justifiant la saisie manuelle",
+    )
+    source_links: list[str] | None = Field(
+        default=None,
+        description="Liens de référence éventuels (sources officielles)",
+    )
