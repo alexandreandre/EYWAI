@@ -196,7 +196,7 @@ const RH_PAIE_GROUPS: SidebarLinkGroup[] = [
     workflow: true,
     items: [
       {
-        title: "Validation des calendriers / heures",
+        title: "Calendrier",
         url: "/schedules",
         icon: Calendar,
       },
