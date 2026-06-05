@@ -231,17 +231,13 @@ export function usePayrollGeneration() {
         abortRef.current = false;
         setPhase('idle');
         setEstimatedRemainingSec(null);
-        return;
-      }
-
-      if (queueRef.current.length > 0) {
+      } else if (queueRef.current.length > 0) {
         void processQueue();
-        return;
+      } else {
+        setProgress(100);
+        setEstimatedRemainingSec(0);
+        setPhase('done');
       }
-
-      setProgress(100);
-      setEstimatedRemainingSec(0);
-      setPhase('done');
     }
   }, [invalidatePayslips, startTick, stopTick, updateProgress]);
 
