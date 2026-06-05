@@ -20,13 +20,16 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks(id) {
           if (!id.includes("node_modules")) return;
+          // Keep React ecosystem in a single chunk (must run before other React-based vendors).
+          if (
+            /node_modules\/(react|react-dom|react-router|scheduler)\//.test(id)
+          ) {
+            return "vendor-react";
+          }
+          // Heavy libs only — never split other React wrappers here (causes circular chunks).
           if (id.includes("recharts")) return "vendor-recharts";
           if (id.includes("@fullcalendar")) return "vendor-fullcalendar";
           if (id.includes("react-pdf") || id.includes("pdfjs")) return "vendor-pdf";
-          if (id.includes("framer-motion")) return "vendor-motion";
-          if (id.includes("@radix-ui")) return "vendor-radix";
-          if (id.includes("@tanstack")) return "vendor-query";
-          if (id.includes("react-dom") || id.includes("react-router")) return "vendor-react";
         },
       },
     },
