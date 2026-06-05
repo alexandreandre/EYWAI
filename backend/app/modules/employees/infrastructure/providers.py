@@ -84,14 +84,22 @@ class SupabaseCompanyReader(ICompanyReader):
     def get_company_data(self, company_id: str) -> Optional[Dict[str, Any]]:
         response = (
             supabase.table("companies")
-            .select("company_name, siret, email")
+            .select(
+                "company_name, raison_sociale, siret, email, phone, logo_url, "
+                "adresse_rue, adresse_code_postal, adresse_ville, "
+                "code_naf, naf_ape, collective_agreement, idcc, "
+                "nom_signataire_rh, qualite_signataire_rh"
+            )
             .eq("id", company_id)
             .single()
             .execute()
         )
         if not response.data:
             return None
-        return dict(response.data)
+        data = dict(response.data)
+        if data.get("adresse_ville") and not data.get("city"):
+            data["city"] = data["adresse_ville"]
+        return data
 
 
 class SupabaseResidencePermitStatusCalculator(IResidencePermitStatusCalculator):
@@ -147,12 +155,20 @@ def generate_credentials_pdf(
     last_name: str,
     username: str,
     password: str,
-    logo_path: str,
+    logo_path: str = "",
+    company_data: Optional[Dict[str, Any]] = None,
 ) -> bytes:
     """Via app.shared.infrastructure.pdf."""
     from app.shared.infrastructure.pdf import generate_credentials_pdf as _impl
 
-    return _impl(first_name, last_name, username, password, logo_path)
+    return _impl(
+        first_name,
+        last_name,
+        username,
+        password,
+        logo_path,
+        company_data=company_data,
+    )
 
 
 def generate_contract_pdf(

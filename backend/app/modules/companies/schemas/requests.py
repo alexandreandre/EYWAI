@@ -77,6 +77,8 @@ class CompanyDetailsUpdate(BaseModel):
     adresse_rue: Optional[str] = None
     adresse_code_postal: Optional[str] = None
     adresse_ville: Optional[str] = None
+    nom_signataire_rh: Optional[str] = None
+    qualite_signataire_rh: Optional[str] = None
 
     def to_update_dict(self) -> Dict[str, Any]:
         return self.model_dump(exclude_none=True)

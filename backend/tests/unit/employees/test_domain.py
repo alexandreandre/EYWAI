@@ -58,17 +58,17 @@ class TestDefaultCompanyDataFallback:
         assert "siret" in data
         assert "email" in data
 
-    def test_company_name_is_maji(self):
+    def test_company_name_is_generic(self):
         data = default_company_data_fallback()
-        assert data["company_name"] == "MAJI"
+        assert data["company_name"] == "Entreprise"
 
-    def test_siret_is_na(self):
+    def test_siret_is_empty(self):
         data = default_company_data_fallback()
-        assert data["siret"] == "N/A"
+        assert data["siret"] == ""
 
-    def test_email_is_contact_maji(self):
+    def test_email_is_empty(self):
         data = default_company_data_fallback()
-        assert data["email"] == "contact@maji.com"
+        assert data["email"] == ""
 
     def test_returns_new_dict_each_call(self):
         a = default_company_data_fallback()

@@ -160,11 +160,11 @@ class DocumentService:
 
     def _generate_fallback_pdf(self, document_type: str, variables: Dict[str, str]) -> bytes:
         """
-        PDF minimal ReportLab (variables injectées) si aucune conversion docx/html n’a abouti.
-        Utilisé pour le rendu « modèle EYWAI » de secours.
+        PDF ReportLab de secours si aucune conversion docx/html n'a abouti.
+        Rédige un document structuré plutôt qu'une simple liste de variables.
         """
         from reportlab.lib import colors
-        from reportlab.lib.enums import TA_CENTER, TA_LEFT
+        from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
         from reportlab.lib.units import cm
@@ -180,36 +180,43 @@ class DocumentService:
             )
 
         nom_e = (variables.get("nom_entreprise") or "").strip()
-        dt_title = document_type.replace("_", " ").title()
-        if nom_e:
-            title_text = f"{nom_e} — {dt_title}"
-        else:
-            title_text = dt_title
-
+        dt_title = document_type.replace("_", " ").strip().capitalize()
+        prenom = variables.get("prenom", "")
+        nom = variables.get("nom", "")
+        poste = variables.get("poste", "")
+        type_ct = variables.get("type_contrat", "")
+        deb = variables.get("date_debut_contrat", "")
+        salaire = variables.get("salaire_brut_mensuel", "")
         siret = (variables.get("siret") or "").strip()
+        adresse_e = variables.get("adresse_entreprise", "")
+        date_gen = variables.get("date_generation", "")
+        lieu = variables.get("signature_lieu", "")
+
         header_line = f"<b>{esc(nom_e or 'Entreprise')}</b>"
         if siret:
             header_line += f"<br/>SIRET : {esc(siret)}"
+        if adresse_e:
+            header_line += f"<br/>{esc(adresse_e)}"
 
-        body_keys = (
-            "prenom",
-            "nom",
-            "poste",
-            "date_debut_contrat",
-            "salaire_brut_mensuel",
-            "type_contrat",
-            "duree_hebdomadaire",
-            "nom_entreprise",
-            "siret",
+        corps_parts = [
+            f"Nous soussignés, <b>{esc(nom_e or 'Entreprise')}</b>, attestons que "
+            f"<b>{esc(prenom)} {esc(nom)}</b>"
+        ]
+        if poste:
+            corps_parts.append(f" est employé(e) en qualité de <b>{esc(poste)}</b>")
+        if deb:
+            corps_parts.append(f" depuis le <b>{esc(deb)}</b>")
+        if type_ct:
+            corps_parts.append(f" en contrat <b>{esc(type_ct)}</b>")
+        corps_parts.append(".")
+        if salaire:
+            corps_parts.append(
+                f" Rémunération brute mensuelle : <b>{esc(salaire)}</b>."
+            )
+        corps_parts.append(
+            " Le présent document est établi pour servir et valoir ce que de droit."
         )
-        lines_html = []
-        for k in body_keys:
-            lab = k.replace("_", " ").title()
-            val = variables.get(k, "") or ""
-            lines_html.append(f"<b>{esc(lab)} :</b> {esc(val)}")
-
-        date_gen = (variables.get("date_generation") or "").strip()
-        footer = f"<i>Date de génération : {esc(date_gen)}</i>"
+        corps_html = "".join(corps_parts)
 
         buf = io.BytesIO()
         doc = SimpleDocTemplate(
@@ -232,19 +239,53 @@ class DocumentService:
         body_style = ParagraphStyle(
             name="FbBody",
             parent=styles["Normal"],
+            fontSize=11,
+            leading=16,
+            alignment=TA_JUSTIFY,
+            textColor=colors.HexColor("#334155"),
+        )
+        small_style = ParagraphStyle(
+            name="FbSmall",
+            parent=styles["Normal"],
             fontSize=10,
             leading=14,
+            textColor=colors.HexColor("#64748b"),
             alignment=TA_LEFT,
-            textColor=colors.HexColor("#334155"),
         )
         story: List[Any] = []
         story.append(Paragraph(header_line, body_style))
-        story.append(Spacer(1, 0.4 * cm))
-        story.append(Paragraph(esc(title_text), title_style))
+        story.append(Spacer(1, 0.6 * cm))
+        story.append(Paragraph(esc(dt_title), title_style))
         story.append(Spacer(1, 0.5 * cm))
-        story.append(Paragraph("<br/>".join(lines_html), body_style))
-        story.append(Spacer(1, 1 * cm))
-        story.append(Paragraph(footer, body_style))
+        story.append(Paragraph(corps_html, body_style))
+        story.append(Spacer(1, 1.2 * cm))
+        story.append(
+            Paragraph(
+                f"Fait à {esc(lieu or '…………………')}, le {esc(date_gen)}.",
+                small_style,
+            )
+        )
+        story.append(Spacer(1, 1.5 * cm))
+        signatory = variables.get("nom_signataire_rh") or "Le service RH"
+        qual = variables.get("qualite_signataire_rh") or ""
+        sig = f"<b>{esc(signatory)}</b>"
+        if qual:
+            sig += f"<br/><i>{esc(qual)}</i>"
+        sig += "<br/><i>Signature</i>"
+        story.append(Paragraph(sig, body_style))
+        story.append(Spacer(1, 0.5 * cm))
+        story.append(
+            Paragraph(
+                f"<i>Document généré automatiquement le {esc(date_gen)} — modèle EYWAI</i>",
+                ParagraphStyle(
+                    name="FbFooter",
+                    parent=styles["Normal"],
+                    fontSize=8,
+                    textColor=colors.HexColor("#9ca3af"),
+                    alignment=TA_CENTER,
+                ),
+            )
+        )
         doc.build(story)
         return buf.getvalue()
 
@@ -292,6 +333,27 @@ class DocumentService:
                 pdf_bytes = None
                 template_id = None
                 template_version_id = None
+
+        if not pdf_bytes and document_type in frozenset({"cdi", "cdd"}):
+            try:
+                from app.shared.infrastructure.pdf import generate_contract_pdf
+
+                contract_type = document_type.upper()
+                employee_for_contract = dict(employee_data)
+                employee_for_contract.setdefault(
+                    "contract_type", contract_type
+                )
+                pdf_bytes = generate_contract_pdf(
+                    employee_data=employee_for_contract,
+                    company_data=company_data,
+                    logo_path="",
+                )
+                is_eywai_template = True
+                template_id = None
+                template_version_id = None
+            except Exception as e:
+                logger.warning("generate_contract_pdf (bibliothèque): %s", e)
+                pdf_bytes = None
 
         if not pdf_bytes and document_type in frozenset(
             common_attestation_generator.ATTESTATION_TYPES

@@ -5,7 +5,7 @@ Implémentations dans infrastructure/. Aucune dépendance FastAPI ni DB ici.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 class IUserRepository(ABC):
@@ -150,7 +150,8 @@ class ICredentialsPdfProvider(ABC):
         last_name: str,
         username: str,
         password: str,
-        logo_path: str,
+        logo_path: str = "",
+        company_data: Optional[Dict[str, Any]] = None,
     ) -> bytes: ...
 
 

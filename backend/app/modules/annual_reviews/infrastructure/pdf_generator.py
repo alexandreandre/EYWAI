@@ -10,12 +10,24 @@ import io
 from datetime import datetime
 from typing import Any, Dict
 
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from app.shared.infrastructure.pdf.helpers import format_date, setup_custom_styles
+from app.shared.infrastructure.pdf.helpers import (
+    build_branding_header_reportlab,
+    format_date,
+    get_company_signatory,
+    setup_custom_styles,
+)
+
+_L6315_MENTION = (
+    "Conformément à l'article L.6315-1 du Code du travail, le présent entretien "
+    "professionnel permet de faire le point sur les compétences et les perspectives "
+    "d'évolution professionnelle du salarié."
+)
 
 
 def generate_annual_review_pdf(
@@ -25,7 +37,6 @@ def generate_annual_review_pdf(
 ) -> bytes:
     """
     Génère un PDF professionnel pour un entretien annuel clôturé.
-    Comportement identique à services.annual_review_pdf_generator.generate_annual_review_pdf.
     """
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -41,48 +52,19 @@ def generate_annual_review_pdf(
     styles = setup_custom_styles(styles)
 
     if company_data:
-        company_name = company_data.get("company_name", "")
-        address_data = company_data.get("address")
-        company_street = ""
-        company_city = ""
-        company_postal_code = ""
-        if address_data:
-            if isinstance(address_data, dict):
-                company_street = address_data.get("street", "") or address_data.get(
-                    "rue", ""
-                )
-                company_city = address_data.get("city", "") or address_data.get(
-                    "ville", ""
-                )
-                company_postal_code = address_data.get(
-                    "postal_code", ""
-                ) or address_data.get("code_postal", "")
-            elif isinstance(address_data, str):
-                company_street = address_data
-        if not company_street:
-            company_street = company_data.get("adresse_rue", "") or company_data.get(
-                "street", ""
-            )
-        if not company_city:
-            company_city = company_data.get("adresse_ville", "") or company_data.get(
-                "city", ""
-            )
-        if not company_postal_code:
-            company_postal_code = company_data.get(
-                "adresse_code_postal", ""
-            ) or company_data.get("postal_code", "")
-        company_info = company_name
-        if company_street:
-            company_info += f"\n{company_street}"
-        if company_postal_code or company_city:
-            company_info += f"\n{company_postal_code} {company_city}".strip()
-        story.append(Paragraph(company_info, styles["EntrepriseHeader"]))
+        build_branding_header_reportlab(story, styles, company_data)
         story.append(Spacer(1, 0.5 * cm))
 
-    story.append(Paragraph("FICHE D'ENTRETIEN", styles["TitrePrincipal"]))
+    interview_type = review_data.get("interview_type") or "annual_performance"
+    title = "FICHE D'ENTRETIEN"
+    if interview_type == "professional_2ans":
+        title = "ENTRETIEN PROFESSIONNEL"
+    story.append(Paragraph(title, styles["TitrePrincipal"]))
     story.append(Spacer(1, 0.3 * cm))
 
-    employee_name = f"{employee_data.get('first_name', '')} {employee_data.get('last_name', '')}".strip()
+    employee_name = (
+        f"{employee_data.get('first_name', '')} {employee_data.get('last_name', '')}"
+    ).strip()
     job_title = employee_data.get("job_title", "")
     info_lines = []
     if employee_name:
@@ -100,6 +82,10 @@ def generate_annual_review_pdf(
     if info_lines:
         story.append(Paragraph("<br/>".join(info_lines), styles["CorpsTexte"]))
         story.append(Spacer(1, 0.5 * cm))
+
+    if interview_type == "professional_2ans":
+        story.append(Paragraph(_L6315_MENTION, styles["CorpsTexte"]))
+        story.append(Spacer(1, 0.4 * cm))
 
     if review_data.get("rh_preparation_template"):
         story.append(Paragraph("<b>Notes de préparation RH</b>", styles["Important"]))
@@ -155,11 +141,37 @@ def generate_annual_review_pdf(
         story.append(Paragraph(review_data["rh_notes"], styles["CorpsTexte"]))
         story.append(Spacer(1, 0.3 * cm))
 
-    story.append(Spacer(1, 1 * cm))
+    story.append(Spacer(1, 0.8 * cm))
     today = datetime.now().date()
     story.append(
         Paragraph(f"Document généré le {format_date(today)}", styles["Signature"])
     )
+    story.append(Spacer(1, 0.8 * cm))
+
+    signatory, signatory_title = get_company_signatory(company_data or {})
+    sig_data = [
+        ["", ""],
+        ["Signature du salarié", "Signature du responsable RH"],
+        [
+            '(Précédée de la mention "Lu et approuvé")',
+            f"{signatory}<br/><i>{signatory_title}</i>",
+        ],
+    ]
+    sig_table = Table(sig_data, colWidths=[8 * cm, 8 * cm])
+    sig_table.setStyle(
+        TableStyle(
+            [
+                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                ("VALIGN", (0, 1), (-1, -1), "TOP"),
+                ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
+                ("TOPPADDING", (0, 0), (-1, 0), 24),
+                ("BOTTOMPADDING", (0, 2), (-1, 2), 36),
+                ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#d1d5db")),
+            ]
+        )
+    )
+    story.append(sig_table)
+
     doc.build(story)
     pdf_bytes = buffer.getvalue()
     buffer.close()

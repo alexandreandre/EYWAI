@@ -55,7 +55,13 @@ def generate_rupture_conventionnelle_solde(
     # === SECTION 1 : RÉMUNÉRATIONS ACQUISES (SOCLE COMMUN) ===
     total_brut_remun, total_cotisations_remun, total_net_remun = (
         socle_commun.build_remunerations_section(
-            story, styles, employee_data, exit_data, section_number=1
+            story,
+            styles,
+            employee_data,
+            exit_data,
+            section_number=1,
+            employee_id=employee_data.get("id"),
+            supabase_client=supabase_client,
         )
     )
 

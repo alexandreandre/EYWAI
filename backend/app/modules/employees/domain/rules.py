@@ -25,9 +25,9 @@ def build_employee_folder_name(
 def default_company_data_fallback() -> Dict[str, Any]:
     """Données entreprise par défaut si lecture BDD échoue (comportement legacy)."""
     return {
-        "company_name": "MAJI",
-        "siret": "N/A",
-        "email": "contact@maji.com",
+        "company_name": "Entreprise",
+        "siret": "",
+        "email": "",
     }
 
 

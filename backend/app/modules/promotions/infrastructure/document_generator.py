@@ -21,8 +21,10 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 
 from app.core.database import supabase
 from app.shared.infrastructure.pdf.helpers import (
+    build_branding_header_reportlab,
     format_currency,
     format_date as format_date_fr,
+    get_company_signatory,
     safe_float,
     safe_str,
     setup_custom_styles,
@@ -88,47 +90,10 @@ def generate_promotion_letter(
     )
 
     if company_data:
-        company_name = (
-            company_data.get("company_name")
-            or company_data.get("raison_sociale")
-            or "Entreprise"
-        )
-        address_data = company_data.get("address") or company_data.get("adresse")
-        company_street = ""
-        company_city = ""
-        company_postal_code = ""
-        if address_data:
-            if isinstance(address_data, dict):
-                company_street = address_data.get("street", "") or address_data.get(
-                    "rue", ""
-                )
-                company_city = address_data.get("city", "") or address_data.get(
-                    "ville", ""
-                )
-                company_postal_code = address_data.get(
-                    "postal_code", ""
-                ) or address_data.get("code_postal", "")
-            elif isinstance(address_data, str):
-                company_street = address_data
-        if not company_street:
-            company_street = company_data.get("adresse_rue", "") or company_data.get(
-                "street", ""
-            )
-        if not company_city:
-            company_city = company_data.get("adresse_ville", "") or company_data.get(
-                "city", ""
-            )
-        if not company_postal_code:
-            company_postal_code = company_data.get(
-                "adresse_code_postal", ""
-            ) or company_data.get("postal_code", "")
-        company_info = company_name
-        if company_street:
-            company_info += f"\n{company_street}"
-        if company_postal_code or company_city:
-            company_info += f"\n{company_postal_code} {company_city}".strip()
-        story.append(Paragraph(company_info, styles["EntrepriseHeader"]))
+        build_branding_header_reportlab(story, styles, company_data)
         story.append(Spacer(1, 0.8 * cm))
+
+    signatory, signatory_title = get_company_signatory(company_data or {})
 
     story.append(Paragraph("LETTRE DE PROMOTION", styles["PromotionTitle"]))
     story.append(Spacer(1, 0.5 * cm))
@@ -326,9 +291,17 @@ def generate_promotion_letter(
         story.append(Spacer(1, 0.5 * cm))
 
     congrats_text = """
-    Nous vous félicitons pour cette évolution et vous souhaitons beaucoup de succès dans vos nouvelles fonctions.
+    Nous vous félicitons pour cette évolution et vous souhaitons beaucoup de succès
+    dans vos nouvelles fonctions.
     """
     story.append(Paragraph(congrats_text, styles["CorpsTexte"]))
+    story.append(Spacer(1, 0.5 * cm))
+
+    avenant_text = """
+    Les modifications ci-dessus entraînent, le cas échéant, un avenant au contrat
+    de travail initial. Toutes les autres clauses du contrat demeurent inchangées.
+    """
+    story.append(Paragraph(avenant_text, styles["CorpsTexte"]))
     story.append(Spacer(1, 0.5 * cm))
 
     signature_text = """
@@ -346,7 +319,7 @@ def generate_promotion_letter(
         ],
         [
             '(Précédée de la mention "Lu et approuvé")',
-            "(Cachet de l'entreprise)",
+            f"{signatory}<br/><i>{signatory_title}</i><br/>(Cachet de l'entreprise)",
         ],
     ]
     signature_table = Table(signature_table_data, colWidths=[8 * cm, 8 * cm])

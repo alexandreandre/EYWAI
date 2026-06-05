@@ -145,22 +145,10 @@ def safe_str(value: Any, default: str = "") -> str:
 
 
 def build_company_header(story, styles, company_data):
-    """Construit l'en-tête entreprise"""
-    company_name = (
-        company_data.get("name") or company_data.get("raison_sociale") or "Entreprise"
-    )
-    company_address = company_data.get("address") or ""
-    company_siret = company_data.get("siret") or ""
+    """Construit l'en-tête entreprise (délègue au branding partagé)."""
+    from app.shared.infrastructure.pdf.helpers import build_branding_header_reportlab
 
-    from reportlab.platypus import Paragraph, Spacer
-    from reportlab.lib.units import cm
-
-    story.append(Paragraph(f"<b>{company_name}</b>", styles["EntrepriseHeader"]))
-    if company_address:
-        story.append(Paragraph(company_address, styles["EntrepriseHeader"]))
-    if company_siret:
-        story.append(Paragraph(f"SIRET : {company_siret}", styles["EntrepriseHeader"]))
-    story.append(Spacer(1, 0.8 * cm))
+    build_branding_header_reportlab(story, styles, company_data)
 
 
 def build_title_header(story, styles):
@@ -229,8 +217,10 @@ def build_signatures(story, styles, company_data):
     from reportlab.lib.units import cm
     from datetime import datetime
 
+    from app.shared.infrastructure.pdf.helpers import get_company_city
+
     date_aujourd_hui = format_date(datetime.now().date())
-    company_city = company_data.get("city") or "___________"
+    company_city = get_company_city(company_data) or "…………………"
 
     data_signatures = [
         ["Fait en double exemplaire", ""],

@@ -5,7 +5,7 @@ Comportement identique aux appels des anciens routers.
 """
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, Optional
 
 from app.core.database import get_supabase_admin_client, supabase
 
@@ -62,7 +62,8 @@ class CredentialsPdfProvider(ICredentialsPdfProvider):
         last_name: str,
         username: str,
         password: str,
-        logo_path: str,
+        logo_path: str = "",
+        company_data: Optional[Dict[str, Any]] = None,
     ) -> bytes:
         from app.shared.infrastructure.pdf import generate_credentials_pdf
 
@@ -72,6 +73,7 @@ class CredentialsPdfProvider(ICredentialsPdfProvider):
             username=username,
             password=password,
             logo_path=logo_path,
+            company_data=company_data,
         )
 
 

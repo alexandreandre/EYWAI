@@ -18,7 +18,6 @@ from typing import Any, Dict, Optional
 
 from fastapi import HTTPException
 
-from app.core.config import API_DIR
 from app.modules.employees.application.dto import EmployeeCreateValidationError
 from app.modules.employees.domain.rules import (
     build_employee_folder_name,
@@ -89,10 +88,6 @@ def _grant_collaborator_company_access(
             company_id,
             granted_by_user_id,
         )
-
-
-def _default_logo_path() -> Path:
-    return API_DIR / "frontend" / "public" / "Colorplast.png"
 
 
 async def create_employee(
@@ -205,17 +200,16 @@ async def create_employee(
             ) from grant_err
 
         storage_prefix = f"{company_id}/{new_user_id}"
-        logo_path = _default_logo_path()
+        company_data = company_reader.get_company_data(company_id)
+        if not company_data:
+            company_data = default_company_data_fallback()
 
         if generate_pdf_contract:
             try:
-                company_data = company_reader.get_company_data(company_id)
-                if not company_data:
-                    company_data = default_company_data_fallback()
                 contract_pdf_content = generate_contract_pdf(
                     employee_data=db_insert_data,
                     company_data=company_data,
-                    logo_path=str(logo_path),
+                    logo_path="",
                 )
                 storage.upload(
                     "contracts",
@@ -287,7 +281,8 @@ async def create_employee(
                 last_name=last_name,
                 username=username,
                 password=password,
-                logo_path=str(logo_path),
+                logo_path="",
+                company_data=company_data,
             )
             storage.upload(
                 "creation_compte",

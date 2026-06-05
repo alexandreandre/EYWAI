@@ -16,6 +16,12 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
+from app.shared.infrastructure.pdf.helpers import (
+    build_branding_header_reportlab,
+    get_company_city,
+    get_company_signatory,
+)
+
 
 def _s(v: Any) -> str:
     if v is None:
@@ -329,29 +335,28 @@ class CommonAttestationGenerator:
             textColor=colors.HexColor("#64748b"),
         )
         story: List[Any] = []
-        cname = _company_name(company)
-        siret = _s(company.get("siret"))
-        addr = _company_address(company)
-        story.append(Paragraph(f"<b>{cname}</b>", body_style))
-        if siret:
-            story.append(Paragraph(f"SIRET : {siret}", small_style))
-        if addr:
-            story.append(Paragraph(addr.replace("\n", "<br/>"), small_style))
-        story.append(Spacer(1, 0.6 * cm))
+        build_branding_header_reportlab(story, body_style, company)
         story.append(Paragraph(_titre_attestation(attestation_type), title_style))
         story.append(Spacer(1, 0.4 * cm))
         story.append(Paragraph(corps_html, body_style))
-        story.append(Spacer(1, 1.2 * cm))
-        lieu = _s(company.get("adresse_ville") or company.get("city") or company.get("ville"))
+        story.append(Spacer(1, 0.8 * cm))
         story.append(
             Paragraph(
-                f"Fait à {lieu or '…………………'}, le {date.today().strftime('%d/%m/%Y')}.",
+                "La présente attestation est délivrée à la demande de l'intéressé(e) "
+                "pour servir et valoir ce que de droit.",
+                body_style,
+            )
+        )
+        story.append(Spacer(1, 0.8 * cm))
+        lieu = get_company_city(company) or "…………………"
+        story.append(
+            Paragraph(
+                f"Fait à {lieu}, le {date.today().strftime('%d/%m/%Y')}.",
                 small_style,
             )
         )
         story.append(Spacer(1, 1.5 * cm))
-        rh = _s(company.get("nom_signataire_rh") or company.get("signatory_name") or "Le service RH")
-        qual = _s(company.get("qualite_signataire_rh") or company.get("signatory_title") or "")
+        rh, qual = get_company_signatory(company)
         sig_line = f"<b>{rh}</b>" + (f"<br/><i>{qual}</i>" if qual else "")
         story.append(Paragraph(sig_line, body_style))
         story.append(Spacer(1, 0.3 * cm))

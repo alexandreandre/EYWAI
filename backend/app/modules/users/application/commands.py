@@ -28,6 +28,7 @@ from app.modules.users.application.service import (
     get_user_permission_repository,
     get_user_repository,
 )
+from app.modules.employees.infrastructure.providers import get_company_reader
 from app.modules.users.domain import rules as domain_rules
 
 
@@ -262,13 +263,16 @@ def create_user_with_permissions(data: Any, current_user: Any) -> CreateUserResu
                     remove_accents(data.last_name).lower().replace(" ", "_")
                 )
                 username = f"{first_name_for_username}.{last_name_for_username}"
-                logo_path = pdf_provider.get_logo_path()
+                company_reader = get_company_reader()
+                company_data = company_reader.get_company_data(
+                    str(primary_access.company_id)
+                )
                 pdf_content = pdf_provider.generate(
                     data.first_name,
                     data.last_name,
                     username,
                     data.password,
-                    logo_path,
+                    company_data=company_data,
                 )
                 storage.upload_credentials_pdf(
                     str(primary_access.company_id), user_id, pdf_content

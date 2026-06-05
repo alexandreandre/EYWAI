@@ -129,10 +129,33 @@ def export_minutes_annual_file(company_id: str, year: int) -> ExportFile:
     if not meetings_with_pv:
         raise HTTPException(status_code=404, detail="Aucun PV trouvé pour cette année")
 
+    from app.modules.employees.infrastructure.providers import get_company_reader
+
+    company_reader = get_company_reader()
+    meetings_with_pv[0]["company_data"] = company_reader.get_company_data(company_id) or {}
     pdf_bytes = cse_pdf_provider.generate_minutes(meetings_with_pv[0])
     return ExportFile(
         content=pdf_bytes,
         filename=f"pv_annuels_{year}.pdf",
+        media_type="application/pdf",
+    )
+
+
+def export_convocation_file(meeting_id: str, company_id: str) -> ExportFile:
+    """Export PDF de convocation pour une réunion CSE."""
+    from app.modules.employees.infrastructure.providers import get_company_reader
+
+    queries.check_module_active(company_id)
+    meeting = queries.get_meeting_by_id(meeting_id, company_id)
+    meeting_dict = _to_dict(meeting)
+    company_reader = get_company_reader()
+    company_data = company_reader.get_company_data(company_id) or {}
+    meeting_dict["company_data"] = company_data
+    pdf_bytes = cse_pdf_provider.generate_convocation(meeting_dict)
+    safe_title = (meeting_dict.get("title") or "reunion").replace(" ", "_")[:40]
+    return ExportFile(
+        content=pdf_bytes,
+        filename=f"convocation_cse_{safe_title}.pdf",
         media_type="application/pdf",
     )
 
@@ -152,6 +175,10 @@ def export_election_calendar_file(
         cycle = cycles[0]
     cycle_dict = _to_dict(cycle)
     timeline = cycle_dict.get("timeline", [])
+    from app.modules.employees.infrastructure.providers import get_company_reader
+
+    company_reader = get_company_reader()
+    cycle_dict["company_data"] = company_reader.get_company_data(company_id) or {}
     content = cse_pdf_provider.generate_election_calendar(cycle_dict, timeline)
     return ExportFile(
         content=content,
@@ -175,6 +202,7 @@ __all__ = [
     "export_elected_members_file",
     "export_delegation_hours_file",
     "export_meetings_history_file",
+    "export_convocation_file",
     "export_minutes_annual_file",
     "export_election_calendar_file",
     "get_meeting_minutes_path_or_raise",

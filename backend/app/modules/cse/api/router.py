@@ -15,6 +15,7 @@ from app.modules.users.schemas.responses import User
 
 from app.modules.cse.application import commands, queries
 from app.modules.cse.application.service import (
+    export_convocation_file,
     export_delegation_hours_file,
     export_elected_members_file,
     export_election_calendar_file,
@@ -678,6 +679,23 @@ def export_meetings_history(
     company_id = _get_company_id(current_user)
     queries.check_module_active(company_id)
     out = export_meetings_history_file(company_id)
+    return Response(
+        content=out.content,
+        media_type=out.media_type,
+        headers={"Content-Disposition": f'attachment; filename="{out.filename}"'},
+    )
+
+
+@router.get("/meetings/{meeting_id}/export/convocation")
+def export_meeting_convocation(
+    meeting_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Export PDF de convocation pour une réunion CSE. RH uniquement."""
+    _require_rh(current_user)
+    company_id = _get_company_id(current_user)
+    queries.check_module_active(company_id)
+    out = export_convocation_file(meeting_id, company_id)
     return Response(
         content=out.content,
         media_type=out.media_type,

@@ -29,6 +29,7 @@ from reportlab.platypus import (
 
 from app.core.database import supabase
 from app.shared.infrastructure.pdf.helpers import (
+    build_branding_header_reportlab,
     format_currency,
     format_date,
     safe_float,
@@ -200,29 +201,7 @@ class SalaryCertificateGenerator:
         )
         story = []
 
-        company_name = company_data.get("name") or company_data.get(
-            "raison_sociale", "Entreprise"
-        )
-        story.append(
-            Paragraph(
-                f"<b>{company_name}</b>",
-                self.styles["EntrepriseHeader"],
-            )
-        )
-        if company_data.get("address"):
-            story.append(
-                Paragraph(
-                    company_data["address"],
-                    self.styles["Normal"],
-                )
-            )
-        if company_data.get("siret"):
-            story.append(
-                Paragraph(
-                    f"SIRET : {company_data['siret']}",
-                    self.styles["Normal"],
-                )
-            )
+        build_branding_header_reportlab(story, self.styles, company_data)
         story.append(Spacer(1, 1 * cm))
 
         story.append(

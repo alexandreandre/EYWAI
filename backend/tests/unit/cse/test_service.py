@@ -206,7 +206,11 @@ class TestExportMinutesAnnualFile:
                 "app.modules.cse.application.service.cse_pdf_provider.generate_minutes",
                 return_value=b"%PDF-1.4",
             ),
+            patch(
+                "app.modules.employees.infrastructure.providers.get_company_reader",
+            ) as mock_reader,
         ):
+            mock_reader.return_value.get_company_data.return_value = {}
             result = export_minutes_annual_file("co-1", 2024)
         assert isinstance(result, ExportFile)
         assert result.content == b"%PDF-1.4"
@@ -245,7 +249,11 @@ class TestExportElectionCalendarFile:
                 "app.modules.cse.application.service.cse_pdf_provider.generate_election_calendar",
                 return_value=b"%PDF",
             ),
+            patch(
+                "app.modules.employees.infrastructure.providers.get_company_reader",
+            ) as mock_reader,
         ):
+            mock_reader.return_value.get_company_data.return_value = {}
             result = export_election_calendar_file("co-1")
         assert result.content == b"%PDF"
         assert "calendrier_electoral" in result.filename
@@ -264,7 +272,11 @@ class TestExportElectionCalendarFile:
                 "app.modules.cse.application.service.cse_pdf_provider.generate_election_calendar",
                 return_value=b"%PDF",
             ),
+            patch(
+                "app.modules.employees.infrastructure.providers.get_company_reader",
+            ) as mock_reader,
         ):
+            mock_reader.return_value.get_company_data.return_value = {}
             result = export_election_calendar_file("co-1", cycle_id="cycle-1")
         assert result.content == b"%PDF"
 

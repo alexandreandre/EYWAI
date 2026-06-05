@@ -14,12 +14,20 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib import colors
 
 # Import shared helpers
+from app.modules.payroll.solde_de_tout_compte.common import pdf_helpers
 from app.modules.payroll.solde_de_tout_compte.common.pdf_helpers import (
     setup_custom_styles,
     format_date,
     format_currency,
     safe_float,
     safe_str,
+)
+
+from app.shared.infrastructure.pdf.helpers import (
+    format_salary_euros,
+    get_company_address,
+    get_company_city,
+    get_company_signatory,
 )
 
 # Import case modules
@@ -41,6 +49,17 @@ from app.modules.payroll.solde_de_tout_compte.cases.fin_periode_essai import (
 from app.modules.payroll.solde_de_tout_compte.cases.generic import (
     generate_generic_solde,
 )
+
+EXIT_TYPE_LABELS = {
+    "demission": "Démission",
+    "rupture_conventionnelle": "Rupture conventionnelle",
+    "licenciement": "Licenciement",
+    "depart_retraite": "Départ à la retraite",
+    "fin_periode_essai": "Fin de période d'essai",
+    "fin_cdd": "Fin de contrat à durée déterminée",
+    "fin_mission": "Fin de mission (intérim)",
+    "deces": "Décès du salarié",
+}
 
 
 class EmployeeExitDocumentGenerator:
@@ -65,14 +84,14 @@ class EmployeeExitDocumentGenerator:
         exit_data: Dict[str, Any],
     ) -> bytes:
         """
-        Génère un certificat de travail conforme à l'Article L1234-19 du Code du travail
+        Génère un certificat de travail conforme à l'article L1234-19 du Code du travail.
 
-        Contenu obligatoire :
-        - Nom et adresse de l'entreprise
-        - Nom, prénom, date de naissance du salarié
-        - Dates d'embauche et de sortie
-        - Nature de l'emploi
-        - Mention "libre de tout engagement"
+        Mentions obligatoires :
+        - Identité employeur et salarié
+        - Dates d'embauche et de cessation
+        - Nature de l'emploi (ou emplois successivement occupés)
+        - Durée et exécution du préavis le cas échéant
+        - Mention « libre de tout engagement »
         """
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(
@@ -80,58 +99,39 @@ class EmployeeExitDocumentGenerator:
         )
         story = []
 
-        # En-tête entreprise
-        story.append(
-            Paragraph(
-                f"<b>{company_data.get('name', company_data.get('raison_sociale', 'Entreprise'))}</b>",
-                self.styles["EntrepriseHeader"],
-            )
-        )
+        pdf_helpers.build_company_header(story, self.styles, company_data)
 
-        if company_data.get("address"):
-            story.append(
-                Paragraph(company_data["address"], self.styles["EntrepriseHeader"])
-            )
-
-        if company_data.get("siret"):
-            story.append(
-                Paragraph(
-                    f"SIRET : {company_data['siret']}", self.styles["EntrepriseHeader"]
-                )
-            )
-
-        story.append(Spacer(1, 1 * cm))
-
-        # Titre
         story.append(Paragraph("CERTIFICAT DE TRAVAIL", self.styles["TitrePrincipal"]))
-        story.append(Spacer(1, 0.8 * cm))
+        story.append(Spacer(1, 0.5 * cm))
 
-        # Informations du salarié
         nom_complet = f"{employee_data.get('first_name', '')} {employee_data.get('last_name', '')}"
         date_naissance = self._format_date(employee_data.get("date_naissance", ""))
         date_embauche = self._format_date(employee_data.get("hire_date", ""))
         date_sortie = self._format_date(exit_data.get("last_working_day", ""))
         poste = employee_data.get("job_title", "Employé")
+        contract_type = employee_data.get("contract_type", "CDI")
 
         company_name = (
             company_data.get("name")
             or company_data.get("raison_sociale")
+            or company_data.get("company_name")
             or "l'entreprise"
         )
+
         texte_certif = f"""
-        Je soussigné(e), représentant(e) de <b>{company_name}</b>,
-        certifie avoir employé :
+        Je soussigné(e), représentant(e) légal(e) de <b>{company_name}</b>,
+        certifie que :
         """
         story.append(Paragraph(texte_certif, self.styles["CorpsTexte"]))
         story.append(Spacer(1, 0.3 * cm))
 
-        # Informations du salarié en tableau
         data_salarie = [
-            ["Nom et Prénom :", nom_complet],
-            ["Né(e) le :", date_naissance],
-            ["Poste occupé :", poste],
-            ["Date d'entrée :", date_embauche],
-            ["Date de sortie :", date_sortie],
+            ["Nom et prénom :", nom_complet],
+            ["Né(e) le :", date_naissance or "Non renseigné"],
+            ["Emploi occupé :", poste],
+            ["Nature du contrat :", contract_type],
+            ["Date d'entrée :", date_embauche or "Non renseigné"],
+            ["Date de cessation :", date_sortie or "Non renseigné"],
         ]
 
         table = Table(data_salarie, colWidths=[5 * cm, 10 * cm])
@@ -149,43 +149,96 @@ class EmployeeExitDocumentGenerator:
                 ]
             )
         )
-
         story.append(table)
-        story.append(Spacer(1, 0.8 * cm))
+        story.append(Spacer(1, 0.6 * cm))
 
-        # Mention légale obligatoire
+        # Préavis (mention L1234-19 al. c)
+        notice_days = exit_data.get("notice_period_days") or 0
+        notice_end = exit_data.get("notice_end_date")
+        notice_indemnity_type = exit_data.get("notice_indemnity_type", "not_applicable")
+        preavis_lines = []
+        if notice_days and int(notice_days) > 0:
+            preavis_lines.append(
+                f"Durée du préavis : <b>{notice_days} jours</b>."
+            )
+            if notice_end:
+                preavis_lines.append(
+                    f"Fin de préavis : <b>{self._format_date(notice_end)}</b>."
+                )
+            if notice_indemnity_type == "waived":
+                preavis_lines.append("Préavis non exécuté (dispense accordée).")
+            elif notice_indemnity_type == "paid":
+                indemnities = exit_data.get("calculated_indemnities") or {}
+                montant_preavis = safe_float(
+                    (indemnities.get("indemnite_preavis") or {}).get("montant", 0)
+                )
+                if montant_preavis > 0:
+                    from app.shared.infrastructure.pdf.helpers import format_currency
+
+                    preavis_lines.append(
+                        f"Indemnité compensatrice de préavis : "
+                        f"<b>{format_currency(montant_preavis)}</b>."
+                    )
+                else:
+                    preavis_lines.append(
+                        "Préavis non exécuté — indemnité compensatrice de préavis due."
+                    )
+            else:
+                preavis_lines.append("Préavis exécuté ou en cours d'exécution.")
+        else:
+            preavis_lines.append(
+                "Aucun préavis applicable ou durée de préavis non renseignée."
+            )
+
+        emplois_text = (
+            f"Le salarié a occupé le poste de <b>{poste}</b> "
+            f"depuis le {date_embauche or '…'} jusqu'au {date_sortie or '…'}."
+        )
+        story.append(Paragraph(emplois_text, self.styles["CorpsTexte"]))
+        story.append(Spacer(1, 0.3 * cm))
+        story.append(
+            Paragraph(
+                "<b>Préavis :</b> " + " ".join(preavis_lines),
+                self.styles["CorpsTexte"],
+            )
+        )
+        story.append(Spacer(1, 0.6 * cm))
+
         texte_mention = """
-        Le présent certificat est délivré pour servir et valoir ce que de droit,
-        notamment auprès de Pôle Emploi.
+        Le présent certificat est délivré à la demande de l'intéressé(e)
+        pour servir et valoir ce que de droit, notamment auprès de France Travail
+        (ex-Pôle Emploi) et des organismes de protection sociale.
         """
         story.append(Paragraph(texte_mention, self.styles["CorpsTexte"]))
         story.append(Spacer(1, 0.3 * cm))
 
         texte_libre = f"""
-        <b>{nom_complet}</b> est libre de tout engagement à l'égard de notre société.
+        <b>{nom_complet}</b> est, à ce jour, <b>libre de tout engagement</b>
+        à l'égard de notre société.
         """
         story.append(Paragraph(texte_libre, self.styles["Important"]))
-        story.append(Spacer(1, 1.5 * cm))
+        story.append(Spacer(1, 1.2 * cm))
 
-        # Date et signature
+        company_city = get_company_city(company_data) or "…………………"
         date_aujourd_hui = self._format_date(datetime.now().date())
         story.append(
             Paragraph(
-                f"Fait à {company_data.get('city', '___________')}, le {date_aujourd_hui}",
+                f"Fait à {company_city}, le {date_aujourd_hui}",
                 self.styles["Signature"],
             )
         )
         story.append(Spacer(1, 0.3 * cm))
-        story.append(
-            Paragraph("Signature et cachet de l'entreprise :", self.styles["Signature"])
-        )
-        story.append(Spacer(1, 2 * cm))
+        signatory, signatory_title = get_company_signatory(company_data)
+        sig = f"<b>{signatory}</b>"
+        if signatory_title:
+            sig += f"<br/><i>{signatory_title}</i>"
+        sig += "<br/>Signature et cachet de l'entreprise"
+        story.append(Paragraph(sig, self.styles["Signature"]))
+        story.append(Spacer(1, 1.5 * cm))
 
-        # Pied de page avec mention légale
-        story.append(Spacer(1, 1 * cm))
         story.append(
             Paragraph(
-                "<i>Article L1234-19 du Code du travail</i>",
+                "<i>Article L1234-19 du Code du travail — Certificat de travail</i>",
                 ParagraphStyle(
                     name="MentionLegale",
                     parent=self.styles["Normal"],
@@ -294,10 +347,10 @@ class EmployeeExitDocumentGenerator:
         exit_data: Dict[str, Any],
     ) -> bytes:
         """
-        Génère une attestation Pôle Emploi simplifiée
+        Attestation employeur simplifiée pour France Travail.
 
-        Note: En production, il faudrait utiliser le formulaire officiel Pôle Emploi
-        ou l'API DSN (Déclaration Sociale Nominative)
+        Complète le certificat de travail ; l'attestation officielle doit
+        impérativement être transmise via la DSN (événement fin de contrat).
         """
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(
@@ -305,50 +358,54 @@ class EmployeeExitDocumentGenerator:
         )
         story = []
 
-        # En-tête
+        pdf_helpers.build_company_header(story, self.styles, company_data)
+
         story.append(
             Paragraph(
-                "<b>ATTESTATION DESTINÉE À PÔLE EMPLOI</b>",
+                "<b>ATTESTATION EMPLOYEUR</b><br/>"
+                "<i>Document d'accompagnement — France Travail</i>",
                 self.styles["TitrePrincipal"],
             )
         )
-        story.append(Spacer(1, 0.5 * cm))
+        story.append(Spacer(1, 0.4 * cm))
 
-        # Avertissement
         story.append(
             Paragraph(
-                "<i>Ce document est une attestation simplifiée. "
-                "L'employeur doit obligatoirement transmettre l'attestation officielle via la DSN "
-                "(Déclaration Sociale Nominative) ou le formulaire Pôle Emploi.</i>",
+                "<i>Ce document reprend les informations essentielles transmises au salarié. "
+                "L'employeur doit obligatoirement déclarer la fin de contrat via la DSN "
+                "(Déclaration Sociale Nominative) dans les délais légaux. "
+                "Seule l'attestation transmise par DSN fait foi auprès de France Travail.</i>",
                 ParagraphStyle(
                     name="Avertissement",
                     parent=self.styles["Normal"],
                     fontSize=9,
-                    textColor=colors.HexColor("#dc2626"),
-                    spaceAfter=20,
+                    textColor=colors.HexColor("#92400e"),
+                    spaceAfter=16,
                     alignment=TA_CENTER,
-                    borderPadding=10,
-                    borderColor=colors.HexColor("#fee2e2"),
+                    borderPadding=8,
+                    borderColor=colors.HexColor("#fde68a"),
                     borderWidth=1,
-                    backColor=colors.HexColor("#fef2f2"),
+                    backColor=colors.HexColor("#fffbeb"),
                 ),
             )
         )
-        story.append(Spacer(1, 1 * cm))
+        story.append(Spacer(1, 0.6 * cm))
 
-        # Section employeur
         story.append(
-            Paragraph("<b>INFORMATIONS EMPLOYEUR</b>", self.styles["Important"])
+            Paragraph("<b>1. EMPLOYEUR</b>", self.styles["Important"])
         )
-        story.append(Spacer(1, 0.3 * cm))
+        story.append(Spacer(1, 0.2 * cm))
 
+        company_name = (
+            company_data.get("name")
+            or company_data.get("raison_sociale")
+            or company_data.get("company_name")
+            or ""
+        )
         data_employeur = [
-            [
-                "Raison sociale :",
-                company_data.get("name", company_data.get("raison_sociale", "")),
-            ],
+            ["Raison sociale :", company_name],
             ["SIRET :", company_data.get("siret", "")],
-            ["Adresse :", company_data.get("address", "")],
+            ["Adresse :", get_company_address(company_data)],
         ]
 
         table_employeur = Table(data_employeur, colWidths=[5 * cm, 11 * cm])
@@ -363,11 +420,10 @@ class EmployeeExitDocumentGenerator:
             )
         )
         story.append(table_employeur)
-        story.append(Spacer(1, 0.8 * cm))
+        story.append(Spacer(1, 0.6 * cm))
 
-        # Section salarié
-        story.append(Paragraph("<b>INFORMATIONS SALARIÉ</b>", self.styles["Important"]))
-        story.append(Spacer(1, 0.3 * cm))
+        story.append(Paragraph("<b>2. SALARIÉ</b>", self.styles["Important"]))
+        story.append(Spacer(1, 0.2 * cm))
 
         nom_complet = f"{employee_data.get('first_name', '')} {employee_data.get('last_name', '')}"
         data_salarie = [
@@ -376,8 +432,9 @@ class EmployeeExitDocumentGenerator:
                 "Date de naissance :",
                 self._format_date(employee_data.get("date_naissance", "")),
             ],
-            ["N° de Sécurité Sociale :", employee_data.get("nir", "")],
+            ["N° de Sécurité Sociale :", employee_data.get("nir", "") or "Non renseigné"],
             ["Emploi occupé :", employee_data.get("job_title", "")],
+            ["Type de contrat :", employee_data.get("contract_type", "CDI")],
             [
                 "Date d'embauche :",
                 self._format_date(employee_data.get("hire_date", "")),
@@ -400,37 +457,55 @@ class EmployeeExitDocumentGenerator:
             )
         )
         story.append(table_salarie)
-        story.append(Spacer(1, 0.8 * cm))
+        story.append(Spacer(1, 0.6 * cm))
 
-        # Motif de fin de contrat
         story.append(
-            Paragraph("<b>MOTIF DE FIN DE CONTRAT</b>", self.styles["Important"])
+            Paragraph("<b>3. FIN DE CONTRAT</b>", self.styles["Important"])
         )
-        story.append(Spacer(1, 0.3 * cm))
+        story.append(Spacer(1, 0.2 * cm))
 
-        motif_map = {
-            "demission": "Démission",
-            "rupture_conventionnelle": "Rupture conventionnelle",
-            "licenciement": "Licenciement",
-        }
-
-        motif = motif_map.get(exit_data.get("exit_type", ""), "Non spécifié")
-        story.append(Paragraph(f"Motif : <b>{motif}</b>", self.styles["CorpsTexte"]))
+        exit_type = exit_data.get("exit_type", "")
+        motif = EXIT_TYPE_LABELS.get(exit_type, exit_type.replace("_", " ").title() if exit_type else "Non spécifié")
+        story.append(Paragraph(f"Motif de rupture : <b>{motif}</b>", self.styles["CorpsTexte"]))
 
         if exit_data.get("exit_reason"):
             story.append(
                 Paragraph(
-                    f"Détails : {exit_data['exit_reason']}", self.styles["CorpsTexte"]
+                    f"Précisions : {exit_data['exit_reason']}", self.styles["CorpsTexte"]
                 )
             )
 
-        story.append(Spacer(1, 1.5 * cm))
+        notice_days = exit_data.get("notice_period_days") or 0
+        if notice_days and int(notice_days) > 0:
+            story.append(
+                Paragraph(
+                    f"Durée du préavis : <b>{notice_days} jours</b>.",
+                    self.styles["CorpsTexte"],
+                )
+            )
 
-        # Signature
+        story.append(Spacer(1, 0.5 * cm))
+
+        # Rémunération de référence
+        salaire_ref = format_salary_euros(employee_data)
+        story.append(
+            Paragraph("<b>4. RÉMUNÉRATION DE RÉFÉRENCE</b>", self.styles["Important"])
+        )
+        story.append(Spacer(1, 0.2 * cm))
+        story.append(
+            Paragraph(
+                f"Dernier salaire brut mensuel connu : <b>{salaire_ref}</b>. "
+                "Les indemnités et droits acquis sont détaillés dans le reçu pour solde de tout compte.",
+                self.styles["CorpsTexte"],
+            )
+        )
+        story.append(Spacer(1, 1 * cm))
+
+        company_city = get_company_city(company_data) or "…………………"
         date_aujourd_hui = self._format_date(datetime.now().date())
         story.append(
             Paragraph(
-                f"Fait à {company_data.get('city', '___________')}, le {date_aujourd_hui}",
+                f"Fait à {company_city}, le {date_aujourd_hui}",
                 self.styles["Signature"],
             )
         )
@@ -438,21 +513,20 @@ class EmployeeExitDocumentGenerator:
         story.append(
             Paragraph("Signature et cachet de l'employeur", self.styles["Signature"])
         )
+        story.append(Spacer(1, 1.5 * cm))
 
-        story.append(Spacer(1, 2 * cm))
-
-        # Pied de page avec rappel DSN
         story.append(
             Paragraph(
-                "<b>RAPPEL IMPORTANT :</b> Cette attestation ne remplace pas l'attestation officielle "
-                "qui doit être transmise obligatoirement par DSN ou via le site de Pôle Emploi.",
+                "<b>Rappel :</b> la déclaration DSN de fin de contrat est obligatoire. "
+                "Ce document ne se substitue pas à l'attestation officielle transmise "
+                "électroniquement à France Travail.",
                 ParagraphStyle(
                     name="RappelDSN",
                     parent=self.styles["Normal"],
                     fontSize=9,
                     textColor=colors.HexColor("#1e3a8a"),
                     alignment=TA_CENTER,
-                    borderPadding=10,
+                    borderPadding=8,
                     borderColor=colors.HexColor("#dbeafe"),
                     borderWidth=1,
                     backColor=colors.HexColor("#eff6ff"),

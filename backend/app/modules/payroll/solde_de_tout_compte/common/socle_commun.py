@@ -4,12 +4,73 @@ These sections are shared across all termination types
 """
 
 from datetime import datetime, date
-from typing import Dict, Any, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+from reportlab.lib import colors
 from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
-from reportlab.lib import colors
 
-from .pdf_helpers import safe_float, format_currency
+from app.shared.infrastructure.pdf.helpers import format_amount_cell
+
+from .pdf_helpers import format_currency, safe_float
+
+_NEANT = "Néant"
+
+
+def _fetch_last_payslip_extras(
+    employee_id: Optional[str],
+    supabase_client: Any,
+) -> Dict[str, Any]:
+    """HS et primes depuis le dernier bulletin validé, si disponible."""
+    empty = {
+        "hs_brut": 0.0,
+        "hs_detail": _NEANT,
+        "primes_total": 0.0,
+        "primes_detail": _NEANT,
+    }
+    if not employee_id or not supabase_client:
+        return empty
+    try:
+        resp = (
+            supabase_client.table("payslips")
+            .select("year, month, payslip_data")
+            .eq("employee_id", employee_id)
+            .order("year", desc=True)
+            .order("month", desc=True)
+            .limit(1)
+            .maybe_single()
+            .execute()
+        )
+        row = resp.data if resp and hasattr(resp, "data") else None
+        if not row:
+            return empty
+        pdata = row.get("payslip_data") or {}
+        hs_brut = safe_float(
+            pdata.get("remuneration_brute_heures_supp")
+            or pdata.get("remuneration_hs")
+            or 0
+        )
+        hs_hours = safe_float(
+            pdata.get("total_heures_supp") or pdata.get("heures_supplementaires") or 0
+        )
+        primes_total = safe_float(pdata.get("total_primes") or 0)
+        period = f"{row.get('month', '—'):02d}/{row.get('year', '—')}"
+        hs_detail = (
+            f"{hs_hours:.2f} h — bulletin {period}"
+            if hs_brut > 0 or hs_hours > 0
+            else _NEANT
+        )
+        primes_detail = (
+            f"Bulletin {period}" if primes_total > 0 else _NEANT
+        )
+        return {
+            "hs_brut": hs_brut,
+            "hs_detail": hs_detail,
+            "primes_total": primes_total,
+            "primes_detail": primes_detail,
+        }
+    except Exception:
+        return empty
 
 
 def get_salary_prorata(
@@ -77,6 +138,8 @@ def build_remunerations_section(
     employee_data: Dict[str, Any],
     exit_data: Dict[str, Any],
     section_number: int = 1,
+    employee_id: Optional[str] = None,
+    supabase_client: Any = None,
 ) -> Tuple[float, float, float]:
     """
     Construit la section Rémunérations acquises (Section 1)
@@ -114,61 +177,65 @@ def build_remunerations_section(
     cotis_salaire = safe_float(salaire_data.get("cotisations", 0))
     net_salaire = safe_float(salaire_data.get("net", brut_salaire))
 
-    detail_salaire = f"Base : {format_currency(base_mensuelle)} / {jours_mois} jours × {jours_trav} jours"
     if base_mensuelle == 0:
-        detail_salaire = "Non renseigné"
+        detail_salaire = _NEANT
+    else:
+        detail_salaire = (
+            f"Base : {format_currency(base_mensuelle)} / {jours_mois} jours "
+            f"× {jours_trav} jours"
+        )
 
     data_remunerations.append(
         [
             "Salaire du dernier mois",
             detail_salaire,
-            format_currency(brut_salaire) if brut_salaire > 0 else "",
-            format_currency(cotis_salaire) if cotis_salaire > 0 else "",
-            format_currency(net_salaire) if net_salaire > 0 else "",
+            format_amount_cell(brut_salaire),
+            format_amount_cell(cotis_salaire),
+            format_amount_cell(net_salaire),
         ]
     )
     total_brut_remun += brut_salaire
     total_cotisations_remun += cotis_salaire
     total_net_remun += net_salaire
 
-    # 2. Heures supplémentaires / complémentaires
-    hs_brut = 0.0
-    detail_hs = "Aucune heure supplémentaire enregistrée"
+    payslip_extras = _fetch_last_payslip_extras(
+        employee_id or employee_data.get("id"),
+        supabase_client,
+    )
+    hs_brut = safe_float(payslip_extras.get("hs_brut", 0))
+    detail_hs = payslip_extras.get("hs_detail", _NEANT)
     data_remunerations.append(
         [
             "Heures supplémentaires / complémentaires",
             detail_hs,
-            format_currency(hs_brut) if hs_brut > 0 else "",
-            "",
-            "",
+            format_amount_cell(hs_brut),
+            _NEANT,
+            _NEANT,
         ]
     )
     total_brut_remun += hs_brut
 
-    # 3. Primes et variables acquises
-    primes_total = 0.0
-    detail_primes = "Aucune prime acquise enregistrée"
+    primes_total = safe_float(payslip_extras.get("primes_total", 0))
+    detail_primes = payslip_extras.get("primes_detail", _NEANT)
     data_remunerations.append(
         [
             "Primes et variables acquises",
             detail_primes,
-            format_currency(primes_total) if primes_total > 0 else "",
-            "",
-            "",
+            format_amount_cell(primes_total),
+            _NEANT,
+            _NEANT,
         ]
     )
     total_brut_remun += primes_total
 
-    # 4. Avantages en nature
     avantages_total = 0.0
-    detail_avantages = "Aucun avantage en nature"
     data_remunerations.append(
         [
             "Avantages en nature",
-            detail_avantages,
-            format_currency(avantages_total) if avantages_total > 0 else "",
-            "",
-            "",
+            _NEANT,
+            format_amount_cell(avantages_total),
+            _NEANT,
+            _NEANT,
         ]
     )
     total_brut_remun += avantages_total
@@ -252,8 +319,8 @@ def build_conges_section(
     if cp_acquis is not None and cp_pris is not None:
         detail_conges_text += f" ({cp_acquis:.0f} acquis - {cp_pris:.0f} pris)"
     detail_conges_text += f" - Méthode : {methode}"
-    if jours_restants == 0:
-        detail_conges_text = "Solde : 0 jour ou non renseigné"
+    if jours_restants == 0 and montant_conges == 0:
+        detail_conges_text = _NEANT
 
     data_conges = [
         [
@@ -264,20 +331,17 @@ def build_conges_section(
         [
             "Indemnité compensatrice de congés payés",
             detail_conges_text,
-            format_currency(montant_conges) if montant_conges > 0 else "",
+            format_amount_cell(montant_conges),
         ],
     ]
 
-    # Option A : Ligne séparée pour CP sur préavis si préavis indemnisé
     montant_cp_preavis = 0.0
     if include_cp_preavis:
-        cp_preavis_text = "Non applicable ou non calculé"
-        # TODO: Récupérer depuis indemnities si disponible
         data_conges.append(
             [
                 "Congés payés afférents au préavis",
-                cp_preavis_text,
-                format_currency(montant_cp_preavis) if montant_cp_preavis > 0 else "",
+                _NEANT,
+                format_amount_cell(montant_cp_preavis),
             ]
         )
 
@@ -320,16 +384,8 @@ def build_autres_regularisations_section(
             Paragraph("<b>Détails</b>", styles["Normal"]),
             Paragraph("<b>Montant</b>", styles["Normal"]),
         ],
-        [
-            "RTT / repos compensateurs",
-            "Aucun RTT ou repos compensateur non pris enregistré",
-            "",
-        ],
-        [
-            "Frais professionnels",
-            "Aucune note de frais validée non remboursée enregistrée",
-            "",
-        ],
+        ["RTT / repos compensateurs", _NEANT, _NEANT],
+        ["Frais professionnels", _NEANT, _NEANT],
     ]
 
     table_autres = Table(data_autres, colWidths=[6 * cm, 7 * cm, 3 * cm])
@@ -365,7 +421,7 @@ def build_retenues_section(story: List, styles: Dict, section_number: int = 6) -
             Paragraph("<b>Détails</b>", styles["Normal"]),
             Paragraph("<b>Montant</b>", styles["Normal"]),
         ],
-        ["Retenues sur salaire", "Aucune retenue enregistrée", ""],
+        ["Retenues sur salaire", _NEANT, _NEANT],
     ]
 
     table_retenues = Table(data_retenues, colWidths=[6 * cm, 7 * cm, 3 * cm])
