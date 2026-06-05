@@ -7,7 +7,6 @@ Chaque commande est testée avec repositories et providers mockés (pas de DB, p
 from unittest.mock import patch
 
 import pytest
-from fastapi import HTTPException
 
 from app.modules.payslips.application.commands import (
     generate_payslip,
@@ -19,6 +18,7 @@ from app.modules.payslips.application.dto import (
     GeneratePayslipInput,
     EditPayslipInput,
     RestorePayslipInput,
+    PayslipBadRequestError,
 )
 
 _COMPLETE_EMPLOYEE = {
@@ -45,10 +45,9 @@ class TestGeneratePayslipCommand:
                 "employment_status": "en_onboarding",
                 "first_name": "Terence",
             }
-            with pytest.raises(HTTPException) as exc:
+            with pytest.raises(PayslipBadRequestError) as exc:
                 generate_payslip(cmd)
-        assert exc.value.status_code == 400
-        assert "onboarding" in exc.value.detail.lower()
+        assert "onboarding" in str(exc.value).lower()
 
     def test_generates_forfait_when_statut_is_forfait_jour(self):
         """Quand le statut employé est forfait jour, délègue à generate_forfait."""
