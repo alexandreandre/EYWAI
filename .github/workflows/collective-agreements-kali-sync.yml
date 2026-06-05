@@ -1,0 +1,42 @@
+# Synchronisation mensuelle des conventions collectives depuis Légifrance (KALI).
+name: CC KALI sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 1er du mois à 06:00 UTC (07:00 Paris en hiver)
+    - cron: "0 6 1 * *"
+
+jobs:
+  sync:
+    name: Sync conventions collectives
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      PISTE_CLIENT_ID: ${{ secrets.PISTE_CLIENT_ID }}
+      PISTE_CLIENT_SECRET: ${{ secrets.PISTE_CLIENT_SECRET }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Sync catalogue CC depuis Légifrance
+        run: python scripts/sync_cc_kali.py
