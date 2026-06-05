@@ -13,6 +13,7 @@ import {
   AccessibleCompany,
 } from '../../api/permissions';
 import PermissionsMatrix from '../../components/PermissionsMatrix';
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { cn } from '../../lib/utils';
 import { useCompany } from '../../contexts/CompanyContext';
 import { AppUserRole, getRoleDisplayLabel } from '../../lib/userRoleLabels';
@@ -168,11 +169,7 @@ const UserEdit: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    );
+    return <SharkFinLoader variant="fullPage" label="Chargement de l'utilisateur…" />;
   }
 
   return (

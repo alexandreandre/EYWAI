@@ -1,8 +1,13 @@
 import { cn } from '@/lib/utils';
 
 type SharkFinBootProgressProps = {
-  /** Conservé pour l'accessibilité ; la barre n'affiche pas d'avancement. */
+  /** Pourcentage d'avancement (0-100). */
   value?: number;
+  /**
+   * Si vrai et `value` fourni : l'aileron se positionne selon le pourcentage
+   * et la ligne d'eau se remplit. Sinon, animation continue (démarrage).
+   */
+  determinate?: boolean;
   className?: string;
 };
 
@@ -28,9 +33,10 @@ function SharkFin({ className }: { className?: string }) {
  * Écran de démarrage : un aileron de requin avance en continu de gauche à
  * droite sur une ligne d'eau fixe (la barre n'affiche pas de pourcentage).
  */
-export function SharkFinBootProgress({ value, className }: SharkFinBootProgressProps) {
+export function SharkFinBootProgress({ value, determinate, className }: SharkFinBootProgressProps) {
   const progress =
     typeof value === 'number' ? Math.min(100, Math.max(0, value)) : undefined;
+  const isDeterminate = determinate === true && progress !== undefined;
 
   return (
     <div
@@ -40,16 +46,34 @@ export function SharkFinBootProgress({ value, className }: SharkFinBootProgressP
       aria-valuemax={100}
       aria-valuenow={progress !== undefined ? Math.round(progress) : undefined}
     >
-      {/* Ligne d'eau fixe */}
-      <div className="h-2 w-full rounded-full bg-sky-100 dark:bg-sky-950/50" />
+      {/* Ligne d'eau (remplie jusqu'à l'aileron en mode déterminé) */}
+      <div className="h-2 w-full overflow-hidden rounded-full bg-sky-100 dark:bg-sky-950/50">
+        {isDeterminate && (
+          <div
+            className="h-full rounded-full bg-primary/30 transition-[width] duration-200 ease-out"
+            style={{ width: `${progress}%` }}
+          />
+        )}
+      </div>
 
       {/* Aileron : sa base plate repose sur la ligne d'eau (top de la barre) */}
       <div className="pointer-events-none absolute inset-x-0 bottom-2">
-        <div className="shark-swimmer absolute bottom-0 left-0">
-          <div className="shark-surger origin-bottom">
-            <SharkFin className="block drop-shadow-[0_1px_1px_rgba(0,0,0,0.12)]" />
+        {isDeterminate ? (
+          <div
+            className="absolute bottom-0 transition-[left] duration-200 ease-out"
+            style={{ left: `calc(${progress} * (100% - 38px) / 100)` }}
+          >
+            <div className="shark-surger origin-bottom">
+              <SharkFin className="block drop-shadow-[0_1px_1px_rgba(0,0,0,0.12)]" />
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="shark-swimmer absolute bottom-0 left-0">
+            <div className="shark-surger origin-bottom">
+              <SharkFin className="block drop-shadow-[0_1px_1px_rgba(0,0,0,0.12)]" />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

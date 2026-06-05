@@ -278,6 +278,10 @@ export async function checkDuplicate(candidateId: string): Promise<{ warnings: D
 export interface HireResult {
   ok: boolean;
   employee_id?: string;
+  username?: string;
+  email?: string;
+  generated_password?: string;
+  credentials_pdf_path?: string;
   message?: string;
   requires_confirmation?: boolean;
   existing_employee_id?: string;
@@ -322,13 +326,16 @@ export async function uploadCandidateCV(
 }
 
 export type ScoringMention = "Excellent" | "Bon" | "Moyen" | "Faible";
+export type ScoringConfiance = "Haute" | "Moyenne" | "Faible";
 
 export interface ScoringResult {
   candidate_id: string;
   score: number;
   mention: ScoringMention | string;
+  confiance?: ScoringConfiance | string | null;
   points_forts: string[];
   points_faibles: string[];
+  limites?: string | null;
   recommandation: string;
   scored_at: string;
 }

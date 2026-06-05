@@ -126,6 +126,9 @@ export interface AdvanceAvailableAmount {
   outstanding_advances: number;
   available_amount: number;
   max_advance_days: number;
+  reference_net_salary: number;
+  max_advance_from_net: number;
+  max_advance_net_ratio: number;
 }
 
 export interface SalarySeizureDeduction {
@@ -271,6 +274,17 @@ export async function getMySalaryAdvances(): Promise<SalaryAdvance[]> {
 
 export async function getMyAdvanceAvailable(): Promise<AdvanceAvailableAmount> {
   const response = await apiClient.get('/api/saisies-avances/employees/me/advance-available');
+  return response.data;
+}
+
+export async function getEmployeeAdvanceAvailable(
+  employeeId: string,
+  params?: { year?: number; month?: number },
+): Promise<AdvanceAvailableAmount> {
+  const response = await apiClient.get(
+    `/api/saisies-avances/employees/${employeeId}/advance-available`,
+    { params },
+  );
   return response.data;
 }
 

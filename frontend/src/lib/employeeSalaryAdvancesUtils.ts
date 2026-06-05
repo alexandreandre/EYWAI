@@ -79,3 +79,14 @@ export function computeMaxCapAmount(data: AdvanceAvailableAmount): number {
   const maxDays = Number(data.max_advance_days || 0);
   return daily * maxDays;
 }
+
+export function computeMaxNetCapAmount(data: AdvanceAvailableAmount): number {
+  const maxFromNet = Number(data.max_advance_from_net || 0);
+  const outstanding = Number(data.outstanding_advances || 0);
+  return Math.max(0, maxFromNet - outstanding);
+}
+
+export function formatAdvanceNetRatio(data: AdvanceAvailableAmount): string {
+  const ratio = Number(data.max_advance_net_ratio || 0.5);
+  return `${Math.round(ratio * 100)} %`;
+}

@@ -3,7 +3,8 @@
 import { log } from '@/lib/logger';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, AlertCircle, CheckCircle, Clock, Scale, Wallet } from "lucide-react";
+import { AlertCircle, CheckCircle, Clock, Scale, Wallet } from "lucide-react";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { getSalarySeizures, getSalaryAdvances } from '@/api/saisiesAvances';
 import type { SalarySeizure, SalaryAdvance } from '@/api/saisiesAvances';
 
@@ -41,11 +42,7 @@ export function SaisiesAvancesDashboard() {
   }, []);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <SharkFinLoader label="Chargement du tableau de bord…" />;
   }
 
   return (

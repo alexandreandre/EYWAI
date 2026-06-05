@@ -26,7 +26,7 @@ import { PendingSignaturesWidget } from '@/components/dashboard/PendingSignature
 import { EmployeeBadgeuseDashboardCard } from '@/components/dashboard/EmployeeBadgeuseDashboardCard';
 import { EmployeeCseDashboardCard } from '@/components/employee-cse/EmployeeCseDashboardCard';
 import { EmployeeAbsenceBalanceRow } from '@/components/employee-absences/EmployeeAbsenceBalanceRow';
-import { EmployeeDashboardSkeleton } from '@/components/skeletons/EmployeeDashboardSkeleton';
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -50,6 +50,14 @@ import {
   pickDisplayPayslip,
 } from '@/lib/employeeDashboardUtils';
 import { cn } from '@/lib/utils';
+
+function DashboardMetricCardLoader() {
+  return (
+    <CardContent className="flex min-h-[88px] items-center justify-center">
+      <SharkFinLoader variant="compact" label="" />
+    </CardContent>
+  );
+}
 
 function ExpenseStatusLink({
   to,
@@ -106,12 +114,6 @@ export default function EmployeeDashboard() {
     new Date().getFullYear(),
     new Date().getMonth() + 1
   );
-
-  const isInitialLoading =
-    payslipsQuery.isLoading ||
-    expensesQuery.isLoading ||
-    initialAbsencesQuery.isLoading ||
-    profileQuery.isLoading;
 
   const partialError =
     payslipsQuery.isError ||
@@ -181,7 +183,7 @@ export default function EmployeeDashboard() {
     : 'Aucun bulletin disponible';
 
   const showExpensesEmptyState =
-    !isInitialLoading &&
+    !expensesQuery.isLoading &&
     pendingExpensesCount === 0 &&
     rejectedExpensesCount === 0;
 
@@ -193,16 +195,14 @@ export default function EmployeeDashboard() {
     );
   }
 
-  if (isInitialLoading) {
-    return <EmployeeDashboardSkeleton />;
-  }
-
   return (
     <EmployeePageShell className="space-y-8">
       <EmployeePageHeader
         title={`Bonjour, ${user?.first_name || 'Utilisateur'} !`}
         description={
-          employeeInfo?.job_title ?? 'Votre tableau de bord personnel.'
+          profileQuery.isLoading
+            ? 'Votre tableau de bord personnel.'
+            : (employeeInfo?.job_title ?? 'Votre tableau de bord personnel.')
         }
         actions={
           <Button variant="outline" size="sm" asChild>
@@ -294,14 +294,16 @@ export default function EmployeeDashboard() {
                     'cursor-pointer hover:border-primary/50 hover:bg-muted/30'
                 )}
               >
-                {displayPayslip ? (
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    Dernier net à payer
+                  </CardTitle>
+                  <Wallet className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                {payslipsQuery.isLoading ? (
+                  <DashboardMetricCardLoader />
+                ) : displayPayslip ? (
                   <Link to={payslipHref} className="block h-full">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">
-                        Dernier net à payer
-                      </CardTitle>
-                      <Wallet className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-bold">
                         {formatCurrency(displayPayslip.payslip.net_a_payer)}
@@ -312,20 +314,12 @@ export default function EmployeeDashboard() {
                     </CardContent>
                   </Link>
                 ) : (
-                  <>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">
-                        Dernier net à payer
-                      </CardTitle>
-                      <Wallet className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">N/A</div>
-                      <p className="text-xs text-muted-foreground">
-                        {payslipPeriodLabel}
-                      </p>
-                    </CardContent>
-                  </>
+                  <CardContent>
+                    <div className="text-2xl font-bold">N/A</div>
+                    <p className="text-xs text-muted-foreground">
+                      {payslipPeriodLabel}
+                    </p>
+                  </CardContent>
                 )}
               </Card>
 
@@ -336,18 +330,22 @@ export default function EmployeeDashboard() {
                   </CardTitle>
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {formatCurrency(cumuls?.cumuls?.net_imposable)}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Année{' '}
-                    {cumuls?.periode?.annee_en_cours ?? new Date().getFullYear()}
-                    {cumulsMonthLabel
-                      ? ` · Arrêté au ${cumulsMonthLabel}`
-                      : ''}
-                  </p>
-                </CardContent>
+                {cumulsQuery.isLoading ? (
+                  <DashboardMetricCardLoader />
+                ) : (
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      {formatCurrency(cumuls?.cumuls?.net_imposable)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Année{' '}
+                      {cumuls?.periode?.annee_en_cours ?? new Date().getFullYear()}
+                      {cumulsMonthLabel
+                        ? ` · Arrêté au ${cumulsMonthLabel}`
+                        : ''}
+                    </p>
+                  </CardContent>
+                )}
               </Card>
 
               <Card className="min-w-[85%] shrink-0 snap-center border-dashed sm:min-w-[45%] lg:min-w-0">
@@ -357,20 +355,24 @@ export default function EmployeeDashboard() {
                   </CardTitle>
                   <Euro className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-xl font-semibold text-muted-foreground">
-                    {formatCurrency(employeeInfo?.salaire_de_base?.valeur)}
-                  </div>
-                  <p className="text-xs text-muted-foreground">Mensuel brut</p>
-                  <Button
-                    variant="link"
-                    size="sm"
-                    asChild
-                    className="mt-1 h-auto p-0 text-xs"
-                  >
-                    <Link to="/payslips">Voir ma rémunération →</Link>
-                  </Button>
-                </CardContent>
+                {profileQuery.isLoading ? (
+                  <DashboardMetricCardLoader />
+                ) : (
+                  <CardContent>
+                    <div className="text-xl font-semibold text-muted-foreground">
+                      {formatCurrency(employeeInfo?.salaire_de_base?.valeur)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Mensuel brut</p>
+                    <Button
+                      variant="link"
+                      size="sm"
+                      asChild
+                      className="mt-1 h-auto p-0 text-xs"
+                    >
+                      <Link to="/payslips">Voir ma rémunération →</Link>
+                    </Button>
+                  </CardContent>
+                )}
               </Card>
             </div>
 
@@ -445,7 +447,11 @@ export default function EmployeeDashboard() {
                 <CardTitle className="text-lg">Mes notes de frais</CardTitle>
               </CardHeader>
               <CardContent>
-                {showExpensesEmptyState ? (
+                {expensesQuery.isLoading ? (
+                  <div className="flex min-h-[88px] items-center justify-center">
+                    <SharkFinLoader variant="compact" label="" />
+                  </div>
+                ) : showExpensesEmptyState ? (
                   <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-6 text-center">
                     <CheckCircle className="h-8 w-8 text-emerald-600" />
                     <p className="text-sm font-medium">Aucune note en cours</p>
@@ -489,7 +495,11 @@ export default function EmployeeDashboard() {
                 <CardTitle className="text-lg">Mes soldes</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {leaveBalances.length > 0 ? (
+                {initialAbsencesQuery.isLoading ? (
+                  <div className="flex min-h-[72px] items-center justify-center">
+                    <SharkFinLoader variant="compact" label="" />
+                  </div>
+                ) : leaveBalances.length > 0 ? (
                   leaveBalances.map((balance) => (
                     <EmployeeAbsenceBalanceRow key={balance.type} balance={balance} />
                   ))
@@ -512,6 +522,12 @@ export default function EmployeeDashboard() {
                 </Button>
               </CardHeader>
               <CardContent className="flex flex-col items-center">
+                {initialAbsencesQuery.isLoading ? (
+                  <div className="flex min-h-[280px] w-full items-center justify-center">
+                    <SharkFinLoader variant="section" label="Chargement du calendrier…" />
+                  </div>
+                ) : (
+                  <>
                 {absencesQuery.isFetching && !absencesQuery.isLoading && (
                   <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/50">
                     <span className="sr-only">Chargement du calendrier</span>
@@ -545,6 +561,8 @@ export default function EmployeeDashboard() {
                     </div>
                   ))}
                 </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>

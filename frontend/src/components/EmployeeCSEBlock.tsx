@@ -6,9 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { CSEBadge } from "@/components/CSEBadge";
 import {
-  getElectedMembers,
-  getDelegationQuota,
+  getDelegationCredit,
   getDelegationHours,
+  getElectedMembers,
   getMeetings,
 } from "@/api/cse";
 import { Users, Calendar, Clock, ArrowRight, Loader2 } from "lucide-react";
@@ -63,15 +63,15 @@ export function EmployeeCSEBlock({
 
   const mandate = members.find((m) => m.employee_id === employeeId);
 
-  const { data: quota } = useQuery({
-    queryKey: ["cse", "delegation-quota", employeeId],
-    queryFn: () => getDelegationQuota(employeeId),
-    enabled: !!mandate && !!employeeId,
-  });
-
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
+
+  const { data: credit } = useQuery({
+    queryKey: ["cse", "delegation-credit", employeeId, now.getFullYear(), now.getMonth() + 1],
+    queryFn: () => getDelegationCredit(now.getFullYear(), now.getMonth() + 1, employeeId),
+    enabled: !!mandate && !!employeeId,
+  });
 
   const { data: hours = [] } = useQuery({
     queryKey: ["cse", "delegation-hours", employeeId, monthStart, monthEnd],
@@ -91,9 +91,9 @@ export function EmployeeCSEBlock({
 
   const nextMeeting = meetings.length > 0 ? meetings[0] : null;
 
-  const consumedHours = hours.reduce((sum, h) => sum + h.duration_hours, 0);
-  const quotaHours = quota?.quota_hours_per_month || 0;
-  const remainingHours = quotaHours - consumedHours;
+  const consumedHours = credit?.consumed_hours ?? hours.reduce((sum, h) => sum + h.duration_hours, 0);
+  const quotaHours = credit?.credit_base ?? 0;
+  const remainingHours = credit?.remaining_hours ?? quotaHours - consumedHours;
 
   if (loadingMandate) {
     return (
@@ -154,7 +154,7 @@ export function EmployeeCSEBlock({
           )}
         </span>
 
-        {quota ? (
+        {quotaHours > 0 ? (
           <>
             <InfoSep />
             <span className="inline-flex flex-wrap items-center gap-1 text-blue-900/90 dark:text-blue-100/90">

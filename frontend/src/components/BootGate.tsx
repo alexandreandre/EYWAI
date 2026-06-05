@@ -8,7 +8,7 @@ import { prefetchInBackground, runBootPrefetch } from '@/lib/prefetchByRole';
 import { isPlatformAdmin } from '@/lib/platformAdmin';
 
 /** Durée minimale du splash pour éviter un flash trop court */
-const BOOT_MIN_MS = 600;
+const BOOT_MIN_MS = 250;
 /** Plafond absolu — ne jamais bloquer indéfiniment */
 const BOOT_MAX_MS = 12_000;
 

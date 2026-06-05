@@ -79,7 +79,7 @@ function RateTargetChip({
       )}
     >
       {target.status === 'running' ? (
-        <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden />
+        <span className="h-1 w-3 shrink-0 rounded-full bg-current animate-pulse" aria-hidden />
       ) : target.status === 'done' ? (
         <CheckCircle2
           className={cn('h-3 w-3', muted ? 'text-muted-foreground/60' : 'text-emerald-600/80')}
@@ -385,12 +385,9 @@ export function RatesSyncBanner({
           className="sticky top-2 z-30 rounded-lg border border-border/80 bg-card p-4 shadow-sm"
         >
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <span className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
-              <div>
-                <p className="text-sm font-semibold">Mise à jour en cours</p>
-                <p className="text-xs text-muted-foreground">Reprise de la mise à jour…</p>
-              </div>
+            <div>
+              <p className="text-sm font-semibold">Mise à jour en cours</p>
+              <p className="text-xs text-muted-foreground">Reprise de la mise à jour…</p>
             </div>
             <Progress value={12} className="h-3 w-full bg-muted" />
           </div>
@@ -428,12 +425,9 @@ export function RatesSyncBanner({
       >
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-            <div className="flex min-w-0 gap-3">
-              <span className="mt-0.5 h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-foreground">{title}</p>
-                <p className="text-xs text-muted-foreground">{summaryLine}</p>
-              </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground">{title}</p>
+              <p className="text-xs text-muted-foreground">{summaryLine}</p>
             </div>
             <div className="flex items-center gap-3">
               <span className="text-xl font-semibold tabular-nums text-foreground">

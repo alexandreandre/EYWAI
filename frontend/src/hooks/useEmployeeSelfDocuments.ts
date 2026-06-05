@@ -63,6 +63,17 @@ export function useEmployeeSelfDocuments() {
     enabled: Boolean(employee?.id),
   });
 
+  const credentialsPdfQuery = useQuery({
+    queryKey: [...QK_EMPLOYEE_SELF_DOCUMENTS, 'credentials-pdf'],
+    queryFn: async () => {
+      const res = await apiClient.get<ContractUrlResponse>('/api/employees/me/credentials-pdf');
+      return res.data.url ?? null;
+    },
+    enabled: Boolean(employee?.id),
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
+
   const payslipsQuery = useQuery({
     queryKey: [...QK_EMPLOYEE_SELF_DOCUMENTS, 'payslips'],
     queryFn: async () => {
@@ -129,6 +140,7 @@ export function useEmployeeSelfDocuments() {
   const payslips = payslipsQuery.data ?? [];
   const contractUrl = contractQuery.data ?? null;
   const identityUrl = identityQuery.data ?? null;
+  const credentialsPdfUrl = credentialsPdfQuery.data ?? null;
   const exitDocuments = exitDocsQuery.data ?? [];
   const expenseReceipts = expensesQuery.data ?? [];
 
@@ -137,6 +149,7 @@ export function useEmployeeSelfDocuments() {
       contractUrl,
       identityUrl,
       payslips,
+      credentialsPdfUrl,
       generatedByFolder,
       exitDocuments,
       expenseReceipts,
@@ -144,13 +157,22 @@ export function useEmployeeSelfDocuments() {
     return Object.fromEntries(
       DOCUMENT_FOLDERS.map((f) => [f.id, countEmployeeSelfFolderItems(f.id, opts)])
     ) as Record<DocumentFolderId, number>;
-  }, [contractUrl, identityUrl, payslips, generatedByFolder, exitDocuments, expenseReceipts]);
+  }, [
+    contractUrl,
+    identityUrl,
+    payslips,
+    credentialsPdfUrl,
+    generatedByFolder,
+    exitDocuments,
+    expenseReceipts,
+  ]);
 
   const isLoading =
     empLoading ||
     (Boolean(employee?.id) &&
       (contractQuery.isLoading ||
         identityQuery.isLoading ||
+        credentialsPdfQuery.isLoading ||
         payslipsQuery.isLoading ||
         generatedQuery.isLoading ||
         exitDocsQuery.isLoading ||
@@ -160,6 +182,7 @@ export function useEmployeeSelfDocuments() {
     void refetchEmployee();
     void contractQuery.refetch();
     void identityQuery.refetch();
+    void credentialsPdfQuery.refetch();
     void payslipsQuery.refetch();
     void generatedQuery.refetch();
     void exitDocsQuery.refetch();
@@ -173,6 +196,7 @@ export function useEmployeeSelfDocuments() {
     isLoading,
     contractUrl,
     identityUrl,
+    credentialsPdfUrl,
     payslips,
     generatedByFolder,
     visibleGenerated,
@@ -182,6 +206,7 @@ export function useEmployeeSelfDocuments() {
     queries: {
       contract: contractQuery,
       identity: identityQuery,
+      credentialsPdf: credentialsPdfQuery,
       payslips: payslipsQuery,
       generated: generatedQuery,
       exit: exitDocsQuery,

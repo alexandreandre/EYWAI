@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { useToast } from '@/hooks/use-toast';
 import {
   getEmployeeExit,
@@ -383,9 +384,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
     return (
       <Sheet open={open} onOpenChange={onClose}>
         <SheetContent className="sm:max-w-3xl overflow-y-auto">
-          <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
+          <SharkFinLoader variant="fullPage" label="Chargement du départ…" />
         </SheetContent>
       </Sheet>
     );

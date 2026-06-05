@@ -1,12 +1,22 @@
 import { useEffect, useState, useRef } from "react"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import apiClient from "@/api/apiClient"
 import { getUserErrorMessage } from "@/lib/errorMessages"
-import { Loader2, Send, Sparkles, Brain } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { AssistantMessageContent } from "@/lib/simpleMarkdown"
+import { Loader2, Send, Sparkles } from "lucide-react"
 
-// --- Types ---
+const AI_BUTTON_CLASS =
+  "border-0 bg-gradient-to-r from-pink-500 via-rose-500 to-fuchsia-500 text-white shadow-md shadow-pink-500/30 hover:from-pink-600 hover:via-rose-600 hover:to-fuchsia-600 hover:shadow-lg hover:shadow-pink-500/40 transition-all"
+
 interface CopilotModalProps {
   isOpen: boolean
   onClose: () => void
@@ -22,33 +32,20 @@ interface AgentResponse {
   needs_clarification: boolean
   clarification_question?: string
   sql_queries?: string[]
-  data?: any
+  data?: unknown
   thought_process?: string
 }
 
-// --- Suggestions ---
-const suggestions = [
-  "Combien gagne Marie Dupont ?",
-  "Quel est le salaire moyen des cadres ?",
-  "Combien d'employés avons-nous ?",
-  "Masse salariale totale du mois dernier",
-  "Qui est en congé cette semaine ?",
-  "Liste des notes de frais en attente"
-]
-
-// --- Composant ---
 export function CopilotModalAgent({ isOpen, onClose }: CopilotModalProps) {
   const [input, setInput] = useState("")
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Auto-scroll vers le bas
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  // Reset quand le modal est fermé
   useEffect(() => {
     if (!isOpen) {
       setTimeout(() => {
@@ -62,20 +59,17 @@ export function CopilotModalAgent({ isOpen, onClose }: CopilotModalProps) {
   const handleQuery = async (prompt: string) => {
     if (!prompt.trim() || isLoading) return
 
-    // Ajouter le message de l'utilisateur
     const userMessage: Message = { role: 'user', content: prompt }
     setMessages(prev => [...prev, userMessage])
     setInput("")
     setIsLoading(true)
 
     try {
-      // Préparer l'historique de conversation pour l'agent
       const conversationHistory = messages.map(msg => ({
         role: msg.role,
         content: msg.content
       }))
 
-      // Appeler le nouvel endpoint agent
       const response = await apiClient.post<AgentResponse>('/api/copilot/query-agent', {
         prompt: prompt,
         conversation_history: conversationHistory
@@ -83,7 +77,6 @@ export function CopilotModalAgent({ isOpen, onClose }: CopilotModalProps) {
 
       const data = response.data
 
-      // Si l'agent a besoin de clarification
       if (data.needs_clarification && data.clarification_question) {
         const assistantMessage: Message = {
           role: 'assistant',
@@ -91,14 +84,13 @@ export function CopilotModalAgent({ isOpen, onClose }: CopilotModalProps) {
         }
         setMessages(prev => [...prev, assistantMessage])
       } else {
-        // Réponse normale
         const assistantMessage: Message = {
           role: 'assistant',
           content: data.answer
         }
         setMessages(prev => [...prev, assistantMessage])
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       const errorMessage: Message = {
         role: 'assistant',
         content: getUserErrorMessage(
@@ -112,103 +104,113 @@ export function CopilotModalAgent({ isOpen, onClose }: CopilotModalProps) {
     }
   }
 
-  const handleSuggestionClick = (suggestion: string) => {
-    handleQuery(suggestion)
+  const handleOpenChange = (open: boolean) => {
+    if (!open) onClose()
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-3xl max-h-[80vh] p-0 gap-0 flex flex-col">
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent className="flex max-h-[85vh] max-w-3xl flex-col gap-0 overflow-hidden p-0 sm:rounded-xl">
+        <DialogHeader className="space-y-1.5 border-b bg-gradient-to-r from-pink-50 via-rose-50 to-fuchsia-50 px-6 py-5">
+          <DialogTitle className="flex items-center gap-2 text-foreground">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-pink-100 via-rose-100 to-fuchsia-100">
+              <Sparkles className="h-4 w-4 text-rose-500" />
+            </span>
+            Assistant RH IA
+          </DialogTitle>
+          <DialogDescription className="text-sm leading-relaxed">
+            Posez n&apos;importe quelle question, en langage naturel. L&apos;assistant
+            interroge vos données RH (effectifs, paie, absences, notes de frais),
+            répond sur vos conventions collectives et vous guide dans l&apos;utilisation
+            du logiciel — comment faire une action ou où trouver une fonctionnalité.
+          </DialogDescription>
+        </DialogHeader>
 
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-indigo-50 to-cyan-50">
-          <div className="flex items-center gap-2">
-            <Brain className="h-5 w-5 text-indigo-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Assistant IA</h2>
-            <span className="text-xs text-gray-500 bg-white px-2 py-0.5 rounded-full">Agent Intelligent</span>
-          </div>
-        </div>
-
-        {/* Zone de messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[400px] max-h-[500px]">
+        <div className="flex min-h-[360px] max-h-[480px] flex-1 flex-col overflow-y-auto px-6 py-5">
           {messages.length === 0 ? (
-            <div className="space-y-4">
-              <div className="text-center text-gray-500 text-sm py-8">
-                <Sparkles className="h-12 w-12 mx-auto mb-3 text-indigo-400" />
-                <p className="font-medium mb-1">Posez-moi n'importe quelle question !</p>
-                <p className="text-xs">Je suis un agent intelligent qui peut chercher des informations et vous demander des précisions si nécessaire.</p>
+            <div className="flex flex-1 flex-col items-center justify-center text-center">
+              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-100 via-rose-50 to-fuchsia-100 shadow-sm">
+                <Sparkles className="h-8 w-8 text-rose-500" />
               </div>
-
-              {/* Suggestions */}
-              <div className="grid grid-cols-1 gap-2">
-                <p className="text-xs font-medium text-gray-600 mb-1">Suggestions :</p>
-                {suggestions.map((s, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleSuggestionClick(s)}
-                    className="text-left p-3 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all text-sm group"
-                  >
-                    <Sparkles className="h-3 w-3 inline mr-2 text-cyan-500 group-hover:text-indigo-500" />
-                    {s}
-                  </button>
-                ))}
-              </div>
+              <p className="max-w-lg text-sm leading-relaxed text-muted-foreground">
+                Formulez votre question comme vous le feriez à un collègue RH : une
+                donnée à retrouver, une règle de convention collective, ou de l&apos;aide
+                pour utiliser le logiciel. L&apos;assistant vous répond directement ici.
+              </p>
             </div>
           ) : (
-            <>
+            <div className="space-y-4">
               {messages.map((msg, idx) => (
                 <div
                   key={idx}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={cn(
+                    "flex",
+                    msg.role === 'user' ? 'justify-end' : 'justify-start',
+                  )}
                 >
+                  {msg.role === 'assistant' && (
+                    <span className="mr-2 mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-pink-100 to-rose-100">
+                      <Sparkles className="h-3.5 w-3.5 text-rose-500" />
+                    </span>
+                  )}
                   <div
-                    className={`max-w-[80%] p-3 rounded-lg ${
+                    className={cn(
+                      "max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
                       msg.role === 'user'
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-gray-100 text-gray-900'
-                    }`}
+                        ? cn(AI_BUTTON_CLASS, "rounded-br-md shadow-sm")
+                        : "rounded-bl-md border bg-card text-foreground shadow-sm",
+                    )}
                   >
-                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                    {msg.role === 'assistant' ? (
+                      <AssistantMessageContent content={msg.content} />
+                    ) : (
+                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                    )}
                   </div>
                 </div>
               ))}
 
               {isLoading && (
                 <div className="flex justify-start">
-                  <div className="bg-gray-100 p-3 rounded-lg flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
-                    <span className="text-sm text-gray-600">Je réfléchis...</span>
+                  <span className="mr-2 mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-pink-100 to-rose-100">
+                    <Sparkles className="h-3.5 w-3.5 text-rose-500" />
+                  </span>
+                  <div className="flex items-center gap-2 rounded-2xl rounded-bl-md border bg-card px-4 py-3 shadow-sm">
+                    <Loader2 className="h-4 w-4 animate-spin text-rose-500" />
+                    <span className="text-sm text-muted-foreground">Analyse en cours…</span>
                   </div>
                 </div>
               )}
 
               <div ref={messagesEndRef} />
-            </>
+            </div>
           )}
         </div>
 
-        {/* Zone de saisie */}
-        <div className="p-4 border-t bg-gray-50">
-          <div className="flex gap-2">
-            <input
-              type="text"
+        <div className="border-t bg-muted/30 px-6 py-4">
+          <div
+            className={cn(
+              "flex items-center gap-2 rounded-xl border bg-card p-2 shadow-sm transition-colors focus-within:border-rose-300 focus-within:ring-1 focus-within:ring-rose-200",
+            )}
+          >
+            <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
-                  handleQuery(input)
+                  void handleQuery(input)
                 }
               }}
-              placeholder="Posez votre question..."
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
+              placeholder="Ex. : comment lancer la paie ? ou combien d'employés sont en CDI ?"
+              className="border-0 bg-transparent shadow-none focus-visible:ring-0"
               disabled={isLoading}
             />
             <Button
-              onClick={() => handleQuery(input)}
+              onClick={() => void handleQuery(input)}
               disabled={isLoading || !input.trim()}
               size="icon"
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className={cn("shrink-0 rounded-lg", AI_BUTTON_CLASS)}
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -217,8 +219,8 @@ export function CopilotModalAgent({ isOpen, onClose }: CopilotModalProps) {
               )}
             </Button>
           </div>
-          <p className="text-xs text-gray-500 mt-2">
-            Appuyez sur Entrée pour envoyer. L'agent peut vous demander des précisions si nécessaire.
+          <p className="mt-2 text-xs text-muted-foreground">
+            Appuyez sur Entrée pour envoyer.
           </p>
         </div>
       </DialogContent>

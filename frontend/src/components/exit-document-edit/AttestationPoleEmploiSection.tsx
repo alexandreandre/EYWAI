@@ -21,19 +21,21 @@ export default function AttestationPoleEmploiSection({ data, onChange }: Attesta
     onChange(newData);
   };
 
+  const updateRootField = (field: string, value: string | number) => {
+    onChange({ ...data, [field]: value });
+  };
+
   const employee = data.employee || {};
   const company = data.company || {};
   const exit = data.exit || {};
+  const salaryMonthCount = data.salary_month_count || 25;
 
   return (
     <div className="space-y-6">
-      {/* Section Employeur */}
       <Card>
         <CardHeader>
           <CardTitle>Informations de l'employeur</CardTitle>
-          <CardDescription>
-            Raison sociale et coordonnées
-          </CardDescription>
+          <CardDescription>Raison sociale et coordonnées</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -90,13 +92,10 @@ export default function AttestationPoleEmploiSection({ data, onChange }: Attesta
         </CardContent>
       </Card>
 
-      {/* Section Collaborateur */}
       <Card>
         <CardHeader>
           <CardTitle>Informations du collaborateur</CardTitle>
-          <CardDescription>
-            État civil et coordonnées
-          </CardDescription>
+          <CardDescription>État civil et coordonnées</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -163,13 +162,10 @@ export default function AttestationPoleEmploiSection({ data, onChange }: Attesta
         </CardContent>
       </Card>
 
-      {/* Section Contrat */}
       <Card>
         <CardHeader>
           <CardTitle>Informations du contrat</CardTitle>
-          <CardDescription>
-            Dates et nature du contrat
-          </CardDescription>
+          <CardDescription>Dates, nature du contrat et convention collective</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-3 gap-4">
@@ -205,13 +201,36 @@ export default function AttestationPoleEmploiSection({ data, onChange }: Attesta
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="job-title">Emploi occupé</Label>
+              <Input
+                id="job-title"
+                value={employee.job_title || ''}
+                onChange={(e) => updateField('employee', 'job_title', e.target.value)}
+                className="mt-2"
+              />
+            </div>
+            <div>
+              <Label htmlFor="convention-collective">Convention collective</Label>
+              <Input
+                id="convention-collective"
+                value={data.convention_collective || ''}
+                onChange={(e) => updateRootField('convention_collective', e.target.value)}
+                className="mt-2"
+                placeholder="Ex: Métallurgie — IDCC 3248"
+              />
+            </div>
+          </div>
+
           <div>
-            <Label htmlFor="job-title">Emploi occupé</Label>
+            <Label htmlFor="idcc">Code IDCC</Label>
             <Input
-              id="job-title"
-              value={employee.job_title || ''}
-              onChange={(e) => updateField('employee', 'job_title', e.target.value)}
-              className="mt-2"
+              id="idcc"
+              value={data.idcc || ''}
+              onChange={(e) => updateRootField('idcc', e.target.value)}
+              className="mt-2 max-w-xs"
+              placeholder="Ex: 3248"
             />
           </div>
 
@@ -229,10 +248,71 @@ export default function AttestationPoleEmploiSection({ data, onChange }: Attesta
         </CardContent>
       </Card>
 
-      {/* Informations supplémentaires */}
+      <DynamicLineList
+        title={`Salaires des ${salaryMonthCount} derniers mois`}
+        description="Tableau officiel : période de paie, temps de travail, absences non assimilées et salaire brut. Pré-rempli depuis les bulletins de paie."
+        category="salary_history"
+        fields={[
+          {
+            key: 'period_label',
+            label: 'Période de paie',
+            type: 'text',
+            placeholder: 'Ex: Janvier 2025',
+            required: true,
+          },
+          {
+            key: 'working_time',
+            label: 'Temps de travail',
+            type: 'text',
+            placeholder: 'Ex: 151.67 h ou 22 jours',
+          },
+          {
+            key: 'absences',
+            label: 'Absences non assimilées',
+            type: 'text',
+            placeholder: 'Ex: 3 jours ou Néant',
+          },
+          {
+            key: 'gross_salary',
+            label: 'Salaire brut (€)',
+            type: 'number',
+            placeholder: '0.00',
+            required: true,
+          },
+        ]}
+        data={data}
+        onChange={onChange}
+        emptyMessage="Aucune ligne de salaire — elles seront recalculées à la génération si vides"
+      />
+
+      <DynamicLineList
+        title="Primes et indemnités perçues"
+        description="Primes exceptionnelles ou indemnités perçues sur la période de référence"
+        category="primes_lines"
+        fields={[
+          {
+            key: 'nature',
+            label: 'Nature',
+            type: 'text',
+            placeholder: 'Ex: Prime exceptionnelle, 13e mois...',
+            required: true,
+          },
+          {
+            key: 'montant',
+            label: 'Montant brut (€)',
+            type: 'number',
+            placeholder: '0.00',
+            required: true,
+          },
+        ]}
+        data={data}
+        onChange={onChange}
+        emptyMessage="Aucune prime renseignée"
+      />
+
       <DynamicLineList
         title="Informations complémentaires"
-        description="Ajoutez des lignes d'informations supplémentaires pour l'attestation Pôle Emploi"
+        description="Informations supplémentaires pour l'attestation employeur"
         category="additional_info"
         fields={[
           {
@@ -246,7 +326,7 @@ export default function AttestationPoleEmploiSection({ data, onChange }: Attesta
             key: 'value',
             label: 'Valeur',
             type: 'text',
-            placeholder: 'Valeur de l\'information',
+            placeholder: "Valeur de l'information",
             required: true,
           },
           {
@@ -261,12 +341,12 @@ export default function AttestationPoleEmploiSection({ data, onChange }: Attesta
         emptyMessage="Aucune information complémentaire ajoutée"
       />
 
-      {/* Informations d'aide */}
-      <Card className="bg-blue-50 border-blue-200">
+      <Card className="bg-muted/40 border-muted">
         <CardContent className="pt-6">
-          <p className="text-sm text-blue-900">
-            <strong>Note:</strong> L'attestation Pôle Emploi doit être transmise au collaborateur dans les 48h suivant la fin du contrat.
-            Ce document permet au collaborateur de faire valoir ses droits à l'assurance chômage.
+          <p className="text-sm text-muted-foreground">
+            L&apos;attestation employeur doit être remise au collaborateur dans les 5 jours ouvrés
+            suivant la fin du contrat. La version faisant foi auprès de France Travail est transmise
+            via la DSN (signalement fin de contrat).
           </p>
         </CardContent>
       </Card>

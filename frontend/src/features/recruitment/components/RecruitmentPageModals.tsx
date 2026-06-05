@@ -53,8 +53,8 @@ type Props = Pick<
   | "setHireCandidateId"
   | "servicesQuery"
   | "hireMutation"
-  | "hireSuccessEmployeeId"
-  | "setHireSuccessEmployeeId"
+  | "hireSuccessInfo"
+  | "setHireSuccessInfo"
   | "showDuplicateEmployeeModal"
   | "setShowDuplicateEmployeeModal"
   | "duplicateEmployeeInfo"
@@ -111,8 +111,8 @@ export function RecruitmentPageModals({
   setHireCandidateId,
   servicesQuery,
   hireMutation,
-  hireSuccessEmployeeId,
-  setHireSuccessEmployeeId,
+  hireSuccessInfo,
+  setHireSuccessInfo,
   showDuplicateEmployeeModal,
   setShowDuplicateEmployeeModal,
   duplicateEmployeeInfo,
@@ -533,29 +533,57 @@ export function RecruitmentPageModals({
       </Dialog>
 
       <Dialog
-        open={!!hireSuccessEmployeeId}
+        open={!!hireSuccessInfo}
         onOpenChange={(open) => {
-          if (!open) setHireSuccessEmployeeId(null);
+          if (!open) setHireSuccessInfo(null);
         }}
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Onboarding</DialogTitle>
+            <DialogTitle>Collaborateur embauché</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Une checklist d&apos;onboarding a été créée pour le nouveau collaborateur. Vous pouvez
-            la suivre depuis l&apos;espace dédié.
-          </p>
+          <div className="space-y-3 text-sm">
+            <p className="text-muted-foreground">
+              Une checklist d&apos;onboarding a été créée. Le compte collaborateur est prêt.
+            </p>
+            {hireSuccessInfo?.generatedPassword && (
+              <div className="rounded-lg border bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 p-3 space-y-2">
+                <p className="font-medium text-amber-900 dark:text-amber-100">
+                  Identifiants de connexion (à transmettre une seule fois)
+                </p>
+                {hireSuccessInfo.username && (
+                  <p>
+                    <span className="text-muted-foreground">Nom d&apos;utilisateur : </span>
+                    <span className="font-mono">{hireSuccessInfo.username}</span>
+                  </p>
+                )}
+                {hireSuccessInfo.email && (
+                  <p>
+                    <span className="text-muted-foreground">Email : </span>
+                    <span className="font-mono">{hireSuccessInfo.email}</span>
+                  </p>
+                )}
+                <p>
+                  <span className="text-muted-foreground">Mot de passe temporaire : </span>
+                  <span className="font-mono font-semibold">{hireSuccessInfo.generatedPassword}</span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Le PDF « Identifiants de connexion » est disponible dans Documents → Autres.
+                  Le collaborateur devra le changer à la première connexion.
+                </p>
+              </div>
+            )}
+          </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" type="button" onClick={() => setHireSuccessEmployeeId(null)}>
+            <Button variant="outline" type="button" onClick={() => setHireSuccessInfo(null)}>
               Fermer
             </Button>
             <Button
               type="button"
               onClick={() => {
-                if (hireSuccessEmployeeId) {
-                  navigate(`/onboarding/${hireSuccessEmployeeId}`);
-                  setHireSuccessEmployeeId(null);
+                if (hireSuccessInfo?.employeeId) {
+                  navigate(`/onboarding/${hireSuccessInfo.employeeId}`);
+                  setHireSuccessInfo(null);
                 }
               }}
             >

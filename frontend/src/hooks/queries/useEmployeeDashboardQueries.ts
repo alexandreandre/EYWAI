@@ -19,7 +19,13 @@ export type ExpenseInfo = Expense;
 
 export interface CumulsData {
   periode?: { annee_en_cours?: number; dernier_mois_calcule?: number };
-  cumuls?: { brut_total?: number; net_imposable?: number };
+  cumuls?: {
+    brut_total?: number;
+    net_imposable?: number;
+    impot_preleve_a_la_source?: number;
+    heures_remunerees?: number;
+    heures_supplementaires_remunerees?: number;
+  };
 }
 
 export function useEmployeePayslipsQuery(userId: string | undefined) {

@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { LogoUploader } from '@/components/LogoUploader';
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import {
   Dialog,
   DialogContent,
@@ -179,11 +180,7 @@ export default function CompanyGroups() {
   }, [isCreateDialogOpen]);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <SharkFinLoader variant="fullPage" label="Chargement des groupes…" />;
   }
 
   if (error) {
@@ -247,9 +244,7 @@ export default function CompanyGroups() {
                   Sélectionnez les entreprises à inclure dans ce groupe
                 </p>
                 {isLoadingAvailable ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                  </div>
+                  <SharkFinLoader label="Chargement des entreprises…" />
                 ) : availableCompanies.length === 0 ? (
                   <p className="text-sm text-muted-foreground italic py-4">
                     Aucune entreprise disponible (toutes sont déjà assignées à des groupes)

@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
-import { FileText, Download, Loader2 } from 'lucide-react';
+import { Download, Eye, FileText, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface DocumentFileRowProps {
@@ -29,6 +29,25 @@ export function DocumentFileRow({ name, subtitle, meta, actions, className }: Do
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">{actions}</div>
     </li>
+  );
+}
+
+export function ViewLinkButton({
+  href,
+  title = 'Visualiser',
+  disabled,
+}: {
+  href: string;
+  title?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <Button variant="ghost" size="icon" className="h-8 w-8" asChild disabled={disabled || !href}>
+      <a href={href} target="_blank" rel="noopener noreferrer" title={title}>
+        <Eye className="h-4 w-4" />
+        <span className="sr-only">{title}</span>
+      </a>
+    </Button>
   );
 }
 

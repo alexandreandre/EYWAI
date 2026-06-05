@@ -24,6 +24,7 @@ import { PlanningPageSkeleton } from '@/components/skeletons/PlanningPageSkeleto
 import { BackgroundDataIndicator } from '@/components/BackgroundDataIndicator';
 import * as Pages from '@/app/lazyPages';
 import { employeeCollaboratorRoutes } from '@/app/employeeRoutes';
+import { isEmployeeOnlyPath } from '@/lib/routeAccess';
 
 function EmployeeLayout() {
   const { accessibleCompanies, activeCompany } = useCompany();
@@ -86,12 +87,22 @@ function ProtectedRoutes() {
   const { accessibleCompanies, isLoading: isCompanyLoading } = useCompany();
   const { viewMode, isCollaborateurRh } = useView();
 
+  const isCollaborateurRhView = isCollaborateurRh && viewMode === 'collaborateur';
+
   if (isLoading || isCompanyLoading) {
     return <ProtectedAppSkeleton />;
   }
 
   if (!user) {
     return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  if (
+    user.role !== 'collaborateur' &&
+    !isCollaborateurRhView &&
+    isEmployeeOnlyPath(location.pathname)
+  ) {
+    return <Navigate to="/" replace />;
   }
 
   if (user.role === 'collaborateur') {
@@ -103,7 +114,6 @@ function ProtectedRoutes() {
   }
 
   const showCompanySwitcher = accessibleCompanies && accessibleCompanies.length > 1;
-  const isCollaborateurRhView = isCollaborateurRh && viewMode === 'collaborateur';
 
   return (
     <SidebarProvider>
@@ -156,6 +166,14 @@ function ProtectedRoutes() {
                   <Route path="/salary-seizures" element={<Pages.SalarySeizures />} />
                   <Route path="/salary-advances" element={<Pages.SalaryAdvances />} />
                   <Route path="/rates" element={<Pages.Rates />} />
+                  <Route
+                    path="/payroll/generate"
+                    element={
+                      <Suspense fallback={<TableSkeleton rows={8} columns={5} />}>
+                        <Pages.PayrollGenerate />
+                      </Suspense>
+                    }
+                  />
                   <Route
                     path="/payroll"
                     element={
@@ -248,7 +266,12 @@ export default function App() {
       <BootProvider>
         <AuthProvider>
           <CompanyProvider>
-            <BrowserRouter>
+            <BrowserRouter
+              future={{
+                v7_startTransition: true,
+                v7_relativeSplatPath: true,
+              }}
+            >
               <BootGate>
                 <Suspense fallback={<RouteSkeleton />}>
                   <Routes>

@@ -8,6 +8,7 @@ import {
   type RoleTemplateDetail,
 } from "@/api/permissions";
 import { PermissionsMatrix } from "@/components/PermissionsMatrix";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { AdminPageHeader } from "@/features/admin/components/eywai/AdminPageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -230,9 +231,7 @@ export default function AccessRH() {
             </CardHeader>
             <CardContent className="p-0">
               {usersLoading ? (
-                <div className="flex justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
+                <SharkFinLoader label="Chargement des utilisateurs…" />
               ) : (
                 <Table>
                   <TableHeader>
@@ -286,7 +285,7 @@ export default function AccessRH() {
           <Card>
             <CardContent className="pt-6">
               {templatesLoading || companiesLoading || !selectedCompanyId ? (
-                <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                <SharkFinLoader label="Chargement des modèles…" />
               ) : templates.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   Aucun modèle pour cette entreprise. Créez-en depuis l&apos;application RH ou via un

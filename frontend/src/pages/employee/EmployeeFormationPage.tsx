@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 
 import {
   EmployeePageHeader,
@@ -78,12 +78,7 @@ export default function EmployeeFormationPage() {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-muted-foreground">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <p className="text-sm">Chargement de votre profil…</p>
-      </div>
-    );
+    return <SharkFinLoader variant="fullPage" label="Chargement de votre profil…" />;
   }
 
   if (isError) {

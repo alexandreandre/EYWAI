@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
-import { Loader2 } from "lucide-react";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 
 import { getMyOnboarding } from "@/api/onboarding";
 import { Button } from "@/components/ui/button";
@@ -17,12 +17,7 @@ export function FormationOnboardingTabContent({ companyId }: { companyId: string
   });
 
   if (onboardingMe.isPending) {
-    return (
-      <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin shrink-0" />
-        Chargement…
-      </div>
-    );
+    return <SharkFinLoader label="Chargement de l'onboarding…" />;
   }
 
   if (onboardingMe.isError) {

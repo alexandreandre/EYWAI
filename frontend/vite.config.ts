@@ -15,6 +15,9 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  optimizeDeps: {
+    include: ["exceljs"],
+  },
   build: {
     rollupOptions: {
       output: {
@@ -30,6 +33,7 @@ export default defineConfig(({ mode }) => ({
           if (id.includes("recharts")) return "vendor-recharts";
           if (id.includes("@fullcalendar")) return "vendor-fullcalendar";
           if (id.includes("react-pdf") || id.includes("pdfjs")) return "vendor-pdf";
+          if (id.includes("exceljs")) return "vendor-exceljs";
         },
       },
     },

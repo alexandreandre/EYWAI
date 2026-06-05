@@ -1,331 +1,443 @@
-// src/pages/Payroll.tsx
-
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { RhPageHeader } from '@/components/layout';
-import { Link } from "react-router-dom";
-import apiClient from '../../api/apiClient';
-import { useEmployeesQuery } from '@/hooks/queries/useEmployeesQuery';
-import { getUserErrorMessage, sanitizeBackendMessage } from '@/lib/errorMessages';
-import { TableSkeleton } from '@/components/skeletons/TableSkeleton';
 import { PageFetchIndicator } from '@/components/skeletons/PageFetchIndicator';
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Loader2, ChevronRight, Sparkles } from "lucide-react"; // Ajout de Sparkles
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { usePayrollEmployeesQuery, type EmployeeListItem } from '@/hooks/queries/useEmployeesQuery';
+import { useEmployeePayslipsQuery } from '@/hooks/queries/useEmployeePayslipsQuery';
+import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
+import { deletePayslip, getEmployeePayslips, type PayslipInfo } from '@/api/payslips';
+import { queryKeys } from '@/lib/queryKeys';
+import { showErrorToast } from '@/lib/errorMessages';
+import { PayrollEmployeeExplorer } from '@/features/payroll/components/PayrollEmployeeExplorer';
+import {
+  PayrollMonthExplorer,
+  type EmployeeMonthState,
+} from '@/features/payroll/components/PayrollMonthExplorer';
+import { PayrollGroupLaunchCta } from '@/features/payroll/components/PayrollGroupLaunchCta';
+import { PayrollMonthList, type MonthStatusMap } from '@/features/payroll/components/PayrollMonthList';
+import type { PayslipRowState } from '@/features/payroll/components/PayrollPayslipRow';
+import { PayrollProgressBar } from '@/features/payroll/components/PayrollProgressBar';
+import {
+  usePayrollGeneration,
+  type PayrollGenerationJob,
+  type PayrollGenerationLogEntry,
+} from '@/features/payroll/hooks/usePayrollGeneration';
+import {
+  buildYearOptions,
+  PAYROLL_MONTHS,
+} from '@/features/payroll/utils/payrollMonth';
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+type PayrollView = 'employee' | 'month';
 
-
-interface Employee {
-  id: string;
-  first_name: string;
-  last_name: string;
-  job_title: string | null;
+function employeeDisplayName(emp: EmployeeListItem): string {
+  return `${emp.first_name} ${emp.last_name}`;
 }
-// --- ✅ COPIE TOUT CE BLOC DEPUIS DASHBOARD.TSX ---
 
-// Types nécessaires pour le modal
-type SimpleEmployee = {
-  id: string;
-  first_name: string;
-  last_name: string;
-};
-
-// --- Modal de Génération de Paie ---
-function GeneratePayrollModal({ isOpen, onClose, employees }: { isOpen: boolean, onClose: () => void, employees: SimpleEmployee[] }) {
-  const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
-  const [selectedMonth, setSelectedMonth] = useState<string>("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [results, setResults] = useState<{ success: string[], errors: { id: string, name: string, error: string }[] }>({ success: [], errors: [] });
-
-  // Générer les options de mois
-  const generateMonthOptions = () => {
-    const options = [];
-    const now = new Date();
-    for (let i = -12; i <= 2; i++) {
-      const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const value = `${year}-${month}`;
-      const label = date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-      options.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
-    }
-    return options;
-  };
-
-  const monthOptions = generateMonthOptions();
-
-  // Initialiser avec le mois actuel
-  useEffect(() => {
-    const now = new Date();
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    setSelectedMonth(currentMonth);
-  }, []);
-
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedEmployees(new Set(employees.map(e => e.id)));
-    } else {
-      setSelectedEmployees(new Set());
-    }
-  };
-
-  const handleSelect = (id: string, checked: boolean) => {
-    const newSet = new Set(selectedEmployees);
-    if (checked) {
-      newSet.add(id);
-    } else {
-      newSet.delete(id);
-    }
-    setSelectedEmployees(newSet);
-  };
-
-  const handleGenerate = async () => {
-    setIsLoading(true);
-    setResults({ success: [], errors: [] });
-
-    const [yearStr, monthStr] = selectedMonth.split('-');
-    const year = parseInt(yearStr);
-    const month = parseInt(monthStr);
-
-    const successList: string[] = [];
-    const errorsList: { id: string, name: string, error: string }[] = [];
-
-    for (const employeeId of Array.from(selectedEmployees)) {
-      const employee = employees.find(e => e.id === employeeId);
-      const employeeName = employee ? `${employee.first_name} ${employee.last_name}` : employeeId;
-
-      try {
-        const response = await apiClient.post('/api/actions/generate-payslip', {
-          employee_id: employeeId,
-          year,
-          month
-        });
-
-        if (response.data.status === 'success') {
-          successList.push(employeeName);
-        } else {
-          errorsList.push({
-            id: employeeId,
-            name: employeeName,
-            error: sanitizeBackendMessage(response.data.message) || 'La génération a échoué.'
-          });
-        }
-      } catch (error: any) {
-        errorsList.push({
-          id: employeeId,
-          name: employeeName,
-          error: getUserErrorMessage(error, 'La génération a échoué.')
-        });
-      }
-    }
-
-    setResults({ success: successList, errors: errorsList });
-    setIsLoading(false);
-
-    if (errorsList.length === 0) {
-      setTimeout(() => {
-        onClose();
-      }, 2000);
-    }
-  };
-
-  const isAllSelected = employees.length > 0 && selectedEmployees.size === employees.length;
-
-  useEffect(() => {
-    if (isOpen) {
-      setResults({ success: [], errors: [] });
-    }
-  }, [isOpen]);
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md p-0">
-        <DialogHeader className="p-6 pb-4">
-          <DialogTitle>Générer la Paie</DialogTitle>
-        </DialogHeader>
-
-        <div className="px-6 pb-4">
-          <Label htmlFor="month-select" className="text-sm font-medium mb-2 block">
-            Mois de paie
-          </Label>
-          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-            <SelectTrigger id="month-select">
-              <SelectValue placeholder="Sélectionner un mois" />
-            </SelectTrigger>
-            <SelectContent>
-              {monthOptions.map(option => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <Command className="p-2">
-          <CommandInput placeholder="Rechercher un employé..." />
-          <CommandList className="max-h-[300px] overflow-y-auto">
-            <CommandEmpty>Aucun employé trouvé.</CommandEmpty>
-            <CommandGroup>
-              <CommandItem
-                onSelect={() => handleSelectAll(!isAllSelected)}
-                className="flex items-center gap-3"
-              >
-                <Checkbox
-                  checked={isAllSelected}
-                  onCheckedChange={handleSelectAll}
-                />
-                <label className="font-medium">Tout sélectionner</label>
-              </CommandItem>
-              {employees.map(emp => (
-                <CommandItem
-                  key={emp.id}
-                  value={`${emp.first_name} ${emp.last_name}`}
-                  onSelect={() => handleSelect(emp.id, !selectedEmployees.has(emp.id))}
-                  className="flex items-center gap-3"
-                >
-                  <Checkbox
-                    checked={selectedEmployees.has(emp.id)}
-                    onCheckedChange={(checked) => handleSelect(emp.id, !!checked)}
-                  />
-                  <label>{emp.first_name} {emp.last_name}</label>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-
-        {(results.success.length > 0 || results.errors.length > 0) && (
-          <div className="px-6 pb-4 space-y-3">
-            {results.success.length > 0 && (
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                <p className="text-sm font-semibold text-green-800 mb-2">
-                  ✓ Générations réussies ({results.success.length})
-                </p>
-                <ul className="text-xs text-green-700 space-y-1">
-                  {results.success.map((name, idx) => (
-                    <li key={idx}>• {name}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {results.errors.length > 0 && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm font-semibold text-red-800 mb-2">
-                  ✗ Erreurs ({results.errors.length})
-                </p>
-                <ul className="text-xs text-red-700 space-y-2">
-                  {results.errors.map((err, idx) => (
-                    <li key={idx}>
-                      <span className="font-medium">{err.name}:</span> {err.error}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="p-6 pt-2 flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>
-            {results.success.length > 0 || results.errors.length > 0 ? 'Fermer' : 'Annuler'}
-          </Button>
-          <Button
-            className="bg-cyan-500 hover:bg-cyan-600 text-white"
-            onClick={handleGenerate}
-            disabled={isLoading || selectedEmployees.size === 0 || !selectedMonth || results.success.length > 0 || results.errors.length > 0}
-          >
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Générer ({selectedEmployees.size})
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+function buildRowState(
+  payslip: PayslipInfo | undefined,
+  employeeId: string,
+  year: number,
+  month: number,
+  generation: {
+    currentJob: { employeeId: string; year: number; month: number } | null;
+    queuedJobs: PayrollGenerationJob[];
+    log: PayrollGenerationLogEntry[];
+    failedJobs: Record<string, string>;
+  }
+): PayslipRowState {
+  const logEntry = generation.log.find(
+    (e) => e.employeeId === employeeId && e.year === year && e.month === month
   );
+  const jobKey = `${employeeId}-${year}-${month}`;
+  const persistedError = generation.failedJobs[jobKey];
+  const isCurrent =
+    generation.currentJob?.employeeId === employeeId &&
+    generation.currentJob.year === year &&
+    generation.currentJob.month === month;
+  const isQueued = generation.queuedJobs.some(
+    (job) => job.employeeId === employeeId && job.year === year && job.month === month
+  );
+
+  if (isCurrent || isQueued) {
+    return { status: 'loading', payslip };
+  }
+  if (payslip) {
+    return { status: 'success', payslip };
+  }
+  if (logEntry?.status === 'error' || persistedError) {
+    return { status: 'error', errorMessage: logEntry?.error ?? persistedError };
+  }
+  return { status: 'idle' };
 }
-// --- FIN DU BLOC COPIÉ ---
+
+function buildMonthStatuses(
+  payslipsForYear: PayslipInfo[],
+  employeeId: string,
+  year: number,
+  generation: {
+    currentJob: { employeeId: string; year: number; month: number } | null;
+    queuedJobs: PayrollGenerationJob[];
+    log: PayrollGenerationLogEntry[];
+    failedJobs: Record<string, string>;
+  }
+): MonthStatusMap {
+  const map: MonthStatusMap = {};
+  for (const month of PAYROLL_MONTHS) {
+    const payslip = payslipsForYear.find((p) => p.month === month);
+    map[month] = buildRowState(payslip, employeeId, year, month, generation);
+  }
+  return map;
+}
 
 export default function Payroll() {
-  const employeesQuery = useEmployeesQuery();
-  const employees = (employeesQuery.data ?? []) as Employee[];
-  const loading = employeesQuery.isLoading && !employeesQuery.data;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const companyId = useActiveCompanyId();
+  const queryClient = useQueryClient();
+
+  const employeesQuery = usePayrollEmployeesQuery();
+  const employees = (employeesQuery.data ?? []) as EmployeeListItem[];
+
+  const employeeFromUrl = searchParams.get('employee');
+  const viewFromUrl = searchParams.get('view') === 'month' ? 'month' : 'employee';
+  const [view, setView] = useState<PayrollView>(viewFromUrl);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(
+    employeeFromUrl
+  );
+  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth() + 1);
+  const [deletingPayslipId, setDeletingPayslipId] = useState<string | null>(null);
+
+  const generation = usePayrollGeneration();
+
+  useEffect(() => () => generation.dismiss(), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (employeeFromUrl) {
+      setSelectedEmployeeId(employeeFromUrl);
+    }
+  }, [employeeFromUrl]);
+
+  useEffect(() => {
+    if (employees.length === 0) return;
+    if (selectedEmployeeId && employees.some((e) => e.id === selectedEmployeeId)) return;
+    if (employeeFromUrl && employees.some((e) => e.id === employeeFromUrl)) {
+      setSelectedEmployeeId(employeeFromUrl);
+      return;
+    }
+    setSelectedEmployeeId(employees[0]?.id ?? null);
+  }, [employees, selectedEmployeeId, employeeFromUrl]);
+
+  const selectEmployee = useCallback(
+    (id: string) => {
+      setSelectedEmployeeId(id);
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set('employee', id);
+          return next;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
+
+  const handleViewChange = useCallback(
+    (next: PayrollView) => {
+      setView(next);
+      setSearchParams(
+        (prev) => {
+          const params = new URLSearchParams(prev);
+          if (next === 'month') {
+            params.set('view', 'month');
+          } else {
+            params.delete('view');
+          }
+          return params;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
+
+  const payslipQueries = useQueries({
+    queries: employees.map((emp) => ({
+      queryKey: queryKeys.employeePayslips(companyId, emp.id),
+      queryFn: () => getEmployeePayslips(emp.id),
+      enabled: Boolean(companyId && employees.length > 0),
+      staleTime: 30_000,
+    })),
+  });
+
+  const yearCounts = useMemo(() => {
+    const map: Record<string, number> = {};
+    employees.forEach((emp, index) => {
+      const data = payslipQueries[index]?.data ?? [];
+      map[emp.id] = data.filter((p) => p.year === selectedYear).length;
+    });
+    return map;
+  }, [employees, payslipQueries, selectedYear]);
+
+  const selectedEmployee = employees.find((e) => e.id === selectedEmployeeId);
+  const payslipsQuery = useEmployeePayslipsQuery(selectedEmployeeId ?? undefined);
+  const allPayslips = payslipsQuery.data ?? [];
+  const payslipsForYear = useMemo(
+    () => allPayslips.filter((p) => p.year === selectedYear),
+    [allPayslips, selectedYear]
+  );
+
+  const yearOptions = useMemo(
+    () => buildYearOptions(allPayslips.map((p) => p.year), selectedYear),
+    [allPayslips, selectedYear]
+  );
+
+  const generationState = useMemo(
+    () => ({
+      currentJob: generation.currentJob,
+      queuedJobs: generation.queuedJobs,
+      log: generation.log,
+      failedJobs: generation.failedJobs,
+    }),
+    [generation.currentJob, generation.queuedJobs, generation.log, generation.failedJobs]
+  );
+
+  const monthStatuses = useMemo(() => {
+    if (!selectedEmployeeId) return {};
+    return buildMonthStatuses(payslipsForYear, selectedEmployeeId, selectedYear, generationState);
+  }, [selectedEmployeeId, payslipsForYear, selectedYear, generationState]);
+
+  const payslipsByEmployee = useMemo(() => {
+    const map: Record<string, PayslipInfo[]> = {};
+    employees.forEach((emp, index) => {
+      map[emp.id] = payslipQueries[index]?.data ?? [];
+    });
+    return map;
+  }, [employees, payslipQueries]);
+
+  const monthGeneratedCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
+    for (const month of PAYROLL_MONTHS) {
+      counts[month] = employees.reduce((acc, emp) => {
+        const has = (payslipsByEmployee[emp.id] ?? []).some(
+          (p) => p.year === selectedYear && p.month === month
+        );
+        return acc + (has ? 1 : 0);
+      }, 0);
+    }
+    return counts;
+  }, [employees, payslipsByEmployee, selectedYear]);
+
+  const monthEmployeeStates = useMemo<EmployeeMonthState[]>(() => {
+    return employees.map((emp) => {
+      const payslip = (payslipsByEmployee[emp.id] ?? []).find(
+        (p) => p.year === selectedYear && p.month === selectedMonth
+      );
+      return {
+        employee: emp,
+        state: buildRowState(payslip, emp.id, selectedYear, selectedMonth, generationState),
+      };
+    });
+  }, [employees, payslipsByEmployee, selectedYear, selectedMonth, generationState]);
+
+  const monthMissingCount = useMemo(
+    () => monthEmployeeStates.filter((row) => row.state.status !== 'success').length,
+    [monthEmployeeStates]
+  );
+
+  const enqueueGeneration = useCallback(
+    (months: number[]) => {
+      if (!selectedEmployee || months.length === 0) return;
+      const jobs = months.map((month) => ({
+        employeeId: selectedEmployee.id,
+        employeeName: employeeDisplayName(selectedEmployee),
+        year: selectedYear,
+        month,
+      }));
+      generation.generateJobs(jobs);
+    },
+    [selectedEmployee, selectedYear, generation]
+  );
+
+  const handleGenerateMonth = useCallback(
+    (month: number) => enqueueGeneration([month]),
+    [enqueueGeneration]
+  );
+
+  const handleGenerateYear = useCallback(() => {
+    const missing = PAYROLL_MONTHS.filter((m) => monthStatuses[m]?.status !== 'success');
+    enqueueGeneration(missing);
+  }, [monthStatuses, enqueueGeneration]);
+
+  const handleGenerateEmployeeForMonth = useCallback(
+    (employeeId: string) => {
+      const emp = employees.find((e) => e.id === employeeId);
+      if (!emp) return;
+      generation.generateJobs([
+        {
+          employeeId: emp.id,
+          employeeName: employeeDisplayName(emp),
+          year: selectedYear,
+          month: selectedMonth,
+        },
+      ]);
+    },
+    [employees, selectedYear, selectedMonth, generation]
+  );
+
+  const handleGenerateWholeMonth = useCallback(() => {
+    const jobs = monthEmployeeStates
+      .filter((row) => row.state.status !== 'success')
+      .map((row) => ({
+        employeeId: row.employee.id,
+        employeeName: employeeDisplayName(row.employee),
+        year: selectedYear,
+        month: selectedMonth,
+      }));
+    if (jobs.length === 0) return;
+    generation.generateJobs(jobs);
+  }, [monthEmployeeStates, selectedYear, selectedMonth, generation]);
+
+  const handleDeletePayslip = useCallback(
+    async (payslipId: string, employeeId?: string) => {
+      const targetEmployeeId = employeeId ?? selectedEmployeeId;
+      if (!targetEmployeeId) return;
+      setDeletingPayslipId(payslipId);
+      try {
+        await deletePayslip(payslipId);
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.employeePayslips(companyId, targetEmployeeId),
+        });
+      } catch (error) {
+        showErrorToast(error, {
+          title: 'Suppression impossible',
+          fallback: 'La suppression du bulletin a échoué.',
+        });
+      } finally {
+        setDeletingPayslipId(null);
+      }
+    },
+    [companyId, queryClient, selectedEmployeeId]
+  );
+
+  const missingMonthsCount = useMemo(
+    () => PAYROLL_MONTHS.filter((m) => monthStatuses[m]?.status !== 'success').length,
+    [monthStatuses]
+  );
+
+  const monthYearOptions = useMemo(() => {
+    const years = employees.flatMap((emp) => (payslipsByEmployee[emp.id] ?? []).map((p) => p.year));
+    return buildYearOptions(years, selectedYear);
+  }, [employees, payslipsByEmployee, selectedYear]);
+
+  const loadingEmployees = employeesQuery.isLoading && employees.length === 0;
+  const loadingPayslipsInitial =
+    Boolean(selectedEmployeeId) &&
+    payslipsQuery.isLoading &&
+    payslipsQuery.data === undefined;
+  const loadingMonthData =
+    employees.length === 0
+      ? loadingEmployees
+      : payslipQueries.some((q) => q.isLoading && q.data === undefined);
   const error = employeesQuery.error
-    ? "Impossible de charger la liste des collaborateurs. Réessayez."
+    ? 'Impossible de charger la liste des collaborateurs. Réessayez.'
     : null;
-  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+
+  const progressSlot =
+    generation.phase !== 'idle' ? (
+      <PayrollProgressBar
+        phase={generation.phase}
+        progress={generation.progress}
+        currentLabel={generation.currentLabel}
+        estimatedRemainingSec={generation.estimatedRemainingSec}
+        log={generation.log}
+        totalJobs={generation.totalJobs}
+        completedCount={generation.completedCount}
+        onDismiss={generation.dismiss}
+        onCancel={generation.cancel}
+      />
+    ) : null;
 
   return (
     <div className="space-y-6">
-      <PageFetchIndicator isFetching={employeesQuery.isFetching} />
+      <PageFetchIndicator isFetching={employeesQuery.isFetching || payslipsQuery.isFetching} />
       <RhPageHeader
         title="Gestion de la Paie"
-        description="Sélectionnez un collaborateur pour gérer ses bulletins de paie mensuels."
+        description="Générez et consultez les bulletins par collaborateur ou par mois."
       />
-      <Card>
-        <CardHeader>
-           <CardTitle>Génération groupée</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <button
-            onClick={() => setIsGenerateModalOpen(true)}
-            className="w-full group relative overflow-hidden rounded-lg border-2 border-indigo-200 bg-white hover:border-indigo-400 transition-all duration-300 shadow-sm hover:shadow-md"
-          >
-            <div className="flex items-center justify-center py-3 px-4">
-              <Sparkles className="mr-2.5 h-5 w-5 text-indigo-500 group-hover:text-indigo-600 transition-colors" />
-              <span className="text-sm font-semibold text-gray-800 group-hover:text-indigo-900 transition-colors">
-                Générer la Paie (Mode groupé)
-              </span>
-            </div>
-            <div className="absolute inset-0 -z-10 bg-gradient-to-r from-indigo-50 to-purple-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          </button>
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader><CardTitle>Liste des Collaborateurs</CardTitle></CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader><TableRow><TableHead>Collaborateur</TableHead><TableHead>Poste</TableHead><TableHead className="text-right"></TableHead></TableRow></TableHeader>
-            <TableBody>
-              {loading && (
-                <TableRow>
-                  <TableCell colSpan={3} className="py-4">
-                    <TableSkeleton rows={8} columns={3} />
-                  </TableCell>
-                </TableRow>
-              )}
-              {error && <TableRow><TableCell colSpan={3} className="h-24 text-center text-red-500">{error}</TableCell></TableRow>}
-              {!loading && !error && employees.map((employee) => (
-                <TableRow key={employee.id} className="cursor-pointer hover:bg-muted/50">
-                  <TableCell>
-                    <Link to={`/payroll/${employee.id}`} className="flex items-center gap-3">
-                      <Avatar className="h-8 w-8"><AvatarFallback>{employee.first_name.charAt(0)}{employee.last_name.charAt(0)}</AvatarFallback></Avatar>
-                      <span className="font-medium">{employee.first_name} {employee.last_name}</span>
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                     <Link to={`/payroll/${employee.id}`} className="block w-full h-full">{employee.job_title}</Link>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Link to={`/payroll/${employee.id}`}><ChevronRight className="h-4 w-4" /></Link>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-      <GeneratePayrollModal
-        isOpen={isGenerateModalOpen}
-        onClose={() => setIsGenerateModalOpen(false)}
-        employees={employees}
-      />
+      {error && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      <div className="space-y-3">
+        <PayrollGroupLaunchCta />
+
+        <Tabs value={view} onValueChange={(v) => handleViewChange(v as PayrollView)}>
+          <TabsList className="w-full sm:w-auto">
+            <TabsTrigger value="employee" className="flex-1 sm:flex-none">
+              Par collaborateur
+            </TabsTrigger>
+            <TabsTrigger value="month" className="flex-1 sm:flex-none">
+              Par mois
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="employee" className="mt-3">
+            <PayrollEmployeeExplorer
+              employees={employees}
+              selectedEmployeeId={selectedEmployeeId}
+              onSelectEmployee={selectEmployee}
+              yearCounts={yearCounts}
+              selectedYear={selectedYear}
+              yearOptions={yearOptions}
+              onYearChange={setSelectedYear}
+              missingMonthsCount={missingMonthsCount}
+              onGenerateYear={handleGenerateYear}
+              detailLoading={loadingPayslipsInitial}
+              loadingEmployees={loadingEmployees}
+              progressSlot={progressSlot}
+              renderDetail={() =>
+                selectedEmployee ? (
+                  <PayrollMonthList
+                    selectedYear={selectedYear}
+                    monthStatuses={monthStatuses}
+                    loadingPayslips={loadingPayslipsInitial}
+                    onGenerateMonth={handleGenerateMonth}
+                    onDeletePayslip={handleDeletePayslip}
+                    deletingPayslipId={deletingPayslipId}
+                  />
+                ) : null
+              }
+            />
+          </TabsContent>
+
+          <TabsContent value="month" className="mt-3">
+            <PayrollMonthExplorer
+              selectedYear={selectedYear}
+              yearOptions={monthYearOptions}
+              onYearChange={setSelectedYear}
+              selectedMonth={selectedMonth}
+              onSelectMonth={setSelectedMonth}
+              monthGeneratedCounts={monthGeneratedCounts}
+              totalEmployees={employees.length}
+              employeeStates={monthEmployeeStates}
+              missingCount={monthMissingCount}
+              onGenerateEmployee={handleGenerateEmployeeForMonth}
+              onGenerateMonth={handleGenerateWholeMonth}
+              onDeletePayslip={handleDeletePayslip}
+              deletingPayslipId={deletingPayslipId}
+              loadingEmployees={loadingEmployees}
+              loadingPayslips={loadingMonthData}
+              progressSlot={progressSlot}
+            />
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }

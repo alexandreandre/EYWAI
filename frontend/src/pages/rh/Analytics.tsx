@@ -83,7 +83,7 @@ import {
   defaultPeriodSelection,
   type PeriodSelection,
 } from "@/lib/analyticsPeriod";
-import { exportAnalyticsTeamCsv } from "@/lib/exportAnalyticsCsv";
+import { exportAnalyticsTeamXlsx } from "@/lib/exportAnalyticsTeamXlsx";
 
 const eur = new Intl.NumberFormat("fr-FR", {
   style: "currency",
@@ -269,16 +269,17 @@ export default function Analytics(): JSX.Element {
                 size="sm"
                 className="h-9"
                 disabled={!data}
-                onClick={() =>
-                  exportAnalyticsTeamCsv(
+                onClick={() => {
+                  void exportAnalyticsTeamXlsx(
                     activeCompany?.company_name ?? 'entreprise',
+                    periodBounds.label,
                     periodBounds.exportKey,
                     data,
-                  )
-                }
+                  );
+                }}
               >
                 <Download className="mr-2 h-4 w-4" />
-                Exporter
+                Exporter Excel
               </Button>
             </div>
           }

@@ -288,3 +288,200 @@ export async function getScheduledExportHistory(
   );
   return data;
 }
+
+// --- Envois compta / banque (dispatch) ---
+
+export type DispatchChannel = "compta" | "banque";
+export type DispatchStatus = "pending" | "generated" | "transmitted" | "failed";
+
+export interface DispatchChannelStatus {
+  channel: DispatchChannel;
+  period: string;
+  status: DispatchStatus;
+  dispatch_id: string | null;
+  export_ids: string[];
+  files_count: number;
+  totals?: ExportTotals;
+  generated_at: string | null;
+  transmitted_at: string | null;
+  transmission_note: string | null;
+  can_generate: boolean;
+  blocking_anomalies_count: number;
+}
+
+export interface DispatchStatusResponse {
+  period: string;
+  compta: DispatchChannelStatus;
+  banque: DispatchChannelStatus;
+}
+
+export interface DispatchFileDownload {
+  export_id: string;
+  export_type: string;
+  filename: string;
+  download_url: string;
+}
+
+export interface DispatchResultResponse {
+  dispatch_id: string;
+  channel: DispatchChannel;
+  period: string;
+  status: DispatchStatus;
+  export_ids: string[];
+  files: ExportFileInfo[];
+  downloads: DispatchFileDownload[];
+  message: string;
+}
+
+export interface DispatchHistoryEntry {
+  id: string;
+  channel: DispatchChannel;
+  period: string;
+  status: DispatchStatus;
+  export_ids: string[];
+  generated_at: string;
+  transmitted_at: string | null;
+  transmission_note: string | null;
+  created_by_name: string | null;
+}
+
+export interface DispatchHistoryListResponse {
+  dispatches: DispatchHistoryEntry[];
+  total: number;
+}
+
+export interface DispatchSchedule {
+  channel: DispatchChannel;
+  schedule_id: string | null;
+  name: string;
+  export_type: string;
+  is_active: boolean;
+  day_of_month: number;
+  hour_utc: number;
+  recipients: string[];
+  last_run_at: string | null;
+  next_run_at: string | null;
+}
+
+export interface DispatchScheduleUpsert {
+  is_active: boolean;
+  day_of_month: number;
+  hour_utc: number;
+  recipients?: string[];
+}
+
+export const DISPATCH_STATUS_LABELS: Record<DispatchStatus, string> = {
+  pending: "À faire",
+  generated: "Fichiers générés",
+  transmitted: "Transmis",
+  failed: "Échec",
+};
+
+function dispatchHeaders(companyId?: string | null): Record<string, string> | undefined {
+  return scheduledHeaders(companyId);
+}
+
+export async function getDispatchStatus(
+  companyId: string | null | undefined,
+  period: string,
+): Promise<DispatchStatusResponse> {
+  const { data } = await apiClient.get<DispatchStatusResponse>(
+    `/api/exports/dispatch/status?period=${encodeURIComponent(period)}`,
+    { headers: dispatchHeaders(companyId) },
+  );
+  return data;
+}
+
+export async function dispatchCompta(
+  companyId: string | null | undefined,
+  period: string,
+  format: "csv" | "xlsx" = "csv",
+): Promise<DispatchResultResponse> {
+  const { data } = await apiClient.post<DispatchResultResponse>(
+    "/api/exports/dispatch/compta",
+    { period, format },
+    { headers: dispatchHeaders(companyId) },
+  );
+  return data;
+}
+
+export async function dispatchBanque(
+  companyId: string | null | undefined,
+  body: {
+    period: string;
+    format?: "csv" | "xlsx";
+    execution_date?: string;
+    payment_label?: string;
+  },
+): Promise<DispatchResultResponse> {
+  const { data } = await apiClient.post<DispatchResultResponse>(
+    "/api/exports/dispatch/banque",
+    body,
+    { headers: dispatchHeaders(companyId) },
+  );
+  return data;
+}
+
+export async function markDispatchTransmitted(
+  companyId: string | null | undefined,
+  dispatchId: string,
+  note?: string,
+): Promise<{ dispatch_id: string; status: DispatchStatus; transmitted_at: string; message: string }> {
+  const { data } = await apiClient.post(
+    `/api/exports/dispatch/${dispatchId}/mark-transmitted`,
+    { note },
+    { headers: dispatchHeaders(companyId) },
+  );
+  return data;
+}
+
+export async function getDispatchHistory(
+  companyId: string | null | undefined,
+  channel?: DispatchChannel,
+  limit = 10,
+): Promise<DispatchHistoryListResponse> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (channel) params.append("channel", channel);
+  const { data } = await apiClient.get<DispatchHistoryListResponse>(
+    `/api/exports/dispatch/history?${params.toString()}`,
+    { headers: dispatchHeaders(companyId) },
+  );
+  return data;
+}
+
+export async function getDispatchSchedules(
+  companyId: string | null | undefined,
+): Promise<{ schedules: DispatchSchedule[] }> {
+  const { data } = await apiClient.get<{ schedules: DispatchSchedule[] }>(
+    "/api/exports/dispatch/schedules",
+    { headers: dispatchHeaders(companyId) },
+  );
+  return data;
+}
+
+export async function upsertDispatchSchedule(
+  companyId: string | null | undefined,
+  channel: DispatchChannel,
+  body: DispatchScheduleUpsert,
+): Promise<DispatchSchedule> {
+  const { data } = await apiClient.put<DispatchSchedule>(
+    `/api/exports/dispatch/schedules/${channel}`,
+    body,
+    { headers: dispatchHeaders(companyId) },
+  );
+  return data;
+}
+
+export async function runDispatchScheduleNow(
+  companyId: string | null | undefined,
+  channel: DispatchChannel,
+  period?: string,
+): Promise<{ dispatch_id: string | null; export_id: string | null; message: string }> {
+  const params = period ? `?period=${encodeURIComponent(period)}` : "";
+  const { data } = await apiClient.post(
+    `/api/exports/dispatch/schedules/${channel}/run-now${params}`,
+    {},
+    { headers: dispatchHeaders(companyId) },
+  );
+  return data;
+}

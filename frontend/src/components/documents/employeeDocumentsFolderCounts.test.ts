@@ -41,10 +41,26 @@ describe('countEmployeeSelfFolderItems', () => {
         contractUrl: 'http://x',
         identityUrl: null,
         payslips: [],
+        credentialsPdfUrl: null,
         generatedByFolder,
         exitDocuments: [],
         expenseReceipts: [],
       })
     ).toBe(2);
+  });
+
+  it('compte le PDF identifiants dans Autres', () => {
+    const generatedByFolder = groupGeneratedByFolder([]);
+    expect(
+      countEmployeeSelfFolderItems('autres', {
+        contractUrl: null,
+        identityUrl: null,
+        payslips: [],
+        credentialsPdfUrl: 'http://credentials',
+        generatedByFolder,
+        exitDocuments: [],
+        expenseReceipts: [],
+      })
+    ).toBe(1);
   });
 });

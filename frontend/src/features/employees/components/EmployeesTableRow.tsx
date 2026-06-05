@@ -66,6 +66,11 @@ export function EmployeesTableRow({ employee }: { employee: EmployeeListItem }) 
               <p className="font-medium">
                 {employee.first_name} {employee.last_name}
               </p>
+              {employee.employment_status === "en_onboarding" && (
+                <Badge variant="outline" className="text-xs bg-amber-50 text-amber-800 border-amber-200">
+                  Onboarding
+                </Badge>
+              )}
               {employee.employment_status === "en_sortie" && (
                 <Badge variant="outline" className="text-xs flex items-center gap-1">
                   <UserMinus className="h-3 w-3" />

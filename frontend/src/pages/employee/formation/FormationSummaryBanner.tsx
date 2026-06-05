@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 
 import { Button } from "@/components/ui/button";
 import type { EmployeeFormationTabId } from "@/lib/employeeFormationUtils";
@@ -19,9 +19,8 @@ type SummaryItem = {
 export function FormationSummaryBanner({ counts, onNavigateTab }: FormationSummaryBannerProps) {
   if (counts.isLoading) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-        Chargement de votre synthèse…
+      <div className="rounded-lg border bg-muted/30 px-4 py-2">
+        <SharkFinLoader variant="compact" label="Chargement de votre synthèse…" />
       </div>
     );
   }

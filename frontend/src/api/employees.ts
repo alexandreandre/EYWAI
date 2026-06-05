@@ -8,7 +8,7 @@ export type EmployeeLite = {
   last_name: string;
 };
 
-export type EmployeeSummaryStatus = 'active' | 'all';
+export type EmployeeSummaryStatus = 'active' | 'all' | 'payroll';
 
 export async function getEmployee(employeeId: string): Promise<Employee> {
   const { data } = await apiClient.get<Employee>(`/api/employees/${employeeId}`);
@@ -18,7 +18,12 @@ export async function getEmployee(employeeId: string): Promise<Employee> {
 export async function fetchEmployeesSummary(
   status: EmployeeSummaryStatus = 'all',
 ): Promise<EmployeeListItem[]> {
-  const params = status === 'active' ? { status: 'active' } : undefined;
+  const params =
+    status === 'active'
+      ? { status: 'active' }
+      : status === 'payroll'
+        ? { status: 'payroll' }
+        : undefined;
   const { data } = await apiClient.get<EmployeeListItem[]>('/api/employees/summary', {
     params,
   });

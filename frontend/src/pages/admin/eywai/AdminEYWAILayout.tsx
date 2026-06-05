@@ -39,7 +39,7 @@ export default function AdminEYWAILayout() {
                 EYWAI
               </span>
               <span className="text-base font-semibold text-sidebar-foreground">
-                Administration
+                Platforme Admin
               </span>
             </div>
           </SidebarHeader>

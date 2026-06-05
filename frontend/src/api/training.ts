@@ -101,11 +101,6 @@ export type EnrollmentRequestBySalarie = {
   motivation?: string;
 };
 
-export type ManagerApprovalRequest = {
-  approved: boolean;
-  rejection_reason?: string;
-};
-
 export type RHApprovalRequest = {
   approved: boolean;
   rejection_reason?: string;
@@ -191,19 +186,6 @@ export async function requestEnrollment(
   return res.data;
 }
 
-export async function managerApprove(
-  enrollmentId: string,
-  companyId: string,
-  data: ManagerApprovalRequest,
-): Promise<TrainingEnrollment> {
-  void companyId;
-  const res = await apiClient.post<TrainingEnrollment>(
-    `/api/training/enrollments/${enrollmentId}/manager-approve`,
-    data,
-  );
-  return res.data;
-}
-
 export async function rhApprove(
   enrollmentId: string,
   companyId: string,
@@ -215,14 +197,6 @@ export async function rhApprove(
     data,
   );
   return res.data;
-}
-
-export async function getPendingManagerApproval(companyId: string): Promise<TrainingEnrollment[]> {
-  void companyId;
-  const res = await apiClient.get<TrainingEnrollment[]>(
-    "/api/training/enrollments/pending-manager-approval",
-  );
-  return res.data ?? [];
 }
 
 export async function getPendingRHApproval(companyId: string): Promise<TrainingEnrollment[]> {

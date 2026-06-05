@@ -11,8 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
 import { Info, Loader2 } from "lucide-react";
-import { createSalaryAdvance, getMyAdvanceAvailable } from '@/api/saisiesAvances';
-import type { SalaryAdvanceCreate } from '@/api/saisiesAvances';
+import { createSalaryAdvance, getEmployeeAdvanceAvailable, getMyAdvanceAvailable } from '@/api/saisiesAvances';
+import type { AdvanceAvailableAmount, SalaryAdvanceCreate } from '@/api/saisiesAvances';
 import { useAuth } from '@/contexts/AuthContext';
 import apiClient from '@/api/apiClient';
 import { formatCurrency } from '@/lib/employeeDashboardUtils';
@@ -46,6 +46,7 @@ export function SalaryAdvanceRequestForm({
   const [isLoading, setIsLoading] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [availableAmount, setAvailableAmount] = useState<number | null>(null);
+  const [availableDetails, setAvailableDetails] = useState<AdvanceAvailableAmount | null>(null);
   const [formData, setFormData] = useState<Partial<SalaryAdvanceCreate>>({
     employee_id: employeeId,
     requested_date: defaultRequestedDate,
@@ -86,22 +87,39 @@ export function SalaryAdvanceRequestForm({
       if (hideEmployeeSelector) {
         try {
           const available = await getMyAdvanceAvailable();
+          setAvailableDetails(available);
           setAvailableAmount(Number(available.available_amount || 0));
         } catch (error) {
           log.error('Erreur calcul montant disponible:', error);
           setAvailableAmount(null);
+          setAvailableDetails(null);
         }
         return;
       }
       const targetEmployeeId = formData.employee_id || employeeId;
       if (!targetEmployeeId) {
         setAvailableAmount(null);
+        setAvailableDetails(null);
         return;
       }
-      setAvailableAmount(null);
+      try {
+        const requestedDate = formData.requested_date
+          ? new Date(formData.requested_date)
+          : new Date();
+        const available = await getEmployeeAdvanceAvailable(targetEmployeeId, {
+          year: requestedDate.getFullYear(),
+          month: requestedDate.getMonth() + 1,
+        });
+        setAvailableDetails(available);
+        setAvailableAmount(Number(available.available_amount || 0));
+      } catch (error) {
+        log.error('Erreur calcul montant disponible:', error);
+        setAvailableAmount(null);
+        setAvailableDetails(null);
+      }
     };
     void fetchAvailable();
-  }, [formData.employee_id, employeeId, hideEmployeeSelector]);
+  }, [formData.employee_id, formData.requested_date, employeeId, hideEmployeeSelector]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,6 +213,13 @@ export function SalaryAdvanceRequestForm({
               <Info className="h-4 w-4" />
               <AlertDescription>
                 <strong>Montant disponible :</strong> {formatCurrency(availableAmount)}
+                {availableDetails && Number(availableDetails.reference_net_salary || 0) > 0 && (
+                  <>
+                    {' '}
+                    (plafond {Math.round(Number(availableDetails.max_advance_net_ratio || 0.5) * 100)} % du
+                    net : {formatCurrency(Number(availableDetails.max_advance_from_net || 0))})
+                  </>
+                )}
               </AlertDescription>
             </Alert>
           )}
@@ -248,7 +273,7 @@ export function SalaryAdvanceRequestForm({
             <Button type="button" variant="outline" onClick={onClose}>
               Annuler
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button type="submit" disabled={isLoading || availableAmount === 0}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isEmployeeRequest ? 'Créer la demande' : "Créer l'avance"}
             </Button>

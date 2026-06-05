@@ -24,3 +24,13 @@ export function useEmployeesQuery(enabled = true) {
     placeholderData: (previous) => previous,
   });
 }
+
+export function usePayrollEmployeesQuery(enabled = true) {
+  const companyId = useActiveCompanyId();
+  return useQuery({
+    queryKey: [...queryKeys.employees(companyId), 'payroll'],
+    queryFn: () => fetchEmployeesSummary('payroll'),
+    enabled: enabled && Boolean(companyId),
+    placeholderData: (previous) => previous,
+  });
+}

@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { Plus, Loader2, Check, X, Eye } from "lucide-react";
+import { Plus, Check, X, Eye } from "lucide-react";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { getSalaryAdvances, approveSalaryAdvance, rejectSalaryAdvance } from '@/api/saisiesAvances';
 import type { SalaryAdvance, SalaryAdvanceStatus } from '@/api/saisiesAvances';
 import { SalaryAdvanceRequestForm } from './SalaryAdvanceRequestForm';
@@ -85,11 +86,7 @@ export function SalaryAdvancesTab() {
     : advances.filter(a => a.status === filterStatus);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <SharkFinLoader label="Chargement des avances…" />;
   }
 
   return (

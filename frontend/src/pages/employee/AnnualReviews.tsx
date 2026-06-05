@@ -16,7 +16,8 @@ import {
 import { AnnualReviewBadge } from "@/components/AnnualReviewBadge";
 import { getMyAnnualReviews, INTERVIEW_TYPE_LABELS } from "@/api/annualReviews";
 import type { AnnualReview, InterviewType } from "@/api/annualReviews";
-import { Loader2, MessageSquare, AlertCircle, ChevronRight, FileText } from "lucide-react";
+import { MessageSquare, AlertCircle, ChevronRight, FileText } from "lucide-react";
+import { TableSkeleton } from '@/components/skeletons/TableSkeleton';
 import { Button } from "@/components/ui/button";
 import {
   type ReviewFilter,
@@ -118,29 +119,7 @@ export default function EmployeeAnnualReviews({ embedded = false }: EmployeeAnnu
       <ReviewsPageWrap embedded={embedded}>
         <Card>
           <CardContent className="pt-6">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {embedded && <TableHead>Type</TableHead>}
-                  <TableHead>Date</TableHead>
-                  <TableHead>Statut</TableHead>
-                  {embedded && <TableHead>PDF signé</TableHead>}
-                  {!embedded && <TableHead className="w-[50px]" />}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow>
-                  <TableCell colSpan={colCount} className="h-32 text-center">
-                    <div className="flex flex-col items-center justify-center gap-3">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">
-                        Chargement de vos entretiens...
-                      </p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+            <TableSkeleton rows={5} columns={colCount} />
           </CardContent>
         </Card>
       </ReviewsPageWrap>

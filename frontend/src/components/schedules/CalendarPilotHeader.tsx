@@ -8,14 +8,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { pageTitleClassName } from '@/components/layout';
-import { Calculator, Loader2, Sparkles } from 'lucide-react';
+import { Sparkles, Upload } from 'lucide-react';
 import type { GlobalOverviewKpis } from '@/lib/schedulesOverview';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -40,10 +34,8 @@ interface CalendarPilotHeaderProps {
   onYearChange: (year: number) => void;
   onMonthChange: (month: number) => void;
   kpis: GlobalOverviewKpis;
-  onCalculatePayroll: () => void;
   onOpenAssistedFill: () => void;
-  isCalculatingPayroll: boolean;
-  canCalculatePayroll: boolean;
+  onOpenPointageImport: () => void;
   isLoading?: boolean;
 }
 
@@ -53,10 +45,8 @@ export function CalendarPilotHeader({
   onYearChange,
   onMonthChange,
   kpis,
-  onCalculatePayroll,
   onOpenAssistedFill,
-  isCalculatingPayroll,
-  canCalculatePayroll,
+  onOpenPointageImport,
   isLoading = false,
 }: CalendarPilotHeaderProps) {
   const periodLabel = `${MONTHS[month - 1]} ${year}`;
@@ -107,42 +97,22 @@ export function CalendarPilotHeader({
 
           <Button
             type="button"
-            variant="outline"
             onClick={onOpenAssistedFill}
-            className="h-9"
+            className="h-9 border-0 bg-gradient-to-r from-pink-500 via-rose-500 to-fuchsia-500 text-white shadow-md shadow-pink-500/30 hover:from-pink-600 hover:via-rose-600 hover:to-fuchsia-600 hover:shadow-lg hover:shadow-pink-500/40 transition-all"
           >
-            <Sparkles className="mr-2 h-4 w-4 text-primary" />
-            Remplissage assisté
+            <Sparkles className="mr-2 h-4 w-4" />
+            Remplissage par IA
           </Button>
 
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span>
-                  <Button
-                    onClick={onCalculatePayroll}
-                    disabled={!canCalculatePayroll || isCalculatingPayroll}
-                    className="h-9"
-                  >
-                    {isCalculatingPayroll ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Calculator className="mr-2 h-4 w-4" />
-                    )}
-                    Calculer la paie du mois
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              {!canCalculatePayroll && (
-                <TooltipContent>
-                  <p className="max-w-xs text-sm">
-                    Tous les calendriers du mois doivent être saisis avant de lancer le calcul
-                    paie ({kpis.saisis}/{kpis.total} saisis).
-                  </p>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onOpenPointageImport}
+            className="h-9"
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Importer des pointages
+          </Button>
         </div>
       </div>
 

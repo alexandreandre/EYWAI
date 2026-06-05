@@ -28,7 +28,8 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { ResidencePermitBadge } from "@/components/ResidencePermitBadge";
 import { getResidencePermits } from "@/api/residencePermits";
 import type { ResidencePermitListItem, ResidencePermitStatus } from "@/api/residencePermits";
-import { Loader2, Search, FileCheck, ChevronRight, RefreshCw } from "lucide-react";
+import { Search, FileCheck, ChevronRight, RefreshCw } from "lucide-react";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 
 function loadErrorMessage(error: unknown): string {
   const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data
@@ -178,9 +179,7 @@ export default function ResidencePermits() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex items-center justify-center h-48">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
+            <SharkFinLoader label="Chargement des titres de séjour…" />
           ) : isError ? (
             <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center">
               <p className="text-sm font-medium text-destructive">Erreur de chargement</p>

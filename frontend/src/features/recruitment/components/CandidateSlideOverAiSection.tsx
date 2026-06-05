@@ -153,6 +153,17 @@ export function CandidateSlideOverAiSection({
                       <p className="text-xs font-semibold text-muted-foreground mb-1">Recommandation</p>
                       <p className="text-sm italic text-foreground/90">{scoringDetail.recommandation}</p>
                     </div>
+                    {scoringDetail.confiance ? (
+                      <p className="text-xs text-muted-foreground">
+                        Confiance de l&apos;analyse :{" "}
+                        <span className="font-medium text-foreground">{scoringDetail.confiance}</span>
+                      </p>
+                    ) : null}
+                    {scoringDetail.limites ? (
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Limites : {scoringDetail.limites}
+                      </p>
+                    ) : null}
                     <p className="text-[10px] text-muted-foreground">
                       Analyse du{" "}
                       {new Date(scoringDetail.scored_at).toLocaleString("fr-FR", {

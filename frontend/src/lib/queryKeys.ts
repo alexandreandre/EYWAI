@@ -11,6 +11,8 @@ export const queryKeys = {
     companyQueryKey(companyId, 'employees'),
   employee: (companyId: string | undefined, employeeId: string | undefined) =>
     companyQueryKey(companyId, 'employee', employeeId ?? 'none'),
+  employeePayslips: (companyId: string | undefined, employeeId: string | undefined) =>
+    companyQueryKey(companyId, 'employee', employeeId ?? 'none', 'payslips'),
   collectiveAgreements: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'collective-agreements'),
   dashboardAll: (companyId: string | undefined) =>
@@ -31,6 +33,8 @@ export const queryKeys = {
     companyQueryKey(companyId, 'recruitment', 'candidates'),
   pendingSignaturesRh: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'signatures', 'pending-rh'),
+  onboardingHubDashboard: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'onboarding', 'hub', 'dashboard'),
   absences: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'absences'),
   planning: (companyId: string | undefined) =>
@@ -60,6 +64,8 @@ export const queryKeys = {
   ) => ['employee', userId ?? 'none', 'dashboard', 'absences', year, month] as const,
   employeeBadgeuseToday: (userId: string | undefined) =>
     ['employee', userId ?? 'none', 'badgeuse', 'today'] as const,
+  employeeSalaryAdvances: (userId: string | undefined) =>
+    ['employee', userId ?? 'none', 'salary-advances'] as const,
   formationDashboardCerts: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'formation', 'dashboard', 'cert-counts'),
   formationDashboardOverdue: (companyId: string | undefined) =>

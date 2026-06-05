@@ -123,12 +123,12 @@ export function enrollmentStatusBadge(status: string) {
     cancelled: { label: "Annulé", className: "bg-muted text-muted-foreground" },
     annule: { label: "Annulé", className: "bg-muted text-muted-foreground" },
     demande_salarie: {
-      label: "En attente manager",
+      label: "En attente RH",
       className: "bg-amber-400 text-amber-950 hover:bg-amber-400",
     },
     approuve_manager: {
       label: "En attente RH",
-      className: "bg-sky-600 text-white hover:bg-sky-600",
+      className: "bg-amber-400 text-amber-950 hover:bg-amber-400",
     },
     approuve_rh: { label: "Inscrit", className: "bg-emerald-600 text-white hover:bg-emerald-600" },
     rejete_manager: {

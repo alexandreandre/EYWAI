@@ -14,6 +14,7 @@ import {
   UserCompanyAccessData,
 } from '../../api/permissions';
 import PermissionsMatrix from '../../components/PermissionsMatrix';
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { cn } from '../../lib/utils';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -505,11 +506,7 @@ const UserCreation: React.FC = () => {
   };
 
   if (loadingCompanies) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    );
+    return <SharkFinLoader variant="fullPage" label="Chargement des entreprises…" />;
   }
 
   if (accessibleCompanies.length === 0) {

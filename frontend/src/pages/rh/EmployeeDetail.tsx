@@ -9,6 +9,7 @@ import { useCalendar } from "@/hooks/useCalendar";
 import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, ArrowLeft, ClipboardEdit, MessageSquare, Calendar as CalendarIcon, FileText, TrendingUp, Stethoscope, ScanLine } from "lucide-react";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { EmployeeDetailBadgeuseSection } from "@/components/badgeuse/rh/EmployeeDetailBadgeuseSection";
 import { getEmployeeDaysSummary } from "@/api/badgeuse";
 import { periodRangeLastDays } from "@/lib/badgeuseApiUtils";
@@ -337,7 +338,7 @@ export default function EmployeeDetail() {
       );
       return res.data.url ?? null;
     },
-    enabled: Boolean(employeeId && employeeReady),
+    enabled: Boolean(employeeId),
     retry: false,
     staleTime: 5 * 60_000,
   });
@@ -406,14 +407,15 @@ export default function EmployeeDetail() {
     }
   };
 
-  const isInitialLoad = employeeQuery.isLoading && employee === null;
+  const isInitialLoad =
+    Boolean(employeeId) && !employee && !employeeQuery.isError;
+
+  const employeeDisplayName = employee
+    ? `${employee.first_name ?? ""} ${employee.last_name ?? ""}`.trim()
+    : "";
 
   if (isInitialLoad) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <SharkFinLoader variant="fullPage" label="Chargement du collaborateur…" />;
   }
   if (employeeQuery.isError && !employee) {
     return (
@@ -516,11 +518,10 @@ export default function EmployeeDetail() {
         </TabsList>
 
         <TabsContent value="documents" className="mt-4">
-          {employeeId && employeeReady ? (
+          {employeeId && employee ? (
             <EmployeeDetailDocumentsTab
               employeeId={employeeId}
               employee={employee}
-              credentialsPdfUrl={credentialsPdfUrl}
             />
           ) : (
             <TabPanelSkeleton />
@@ -552,21 +553,21 @@ export default function EmployeeDetail() {
         </TabsContent>
 
         <TabsContent value="entretiens" className="mt-4">
-          {employeeId && (
+          {employeeId && employee && (
             <EmployeeDetailAnnualReviewsTab
               employeeId={employeeId}
-              employeeName={`${employee.first_name} ${employee.last_name}`}
+              employeeName={employeeDisplayName}
               canDeleteReview={canDeleteReview}
               onEmployeeRefresh={refreshEmployeeSnapshot}
             />
           )}
         </TabsContent>
 
-        {medicalModuleEnabled && employeeId && (
+        {medicalModuleEnabled && employeeId && employee && (
           <TabsContent value="suivi_medical" className="mt-4">
             <EmployeeDetailMedicalTab
               employeeId={employeeId}
-              employeeName={`${employee.first_name} ${employee.last_name}`}
+              employeeName={employeeDisplayName}
             />
           </TabsContent>
         )}
@@ -612,7 +613,7 @@ export default function EmployeeDetail() {
             <EmployeeDetailBadgeuseSection
               employeeId={employeeId}
               companyId={activeCompanyId}
-              employeeName={`${employee.first_name} ${employee.last_name}`}
+              employeeName={employeeDisplayName}
               isForfaitJour={isForfaitJour}
               isTabActive={activeTab === "badgeuse"}
             />

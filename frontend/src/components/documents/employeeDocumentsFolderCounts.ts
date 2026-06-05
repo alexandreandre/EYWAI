@@ -29,6 +29,7 @@ export function countEmployeeSelfFolderItems(
     contractUrl: string | null;
     identityUrl: string | null;
     payslips: PayslipItem[];
+    credentialsPdfUrl: string | null;
     generatedByFolder: ReturnType<typeof groupGeneratedByFolder>;
     exitDocuments: ExitDocumentItem[];
     expenseReceipts: ExpenseReceiptItem[];
@@ -45,7 +46,8 @@ export function countEmployeeSelfFolderItems(
       return (
         opts.generatedByFolder.autres.length +
         opts.exitDocuments.length +
-        opts.expenseReceipts.length
+        opts.expenseReceipts.length +
+        (opts.credentialsPdfUrl ? 1 : 0)
       );
     default:
       return 0;

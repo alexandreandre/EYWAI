@@ -202,11 +202,15 @@ export interface DelegationHour {
   duration_hours: number;
   reason: string;
   meeting_id: string | null;
+  source?: DelegationHourSource;
+  origin_month?: string | null;
   created_by: string | null;
   created_at: string;
   first_name?: string | null;
   last_name?: string | null;
 }
+
+export type DelegationHourSource = 'propre' | 'reportee' | 'mutualisee' | 'exceptionnelle';
 
 export interface DelegationHourCreate {
   employee_id?: string | null;
@@ -214,6 +218,8 @@ export interface DelegationHourCreate {
   duration_hours: number;
   reason: string;
   meeting_id?: string | null;
+  source?: DelegationHourSource | null;
+  origin_month?: string | null;
 }
 
 export interface DelegationQuota {
@@ -223,12 +229,110 @@ export interface DelegationQuota {
   quota_hours_per_month: number;
   notes: string | null;
   collective_agreement_name?: string | null;
+  credit_base?: number | null;
+  monthly_cap?: number | null;
+  reference_headcount?: number | null;
+  role?: string | null;
 }
 
-export interface DelegationQuotaCreate {
-  collective_agreement_id?: string | null;
+export interface DelegationConfig {
+  id: string;
+  company_id: string;
+  reference_headcount: number;
+  reference_date: string;
+  report_enabled: boolean;
+  mutualisation_enabled: boolean;
+  is_configured: boolean;
+  current_headcount: number;
+}
+
+export interface DelegationConfigUpdate {
+  reference_headcount?: number | null;
+  reference_date?: string | null;
+  report_enabled?: boolean | null;
+  mutualisation_enabled?: boolean | null;
+  initialize_from_current_headcount?: boolean;
+}
+
+export interface DelegationCredit {
+  employee_id: string;
+  year: number;
+  month: number;
+  role: string;
+  reference_headcount: number;
+  reference_date?: string | null;
+  credit_base: number;
+  reported_available: number;
+  transfers_in: number;
+  transfers_out: number;
+  monthly_cap: number;
+  available_hours: number;
+  consumed_hours: number;
+  remaining_hours: number;
+  overrun_hours: number;
+  is_near_limit: boolean;
+  is_over_limit: boolean;
+  warnings: string[];
   quota_hours_per_month: number;
-  notes?: string | null;
+}
+
+export interface DelegationTransfer {
+  id: string;
+  company_id: string;
+  period_year: number;
+  period_month: number;
+  from_employee_id: string;
+  to_employee_id: string;
+  hours: number;
+  employer_notified_at: string | null;
+  warnings: string[];
+  created_at: string;
+}
+
+export interface DelegationTransferCreate {
+  from_employee_id: string;
+  to_employee_id: string;
+  period_year: number;
+  period_month: number;
+  hours: number;
+  employer_notified_at?: string | null;
+}
+
+export interface DelegationRequest {
+  id: string;
+  company_id: string;
+  employee_id: string;
+  planned_date: string;
+  planned_hours: number;
+  reason: string;
+  status: 'planifie' | 'realise' | 'annule';
+  realized_hours: number | null;
+  employer_notified_at: string | null;
+  delegation_hour_id: string | null;
+  created_at: string;
+}
+
+export interface DelegationRequestCreate {
+  employee_id?: string | null;
+  planned_date: string;
+  planned_hours: number;
+  reason: string;
+  employer_notified_at?: string | null;
+}
+
+export interface DelegationRegisterRow {
+  employee_id: string;
+  first_name: string;
+  last_name: string;
+  year: number;
+  role: string;
+  theoretical_credit: number;
+  consumed: number;
+  reported_used: number;
+  mutualised_received: number;
+  mutualised_given: number;
+  overrun: number;
+  remaining_end_year: number;
 }
 
 export interface DelegationSummary {
@@ -240,6 +344,16 @@ export interface DelegationSummary {
   remaining_hours: number;
   period_start: string;
   period_end: string;
+  credit_base?: number;
+  reported_available?: number;
+  transfers_in?: number;
+  transfers_out?: number;
+  monthly_cap?: number;
+  available_hours?: number;
+  overrun_hours?: number;
+  is_near_limit?: boolean;
+  is_over_limit?: boolean;
+  role?: string | null;
 }
 
 // ============================================================================
@@ -515,6 +629,76 @@ export async function getDelegationSummary(
 export async function getDelegationQuotas(): Promise<DelegationQuota[]> {
   const response = await apiClient.get("/api/cse/delegation/quotas");
   return response.data;
+}
+
+export async function getDelegationConfig(): Promise<DelegationConfig> {
+  const response = await apiClient.get("/api/cse/delegation/config");
+  return response.data;
+}
+
+export async function updateDelegationConfig(
+  data: DelegationConfigUpdate
+): Promise<DelegationConfig> {
+  const response = await apiClient.put("/api/cse/delegation/config", data);
+  return response.data;
+}
+
+export async function getDelegationCredit(
+  year: number,
+  month: number,
+  employeeId?: string
+): Promise<DelegationCredit> {
+  const params: Record<string, string | number> = { year, month };
+  if (employeeId) params.employee_id = employeeId;
+  const response = await apiClient.get("/api/cse/delegation/credit", { params });
+  return response.data;
+}
+
+export async function getDelegationTransfers(
+  employeeId?: string,
+  periodYear?: number,
+  periodMonth?: number
+): Promise<DelegationTransfer[]> {
+  const params: Record<string, string | number> = {};
+  if (employeeId) params.employee_id = employeeId;
+  if (periodYear) params.period_year = periodYear;
+  if (periodMonth) params.period_month = periodMonth;
+  const response = await apiClient.get("/api/cse/delegation/transfers", { params });
+  return response.data;
+}
+
+export async function createDelegationTransfer(
+  data: DelegationTransferCreate
+): Promise<DelegationTransfer> {
+  const response = await apiClient.post("/api/cse/delegation/transfers", data);
+  return response.data;
+}
+
+export async function getDelegationRequests(
+  employeeId?: string
+): Promise<DelegationRequest[]> {
+  const params: Record<string, string> = {};
+  if (employeeId) params.employee_id = employeeId;
+  const response = await apiClient.get("/api/cse/delegation/requests", { params });
+  return response.data;
+}
+
+export async function createDelegationRequest(
+  data: DelegationRequestCreate
+): Promise<DelegationRequest> {
+  const response = await apiClient.post("/api/cse/delegation/requests", data);
+  return response.data;
+}
+
+export async function getDelegationRegister(year: number): Promise<DelegationRegisterRow[]> {
+  const response = await apiClient.get(`/api/cse/delegation/register/${year}`);
+  return response.data;
+}
+
+export interface DelegationQuotaCreate {
+  collective_agreement_id?: string | null;
+  quota_hours_per_month: number;
+  notes?: string | null;
 }
 
 // ============================================================================

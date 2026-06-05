@@ -8,6 +8,7 @@ import {
   useAnnualReviewsPriorityQuery,
   useDashboardAllQuery,
   useMedicalDashboardQuery,
+  useOnboardingDashboardQuery,
   usePendingSignaturesRhQuery,
   useRecruitmentPriorityQuery,
   useResidencePermitStatsQuery,
@@ -41,6 +42,7 @@ import {
   TrendingUp,
   Mail,
   BarChart3,
+  UserRoundPlus,
 } from 'lucide-react';
 import { CSEDashboardBlock } from '@/components/CSEDashboardBlock';
 import { PendingSignaturesWidget } from '@/components/dashboard/PendingSignaturesWidget';
@@ -54,9 +56,9 @@ import { ResidencePermitCard } from '@/features/dashboard/widgets/ResidencePermi
 import { MedicalFollowUpCard } from '@/features/dashboard/widgets/MedicalFollowUpCard';
 import { RibAlertsCard } from '@/features/dashboard/widgets/RibAlertsCard';
 import { RecruitmentKpisCard } from '@/features/dashboard/widgets/RecruitmentKpisCard';
+import { IncompleteEmployeesCard } from '@/features/dashboard/widgets/IncompleteEmployeesCard';
 import { EffectifPanorama } from '@/features/dashboard/widgets/EffectifPanorama';
 import { CoutsCard } from '@/features/dashboard/widgets/CoutsCard';
-import { GeneratePayrollModal } from '@/features/dashboard/widgets/GeneratePayrollModal';
 import type {
   DashboardData,
   DashboardPriorityKey,
@@ -78,6 +80,7 @@ export default function Dashboard() {
   const annualReviewsQuery = useAnnualReviewsPriorityQuery(Boolean(companyId));
   const recruitment = useRecruitmentPriorityQuery(Boolean(companyId));
   const pendingSignaturesQuery = usePendingSignaturesRhQuery(Boolean(companyId));
+  const onboardingQuery = useOnboardingDashboardQuery(Boolean(companyId));
 
   const data = dashboardQuery.data as DashboardData | undefined;
   const loading = dashboardQuery.isLoading && !dashboardQuery.data;
@@ -111,13 +114,32 @@ export default function Dashboard() {
 
   const pendingSignaturesCount = pendingSignaturesQuery.data?.total ?? 0;
 
+  const onboardingItems = useMemo(
+    () => onboardingQuery.data?.items ?? [],
+    [onboardingQuery.data],
+  );
+  const incompleteEmployees = useMemo(
+    () => onboardingItems.filter((item) => !item.profile_complete),
+    [onboardingItems],
+  );
+  const incompleteEmployeesCount =
+    onboardingQuery.data?.kpis.profile_incomplete ?? incompleteEmployees.length;
+  const incompleteEmployeesLoading = onboardingQuery.isLoading && !onboardingQuery.data;
+  const incompleteEmployeesPreview = useMemo(() => {
+    if (incompleteEmployees.length === 0) return null;
+    return incompleteEmployees
+      .slice(0, 2)
+      .map((item) => `${item.first_name} ${item.last_name}`.trim())
+      .join(' · ');
+  }, [incompleteEmployees]);
+
   const isFetching =
     dashboardQuery.isFetching ||
     residenceQuery.isFetching ||
     ribQuery.isFetching ||
-    medical.isFetching;
+    medical.isFetching ||
+    onboardingQuery.isFetching;
 
-  const [isGeneratePayrollModalOpen, setIsGeneratePayrollModalOpen] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [selectedPriorityKey, setSelectedPriorityKey] = useState<DashboardPriorityKey | null>(null);
   const [validatedPriorityByCount, setValidatedPriorityByCount] = useState<PriorityValidationByCount>(() => {
@@ -262,6 +284,19 @@ export default function Dashboard() {
         : 'Candidatures en cours',
     },
     {
+      key: 'onboardingProfiles',
+      label: 'Nouveaux salariés à compléter',
+      count: incompleteEmployeesCount,
+      href:
+        incompleteEmployees.length === 1
+          ? `/employees/${incompleteEmployees[0].employee_id}`
+          : '/onboarding',
+      icon: UserRoundPlus,
+      hint: incompleteEmployeesPreview
+        ? `Fiche paie à finaliser : ${incompleteEmployeesPreview}`
+        : 'Fiches paie à finaliser',
+    },
+    {
       key: 'rates',
       label: 'Taux de cotisations',
       count: data.alerts.obsoleteRates,
@@ -327,7 +362,6 @@ export default function Dashboard() {
         firstName={user?.first_name || 'Utilisateur'}
         dateLabel={todayLabel}
         onCopilotClick={() => setIsCopilotOpen(true)}
-        onGeneratePayrollClick={() => setIsGeneratePayrollModalOpen(true)}
       />
       <div className="space-y-6">
         <Card className="border-l-4 border-l-primary shadow-sm">
@@ -435,6 +469,13 @@ export default function Dashboard() {
             </p>
           </div>
 
+          {(incompleteEmployeesLoading || incompleteEmployees.length > 0) && (
+            <IncompleteEmployeesCard
+              items={onboardingItems}
+              loading={incompleteEmployeesLoading}
+            />
+          )}
+
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <PendingSignaturesWidget mode="rh" />
             <RibAlertsCard
@@ -508,11 +549,6 @@ export default function Dashboard() {
       <CopilotModalAgent
         isOpen={isCopilotOpen}
         onClose={() => setIsCopilotOpen(false)}
-      />
-      <GeneratePayrollModal
-        isOpen={isGeneratePayrollModalOpen}
-        onClose={() => setIsGeneratePayrollModalOpen(false)}
-        employees={data.employees}
       />
     </div>
   );

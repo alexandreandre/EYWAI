@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { PromotionBadge } from "@/components/PromotionBadge";
 import { PromotionComparison } from "@/components/PromotionComparison";
 import { PromotionTimeline } from "@/components/PromotionTimeline";
@@ -306,11 +307,7 @@ export default function PromotionDetail() {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <SharkFinLoader variant="fullPage" label="Chargement de la promotion…" />;
   }
 
   if (isError || !promotion) {

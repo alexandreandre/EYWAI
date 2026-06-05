@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 
 import {
   downloadCompanyExport,
@@ -138,11 +139,7 @@ export default function CompanyPage() {
   };
 
   if (detailsQuery.isLoading) {
-    return (
-      <div className="flex justify-center items-center h-[calc(100vh-200px)]">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-      </div>
-    );
+    return <SharkFinLoader variant="fullPage" label="Chargement de l'entreprise…" />;
   }
 
   if (detailsQuery.error) {

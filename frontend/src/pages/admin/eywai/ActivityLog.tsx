@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Loader2 } from "lucide-react";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { getPlatformAuditLogs, type PlatformAuditLogEntry } from "@/api/adminEYWAI";
 import { getActionLabel } from "@/lib/auditLabels";
 import { AdminPageHeader } from "@/features/admin/components/eywai/AdminPageHeader";
@@ -110,9 +110,7 @@ export default function ActivityLog() {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
+            <SharkFinLoader label="Chargement du journal…" />
           ) : loadError && logs.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-sm text-destructive">{loadError}</p>

@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Check, X, Clock, Download, Eye } from "lucide-react";
+import { Check, X, Clock, Download, Eye } from "lucide-react";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import apiClient from '@/api/apiClient'; // <-- AJOUTER
 import { downloadBlob } from '@/lib/downloadBlob';
 import type * as expensesApi from '@/api/expenses'; // <-- CHANGER en 'import type'
@@ -182,8 +183,8 @@ export default function ExpensesPage() {
           <TabsTrigger value="pending"><Clock className="mr-2 h-4 w-4" /> En attente <Badge className="ml-2">{pending.length}</Badge></TabsTrigger>
           <TabsTrigger value="processed">Historique</TabsTrigger>
         </TabsList>
-        <TabsContent value="pending"><Card><CardHeader><CardTitle>Demandes à valider</CardTitle></CardHeader><CardContent>{isLoading ? <Loader2 className="mx-auto h-8 w-8 animate-spin" /> : renderRequestsTable(pending)}</CardContent></Card></TabsContent>
-        <TabsContent value="processed"><Card><CardHeader><CardTitle>Demandes traitées</CardTitle></CardHeader><CardContent>{isLoading ? <Loader2 className="mx-auto h-8 w-8 animate-spin" /> : renderRequestsTable(processed)}</CardContent></Card></TabsContent>
+        <TabsContent value="pending"><Card><CardHeader><CardTitle>Demandes à valider</CardTitle></CardHeader><CardContent>{isLoading ? <SharkFinLoader label="Chargement des demandes…" /> : renderRequestsTable(pending)}</CardContent></Card></TabsContent>
+        <TabsContent value="processed"><Card><CardHeader><CardTitle>Demandes traitées</CardTitle></CardHeader><CardContent>{isLoading ? <SharkFinLoader label="Chargement des demandes…" /> : renderRequestsTable(processed)}</CardContent></Card></TabsContent>
       </Tabs>
     </div>
   );

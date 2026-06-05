@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
+  getDelegationCredit,
   getDelegationHours,
-  getDelegationQuota,
   getMeetings,
   getMyElectedStatus,
 } from '@/api/cse';
@@ -38,9 +38,9 @@ export function EmployeeCseDashboardCard() {
     enabled: isElected,
   });
 
-  const { data: quota } = useQuery({
-    queryKey: ['cse', 'my-delegation-quota'],
-    queryFn: () => getDelegationQuota(),
+  const { data: credit } = useQuery({
+    queryKey: ['cse', 'my-delegation-credit', now.getFullYear(), now.getMonth() + 1],
+    queryFn: () => getDelegationCredit(now.getFullYear(), now.getMonth() + 1),
     enabled: isElected,
   });
 
@@ -59,11 +59,10 @@ export function EmployeeCseDashboardCard() {
   }
 
   const nextMeeting = pickNextMeeting(meetings);
-  const consumedHours = hours.reduce((sum, h) => sum + h.duration_hours, 0);
-  const quotaHours = quota?.quota_hours_per_month ?? 0;
-  const remainingHours = quotaHours - consumedHours;
-  const isLowQuota =
-    quotaHours > 0 && remainingHours <= quotaHours * 0.2 && remainingHours >= 0;
+  const consumedHours = credit?.consumed_hours ?? hours.reduce((sum, h) => sum + h.duration_hours, 0);
+  const quotaHours = credit?.credit_base ?? 0;
+  const remainingHours = credit?.remaining_hours ?? quotaHours - consumedHours;
+  const isLowQuota = credit?.is_near_limit ?? (quotaHours > 0 && remainingHours <= quotaHours * 0.2 && remainingHours >= 0);
 
   return (
     <Card className="border-blue-200/80 bg-blue-50/50 dark:border-blue-900/50 dark:bg-blue-950/20">

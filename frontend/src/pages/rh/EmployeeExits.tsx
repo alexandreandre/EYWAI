@@ -1,5 +1,6 @@
 import { log } from '@/lib/logger';
 import { RhPageHeader } from '@/components/layout';
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import React, { useState, useEffect, useMemo } from 'react';
 import { PlusCircle, Eye, Calendar, Users as UsersIcon, Trash2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -157,10 +158,7 @@ const EmployeeExitsPage = () => {
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="text-center py-12">
-                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent"></div>
-                  <p className="mt-2 text-sm text-gray-600">Chargement...</p>
-                </div>
+                <SharkFinLoader label="Chargement des départs…" />
               ) : loadError ? (
                 <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center">
                   <p className="text-sm text-destructive">{loadError}</p>

@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { Plus, Loader2, Pause, Play, X, Eye } from "lucide-react";
+import { Plus, Pause, Play, X, Eye } from "lucide-react";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { getSalarySeizures, deleteSalarySeizure, updateSalarySeizure } from '@/api/saisiesAvances';
 import type { SalarySeizure, SalarySeizureStatus } from '@/api/saisiesAvances';
 import { SalarySeizureForm } from './SalarySeizureForm';
@@ -101,11 +102,7 @@ export function SalarySeizuresTab() {
     : seizures.filter(s => s.status === filterStatus);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <SharkFinLoader label="Chargement des saisies…" />;
   }
 
   return (

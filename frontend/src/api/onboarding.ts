@@ -43,12 +43,17 @@ export interface OnboardingHubItem {
   nb_overdue: number;
   completed_at?: string | null;
   checklist_created_at?: string | null;
+  /** Complétude de la fiche paie (champs indispensables encore manquants). */
+  profile_complete: boolean;
+  missing_fields: string[];
+  nb_missing: number;
 }
 
 export interface OnboardingHubKpis {
   in_progress: number;
   overdue_tasks: number;
   completed_this_month: number;
+  profile_incomplete: number;
 }
 
 export interface OnboardingHubList {

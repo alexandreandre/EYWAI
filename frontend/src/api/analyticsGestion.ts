@@ -89,18 +89,6 @@ export interface CseAnalytics {
   upcoming_meetings: CseMeetingPreview[];
 }
 
-/** Snapshot plat pour export CSV. */
-export interface AnalyticsGestionSnapshot {
-  entretiens: EntretiensAnalytics;
-  conformite: ConformiteAnalytics;
-  formation: FormationAnalytics;
-  calendriers: CalendriersAnalytics;
-  medical: MedicalAnalytics;
-  objectives: ObjectivesAnalytics;
-  carriere: CarriereAnalytics;
-  cse: CseAnalytics;
-}
-
 export interface AnalyticsGestionResponse {
   period: AnalyticsGestionPeriod;
   entretiens: EntretiensAnalytics;

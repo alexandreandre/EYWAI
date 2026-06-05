@@ -15,7 +15,7 @@ import {
   sortPayslipsDesc,
   type PayslipItem,
 } from '@/components/employee-detail/employeeDetailDocumentsFolders';
-import { DocumentFileRow, DownloadLinkButton } from '@/components/employee-detail/DocumentFileRow';
+import { DocumentFileRow, DownloadLinkButton, ViewLinkButton } from '@/components/employee-detail/DocumentFileRow';
 import {
   EmployeeDocumentAddMenu,
   GeneratedDocActions,
@@ -35,7 +35,6 @@ interface ContractUrlResponse {
 export interface EmployeeDetailDocumentsTabProps {
   employeeId: string;
   employee: EmployeeDetailDocumentsRhEmployee;
-  credentialsPdfUrl?: string | null;
 }
 
 function FileListSkeleton() {
@@ -75,9 +74,22 @@ function filterPayslips(payslips: PayslipItem[], fileSearch: string): PayslipIte
 export function EmployeeDetailDocumentsTab({
   employeeId,
   employee,
-  credentialsPdfUrl = null,
 }: EmployeeDetailDocumentsTabProps) {
   const navigate = useNavigate();
+
+  const credentialsPdfQuery = useQuery({
+    queryKey: ['employee', employeeId, 'credentials-pdf'],
+    queryFn: async () => {
+      const res = await apiClient.get<{ url?: string | null }>(
+        `/api/employees/${employeeId}/credentials-pdf`,
+      );
+      return res.data.url ?? null;
+    },
+    enabled: Boolean(employeeId),
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
+  const credentialsPdfUrl = credentialsPdfQuery.data ?? null;
 
   const {
     rows: generatedRows,
@@ -277,6 +289,7 @@ export function EmployeeDetailDocumentsTab({
       name={payslipLabel(p)}
       actions={
         <>
+          <ViewLinkButton href={p.preview_url ?? ''} title="Visualiser le bulletin" />
           <Button variant="outline" size="sm" asChild>
             <Link to={`/payslips/${p.id}/edit`}>
               <Edit className="mr-2 h-4 w-4" />
@@ -346,7 +359,7 @@ export function EmployeeDetailDocumentsTab({
   };
 
   const renderAutresFiles = (fileSearch: string) => {
-    if (generatedLoading) return <FileListSkeleton />;
+    if (generatedLoading || credentialsPdfQuery.isLoading) return <FileListSkeleton />;
     if (generatedError) {
       return (
         <div className="p-4 text-center">
@@ -359,7 +372,18 @@ export function EmployeeDetailDocumentsTab({
 
     const items: ReactNode[] = [];
 
-    if (
+    if (credentialsPdfQuery.isError) {
+      items.push(
+        <li key="credentials-pdf-error" className="px-3 py-4 text-center">
+          <p className="mb-2 text-sm text-muted-foreground">
+            Impossible de charger les identifiants de connexion.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => void credentialsPdfQuery.refetch()}>
+            Réessayer
+          </Button>
+        </li>,
+      );
+    } else if (
       credentialsPdfUrl &&
       matchesFileSemantic(['identifiants connexion', 'creation compte', 'compte'], fileSearch)
     ) {
@@ -367,7 +391,7 @@ export function EmployeeDetailDocumentsTab({
         <DocumentFileRow
           key="credentials-pdf"
           name="Identifiants de connexion"
-          subtitle="PDF de création de compte"
+          subtitle="Identifiants de première connexion — mot de passe temporaire à modifier"
           actions={
             <DownloadLinkButton
               href={credentialsPdfUrl}

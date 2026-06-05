@@ -36,6 +36,7 @@ import {
 } from "@/api/cse";
 import { BDES_TYPE_LABELS } from "@/lib/cseLabels";
 import { Plus, FileText, Download, Loader2 } from "lucide-react";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { BDESUploadModal } from "@/components/cse/BDESUploadModal";
 
 function formatDateTime(iso: string | null | undefined): string {
@@ -152,9 +153,7 @@ export default function BDESTab() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
+            <SharkFinLoader label="Chargement des documents BDES…" />
           ) : filteredDocuments.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">Aucun document trouvé</div>
           ) : (

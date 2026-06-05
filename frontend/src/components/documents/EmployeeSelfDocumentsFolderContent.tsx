@@ -13,7 +13,7 @@ import {
   type DocumentFolderId,
   type PayslipItem,
 } from '@/components/employee-detail/employeeDetailDocumentsFolders';
-import { DocumentFileRow, DownloadLinkButton } from '@/components/employee-detail/DocumentFileRow';
+import { DocumentFileRow, DownloadLinkButton, ViewLinkButton } from '@/components/employee-detail/DocumentFileRow';
 import { GeneratedDocMeta } from '@/components/employee-detail/EmployeeDetailDocumentsRhSection';
 import { RefreshCw } from 'lucide-react';
 
@@ -78,6 +78,7 @@ export function EmployeeSelfDocumentsFolderContent({
     profile,
     contractUrl,
     identityUrl,
+    credentialsPdfUrl,
     payslips,
     generatedByFolder,
     exitDocuments,
@@ -119,7 +120,12 @@ export function EmployeeSelfDocumentsFolderContent({
     <DocumentFileRow
       key={p.id}
       name={payslipLabel(p)}
-      actions={<DownloadLinkButton href={p.url} download={p.name} />}
+      actions={
+        <>
+          <ViewLinkButton href={p.preview_url ?? ''} title="Visualiser le bulletin" />
+          <DownloadLinkButton href={p.url} download={p.name} />
+        </>
+      }
     />
   );
 
@@ -282,21 +288,50 @@ export function EmployeeSelfDocumentsFolderContent({
 
   const renderAutres = () => {
     const loading =
-      isLoading || queries.generated.isLoading || queries.exit.isLoading || queries.expenses.isLoading;
+      isLoading ||
+      queries.generated.isLoading ||
+      queries.exit.isLoading ||
+      queries.expenses.isLoading ||
+      queries.credentialsPdf.isLoading;
     if (loading) return <FileListSkeleton />;
-    if (queries.generated.isError || queries.exit.isError || queries.expenses.isError) {
+    if (
+      queries.generated.isError ||
+      queries.exit.isError ||
+      queries.expenses.isError ||
+      queries.credentialsPdf.isError
+    ) {
       return (
         <ErrorRetry
           onRetry={() => {
             void queries.generated.refetch();
             void queries.exit.refetch();
             void queries.expenses.refetch();
+            void queries.credentialsPdf.refetch();
           }}
         />
       );
     }
 
     const items: ReactNode[] = [];
+
+    if (
+      credentialsPdfUrl &&
+      matchesFileSemantic(['identifiants connexion', 'creation compte', 'compte'], fileSearch)
+    ) {
+      items.push(
+        <DocumentFileRow
+          key="credentials-pdf"
+          name="Identifiants de connexion"
+          subtitle="Identifiants de première connexion — modifiez votre mot de passe dès la première connexion"
+          actions={
+            <DownloadLinkButton
+              href={credentialsPdfUrl}
+              download={`Compte_${firstName}_${lastName}.pdf`}
+            />
+          }
+        />
+      );
+    }
 
     for (const doc of filterGeneratedDocs(generatedByFolder.autres, fileSearch)) {
       items.push(renderGeneratedRow(doc));
@@ -337,7 +372,10 @@ export function EmployeeSelfDocumentsFolderContent({
 
     if (items.length === 0) {
       const hasData =
-        generatedByFolder.autres.length > 0 || exitDocuments.length > 0 || expenseReceipts.length > 0;
+        Boolean(credentialsPdfUrl) ||
+        generatedByFolder.autres.length > 0 ||
+        exitDocuments.length > 0 ||
+        expenseReceipts.length > 0;
       return (
         <p className="py-8 text-center text-sm text-muted-foreground">
           {fileSearch.trim() && hasData

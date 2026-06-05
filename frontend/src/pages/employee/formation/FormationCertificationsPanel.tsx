@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 
 import { getEmployeeCertifications, type EmployeeCertification } from "@/api/certifications";
 import { Button } from "@/components/ui/button";
@@ -43,12 +44,7 @@ export function FormationCertificationsPanel({ employeeId }: { employeeId: strin
   );
 
   if (q.isLoading) {
-    return (
-      <div className="flex items-center gap-2 py-8 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin" />
-        Chargement…
-      </div>
-    );
+    return <SharkFinLoader label="Chargement des habilitations…" />;
   }
   if (q.isError) {
     return <p className="text-sm text-destructive">Impossible de charger vos habilitations.</p>;

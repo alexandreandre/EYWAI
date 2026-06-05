@@ -25,6 +25,7 @@ import {
 import { toast } from "@/components/ui/use-toast";
 import type { Employee } from "@/features/employee-detail/types";
 import type { ContractualFieldDiff } from "@/utils/employeeContractualWatch";
+import type { GenerateDocumentPayload } from "@/api/documents";
 
 interface Props {
   open: boolean;
@@ -42,6 +43,69 @@ interface Props {
   onMotifExtraChange: (v: string) => void;
   onIgnore: () => void;
   onSuccess: (employee: Employee) => void;
+}
+
+function _parseSalary(value: string): number | undefined {
+  const cleaned = value.replace(/[^\d.,-]/g, "").replace(",", ".");
+  if (!cleaned || cleaned === "—") return undefined;
+  const n = Number.parseFloat(cleaned);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function _optionalDiffValue(value: string): string | undefined {
+  const v = value.trim();
+  if (!v || v === "—") return undefined;
+  return v;
+}
+
+/** Extrait les couples avant/après depuis les diffs contractuels pour l'API avenant. */
+function buildAvenantFieldsFromDiffs(
+  diffs: ContractualFieldDiff[],
+): Pick<
+  GenerateDocumentPayload,
+  | "ancien_salaire"
+  | "nouveau_salaire"
+  | "ancien_poste"
+  | "nouveau_poste"
+  | "ancienne_duree"
+  | "nouvelle_duree"
+  | "ancien_lieu"
+  | "nouveau_lieu"
+> {
+  const fields: Pick<
+    GenerateDocumentPayload,
+    | "ancien_salaire"
+    | "nouveau_salaire"
+    | "ancien_poste"
+    | "nouveau_poste"
+    | "ancienne_duree"
+    | "nouvelle_duree"
+    | "ancien_lieu"
+    | "nouveau_lieu"
+  > = {};
+
+  for (const d of diffs) {
+    switch (d.key) {
+      case "salaire_de_base":
+        fields.ancien_salaire = _parseSalary(d.before);
+        fields.nouveau_salaire = _parseSalary(d.after);
+        break;
+      case "job_title":
+        fields.ancien_poste = _optionalDiffValue(d.before);
+        fields.nouveau_poste = _optionalDiffValue(d.after);
+        break;
+      case "duree_hebdomadaire":
+        fields.ancienne_duree = _optionalDiffValue(d.before);
+        fields.nouvelle_duree = _optionalDiffValue(d.after);
+        break;
+      case "lieu_travail":
+        fields.ancien_lieu = _optionalDiffValue(d.before);
+        fields.nouveau_lieu = _optionalDiffValue(d.after);
+        break;
+    }
+  }
+
+  return fields;
 }
 
 export function ContractualChangeDialog({
@@ -201,6 +265,7 @@ export function ContractualChangeDialog({
                 const lines = diffs.map((d) => `${d.label} : ${d.before} → ${d.after}`);
                 const auto = `Modification détectée sur la fiche :\n${lines.join("\n")}`;
                 const motif = [auto, motifExtra.trim()].filter(Boolean).join("\n\n");
+                const avenantFields = buildAvenantFieldsFromDiffs(diffs);
                 contractualGenMut.mutate({
                   employee_id: employeeId,
                   document_type: avenantType,
@@ -208,6 +273,7 @@ export function ContractualChangeDialog({
                   date_effet: dateEffet,
                   motif,
                   template_id: template === "__eywai__" ? null : template,
+                  ...avenantFields,
                 });
               }}
             >

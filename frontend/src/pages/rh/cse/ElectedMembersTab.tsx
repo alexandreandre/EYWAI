@@ -20,7 +20,8 @@ import {
 import { getElectedMembers, type ElectedMemberListItem } from "@/api/cse";
 import { ROLE_LABELS, ROLE_BADGE_CLASSES } from "@/lib/cseLabels";
 import { useCsePage } from "@/contexts/CsePageContext";
-import { Plus, Users, Calendar, AlertTriangle, Loader2, Edit, ExternalLink } from "lucide-react";
+import { Plus, Users, Calendar, AlertTriangle, Edit, ExternalLink } from "lucide-react";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { ElectedMemberModal } from "@/components/cse/ElectedMemberModal";
 import { cn } from "@/lib/utils";
 
@@ -131,9 +132,7 @@ export default function ElectedMembersTab() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
+            <SharkFinLoader label="Chargement des élus…" />
           ) : filteredMembers.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">Aucun élu trouvé</div>
           ) : (

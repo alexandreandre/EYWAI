@@ -8,6 +8,7 @@ import { getUserErrorMessage, showErrorToast } from '@/lib/errorMessages';
 import { RhPageHeader } from '@/components/layout';
 import React, { useState, useEffect, useRef } from 'react';
 import { Calculator, FileText, Loader2, Stethoscope } from 'lucide-react';
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { Button } from '../../components/ui/button';
 import {
@@ -119,11 +120,7 @@ const Simulation: React.FC = () => {
 
 
   if (loadingEmployees) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-      </div>
-    );
+    return <SharkFinLoader label="Chargement des effectifs…" />;
   }
 
   return (

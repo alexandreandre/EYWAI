@@ -146,7 +146,7 @@ export function enrollmentGroup(status: string): EnrollmentGroup {
 }
 
 export const ENROLLMENT_GROUP_LABELS: Record<EnrollmentGroup, string> = {
-  pending: "En attente de validation",
+  pending: "En attente RH",
   active: "À venir ou en cours",
   done: "Terminées",
 };

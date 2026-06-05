@@ -1,7 +1,8 @@
 // frontend/src/pages/employee/SalaryAdvances.tsx
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
   ChevronDown,
@@ -11,7 +12,6 @@ import {
   Wallet,
 } from 'lucide-react';
 import type { AdvanceAvailableAmount, SalaryAdvance } from '@/api/saisiesAvances';
-import { getMyAdvanceAvailable, getMySalaryAdvances } from '@/api/saisiesAvances';
 import {
   EmployeePageHeader,
   EmployeePageShell,
@@ -45,10 +45,14 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEmployeeProfileQuery } from '@/hooks/queries/useEmployeeDashboardQueries';
+import { useEmployeeSalaryAdvancesQuery } from '@/hooks/queries/useEmployeeSalaryAdvancesQuery';
+import { queryKeys } from '@/lib/queryKeys';
 import { formatCurrency } from '@/lib/employeeDashboardUtils';
 import {
   computeGrossAvailableBeforeCap,
   computeMaxCapAmount,
+  computeMaxNetCapAmount,
+  formatAdvanceNetRatio,
   filterAdvancesByStatus,
   formatAdvanceDate,
   hasApprovedAmountDiff,
@@ -86,6 +90,8 @@ function AdvanceAvailableCard({
   const maxDays = Number(data.max_advance_days || 0);
   const grossBeforeCap = computeGrossAvailableBeforeCap(data);
   const maxCap = computeMaxCapAmount(data);
+  const maxNetCap = computeMaxNetCapAmount(data);
+  const referenceNet = Number(data.reference_net_salary || 0);
   const isZero = available <= 0;
 
   return (
@@ -100,6 +106,7 @@ function AdvanceAvailableCard({
           {maxDays > 0 && dailySalary > 0
             ? ` (max. ${maxDays} jours de salaire journalier)`
             : ''}
+          {referenceNet > 0 && ` — plafond ${formatAdvanceNetRatio(data)} du net`}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -131,6 +138,12 @@ function AdvanceAvailableCard({
             Salaire journalier de référence : {formatCurrency(dailySalary)}
           </p>
         )}
+        {referenceNet > 0 && (
+          <p className="text-sm text-muted-foreground">
+            Net de référence : {formatCurrency(referenceNet)} (plafond avance :{' '}
+            {formatCurrency(Number(data.max_advance_from_net || 0))})
+          </p>
+        )}
 
         <Collapsible>
           <CollapsibleTrigger asChild>
@@ -155,6 +168,13 @@ function AdvanceAvailableCard({
               {maxCap > 0 && (
                 <li>
                   Plafond ({maxDays} jours max.) : {formatCurrency(maxCap)}
+                </li>
+              )}
+              {referenceNet > 0 && (
+                <li>
+                  Plafond {formatAdvanceNetRatio(data)} du net
+                  {outstanding > 0 ? ' (après avances en cours)' : ''} :{' '}
+                  {formatCurrency(maxNetCap)}
                 </li>
               )}
               <li className="font-medium text-foreground">
@@ -222,18 +242,23 @@ function AdvanceMobileCard({
 export default function SalaryAdvances() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const { data: employeeProfile } = useEmployeeProfileQuery(user?.id);
+  const queryClient = useQueryClient();
+  const userId = user?.id;
+  const { data: employeeProfile } = useEmployeeProfileQuery(userId);
   const resolvedEmployeeId = employeeProfile?.id;
+  const salaryAdvancesQuery = useEmployeeSalaryAdvancesQuery(userId);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [advances, setAdvances] = useState<SalaryAdvance[]>([]);
-  const [availableAmount, setAvailableAmount] = useState<AdvanceAvailableAmount | null>(
-    null
-  );
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [selectedAdvance, setSelectedAdvance] = useState<SalaryAdvance | null>(null);
   const requestsListRef = useRef<HTMLDivElement>(null);
+
+  const advances = salaryAdvancesQuery.data?.advances ?? [];
+  const availableAmount = salaryAdvancesQuery.data?.available ?? null;
+  const isLoading = salaryAdvancesQuery.isLoading;
+  const loadError = salaryAdvancesQuery.isError;
+
+  const refreshAdvances = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.employeeSalaryAdvances(userId) });
 
   const statusFilter = useMemo((): SalaryAdvanceStatusFilter => {
     const raw = searchParams.get('status');
@@ -243,31 +268,15 @@ export default function SalaryAdvances() {
     return 'all';
   }, [searchParams]);
 
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
-    setLoadError(false);
-    try {
-      const [advancesData, availableData] = await Promise.all([
-        getMySalaryAdvances(),
-        getMyAdvanceAvailable(),
-      ]);
-      setAdvances(advancesData);
-      setAvailableAmount(availableData);
-    } catch {
-      setLoadError(true);
+  useEffect(() => {
+    if (salaryAdvancesQuery.isError) {
       toast({
         title: 'Erreur',
         description: 'Impossible de charger les données.',
         variant: 'destructive',
       });
-    } finally {
-      setIsLoading(false);
     }
-  }, [toast]);
-
-  useEffect(() => {
-    void fetchData();
-  }, [fetchData]);
+  }, [salaryAdvancesQuery.isError, toast]);
 
   useEffect(() => {
     if (searchParams.get('new') === '1') {
@@ -386,7 +395,7 @@ export default function SalaryAdvances() {
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
               <span>Impossible de charger vos avances.</span>
-              <Button type="button" variant="outline" size="sm" onClick={() => void fetchData()}>
+              <Button type="button" variant="outline" size="sm" onClick={() => void refreshAdvances()}>
                 Réessayer
               </Button>
             </AlertDescription>
@@ -519,7 +528,7 @@ export default function SalaryAdvances() {
             onClose={closeRequestForm}
             onSuccess={() => {
               closeRequestForm();
-              void fetchData();
+              void refreshAdvances();
             }}
           />
         )}
@@ -528,7 +537,7 @@ export default function SalaryAdvances() {
           <SalaryAdvanceDetail
             advance={selectedAdvance}
             onClose={() => setSelectedAdvance(null)}
-            onUpdate={fetchData}
+            onUpdate={refreshAdvances}
           />
         )}
       </EmployeePageShell>

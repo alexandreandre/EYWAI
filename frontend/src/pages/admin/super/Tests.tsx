@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import apiClient from '../../../api/apiClient';
 
 import { log } from '@/lib/logger';
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 const DRAG_THRESHOLD_MS = 180;
 
 interface TestChild {
@@ -288,14 +289,7 @@ export default function Tests() {
   };
 
   if (loadingTree) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mx-auto" />
-          <p className="mt-4 text-gray-600">Chargement des cibles de test...</p>
-        </div>
-      </div>
-    );
+    return <SharkFinLoader variant="fullPage" label="Chargement des cibles de test…" />;
   }
 
   return (

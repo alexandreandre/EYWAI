@@ -1,7 +1,7 @@
 import type { DelegationHour } from '@/api/cse';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCseDate } from '@/lib/employeeCseUtils';
-import { Loader2 } from 'lucide-react';
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 
 interface EmployeeCseDelegationTabProps {
   hours: DelegationHour[];
@@ -31,9 +31,7 @@ export function EmployeeCseDelegationTab({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin" />
-          </div>
+          <SharkFinLoader label="Chargement des heures de délégation…" />
         ) : hours.length === 0 ? (
           <p className="py-8 text-center text-muted-foreground">
             Aucune heure de délégation saisie ce mois-ci.
@@ -48,6 +46,9 @@ export function EmployeeCseDelegationTab({
                 <div>
                   <p className="font-medium">{formatCseDate(hour.date)}</p>
                   <p className="text-sm text-muted-foreground">{hour.reason}</p>
+                  {hour.source && hour.source !== 'propre' && (
+                    <p className="text-xs text-muted-foreground capitalize">{hour.source}</p>
+                  )}
                 </div>
                 <p className="font-semibold">{hour.duration_hours} h</p>
               </li>

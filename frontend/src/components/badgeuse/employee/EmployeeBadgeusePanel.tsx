@@ -21,6 +21,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
@@ -69,7 +70,7 @@ export function EmployeeBadgeusePanel() {
       <div className={PAGE_ROOT}>
         {pageHeader()}
         <div className={CONTENT_COLUMN}>
-          <p className="text-sm text-muted-foreground">Chargement de la badgeuse…</p>
+          <SharkFinLoader label="Chargement de la badgeuse…" />
         </div>
       </div>
     );

@@ -52,7 +52,7 @@ import {
   MONTH_NAMES_FR,
   type PeriodSelection,
 } from "@/lib/analyticsPeriod";
-import { exportAnalyticsGestionCsv } from "@/lib/exportAnalyticsCsv";
+import { exportAnalyticsGestionXlsx } from "@/lib/exportAnalyticsGestionXlsx";
 
 const STATUS_LABELS: Record<string, string> = {
   planifie: "Planifié",
@@ -181,16 +181,17 @@ export default function AnalyticsGestion(): JSX.Element {
                 size="sm"
                 className="h-9"
                 disabled={!data}
-                onClick={() =>
-                  exportAnalyticsGestionCsv(
+                onClick={() => {
+                  void exportAnalyticsGestionXlsx(
                     activeCompany?.company_name ?? 'entreprise',
+                    periodBounds.label,
                     periodBounds.exportKey,
                     data,
-                  )
-                }
+                  );
+                }}
               >
                 <Download className="mr-2 h-4 w-4" />
-                Exporter
+                Exporter Excel
               </Button>
             </div>
           }

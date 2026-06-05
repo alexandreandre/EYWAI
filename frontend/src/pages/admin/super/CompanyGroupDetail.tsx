@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LogoUploader } from '@/components/LogoUploader';
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import {
   Dialog,
   DialogContent,
@@ -446,11 +447,7 @@ export default function CompanyGroupDetail() {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <SharkFinLoader variant="fullPage" label="Chargement du groupe…" />;
   }
 
   if (error) {

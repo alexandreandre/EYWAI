@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,11 +54,7 @@ function budgetGaugeFillClass(level: TrainingBudgetAlertLevel) {
 }
 
 function KpiLoader() {
-  return (
-    <div className="flex min-h-[48px] items-center justify-center">
-      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-    </div>
-  );
+  return <SharkFinLoader variant="compact" className="min-h-[48px]" label="Chargement…" />;
 }
 
 export default function PilotageTab() {

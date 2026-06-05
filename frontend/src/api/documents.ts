@@ -46,6 +46,14 @@ export interface GenerateDocumentPayload {
   template_id?: string | null;
   /** Persisté côté serveur dans generation_context (rebouclage à la signature). */
   nouveau_salaire?: number | null;
+  /** Valeurs avant/après pour les avenants (snapshot ou diff fiche). */
+  ancien_salaire?: number | null;
+  ancien_poste?: string | null;
+  nouveau_poste?: string | null;
+  ancienne_duree?: string | null;
+  nouvelle_duree?: string | null;
+  ancien_lieu?: string | null;
+  nouveau_lieu?: string | null;
 }
 
 export interface ExplorerPayslipItem {

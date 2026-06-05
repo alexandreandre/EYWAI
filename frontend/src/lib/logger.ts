@@ -59,8 +59,26 @@ function legacyConsoleLevel(args: unknown[]): LogLevel {
   return 'debug';
 }
 
+const DEV_CONSOLE_NOISE =
+  /Download the React DevTools|React Router Future Flag Warning/;
+
+/** Masque le bruit console connu des dépendances en dev (React, React Router). */
+function suppressKnownDevConsoleNoise(): void {
+  if (import.meta.env.PROD) return;
+
+  (['log', 'info', 'warn', 'debug'] as const).forEach((method) => {
+    const original = console[method].bind(console);
+    console[method] = (...args: unknown[]) => {
+      if (DEV_CONSOLE_NOISE.test(args.map(String).join(' '))) return;
+      original(...args);
+    };
+  });
+}
+
 /** Shim pour les console.log non migrés dans src/. */
 export function installConsoleShim(): void {
+  suppressKnownDevConsoleNoise();
+
   if (isAppDebugEnabled()) return;
 
   const wrap =

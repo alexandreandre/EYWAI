@@ -20,8 +20,8 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   getBDESDocuments,
+  getDelegationCredit,
   getDelegationHours,
-  getDelegationQuota,
   getMeetings,
   getMyElectedStatus,
 } from '@/api/cse';
@@ -63,6 +63,10 @@ export default function EmployeeCSE() {
 
   const isElected = electedStatus?.is_elected === true;
 
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
   const {
     data: meetings = [],
     isLoading: loadingMeetings,
@@ -74,18 +78,14 @@ export default function EmployeeCSE() {
   });
 
   const {
-    data: quota,
-    isLoading: loadingQuota,
-    isError: quotaError,
+    data: credit,
+    isLoading: loadingCredit,
+    isError: creditError,
   } = useQuery({
-    queryKey: ['cse', 'my-delegation-quota'],
-    queryFn: () => getDelegationQuota(),
+    queryKey: ['cse', 'my-delegation-credit', now.getFullYear(), now.getMonth() + 1],
+    queryFn: () => getDelegationCredit(now.getFullYear(), now.getMonth() + 1),
     enabled: isElected,
   });
-
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
 
   const {
     data: hours = [],
@@ -112,19 +112,18 @@ export default function EmployeeCSE() {
     [meetings]
   );
 
-  const consumedHours = hours.reduce((sum, h) => sum + h.duration_hours, 0);
-  const quotaHours = quota?.quota_hours_per_month ?? 0;
-  const remainingHours = quotaHours - consumedHours;
-  const isNearLimit =
-    quotaHours > 0 && remainingHours <= quotaHours * 0.2 && remainingHours > 0;
-  const isOverLimit = remainingHours < 0;
+  const consumedHours = credit?.consumed_hours ?? hours.reduce((sum, h) => sum + h.duration_hours, 0);
+  const quotaHours = credit?.credit_base ?? credit?.quota_hours_per_month ?? 0;
+  const remainingHours = credit?.remaining_hours ?? quotaHours - consumedHours;
+  const isNearLimit = credit?.is_near_limit ?? (quotaHours > 0 && remainingHours <= quotaHours * 0.2 && remainingHours > 0);
+  const isOverLimit = credit?.is_over_limit ?? remainingHours < 0;
 
   useEffect(() => {
-    if (!isElected || loadingQuota || loadingHours) return;
+    if (!isElected || loadingCredit || loadingHours) return;
     if ((isNearLimit || isOverLimit) && activeTab === 'meetings' && !tabParam) {
       setActiveTab('delegation');
     }
-  }, [isElected, isNearLimit, isOverLimit, loadingQuota, loadingHours, activeTab, tabParam]);
+  }, [isElected, isNearLimit, isOverLimit, loadingCredit, loadingHours, activeTab, tabParam]);
 
   if (loadingStatus) {
     return <EmployeeCsePageSkeleton />;
@@ -163,7 +162,21 @@ export default function EmployeeCSE() {
     ? mandateDaysRemaining(mandate.end_date)
     : null;
 
-  const partialError = meetingsError || quotaError || hoursError || bdesError;
+  const partialError = meetingsError || creditError || hoursError || bdesError;
+
+  const bannerProps = {
+    creditBase: credit?.credit_base ?? quotaHours,
+    reportedAvailable: credit?.reported_available ?? 0,
+    transfersIn: credit?.transfers_in ?? 0,
+    monthlyCap: credit?.monthly_cap ?? quotaHours * 1.5,
+    quotaHours,
+    consumedHours,
+    remainingHours,
+    isNearLimit,
+    isOverLimit,
+    warnings: credit?.warnings ?? [],
+    onSaisirHeure: () => setHourModalOpen(true),
+  };
 
   return (
     <EmployeePageShell>
@@ -207,14 +220,7 @@ export default function EmployeeCSE() {
       )}
 
       <div className="lg:hidden">
-        <EmployeeCseDelegationBanner
-          quotaHours={quotaHours}
-          consumedHours={consumedHours}
-          remainingHours={remainingHours}
-          isNearLimit={isNearLimit}
-          isOverLimit={isOverLimit}
-          onSaisirHeure={() => setHourModalOpen(true)}
-        />
+        <EmployeeCseDelegationBanner {...bannerProps} />
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -248,20 +254,12 @@ export default function EmployeeCSE() {
 
         <TabsContent value="delegation" className="mt-4 space-y-4">
           <div className="hidden lg:block">
-            <EmployeeCseDelegationBanner
-              quotaHours={quotaHours}
-              consumedHours={consumedHours}
-              remainingHours={remainingHours}
-              isNearLimit={isNearLimit}
-              isOverLimit={isOverLimit}
-              onSaisirHeure={() => setHourModalOpen(true)}
-              compact
-            />
+            <EmployeeCseDelegationBanner {...bannerProps} compact />
           </div>
           <EmployeeCseDelegationTab
             hours={hours}
-            isLoading={loadingHours || loadingQuota}
-            isError={hoursError || quotaError}
+            isLoading={loadingHours || loadingCredit}
+            isError={hoursError || creditError}
           />
         </TabsContent>
 

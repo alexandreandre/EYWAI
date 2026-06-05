@@ -34,7 +34,7 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (session: AuthSessionPayload) => Promise<void>;
+  login: (session: AuthSessionPayload) => Promise<User>;
   logout: () => Promise<void>;
   isLoading: boolean;
 }
@@ -159,7 +159,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  const login = async (session: AuthSessionPayload) => {
+  const login = async (session: AuthSessionPayload): Promise<User> => {
     boot?.resetBoot();
     persistAuthSession(session);
     applyAccessToken(session.access_token);
@@ -168,6 +168,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const me = await fetchCurrentUser();
       setUser(me);
       scheduleSilentRefresh();
+      return me;
     } catch (error) {
       await logout();
       throw error;
@@ -191,6 +192,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     clearAuthSession();
     delete apiClient.defaults.headers.common['Authorization'];
+    window.location.assign('/login');
   };
 
   return (

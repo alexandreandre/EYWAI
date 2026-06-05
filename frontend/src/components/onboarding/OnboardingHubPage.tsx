@@ -12,6 +12,7 @@ import {
   ClipboardList,
   Search,
   UserPlus,
+  UserRoundPlus,
 } from "lucide-react";
 
 import { listOnboardingHub, type OnboardingHubItem } from "@/api/onboarding";
@@ -93,7 +94,7 @@ export function OnboardingHubPage() {
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -105,6 +106,21 @@ export function OnboardingHubPage() {
               </div>
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
                 <ClipboardList className="h-5 w-5 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Fiches à compléter</p>
+                <p className="text-2xl font-bold tabular-nums text-amber-600">
+                  {hubQuery.isPending ? "—" : (hubKpis?.profile_incomplete ?? 0)}
+                </p>
+              </div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100">
+                <UserRoundPlus className="h-5 w-5 text-amber-600" />
               </div>
             </div>
           </CardContent>
@@ -235,6 +251,14 @@ export function OnboardingHubPage() {
                               {item.nb_overdue} en retard
                             </Badge>
                           ) : null}
+                          {!item.profile_complete ? (
+                            <Badge
+                              variant="outline"
+                              className="border-amber-300 bg-amber-50 text-[10px] text-amber-700"
+                            >
+                              Fiche à compléter ({item.nb_missing})
+                            </Badge>
+                          ) : null}
                         </div>
                         <p className="text-xs text-muted-foreground">
                           {item.job_title ?? "—"}
@@ -260,9 +284,16 @@ export function OnboardingHubPage() {
                           </p>
                         )}
                       </div>
-                      <Button asChild size="sm" variant="outline" className="shrink-0">
-                        <Link to={`/onboarding/${item.employee_id}`}>Ouvrir la checklist</Link>
-                      </Button>
+                      <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+                        <Button asChild size="sm" variant="outline">
+                          <Link to={`/onboarding/${item.employee_id}`}>Ouvrir la checklist</Link>
+                        </Button>
+                        {!item.profile_complete ? (
+                          <Button asChild size="sm" variant="ghost" className="text-amber-700 hover:text-amber-800">
+                            <Link to={`/employees/${item.employee_id}`}>Compléter la fiche</Link>
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

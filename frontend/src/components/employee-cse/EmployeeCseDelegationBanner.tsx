@@ -6,27 +6,37 @@ import { formatMonthYearLabel } from '@/lib/employeeCseUtils';
 import { cn } from '@/lib/utils';
 
 interface EmployeeCseDelegationBannerProps {
+  creditBase: number;
+  reportedAvailable: number;
+  transfersIn: number;
+  monthlyCap: number;
   quotaHours: number;
   consumedHours: number;
   remainingHours: number;
   isNearLimit: boolean;
   isOverLimit: boolean;
+  warnings?: string[];
   onSaisirHeure: () => void;
   compact?: boolean;
 }
 
 export function EmployeeCseDelegationBanner({
+  creditBase,
+  reportedAvailable,
+  transfersIn,
+  monthlyCap,
   quotaHours,
   consumedHours,
   remainingHours,
   isNearLimit,
   isOverLimit,
+  warnings = [],
   onSaisirHeure,
   compact = false,
 }: EmployeeCseDelegationBannerProps) {
   const monthLabel = formatMonthYearLabel(new Date());
   const progressValue =
-    quotaHours > 0 ? Math.min(100, (consumedHours / quotaHours) * 100) : 0;
+    monthlyCap > 0 ? Math.min(100, (consumedHours / monthlyCap) * 100) : 0;
 
   return (
     <Card
@@ -45,7 +55,7 @@ export function EmployeeCseDelegationBanner({
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">
-              {consumedHours.toFixed(1)} h consommées sur {quotaHours} h
+              {consumedHours.toFixed(1)} h consommées — plafond {monthlyCap.toFixed(1)} h
             </span>
             <span
               className={cn(
@@ -67,14 +77,18 @@ export function EmployeeCseDelegationBanner({
           />
         </div>
 
-        <div className="grid grid-cols-3 gap-3 text-center sm:gap-4">
+        <div className="grid grid-cols-2 gap-3 text-center sm:grid-cols-4 sm:gap-4">
           <div>
-            <p className="text-xs text-muted-foreground">Quota</p>
-            <p className="text-lg font-bold">{quotaHours} h</p>
+            <p className="text-xs text-muted-foreground">Crédit base</p>
+            <p className="text-lg font-bold">{creditBase} h</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Consommé</p>
-            <p className="text-lg font-bold">{consumedHours.toFixed(1)} h</p>
+            <p className="text-xs text-muted-foreground">Reporté</p>
+            <p className="text-lg font-bold">{reportedAvailable.toFixed(1)} h</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Mutualisé</p>
+            <p className="text-lg font-bold">{transfersIn.toFixed(1)} h</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Restant</p>
@@ -89,6 +103,16 @@ export function EmployeeCseDelegationBanner({
             </p>
           </div>
         </div>
+
+        {warnings.length > 0 && (
+          <ul className="space-y-1 text-sm text-amber-800 dark:text-amber-100">
+            {warnings.map((w) => (
+              <li key={w} className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900 dark:bg-amber-950/40">
+                {w}
+              </li>
+            ))}
+          </ul>
+        )}
 
         {(isNearLimit || isOverLimit) && (
           <p

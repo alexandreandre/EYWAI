@@ -117,6 +117,7 @@ export default function Employees() {
                 <SelectContent>
                   <SelectItem value="all">Tous</SelectItem>
                   <SelectItem value="actif">Actifs</SelectItem>
+                  <SelectItem value="en_onboarding">En onboarding</SelectItem>
                   <SelectItem value="en_sortie">En départ</SelectItem>
                   <SelectItem value="parti">Partis</SelectItem>
                   <SelectItem value="archive">Archivés</SelectItem>

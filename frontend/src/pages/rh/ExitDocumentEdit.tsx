@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Save, Eye, Loader2, RefreshCw } from 'lucide-react';
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -136,11 +137,7 @@ export default function ExitDocumentEdit() {
   }, [hasUnsavedChanges]);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <SharkFinLoader variant="fullPage" label="Chargement du document…" />;
   }
 
   if (loadError) {

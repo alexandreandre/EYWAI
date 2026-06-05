@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { RefreshCw } from 'lucide-react';
 import { useEmployeesQuery } from '@/hooks/queries/useEmployeesQuery';
 import { getTeams, type Team } from '@/api/teams';
 import * as calendarApi from '@/api/calendar';
-import { runWithConcurrency } from '@/lib/concurrency';
 import { useEmployeeCalendarOverview } from '@/hooks/useEmployeeCalendarOverview';
 import type { SchedulesEmployeeInput } from '@/lib/schedulesOverview';
 import { useToast } from '@/components/ui/use-toast';
@@ -17,6 +16,7 @@ import { CalendarEmployeeDrawer } from '@/components/schedules/CalendarEmployeeD
 import { CalendarBulkActionsBar } from '@/components/schedules/CalendarBulkActionsBar';
 import { ApplyModelDialog } from '@/components/schedules/ApplyModelDialog';
 import { AssistedFillDialog } from '@/components/schedules/assisted-fill/AssistedFillDialog';
+import { PointageImportDialog } from '@/components/schedules/assisted-fill/PointageImportDialog';
 import { TeamPlanningView } from '@/components/schedules/TeamPlanningView';
 import type {
   ModeFilter,
@@ -67,8 +67,7 @@ export default function Schedules() {
   const [drawerEmployeeId, setDrawerEmployeeId] = useState<string | null>(null);
   const [applyModelOpen, setApplyModelOpen] = useState(false);
   const [assistedFillOpen, setAssistedFillOpen] = useState(false);
-  const [isCalculatingPayroll, setIsCalculatingPayroll] = useState(false);
-
+  const [pointageImportOpen, setPointageImportOpen] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
 
@@ -223,29 +222,6 @@ export default function Schedules() {
     setSelectedIds(new Set(late));
   };
 
-  const calculatePayrollAll = useCallback(async () => {
-    if (globalKpis.aSaisir > 0) return;
-    setIsCalculatingPayroll(true);
-    try {
-      const tasks = employees.map(
-        (emp) => () => calendarApi.calculatePayrollEvents(emp.id, selectedYear, selectedMonth)
-      );
-      await runWithConcurrency(tasks, 5);
-      toast({
-        title: 'Calcul paie terminé',
-        description: `Événements de paie calculés pour ${employees.length} employé(s).`,
-      });
-    } catch {
-      toast({
-        title: 'Erreur',
-        description: 'Le calcul paie global a échoué pour certains employés.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsCalculatingPayroll(false);
-    }
-  }, [employees, selectedYear, selectedMonth, globalKpis.aSaisir, toast]);
-
   const allSaisiBanner =
     !isPageLoading &&
     filteredRows.length > 0 &&
@@ -260,12 +236,8 @@ export default function Schedules() {
         onMonthChange={setSelectedMonth}
         kpis={globalKpis}
         isLoading={isPageLoading}
-        onCalculatePayroll={() => void calculatePayrollAll()}
         onOpenAssistedFill={() => setAssistedFillOpen(true)}
-        isCalculatingPayroll={isCalculatingPayroll}
-        canCalculatePayroll={
-          !isPageLoading && globalKpis.aSaisir === 0 && employees.length > 0
-        }
+        onOpenPointageImport={() => setPointageImportOpen(true)}
       />
 
       {employeesLoadError && (
@@ -381,6 +353,15 @@ export default function Schedules() {
       <AssistedFillDialog
         open={assistedFillOpen}
         onOpenChange={setAssistedFillOpen}
+        year={selectedYear}
+        month={selectedMonth}
+        roster={assistedFillRoster}
+        onApplied={() => void refetch()}
+      />
+
+      <PointageImportDialog
+        open={pointageImportOpen}
+        onOpenChange={setPointageImportOpen}
         year={selectedYear}
         month={selectedMonth}
         roster={assistedFillRoster}

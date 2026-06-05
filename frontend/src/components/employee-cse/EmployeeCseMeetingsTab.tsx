@@ -24,7 +24,8 @@ import {
   sortMeetingsByUrgency,
 } from '@/lib/employeeCseUtils';
 import { cn } from '@/lib/utils';
-import { Calendar, FileText, Loader2, MapPin, Users } from 'lucide-react';
+import { Calendar, FileText, MapPin, Users } from 'lucide-react';
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 
 const STATUS_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: 'all', label: 'Toutes' },
@@ -118,9 +119,7 @@ export function EmployeeCseMeetingsTab({
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
+            <SharkFinLoader label="Chargement des réunions…" />
           ) : filteredMeetings.length === 0 ? (
             <p className="py-8 text-center text-muted-foreground">
               Aucune réunion à afficher pour ce filtre.

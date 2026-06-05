@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ExternalLink, FileText, Loader2 } from "lucide-react";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 
 import {
   getEnrollments,
@@ -165,7 +166,7 @@ export function FormationTrainingPanel({ employeeId }: { employeeId: string }) {
       });
     },
     onSuccess: () => {
-      toast({ title: "Demande envoyée — en attente de validation" });
+      toast({ title: "Demande envoyée — en attente de validation RH" });
       setRequestOpen(false);
       setSelectedTraining(null);
       setPrefDate("");
@@ -298,10 +299,7 @@ export function FormationTrainingPanel({ employeeId }: { employeeId: string }) {
       <section className="space-y-4">
         <h2 className="text-lg font-semibold">Mes inscriptions</h2>
         {enrollQ.isLoading ? (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            Chargement…
-          </div>
+          <SharkFinLoader label="Chargement de vos inscriptions…" />
         ) : enrollQ.isError ? (
           <p className="text-sm text-destructive">Impossible de charger vos inscriptions.</p>
         ) : (enrollQ.data ?? []).length === 0 ? (
@@ -337,10 +335,7 @@ export function FormationTrainingPanel({ employeeId }: { employeeId: string }) {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Catalogue</h2>
         {catalogQ.isLoading ? (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            Chargement…
-          </div>
+          <SharkFinLoader label="Chargement du catalogue…" />
         ) : catalogQ.isError ? (
           <p className="text-sm text-destructive">Impossible de charger le catalogue.</p>
         ) : catalogTrainings.length === 0 ? (

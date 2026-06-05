@@ -1,6 +1,7 @@
 // frontend/src/pages/cse/MeetingDetail.tsx
 // Détail d'une réunion CSE (RH ou élu avec accès API)
 
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
@@ -9,6 +10,7 @@ import {
   getMeetingMinutesPathIfAvailable,
   getBDESDocuments,
   processRecording,
+  updateMeeting,
 } from "@/api/cse";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -20,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import {
   MEETING_STATUS_LABELS,
   MEETING_TYPE_LABELS,
@@ -119,6 +122,38 @@ export default function MeetingDetail() {
     enabled: Boolean(meetingId) && meetingYear != null,
   });
 
+  const pvText = meeting ? extractPvTextFromNotes(meeting.notes) : null;
+  const [draft, setDraft] = useState("");
+
+  useEffect(() => {
+    setDraft(pvText ?? "");
+  }, [meetingId, pvText]);
+
+  const notesMutation = useMutation({
+    mutationFn: () =>
+      updateMeeting(meetingId!, {
+        notes: { pv_text: draft.trim() || null },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cse", "meeting-detail", meetingId] });
+      toast({
+        title: "Notes enregistrées",
+        description: "Le procès-verbal textuel a été mis à jour.",
+      });
+    },
+    onError: (e: unknown) => {
+      const msg =
+        e && typeof e === "object" && "response" in e
+          ? String((e as { response?: { data?: { detail?: string } } }).response?.data?.detail ?? "")
+          : "";
+      toast({
+        variant: "destructive",
+        title: "Échec de l'enregistrement",
+        description: msg || "Impossible d'enregistrer les notes.",
+      });
+    },
+  });
+
   const processMutation = useMutation({
     mutationFn: () => processRecording(meetingId!),
     onSuccess: () => {
@@ -144,7 +179,7 @@ export default function MeetingDetail() {
     },
   });
 
-  const pvText = meeting ? extractPvTextFromNotes(meeting.notes) : null;
+  const notesDirty = (draft.trim() || "") !== (pvText ?? "");
   const showGeneratePv =
     rhActions &&
     !pdfPath &&
@@ -377,7 +412,31 @@ export default function MeetingDetail() {
           <CardDescription>Synthèse textuelle et document PDF</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {pvText ? (
+          {rhActions ? (
+            <div className="space-y-3">
+              <Textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder="Saisissez vos notes de réunion, points abordés, décisions prises…"
+                className="min-h-[200px] resize-y"
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => notesMutation.mutate()}
+                  disabled={notesMutation.isPending || !notesDirty}
+                >
+                  {notesMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : null}
+                  Enregistrer les notes
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Visible par la RH et les élus participants.
+                </p>
+              </div>
+            </div>
+          ) : pvText ? (
             <div className="rounded-md border bg-muted/30 p-4 text-sm whitespace-pre-wrap">{pvText}</div>
           ) : recording?.has_summary ? (
             <p className="text-sm text-muted-foreground">

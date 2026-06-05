@@ -74,7 +74,12 @@ export function useRecruitmentPageModel() {
     last_name: string;
     email: string;
   } | null>(null);
-  const [hireSuccessEmployeeId, setHireSuccessEmployeeId] = useState<string | null>(null);
+  const [hireSuccessInfo, setHireSuccessInfo] = useState<{
+    employeeId: string;
+    username?: string;
+    email?: string;
+    generatedPassword?: string;
+  } | null>(null);
 
   const [newJob, setNewJob] = useState({
     title: "",
@@ -370,7 +375,12 @@ export function useRecruitmentPageModel() {
       setHireData({ hire_date: "", job_title: "", contract_type: "CDI", site: "", service_id: "" });
       toast({ title: "Embauche finalisée", description: res.message });
       if (res.employee_id) {
-        setHireSuccessEmployeeId(res.employee_id);
+        setHireSuccessInfo({
+          employeeId: res.employee_id,
+          username: res.username,
+          email: res.email,
+          generatedPassword: res.generated_password,
+        });
       }
     },
     onError: (err: { response?: { data?: { detail?: string } } }) => {
@@ -556,6 +566,11 @@ export function useRecruitmentPageModel() {
       setShowRejectModal(true);
       return;
     }
+    if (stage.stage_type === "hired") {
+      setHireCandidateId(candidateId);
+      setShowHireModal(true);
+      return;
+    }
     moveCandidateMutation.mutate({ candidateId, stageId });
   };
 
@@ -639,8 +654,8 @@ export function useRecruitmentPageModel() {
     setRejectStageId,
     duplicateEmployeeInfo,
     setDuplicateEmployeeInfo,
-    hireSuccessEmployeeId,
-    setHireSuccessEmployeeId,
+    hireSuccessInfo,
+    setHireSuccessInfo,
     newJob,
     setNewJob,
     newCandidate,

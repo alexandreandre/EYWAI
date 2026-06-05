@@ -1,5 +1,10 @@
+import { Suspense } from 'react';
 import { Navigate, Route } from 'react-router-dom';
 import * as Pages from '@/app/lazyPages';
+import { EmployeeCalendarGridSkeleton } from '@/components/employee-calendar/EmployeeCalendarGridSkeleton';
+import { EmployeeAbsencesPageSkeleton } from '@/components/skeletons/EmployeeAbsencesPageSkeleton';
+import { EmployeeDashboardSkeleton } from '@/components/skeletons/EmployeeDashboardSkeleton';
+import { TableSkeleton } from '@/components/skeletons/TableSkeleton';
 
 /**
  * Routes espace collaborateur (partagées entre rôle collaborateur et vue collaborateur RH).
@@ -7,9 +12,23 @@ import * as Pages from '@/app/lazyPages';
  */
 export const employeeCollaboratorRoutes = (
   <>
-    <Route path="/" element={<Pages.EmployeeDashboard />} />
+    <Route
+      path="/"
+      element={
+        <Suspense fallback={<EmployeeDashboardSkeleton />}>
+          <Pages.EmployeeDashboard />
+        </Suspense>
+      }
+    />
     <Route path="/profile" element={<Pages.ProfilePage />} />
-    <Route path="/payslips" element={<Pages.PayslipsPage />} />
+    <Route
+      path="/payslips"
+      element={
+        <Suspense fallback={<TableSkeleton rows={8} columns={4} />}>
+          <Pages.PayslipsPage />
+        </Suspense>
+      }
+    />
     <Route path="/employee/payslips/:payslipId" element={<Pages.EmployeePayslipDetail />} />
     <Route path="/badgeuse" element={<Pages.EmployeeBadgeusePage />} />
     <Route path="/annual-reviews" element={<Pages.EmployeeAnnualReviews />} />
@@ -18,10 +37,24 @@ export const employeeCollaboratorRoutes = (
     <Route path="/habilitations" element={<Pages.EmployeeFormationLegacyRedirect />} />
     <Route path="/objectives" element={<Pages.EmployeeFormationLegacyRedirect />} />
     <Route path="/catalogue-formations" element={<Pages.EmployeeFormationLegacyRedirect />} />
-    <Route path="/absences" element={<Pages.EmployeeAbsencesPage />} />
+    <Route
+      path="/absences"
+      element={
+        <Suspense fallback={<EmployeeAbsencesPageSkeleton />}>
+          <Pages.EmployeeAbsencesPage />
+        </Suspense>
+      }
+    />
     <Route path="/employee/leaves/new" element={<Navigate to="/absences" replace />} />
     <Route path="/employee/planning" element={<Pages.EmployeePlanning />} />
-    <Route path="/calendar" element={<Pages.EmployeeCalendarPage />} />
+    <Route
+      path="/calendar"
+      element={
+        <Suspense fallback={<EmployeeCalendarGridSkeleton />}>
+          <Pages.EmployeeCalendarPage />
+        </Suspense>
+      }
+    />
     <Route path="/expenses" element={<Pages.ExpensesPage />} />
     <Route path="/salary-advances" element={<Pages.SalaryAdvancesPage />} />
     <Route path="/employee/documents" element={<Pages.EmployeeCollaboratorDocumentsPage />} />

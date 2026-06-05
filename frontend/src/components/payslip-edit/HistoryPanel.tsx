@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { History, RotateCcw, Loader2, User, Clock } from 'lucide-react';
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { getPayslipHistory, restorePayslipVersion, HistoryEntry } from '@/api/payslips';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -64,11 +65,7 @@ export default function HistoryPanel({ payslipId, onRestore }: HistoryPanelProps
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <SharkFinLoader label="Chargement de l'historique…" className="p-12" />;
   }
 
   if (history.length === 0) {

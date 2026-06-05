@@ -21,7 +21,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { SidebarAccountMenu } from "@/components/ui/sidebar-account-menu";
 import { NotificationBell } from "@/components/NotificationBell";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { prefetchEmployeeRoute } from "@/lib/prefetchEmployee";
 import { getMyElectedStatus } from "@/api/cse";
 import { getMedicalSettings } from "@/api/medicalFollowUp";
 import { useEmployeeMedicalObligationsQuery } from "@/hooks/queries/useEmployeeMedicalObligationsQuery";
@@ -96,7 +97,13 @@ function isNavActive(path: string, currentPath: string): boolean {
 export function EmployeeSidebar() {
   const { user } = useAuth();
   const { activeCompany } = useCompany();
+  const queryClient = useQueryClient();
   const companyId = activeCompany?.company_id ?? "";
+  const handleNavPrefetch = (to: string) => () => {
+    if (user?.id) {
+      prefetchEmployeeRoute(queryClient, to, user.id, companyId || undefined);
+    }
+  };
   const [displayedLogo, setDisplayedLogo] = useState<{ url: string; scale: number } | null>(null);
 
   useEffect(() => {
@@ -165,7 +172,13 @@ export function EmployeeSidebar() {
   const renderNavItem = (item: NavItem) => (
     <SidebarMenuItem key={item.to} className="relative">
       <SidebarMenuButton asChild tooltip={collapsed ? item.label : undefined}>
-        <NavLink to={item.to} className={getNavClassName(item.to)} end={item.to === "/"}>
+        <NavLink
+          to={item.to}
+          className={getNavClassName(item.to)}
+          end={item.to === "/"}
+          onMouseEnter={handleNavPrefetch(item.to)}
+          onFocus={handleNavPrefetch(item.to)}
+        >
           <item.icon className="h-5 w-5 flex-shrink-0" />
           {!collapsed && <span className="font-medium">{item.label}</span>}
         </NavLink>
@@ -222,7 +235,12 @@ export function EmployeeSidebar() {
         <SidebarMenu className={collapsed ? "mb-2 flex flex-col items-center gap-1" : "mb-2"}>
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip={collapsed ? "Support" : undefined}>
-              <NavLink to="/support" className={getNavClassName("/support")}>
+              <NavLink
+                to="/support"
+                className={getNavClassName("/support")}
+                onMouseEnter={handleNavPrefetch("/support")}
+                onFocus={handleNavPrefetch("/support")}
+              >
                 <LifeBuoy className="h-5 w-5 flex-shrink-0" />
                 {!collapsed && <span className="font-medium">Support</span>}
               </NavLink>

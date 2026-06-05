@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { ArrowLeft, Save, Eye, History, Loader2 } from 'lucide-react';
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import {
@@ -36,6 +37,7 @@ import { MaintenanceDetailModal } from '@/components/payslip/MaintenanceDetailMo
 import { PayslipComparisonTab } from '@/components/payslip/PayslipComparisonTab';
 import { PayslipTrendTab } from '@/components/payslip/PayslipTrendTab';
 import { PayslipValidateBlockedModal } from '@/components/payslip/PayslipValidateBlockedModal';
+import { PayslipAlertsBanner } from '@/components/payslip/PayslipAlertsBanner';
 import { cn } from '@/lib/utils';
 
 function isCriticalValidationBlock(err: unknown): boolean {
@@ -222,11 +224,7 @@ export default function PayslipEdit() {
   }, [hasUnsavedChanges]);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <SharkFinLoader variant="fullPage" label="Chargement du bulletin…" />;
   }
 
   if (!payslip || !editedData) {
@@ -235,6 +233,8 @@ export default function PayslipEdit() {
 
   return (
     <div className="container mx-auto space-y-6">
+      <PayslipAlertsBanner data={editedData} />
+
       {/* Header avec navigation */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -361,6 +361,7 @@ export default function PayslipEdit() {
           <SyntheseNetSection
             data={editedData.synthese_net}
             netAPayer={editedData.net_a_payer}
+            totalExonerations={editedData.total_exonerations}
             onChange={(data, newNetAPayer) => {
               updateEditedData(['synthese_net'], data);
               updateEditedData(['net_a_payer'], newNetAPayer);

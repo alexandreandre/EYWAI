@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 
 import { getEvaluations, type EmployeeCompetency } from "@/api/competencies";
 import { Badge } from "@/components/ui/badge";
@@ -25,12 +25,7 @@ export function FormationCompetenciesPanel({ employeeId }: { employeeId: string 
   }, [q.data, gapsOnly]);
 
   if (q.isLoading) {
-    return (
-      <div className="flex items-center gap-2 py-8 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin" />
-        Chargement…
-      </div>
-    );
+    return <SharkFinLoader label="Chargement des compétences…" />;
   }
   if (q.isError) {
     return <p className="text-sm text-destructive">Impossible de charger vos compétences.</p>;

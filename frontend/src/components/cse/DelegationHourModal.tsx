@@ -14,8 +14,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { createDelegationHour, type DelegationHourCreate } from "@/api/cse";
+import {
+  createDelegationHour,
+  type DelegationHourCreate,
+  type DelegationHourSource,
+} from "@/api/cse";
 import { Loader2 } from "lucide-react";
 
 interface DelegationHourModalProps {
@@ -34,6 +45,8 @@ export function DelegationHourModal({
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [durationHours, setDurationHours] = useState("");
   const [reason, setReason] = useState("");
+  const [source, setSource] = useState<DelegationHourSource>("propre");
+  const [originMonth, setOriginMonth] = useState("");
 
   const createMutation = useMutation({
     mutationFn: (data: DelegationHourCreate) => createDelegationHour(data),
@@ -84,6 +97,8 @@ export function DelegationHourModal({
       date,
       duration_hours: hours,
       reason,
+      source,
+      origin_month: source === "reportee" && originMonth ? originMonth : undefined,
     });
   };
 
@@ -115,6 +130,31 @@ export function DelegationHourModal({
               placeholder="Ex: 2.5"
             />
           </div>
+          <div>
+            <Label htmlFor="source">Source</Label>
+            <Select value={source} onValueChange={(v) => setSource(v as DelegationHourSource)}>
+              <SelectTrigger id="source">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="propre">Heures du mois</SelectItem>
+                <SelectItem value="reportee">Heures reportées</SelectItem>
+                <SelectItem value="mutualisee">Heures mutualisées reçues</SelectItem>
+                <SelectItem value="exceptionnelle">Circonstances exceptionnelles</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {source === "reportee" && (
+            <div>
+              <Label htmlFor="origin-month">Mois d&apos;origine (report)</Label>
+              <Input
+                id="origin-month"
+                type="month"
+                value={originMonth ? originMonth.slice(0, 7) : ""}
+                onChange={(e) => setOriginMonth(`${e.target.value}-01`)}
+              />
+            </div>
+          )}
           <div>
             <Label htmlFor="reason">Motif *</Label>
             <Textarea

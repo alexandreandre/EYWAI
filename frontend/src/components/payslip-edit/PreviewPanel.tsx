@@ -40,6 +40,11 @@ export default function PreviewPanel({ data, pdfNotes, cumuls }: PreviewPanelPro
               <p className="text-sm text-muted-foreground">
                 SIRET: {data.en_tete?.entreprise?.siret}
               </p>
+              {data.en_tete?.entreprise?.naf_ape && (
+                <p className="text-sm text-muted-foreground">
+                  NAF/APE: {data.en_tete.entreprise.naf_ape}
+                </p>
+              )}
               <p className="text-sm text-muted-foreground">
                 {data.en_tete?.entreprise?.adresse?.rue}
               </p>
@@ -53,6 +58,16 @@ export default function PreviewPanel({ data, pdfNotes, cumuls }: PreviewPanelPro
               <p className="text-sm text-muted-foreground">
                 Emploi: {data.en_tete?.salarie?.emploi}
               </p>
+              {data.en_tete?.salarie?.classification && (
+                <p className="text-sm text-muted-foreground">
+                  Classification: {data.en_tete.salarie.classification}
+                </p>
+              )}
+              {data.en_tete?.salarie?.convention_collective && (
+                <p className="text-sm text-muted-foreground">
+                  CCN: {data.en_tete.salarie.convention_collective}
+                </p>
+              )}
               <p className="text-sm text-muted-foreground">
                 Statut: {data.en_tete?.salarie?.statut}
               </p>
@@ -138,150 +153,83 @@ export default function PreviewPanel({ data, pdfNotes, cumuls }: PreviewPanelPro
             </div>
           </div>
 
-          {/* Cotisations détaillées */}
-          {data.structure_cotisations && (
+          {/* Cotisations — regroupement officiel par risque */}
+          {(data.cotisations_officielles?.length > 0 || data.structure_cotisations) && (
             <div>
-              <h3 className="font-bold mb-3 text-lg">Détail des Cotisations et Contributions</h3>
+              <h3 className="font-bold mb-3 text-lg">Cotisations et contributions sociales</h3>
 
-              {/* Cotisations principales */}
-              {data.structure_cotisations.bloc_principales && data.structure_cotisations.bloc_principales.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="font-medium mb-2 text-sm text-muted-foreground">Santé, Retraite, Chômage...</h4>
-                  <div className="border rounded-lg overflow-hidden">
-                    <table className="w-full text-xs">
-                      <thead className="bg-muted">
-                        <tr>
-                          <th className="text-left p-2">Libellé</th>
-                          <th className="text-right p-2">Base</th>
-                          <th className="text-right p-2">Taux Sal.</th>
-                          <th className="text-right p-2">Montant Sal.</th>
-                          <th className="text-right p-2">Taux Pat.</th>
-                          <th className="text-right p-2">Montant Pat.</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.structure_cotisations.bloc_principales.map((cot: any, idx: number) => (
-                          <tr key={idx} className="border-t text-xs">
-                            <td className="p-2">{cot.libelle}</td>
-                            <td className="text-right p-2">{formatCurrency(cot.base)}</td>
-                            <td className="text-right p-2">{cot.taux_salarial ? `${cot.taux_salarial.toFixed(2)}%` : '0.00%'}</td>
-                            <td className="text-right p-2 text-red-600">{formatCurrency(cot.montant_salarial)}</td>
-                            <td className="text-right p-2">{cot.taux_patronal ? `${cot.taux_patronal.toFixed(2)}%` : '0.00%'}</td>
-                            <td className="text-right p-2">{formatCurrency(cot.montant_patronal)}</td>
+              {data.cotisations_officielles && data.cotisations_officielles.length > 0 ? (
+                data.cotisations_officielles.map((rubrique: any, rIdx: number) => (
+                  <div key={`rub-${rIdx}`} className="mb-4">
+                    <h4 className="font-medium mb-2 text-sm bg-muted/50 p-2 rounded">{rubrique.libelle}</h4>
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead className="bg-muted">
+                          <tr>
+                            <th className="text-left p-2">Libellé</th>
+                            <th className="text-right p-2">Base</th>
+                            <th className="text-right p-2">Montant Sal.</th>
+                            <th className="text-right p-2">Montant Pat.</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Allègements */}
-              {data.structure_cotisations.bloc_allegements && data.structure_cotisations.bloc_allegements.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="font-medium mb-2">Allègements de cotisations</h4>
-                  <div className="border rounded-lg overflow-hidden">
-                    <table className="w-full text-xs">
-                      <thead className="bg-green-50">
-                        <tr>
-                          <th className="text-left p-2">Libellé</th>
-                          <th className="text-right p-2">Base</th>
-                          <th className="text-right p-2">Taux Sal.</th>
-                          <th className="text-right p-2">Montant Sal.</th>
-                          <th className="text-right p-2">Taux Pat.</th>
-                          <th className="text-right p-2">Montant Pat.</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.structure_cotisations.bloc_allegements.map((cot: any, idx: number) => (
-                          <tr key={idx} className="border-t text-xs">
-                            <td className="p-2">{cot.libelle}</td>
-                            <td className="text-right p-2">{formatCurrency(cot.base)}</td>
-                            <td className="text-right p-2">{cot.taux_salarial ? `${cot.taux_salarial.toFixed(6)}` : '0.00'}</td>
-                            <td className="text-right p-2 text-green-600">{formatCurrency(cot.montant_salarial)}</td>
-                            <td className="text-right p-2">{cot.taux_patronal ? `${cot.taux_patronal.toFixed(6)}` : '0.00'}</td>
-                            <td className="text-right p-2 text-green-600">{formatCurrency(cot.montant_patronal)}</td>
+                        </thead>
+                        <tbody>
+                          {rubrique.lignes?.map((cot: any, idx: number) => (
+                            <tr key={idx} className="border-t text-xs">
+                              <td className="p-2">{cot.libelle}</td>
+                              <td className="text-right p-2">{formatCurrency(cot.base)}</td>
+                              <td className="text-right p-2 text-red-600">{formatCurrency(cot.montant_salarial)}</td>
+                              <td className="text-right p-2">{formatCurrency(cot.montant_patronal)}</td>
+                            </tr>
+                          ))}
+                          <tr className="border-t bg-muted/30 font-semibold">
+                            <td className="p-2" colSpan={2}>Sous-total</td>
+                            <td className="text-right p-2 text-red-600">{formatCurrency(rubrique.total_salarial)}</td>
+                            <td className="text-right p-2">{formatCurrency(rubrique.total_patronal)}</td>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              )}
-
-              {/* Autres Contributions Employeur */}
-              {data.structure_cotisations.bloc_autres_contributions && data.structure_cotisations.bloc_autres_contributions.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="font-medium mb-2">Autres Contributions Dues par l'Employeur</h4>
-                  <div className="border rounded-lg overflow-hidden">
-                    <table className="w-full text-xs">
-                      <thead className="bg-muted">
-                        <tr>
-                          <th className="text-left p-2">Libellé</th>
-                          <th className="text-right p-2">Base</th>
-                          <th className="text-right p-2">Taux</th>
-                          <th className="text-right p-2">Montant</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.structure_cotisations.bloc_autres_contributions.map((cot: any, idx: number) => (
-                          <tr key={idx} className="border-t text-xs">
-                            <td className="p-2">{cot.libelle}</td>
-                            <td className="text-right p-2">{formatCurrency(cot.base)}</td>
-                            <td className="text-right p-2">{cot.taux ? `${cot.taux.toFixed(4)}%` : ''}</td>
-                            <td className="text-right p-2">{formatCurrency(cot.montant)}</td>
+                ))
+              ) : (
+                /* Fallback structure_cotisations legacy */
+                data.structure_cotisations?.bloc_principales && data.structure_cotisations.bloc_principales.length > 0 && (
+                  <div className="mb-4">
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead className="bg-muted">
+                          <tr>
+                            <th className="text-left p-2">Libellé</th>
+                            <th className="text-right p-2">Montant Sal.</th>
+                            <th className="text-right p-2">Montant Pat.</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {data.structure_cotisations.bloc_principales.map((cot: any, idx: number) => (
+                            <tr key={idx} className="border-t text-xs">
+                              <td className="p-2">{cot.libelle}</td>
+                              <td className="text-right p-2 text-red-600">{formatCurrency(cot.montant_salarial)}</td>
+                              <td className="text-right p-2">{formatCurrency(cot.montant_patronal)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
+                )
+              )}
+
+              {data.total_exonerations > 0 && (
+                <div className="p-3 bg-green-50 rounded-lg mb-4 text-sm font-medium">
+                  Exonérations, allègements et réductions (total) : {formatCurrency(data.total_exonerations)}
                 </div>
               )}
 
-              {/* Total des retenues */}
-              {(data.structure_cotisations.total_retenues_avant_csg || data.structure_cotisations.total_patronal_avant_allegements) && (
-                <div className="p-3 bg-muted/30 rounded-lg mb-4">
-                  <p className="text-sm font-medium">
-                    Total des retenues (avant CSG/CRDS non déductible): {formatCurrency(data.structure_cotisations.total_retenues_avant_csg)} / {formatCurrency(data.structure_cotisations.total_patronal_avant_allegements)}
-                  </p>
-                </div>
-              )}
-
-              {/* CSG/CRDS non déductible */}
-              {data.structure_cotisations.bloc_csg_non_deductible && data.structure_cotisations.bloc_csg_non_deductible.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="font-medium mb-2">CSG/CRDS non déductible</h4>
-                  <div className="border rounded-lg overflow-hidden">
-                    <table className="w-full text-xs">
-                      <thead className="bg-muted">
-                        <tr>
-                          <th className="text-left p-2">Libellé</th>
-                          <th className="text-right p-2">Base</th>
-                          <th className="text-right p-2">Taux</th>
-                          <th className="text-right p-2">Montant</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.structure_cotisations.bloc_csg_non_deductible.map((cot: any, idx: number) => (
-                          <tr key={idx} className="border-t text-xs">
-                            <td className="p-2">{cot.libelle}</td>
-                            <td className="text-right p-2">{formatCurrency(cot.base)}</td>
-                            <td className="text-right p-2">{cot.taux_salarial ? `${cot.taux_salarial.toFixed(4)}%` : ''}</td>
-                            <td className="text-right p-2 text-red-600">{formatCurrency(cot.montant_salarial)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Totaux cotisations */}
               <div className="p-3 bg-blue-50 rounded-lg space-y-2 mt-4">
                 <div className="flex justify-between font-bold text-base">
                   <span>Total Cotisations Salariales:</span>
                   <span className="text-red-600">
-                    {formatCurrency(data.structure_cotisations.total_salarial)}
+                    {formatCurrency(data.structure_cotisations?.total_salarial)}
                   </span>
                 </div>
               </div>
@@ -366,6 +314,13 @@ export default function PreviewPanel({ data, pdfNotes, cumuls }: PreviewPanelPro
           {/* Synthèse Net - Format correspondant au bulletin réel */}
           <div className="border-t-2 pt-6 space-y-3">
             <div className="space-y-3">
+              {data.synthese_net?.montant_net_social != null && (
+                <div className="flex justify-between py-2 border-b font-bold text-base text-blue-700">
+                  <span>Montant net social:</span>
+                  <span>{formatCurrency(data.synthese_net.montant_net_social)}</span>
+                </div>
+              )}
+
               <div className="flex justify-between py-2 border-b font-bold text-base">
                 <span>Net à payer avant impôt:</span>
                 <span className="text-green-600">
@@ -403,17 +358,29 @@ export default function PreviewPanel({ data, pdfNotes, cumuls }: PreviewPanelPro
               <span>NET À PAYER:</span>
               <span>{formatCurrency(data.net_a_payer)}</span>
             </div>
+            {data.en_tete?.date_paiement && (
+              <div className="flex justify-between py-2 text-sm text-muted-foreground">
+                <span>Date de paiement:</span>
+                <span>{data.en_tete.date_paiement}</span>
+              </div>
+            )}
           </div>
 
           {/* Total versé par l'employeur */}
           {data.pied_de_page && (
-            <div className="text-base border-t-2 pt-4 mt-4">
+            <div className="text-base border-t-2 pt-4 mt-4 space-y-2">
               <div className="flex justify-between font-bold text-lg">
                 <span>Total versé par l'employeur:</span>
                 <span className="text-xl">
                   {formatCurrency(data.pied_de_page.cout_total_employeur)}
                 </span>
               </div>
+              {data.pied_de_page.total_exonerations > 0 && (
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Total exonérations et allègements:</span>
+                  <span>{formatCurrency(data.pied_de_page.total_exonerations)}</span>
+                </div>
+              )}
             </div>
           )}
 

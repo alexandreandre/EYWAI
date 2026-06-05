@@ -5,7 +5,8 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Download, Loader2 } from 'lucide-react';
+import { Download } from 'lucide-react';
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { getPayslipDetails, type PayslipDetail } from '@/api/payslips';
 import {
   EmployeePageBackLink,
@@ -57,11 +58,7 @@ export default function EmployeePayslipDetail() {
   }, [payslipId, navigate, toast]);
 
   if (loading || !payslip) {
-    return (
-      <div className="flex justify-center py-24">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <SharkFinLoader variant="fullPage" label="Chargement du bulletin…" />;
   }
 
   return (

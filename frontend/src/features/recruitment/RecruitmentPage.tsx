@@ -234,8 +234,8 @@ export function RecruitmentPage() {
         setHireCandidateId={model.setHireCandidateId}
         servicesQuery={model.servicesQuery}
         hireMutation={model.hireMutation}
-        hireSuccessEmployeeId={model.hireSuccessEmployeeId}
-        setHireSuccessEmployeeId={model.setHireSuccessEmployeeId}
+        hireSuccessInfo={model.hireSuccessInfo}
+        setHireSuccessInfo={model.setHireSuccessInfo}
         showDuplicateEmployeeModal={model.showDuplicateEmployeeModal}
         setShowDuplicateEmployeeModal={model.setShowDuplicateEmployeeModal}
         duplicateEmployeeInfo={model.duplicateEmployeeInfo}

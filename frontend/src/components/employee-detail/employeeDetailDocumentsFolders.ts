@@ -58,6 +58,7 @@ export interface PayslipItem {
   id: string;
   name: string;
   url: string;
+  preview_url?: string;
   month: number;
   year: number;
 }

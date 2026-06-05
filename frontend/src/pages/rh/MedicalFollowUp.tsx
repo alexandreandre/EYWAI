@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -1227,9 +1228,7 @@ export default function MedicalFollowUp() {
               <Card>
                 <CardContent className="p-0">
                   {loading ? (
-                    <div className="flex justify-center py-10">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </div>
+                    <SharkFinLoader label="Chargement des visites…" />
                   ) : loadError ? (
                     <div className="p-6">
                       <MedicalQueryError message={loadError} onRetry={() => void load()} />

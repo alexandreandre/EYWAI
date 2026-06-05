@@ -13,6 +13,8 @@ import {
 } from '@/api/recruitment';
 import * as ribAlertsApi from '@/api/ribAlerts';
 import { getPendingSignaturesRH } from '@/api/signatures';
+import { listOnboardingHub } from '@/api/onboarding';
+import { ONBOARDING_LOOKBACK_DAYS } from '@/lib/onboardingUtils';
 import { queryKeys } from '@/lib/queryKeys';
 import { useActiveCompanyId } from './useCompanyId';
 
@@ -146,6 +148,15 @@ export function usePendingSignaturesRhQuery(enabled = true) {
   return useQuery({
     queryKey: queryKeys.pendingSignaturesRh(companyId),
     queryFn: getPendingSignaturesRH,
+    enabled: enabled && Boolean(companyId),
+  });
+}
+
+export function useOnboardingDashboardQuery(enabled = true) {
+  const companyId = useActiveCompanyId();
+  return useQuery({
+    queryKey: queryKeys.onboardingHubDashboard(companyId),
+    queryFn: () => listOnboardingHub(companyId as string, ONBOARDING_LOOKBACK_DAYS),
     enabled: enabled && Boolean(companyId),
   });
 }

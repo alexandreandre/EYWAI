@@ -8,10 +8,12 @@ import {
   BookOpen,
   ExternalLink,
   FileText,
+  Check,
   Loader2,
   Pencil,
   Plus,
   UserPlus,
+  X,
 } from "lucide-react";
 
 import apiClient from "@/api/apiClient";
@@ -22,8 +24,10 @@ import {
   createEnrollment,
   createTraining,
   getEnrollments,
+  getPendingRHApproval,
   getTotalConsumed,
   getTrainings,
+  rhApprove,
   updateEnrollment,
   updateTraining,
   type TrainingCatalog,
@@ -123,6 +127,8 @@ function typeBadgeClass(t: string) {
       return "bg-muted";
   }
 }
+
+const PENDING_RH_STATUSES = new Set(["demande_salarie", "approuve_manager"]);
 
 /** Clés API d'inscription — couleurs basées sur la valeur renvoyée par l'API, pas sur le libellé affiché. */
 type EnrollmentApiStatus = "planned" | "in_progress" | "completed" | "cancelled";
@@ -249,6 +255,11 @@ export default function CatalogueTab({
   const [habObtained, setHabObtained] = useState(new Date().toISOString().slice(0, 10));
   const [habExpiry, setHabExpiry] = useState("");
   const [habNotes, setHabNotes] = useState("");
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectTarget, setRejectTarget] = useState<TrainingEnrollment | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+
+  const companyId = activeCompany?.company_id ?? "";
 
   const employeesQuery = useQuery({
     queryKey: ["training", "employees"],
@@ -289,6 +300,23 @@ export default function CatalogueTab({
       }),
     enabled: showRhActions && (mainTab === "inscriptions" || forcedMainTab === "inscriptions"),
   });
+
+  const pendingQuery = useQuery({
+    queryKey: ["training", "pending-rh"],
+    queryFn: () => getPendingRHApproval(companyId),
+    enabled:
+      showRhActions &&
+      Boolean(companyId) &&
+      (mainTab === "inscriptions" || forcedMainTab === "inscriptions"),
+  });
+
+  const managedEnrollments = useMemo(() => {
+    const rows = enrollmentsQuery.data ?? [];
+    if (enStatus === "all") {
+      return rows.filter((r) => !PENDING_RH_STATUSES.has(r.status));
+    }
+    return rows;
+  }, [enrollmentsQuery.data, enStatus]);
 
   const filteredCatalog = useMemo(() => {
     let rows = trainingsQuery.data ?? [];
@@ -430,6 +458,41 @@ export default function CatalogueTab({
     onSuccess: () => {
       toast({ title: "Inscription annulée" });
       invalidate();
+    },
+  });
+
+  const rhApproveMutation = useMutation({
+    mutationFn: ({
+      id,
+      approved,
+      planned_start_date,
+      rejection_reason,
+    }: {
+      id: string;
+      approved: boolean;
+      planned_start_date?: string;
+      rejection_reason?: string;
+    }) =>
+      rhApprove(id, companyId, {
+        approved,
+        planned_start_date,
+        rejection_reason,
+      }),
+    onSuccess: (_data, vars) => {
+      toast({
+        title: vars.approved ? "Demande acceptée — inscription planifiée" : "Demande refusée",
+      });
+      setRejectOpen(false);
+      setRejectTarget(null);
+      setRejectReason("");
+      invalidate();
+    },
+    onError: (e: unknown) => {
+      const msg =
+        typeof e === "object" && e && "response" in e
+          ? String((e as { response?: { data?: { detail?: string } } }).response?.data?.detail)
+          : "";
+      toast({ variant: "destructive", title: "Erreur", description: msg || "Action impossible." });
     },
   });
 
@@ -752,6 +815,70 @@ export default function CatalogueTab({
 
         {showRhActions ? (
           <TabsContent value="inscriptions" className="space-y-4 pt-4">
+            {(pendingQuery.data ?? []).length > 0 ? (
+              <Card className="border-amber-500/40 bg-amber-500/5">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">
+                    Demandes en attente ({pendingQuery.data?.length ?? 0})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {(pendingQuery.data ?? []).map((row) => (
+                    <div
+                      key={row.id}
+                      className="flex flex-col gap-3 rounded-lg border bg-background p-3 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="space-y-1 text-sm">
+                        <p className="font-medium">
+                          {row.employee_name ?? "—"} — {row.training_title ?? "—"}
+                        </p>
+                        <p className="text-muted-foreground">
+                          Date souhaitée : {row.planned_date?.slice(0, 10) ?? "—"}
+                          {row.unit_cost_ht != null ? ` · ${row.unit_cost_ht} € HT` : ""}
+                        </p>
+                        {row.notes?.trim() ? (
+                          <p className="text-muted-foreground italic">
+                            « {row.notes.trim()} »
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          disabled={rhApproveMutation.isPending}
+                          onClick={() =>
+                            rhApproveMutation.mutate({
+                              id: row.id,
+                              approved: true,
+                              planned_start_date:
+                                row.planned_date?.slice(0, 10) ||
+                                new Date().toISOString().slice(0, 10),
+                            })
+                          }
+                        >
+                          <Check className="mr-1 h-3.5 w-3.5" />
+                          Valider
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={rhApproveMutation.isPending}
+                          onClick={() => {
+                            setRejectTarget(row);
+                            setRejectReason("");
+                            setRejectOpen(true);
+                          }}
+                        >
+                          <X className="mr-1 h-3.5 w-3.5" />
+                          Refuser
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ) : null}
+
             <div className="flex flex-wrap items-end gap-3">
               <div className="grid gap-1.5 min-w-0">
                 <Label>Formation</Label>
@@ -810,7 +937,7 @@ export default function CatalogueTab({
               <Skeleton className="h-32 w-full" />
             ) : enrollmentsQuery.isError ? (
               <p className="text-sm text-destructive">Impossible de charger les inscriptions.</p>
-            ) : (enrollmentsQuery.data ?? []).length === 0 ? (
+            ) : (managedEnrollments ?? []).length === 0 ? (
               <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
                 Aucune inscription.
               </div>
@@ -828,7 +955,7 @@ export default function CatalogueTab({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(enrollmentsQuery.data ?? []).map((row) => {
+                    {managedEnrollments.map((row) => {
                       const statusKey = canonicalEnrollmentStatus(row.status);
                       const selectValue = statusKey ?? row.status;
                       return (
@@ -1077,6 +1204,47 @@ export default function CatalogueTab({
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Refuser la demande</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">
+              {rejectTarget?.employee_name ?? "—"} — {rejectTarget?.training_title ?? "—"}
+            </p>
+            <div className="grid gap-2">
+              <Label>Motif (optionnel)</Label>
+              <Textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                rows={3}
+                placeholder="Précisez la raison du refus…"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setRejectOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!rejectTarget || rhApproveMutation.isPending}
+              onClick={() => {
+                if (!rejectTarget) return;
+                rhApproveMutation.mutate({
+                  id: rejectTarget.id,
+                  approved: false,
+                  rejection_reason: rejectReason.trim() || undefined,
+                });
+              }}
+            >
+              Refuser
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!archiveTarget} onOpenChange={() => setArchiveTarget(null)}>
         <AlertDialogContent>

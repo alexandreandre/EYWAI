@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { Link } from "react-router-dom";
 
 import { getEmployeeStatus } from "@/api/legalObligations";
@@ -15,12 +15,7 @@ export function FormationLegalPanel({ employeeId }: { employeeId: string }) {
   });
 
   if (q.isLoading) {
-    return (
-      <div className="flex items-center gap-2 py-8 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin" />
-        Chargement…
-      </div>
-    );
+    return <SharkFinLoader label="Chargement des obligations légales…" />;
   }
   if (q.isError || !q.data) {
     return <p className="text-sm text-destructive">Impossible de charger vos obligations légales.</p>;

@@ -17,9 +17,19 @@ export interface BulletinLigneBrut {
   is_arret_maladie?: boolean;
 }
 
+/** Rubrique officielle de cotisation (regroupement par risque). */
+export interface CotisationRubriqueOfficielle {
+  code: string;
+  libelle: string;
+  lignes: Record<string, unknown>[];
+  total_salarial: number;
+  total_patronal: number;
+}
+
 /** Synthèse net du bulletin (champs maintien ajoutés en T4B). */
 export interface PayslipSyntheseNet {
   net_social_avant_impot?: number | null;
+  montant_net_social?: number | null;
   net_imposable?: number | null;
   impot_prelevement_a_la_source?: {
     base?: number | null;
@@ -45,8 +55,16 @@ export interface PayslipBulletinData {
   synthese_net?: PayslipSyntheseNet;
   calcul_du_brut?: BulletinLigneBrut[];
   structure_cotisations?: Record<string, unknown>;
+  cotisations_officielles?: CotisationRubriqueOfficielle[];
+  total_exonerations?: number;
   salaire_brut?: number;
   net_a_payer?: number;
+  alertes_baremes?: Array<{
+    code?: string;
+    message?: string;
+    critique?: boolean;
+    severity?: string;
+  }>;
   primes_non_soumises?: unknown[];
   notes_de_frais?: unknown[];
   arbitrage_conges?: string | null;
@@ -91,6 +109,7 @@ export interface PayslipInfo {
   month: number;
   year: number;
   url: string;
+  preview_url?: string;
   net_a_payer?: number;
   manually_edited: boolean;
   edit_count: number;
@@ -158,6 +177,7 @@ export interface PayslipDetail {
   month: number;
   year: number;
   url: string;
+  preview_url?: string;
   pdf_storage_path: string;
   payslip_data: PayslipBulletinData;
   manually_edited: boolean;
@@ -272,12 +292,21 @@ export const deletePayslip = async (payslipId: string): Promise<void> => {
 /**
  * Génère un nouveau bulletin de paie
  */
-export const generatePayslip = async (data: {
-  employee_id: string;
-  year: number;
-  month: number;
-}): Promise<{ status: string; message: string; download_url: string }> => {
-  const response = await apiClient.post('/api/actions/generate-payslip', data);
+export const generatePayslip = async (
+  data: {
+    employee_id: string;
+    year: number;
+    month: number;
+  },
+  signal?: AbortSignal
+): Promise<{
+  status: string;
+  message: string;
+  download_url: string;
+  payslip_id?: string | null;
+  warnings?: string[];
+}> => {
+  const response = await apiClient.post('/api/actions/generate-payslip', data, { signal });
   return response.data;
 };
 

@@ -2,9 +2,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../../../api/apiClient';
-import * as collectiveAgreementsApi from '../../../api/collectiveAgreements';
+import CollectiveAgreementCard from '@/components/CollectiveAgreementCard';
 import { LogoUploader } from '../../../components/LogoUploader';
 import { AdminPageHeader } from '@/features/admin/components/eywai/AdminPageHeader';
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { Button } from '@/components/ui/button';
 import NetEntreprisesConfigCard from '@/features/net-entreprises/components/NetEntreprisesConfigCard';
 
@@ -56,9 +57,6 @@ export default function CompanyDetails() {
     last_name: '',
     role: 'salarie'
   });
-  const [conventions, setConventions] = useState<collectiveAgreementsApi.CompanyCollectiveAgreementWithDetails[]>([]);
-  const [loadingConventions, setLoadingConventions] = useState(false);
-
   // États pour édition et suppression
   const [showEditUserModal, setShowEditUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -70,7 +68,6 @@ export default function CompanyDetails() {
   useEffect(() => {
     loadCompanyDetails();
     loadUsers();
-    loadConventions();
   }, [companyId]);
 
   const loadCompanyDetails = async () => {
@@ -95,19 +92,6 @@ export default function CompanyDetails() {
       log.error('Erreur:', error);
     } finally {
       setLoadingUsers(false);
-    }
-  };
-
-  const loadConventions = async () => {
-    try {
-      setLoadingConventions(true);
-      const response = await collectiveAgreementsApi.getAllCompanyAssignments();
-      const companyData = response.data.find((c: any) => c.id === companyId);
-      setConventions(companyData?.assigned_agreements || []);
-    } catch (error) {
-      log.error('Erreur lors du chargement des conventions:', error);
-    } finally {
-      setLoadingConventions(false);
     }
   };
 
@@ -224,14 +208,7 @@ export default function CompanyDetails() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Chargement...</p>
-        </div>
-      </div>
-    );
+    return <SharkFinLoader variant="fullPage" label="Chargement de l'entreprise…" />;
   }
 
   if (!company) {
@@ -411,91 +388,11 @@ export default function CompanyDetails() {
       </div>
 
       {/* Conventions collectives */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Conventions Collectives</h2>
-
-        {loadingConventions ? (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-          </div>
-        ) : conventions.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <svg className="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <p>Aucune convention collective assignée</p>
-            <p className="text-sm mt-1">Les RH de l'entreprise peuvent en assigner depuis leur interface</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {conventions.map((convention) => (
-              <div key={convention.id} className="border border-gray-200 rounded-lg p-4 hover:border-indigo-300 transition-colors">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 space-y-2">
-                    <div>
-                      <p className="text-sm font-medium text-gray-500">Nom</p>
-                      <p className="text-lg font-semibold text-gray-900">
-                        {convention.agreement_details?.name || 'N/A'}
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm font-medium text-gray-500">IDCC</p>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {convention.agreement_details?.idcc || 'N/A'}
-                        </p>
-                      </div>
-
-                      {convention.agreement_details?.sector && (
-                        <div>
-                          <p className="text-sm font-medium text-gray-500">Secteur</p>
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            {convention.agreement_details.sector}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {convention.agreement_details?.description && (
-                      <div>
-                        <p className="text-sm font-medium text-gray-500">Description</p>
-                        <p className="text-sm text-gray-600">
-                          {convention.agreement_details.description}
-                        </p>
-                      </div>
-                    )}
-
-                    <div>
-                      <p className="text-sm font-medium text-gray-500">Date d'assignation</p>
-                      <p className="text-sm text-gray-900">
-                        {new Date(convention.assigned_at).toLocaleDateString('fr-FR')}
-                      </p>
-                    </div>
-                  </div>
-
-                  {convention.agreement_details?.rules_pdf_path && (
-                    <button
-                      onClick={() => {
-                        const pdfUrl = convention.agreement_details?.rules_pdf_url;
-                        if (pdfUrl) {
-                          window.open(pdfUrl, '_blank');
-                        }
-                      }}
-                      className="ml-4 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center space-x-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <span>PDF</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {companyId && (
+        <div className="mb-6">
+          <CollectiveAgreementCard companyId={companyId} companyName={company.company_name} />
+        </div>
+      )}
 
       {/* Connexion Net-entreprises (pilotage plateforme) */}
       {companyId && (
@@ -526,9 +423,7 @@ export default function CompanyDetails() {
         </div>
 
         {loadingUsers ? (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-          </div>
+          <SharkFinLoader label="Chargement des utilisateurs…" />
         ) : (
           <>
             <div className="w-full overflow-x-auto">

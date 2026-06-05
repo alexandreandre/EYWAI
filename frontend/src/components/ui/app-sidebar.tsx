@@ -30,7 +30,6 @@ import {
   Stethoscope,
   UserPlus,
   ChevronRight,
-  Rocket,
   LifeBuoy,
   GraduationCap,
   BarChart2,
@@ -39,6 +38,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext"; // <-- IMPORTATION
 import { isPlatformAdmin } from "@/lib/platformAdmin";
 import { useRhSidebarTaskBadges } from "@/hooks/useRhSidebarTaskBadges";
+import { LaunchPayrollButton } from "@/features/payroll/components/LaunchPayrollButton";
 import {
   computeAccessibleGroups,
   useCompanyOptional,
@@ -195,6 +195,11 @@ const RH_PAIE_GROUPS: SidebarLinkGroup[] = [
   {
     workflow: true,
     items: [
+      {
+        title: "Validation des calendriers / heures",
+        url: "/schedules",
+        icon: Calendar,
+      },
       { title: "Congés & Absences", url: "/leaves", icon: Plane },
       { title: "Notes de frais", url: "/expenses", icon: Notebook },
       { title: "Primes", url: "/saisies", icon: ClipboardEdit },
@@ -427,57 +432,72 @@ function SidebarSubLinkItem({
 }
 
 const PAIE_WORKFLOW_STEP_PX = 28;
-const PAIE_WORKFLOW_RAIL_X = 9;
 const PAIE_WORKFLOW_START_Y = 14;
 const PAIE_WORKFLOW_GAP_PX = 16;
 const PAIE_WORKFLOW_BTN_ROW_PX = 36;
+const PAIE_WORKFLOW_BADGE_COL_PX = 18;
+/** Position X du rail vertical (centre de la colonne pastilles). */
+const PAIE_WORKFLOW_RAIL_X = 9;
+/** Largeur approximative du segment horizontal (18px + gap-2 − rail). */
+const PAIE_WORKFLOW_BTN_LEAD_PX = 17;
 
-/** Connecteur en L (SVG) aligné sur les pastilles et le bouton « Lancer la paie ». */
-function PaieWorkflowConnector({ stepCount }: { stepCount: number }) {
+/** Rail vertical du parcours paie (pastilles numérotées). */
+function PaieWorkflowVerticalRail({ stepCount }: { stepCount: number }) {
+  const lastStepY = stepCount * PAIE_WORKFLOW_STEP_PX;
   const cornerY =
-    stepCount * PAIE_WORKFLOW_STEP_PX +
+    lastStepY +
     PAIE_WORKFLOW_GAP_PX +
     PAIE_WORKFLOW_BTN_ROW_PX / 2 -
     4;
   const viewH = cornerY + PAIE_WORKFLOW_BTN_ROW_PX / 2 + 4;
-  const viewW = 200;
-  const endX = viewW - 4;
 
   return (
     <svg
       className="pointer-events-none absolute inset-0 z-0 h-full w-full"
-      viewBox={`0 0 ${viewW} ${viewH}`}
+      viewBox={`0 0 200 ${viewH}`}
       preserveAspectRatio="none"
       aria-hidden
     >
-      <defs>
-        <marker
-          id="paie-workflow-arrow"
-          markerWidth="8"
-          markerHeight="8"
-          refX="7"
-          refY="4"
-          orient="auto"
-          markerUnits="strokeWidth"
-        >
-          <path
-            d="M0,0 L8,4 L0,8 Z"
-            fill="hsl(var(--primary))"
-            fillOpacity="0.55"
-          />
-        </marker>
-      </defs>
       <path
-        d={`M ${PAIE_WORKFLOW_RAIL_X} ${PAIE_WORKFLOW_START_Y} L ${PAIE_WORKFLOW_RAIL_X} ${cornerY} L ${endX} ${cornerY}`}
+        d={`M ${PAIE_WORKFLOW_RAIL_X} ${PAIE_WORKFLOW_START_Y} L ${PAIE_WORKFLOW_RAIL_X} ${cornerY}`}
         fill="none"
         stroke="hsl(var(--primary))"
         strokeWidth="2"
         strokeOpacity="0.55"
         strokeLinecap="round"
-        strokeLinejoin="round"
-        markerEnd="url(#paie-workflow-arrow)"
       />
     </svg>
+  );
+}
+
+/** Branche horizontale jusqu’au bord gauche du bouton « Lancer la paie ». */
+function PaieWorkflowButtonLead() {
+  const viewW = PAIE_WORKFLOW_BTN_LEAD_PX;
+
+  return (
+    <div
+      className="pointer-events-none absolute top-1/2 z-0 -translate-y-1/2"
+      style={{
+        left: `calc(-${PAIE_WORKFLOW_BADGE_COL_PX}px - 0.5rem + ${PAIE_WORKFLOW_RAIL_X}px)`,
+        width: `calc(${PAIE_WORKFLOW_BADGE_COL_PX}px + 0.5rem - ${PAIE_WORKFLOW_RAIL_X}px)`,
+      }}
+      aria-hidden
+    >
+      <svg
+        className="h-2 w-full overflow-visible"
+        viewBox={`0 0 ${viewW} 8`}
+        preserveAspectRatio="none"
+      >
+        <path
+          d={`M 0 4 L ${viewW} 4`}
+          fill="none"
+          stroke="hsl(var(--primary))"
+          strokeWidth="2"
+          strokeOpacity="0.55"
+          strokeLinecap="round"
+        />
+      </svg>
+    </div>
   );
 }
 
@@ -504,9 +524,6 @@ function SidebarPaieWorkflow({
     .filter((g) => g.workflow)
     .flatMap((g) => g.items.filter((i) => !i.disabled));
   const toolGroups = groups.filter((g) => g.label && !g.workflow);
-
-  const canLaunchPayroll =
-    !badgesLoading && workflowItems.every((item) => getCount(item.url) === 0);
 
   return (
     <div role="group" aria-label="Navigation paie">
@@ -541,7 +558,7 @@ function SidebarPaieWorkflow({
         role="group"
         aria-label="Parcours de préparation à la paie"
       >
-        <PaieWorkflowConnector stepCount={workflowItems.length} />
+        <PaieWorkflowVerticalRail stepCount={workflowItems.length} />
 
         <div className="relative z-[1] flex w-[18px] shrink-0 flex-col">
           {workflowItems.map((item, index) => {
@@ -578,35 +595,9 @@ function SidebarPaieWorkflow({
             })}
           </SidebarMenuSub>
 
-          <div className="relative mt-4 flex min-h-9 items-center pb-2">
-            <Button
-              size="sm"
-              disabled={!canLaunchPayroll}
-              className={cn(
-                "w-full gap-2 shadow-sm",
-                canLaunchPayroll
-                  ? "bg-success text-success-foreground hover:bg-success/90 ring-1 ring-success/40"
-                  : "cursor-not-allowed bg-muted text-muted-foreground hover:bg-muted",
-              )}
-              title={
-                canLaunchPayroll
-                  ? "Lancer la paie"
-                  : "Terminez les étapes en attente avant de lancer la paie"
-              }
-              asChild={canLaunchPayroll}
-            >
-              {canLaunchPayroll ? (
-                <NavLink to="/payroll" className={SIDEBAR_NAV.sectionTitle}>
-                  <Rocket className={SIDEBAR_NAV.iconPrimary} />
-                  Lancer la paie
-                </NavLink>
-              ) : (
-                <>
-                  <Rocket className={cn(SIDEBAR_NAV.iconPrimary, "opacity-50")} />
-                  <span className={SIDEBAR_NAV.sectionTitle}>Lancer la paie</span>
-                </>
-              )}
-            </Button>
+          <div className="relative z-[2] mt-4 flex min-h-9 items-center pb-2">
+            <PaieWorkflowButtonLead />
+            <LaunchPayrollButton fullWidth className="relative z-[1]" />
           </div>
         </div>
       </div>
@@ -1236,10 +1227,10 @@ export function AppSidebar() {
         <SidebarMenu className={collapsed ? "mb-1.5 flex flex-col items-center gap-0.5" : "mb-1.5 gap-0.5"}>
           {isPlatformAdmin(user) ? (
             <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip={collapsed ? "Administration" : undefined}>
+              <SidebarMenuButton asChild tooltip={collapsed ? "Platforme Admin" : undefined}>
                 <NavLink to="/super-admin" className={getNavClassName("/super-admin")}>
                   <Building2 className="h-5 w-5 flex-shrink-0" />
-                  {!collapsed && <span className="font-medium">Administration</span>}
+                  {!collapsed && <span className="font-medium">Platforme Admin</span>}
                 </NavLink>
               </SidebarMenuButton>
             </SidebarMenuItem>

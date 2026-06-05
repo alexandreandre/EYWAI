@@ -22,7 +22,7 @@ import {
   sortPayslipsDesc,
   type PayslipItem,
 } from '@/components/employee-detail/employeeDetailDocumentsFolders';
-import { DocumentFileRow, DownloadLinkButton } from '@/components/employee-detail/DocumentFileRow';
+import { DocumentFileRow, DownloadLinkButton, ViewLinkButton } from '@/components/employee-detail/DocumentFileRow';
 import {
   GeneratedDocActions,
   GeneratedDocMeta,
@@ -224,6 +224,7 @@ export function CompanyDocumentsExplorer({
       name={payslipLabel(p)}
       actions={
         <>
+          <ViewLinkButton href={p.preview_url ?? ''} title="Visualiser le bulletin" />
           <Button variant="outline" size="sm" asChild>
             <Link to={`/payslips/${p.id}/edit`}>
               <Edit className="mr-2 h-4 w-4" />

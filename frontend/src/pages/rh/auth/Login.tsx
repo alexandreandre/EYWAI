@@ -10,18 +10,7 @@ import { Label } from '@/components/ui/label';
 import apiClient from '@/api/apiClient';
 import { Loader2 } from 'lucide-react';
 import { log } from '@/lib/logger';
-
-/** Évite une boucle ou un retour vers l'écran de connexion après auth. */
-function safeReturnPath(pathname: string | undefined): string {
-  if (!pathname || pathname === '/login' || pathname.startsWith('/login?')) {
-    return '/';
-  }
-  return pathname;
-}
-
-function resolvePostLoginPath(fromPathname: string | undefined): string {
-  return safeReturnPath(fromPathname);
-}
+import { resolvePostLoginPath, safeReturnPath } from '@/lib/routeAccess';
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState('');
@@ -47,7 +36,7 @@ export default function LoginPage() {
   if (user) {
     return (
       <Navigate
-        to={resolvePostLoginPath(from)}
+        to={resolvePostLoginPath(from, user)}
         replace
       />
     );
@@ -67,7 +56,7 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       });
 
-      await login({
+      const me = await login({
         access_token: response.data.access_token,
         refresh_token: response.data.refresh_token,
         expires_in: response.data.expires_in,
@@ -75,7 +64,7 @@ export default function LoginPage() {
       });
 
       navigate(
-        resolvePostLoginPath(from),
+        resolvePostLoginPath(from, me),
         { replace: true },
       );
     } catch (err: unknown) {

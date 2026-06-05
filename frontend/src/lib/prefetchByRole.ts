@@ -12,6 +12,10 @@ import { queryKeys } from '@/lib/queryKeys';
 import { currentWeekStartIso } from '@/lib/planningWeek';
 import { isPlatformAdmin, type PlatformAdminUser } from '@/lib/platformAdmin';
 import type { CompanyAccess } from '@/contexts/CompanyContext';
+import {
+  prefetchEmployeeCritical,
+  prefetchEmployeeSecondary,
+} from '@/lib/prefetchEmployee';
 
 type PrefetchUser = PlatformAdminUser & {
   id: string;
@@ -209,8 +213,8 @@ export async function runBootPrefetch(
   }
 
   if (isCollaborateurRole(user)) {
-    report('Espace collaborateur…', 70);
-    await Promise.allSettled([import('@/pages/employee/Dashboard')]);
+    report('Espace collaborateur…', 55);
+    await prefetchEmployeeCritical(queryClient, user.id);
     report('Prêt', 100);
     return;
   }
@@ -239,6 +243,10 @@ export function prefetchInBackground(
       await prefetchPlatformAdminSecondary(queryClient);
     }
 
+    if (isCollaborateurRole(user)) {
+      void prefetchEmployeeSecondary(queryClient, user.id, companyId);
+    }
+
     void prefetchCommonChunks();
   };
 
@@ -260,6 +268,8 @@ export async function prefetchForUser(
 
 /** Précharge le chunk JS + query principale au survol d'un lien sidebar */
 export function prefetchRoute(queryClient: QueryClient, path: string, companyId?: string) {
+  const normalizedPath = path.split('#')[0] || path;
+
   const routePrefetchers: Record<string, () => Promise<unknown>> = {
     '/': () => import('@/pages/rh/Dashboard'),
     '/employees': () => {
@@ -280,7 +290,17 @@ export function prefetchRoute(queryClient: QueryClient, path: string, companyId?
       }
       return import('@/pages/rh/Payroll');
     },
+    '/payroll/generate': () => {
+      if (companyId) {
+        return queryClient.prefetchQuery({
+          queryKey: queryKeys.employees(companyId),
+          queryFn: () => fetchEmployeesSummary('all'),
+        });
+      }
+      return import('@/pages/rh/PayrollGenerate');
+    },
     '/leaves': () => import('@/pages/rh/Absences'),
+    '/leave-requests': () => import('@/pages/rh/manager/LeaveRequests'),
     '/planning': () => {
       if (companyId) {
         return prefetchPlanningWeek(queryClient, companyId);
@@ -291,12 +311,28 @@ export function prefetchRoute(queryClient: QueryClient, path: string, companyId?
     '/rates': () => import('@/pages/rh/Rates'),
     '/schedules': () => import('@/pages/rh/Schedules'),
     '/salary-advances': () => import('@/pages/rh/SalaryAdvances'),
+    '/salary-seizures': () => import('@/pages/rh/SalarySeizures'),
     '/documents': () => import('@/pages/rh/Documents'),
     '/analytics': () => import('@/pages/rh/Analytics'),
+    '/analytics-gestion': () => import('@/pages/rh/AnalyticsGestion'),
+    '/analytics-paie': () => import('@/pages/rh/AnalyticsPaie'),
     '/formation': () => import('@/pages/rh/formation/FormationPage'),
     '/recruitment': () => import('@/pages/rh/Recruitment'),
+    '/onboarding': () => import('@/pages/rh/onboarding/OnboardingPage'),
+    '/employee-exits': () => import('@/pages/rh/EmployeeExits'),
+    '/teams': () => import('@/pages/rh/Teams'),
+    '/residence-permits': () => import('@/pages/rh/ResidencePermits'),
+    '/badgeuse-rh': () => import('@/pages/rh/BadgeuseRh'),
+    '/augmentations-et-promotions': () => import('@/pages/rh/AugmentationsEtPromotions'),
+    '/cse': () => import('@/pages/rh/CSE'),
+    '/medical-follow-up': () => import('@/pages/rh/MedicalFollowUp'),
+    '/users': () => import('@/pages/rh/UserManagement'),
+    '/expenses': () => import('@/pages/rh/Expenses'),
+    '/simulation': () => import('@/pages/rh/Simulation'),
+    '/exports': () => import('@/pages/rh/Exports'),
+    '/company': () => import('@/pages/rh/CompanyPage'),
   };
 
-  const fn = routePrefetchers[path];
+  const fn = routePrefetchers[normalizedPath];
   if (fn) void fn().catch(() => undefined);
 }

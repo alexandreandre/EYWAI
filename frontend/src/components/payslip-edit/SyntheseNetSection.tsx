@@ -9,10 +9,11 @@ import { useEffect } from 'react';
 interface SyntheseNetSectionProps {
   data: any;
   netAPayer: number;
+  totalExonerations?: number | null;
   onChange: (data: any, newNetAPayer: number) => void;
 }
 
-export default function SyntheseNetSection({ data, netAPayer, onChange }: SyntheseNetSectionProps) {
+export default function SyntheseNetSection({ data, netAPayer, totalExonerations, onChange }: SyntheseNetSectionProps) {
   const formatCurrency = (amount: number | undefined | null): string => {
     if (amount == null) return 'N/A';
     return amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
@@ -63,6 +64,34 @@ export default function SyntheseNetSection({ data, netAPayer, onChange }: Synthe
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-3">
+          <div className="py-2 border-b">
+            <Label htmlFor="montant_net_social" className="text-xs font-semibold text-blue-700">
+              Montant net social (lecture seule)
+            </Label>
+            <Input
+              id="montant_net_social"
+              type="number"
+              step="0.01"
+              value={data?.montant_net_social ?? ''}
+              readOnly
+              className="h-8 mt-1 bg-blue-50"
+            />
+          </div>
+
+          <div className="py-2 border-b">
+            <Label htmlFor="total_exonerations" className="text-xs font-semibold text-blue-700">
+              Total exonérations et allègements (lecture seule)
+            </Label>
+            <Input
+              id="total_exonerations"
+              type="number"
+              step="0.01"
+              value={totalExonerations ?? ''}
+              readOnly
+              className="h-8 mt-1 bg-blue-50"
+            />
+          </div>
+
           <div className="py-2 border-b">
             <Label htmlFor="net_social" className="text-xs">Net social avant impôt</Label>
             <Input
