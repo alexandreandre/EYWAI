@@ -80,6 +80,34 @@ def create_delegation_hour(
     return _create(company_id, employee_id, data, created_by)
 
 
+def upsert_delegation_config(company_id: str, data: Any, updated_by: str) -> Any:
+    from app.modules.cse.application import delegation_service
+
+    return delegation_service.upsert_delegation_config(company_id, data, updated_by)
+
+
+def create_delegation_transfer(company_id: str, data: Any, created_by: str) -> Any:
+    from app.modules.cse.application import delegation_service
+
+    return delegation_service.create_delegation_transfer(company_id, data, created_by)
+
+
+def create_delegation_request(company_id: str, data: Any, created_by: str) -> Any:
+    from app.modules.cse.application import delegation_service
+
+    return delegation_service.create_delegation_request(company_id, data, created_by)
+
+
+def update_delegation_request(
+    company_id: str, request_id: str, data: Any
+) -> Any:
+    from app.modules.cse.application import delegation_service
+
+    return delegation_service.update_delegation_request_status(
+        company_id, request_id, data
+    )
+
+
 def upload_bdes_document(company_id: str, data: Any, published_by: str) -> Any:
     from app.modules.cse.infrastructure.cse_service_impl import (
         upload_bdes_document as _upload,

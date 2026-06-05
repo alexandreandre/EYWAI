@@ -26,10 +26,19 @@ from app.modules.cse.application.service import (
 from app.modules.cse.schemas import (
     BDESDocumentCreate,
     BDESDocumentRead,
+    DelegationConfigRead,
+    DelegationConfigUpdate,
+    DelegationCreditRead,
     DelegationHourCreate,
     DelegationHourRead,
     DelegationQuotaRead,
+    DelegationRegisterRow,
+    DelegationRequestCreate,
+    DelegationRequestRead,
+    DelegationRequestUpdate,
     DelegationSummary,
+    DelegationTransferCreate,
+    DelegationTransferRead,
     ElectionCycleCreate,
     ElectionCycleRead,
     ElectionTimelineStepRead,
@@ -560,6 +569,163 @@ def list_delegation_quotas(
     company_id = _get_company_id(current_user)
     queries.check_module_active(company_id)
     return queries.list_delegation_quotas(company_id)
+
+
+@router.get("/delegation/config", response_model=DelegationConfigRead)
+def get_delegation_config_endpoint(
+    current_user: User = Depends(get_current_user),
+):
+    """Configuration délégation (effectif figé). RH uniquement."""
+    _require_rh(current_user)
+    company_id = _get_company_id(current_user)
+    queries.check_module_active(company_id)
+    return queries.get_delegation_config(company_id)
+
+
+@router.put("/delegation/config", response_model=DelegationConfigRead)
+def upsert_delegation_config_endpoint(
+    body: DelegationConfigUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    """Met à jour la configuration délégation. RH uniquement."""
+    _require_rh(current_user)
+    company_id = _get_company_id(current_user)
+    queries.check_module_active(company_id)
+    return commands.upsert_delegation_config(
+        company_id, body, updated_by=str(current_user.id)
+    )
+
+
+@router.get("/delegation/credit", response_model=DelegationCreditRead)
+def get_delegation_credit_endpoint(
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    employee_id: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    """Détail du crédit d'un élu pour un mois."""
+    company_id = _get_company_id(current_user)
+    queries.check_module_active(company_id)
+    if _is_rh(current_user):
+        target_employee_id = employee_id or str(current_user.id)
+    else:
+        target_employee_id = _scoped_employee_id_for_current_user(current_user)
+        _require_elected_or_rh(current_user, company_id, target_employee_id)
+    return queries.get_delegation_credit(
+        company_id, target_employee_id, year, month
+    )
+
+
+@router.get("/delegation/transfers", response_model=List[DelegationTransferRead])
+def list_delegation_transfers_endpoint(
+    employee_id: Optional[str] = Query(None),
+    period_year: Optional[int] = Query(None),
+    period_month: Optional[int] = Query(None, ge=1, le=12),
+    current_user: User = Depends(get_current_user),
+):
+    """Liste des mutualisations d'heures."""
+    company_id = _get_company_id(current_user)
+    queries.check_module_active(company_id)
+    if not _is_rh(current_user):
+        employee_id = _scoped_employee_id_for_current_user(current_user)
+    return queries.list_delegation_transfers(
+        company_id, employee_id, period_year, period_month
+    )
+
+
+@router.post("/delegation/transfers", response_model=DelegationTransferRead, status_code=201)
+def create_delegation_transfer_endpoint(
+    body: DelegationTransferCreate,
+    current_user: User = Depends(get_current_user),
+):
+    """Crée une mutualisation d'heures. RH ou titulaire cédant."""
+    company_id = _get_company_id(current_user)
+    queries.check_module_active(company_id)
+    if not _is_rh(current_user):
+        scoped = _scoped_employee_id_for_current_user(current_user)
+        if body.from_employee_id != scoped:
+            raise HTTPException(
+                status_code=403,
+                detail="Vous ne pouvez mutualiser que vos propres heures",
+            )
+    return commands.create_delegation_transfer(
+        company_id, body, created_by=str(current_user.id)
+    )
+
+
+@router.get("/delegation/requests", response_model=List[DelegationRequestRead])
+def list_delegation_requests_endpoint(
+    employee_id: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    """Liste des bons de délégation."""
+    company_id = _get_company_id(current_user)
+    queries.check_module_active(company_id)
+    if _is_rh(current_user):
+        target = employee_id
+    else:
+        target = _scoped_employee_id_for_current_user(current_user)
+    return queries.list_delegation_requests(company_id, target)
+
+
+@router.post("/delegation/requests", response_model=DelegationRequestRead, status_code=201)
+def create_delegation_request_endpoint(
+    body: DelegationRequestCreate,
+    current_user: User = Depends(get_current_user),
+):
+    """Crée un bon de délégation."""
+    company_id = _get_company_id(current_user)
+    queries.check_module_active(company_id)
+    if not _is_rh(current_user):
+        scoped = _scoped_employee_id_for_current_user(current_user)
+        if body.employee_id and body.employee_id != scoped:
+            raise HTTPException(status_code=403, detail="Accès refusé")
+        body = body.model_copy(update={"employee_id": scoped})
+    return commands.create_delegation_request(
+        company_id, body, created_by=str(current_user.id)
+    )
+
+
+@router.patch("/delegation/requests/{request_id}", response_model=DelegationRequestRead)
+def update_delegation_request_endpoint(
+    request_id: str,
+    body: DelegationRequestUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    """Met à jour un bon de délégation (réalisation / annulation)."""
+    company_id = _get_company_id(current_user)
+    queries.check_module_active(company_id)
+    if not _is_rh(current_user):
+        _require_elected_or_rh(current_user, company_id)
+    return commands.update_delegation_request(company_id, request_id, body)
+
+
+@router.get("/delegation/register/{year}", response_model=List[DelegationRegisterRow])
+def get_delegation_register_endpoint(
+    year: int,
+    current_user: User = Depends(get_current_user),
+):
+    """Registre annuel des heures de délégation. RH uniquement."""
+    _require_rh(current_user)
+    company_id = _get_company_id(current_user)
+    queries.check_module_active(company_id)
+    return queries.get_annual_delegation_register(company_id, year)
+
+
+@router.get("/delegation/payroll-entries")
+def get_delegation_payroll_entries_endpoint(
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    employee_id: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    """Entrées paie heures de délégation (rubrique DELEGATION_CSE). RH uniquement."""
+    _require_rh(current_user)
+    company_id = _get_company_id(current_user)
+    queries.check_module_active(company_id)
+    return queries.get_payroll_delegation_entries(
+        company_id, year, month, employee_id
+    )
 
 
 # ---------------------------------------------------------------------------

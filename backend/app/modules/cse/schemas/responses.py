@@ -220,6 +220,8 @@ class DelegationHourRead(BaseModel):
     duration_hours: float
     reason: str
     meeting_id: Optional[str] = None
+    source: str = "propre"
+    origin_month: Optional[date_type] = None
     created_by: Optional[str] = None
     created_at: datetime
 
@@ -231,18 +233,106 @@ class DelegationHourRead(BaseModel):
 
 
 class DelegationQuotaRead(BaseModel):
-    """Schéma pour le quota mensuel d'heures de délégation."""
+    """Schéma pour le quota mensuel d'heures de délégation (calculé ou legacy)."""
 
     id: str
     company_id: str
     collective_agreement_id: Optional[str] = None
     quota_hours_per_month: float
     notes: Optional[str] = None
-
     collective_agreement_name: Optional[str] = None
+    credit_base: Optional[float] = None
+    monthly_cap: Optional[float] = None
+    reference_headcount: Optional[int] = None
+    role: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+
+class DelegationConfigRead(BaseModel):
+    """Configuration délégation par entreprise (effectif figé)."""
+
+    id: str
+    company_id: str
+    reference_headcount: int
+    reference_date: date_type
+    report_enabled: bool = True
+    mutualisation_enabled: bool = True
+    is_configured: bool = False
+    current_headcount: int = 0
+
+
+class DelegationCreditRead(BaseModel):
+    """Détail du crédit et solde pour un élu et un mois."""
+
+    employee_id: str
+    year: int
+    month: int
+    role: str
+    reference_headcount: int
+    reference_date: Optional[date_type] = None
+    credit_base: float
+    reported_available: float
+    transfers_in: float
+    transfers_out: float
+    monthly_cap: float
+    available_hours: float
+    consumed_hours: float
+    remaining_hours: float
+    overrun_hours: float
+    is_near_limit: bool = False
+    is_over_limit: bool = False
+    warnings: List[str] = Field(default_factory=list)
+    quota_hours_per_month: float = 0.0
+
+
+class DelegationTransferRead(BaseModel):
+    """Mutualisation d'heures entre élus."""
+
+    id: str
+    company_id: str
+    period_year: int
+    period_month: int
+    from_employee_id: str
+    to_employee_id: str
+    hours: float
+    employer_notified_at: Optional[date_type] = None
+    warnings: List[str] = Field(default_factory=list)
+    created_at: datetime
+
+
+class DelegationRequestRead(BaseModel):
+    """Bon de délégation (prévu / réalisé)."""
+
+    id: str
+    company_id: str
+    employee_id: str
+    planned_date: date_type
+    planned_hours: float
+    reason: str
+    status: str
+    realized_hours: Optional[float] = None
+    employer_notified_at: Optional[date_type] = None
+    delegation_hour_id: Optional[str] = None
+    created_at: datetime
+
+
+class DelegationRegisterRow(BaseModel):
+    """Ligne du registre annuel par élu."""
+
+    employee_id: str
+    first_name: str
+    last_name: str
+    year: int
+    role: str
+    theoretical_credit: float
+    consumed: float
+    reported_used: float
+    mutualised_received: float
+    mutualised_given: float
+    overrun: float
+    remaining_end_year: float
 
 
 class DelegationSummary(BaseModel):
@@ -256,6 +346,16 @@ class DelegationSummary(BaseModel):
     remaining_hours: float
     period_start: date_type
     period_end: date_type
+    credit_base: float = 0.0
+    reported_available: float = 0.0
+    transfers_in: float = 0.0
+    transfers_out: float = 0.0
+    monthly_cap: float = 0.0
+    available_hours: float = 0.0
+    overrun_hours: float = 0.0
+    is_near_limit: bool = False
+    is_over_limit: bool = False
+    role: Optional[str] = None
 
 
 # ============================================================================

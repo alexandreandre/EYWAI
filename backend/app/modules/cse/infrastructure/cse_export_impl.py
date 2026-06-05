@@ -82,9 +82,15 @@ def export_delegation_hours(
     ws_summary.title = "Récapitulatif"
     headers_summary = [
         "Élu",
-        "Quota mensuel (h)",
-        "Heures consommées (h)",
-        "Heures restantes (h)",
+        "Rôle",
+        "Crédit base (h)",
+        "Reporté dispo (h)",
+        "Mutualisé reçu (h)",
+        "Plafond mensuel (h)",
+        "Disponible (h)",
+        "Consommé (h)",
+        "Restant (h)",
+        "Dépassement (h)",
         "Période",
     ]
     header_fill = PatternFill(
@@ -103,20 +109,28 @@ def export_delegation_hours(
             value=f"{item.get('first_name', '')} {item.get('last_name', '')}",
         )
         ws_summary.cell(
-            row=row_idx, column=2, value=item.get("quota_hours_per_month", 0)
+            row=row_idx, column=2, value=item.get("role", "")
         )
-        ws_summary.cell(row=row_idx, column=3, value=item.get("consumed_hours", 0))
-        ws_summary.cell(row=row_idx, column=4, value=item.get("remaining_hours", 0))
+        ws_summary.cell(
+            row=row_idx, column=3, value=item.get("credit_base", item.get("quota_hours_per_month", 0))
+        )
+        ws_summary.cell(row=row_idx, column=4, value=item.get("reported_available", 0))
+        ws_summary.cell(row=row_idx, column=5, value=item.get("transfers_in", 0))
+        ws_summary.cell(row=row_idx, column=6, value=item.get("monthly_cap", 0))
+        ws_summary.cell(row=row_idx, column=7, value=item.get("available_hours", 0))
+        ws_summary.cell(row=row_idx, column=8, value=item.get("consumed_hours", 0))
+        ws_summary.cell(row=row_idx, column=9, value=item.get("remaining_hours", 0))
+        ws_summary.cell(row=row_idx, column=10, value=item.get("overrun_hours", 0))
         period_start = item.get("period_start", "")
         period_end = item.get("period_end", "")
         if period_start and period_end:
             try:
-                start = datetime.fromisoformat(period_start).strftime("%d/%m/%Y")
-                end = datetime.fromisoformat(period_end).strftime("%d/%m/%Y")
-                ws_summary.cell(row=row_idx, column=5, value=f"{start} - {end}")
+                start = datetime.fromisoformat(str(period_start)).strftime("%d/%m/%Y")
+                end = datetime.fromisoformat(str(period_end)).strftime("%d/%m/%Y")
+                ws_summary.cell(row=row_idx, column=11, value=f"{start} - {end}")
             except Exception:
                 ws_summary.cell(
-                    row=row_idx, column=5, value=f"{period_start} - {period_end}"
+                    row=row_idx, column=11, value=f"{period_start} - {period_end}"
                 )
     for col_idx in range(1, len(headers_summary) + 1):
         h = headers_summary[col_idx - 1]
@@ -132,7 +146,7 @@ def export_delegation_hours(
             ws_summary.cell(row=1, column=col_idx).column_letter
         ].width = min(max_length + 2, 50)
     ws_detail = wb.create_sheet("Détail heures")
-    headers_detail = ["Date", "Élu", "Durée (h)", "Motif", "Réunion associée"]
+    headers_detail = ["Date", "Élu", "Durée (h)", "Source", "Motif", "Réunion associée"]
     for col_idx, header in enumerate(headers_detail, start=1):
         cell = ws_detail.cell(row=1, column=col_idx, value=header)
         cell.fill = header_fill
@@ -152,8 +166,9 @@ def export_delegation_hours(
             value=f"{hour.get('first_name', '')} {hour.get('last_name', '')}",
         )
         ws_detail.cell(row=row_idx, column=3, value=hour.get("duration_hours", 0))
-        ws_detail.cell(row=row_idx, column=4, value=hour.get("reason", ""))
-        ws_detail.cell(row=row_idx, column=5, value=hour.get("meeting_title", ""))
+        ws_detail.cell(row=row_idx, column=4, value=hour.get("source", "propre"))
+        ws_detail.cell(row=row_idx, column=5, value=hour.get("reason", ""))
+        ws_detail.cell(row=row_idx, column=6, value=hour.get("meeting_title", ""))
     for col_idx in range(1, len(headers_detail) + 1):
         h = headers_detail[col_idx - 1]
         max_length = max(

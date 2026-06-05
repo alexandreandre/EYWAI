@@ -134,6 +134,10 @@ class RecordingStart(BaseModel):
 # ============================================================================
 
 
+DelegationHourSource = Literal["propre", "reportee", "mutualisee", "exceptionnelle"]
+DelegationRequestStatus = Literal["planifie", "realise", "annule"]
+
+
 class DelegationHourCreate(BaseModel):
     """Schéma pour la création d'une heure de délégation."""
 
@@ -142,6 +146,51 @@ class DelegationHourCreate(BaseModel):
     duration_hours: float = Field(..., gt=0, description="Durée en heures")
     reason: str = Field(..., min_length=1, description="Motif de l'heure de délégation")
     meeting_id: Optional[str] = None
+    source: Optional[DelegationHourSource] = Field(
+        None, description="Origine de l'heure (propre, reportée, mutualisée, exceptionnelle)"
+    )
+    origin_month: Optional[date_type] = Field(
+        None, description="Mois d'origine pour les heures reportées"
+    )
+
+
+class DelegationConfigUpdate(BaseModel):
+    """Mise à jour de la configuration délégation (effectif figé)."""
+
+    reference_headcount: Optional[int] = Field(None, ge=0)
+    reference_date: Optional[date_type] = None
+    report_enabled: Optional[bool] = None
+    mutualisation_enabled: Optional[bool] = None
+    initialize_from_current_headcount: bool = False
+
+
+class DelegationTransferCreate(BaseModel):
+    """Création d'une mutualisation d'heures."""
+
+    from_employee_id: str
+    to_employee_id: str
+    period_year: int = Field(..., ge=2000)
+    period_month: int = Field(..., ge=1, le=12)
+    hours: float = Field(..., gt=0)
+    employer_notified_at: Optional[date_type] = None
+
+
+class DelegationRequestCreate(BaseModel):
+    """Création d'un bon de délégation."""
+
+    employee_id: Optional[str] = None
+    planned_date: date_type
+    planned_hours: float = Field(..., gt=0)
+    reason: str = Field(..., min_length=1)
+    employer_notified_at: Optional[date_type] = None
+
+
+class DelegationRequestUpdate(BaseModel):
+    """Mise à jour d'un bon de délégation."""
+
+    status: Optional[DelegationRequestStatus] = None
+    realized_hours: Optional[float] = Field(None, ge=0)
+    delegation_hour_id: Optional[str] = None
 
 
 class DelegationQuotaCreate(BaseModel):
@@ -238,6 +287,10 @@ __all__ = [
     "RecordingConsent",
     "RecordingStart",
     "DelegationHourCreate",
+    "DelegationConfigUpdate",
+    "DelegationTransferCreate",
+    "DelegationRequestCreate",
+    "DelegationRequestUpdate",
     "DelegationQuotaCreate",
     "BDESDocumentCreate",
     "BDESDocumentUpdate",

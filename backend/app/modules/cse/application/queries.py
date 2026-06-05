@@ -151,3 +151,54 @@ def get_meeting_minutes_path(meeting_id: str, company_id: str) -> Optional[str]:
     """Chemin du PV d'une réunion (table cse_meeting_recordings)."""
     check_module_active(company_id)
     return recording_repository.get_minutes_path(meeting_id, company_id)
+
+
+def get_delegation_config(company_id: str) -> Any:
+    from app.modules.cse.application import delegation_service
+
+    return delegation_service.get_delegation_config(company_id)
+
+
+def get_delegation_credit(
+    company_id: str, employee_id: str, year: int, month: int
+) -> Any:
+    from app.modules.cse.application import delegation_service
+
+    return delegation_service.get_delegation_credit(company_id, employee_id, year, month)
+
+
+def list_delegation_transfers(
+    company_id: str,
+    employee_id: Optional[str] = None,
+    period_year: Optional[int] = None,
+    period_month: Optional[int] = None,
+) -> List[Any]:
+    from app.modules.cse.application import delegation_service
+
+    return delegation_service.list_delegation_transfers(
+        company_id, employee_id, period_year, period_month
+    )
+
+
+def get_annual_delegation_register(company_id: str, year: int) -> List[Any]:
+    from app.modules.cse.application import delegation_service
+
+    return delegation_service.get_annual_register(company_id, year)
+
+
+def list_delegation_requests(
+    company_id: str, employee_id: Optional[str] = None
+) -> List[Any]:
+    from app.modules.cse.application import delegation_service
+
+    return delegation_service.list_delegation_requests(company_id, employee_id)
+
+
+def get_payroll_delegation_entries(
+    company_id: str, year: int, month: int, employee_id: Optional[str] = None
+) -> List[Any]:
+    from app.modules.cse.application import delegation_service
+
+    return delegation_service.get_payroll_delegation_entries(
+        company_id, year, month, employee_id
+    )

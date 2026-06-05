@@ -992,69 +992,13 @@ def get_recording_status(meeting_id: str) -> RecordingStatusRead:
 def get_delegation_quota(
     company_id: str, employee_id: str
 ) -> Optional[DelegationQuotaRead]:
-    """Récupère le quota mensuel d'heures de délégation pour un employé."""
+    """Récupère le crédit mensuel calculé (barème R. 2314-1 + rôle + override)."""
     _check_module_active(company_id)
-
-    # Récupérer la convention collective de l'employé
-    employee_response = (
-        supabase.table("employees")
-        .select("collective_agreement_id")
-        .eq("id", employee_id)
-        .execute()
-    )
-    if not employee_response.data:
-        return None
-
-    collective_agreement_id = employee_response.data[0].get("collective_agreement_id")
-
-    if not collective_agreement_id:
-        # Si pas de CC sur l'employé, prendre la première convention assignée à l'entreprise
-        company_response = (
-            supabase.table("company_collective_agreements")
-            .select("collective_agreement_id")
-            .eq("company_id", company_id)
-            .limit(1)
-            .execute()
-        )
-        if company_response.data:
-            collective_agreement_id = company_response.data[0].get(
-                "collective_agreement_id"
-            )
-
-    if not collective_agreement_id:
-        return None
-
-    # Récupérer le quota
-    response = (
-        supabase.table("cse_delegation_quotas")
-        .select(
-            """
-        *,
-        collective_agreements_catalog!inner(
-            id,
-            name
-        )
-        """
-        )
-        .eq("company_id", company_id)
-        .eq("collective_agreement_id", collective_agreement_id)
-        .execute()
+    from app.modules.cse.application.delegation_service import (
+        get_delegation_quota_computed,
     )
 
-    if not response.data:
-        return None
-
-    quota = response.data[0]
-    cc = quota.get("collective_agreements_catalog", {})
-
-    return DelegationQuotaRead(
-        id=quota["id"],
-        company_id=quota["company_id"],
-        collective_agreement_id=quota.get("collective_agreement_id"),
-        quota_hours_per_month=float(quota["quota_hours_per_month"]),
-        notes=quota.get("notes"),
-        collective_agreement_name=cc.get("name"),
-    )
+    return get_delegation_quota_computed(company_id, employee_id)
 
 
 def get_delegation_hours(
@@ -1105,6 +1049,10 @@ def get_delegation_hours(
                 duration_hours=float(hour["duration_hours"]),
                 reason=hour["reason"],
                 meeting_id=hour.get("meeting_id"),
+                source=hour.get("source") or "propre",
+                origin_month=datetime.fromisoformat(hour["origin_month"]).date()
+                if hour.get("origin_month") and isinstance(hour["origin_month"], str)
+                else hour.get("origin_month"),
                 created_by=hour.get("created_by"),
                 created_at=datetime.fromisoformat(hour["created_at"])
                 if isinstance(hour["created_at"], str)
@@ -1135,6 +1083,12 @@ def create_delegation_hour(
         raise HTTPException(status_code=404, detail="Employé non trouvé")
 
     # Créer l'heure de délégation
+    from app.modules.cse.application.delegation_service import (
+        enrich_delegation_hour_create,
+        sync_payroll_entry_for_hour,
+    )
+
+    meta = enrich_delegation_hour_create(company_id, employee_id, data)
     insert_data = {
         "company_id": company_id,
         "employee_id": employee_id,
@@ -1142,6 +1096,8 @@ def create_delegation_hour(
         "duration_hours": str(data.duration_hours),
         "reason": data.reason,
         "meeting_id": data.meeting_id,
+        "source": meta["source"],
+        "origin_month": meta["origin_month"],
         "created_by": created_by,
     }
 
@@ -1153,6 +1109,18 @@ def create_delegation_hour(
     hour = response.data[0]
     employee = employee_response.data[0]
 
+    try:
+        sync_payroll_entry_for_hour(
+            company_id=company_id,
+            employee_id=employee_id,
+            delegation_hour_id=hour["id"],
+            usage_date=data.date,
+            duration_hours=data.duration_hours,
+            is_overrun=meta["is_overrun"],
+        )
+    except Exception:
+        pass
+
     return DelegationHourRead(
         id=hour["id"],
         company_id=hour["company_id"],
@@ -1163,6 +1131,10 @@ def create_delegation_hour(
         duration_hours=float(hour["duration_hours"]),
         reason=hour["reason"],
         meeting_id=hour.get("meeting_id"),
+        source=hour.get("source") or "propre",
+        origin_month=datetime.fromisoformat(hour["origin_month"]).date()
+        if hour.get("origin_month") and isinstance(hour["origin_month"], str)
+        else hour.get("origin_month"),
         created_by=hour.get("created_by"),
         created_at=datetime.fromisoformat(hour["created_at"])
         if isinstance(hour["created_at"], str)
@@ -1175,38 +1147,13 @@ def create_delegation_hour(
 def get_delegation_summary(
     company_id: str, period_start: date, period_end: date
 ) -> List[DelegationSummary]:
-    """Récupère le récapitulatif des heures de délégation pour tous les élus."""
+    """Récapitulatif conforme (barème + report + mutualisation)."""
     _check_module_active(company_id)
+    from app.modules.cse.application.delegation_service import (
+        get_delegation_summary_enriched,
+    )
 
-    # Récupérer tous les élus actifs
-    elected_members = get_elected_members(company_id, active_only=True)
-
-    summaries = []
-    for member in elected_members:
-        # Récupérer le quota
-        quota = get_delegation_quota(company_id, member.employee_id)
-        quota_hours = quota.quota_hours_per_month if quota else 0.0
-
-        # Récupérer les heures consommées
-        hours = get_delegation_hours(
-            company_id, member.employee_id, period_start, period_end
-        )
-        consumed_hours = sum(h.duration_hours for h in hours)
-
-        summaries.append(
-            DelegationSummary(
-                employee_id=member.employee_id,
-                first_name=member.first_name,
-                last_name=member.last_name,
-                quota_hours_per_month=quota_hours,
-                consumed_hours=consumed_hours,
-                remaining_hours=max(0, quota_hours - consumed_hours),
-                period_start=period_start,
-                period_end=period_end,
-            )
-        )
-
-    return summaries
+    return get_delegation_summary_enriched(company_id, period_start, period_end)
 
 
 # ============================================================================
