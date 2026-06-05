@@ -75,6 +75,7 @@ class TestEmployeesModuleWiring:
             "company_id": "c1",
             "first_name": "Jean",
             "last_name": "Dupont",
+            "phone_number": "+33600000000",
             "coordonnees_bancaires": {},
         }
         mock_repo.update.return_value = {

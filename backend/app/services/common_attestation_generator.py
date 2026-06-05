@@ -335,7 +335,7 @@ class CommonAttestationGenerator:
             textColor=colors.HexColor("#64748b"),
         )
         story: List[Any] = []
-        build_branding_header_reportlab(story, body_style, company)
+        build_branding_header_reportlab(story, styles, company)
         story.append(Paragraph(_titre_attestation(attestation_type), title_style))
         story.append(Spacer(1, 0.4 * cm))
         story.append(Paragraph(corps_html, body_style))

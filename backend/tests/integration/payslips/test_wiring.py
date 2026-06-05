@@ -62,6 +62,17 @@ def _rh_user():
     )
 
 
+_COMPLETE_EMPLOYEE = {
+    "id": "emp-1",
+    "employment_status": "actif",
+    "nir": "1850574001234",
+    "date_naissance": "1985-05-01",
+    "adresse": {"ville": "Paris"},
+    "coordonnees_bancaires": {"iban": "FR7612345678901234567890123"},
+    "salaire_de_base": {"montant": 2500},
+}
+
+
 class TestPayslipsWiringGenerate:
     """Flux POST /api/actions/generate-payslip -> generate_payslip (command) -> provider."""
 
@@ -71,12 +82,16 @@ class TestPayslipsWiringGenerate:
 
         with (
             patch(
+                "app.modules.payslips.application.commands._employee_repository"
+            ) as mock_emp_repo,
+            patch(
                 "app.modules.payslips.application.commands.employee_statut_reader"
             ) as mock_reader,
             patch(
                 "app.modules.payslips.application.commands.payslip_generator_provider"
             ) as mock_provider,
         ):
+            mock_emp_repo.get_by_id_only.return_value = _COMPLETE_EMPLOYEE
             mock_reader.get_employee_statut.return_value = "Cadre forfait jour"
             mock_provider.generate_forfait.return_value = {
                 "status": "ok",
