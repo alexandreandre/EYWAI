@@ -131,7 +131,12 @@ def get_employees_summary(
                 detail="Impossible de déterminer l'entreprise de l'utilisateur connecté.",
             )
         active_only = status is not None and status.lower() == "active"
-        return queries.get_employees_summary(company_id, active_only=active_only)
+        payroll_ready_only = status is not None and status.lower() == "payroll"
+        return queries.get_employees_summary(
+            company_id,
+            active_only=active_only,
+            payroll_ready_only=payroll_ready_only,
+        )
     except HTTPException:
         raise
     except Exception as e:

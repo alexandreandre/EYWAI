@@ -40,9 +40,12 @@ class SupabaseStorageProvider(IStorageProvider):
         response = supabase.storage.from_(bucket).create_signed_url(
             path, expiry_seconds, options={"download": download}
         )
-        data = getattr(response, "data", response)
+        if isinstance(response, dict):
+            data = response
+        else:
+            data = getattr(response, "data", response)
         if isinstance(data, dict):
-            return data.get("signedURL")
+            return data.get("signedURL") or data.get("signedUrl")
         return None
 
     def upload(
@@ -74,6 +77,9 @@ class SupabaseAuthProvider(IAuthProvider):
             raise RuntimeError("Auth create_user returned no user")
         return str(response.user.id)
 
+    def update_user_password(self, user_id: str, new_password: str) -> None:
+        supabase.auth.admin.update_user_by_id(user_id, {"password": new_password})
+
     def delete_user(self, user_id: str) -> None:
         supabase.auth.admin.delete_user(user_id)
 
@@ -82,24 +88,30 @@ class SupabaseCompanyReader(ICompanyReader):
     """Implémentation Supabase de ICompanyReader."""
 
     def get_company_data(self, company_id: str) -> Optional[Dict[str, Any]]:
-        response = (
-            supabase.table("companies")
-            .select(
-                "company_name, raison_sociale, siret, email, phone, logo_url, "
-                "adresse_rue, adresse_code_postal, adresse_ville, "
-                "code_naf, naf_ape, collective_agreement, idcc, "
-                "nom_signataire_rh, qualite_signataire_rh"
-            )
-            .eq("id", company_id)
-            .single()
-            .execute()
+        base_columns = (
+            "company_name, raison_sociale, siret, email, phone, logo_url, "
+            "adresse_rue, adresse_code_postal, adresse_ville, "
+            "code_naf, naf_ape, collective_agreement, idcc"
         )
-        if not response.data:
-            return None
-        data = dict(response.data)
-        if data.get("adresse_ville") and not data.get("city"):
-            data["city"] = data["adresse_ville"]
-        return data
+        extended_columns = f"{base_columns}, nom_signataire_rh, qualite_signataire_rh"
+        for columns in (extended_columns, base_columns):
+            try:
+                response = (
+                    supabase.table("companies")
+                    .select(columns)
+                    .eq("id", company_id)
+                    .single()
+                    .execute()
+                )
+                if not response.data:
+                    return None
+                data = dict(response.data)
+                if data.get("adresse_ville") and not data.get("city"):
+                    data["city"] = data["adresse_ville"]
+                return data
+            except Exception:
+                continue
+        return None
 
 
 class SupabaseResidencePermitStatusCalculator(IResidencePermitStatusCalculator):

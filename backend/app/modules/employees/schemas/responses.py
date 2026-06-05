@@ -9,7 +9,7 @@ localement pour les sous-routes employé (même structure que le module promotio
 from datetime import date, datetime
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, Field
 
 from app.shared.schemas import ContractResponse
 
@@ -94,7 +94,7 @@ class FullEmployee(BaseModel):
     # Section Salarié
     first_name: str
     last_name: str
-    email: EmailStr | None = None
+    email: str | None = None
     phone_number: str | None = None
     nir: str | None = None
     date_naissance: date | None = None
@@ -144,17 +144,6 @@ class FullEmployee(BaseModel):
     college_electoral: str | None = None
     statut_cse: str | None = None
     heures_delegation_mensuelles: float | None = None
-
-    @field_validator("email", mode="before")
-    @classmethod
-    def empty_email_to_none(cls, v: object) -> object:
-        """La DB peut renvoyer '' ; EmailStr rejette la chaîne vide, pas None."""
-        if v is None:
-            return None
-        if isinstance(v, str) and not v.strip():
-            return None
-        return v
-
 
 class NewEmployeeResponse(FullEmployee):
     """Modèle de réponse pour la création d'un employé, incluant le mot de passe généré."""

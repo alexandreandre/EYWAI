@@ -13,6 +13,7 @@ from app.modules.employees.domain.rules import (
     DEFAULT_RESIDENCE_PERMIT_SUBJECT,
     build_employee_folder_name,
     default_company_data_fallback,
+    derive_collaborator_username,
 )
 
 
@@ -75,3 +76,26 @@ class TestDefaultCompanyDataFallback:
         b = default_company_data_fallback()
         assert a is not b
         assert a == b
+
+
+class TestDeriveCollaboratorUsername:
+    def test_uses_email_local_part_when_available(self):
+        username = derive_collaborator_username(
+            "Camille",
+            "RecruteRH",
+            email="camille.recruterh.714b28@eywai-demo.com",
+        )
+        assert username == "camille.recruterh.714b28"
+
+    def test_falls_back_to_first_last_without_email(self):
+        username = derive_collaborator_username("Jean", "Dupont")
+        assert username == "jean.dupont"
+
+    def test_keeps_existing_username_when_provided(self):
+        username = derive_collaborator_username(
+            "Jean",
+            "Dupont",
+            email="jean.dupont@example.com",
+            existing="custom.user",
+        )
+        assert username == "custom.user"

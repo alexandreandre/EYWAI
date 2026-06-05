@@ -276,6 +276,19 @@ class TestServiceMoveCandidate:
         mock_repos["timeline"].add.assert_called_once()
         assert mock_repos["timeline"].add.call_args[1]["event_type"] == "rejected"
 
+    def test_raises_when_moving_to_hired_without_employee(self, mock_repos):
+        mock_repos["cand_repo"].get_by_id.return_value = {
+            "id": "cand-1",
+            "job_id": "job-1",
+            "first_name": "Terence",
+            "last_name": "Martin",
+        }
+        mock_repos["stage_repo"].list_by_job.return_value = [
+            {"id": "stage-hired", "name": "Recruté", "stage_type": "hired"},
+        ]
+        with pytest.raises(ValueError, match="finaliser l'embauche"):
+            svc.service_move_candidate("cand-1", "co-1", "stage-hired")
+
 
 class TestServiceCreateOpinion:
     """service_create_opinion."""

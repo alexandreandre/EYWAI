@@ -70,6 +70,20 @@ def get_my_identity_document(current_user: User = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
 
+@me_router.get("/me/credentials-pdf", response_model=ContractResponse)
+def get_my_credentials_pdf(current_user: User = Depends(get_current_user)):
+    """(Espace Employé) URL signée du PDF identifiants de connexion."""
+    try:
+        employee_id = resolve_my_employee_id(current_user)
+        url = queries.get_credentials_pdf_url(employee_id)
+        return ContractResponse(url=url)
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
+
+
 @me_router.get("/me/published-exit-documents")
 def get_my_published_exit_documents(
     current_user: User = Depends(get_current_user),

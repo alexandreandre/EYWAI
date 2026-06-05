@@ -120,8 +120,10 @@ def _build_scoring_result(candidate_id: str, row: dict) -> ScoringResult:
         candidate_id=candidate_id,
         score=int(row["ai_score"]),
         mention=str(detail.get("mention", "")),
+        confiance=str(detail.get("confiance")) if detail.get("confiance") else None,
         points_forts=[str(x) for x in pf] if isinstance(pf, list) else [],
         points_faibles=[str(x) for x in pfb] if isinstance(pfb, list) else [],
+        limites=str(detail.get("limites")) if detail.get("limites") else None,
         recommandation=str(detail.get("recommandation", "")),
         scored_at=scored_at,
     )
@@ -557,6 +559,10 @@ def hire_candidate(
         return {
             "ok": True,
             "employee_id": result["id"],
+            "username": result.get("username"),
+            "email": result.get("email"),
+            "generated_password": result.get("generated_password"),
+            "credentials_pdf_path": result.get("credentials_pdf_path"),
             "message": "Salarié créé. Complétez les informations pour finaliser l'intégration paie.",
         }
     except ValueError as e:

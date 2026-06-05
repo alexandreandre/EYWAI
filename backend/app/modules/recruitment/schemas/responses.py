@@ -119,8 +119,10 @@ class ScoringResult(BaseModel):
     candidate_id: str
     score: int
     mention: str
+    confiance: Optional[str] = None
     points_forts: List[str]
     points_faibles: List[str]
+    limites: Optional[str] = None
     recommandation: str
     scored_at: datetime
 

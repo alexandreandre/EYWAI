@@ -43,10 +43,13 @@ def get_employees_summary(
     company_id: str,
     *,
     active_only: bool = False,
+    payroll_ready_only: bool = False,
 ) -> List[Dict[str, Any]]:
     """Liste légère sans enrichissement (grilles RH, planning)."""
     return _employee_repository.get_summary_by_company(
-        company_id, active_only=active_only
+        company_id,
+        active_only=active_only,
+        payroll_ready_only=payroll_ready_only,
     )
 
 
@@ -109,21 +112,13 @@ def get_my_published_exit_documents(
 def get_credentials_pdf_url(employee_id: str) -> Optional[str]:
     """
     URL signée du PDF de création de compte (espace RH).
-    Comportement identique à get_employee_credentials_pdf_url (router legacy).
+    Génère le PDF s'il est absent (nouveau mot de passe temporaire).
     """
-    company_id = get_employee_company_id(employee_id)
-    if not company_id:
-        return None
-    storage = get_storage_provider()
-    list_response = storage.list_files("creation_compte", f"{company_id}/{employee_id}")
-    if not any(f.get("name") == "creation_compte.pdf" for f in list_response):
-        return None
-    return storage.create_signed_url(
-        "creation_compte",
-        f"{company_id}/{employee_id}/creation_compte.pdf",
-        expiry_seconds=3600,
-        download=True,
+    from app.modules.employees.application.credentials_pdf import (
+        get_credentials_pdf_url as _get_credentials_pdf_url,
     )
+
+    return _get_credentials_pdf_url(employee_id)
 
 
 def get_identity_document_url(employee_id: str) -> Optional[str]:

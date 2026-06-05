@@ -516,10 +516,12 @@ class EmployeeCreator(IEmployeeCreator):
         normalized_last = _remove_accents(c["last_name"]).upper()
         normalized_first = _remove_accents(c["first_name"]).capitalize()
         folder_name = f"{normalized_last}_{normalized_first}"
-        username = (
-            _remove_accents(c["first_name"]).lower().replace(" ", "_")
-            + "."
-            + _remove_accents(c["last_name"]).lower().replace(" ", "_")
+        from app.modules.employees.domain.rules import derive_collaborator_username
+
+        username = derive_collaborator_username(
+            c["first_name"],
+            c["last_name"],
+            email=candidate_email,
         )
         employee_data = {
             "company_id": company_id,
@@ -529,14 +531,26 @@ class EmployeeCreator(IEmployeeCreator):
             "hire_date": hire_date,
             "job_title": job_title or job.get("title"),
             "contract_type": contract_type or job.get("contract_type") or "CDI",
-            "employment_status": "actif",
+            "employment_status": "en_onboarding",
             "employee_folder_name": folder_name,
             "username": username,
         }
         svc_id = _optional_uuid_str(service)
         if svc_id:
             employee_data["service_id"] = svc_id
-        res = supabase.table("employees").insert(employee_data).execute()
+        try:
+            res = supabase.table("employees").insert(employee_data).execute()
+        except Exception as insert_err:
+            err_msg = str(insert_err)
+            if (
+                "employees_employment_status_check" in err_msg
+                and employee_data.get("employment_status") == "en_onboarding"
+            ):
+                employee_data = dict(employee_data)
+                employee_data["employment_status"] = "actif"
+                res = supabase.table("employees").insert(employee_data).execute()
+            else:
+                raise
         if not res.data:
             raise ValueError("Erreur lors de la création du salarié")
         employee = res.data[0]

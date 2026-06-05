@@ -105,21 +105,16 @@ def _enrich_employee_row_with_cse(
             collective_agreement_id = None
 
     if not collective_agreement_id:
-        return out
+        collective_agreement_id = None
 
     try:
-        quota_res = (
-            supabase.table("cse_delegation_quotas")
-            .select("quota_hours_per_month")
-            .eq("company_id", company_id)
-            .eq("collective_agreement_id", collective_agreement_id)
-            .limit(1)
-            .execute()
+        from app.modules.cse.application.delegation_service import (
+            get_delegation_quota_computed,
         )
-        if quota_res.data:
-            qh = quota_res.data[0].get("quota_hours_per_month")
-            if qh is not None:
-                out["heures_delegation_mensuelles"] = float(qh)
+
+        quota = get_delegation_quota_computed(company_id, employee_id)
+        if quota and quota.quota_hours_per_month is not None:
+            out["heures_delegation_mensuelles"] = float(quota.quota_hours_per_month)
     except Exception:
         pass
 
@@ -163,19 +158,29 @@ class EmployeeRepository(IEmployeeRepository):
         company_id: str,
         *,
         active_only: bool = False,
+        payroll_ready_only: bool = False,
     ) -> List[Dict[str, Any]]:
         """Liste allégée sans enrichissement (performances listes / planning)."""
+        select_cols = (
+            "id, first_name, last_name, job_title, contract_type, "
+            "hire_date, employment_status, current_exit_id, duree_hebdomadaire"
+        )
+        if payroll_ready_only:
+            select_cols += (
+                ", nir, date_naissance, adresse, coordonnees_bancaires, salaire_de_base"
+            )
         response = (
             supabase.table("employees")
-            .select(
-                "id, first_name, last_name, job_title, contract_type, "
-                "hire_date, employment_status, current_exit_id, duree_hebdomadaire"
-            )
+            .select(select_cols)
             .eq("company_id", company_id)
             .order("last_name")
             .execute()
         )
         rows = [dict(row) for row in (response.data or [])]
+        if payroll_ready_only:
+            from app.modules.onboarding.domain.profile import is_payroll_eligible
+
+            return [r for r in rows if is_payroll_eligible(r)]
         if not active_only:
             return rows
         return [

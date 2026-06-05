@@ -49,12 +49,17 @@ class OnboardingHubItemOut(BaseModel):
     nb_overdue: int = 0
     completed_at: Optional[datetime] = None
     checklist_created_at: Optional[datetime] = None
+    # Complétude de la fiche paie (champs indispensables encore manquants)
+    profile_complete: bool = True
+    missing_fields: List[str] = Field(default_factory=list)
+    nb_missing: int = 0
 
 
 class OnboardingHubKpisOut(BaseModel):
     in_progress: int = 0
     overdue_tasks: int = 0
     completed_this_month: int = 0
+    profile_incomplete: int = 0
 
 
 class OnboardingHubListOut(BaseModel):

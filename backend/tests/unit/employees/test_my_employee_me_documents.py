@@ -79,6 +79,29 @@ class TestMyEmployeeMeDocumentsResolve:
         assert response.status_code == 200
         mock_identity.assert_called_once_with(TEST_EMPLOYEE_ID)
 
+    def test_get_my_credentials_pdf_uses_resolved_employee_id(
+        self, client: TestClient
+    ):
+        app.dependency_overrides[get_current_user] = lambda: _collaborator_user()
+        try:
+            with (
+                patch(
+                    "app.modules.employees.api.router_me.resolve_my_employee_id",
+                    return_value=TEST_EMPLOYEE_ID,
+                ),
+                patch(
+                    "app.modules.employees.api.router_me.queries.get_credentials_pdf_url",
+                    return_value="https://signed-credentials",
+                ) as mock_credentials,
+            ):
+                response = client.get("/api/employees/me/credentials-pdf")
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+        assert response.status_code == 200
+        assert response.json()["url"] == "https://signed-credentials"
+        mock_credentials.assert_called_once_with(TEST_EMPLOYEE_ID)
+
     def test_get_my_published_exit_documents_uses_resolved_employee_id(
         self, client: TestClient
     ):

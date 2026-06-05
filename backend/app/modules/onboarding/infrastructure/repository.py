@@ -12,6 +12,7 @@ from app.modules.onboarding.domain.overdue import (
     parse_hire_date,
     summarize_tasks,
 )
+from app.modules.onboarding.domain.profile import missing_payroll_fields
 
 DEFAULT_ONBOARDING_TASKS: List[Dict[str, Any]] = [
     {
@@ -234,7 +235,8 @@ class OnboardingRepository:
             supabase.table("employees")
             .select(
                 "id, first_name, last_name, job_title, hire_date, "
-                "employment_status, current_exit_id"
+                "employment_status, current_exit_id, "
+                "nir, date_naissance, adresse, coordonnees_bancaires, salaire_de_base"
             )
             .eq("company_id", company_id)
             .gte("hire_date", cutoff.isoformat())
@@ -276,6 +278,7 @@ class OnboardingRepository:
         in_progress = 0
         overdue_tasks = 0
         completed_this_month = 0
+        profile_incomplete = 0
         month_start = today.replace(day=1)
 
         for emp in employees:
@@ -289,6 +292,11 @@ class OnboardingRepository:
             nb_overdue = count_overdue_tasks(hire, task_rows, today)
             completed_at = _parse_ts(cl.get("completed_at")) if cl else None
             checklist_created_at = _parse_ts(cl.get("created_at")) if cl else None
+
+            missing_fields = missing_payroll_fields(emp)
+            profile_complete = not missing_fields
+            if not profile_complete:
+                profile_incomplete += 1
 
             is_done = completed_at is not None or (
                 nb_total > 0 and progress_pct >= 100.0
@@ -320,6 +328,9 @@ class OnboardingRepository:
                     "nb_overdue": nb_overdue,
                     "completed_at": completed_at,
                     "checklist_created_at": checklist_created_at,
+                    "profile_complete": profile_complete,
+                    "missing_fields": missing_fields,
+                    "nb_missing": len(missing_fields),
                 }
             )
 
@@ -329,6 +340,7 @@ class OnboardingRepository:
                 "in_progress": in_progress,
                 "overdue_tasks": overdue_tasks,
                 "completed_this_month": completed_this_month,
+                "profile_incomplete": profile_incomplete,
             },
             "lookback_days": lookback_days,
         }
@@ -340,7 +352,7 @@ class OnboardingRepository:
         status = str(row.get("employment_status") or "").lower()
         if not status:
             return True
-        return status in ("actif", "active")
+        return status in ("actif", "active", "en_onboarding")
 
     def complete_task(
         self,

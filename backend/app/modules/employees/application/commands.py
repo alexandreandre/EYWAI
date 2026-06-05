@@ -22,7 +22,9 @@ from app.modules.employees.application.dto import EmployeeCreateValidationError
 from app.modules.employees.domain.rules import (
     build_employee_folder_name,
     default_company_data_fallback,
+    derive_collaborator_username,
 )
+from app.modules.onboarding.domain.profile import is_profile_complete
 from app.modules.employees.infrastructure.mappers import prepare_employee_insert_data
 from app.modules.employees.infrastructure.providers import (
     generate_contract_pdf,
@@ -121,9 +123,7 @@ async def create_employee(
         alphabet = string.ascii_letters + string.digits + simple_punctuation
         password = "".join(secrets.choice(alphabet) for _ in range(12))
 
-        first_name_for_username = remove_accents(first_name).lower().replace(" ", "_")
-        last_name_for_username = remove_accents(last_name).lower().replace(" ", "_")
-        username = f"{first_name_for_username}.{last_name_for_username}"
+        username = derive_collaborator_username(first_name, last_name, email=email)
 
         try:
             new_user_id = auth.create_user(email=email, password=password)
@@ -199,7 +199,8 @@ async def create_employee(
                 detail="Échec de l'enregistrement de l'accès à l'entreprise pour le collaborateur.",
             ) from grant_err
 
-        storage_prefix = f"{company_id}/{new_user_id}"
+        employee_id = str(new_employee_db["id"])
+        storage_prefix = f"{company_id}/{employee_id}"
         company_data = company_reader.get_company_data(company_id)
         if not company_data:
             company_data = default_company_data_fallback()
@@ -359,6 +360,17 @@ async def create_employee(
         raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}") from e
 
 
+def _maybe_activate_after_onboarding(employee_id: str) -> None:
+    """Passe en actif un salarié en onboarding dont la fiche paie est complète."""
+    emp = _employee_repository.get_by_id_only(employee_id)
+    if not emp:
+        return
+    if str(emp.get("employment_status") or "").lower() != "en_onboarding":
+        return
+    if is_profile_complete(emp):
+        _employee_repository.update(employee_id, {"employment_status": "actif"})
+
+
 def update_employee(employee_id: str, update_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Met à jour un employé (dont alertes RIB si coordonnées bancaires modifiées).
@@ -402,7 +414,9 @@ def update_employee(employee_id: str, update_data: Dict[str, Any]) -> Dict[str, 
         raise HTTPException(
             status_code=404, detail="Employé non trouvé ou aucune donnée modifiée."
         )
-    return updated
+    _maybe_activate_after_onboarding(employee_id)
+    refreshed = _employee_repository.get_by_id_only(employee_id)
+    return refreshed if refreshed is not None else updated
 
 
 def apply_salary_update(
@@ -418,7 +432,7 @@ def apply_salary_update(
     Met à jour salaire_de_base et insère une ligne salary_history.
     Retourne la ligne d'historique insérée.
     """
-    return _employee_repository.update_salary(
+    row = _employee_repository.update_salary(
         employee_id=employee_id,
         company_id=company_id,
         ancien_salaire=ancien_salaire,
@@ -427,6 +441,8 @@ def apply_salary_update(
         effective_date=effective_date,
         created_by=created_by,
     )
+    _maybe_activate_after_onboarding(employee_id)
+    return row
 
 
 def delete_employee(employee_id: str) -> None:

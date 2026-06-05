@@ -31,9 +31,33 @@ def default_company_data_fallback() -> Dict[str, Any]:
     }
 
 
+def derive_collaborator_username(
+    first_name: str,
+    last_name: str,
+    email: str | None = None,
+    existing: str | None = None,
+) -> str:
+    """
+    Identifiant de connexion unique : partie locale de l'email si disponible,
+    sinon prénom.nom normalisé.
+    """
+    if existing and str(existing).strip():
+        return str(existing).strip()
+    if email and "@" in email:
+        local = email.split("@", 1)[0].strip().lower()
+        if local:
+            return local
+    from app.shared.utils import remove_accents
+
+    first = remove_accents(first_name).lower().replace(" ", "_")
+    last = remove_accents(last_name).lower().replace(" ", "_")
+    return f"{first}.{last}"
+
+
 __all__: List[str] = [
     "DEFAULT_EMPLOYMENT_STATUS",
     "DEFAULT_RESIDENCE_PERMIT_SUBJECT",
     "build_employee_folder_name",
     "default_company_data_fallback",
+    "derive_collaborator_username",
 ]

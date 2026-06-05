@@ -56,6 +56,11 @@ class IAuthProvider(ABC):
         pass
 
     @abstractmethod
+    def update_user_password(self, user_id: str, new_password: str) -> None:
+        """Met à jour le mot de passe d'un utilisateur Auth."""
+        pass
+
+    @abstractmethod
     def delete_user(self, user_id: str) -> None:
         pass
 

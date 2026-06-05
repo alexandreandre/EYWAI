@@ -172,6 +172,11 @@ def service_move_candidate(
         new_stage["stage_type"], rejection_reason
     ):
         raise ValueError("Un motif de refus est obligatoire.")
+    if new_stage["stage_type"] == "hired" and not cand.get("employee_id"):
+        raise ValueError(
+            "Impossible de marquer ce candidat comme recruté sans finaliser l'embauche. "
+            "Renseignez la date d'entrée et créez la fiche salarié."
+        )
     updates = {"current_stage_id": stage_id}
     if new_stage["stage_type"] == "rejected":
         updates["rejection_reason"] = rejection_reason
@@ -296,6 +301,37 @@ def service_hire_candidate(
                 employee_id=str(employee_id),
                 company_id=company_id,
             )
+            try:
+                from app.modules.employees.application.account_provisioning import (
+                    provision_collaborator_account,
+                )
+
+                prov = provision_collaborator_account(
+                    str(employee_id),
+                    company_id,
+                    granted_by_user_id=actor_id,
+                )
+            except Exception as prov_err:
+                _logger.error(
+                    "[recruitment] Échec provisionnement compte/PDF identifiants : %s",
+                    prov_err,
+                )
+            else:
+                from app.modules.employees.infrastructure.repository import (
+                    EmployeeRepository,
+                )
+
+                refreshed = EmployeeRepository().get_by_id(
+                    str(employee_id), company_id
+                )
+                if refreshed:
+                    result = refreshed
+                if prov.get("generated_password"):
+                    result["generated_password"] = prov["generated_password"]
+                if prov.get("username"):
+                    result["username"] = prov["username"]
+                if prov.get("credentials_pdf_path"):
+                    result["credentials_pdf_path"] = prov["credentials_pdf_path"]
     except Exception as e:
 
         _logger.error("[onboarding] Erreur création checklist : %s", e)
@@ -586,6 +622,8 @@ def service_get_candidate_score_row(
 def service_score_candidate_ai(
     candidate_id: str, company_id: str
 ) -> dict[str, Any]:
+    from app.modules.recruitment.application.cv_text_loader import load_cv_text
+
     cand = _candidate_repo.get_by_id(company_id, candidate_id)
     if not cand:
         raise ValueError("Candidat non trouvé")
@@ -594,7 +632,19 @@ def service_score_candidate_ai(
         raise ValueError("Poste non trouvé")
     notes = _note_repo.list_by_candidate(company_id, candidate_id)
     opinions = _opinion_repo.list_by_candidate(company_id, candidate_id)
-    result = scoring_service.score_candidate(cand, job, notes, opinions)
+    interviews = _interview_repo.list_by_company(
+        company_id, candidate_id=candidate_id
+    )
+    cv_text, cv_status = load_cv_text(cand.get("cv_url"))
+    result = scoring_service.score_candidate(
+        cand,
+        job,
+        notes,
+        opinions,
+        interviews=interviews,
+        cv_text=cv_text,
+        cv_status=cv_status,
+    )
     _candidate_repo.save_score(
         candidate_id,
         company_id,
