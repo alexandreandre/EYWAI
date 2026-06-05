@@ -27,6 +27,12 @@ from app.modules.exports.schemas.scheduled_exports import (
     ScheduledExportRunNowResponse,
     ScheduledExportUpdate,
 )
+from app.modules.exports.schemas.dispatch import (
+    DispatchScheduleOut,
+    DispatchScheduleRunResponse,
+    DispatchSchedulesResponse,
+    DispatchScheduleUpsert,
+)
 
 EXPORT_TYPE_LABELS: Dict[str, str] = {
     "journal_paie": "Journal de paie",
@@ -45,6 +51,16 @@ FREQUENCY_LABELS = {
     "daily": "Quotidien",
     "weekly": "Hebdomadaire",
     "monthly": "Mensuel",
+}
+
+CHANNEL_EXPORT_TYPE: Dict[str, str] = {
+    "compta": "od_globale",
+    "banque": "virement_salaires",
+}
+
+CHANNEL_LABELS: Dict[str, str] = {
+    "compta": "Envoi comptabilité",
+    "banque": "Envoi banque",
 }
 
 
@@ -373,3 +389,235 @@ def history_for_schedule(schedule_id: str, company_id: str) -> ExportHistoryResp
         entry_dict["totals"] = ExportTotals(**totals_raw) if totals_raw else None
         history_entries.append(ExportHistoryEntry(**entry_dict))
     return ExportHistoryResponse(exports=history_entries, total=len(history_entries))
+
+
+def _get_channel_schedule_row(company_id: str, channel: str) -> Optional[Dict[str, Any]]:
+    r = (
+        supabase.table("scheduled_exports")
+        .select("*")
+        .eq("company_id", company_id)
+        .eq("channel", channel)
+        .maybe_single()
+        .execute()
+    )
+    return r.data if r.data else None
+
+
+def _default_schedule_out(channel: str) -> DispatchScheduleOut:
+    return DispatchScheduleOut(
+        channel=cast(str, channel),
+        schedule_id=None,
+        name=CHANNEL_LABELS.get(channel, channel),
+        export_type=CHANNEL_EXPORT_TYPE.get(channel, ""),
+        is_active=False,
+        day_of_month=5,
+        hour_utc=6,
+        recipients=[],
+        last_run_at=None,
+        next_run_at=None,
+    )
+
+
+def _row_to_dispatch_schedule(row: Dict[str, Any]) -> DispatchScheduleOut:
+    channel = str(row.get("channel") or "")
+    return DispatchScheduleOut(
+        channel=channel,
+        schedule_id=str(row["id"]),
+        name=str(row.get("name") or CHANNEL_LABELS.get(channel, channel)),
+        export_type=str(row.get("export_type") or CHANNEL_EXPORT_TYPE.get(channel, "")),
+        is_active=bool(row.get("is_active", True)),
+        day_of_month=int(row.get("day_of_month") or 5),
+        hour_utc=int(row.get("hour_utc") or 6),
+        recipients=[str(x) for x in (row.get("recipients") or []) if x],
+        last_run_at=row.get("last_run_at"),
+        next_run_at=row.get("next_run_at"),
+    )
+
+
+def list_channel_schedules(company_id: str) -> DispatchSchedulesResponse:
+    schedules: List[DispatchScheduleOut] = []
+    for channel in ("compta", "banque"):
+        row = _get_channel_schedule_row(company_id, channel)
+        if row:
+            schedules.append(_row_to_dispatch_schedule(row))
+        else:
+            schedules.append(_default_schedule_out(channel))
+    return DispatchSchedulesResponse(schedules=schedules)
+
+
+def upsert_channel_schedule(
+    company_id: str,
+    channel: str,
+    body: DispatchScheduleUpsert,
+    created_by: str,
+) -> DispatchScheduleOut:
+    if channel not in CHANNEL_EXPORT_TYPE:
+        raise ValueError("Canal invalide (compta ou banque).")
+
+    export_type = CHANNEL_EXPORT_TYPE[channel]
+    existing = _get_channel_schedule_row(company_id, channel)
+    next_at = (
+        compute_next_run_at("monthly", body.hour_utc, None, body.day_of_month, _utc_now())
+        if body.is_active
+        else None
+    )
+    payload: Dict[str, Any] = {
+        "name": CHANNEL_LABELS[channel],
+        "export_type": export_type,
+        "frequency": "monthly",
+        "day_of_week": None,
+        "day_of_month": body.day_of_month,
+        "hour_utc": body.hour_utc,
+        "recipients": body.recipients or [],
+        "is_active": body.is_active,
+        "channel": channel,
+        "next_run_at": next_at.isoformat() if next_at else None,
+    }
+
+    if existing:
+        up = (
+            supabase.table("scheduled_exports")
+            .update(payload)
+            .eq("id", existing["id"])
+            .eq("company_id", company_id)
+            .execute()
+        )
+        if not up.data:
+            raise RuntimeError("Mise à jour planning impossible")
+        row = up.data[0] if isinstance(up.data, list) else up.data
+        return _row_to_dispatch_schedule(row)
+
+    payload["company_id"] = company_id
+    payload["created_by"] = created_by
+    ins = supabase.table("scheduled_exports").insert(payload).execute()
+    if not ins.data:
+        raise RuntimeError("Création planning impossible")
+    row = ins.data[0] if isinstance(ins.data, list) else ins.data
+    return _row_to_dispatch_schedule(row)
+
+
+def run_channel_schedule_now(
+    company_id: str, channel: str, user_id: str, period: Optional[str] = None
+) -> DispatchScheduleRunResponse:
+    if channel not in CHANNEL_EXPORT_TYPE:
+        raise ValueError("Canal invalide (compta ou banque).")
+
+    row = _get_channel_schedule_row(company_id, channel)
+    pay_period = period or _previous_payroll_period()
+
+    from app.modules.exports.application import dispatch as dispatch_service
+    from app.modules.exports.schemas.dispatch import (
+        DispatchBanqueRequest,
+        DispatchComptaRequest,
+    )
+
+    if channel == "compta":
+        result = dispatch_service.dispatch_compta(
+            company_id, user_id, DispatchComptaRequest(period=pay_period)
+        )
+    else:
+        result = dispatch_service.dispatch_banque(
+            company_id, user_id, DispatchBanqueRequest(period=pay_period)
+        )
+
+    if row:
+        now = _utc_now().isoformat()
+        freq = str(row.get("frequency") or "monthly")
+        hour_utc = int(row.get("hour_utc") or 6)
+        dom = row.get("day_of_month")
+        next_at = compute_next_run_at(
+            freq,
+            hour_utc,
+            None,
+            int(dom) if dom is not None else 5,
+            _utc_now(),
+        ).isoformat()
+        supabase.table("scheduled_exports").update(
+            {"last_run_at": now, "next_run_at": next_at}
+        ).eq("id", row["id"]).execute()
+
+    return DispatchScheduleRunResponse(
+        dispatch_id=result.dispatch_id,
+        export_id=result.export_ids[0] if result.export_ids else None,
+        message=result.message,
+        parameters={"period": pay_period},
+    )
+
+
+def get_due_channel_schedules() -> List[Dict[str, Any]]:
+    """Plannings canal actifs dont next_run_at est dépassé (UTC)."""
+    now_iso = _utc_now().isoformat()
+    r = (
+        supabase.table("scheduled_exports")
+        .select("*")
+        .eq("is_active", True)
+        .not_.is_("channel", "null")
+        .lte("next_run_at", now_iso)
+        .execute()
+    )
+    return [x for x in (r.data or []) if isinstance(x, dict)]
+
+
+def run_due_channel_schedules() -> List[Dict[str, Any]]:
+    """
+    Exécute tous les plannings compta/banque échus.
+    Retourne un résumé par planning (succès ou erreur).
+    """
+    due = get_due_channel_schedules()
+    results: List[Dict[str, Any]] = []
+
+    for row in due:
+        schedule_id = str(row.get("id") or "")
+        company_id = str(row.get("company_id") or "")
+        channel = str(row.get("channel") or "")
+        user_id = str(row.get("created_by") or "")
+
+        if not company_id or channel not in CHANNEL_EXPORT_TYPE:
+            results.append(
+                {
+                    "schedule_id": schedule_id,
+                    "company_id": company_id,
+                    "channel": channel,
+                    "success": False,
+                    "error": "Planning invalide (company_id ou canal manquant).",
+                }
+            )
+            continue
+
+        if not user_id:
+            results.append(
+                {
+                    "schedule_id": schedule_id,
+                    "company_id": company_id,
+                    "channel": channel,
+                    "success": False,
+                    "error": "created_by manquant sur le planning.",
+                }
+            )
+            continue
+
+        try:
+            response = run_channel_schedule_now(company_id, channel, user_id)
+            results.append(
+                {
+                    "schedule_id": schedule_id,
+                    "company_id": company_id,
+                    "channel": channel,
+                    "success": True,
+                    "dispatch_id": response.dispatch_id,
+                    "message": response.message,
+                    "period": response.parameters.get("period"),
+                }
+            )
+        except Exception as exc:
+            results.append(
+                {
+                    "schedule_id": schedule_id,
+                    "company_id": company_id,
+                    "channel": channel,
+                    "success": False,
+                    "error": str(exc),
+                }
+            )
+
+    return results

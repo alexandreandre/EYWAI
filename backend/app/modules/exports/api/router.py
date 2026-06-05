@@ -10,6 +10,7 @@ from app.modules.users.schemas.responses import User
 from app.modules.exports.api.dependencies import get_active_company_id
 from app.modules.exports.application import service as export_service
 from app.modules.exports.application import scheduled_exports as scheduled_export_service
+from app.modules.exports.application import dispatch as dispatch_service
 from app.modules.exports.schemas import (
     ExportPreviewRequest,
     ExportPreviewResponse,
@@ -23,6 +24,19 @@ from app.modules.exports.schemas.scheduled_exports import (
     ScheduledExportOut,
     ScheduledExportRunNowResponse,
     ScheduledExportUpdate,
+)
+from app.modules.exports.schemas.dispatch import (
+    DispatchBanqueRequest,
+    DispatchComptaRequest,
+    DispatchHistoryResponse,
+    DispatchResultResponse,
+    DispatchSchedulesResponse,
+    DispatchScheduleOut,
+    DispatchScheduleRunResponse,
+    DispatchScheduleUpsert,
+    DispatchStatusResponse,
+    MarkDispatchTransmittedRequest,
+    MarkDispatchTransmittedResponse,
 )
 
 router = APIRouter(
@@ -222,6 +236,146 @@ async def delete_scheduled_export(
     _require_rh_exports(current_user, company_id)
     try:
         scheduled_export_service.delete_scheduled(schedule_id, company_id)
+    except ValueError as e:
+        raise _value_error_to_http(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Envois compta / banque (dispatch) ---
+
+
+@router.get("/dispatch/status", response_model=DispatchStatusResponse)
+async def get_dispatch_status(
+    period: str,
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    _require_rh_exports(current_user, company_id)
+    try:
+        return dispatch_service.get_dispatch_status(company_id, period)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/dispatch/compta", response_model=DispatchResultResponse)
+async def dispatch_compta(
+    body: DispatchComptaRequest,
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    _require_rh_exports(current_user, company_id)
+    try:
+        return dispatch_service.dispatch_compta(company_id, str(current_user.id), body)
+    except ValueError as e:
+        raise _value_error_to_http(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/dispatch/banque", response_model=DispatchResultResponse)
+async def dispatch_banque(
+    body: DispatchBanqueRequest,
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    _require_rh_exports(current_user, company_id)
+    try:
+        return dispatch_service.dispatch_banque(company_id, str(current_user.id), body)
+    except ValueError as e:
+        raise _value_error_to_http(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/dispatch/{dispatch_id}/mark-transmitted",
+    response_model=MarkDispatchTransmittedResponse,
+)
+async def mark_dispatch_transmitted(
+    dispatch_id: str,
+    body: MarkDispatchTransmittedRequest,
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    _require_rh_exports(current_user, company_id)
+    try:
+        return dispatch_service.mark_transmitted(
+            dispatch_id, company_id, str(current_user.id), body.note
+        )
+    except ValueError as e:
+        raise _value_error_to_http(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/dispatch/history", response_model=DispatchHistoryResponse)
+async def get_dispatch_history(
+    channel: Optional[str] = None,
+    limit: int = 10,
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    _require_rh_exports(current_user, company_id)
+    try:
+        return dispatch_service.get_dispatch_history(company_id, channel, limit)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/dispatch/schedules", response_model=DispatchSchedulesResponse)
+async def list_dispatch_schedules(
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    _require_rh_exports(current_user, company_id)
+    try:
+        return scheduled_export_service.list_channel_schedules(company_id)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/dispatch/schedules/{channel}", response_model=DispatchScheduleOut)
+async def upsert_dispatch_schedule(
+    channel: str,
+    body: DispatchScheduleUpsert,
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    _require_rh_exports(current_user, company_id)
+    try:
+        return scheduled_export_service.upsert_channel_schedule(
+            company_id, channel, body, created_by=str(current_user.id)
+        )
+    except ValueError as e:
+        raise _value_error_to_http(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/dispatch/schedules/{channel}/run-now",
+    response_model=DispatchScheduleRunResponse,
+)
+async def run_dispatch_schedule_now(
+    channel: str,
+    period: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    _require_rh_exports(current_user, company_id)
+    try:
+        return scheduled_export_service.run_channel_schedule_now(
+            company_id, channel, str(current_user.id), period
+        )
     except ValueError as e:
         raise _value_error_to_http(e)
     except Exception as e:
