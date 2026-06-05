@@ -23,6 +23,10 @@ from app.modules.cse.application.service import (
     export_minutes_annual_file,
     get_meeting_minutes_path_or_raise,
 )
+from app.modules.cse.domain.exceptions import (
+    DelegationNotFoundError,
+    DelegationValidationError,
+)
 from app.modules.cse.schemas import (
     BDESDocumentCreate,
     BDESDocumentRead,
@@ -91,6 +95,14 @@ def _is_rh(user: User) -> bool:
 def _require_rh(current_user: User) -> None:
     if not _is_rh(current_user):
         raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
+
+
+def _map_delegation_app_errors(exc: Exception) -> None:
+    """Convertit les exceptions applicatives délégation en réponses HTTP."""
+    if isinstance(exc, DelegationNotFoundError):
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if isinstance(exc, DelegationValidationError):
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _resolve_employee_id_for_current_user(user: User) -> Optional[str]:
@@ -648,9 +660,12 @@ def create_delegation_transfer_endpoint(
                 status_code=403,
                 detail="Vous ne pouvez mutualiser que vos propres heures",
             )
-    return commands.create_delegation_transfer(
-        company_id, body, created_by=str(current_user.id)
-    )
+    try:
+        return commands.create_delegation_transfer(
+            company_id, body, created_by=str(current_user.id)
+        )
+    except (DelegationNotFoundError, DelegationValidationError) as exc:
+        _map_delegation_app_errors(exc)
 
 
 @router.get("/delegation/requests", response_model=List[DelegationRequestRead])
@@ -697,7 +712,10 @@ def update_delegation_request_endpoint(
     queries.check_module_active(company_id)
     if not _is_rh(current_user):
         _require_elected_or_rh(current_user, company_id)
-    return commands.update_delegation_request(company_id, request_id, body)
+    try:
+        return commands.update_delegation_request(company_id, request_id, body)
+    except (DelegationNotFoundError, DelegationValidationError) as exc:
+        _map_delegation_app_errors(exc)
 
 
 @router.get("/delegation/register/{year}", response_model=List[DelegationRegisterRow])

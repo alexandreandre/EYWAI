@@ -17,7 +17,11 @@ from app.modules.collective_agreements.application.service import (
     get_collective_agreements_service,
     _to_http,
 )
-from app.modules.collective_agreements.domain.exceptions import ForbiddenError, NotFoundError
+from app.modules.collective_agreements.domain.exceptions import (
+    ForbiddenError,
+    NotFoundError,
+    ValidationError,
+)
 
 
 def list_catalog_query(
@@ -110,12 +114,8 @@ def get_convention_document_query(
             has_rh_access=has_rh_access,
             is_platform_admin=is_platform_admin,
         )
-    except (NotFoundError, ForbiddenError) as exc:
+    except (NotFoundError, ForbiddenError, ValidationError) as exc:
         raise _to_http(exc)
-    except ValidationError as exc:
-        from fastapi import HTTPException
-
-        raise HTTPException(status_code=400, detail=exc.message)
 
 
 def get_rules_status_query(

@@ -9,8 +9,10 @@ from calendar import monthrange
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import HTTPException
-
+from app.modules.cse.domain.exceptions import (
+    DelegationNotFoundError,
+    DelegationValidationError,
+)
 from app.modules.cse.domain.delegation import (
     DelegationHourRecord,
     DelegationTransferRecord,
@@ -332,7 +334,7 @@ def create_delegation_transfer(
     to_ctx = _mandate_context(company_id, data.to_employee_id)
     ref_headcount, _, report_enabled, mutua_enabled = _resolve_reference_headcount(company_id)
     if not mutua_enabled:
-        raise HTTPException(status_code=400, detail="La mutualisation est désactivée")
+        raise DelegationValidationError("La mutualisation est désactivée")
 
     from_base = credit_base(from_ctx["role"], ref_headcount, from_ctx["monthly_hours_override"])
     to_base = credit_base(to_ctx["role"], ref_headcount, to_ctx["monthly_hours_override"])
@@ -353,7 +355,7 @@ def create_delegation_transfer(
         usage_date=usage_date,
     )
     if not ok:
-        raise HTTPException(status_code=400, detail=" ; ".join(warnings))
+        raise DelegationValidationError(" ; ".join(warnings))
 
     row = insert_delegation_transfer(
         {
@@ -548,7 +550,7 @@ def update_delegation_request_status(
         updates["delegation_hour_id"] = data.delegation_hour_id
     row = update_delegation_request(request_id, updates)
     if str(row.get("company_id")) != company_id:
-        raise HTTPException(status_code=404, detail="Bon de délégation introuvable")
+        raise DelegationNotFoundError("Bon de délégation introuvable")
     planned = row.get("planned_date")
     if isinstance(planned, str):
         planned = datetime.fromisoformat(planned).date()

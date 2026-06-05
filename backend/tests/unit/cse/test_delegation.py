@@ -105,7 +105,7 @@ class TestMonthlyBalance:
                 prior_monthly_unused=prior,
             )
         )
-        assert detail.reported_available == 18.0
+        assert detail.reported_available == 17.0  # 6×2 (2025-07→12) + 5×1 (2026-01→05)
 
 
 class TestRollingBalances:

@@ -172,6 +172,7 @@ def test_update_employee_success_returns_updated_data(mock_emp_repo):
         "company_id": "company-1",
         "first_name": "Jean",
         "last_name": "Dupont",
+        "phone_number": "+33600000000",
         "coordonnees_bancaires": {},
     }
     mock_emp_repo.update.return_value = {

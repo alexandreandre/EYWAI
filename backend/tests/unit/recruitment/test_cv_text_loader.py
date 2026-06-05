@@ -20,7 +20,10 @@ class TestLoadCvText:
             headers={"content-type": "application/pdf"},
             raise_for_status=MagicMock(),
         )
-        mock_extract.return_value = ("Expérience Python 5 ans", "PDF natif")
+        mock_extract.return_value = (
+            "Expérience Python développeur senior plus de cinq ans en entreprise",
+            "PDF natif",
+        )
 
         text, status = load_cv_text("https://example.com/cv.pdf?token=abc")
 

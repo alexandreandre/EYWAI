@@ -9,14 +9,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import HTTPException
-
 from app.modules.employees.infrastructure.repository import EmployeeRepository
 from app.modules.onboarding.domain.profile import payroll_block_reason
 from app.modules.payslips.application.dto import (
     EditPayslipInput,
     GeneratePayslipInput,
     GeneratePayslipResult,
+    PayslipBadRequestError,
+    PayslipNotFoundError,
     RestorePayslipInput,
 )
 from app.modules.payslips.domain.rules import is_forfait_jour
@@ -37,10 +37,10 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
     """
     employee = _employee_repository.get_by_id_only(cmd.employee_id)
     if not employee:
-        raise HTTPException(status_code=404, detail="Employé non trouvé.")
+        raise PayslipNotFoundError("Employé non trouvé.")
     block_reason = payroll_block_reason(employee)
     if block_reason:
-        raise HTTPException(status_code=400, detail=block_reason)
+        raise PayslipBadRequestError(block_reason)
 
     statut = employee_statut_reader.get_employee_statut(cmd.employee_id)
     if is_forfait_jour(statut):

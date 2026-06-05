@@ -49,7 +49,7 @@ def load_cv_text(cv_url: str | None) -> tuple[str, str | None]:
     try:
         resp = requests.get(cv_url, timeout=_FETCH_TIMEOUT_S)
         resp.raise_for_status()
-    except requests.RequestException as exc:
+    except (requests.RequestException, OSError) as exc:
         logger.warning("Téléchargement CV impossible: %s", exc)
         return "", "CV joint mais téléchargement impossible"
 

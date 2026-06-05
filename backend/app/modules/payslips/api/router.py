@@ -164,6 +164,8 @@ def generate_payslip_route(
         }
     except HTTPException:
         raise
+    except _PAYSLIP_APP_ERRORS as exc:
+        _handle_application_errors(exc)
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
