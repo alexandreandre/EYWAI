@@ -9,6 +9,10 @@ export const queryKeys = {
   adminCompanies: () => ['admin', 'companies'] as const,
   employees: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'employees'),
+  employee: (companyId: string | undefined, employeeId: string | undefined) =>
+    companyQueryKey(companyId, 'employee', employeeId ?? 'none'),
+  collectiveAgreements: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'collective-agreements'),
   dashboardAll: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'dashboard', 'all'),
   residencePermitStats: (companyId: string | undefined) =>

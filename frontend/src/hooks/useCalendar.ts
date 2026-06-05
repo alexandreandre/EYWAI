@@ -43,7 +43,12 @@ function applyHolidayHints(
   });
 }
 
-export function useCalendar(employeeId: string | undefined, employeeStatut?: string) {
+export function useCalendar(
+  employeeId: string | undefined,
+  employeeStatut?: string,
+  options?: { enabled?: boolean },
+) {
+  const fetchEnabled = options?.enabled !== false;
   const isForfaitJourMode = useMemo(() => isForfaitJour(employeeStatut), [employeeStatut]);
 
   const getInitialWeekTemplate = (forfaitJour: boolean): WeekTemplate =>
@@ -85,7 +90,7 @@ export function useCalendar(employeeId: string | undefined, employeeStatut?: str
   }, [plannedCalendar, selectedDate.year, selectedDate.month, isLoading]);
 
   const fetchAllCalendarData = useCallback(async () => {
-    if (!employeeId) {
+    if (!employeeId || !fetchEnabled) {
       setIsLoading(false);
       setLoadError(false);
       setPlannedCalendar([]);
@@ -151,7 +156,7 @@ export function useCalendar(employeeId: string | undefined, employeeStatut?: str
     } finally {
       setIsLoading(false);
     }
-  }, [employeeId, selectedDate, isForfaitJourMode, toast]);
+  }, [employeeId, selectedDate, isForfaitJourMode, toast, fetchEnabled]);
 
   useEffect(() => {
     fetchAllCalendarData();

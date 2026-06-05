@@ -1,5 +1,6 @@
 import apiClient from '@/api/apiClient';
 import type { EmployeeListItem } from '@/hooks/queries/useEmployeesQuery';
+import type { Employee } from '@/features/employee-detail/types';
 
 export type EmployeeLite = {
   id: string;
@@ -8,6 +9,11 @@ export type EmployeeLite = {
 };
 
 export type EmployeeSummaryStatus = 'active' | 'all';
+
+export async function getEmployee(employeeId: string): Promise<Employee> {
+  const { data } = await apiClient.get<Employee>(`/api/employees/${employeeId}`);
+  return data;
+}
 
 export async function fetchEmployeesSummary(
   status: EmployeeSummaryStatus = 'all',

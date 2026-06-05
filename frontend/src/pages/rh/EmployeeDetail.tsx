@@ -1,7 +1,7 @@
 // src/pages/EmployeeDetail.tsx
 
 import { log } from '@/lib/logger';
-import { useCallback, useState, useEffect, useRef, useMemo } from "react";
+import { lazy, Suspense, useCallback, useState, useEffect, useRef, useMemo } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import apiClient from "@/api/apiClient";
 import * as saisiesApi from "@/api/saisies";
@@ -27,7 +27,7 @@ import {
 } from "@/components/employee-detail/EmployeeDetailMedicalTab";
 import { hasMedicalOverdue } from "@/lib/medicalFollowUpLabels";
 import { getMedicalSettings, getObligationsForEmployee } from "@/api/medicalFollowUp";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { assignEmployeeTeam, getTeams } from "@/api/teams";
 import { EmployeeDetailDocumentsTab } from "@/components/employee-detail/EmployeeDetailDocumentsTab";
 import {
@@ -42,18 +42,55 @@ import { SaisieModal } from "@/components/SaisieModal";
 import { cn } from "@/lib/utils";
 import { TAB_AUGMENTATIONS_PROMOTIONS, normalizeEmployeeDetailTab } from "@/features/employee-detail/utils/tabs";
 import type { Employee } from "@/features/employee-detail/types";
-import { EmployeeDetailAugmentationsPromotionsTab } from "@/features/employee-detail/components/EmployeeDetailAugmentationsPromotionsTab";
-import { EmployeeDetailCalendarTab } from "@/features/employee-detail/components/EmployeeDetailCalendarTab";
 import { EmployeeDetailSaisiesTab } from "@/features/employee-detail/components/EmployeeDetailSaisiesTab";
 import { ContractualChangeDialog } from "@/features/employee-detail/components/ContractualChangeDialog";
+import {
+  employeePlaceholderFromList,
+  type EmployeeDetailLocationState,
+} from "@/features/employees/utils/employeePreview";
+import { useEmployeeQuery, useUpdateEmployeeCache } from "@/hooks/queries/useEmployeeQuery";
+import { queryKeys } from "@/lib/queryKeys";
+import { Skeleton } from "@/components/ui/skeleton";
+
+const EmployeeDetailAugmentationsPromotionsTab = lazy(() =>
+  import("@/features/employee-detail/components/EmployeeDetailAugmentationsPromotionsTab").then(
+    (m) => ({ default: m.EmployeeDetailAugmentationsPromotionsTab }),
+  ),
+);
+const EmployeeDetailCalendarTab = lazy(() =>
+  import("@/features/employee-detail/components/EmployeeDetailCalendarTab").then(
+    (m) => ({ default: m.EmployeeDetailCalendarTab }),
+  ),
+);
+
+function TabPanelSkeleton() {
+  return (
+    <div className="space-y-3 rounded-lg border p-4">
+      <Skeleton className="h-6 w-48" />
+      <Skeleton className="h-32 w-full" />
+    </div>
+  );
+}
 
 export default function EmployeeDetail() {
   const { employeeId } = useParams<{ employeeId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const previewFromState = (location.state as EmployeeDetailLocationState | null)?.employeePreview;
+  const employeePreview =
+    previewFromState?.id === employeeId
+      ? employeePlaceholderFromList(previewFromState)
+      : undefined;
 
-  const [employee, setEmployee] = useState<Employee | null>(null);
+  const employeeQuery = useEmployeeQuery(employeeId, { placeholder: employeePreview });
+  const employee = employeeQuery.data ?? null;
+  const employeeReady = Boolean(employee && !employeeQuery.isPlaceholderData);
+  const updateEmployeeCache = useUpdateEmployeeCache();
   const employeeStatut = employee?.statut;
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const params = new URLSearchParams(location.search);
+    return normalizeEmployeeDetailTab(params.get("tab"));
+  });
 
   const {
     selectedDate,
@@ -80,18 +117,12 @@ export default function EmployeeDetail() {
     copyPlannedToActualForDay,
     bulkCopyPlannedToActual,
     isCopyingPrevMonth,
-  } = useCalendar(employeeId, employeeStatut);
+  } = useCalendar(employeeId, employeeStatut, { enabled: activeTab === "calendrier" });
 
-  const [credentialsPdfUrl, setCredentialsPdfUrl] = useState<string | null>(null);
-  const [isPageLoading, setIsPageLoading] = useState(true);
   const [saisieModalOpen, setSaisieModalOpen] = useState(false);
-  const [isLoadingSaisies, setIsLoadingSaisies] = useState(true);
+  const [isLoadingSaisies, setIsLoadingSaisies] = useState(false);
   const [employeeSaisies, setEmployeeSaisies] = useState<any[]>([]);
   const [calendarView, setCalendarView] = useState<'month' | 'year'>('month');
-  const [activeTab, setActiveTab] = useState<string>(() => {
-    const params = new URLSearchParams(location.search);
-    return normalizeEmployeeDetailTab(params.get("tab"));
-  });
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -109,7 +140,6 @@ export default function EmployeeDetail() {
   const canDeleteReview =
     user?.role === "rh" || user?.role === "admin" || user?.role === "collaborateur_rh";
 
-  const [companyAgreements, setCompanyAgreements] = useState<collectiveAgreementsApi.CompanyCollectiveAgreementWithDetails[]>([]);
   const [collectiveAgreementId, setCollectiveAgreementId] = useState<string | null>(null);
   const [isSavingCC, setIsSavingCC] = useState(false);
   const [draftTeamId, setDraftTeamId] = useState<string>("__none__");
@@ -118,7 +148,8 @@ export default function EmployeeDetail() {
   const teamsActiveQuery = useQuery({
     queryKey: ["teams-active"],
     queryFn: () => getTeams(false),
-    enabled: Boolean(employeeId),
+    enabled: Boolean(employeeId && employeeReady),
+    staleTime: 5 * 60_000,
   });
   const activeTeamsSorted = useMemo(
     () =>
@@ -151,12 +182,12 @@ export default function EmployeeDetail() {
   const teamAssignmentDirty = draftTeamId !== savedTeamSelectValue;
 
   useEffect(() => {
-    if (!employee || contractualBaselineSeededRef.current) return;
+    if (!employeeReady || contractualBaselineSeededRef.current) return;
     contractualInitialWatchRef.current = extractWatchedSnapshot(
       employee as unknown as Record<string, unknown>,
     );
     contractualBaselineSeededRef.current = true;
-  }, [employee, employeeId]);
+  }, [employee, employeeId, employeeReady]);
 
   const resetContractualBaselineFromEmployee = useCallback((emp: Employee) => {
     contractualInitialWatchRef.current = extractWatchedSnapshot(
@@ -178,15 +209,17 @@ export default function EmployeeDetail() {
   }, []);
 
   const medicalSettingsQuery = useQuery({
-    queryKey: ["medical-follow-up", "settings", "employee-detail"],
+    queryKey: queryKeys.medicalSettings(activeCompanyId),
     queryFn: getMedicalSettings,
+    enabled: Boolean(activeCompanyId),
+    staleTime: 5 * 60_000,
   });
   const medicalModuleEnabled = medicalSettingsQuery.data?.enabled === true;
 
   const medicalTabBadgeQuery = useQuery({
     queryKey: employeeId ? medicalEmployeeQueryKey(employeeId) : ["medical-follow-up", "employee", "none"],
     queryFn: () => getObligationsForEmployee(employeeId!),
-    enabled: medicalModuleEnabled && !!employeeId,
+    enabled: medicalModuleEnabled && !!employeeId && employeeReady,
     staleTime: 60_000,
   });
   const medicalTabHasOverdue = hasMedicalOverdue(medicalTabBadgeQuery.data ?? []);
@@ -197,7 +230,7 @@ export default function EmployeeDetail() {
       const res = await getEmployeeAnnualReviews(employeeId!);
       return res.data ?? [];
     },
-    enabled: !!employeeId,
+    enabled: !!employeeId && employeeReady,
     staleTime: 60_000,
   });
   const annualReviewTabHasAlert = hasAnnualReviewTabAlert(annualReviewsTabBadgeQuery.data ?? []);
@@ -220,7 +253,7 @@ export default function EmployeeDetail() {
         badgeuseWeekRange.from,
         badgeuseWeekRange.to
       ),
-    enabled: Boolean(employeeId && activeCompanyId && !isForfaitJour),
+    enabled: Boolean(employeeId && activeCompanyId && !isForfaitJour && employeeReady),
     staleTime: 60_000,
   });
   const badgeuseTabHasAnomaly = (badgeuseTabBadgeQuery.data ?? []).some((d) => d.has_anomalies);
@@ -228,15 +261,20 @@ export default function EmployeeDetail() {
   const refreshEmployeeSnapshot = useCallback(async () => {
     if (!employeeId) return;
     const employeeRes = await apiClient.get<Employee>(`/api/employees/${employeeId}`);
-    setEmployee(employeeRes.data);
+    updateEmployeeCache(employeeId, employeeRes.data);
     evaluateContractualAfterPersist(employeeRes.data);
-  }, [employeeId, evaluateContractualAfterPersist]);
+  }, [employeeId, evaluateContractualAfterPersist, updateEmployeeCache]);
 
-  useEffect(() => {
-    collectiveAgreementsApi.getMyCompanyAgreements()
-      .then(res => setCompanyAgreements(res.data || []))
-      .catch(() => setCompanyAgreements([]));
-  }, []);
+  const companyAgreementsQuery = useQuery({
+    queryKey: queryKeys.collectiveAgreements(activeCompanyId),
+    queryFn: async () => {
+      const res = await collectiveAgreementsApi.getMyCompanyAgreements();
+      return res.data ?? [];
+    },
+    enabled: Boolean(activeCompanyId && employeeReady),
+    staleTime: 5 * 60_000,
+  });
+  const companyAgreements = companyAgreementsQuery.data ?? [];
 
   useEffect(() => {
     if (employee?.collective_agreement_id !== undefined) {
@@ -251,7 +289,7 @@ export default function EmployeeDetail() {
       await apiClient.put(`/api/employees/${employeeId}`, { collective_agreement_id: collectiveAgreementId });
       toast({ title: "Enregistré", description: "Convention collective mise à jour." });
       const employeeRes = await apiClient.get<Employee>(`/api/employees/${employeeId}`);
-      setEmployee(employeeRes.data);
+      updateEmployeeCache(employeeId, employeeRes.data);
       evaluateContractualAfterPersist(employeeRes.data);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Erreur";
@@ -287,36 +325,23 @@ export default function EmployeeDetail() {
   };
 
   useEffect(() => {
-    if (employeeId) fetchSaisies();
-  }, [fetchSaisies]);
+    if (!employeeId || activeTab !== "saisie") return;
+    fetchSaisies();
+  }, [fetchSaisies, employeeId, activeTab]);
 
-  useEffect(() => {
-    if (!employeeId) return;
-    const fetchPageData = async () => {
-      setIsPageLoading(true);
-      setEmployee(null);
-      setCredentialsPdfUrl(null);
-      try {
-        const employeeRes = await apiClient.get(`/api/employees/${employeeId}`);
-        setEmployee(employeeRes.data);
-        try {
-          const credentialsPdfRes = await apiClient.get(
-            `/api/employees/${employeeId}/credentials-pdf`,
-          );
-          setCredentialsPdfUrl(credentialsPdfRes.data.url ?? null);
-        } catch (credErr) {
-          log.error("Erreur lors du chargement du PDF de création de compte", credErr);
-          setCredentialsPdfUrl(null);
-        }
-      } catch (err) {
-        log.error("Erreur lors du chargement des données de la page", err);
-        setEmployee(null);
-      } finally {
-        setIsPageLoading(false);
-      }
-    };
-    fetchPageData();
-  }, [employeeId]);
+  const credentialsPdfQuery = useQuery({
+    queryKey: ["employee", employeeId, "credentials-pdf"],
+    queryFn: async () => {
+      const res = await apiClient.get<{ url?: string | null }>(
+        `/api/employees/${employeeId}/credentials-pdf`,
+      );
+      return res.data.url ?? null;
+    },
+    enabled: Boolean(employeeId && employeeReady),
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
+  const credentialsPdfUrl = credentialsPdfQuery.data ?? null;
 
   const handleDeleteEmployee = async () => {
     if (!employeeId) return;
@@ -352,10 +377,12 @@ export default function EmployeeDetail() {
     try {
       const nextId = draftTeamId === "__none__" ? null : draftTeamId;
       await assignEmployeeTeam(employeeId, nextId);
-      setEmployee((prev) => (prev ? { ...prev, team_id: nextId } : prev));
+      if (employee) {
+        updateEmployeeCache(employeeId, { ...employee, team_id: nextId });
+      }
       const employeeRes = await apiClient.get<Employee>(`/api/employees/${employeeId}`);
-      setEmployee(employeeRes.data);
-      void queryClient.invalidateQueries({ queryKey: ["employee", employeeId] });
+      updateEmployeeCache(employeeId, employeeRes.data);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.employee(activeCompanyId, employeeId) });
       toast({ title: "Équipe mise à jour" });
     } catch (error: unknown) {
       const err = error as { response?: { data?: { detail?: string } } };
@@ -379,8 +406,16 @@ export default function EmployeeDetail() {
     }
   };
 
-  if (isPageLoading) return <div className="flex items-center justify-center h-screen"><Loader2 className="h-12 w-12 animate-spin"/></div>;
-  if (!employee) {
+  const isInitialLoad = employeeQuery.isLoading && employee === null;
+
+  if (isInitialLoad) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (employeeQuery.isError && !employee) {
     return (
       <div className="space-y-6">
         <Link to="/employees" className="flex items-center text-sm text-muted-foreground hover:text-foreground">
@@ -481,25 +516,29 @@ export default function EmployeeDetail() {
         </TabsList>
 
         <TabsContent value="documents" className="mt-4">
-          {employeeId && employee && (
+          {employeeId && employeeReady ? (
             <EmployeeDetailDocumentsTab
               employeeId={employeeId}
               employee={employee}
               credentialsPdfUrl={credentialsPdfUrl}
             />
+          ) : (
+            <TabPanelSkeleton />
           )}
         </TabsContent>
 
         <TabsContent value={TAB_AUGMENTATIONS_PROMOTIONS} className="mt-4">
-          <EmployeeDetailAugmentationsPromotionsTab
-            employeeId={employeeId!}
-            employee={employee}
-            activeCompanyId={activeCompanyId}
-            onEmployeeUpdated={(emp) => {
-              setEmployee(emp);
-              evaluateContractualAfterPersist(emp);
-            }}
-          />
+          <Suspense fallback={<TabPanelSkeleton />}>
+            <EmployeeDetailAugmentationsPromotionsTab
+              employeeId={employeeId!}
+              employee={employee}
+              activeCompanyId={activeCompanyId}
+              onEmployeeUpdated={(emp) => {
+                updateEmployeeCache(employeeId!, emp);
+                evaluateContractualAfterPersist(emp);
+              }}
+            />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="saisie" className="mt-4">
@@ -533,37 +572,39 @@ export default function EmployeeDetail() {
         )}
 
         <TabsContent value="calendrier" className="mt-4">
-          <EmployeeDetailCalendarTab
-            employee={employee}
-            employeeId={employeeId!}
-            activeCompanyId={activeCompanyId}
-            isForfaitJour={isForfaitJour}
-            calendarView={calendarView}
-            setCalendarView={setCalendarView}
-            selectedDate={selectedDate}
-            setSelectedDate={setSelectedDate}
-            plannedCalendar={plannedCalendar}
-            actualHours={actualHours}
-            isCalendarLoading={isCalendarLoading}
-            isSaving={isSaving}
-            saveAllCalendarData={saveAllCalendarData}
-            updateDayData={updateDayData}
-            weekTemplate={weekTemplate}
-            setWeekTemplate={setWeekTemplate}
-            applyWeekTemplate={applyWeekTemplate}
-            applyWeekTemplateAndSave={applyWeekTemplateAndSave}
-            selectedDays={selectedDays}
-            handleDaySelection={handleDaySelection}
-            bulkUpdateDays={bulkUpdateDays}
-            bulkUpdateDaysAndSave={bulkUpdateDaysAndSave}
-            updateSelection={updateSelection}
-            isDirty={isDirty}
-            monthCompletionStatus={monthCompletionStatus}
-            copyPreviousMonthPlanned={copyPreviousMonthPlanned}
-            copyPlannedToActualForDay={copyPlannedToActualForDay}
-            bulkCopyPlannedToActual={bulkCopyPlannedToActual}
-            isCopyingPrevMonth={isCopyingPrevMonth}
-          />
+          <Suspense fallback={<TabPanelSkeleton />}>
+            <EmployeeDetailCalendarTab
+              employee={employee}
+              employeeId={employeeId!}
+              activeCompanyId={activeCompanyId}
+              isForfaitJour={isForfaitJour}
+              calendarView={calendarView}
+              setCalendarView={setCalendarView}
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
+              plannedCalendar={plannedCalendar}
+              actualHours={actualHours}
+              isCalendarLoading={isCalendarLoading}
+              isSaving={isSaving}
+              saveAllCalendarData={saveAllCalendarData}
+              updateDayData={updateDayData}
+              weekTemplate={weekTemplate}
+              setWeekTemplate={setWeekTemplate}
+              applyWeekTemplate={applyWeekTemplate}
+              applyWeekTemplateAndSave={applyWeekTemplateAndSave}
+              selectedDays={selectedDays}
+              handleDaySelection={handleDaySelection}
+              bulkUpdateDays={bulkUpdateDays}
+              bulkUpdateDaysAndSave={bulkUpdateDaysAndSave}
+              updateSelection={updateSelection}
+              isDirty={isDirty}
+              monthCompletionStatus={monthCompletionStatus}
+              copyPreviousMonthPlanned={copyPreviousMonthPlanned}
+              copyPlannedToActualForDay={copyPlannedToActualForDay}
+              bulkCopyPlannedToActual={bulkCopyPlannedToActual}
+              isCopyingPrevMonth={isCopyingPrevMonth}
+            />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="badgeuse" className="mt-4">
@@ -598,7 +639,7 @@ export default function EmployeeDetail() {
           resetContractualBaselineFromEmployee(employee);
         }}
         onSuccess={(emp) => {
-          setEmployee(emp);
+          updateEmployeeCache(employeeId!, emp);
           resetContractualBaselineFromEmployee(emp);
         }}
       />

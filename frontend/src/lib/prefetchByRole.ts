@@ -161,6 +161,7 @@ function prefetchCommonChunks() {
   return Promise.allSettled([
     import('@/pages/rh/Dashboard'),
     import('@/pages/rh/Employees'),
+    import('@/pages/rh/EmployeeDetail'),
     import('@/pages/rh/Absences'),
     import('@/pages/rh/Planning'),
     import('@/pages/rh/Payroll'),

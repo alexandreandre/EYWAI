@@ -1,8 +1,13 @@
 import { ChevronRight, UserMinus } from "lucide-react";
+import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { TableCell, TableRow } from "@/components/ui/table";
+import { prefetchEmployeeDetail } from "@/lib/prefetchEmployeeDetail";
+import { useActiveCompanyId } from "@/hooks/queries/useCompanyId";
+import type { EmployeeDetailLocationState } from "@/features/employees/utils/employeePreview";
 
 export interface EmployeeListItem {
   id: string;
@@ -22,11 +27,30 @@ export function getContractBadge(type: string) {
 
 export function EmployeesTableRow({ employee }: { employee: EmployeeListItem }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const companyId = useActiveCompanyId();
+
+  const prefetchDetail = useCallback(() => {
+    if (companyId) {
+      prefetchEmployeeDetail(queryClient, companyId, employee.id);
+    }
+  }, [queryClient, companyId, employee.id]);
+
+  const openDetail = useCallback(() => {
+    if (companyId) {
+      prefetchEmployeeDetail(queryClient, companyId, employee.id);
+    }
+    navigate(`/employees/${employee.id}`, {
+      state: { employeePreview: employee } satisfies EmployeeDetailLocationState,
+    });
+  }, [navigate, queryClient, companyId, employee]);
 
   return (
     <TableRow
       key={employee.id}
-      onClick={() => navigate(`/employees/${employee.id}`)}
+      onClick={openDetail}
+      onMouseEnter={prefetchDetail}
+      onFocus={prefetchDetail}
       className="cursor-pointer hover:bg-muted/50"
     >
       <TableCell>
