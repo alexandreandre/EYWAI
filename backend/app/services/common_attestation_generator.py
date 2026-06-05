@@ -20,6 +20,7 @@ from app.shared.infrastructure.pdf.helpers import (
     build_branding_header_reportlab,
     get_company_city,
     get_company_signatory,
+    setup_custom_styles,
 )
 
 
@@ -310,7 +311,7 @@ class CommonAttestationGenerator:
             topMargin=2 * cm,
             bottomMargin=2 * cm,
         )
-        styles = getSampleStyleSheet()
+        styles = setup_custom_styles(getSampleStyleSheet())
         title_style = ParagraphStyle(
             name="AttTitle",
             parent=styles["Heading1"],

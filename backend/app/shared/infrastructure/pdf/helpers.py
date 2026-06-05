@@ -417,7 +417,10 @@ def build_branding_header_reportlab(
     if phone:
         lines.append(f"Tél. : {phone}")
 
-    header_style = styles.get("EntrepriseHeader") or styles["Normal"]
+    try:
+        header_style = styles["EntrepriseHeader"]
+    except KeyError:
+        header_style = styles["Normal"]
     story.append(Paragraph("<br/>".join(lines), header_style))
     story.append(Spacer(1, 0.6 * cm))
 
