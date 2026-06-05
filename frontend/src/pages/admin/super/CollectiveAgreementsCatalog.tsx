@@ -2,20 +2,12 @@
 
 import { log } from '@/lib/logger';
 import { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from '@/components/ui/table';
 import {
   Dialog,
   DialogContent,
@@ -43,24 +35,39 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import {
-  Download,
-  Edit,
   FileText,
   Loader2,
   Plus,
   Search,
+  RefreshCw,
   Trash2,
-  CheckCircle,
+  X,
   XCircle,
-  Sparkles,
-  Eye,
-  Landmark,
 } from 'lucide-react';
+import axios from 'axios';
 import * as collectiveAgreementsApi from '@/api/collectiveAgreements';
+import { CollectiveAgreementRow } from '@/components/collective-agreements/CollectiveAgreementRow';
+import { CollectiveAgreementAssignDialog } from '@/components/collective-agreements/CollectiveAgreementAssignDialog';
+import { ConventionDocumentViewerDialog } from '@/components/collective-agreements/ConventionDocumentViewerDialog';
+import type { DocumentLoadingKind } from '@/components/collective-agreements/CollectiveAgreementRow';
 import { AdminPageHeader } from '@/features/admin/components/eywai/AdminPageHeader';
+import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { formatCatalogConventionName } from '@/lib/collectiveAgreementDisplay';
+import {
+  getReadinessFromRulesStatus,
+  getPayrollGridUnavailableReason,
+  hasCachedTextFromSource,
+  hasPayrollGridFromRules,
+  extractLegifranceUrlFromDescription,
+} from '@/lib/collectiveAgreementReadiness';
+import { printRulesPdfFromJson } from '@/lib/collectiveAgreementRulesPdf';
+import { useConventionDocumentViewer } from '@/hooks/useConventionDocumentViewer';
+import type { ConventionDocumentKind } from '@/lib/collectiveAgreementDocumentCache';
 
 export default function CollectiveAgreementsCatalog() {
   const { toast } = useToast();
+  const { viewer, openDocument, closeViewer, downloadFromViewer } =
+    useConventionDocumentViewer();
 
   // États pour le catalogue
   const [catalog, setCatalog] = useState<collectiveAgreementsApi.CollectiveAgreementCatalog[]>([]);
@@ -102,16 +109,30 @@ export default function CollectiveAgreementsCatalog() {
   const [rulesStatusMap, setRulesStatusMap] = useState<
     Record<string, collectiveAgreementsApi.RulesStatusResponse>
   >({});
-  const [extractingId, setExtractingId] = useState<string | null>(null);
   const [rulesModalOpen, setRulesModalOpen] = useState(false);
   const [rulesModalContent, setRulesModalContent] = useState<Record<string, unknown> | null>(null);
   const [rulesModalTitle, setRulesModalTitle] = useState('');
+  const [rulesModalIdcc, setRulesModalIdcc] = useState('');
+  const [rulesModalAgreementName, setRulesModalAgreementName] = useState('');
+  const [docLoading, setDocLoading] = useState<{
+    id: string;
+    kind: DocumentLoadingKind;
+  } | null>(null);
 
   // Import Légifrance (KALI)
   const [importIdcc, setImportIdcc] = useState('');
+  const [updateAgreementId, setUpdateAgreementId] = useState('');
   const [isImportingKali, setIsImportingKali] = useState(false);
-  const [isBatchImportingKali, setIsBatchImportingKali] = useState(false);
+  const [isSyncingCatalog, setIsSyncingCatalog] = useState(false);
   const [reimportingId, setReimportingId] = useState<string | null>(null);
+  const [isCancellingImport, setIsCancellingImport] = useState(false);
+  const kaliImportAbortRef = useRef<AbortController | null>(null);
+  const [assignDialogAgreement, setAssignDialogAgreement] =
+    useState<collectiveAgreementsApi.CollectiveAgreementCatalog | null>(null);
+  const [assignDialogCompany, setAssignDialogCompany] = useState<{
+    id: string;
+    company_name: string;
+  } | null>(null);
 
   // Liste des secteurs
   const sectors = [
@@ -133,12 +154,18 @@ export default function CollectiveAgreementsCatalog() {
     'Autre',
   ];
 
+  const refreshCompanyAssignments = async () => {
+    try {
+      const res = await collectiveAgreementsApi.getAllCompanyAssignments();
+      setCompanyAssignments(res.data ?? []);
+    } catch {
+      setCompanyAssignments([]);
+    }
+  };
+
   useEffect(() => {
     fetchCatalog();
-    void collectiveAgreementsApi
-      .getAllCompanyAssignments()
-      .then((res) => setCompanyAssignments(res.data ?? []))
-      .catch(() => setCompanyAssignments([]));
+    void refreshCompanyAssignments();
   }, []);
 
   useEffect(() => {
@@ -197,98 +224,199 @@ export default function CollectiveAgreementsCatalog() {
     setRulesStatusMap(map);
   };
 
-  const handleExtractRules = async (
-    agreement: collectiveAgreementsApi.CollectiveAgreementCatalog
-  ) => {
-    const textSource = rulesStatusMap[agreement.id]?.text_source;
-    const hasText =
-      textSource === 'kali' || textSource === 'text' || textSource === 'pdf';
-    if (!agreement.rules_pdf_path && !hasText) {
-      toast({
-        title: 'Texte requis',
-        description:
-          'Importez depuis Légifrance ou uploadez un PDF avant d\'extraire les règles paie.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    setExtractingId(agreement.id);
-    try {
-      const response = await collectiveAgreementsApi.extractRules(agreement.id);
-      const data = response.data;
-      if (data.success) {
-        toast({
-          title: 'Règles extraites',
-          description: `IDCC ${data.idcc} — confiance ${data.confidence ?? 'n/a'}`,
-        });
-        if (data.confidence === 'low') {
-          toast({
-            title: 'Attention',
-            description: 'Confiance faible : vérifiez le JSON extrait.',
-            variant: 'destructive',
-          });
-        }
-      } else {
-        toast({
-          title: 'Extraction échouée',
-          description: data.error ?? 'Validation ou IA en échec',
-          variant: 'destructive',
-        });
-      }
-      const statusRes = await collectiveAgreementsApi.getRulesStatus(agreement.id);
-      setRulesStatusMap((prev) => ({ ...prev, [agreement.id]: statusRes.data }));
-    } catch (err: any) {
-      toast({
-        title: 'Erreur',
-        description: err.response?.data?.detail ?? 'Extraction impossible',
-        variant: 'destructive',
-      });
-    } finally {
-      setExtractingId(null);
-    }
-  };
-
   const handleViewRules = (
     agreement: collectiveAgreementsApi.CollectiveAgreementCatalog
   ) => {
     const status = rulesStatusMap[agreement.id];
-    setRulesModalTitle(`${agreement.name} (IDCC ${agreement.idcc})`);
+    setRulesModalTitle(`IDCC ${agreement.idcc}`);
+    setRulesModalIdcc(agreement.idcc);
+    setRulesModalAgreementName(formatCatalogConventionName(agreement.name));
     setRulesModalContent(status?.rules ?? null);
     setRulesModalOpen(true);
   };
 
-  const renderRulesBadge = (agreementId: string) => {
-    const status = rulesStatusMap[agreementId];
-    if (!status) {
-      return <Badge variant="secondary">…</Badge>;
+  const parseApiErrorDetail = async (err: any, fallback: string): Promise<string> => {
+    let detail = err?.response?.data?.detail || err?.message || fallback;
+    if (err?.response?.data instanceof Blob) {
+      try {
+        const text = await err.response.data.text();
+        detail = JSON.parse(text)?.detail || detail;
+      } catch {
+        /* garde le message par défaut */
+      }
     }
-    if (status.has_rules) {
-      const lowConf = status.confidence === 'low';
-      return (
-        <Badge variant={lowConf ? 'destructive' : 'default'} className={lowConf ? '' : 'bg-green-600'}>
-          {lowConf ? 'OK (faible)' : 'OK'}
-        </Badge>
-      );
-    }
-    if (status.latest_log_status === 'rejected_validation' || status.latest_log_status === 'error') {
-      return <Badge variant="destructive">Erreur</Badge>;
-    }
-    return <Badge variant="outline">Manquant</Badge>;
+    return detail;
   };
 
-  const renderTextSourceBadge = (agreementId: string) => {
-    const source = rulesStatusMap[agreementId]?.text_source;
-    if (!source) return <Badge variant="secondary">…</Badge>;
-    if (source === 'kali') {
-      return <Badge className="bg-blue-600">Légifrance</Badge>;
+  const handleViewDocument = async (
+    agreement: collectiveAgreementsApi.CollectiveAgreementCatalog,
+    kind: ConventionDocumentKind
+  ) => {
+    const textSource = rulesStatusMap[agreement.id]?.text_source;
+    if (!hasCachedTextFromSource(textSource) && !agreement.rules_pdf_path) {
+      toast({
+        title: 'Texte indisponible',
+        description: 'Importez la convention depuis Légifrance avant de générer le PDF.',
+        variant: 'destructive',
+      });
+      return;
     }
-    if (source === 'pdf') {
-      return <Badge variant="secondary">PDF</Badge>;
+
+    setDocLoading({ id: agreement.id, kind });
+    try {
+      await openDocument({
+        agreementId: agreement.id,
+        idcc: agreement.idcc,
+        agreementName: formatCatalogConventionName(agreement.name),
+        kind,
+        sourceTextHash: rulesStatusMap[agreement.id]?.source_text_hash,
+      });
+    } finally {
+      setDocLoading(null);
     }
-    if (source === 'text') {
-      return <Badge variant="secondary">Texte</Badge>;
+  };
+
+  const handleExportRulesPdf = (params: {
+    rules: Record<string, unknown>;
+    agreementName: string;
+    idcc: string;
+    loadingId?: string;
+  }) => {
+    setDocLoading(
+      params.loadingId ? { id: params.loadingId, kind: 'rules' } : null
+    );
+    try {
+      printRulesPdfFromJson({
+        rules: params.rules,
+        agreementName: params.agreementName,
+        idcc: params.idcc,
+      });
+    } catch (err: any) {
+      toast({
+        title: 'Erreur',
+        description: err?.message ?? 'Export PDF impossible',
+        variant: 'destructive',
+      });
+    } finally {
+      if (params.loadingId) {
+        window.setTimeout(() => setDocLoading(null), 400);
+      }
     }
-    return <Badge variant="outline">Manquant</Badge>;
+  };
+
+  const handleExportRulesPdfForAgreement = (
+    agreement: collectiveAgreementsApi.CollectiveAgreementCatalog,
+    rules?: Record<string, unknown> | null
+  ) => {
+    const payload = rules ?? rulesStatusMap[agreement.id]?.rules;
+    const status = rulesStatusMap[agreement.id];
+    if (!payload || !hasPayrollGridFromRules(payload)) {
+      toast({
+        title: 'Grille indisponible',
+        description:
+          getPayrollGridUnavailableReason(status) ??
+          'Relancez « Mettre à jour » pour extraire les minima salariaux.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    handleExportRulesPdf({
+      rules: payload,
+      agreementName: formatCatalogConventionName(agreement.name),
+      idcc: agreement.idcc,
+      loadingId: agreement.id,
+    });
+  };
+
+  const getCompletudeFromRules = (rules: Record<string, unknown> | null | undefined) => {
+    const completude = rules?.completude as
+      | { niveau?: string; avertissements?: string[]; grilles_count?: number }
+      | undefined;
+    return completude;
+  };
+
+  const getRowLoading = (agreementId: string): DocumentLoadingKind | null => {
+    if (docLoading?.id === agreementId) return docLoading.kind;
+    if (reimportingId === agreementId) return 'sync';
+    return null;
+  };
+
+  const isKaliImportRunning = Boolean(
+    isImportingKali || isSyncingCatalog || reimportingId
+  );
+
+  const isAbortError = (err: unknown) =>
+    axios.isCancel(err) ||
+    (err instanceof DOMException && err.name === 'AbortError') ||
+    (typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      (err as { code?: string }).code === 'ERR_CANCELED');
+
+  const beginKaliImportRequest = () => {
+    kaliImportAbortRef.current?.abort();
+    const controller = new AbortController();
+    kaliImportAbortRef.current = controller;
+    return controller.signal;
+  };
+
+  const finishKaliImportRequest = () => {
+    kaliImportAbortRef.current = null;
+  };
+
+  const handleCancelKaliImport = async () => {
+    if (!isKaliImportRunning || isCancellingImport) return;
+    setIsCancellingImport(true);
+    try {
+      if (isSyncingCatalog) {
+        await collectiveAgreementsApi.cancelKaliImport({ catalog_sync: true });
+      } else if (reimportingId) {
+        const agreement = catalog.find((item) => item.id === reimportingId);
+        if (agreement) {
+          await collectiveAgreementsApi.cancelKaliImport({ idcc: agreement.idcc });
+        }
+      } else if (isImportingKali && importIdcc.trim()) {
+        await collectiveAgreementsApi.cancelKaliImport({ idcc: importIdcc.trim() });
+      }
+      kaliImportAbortRef.current?.abort();
+    } catch (err: unknown) {
+      toast({
+        title: 'Erreur',
+        description:
+          (err as { response?: { data?: { detail?: string } } })?.response?.data
+            ?.detail ?? "Impossible d'annuler la mise à jour",
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCancellingImport(false);
+    }
+  };
+
+  const notifyRulesExtraction = (data: collectiveAgreementsApi.KaliImportResponse) => {
+    if (data.rules_skipped) {
+      return;
+    }
+    const rules = data.rules;
+    if (!rules) return;
+    if (rules.success) {
+      toast({
+        title: 'Règles paie mises à jour',
+        description: `IDCC ${data.idcc} — confiance ${rules.confidence ?? 'n/a'}`,
+      });
+      if (rules.confidence === 'low') {
+        toast({
+          title: 'Attention',
+          description: 'Confiance faible sur les règles paie : vérifiez le détail technique.',
+          variant: 'destructive',
+        });
+      }
+      return;
+    }
+    toast({
+      title: 'Règles paie non mises à jour',
+      description: rules.error ?? 'Extraction ou validation en échec',
+      variant: 'destructive',
+    });
   };
 
   const refreshAgreementStatus = async (agreementId: string) => {
@@ -303,16 +431,27 @@ export default function CollectiveAgreementsCatalog() {
       return;
     }
     setIsImportingKali(true);
+    const signal = beginKaliImportRequest();
     try {
-      const res = await collectiveAgreementsApi.importFromLegifrance({
-        idcc,
-        extract_rules: true,
-      });
+      const res = await collectiveAgreementsApi.importFromLegifrance(
+        {
+          idcc,
+          extract_rules: true,
+        },
+        { signal }
+      );
       const data = res.data;
+      if (data.cancelled) {
+        toast({
+          title: 'Import annulé',
+          description: `IDCC ${data.idcc} — mise à jour interrompue.`,
+        });
+        return;
+      }
       if (data.success) {
         toast({
-          title: 'Import Légifrance réussi',
-          description: `${data.title ?? 'CC'} — ${data.character_count?.toLocaleString('fr-FR') ?? 0} caractères`,
+          title: data.created ? 'Convention ajoutée' : 'Convention mise à jour',
+          description: data.title ?? `IDCC ${data.idcc}`,
         });
         if (data.rules && !data.rules.success) {
           toast({
@@ -333,54 +472,115 @@ export default function CollectiveAgreementsCatalog() {
           variant: 'destructive',
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      if (isAbortError(err)) {
+        toast({
+          title: 'Import annulé',
+          description: 'La mise à jour Légifrance a été interrompue.',
+        });
+        return;
+      }
       toast({
         title: 'Erreur',
-        description: err.response?.data?.detail ?? 'Import impossible',
+        description:
+          (err as { response?: { data?: { detail?: string } } })?.response?.data
+            ?.detail ?? 'Import impossible',
         variant: 'destructive',
       });
     } finally {
+      finishKaliImportRequest();
       setIsImportingKali(false);
     }
   };
 
-  const handleBatchImportKali = async () => {
-    setIsBatchImportingKali(true);
+  const handleSyncCatalog = async () => {
+    setIsSyncingCatalog(true);
+    const signal = beginKaliImportRequest();
     try {
-      const res = await collectiveAgreementsApi.importFromLegifranceBatch({
-        priority_only: true,
-        extract_rules: true,
-      });
+      const res = await collectiveAgreementsApi.syncCatalogFromLegifrance(
+        { extract_rules: true },
+        { signal }
+      );
       const data = res.data;
+      if ((data.cancelled ?? 0) > 0) {
+        toast({
+          title: 'Mise à jour interrompue',
+          description: `${data.succeeded} convention(s) traitée(s) avant l'annulation.`,
+        });
+        await fetchCatalog();
+        return;
+      }
+      const failed = data.failed > 0;
       toast({
-        title: 'Import lot prioritaire terminé',
-        description: `${data.succeeded}/${data.total} réussis`,
-        variant: data.failed > 0 ? 'destructive' : 'default',
+        title: failed ? 'Mise à jour partielle' : 'Mise à jour terminée',
+        description: failed
+          ? `${data.succeeded} convention(s) sur ${data.total} mises à jour.`
+          : `${data.total} convention(s) vérifiée(s)${(data.updated ?? 0) > 0 ? `, ${data.updated} modifiée(s).` : '.'}`,
+        variant: failed ? 'destructive' : 'default',
       });
       await fetchCatalog();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      if (isAbortError(err)) {
+        toast({
+          title: 'Mise à jour interrompue',
+          description: 'La synchronisation Légifrance a été annulée.',
+        });
+        return;
+      }
       toast({
         title: 'Erreur',
-        description: err.response?.data?.detail ?? 'Import batch impossible',
+        description:
+          (err as { response?: { data?: { detail?: string } } })?.response?.data
+            ?.detail ?? 'La mise à jour a échoué.',
         variant: 'destructive',
       });
     } finally {
-      setIsBatchImportingKali(false);
+      finishKaliImportRequest();
+      setIsSyncingCatalog(false);
     }
+  };
+
+  const handleUpdateSelectedConvention = async () => {
+    const agreement = catalog.find((item) => item.id === updateAgreementId);
+    if (!agreement) {
+      toast({
+        title: 'Convention requise',
+        description: 'Choisissez une convention dans la liste.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    await handleReimportKali(agreement);
   };
 
   const handleReimportKali = async (
     agreement: collectiveAgreementsApi.CollectiveAgreementCatalog
   ) => {
     setReimportingId(agreement.id);
+    const signal = beginKaliImportRequest();
     try {
-      const res = await collectiveAgreementsApi.reimportFromLegifrance(agreement.id);
+      const res = await collectiveAgreementsApi.reimportFromLegifrance(
+        agreement.id,
+        true,
+        { signal }
+      );
       const data = res.data;
+      if (data.cancelled) {
+        toast({
+          title: 'Mise à jour annulée',
+          description: `${agreement.name} — import interrompu.`,
+        });
+        return;
+      }
       if (data.success) {
         toast({
-          title: 'Texte Légifrance mis à jour',
-          description: `${data.character_count?.toLocaleString('fr-FR') ?? 0} caractères`,
+          title: data.text_changed === false ? 'Déjà à jour' : 'Convention mise à jour',
+          description:
+            data.text_changed === false
+              ? `${agreement.name} — aucun changement détecté sur Légifrance.`
+              : agreement.name,
         });
+        notifyRulesExtraction(data);
         await refreshAgreementStatus(agreement.id);
         await fetchCatalog();
       } else {
@@ -390,13 +590,23 @@ export default function CollectiveAgreementsCatalog() {
           variant: 'destructive',
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      if (isAbortError(err)) {
+        toast({
+          title: 'Mise à jour annulée',
+          description: 'La mise à jour Légifrance a été interrompue.',
+        });
+        return;
+      }
       toast({
         title: 'Erreur',
-        description: err.response?.data?.detail ?? 'Ré-import impossible',
+        description:
+          (err as { response?: { data?: { detail?: string } } })?.response?.data
+            ?.detail ?? 'Ré-import impossible',
         variant: 'destructive',
       });
     } finally {
+      finishKaliImportRequest();
       setReimportingId(null);
     }
   };
@@ -614,11 +824,7 @@ export default function CollectiveAgreementsCatalog() {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-96">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-      </div>
-    );
+    return <SharkFinLoader variant="fullPage" label="Chargement du catalogue…" />;
   }
 
   return (
@@ -634,78 +840,180 @@ export default function CollectiveAgreementsCatalog() {
         }
       />
 
-      <Card className="border-blue-200 bg-blue-50/40 dark:border-blue-900 dark:bg-blue-950/20">
-        <CardHeader>
+      <Card className="relative">
+        {(isSyncingCatalog || isImportingKali) && (
+          <button
+            type="button"
+            className="absolute right-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-md text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 disabled:opacity-50 dark:hover:bg-red-950/40"
+            onClick={() => void handleCancelKaliImport()}
+            disabled={isCancellingImport}
+            aria-label="Annuler la mise à jour Légifrance"
+          >
+            {isCancellingImport ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <X className="h-4 w-4" />
+            )}
+          </button>
+        )}
+        <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Landmark className="h-5 w-5 text-blue-600" />
-            Importer depuis Légifrance (officiel)
+            <RefreshCw className="h-5 w-5 text-muted-foreground" />
+            Mise à jour Légifrance
           </CardTitle>
+          <CardDescription>
+            Actualise les textes officiels et les règles de paie. Automatique le 1er de
+            chaque mois — vous pouvez aussi lancer une mise à jour manuelle.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Récupère le texte officiel KALI via l&apos;API PISTE, crée ou met à jour la fiche
-            catalogue, puis extrait automatiquement les règles paie. Nécessite{' '}
-            <code className="text-xs">PISTE_CLIENT_ID</code> et{' '}
-            <code className="text-xs">PISTE_CLIENT_SECRET</code> côté backend.
-          </p>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="flex-1 space-y-2">
-              <Label htmlFor="import-idcc">IDCC</Label>
+        <CardContent className="space-y-5">
+          <Button
+            onClick={() => void handleSyncCatalog()}
+            disabled={isSyncingCatalog || isCancellingImport}
+          >
+            {isSyncingCatalog ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            Mettre à jour tout le catalogue
+          </Button>
+
+          <div className="border-t pt-4 space-y-3">
+            <p className="text-sm font-medium">Mettre à jour une convention</p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Select value={updateAgreementId} onValueChange={setUpdateAgreementId}>
+                <SelectTrigger className="sm:max-w-md">
+                  <SelectValue placeholder="Choisir une convention..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {catalog
+                    .filter((item) => item.is_active)
+                    .map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {formatCatalogConventionName(item.name)} (IDCC {item.idcc})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                onClick={() => void handleUpdateSelectedConvention()}
+                disabled={
+                  !updateAgreementId ||
+                  (reimportingId === updateAgreementId && !isCancellingImport) ||
+                  isCancellingImport
+                }
+              >
+                {reimportingId === updateAgreementId ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                )}
+                Mettre à jour
+              </Button>
+            </div>
+          </div>
+
+          <div className="border-t pt-4 space-y-2">
+            <p className="text-sm font-medium">Ajouter une nouvelle convention</p>
+            <p className="text-xs text-muted-foreground">
+              Si la convention n&apos;est pas encore dans le catalogue, saisissez son numéro IDCC.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <Input
                 id="import-idcc"
-                placeholder="Ex. 1486"
+                placeholder="Numéro IDCC (ex. 1486)"
                 value={importIdcc}
                 onChange={(e) => setImportIdcc(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && void handleImportKali()}
+                className="sm:max-w-xs"
               />
+              <Button
+                variant="outline"
+                onClick={() => void handleImportKali()}
+                disabled={(isImportingKali && !isCancellingImport) || isCancellingImport}
+              >
+                {isImportingKali ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="mr-2 h-4 w-4" />
+                )}
+                Ajouter
+              </Button>
             </div>
-            <Button onClick={() => void handleImportKali()} disabled={isImportingKali}>
-              {isImportingKali ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Landmark className="mr-2 h-4 w-4" />
-              )}
-              Importer
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => void handleBatchImportKali()}
-              disabled={isBatchImportingKali}
-            >
-              {isBatchImportingKali ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
-              Lot prioritaire (5 IDCC)
-            </Button>
           </div>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-3">
           <CardTitle className="text-base">Assignations par entreprise</CardTitle>
+          <CardDescription>
+            {companyAssignments.length > 0 && (
+              <>
+                {companyAssignments.filter((c) => c.assigned_agreements.length === 0).length}{' '}
+                entreprise(s) sans convention sur {companyAssignments.length}.
+              </>
+            )}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           {companyAssignments.length === 0 ? (
             <p className="text-muted-foreground">Chargement ou aucune donnée.</p>
           ) : (
-            <>
-              <p className="text-muted-foreground">
-                {companyAssignments.filter((c) => c.assigned_agreements.length === 0).length}{' '}
-                entreprise(s) sans convention assignée sur {companyAssignments.length}.
-              </p>
-              <ul className="max-h-40 space-y-1 overflow-y-auto">
-                {companyAssignments
-                  .filter((c) => c.assigned_agreements.length === 0)
-                  .slice(0, 8)
-                  .map((c) => (
-                    <li key={c.id} className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
-                      <XCircle className="h-3.5 w-3.5 shrink-0" />
-                      {c.company_name}
-                    </li>
-                  ))}
-              </ul>
-            </>
+            <ul className="max-h-72 space-y-2 overflow-y-auto">
+              {companyAssignments.map((company) => {
+                const hasAssignments = company.assigned_agreements.length > 0;
+                return (
+                  <li
+                    key={company.id}
+                    className="flex items-start justify-between gap-3 rounded-md border p-3"
+                  >
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <p className="flex items-center gap-2 font-medium leading-tight">
+                        {!hasAssignments && (
+                          <XCircle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+                        )}
+                        <span className="truncate">{company.company_name}</span>
+                      </p>
+                      {hasAssignments ? (
+                        <div className="flex flex-wrap gap-1">
+                          {company.assigned_agreements.map((assignment) => (
+                            <Badge key={assignment.id} variant="secondary" className="text-xs font-normal">
+                              {formatCatalogConventionName(assignment.agreement_details?.name)}
+                              {assignment.agreement_details?.idcc
+                                ? ` · IDCC ${assignment.agreement_details.idcc}`
+                                : ''}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-amber-700 dark:text-amber-400">
+                          Aucune convention assignée
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0"
+                      onClick={() => {
+                        setAssignDialogAgreement(null);
+                        setAssignDialogCompany({
+                          id: company.id,
+                          company_name: company.company_name,
+                        });
+                      }}
+                    >
+                      <Plus className="mr-1 h-3 w-3" />
+                      Assigner
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </CardContent>
       </Card>
@@ -743,133 +1051,63 @@ export default function CollectiveAgreementsCatalog() {
         </CardContent>
       </Card>
 
-      {/* Tableau */}
+      {/* Liste des conventions */}
       <Card>
         <CardHeader>
-          <CardTitle>
-            Conventions ({filteredCatalog.length})
-          </CardTitle>
+          <CardTitle>Conventions ({filteredCatalog.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nom</TableHead>
-                <TableHead>IDCC</TableHead>
-                <TableHead>Secteur</TableHead>
-                <TableHead>PDF</TableHead>
-                <TableHead>Texte</TableHead>
-                <TableHead>Règles paie</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredCatalog.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                    <FileText className="mx-auto h-8 w-8 mb-2" />
-                    Aucune convention trouvée
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredCatalog.map((agreement) => (
-                  <TableRow key={agreement.id}>
-                    <TableCell className="font-medium">{agreement.name}</TableCell>
-                    <TableCell>{agreement.idcc}</TableCell>
-                    <TableCell>
-                      {agreement.sector ? (
-                        <Badge variant="secondary">{agreement.sector}</Badge>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {agreement.rules_pdf_path ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDownload(agreement)}
-                        >
-                          <Download className="h-4 w-4 text-green-600" />
-                        </Button>
-                      ) : (
-                        <XCircle className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </TableCell>
-                    <TableCell>{renderTextSourceBadge(agreement.id)}</TableCell>
-                    <TableCell>{renderRulesBadge(agreement.id)}</TableCell>
-                    <TableCell>
-                      {agreement.is_active ? (
-                        <Badge variant="default" className="bg-green-600">
-                          <CheckCircle className="mr-1 h-3 w-3" />
-                          Actif
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary">
-                          <XCircle className="mr-1 h-3 w-3" />
-                          Inactif
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          title="Importer / mettre à jour depuis Légifrance"
-                          disabled={reimportingId === agreement.id}
-                          onClick={() => void handleReimportKali(agreement)}
-                        >
-                          {reimportingId === agreement.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Landmark className="h-4 w-4 text-blue-600" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          title="Extraire règles paie (IA)"
-                          disabled={extractingId === agreement.id}
-                          onClick={() => handleExtractRules(agreement)}
-                        >
-                          {extractingId === agreement.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Sparkles className="h-4 w-4 text-violet-600" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          title="Voir JSON règles"
-                          disabled={!rulesStatusMap[agreement.id]?.has_rules}
-                          onClick={() => handleViewRules(agreement)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenEditModal(agreement)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteClick(agreement)}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          {filteredCatalog.length === 0 ? (
+            <div className="py-8 text-center text-muted-foreground">
+              <FileText className="mx-auto mb-2 h-8 w-8" />
+              Aucune convention trouvée
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredCatalog.map((agreement) => {
+                const status = rulesStatusMap[agreement.id];
+                const hasText =
+                  hasCachedTextFromSource(status?.text_source) ||
+                  Boolean(agreement.rules_pdf_path);
+
+                const hasRules = Boolean(status?.has_rules);
+                const hasPayrollGrid = hasPayrollGridFromRules(status?.rules);
+
+                return (
+                  <CollectiveAgreementRow
+                    key={agreement.id}
+                    variant="admin"
+                    name={formatCatalogConventionName(agreement.name)}
+                    idcc={agreement.idcc}
+                    sector={agreement.sector}
+                    isActive={agreement.is_active}
+                    readiness={getReadinessFromRulesStatus(status)}
+                    hasText={hasText}
+                    legifranceUrl={extractLegifranceUrlFromDescription(agreement.description)}
+                    hasRules={hasRules}
+                    hasPayrollGrid={hasPayrollGrid}
+                    payrollGridUnavailableReason={getPayrollGridUnavailableReason(status)}
+                    hasUploadedPdf={Boolean(agreement.rules_pdf_path)}
+                    loading={getRowLoading(agreement.id)}
+                    onViewFullText={() => void handleViewDocument(agreement, 'full-text')}
+                    onViewSynthesis={() => void handleViewDocument(agreement, 'synthesis')}
+                    onExportRulesPdf={() => handleExportRulesPdfForAgreement(agreement)}
+                    onDownloadSourcePdf={() => handleDownload(agreement)}
+                    onSync={() => void handleReimportKali(agreement)}
+                    onCancelSync={() => void handleCancelKaliImport()}
+                    isCancellingSync={isCancellingImport && reimportingId === agreement.id}
+                    onAssignToCompany={() => {
+                      setAssignDialogCompany(null);
+                      setAssignDialogAgreement(agreement);
+                    }}
+                    onViewTechnical={() => handleViewRules(agreement)}
+                    onEdit={() => handleOpenEditModal(agreement)}
+                    onDelete={() => handleDeleteClick(agreement)}
+                  />
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -1035,23 +1273,121 @@ export default function CollectiveAgreementsCatalog() {
       <Dialog open={rulesModalOpen} onOpenChange={setRulesModalOpen}>
         <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Règles paie — {rulesModalTitle}</DialogTitle>
+            <DialogTitle>Détail technique — {rulesModalTitle}</DialogTitle>
             <DialogDescription>
-              JSON structuré consommé par le moteur de paie (lecture seule).
+              Données extraites pour le moteur de paie (lecture seule).
             </DialogDescription>
           </DialogHeader>
+          {(() => {
+            const completude = getCompletudeFromRules(rulesModalContent);
+            if (!completude) return null;
+            const variant =
+              completude.niveau === 'complet'
+                ? 'default'
+                : completude.niveau === 'partiel'
+                  ? 'outline'
+                  : 'secondary';
+            return (
+              <div className="space-y-2 rounded-md border p-3 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">Complétude :</span>
+                  <Badge variant={variant}>{completude.niveau ?? 'inconnu'}</Badge>
+                  {typeof completude.grilles_count === 'number' && completude.grilles_count > 0 && (
+                    <span className="text-muted-foreground">
+                      {completude.grilles_count} grille(s) salariale(s)
+                    </span>
+                  )}
+                </div>
+                {completude.avertissements && completude.avertissements.length > 0 && (
+                  <ul className="list-disc pl-5 text-muted-foreground space-y-1">
+                    {completude.avertissements.map((msg, i) => (
+                      <li key={i}>{msg}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })()}
           <pre className="rounded-md bg-muted p-4 text-xs overflow-x-auto whitespace-pre-wrap">
             {rulesModalContent
               ? JSON.stringify(rulesModalContent, null, 2)
               : 'Aucune règle extraite.'}
           </pre>
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              disabled={!rulesModalContent}
+              onClick={() => {
+                if (!rulesModalContent) return;
+                handleExportRulesPdf({
+                  rules: rulesModalContent,
+                  agreementName: rulesModalAgreementName,
+                  idcc: rulesModalIdcc,
+                });
+              }}
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              Exporter PDF règles paie
+            </Button>
             <Button variant="ghost" onClick={() => setRulesModalOpen(false)}>
               Fermer
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConventionDocumentViewerDialog
+        open={viewer.open}
+        onOpenChange={(open) => {
+          if (!open) closeViewer();
+        }}
+        title={viewer.title}
+        subtitle={viewer.subtitle}
+        pdfUrl={viewer.pdfUrl}
+        loading={viewer.loading}
+        canDownload={Boolean(viewer.blob)}
+        onDownload={downloadFromViewer}
+      />
+
+      <CollectiveAgreementAssignDialog
+        open={Boolean(assignDialogAgreement || assignDialogCompany)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAssignDialogAgreement(null);
+            setAssignDialogCompany(null);
+          }
+        }}
+        companies={companyAssignments.map((a) => ({
+          id: a.id,
+          company_name: a.company_name,
+        }))}
+        fixedAgreement={assignDialogAgreement}
+        fixedCompanyId={assignDialogCompany?.id}
+        fixedCompanyName={assignDialogCompany?.company_name}
+        excludedAgreementIds={
+          assignDialogCompany
+            ? (companyAssignments
+                .find((c) => c.id === assignDialogCompany.id)
+                ?.assigned_agreements.map((a) => a.collective_agreement_id) ?? [])
+            : []
+        }
+        excludedCompanyIds={
+          assignDialogAgreement
+            ? companyAssignments
+                .filter((a) =>
+                  a.assigned_agreements.some(
+                    (ag) => ag.collective_agreement_id === assignDialogAgreement.id
+                  )
+                )
+                .map((a) => a.id)
+            : []
+        }
+        onAssigned={() => {
+          void refreshCompanyAssignments();
+          setAssignDialogAgreement(null);
+          setAssignDialogCompany(null);
+        }}
+      />
     </div>
   );
 }

@@ -72,30 +72,68 @@ export const getClassifications = (agreementId: string) => {
 };
 
 // =====================================================================
-// API - ASSIGNATION (RH/Admin)
+// API - DOCUMENTS PDF (texte intégral + synthèse IA)
 // =====================================================================
 
 /**
- * Récupère toutes les conventions assignées à l'entreprise
+ * Télécharge le PDF du texte intégral de la convention (blob).
  */
-export const getMyCompanyAgreements = () => {
-  return apiClient.get<CompanyCollectiveAgreementWithDetails[]>('/api/collective-agreements/my-company');
+export const getConventionFullTextPdf = (agreementId: string) => {
+  return apiClient.get<Blob>(
+    `/api/collective-agreements/catalog/${agreementId}/document/full-text`,
+    { responseType: 'blob' }
+  );
 };
 
 /**
- * Assigne une convention à l'entreprise
+ * Télécharge le PDF de synthèse pédagogique (IA) de la convention (blob).
  */
-export const assignAgreement = (collectiveAgreementId: string) => {
-  return apiClient.post('/api/collective-agreements/assign', {
-    collective_agreement_id: collectiveAgreementId
+export const getConventionSynthesisPdf = (agreementId: string) => {
+  return apiClient.get<Blob>(
+    `/api/collective-agreements/catalog/${agreementId}/document/synthesis`,
+    { responseType: 'blob' }
+  );
+};
+
+// =====================================================================
+// API - ASSIGNATION (RH/Admin)
+// =====================================================================
+
+function companyScopeHeaders(companyId?: string) {
+  return companyId ? { 'X-Active-Company': companyId } : undefined;
+}
+
+/**
+ * Récupère toutes les conventions assignées à une entreprise.
+ * Passer `companyId` pour cibler une filiale (admin groupe ou super admin).
+ */
+export const getMyCompanyAgreements = (companyId?: string) => {
+  return apiClient.get<CompanyCollectiveAgreementWithDetails[]>(
+    '/api/collective-agreements/my-company',
+    { headers: companyScopeHeaders(companyId) }
+  );
+};
+
+/**
+ * Assigne une convention à une entreprise.
+ * Passer `companyId` pour assigner à une filiale (admin groupe ou super admin).
+ */
+export const assignAgreement = (collectiveAgreementId: string, companyId?: string) => {
+  return apiClient.post(
+    '/api/collective-agreements/assign',
+    { collective_agreement_id: collectiveAgreementId },
+    { headers: companyScopeHeaders(companyId) }
+  );
+};
+
+/**
+ * Retire une convention d'une entreprise.
+ * Passer `companyId` si l'entreprise cible diffère de l'entreprise active.
+ */
+export const unassignAgreement = (assignmentId: string, companyId?: string) => {
+  return apiClient.delete(`/api/collective-agreements/unassign/${assignmentId}`, {
+    headers: companyScopeHeaders(companyId),
   });
-};
-
-/**
- * Retire une convention de l'entreprise
- */
-export const unassignAgreement = (assignmentId: string) => {
-  return apiClient.delete(`/api/collective-agreements/unassign/${assignmentId}`);
 };
 
 // =====================================================================
@@ -224,14 +262,18 @@ export const askQuestion = (data: AskQuestionRequest) => {
 /**
  * Importe une convention depuis Légifrance (KALI) par IDCC
  */
-export const importFromLegifrance = (data: {
-  idcc: string;
-  extract_rules?: boolean;
-  sector?: string;
-}) => {
+export const importFromLegifrance = (
+  data: {
+    idcc: string;
+    extract_rules?: boolean;
+    sector?: string;
+  },
+  options?: { signal?: AbortSignal }
+) => {
   return apiClient.post<KaliImportResponse>(
     '/api/collective-agreements/catalog/import-legifrance',
-    data
+    data,
+    { signal: options?.signal }
   );
 };
 
@@ -250,13 +292,44 @@ export const importFromLegifranceBatch = (data: {
 };
 
 /**
+ * Synchronise toutes les CC actives du catalogue depuis Légifrance
+ */
+export const syncCatalogFromLegifrance = (
+  data?: { extract_rules?: boolean },
+  options?: { signal?: AbortSignal }
+) => {
+  return apiClient.post<KaliImportBatchResponse>(
+    '/api/collective-agreements/catalog/sync-legifrance',
+    data ?? {},
+    { signal: options?.signal }
+  );
+};
+
+/**
  * Ré-import Légifrance pour une fiche existante
  */
-export const reimportFromLegifrance = (agreementId: string, extractRules = true) => {
+export const reimportFromLegifrance = (
+  agreementId: string,
+  extractRules = true,
+  options?: { signal?: AbortSignal }
+) => {
   return apiClient.post<KaliImportResponse>(
     `/api/collective-agreements/catalog/${agreementId}/import-legifrance`,
     null,
-    { params: { extract_rules: extractRules } }
+    { params: { extract_rules: extractRules }, signal: options?.signal }
+  );
+};
+
+/**
+ * Demande l'arrêt d'un import ou d'une sync Légifrance en cours
+ */
+export const cancelKaliImport = (data: { idcc?: string; catalog_sync?: boolean }) => {
+  return apiClient.post<{ success: boolean; message: string }>(
+    '/api/collective-agreements/catalog/kali-import/cancel',
+    {
+      idcc: data.idcc,
+      catalog_sync: data.catalog_sync ?? false,
+    }
   );
 };
 
@@ -268,6 +341,9 @@ export interface KaliImportResponse {
   legifrance_url?: string | null;
   character_count?: number;
   created?: boolean;
+  text_changed?: boolean;
+  rules_skipped?: boolean;
+  cancelled?: boolean;
   error?: string | null;
   rules?: {
     success: boolean;
@@ -281,6 +357,9 @@ export interface KaliImportBatchResponse {
   total: number;
   succeeded: number;
   failed: number;
+  updated?: number;
+  unchanged?: number;
+  cancelled?: number;
 }
 
 export interface ExtractRulesResponse {
