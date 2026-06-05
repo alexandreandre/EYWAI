@@ -5,6 +5,105 @@ logger = get_logger("modules.payroll.engine.bulletin")
 
 from .contexte import ContextePaie
 from typing import Any, Dict, List, Optional
+from datetime import date
+import calendar
+
+from .cotisations_rubriques import construire_cotisations_officielles
+
+
+def _get_end_date_for_month(
+    target_annee: int, target_mois: int, jour_cible: int, occurrence_cible: int
+) -> date:
+    _, num_days = calendar.monthrange(target_annee, target_mois)
+    jours_trouves = [
+        date(target_annee, target_mois, day)
+        for day in range(1, num_days + 1)
+        if date(target_annee, target_mois, day).weekday() == jour_cible
+    ]
+    if not jours_trouves:
+        return date(target_annee, target_mois, num_days)
+    try:
+        if occurrence_cible > 0:
+            return jours_trouves[occurrence_cible - 1]
+        return jours_trouves[occurrence_cible]
+    except IndexError:
+        return jours_trouves[-1]
+
+
+def _calculer_date_paiement(contexte: ContextePaie, annee: int, mois: int) -> str:
+    regles_paie = contexte.entreprise.get("parametres_paie", {}).get(
+        "periode_de_paie", {}
+    )
+    jour_reference = regles_paie.get("jour_de_fin", 4)
+    occurrence_reference = regles_paie.get("occurrence", -2)
+    date_paiement = _get_end_date_for_month(
+        annee, mois, jour_reference, occurrence_reference
+    )
+    return date_paiement.isoformat()
+
+
+def _formater_classification(contrat: Dict[str, Any]) -> Optional[str]:
+    classification = contrat.get("remuneration", {}).get(
+        "classification_conventionnelle", {}
+    )
+    if not isinstance(classification, dict) or not classification:
+        return None
+    parts = [
+        classification.get("coefficient"),
+        classification.get("niveau"),
+        classification.get("echelon"),
+        classification.get("position"),
+        classification.get("libelle"),
+    ]
+    texte = " ".join(str(p) for p in parts if p)
+    return texte or None
+
+
+def _formater_convention_collective(contrat: Dict[str, Any]) -> Optional[str]:
+    ccn = contrat.get("remuneration", {}).get("convention_collective", {})
+    if not isinstance(ccn, dict) or not ccn:
+        return None
+    libelle = ccn.get("libelle") or ccn.get("nom")
+    idcc = ccn.get("idcc") or ccn.get("code_idcc")
+    if libelle and idcc:
+        return f"{libelle} (IDCC {idcc})"
+    return libelle or (f"IDCC {idcc}" if idcc else None)
+
+
+def _extraire_naf_ape(entreprise: Dict[str, Any]) -> Optional[str]:
+    identification = entreprise.get("identification", {})
+    for key in ("naf_ape", "naf", "code_naf", "naf_code", "ape"):
+        value = identification.get(key) or entreprise.get(key)
+        if value:
+            return str(value)
+    return None
+
+
+def build_solde_conges_pied_de_page(
+    employee_id: Optional[str], annee: int, mois: int
+) -> Optional[Dict[str, Any]]:
+    if not employee_id:
+        return None
+    try:
+        from app.modules.absences.application.queries import (
+            get_absence_balances_for_payslip,
+        )
+
+        balances = get_absence_balances_for_payslip(employee_id, annee, mois)
+    except Exception as exc:
+        logger.warning("Impossible de calculer le solde de congés pour le bulletin: %s", exc)
+        return None
+    return balances or None
+
+
+def _extraire_employee_id(contexte: ContextePaie) -> Optional[str]:
+    employee_id = contexte.contrat.get("employee_id")
+    if employee_id:
+        return str(employee_id)
+    salarie = contexte.contrat.get("salarie", {})
+    if isinstance(salarie, dict) and salarie.get("id"):
+        return str(salarie["id"])
+    return None
 
 
 def creer_bulletin_final(
@@ -111,6 +210,10 @@ def creer_bulletin_final(
         p.get("montant", 0.0) or 0.0 for p in primes_non_soumises
     )
 
+    cotisations_officielles, total_exonerations = construire_cotisations_officielles(
+        lignes_cotisations
+    )
+
     # Assemblage du dictionnaire final
     mois_nom_francais = [
         "Janvier",
@@ -141,6 +244,7 @@ def creer_bulletin_final(
 
     synthese_net: Dict[str, Any] = {
         "net_social_avant_impot": resultats_nets.get("net_social"),
+        "montant_net_social": resultats_nets.get("montant_net_social"),
         "net_imposable": resultats_nets.get("net_imposable"),
         "exoneration_ir_apprenti": exoneration_ir_apprenti,
         "impot_prelevement_a_la_source": {
@@ -172,6 +276,14 @@ def creer_bulletin_final(
         )
 
     alertes_baremes = getattr(contexte, "alertes_baremes", []) or []
+    from app.modules.payroll.engine.controles_convention import (
+        controle_convention_collective,
+    )
+
+    for alerte_cc in controle_convention_collective(contexte, salaire_brut):
+        if isinstance(contexte.alertes_baremes, list):
+            contexte.alertes_baremes.append(alerte_cc)
+    alertes_baremes = getattr(contexte, "alertes_baremes", []) or []
     donnees_non_officielles = any(
         a.get("donnee_non_officielle") for a in alertes_baremes
     )
@@ -179,12 +291,14 @@ def creer_bulletin_final(
     bulletin = {
         "en_tete": {
             "periode": periode_formatee,
+            "date_paiement": _calculer_date_paiement(contexte, annee, mois),
             "entreprise": {
                 "raison_sociale": contexte.entreprise.get("identification", {}).get(
                     "raison_sociale"
                 ),
                 "siret": contexte.entreprise.get("identification", {}).get("siret"),
                 "adresse": contexte.entreprise.get("identification", {}).get("adresse"),
+                "naf_ape": _extraire_naf_ape(contexte.entreprise),
             },
             "salarie": {
                 "nom_complet": f"{contexte.contrat.get('salarie', {}).get('prenom')} {contexte.contrat.get('salarie', {}).get('nom')}",
@@ -194,6 +308,10 @@ def creer_bulletin_final(
                 "type_contrat": contexte.type_contrat,
                 "is_alternant": contexte.is_alternant,
                 "date_entree": contexte.contrat.get("contrat", {}).get("date_entree"),
+                "classification": _formater_classification(contexte.contrat),
+                "convention_collective": _formater_convention_collective(
+                    contexte.contrat
+                ),
             },
         },
         "details_conges": lignes_conges,
@@ -219,6 +337,8 @@ def creer_bulletin_final(
             "total_salarial": round(total_cotisations_salariales, 2),
             "total_patronal": round(total_cotisations_patronales, 2),
         },
+        "cotisations_officielles": cotisations_officielles,
+        "total_exonerations": total_exonerations,
         "synthese_net": synthese_net,
         "primes_non_soumises": primes_non_soumises,
         "net_a_payer": resultats_nets.get("net_a_payer"),
@@ -227,6 +347,14 @@ def creer_bulletin_final(
                 salaire_brut + total_cotisations_patronales + total_primes_non_soumises,
                 2,
             ),
+            "total_exonerations": total_exonerations,
+            "solde_conges": build_solde_conges_pied_de_page(
+                _extraire_employee_id(contexte), annee, mois
+            ),
+            "mentions_legales": {
+                "conservation": "Ce bulletin de paie doit être conservé sans limitation de durée.",
+                "information": "Pour en savoir plus : www.service-public.fr",
+            },
             "cumuls_annuels": {
                 "_commentaire": "Ces valeurs seraient calculées sur la base des bulletins précédents.",
                 "brut_cumule": 0.0,

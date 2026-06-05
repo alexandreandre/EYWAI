@@ -92,7 +92,7 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
         if not company_id:
             raise HTTPException(
                 status_code=400,
-                detail=f"L'employé {employee_id} n'est pas associé à une entreprise (company_id manquant).",
+                detail="Ce collaborateur n'est rattaché à aucune entreprise. Complétez sa fiche employé.",
             )
         employee_folder_name = employee_data["employee_folder_name"]
 
@@ -107,7 +107,7 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
         if not company_data:
             raise HTTPException(
                 status_code=404,
-                detail=f"Données de l'entreprise (ID: {company_id}) non trouvées.",
+                detail="Les informations de l'entreprise sont introuvables. Contactez le support.",
             )
 
         log_payroll_debug(logger, '\n' + '=' * 25 + " DEBUG: Données de l'entreprise (BDD) " + '=' * 25)
@@ -117,7 +117,8 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
         duree_hebdo = employee_data.get("duree_hebdomadaire")
         if not duree_hebdo:
             raise HTTPException(
-                status_code=400, detail="Durée hebdomadaire non définie."
+                status_code=400,
+                detail="La durée hebdomadaire n'est pas renseignée sur la fiche du collaborateur.",
             )
 
         dates_to_process = []
@@ -303,6 +304,7 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
             files_to_cleanup.append(path)
 
         contrat_json_content = {
+            "employee_id": employee_id,
             "salarie": {
                 "nom": employee_data.get("last_name"),
                 "prenom": employee_data.get("first_name"),
@@ -356,7 +358,10 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
         if not isinstance(contrat_json_content.get("contrat"), dict):
             raise HTTPException(
                 status_code=400,
-                detail="Données du contrat employé incomplètes. Vérifiez les données en base.",
+                detail=(
+                    "Les données contractuelles du collaborateur sont incomplètes. "
+                    "Complétez sa fiche employé (contrat, rémunération, temps de travail)."
+                ),
             )
         log_payroll_debug(logger, '\n' + '=' * 30 + ' DEBUG contrat.json ' + '=' * 30)
         try:
@@ -483,12 +488,14 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
                     "pdf_storage_path": storage_path,
                     "url": pdf_url,
                     "company_id": company_id,
-                }
+                },
+                on_conflict="company_id,employee_id,year,month",
             )
             .execute()
         )
 
         payslip_id = None
+        final_payslip_data = payslip_json_data
         if payslip_upsert_result.data:
             payslip_id = payslip_upsert_result.data[0].get("id")
 
@@ -504,6 +511,7 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
                     month,
                     payslip_id=payslip_id,
                 )
+                final_payslip_data = enriched_data
 
                 supabase.table("payslips").update({"payslip_data": enriched_data}).eq(
                     "id", payslip_id
@@ -557,12 +565,27 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
         except Exception as cor_err:
             logger.warning(f'[WARNING] COR recalc après génération bulletin: {cor_err}')
 
+        from app.modules.payroll.engine.controles_convention import (
+            extraire_alertes_rh_depuis_bulletin,
+        )
+
+        rh_warnings = [
+            a["message"]
+            for a in extraire_alertes_rh_depuis_bulletin(final_payslip_data)
+        ]
+
         return {
             "status": "success",
             "message": "Bulletin généré avec succès.",
             "download_url": pdf_url,
+            "payslip_id": payslip_id,
+            "warnings": rh_warnings,
         }
 
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.exception("Exception")
         raise HTTPException(status_code=500, detail=str(e))

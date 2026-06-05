@@ -1,17 +1,15 @@
 """
-Common sections (socle commun) for Solde de Tout Compte PDF generation
-These sections are shared across all termination types
+Socle commun du reçu pour solde de tout compte.
+
+Ces fonctions calculent les sections communes à tous les types de rupture et
+renvoient des *données structurées* (sections / lignes), indépendantes du moteur
+de rendu. Le rendu PDF est assuré par ``html_renderer`` (format avocat).
 """
 
 from datetime import datetime, date
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
-from reportlab.lib import colors
-from reportlab.lib.units import cm
-from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
-
-from app.shared.infrastructure.pdf.helpers import format_amount_cell
-
+from .html_renderer import amount_row, amounts_section
 from .pdf_helpers import format_currency, safe_float
 
 _NEANT = "Néant"
@@ -132,37 +130,21 @@ def get_salary_prorata(
         }
 
 
-def build_remunerations_section(
-    story: List,
-    styles: Dict,
+def compute_remunerations_section(
     employee_data: Dict[str, Any],
     exit_data: Dict[str, Any],
-    section_number: int = 1,
+    section_title: str = "RÉMUNÉRATIONS ACQUISES",
     employee_id: Optional[str] = None,
     supabase_client: Any = None,
-) -> Tuple[float, float, float]:
+) -> Tuple[Dict[str, Any], float, float, float]:
     """
-    Construit la section Rémunérations acquises (Section 1)
+    Calcule la section « Rémunérations acquises ».
 
     Returns:
-        Tuple de (total_brut, total_cotisations, total_net)
+        Tuple ``(section, total_brut, total_cotisations, total_net)`` où ``section``
+        est une section de montants prête pour ``html_renderer``.
     """
-    story.append(
-        Paragraph(
-            f"<b>{section_number}. RÉMUNÉRATIONS ACQUISES</b>", styles["Important"]
-        )
-    )
-    story.append(Spacer(1, 0.3 * cm))
-
-    data_remunerations = [
-        [
-            Paragraph("<b>Libellé</b>", styles["Normal"]),
-            Paragraph("<b>Détails</b>", styles["Normal"]),
-            Paragraph("<b>Montant brut</b>", styles["Normal"]),
-            Paragraph("<b>Cotisations</b>", styles["Normal"]),
-            Paragraph("<b>Net</b>", styles["Normal"]),
-        ]
-    ]
+    rows = []
 
     total_brut_remun = 0.0
     total_cotisations_remun = 0.0
@@ -182,18 +164,10 @@ def build_remunerations_section(
     else:
         detail_salaire = (
             f"Base : {format_currency(base_mensuelle)} / {jours_mois} jours "
-            f"× {jours_trav} jours"
+            f"× {jours_trav} jours travaillés"
         )
 
-    data_remunerations.append(
-        [
-            "Salaire du dernier mois",
-            detail_salaire,
-            format_amount_cell(brut_salaire),
-            format_amount_cell(cotis_salaire),
-            format_amount_cell(net_salaire),
-        ]
-    )
+    rows.append(amount_row("Salaire du dernier mois", detail_salaire, brut_salaire))
     total_brut_remun += brut_salaire
     total_cotisations_remun += cotis_salaire
     total_net_remun += net_salaire
@@ -203,106 +177,46 @@ def build_remunerations_section(
         supabase_client,
     )
     hs_brut = safe_float(payslip_extras.get("hs_brut", 0))
-    detail_hs = payslip_extras.get("hs_detail", _NEANT)
-    data_remunerations.append(
-        [
+    rows.append(
+        amount_row(
             "Heures supplémentaires / complémentaires",
-            detail_hs,
-            format_amount_cell(hs_brut),
-            _NEANT,
-            _NEANT,
-        ]
+            payslip_extras.get("hs_detail", _NEANT),
+            hs_brut,
+        )
     )
     total_brut_remun += hs_brut
 
     primes_total = safe_float(payslip_extras.get("primes_total", 0))
-    detail_primes = payslip_extras.get("primes_detail", _NEANT)
-    data_remunerations.append(
-        [
+    rows.append(
+        amount_row(
             "Primes et variables acquises",
-            detail_primes,
-            format_amount_cell(primes_total),
-            _NEANT,
-            _NEANT,
-        ]
+            payslip_extras.get("primes_detail", _NEANT),
+            primes_total,
+        )
     )
     total_brut_remun += primes_total
 
     avantages_total = 0.0
-    data_remunerations.append(
-        [
-            "Avantages en nature",
-            _NEANT,
-            format_amount_cell(avantages_total),
-            _NEANT,
-            _NEANT,
-        ]
-    )
+    rows.append(amount_row("Avantages en nature", _NEANT, avantages_total))
     total_brut_remun += avantages_total
 
-    # Total rémunérations
-    data_remunerations.append(["", "", "", "", ""])
-    data_remunerations.append(
-        [
-            Paragraph("<b>Total rémunérations acquises</b>", styles["Normal"]),
-            "",
-            Paragraph(f"<b>{format_currency(total_brut_remun)}</b>", styles["Normal"]),
-            Paragraph(
-                f"<b>{format_currency(total_cotisations_remun)}</b>", styles["Normal"]
-            ),
-            Paragraph(f"<b>{format_currency(total_net_remun)}</b>", styles["Normal"]),
-        ]
-    )
-
-    table_remun = Table(
-        data_remunerations, colWidths=[4 * cm, 5 * cm, 2.5 * cm, 2.5 * cm, 2.5 * cm]
-    )
-    table_remun.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e5e7eb")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ("ALIGN", (2, 1), (-1, -2), "RIGHT"),
-                ("ALIGN", (2, -1), (-1, -1), "RIGHT"),
-                ("GRID", (0, 0), (-1, -2), 1, colors.HexColor("#d1d5db")),
-                ("LINEABOVE", (0, -1), (-1, -1), 1, colors.HexColor("#1e3a8a")),
-                ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#dbeafe")),
-                ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ]
-        )
-    )
-    story.append(table_remun)
-    story.append(Spacer(1, 0.6 * cm))
-
-    return total_brut_remun, total_cotisations_remun, total_net_remun
+    section = amounts_section(section_title, rows)
+    return section, total_brut_remun, total_cotisations_remun, total_net_remun
 
 
-def build_conges_section(
-    story: List,
-    styles: Dict,
+def compute_conges_section(
     indemnities: Dict[str, Any],
-    section_number: int = 4,
+    section_title: str = "CONGÉS PAYÉS",
     include_cp_preavis: bool = False,
-) -> float:
+    cp_preavis_detail: str = _NEANT,
+    montant_cp_preavis: float = 0.0,
+) -> Tuple[Dict[str, Any], float]:
     """
-    Construit la section Congés payés
-
-    Args:
-        include_cp_preavis: Si True, ajoute une ligne pour CP afférents au préavis
+    Calcule la section « Congés payés ».
 
     Returns:
-        Montant total des congés payés
+        Tuple ``(section, montant_total_conges)``.
     """
-    story.append(
-        Paragraph(f"<b>{section_number}. CONGÉS PAYÉS</b>", styles["Important"])
-    )
-    story.append(Spacer(1, 0.3 * cm))
-
     indemnite_conges = indemnities.get("indemnite_conges", {})
     jours_restants = safe_float(indemnite_conges.get("jours_restants", 0))
     montant_conges = safe_float(indemnite_conges.get("montant", 0))
@@ -317,174 +231,46 @@ def build_conges_section(
 
     detail_conges_text = f"{jours_restants:.2f} jours restants"
     if cp_acquis is not None and cp_pris is not None:
-        detail_conges_text += f" ({cp_acquis:.0f} acquis - {cp_pris:.0f} pris)"
-    detail_conges_text += f" - Méthode : {methode}"
+        detail_conges_text += f" ({cp_acquis:.0f} acquis − {cp_pris:.0f} pris)"
+    detail_conges_text += f" — Méthode : {methode}"
     if jours_restants == 0 and montant_conges == 0:
         detail_conges_text = _NEANT
 
-    data_conges = [
-        [
-            Paragraph("<b>Libellé</b>", styles["Normal"]),
-            Paragraph("<b>Détails</b>", styles["Normal"]),
-            Paragraph("<b>Montant</b>", styles["Normal"]),
-        ],
-        [
+    rows = [
+        amount_row(
             "Indemnité compensatrice de congés payés",
             detail_conges_text,
-            format_amount_cell(montant_conges),
-        ],
+            montant_conges,
+        )
     ]
 
-    montant_cp_preavis = 0.0
     if include_cp_preavis:
-        data_conges.append(
-            [
+        rows.append(
+            amount_row(
                 "Congés payés afférents au préavis",
-                _NEANT,
-                format_amount_cell(montant_cp_preavis),
-            ]
+                cp_preavis_detail,
+                montant_cp_preavis,
+            )
         )
 
-    table_conges = Table(data_conges, colWidths=[6 * cm, 7 * cm, 3 * cm])
-    table_conges.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e5e7eb")),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ("ALIGN", (2, 1), (2, -1), "RIGHT"),
-                ("GRID", (0, 0), (-1, -1), 1, colors.HexColor("#d1d5db")),
-                ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ]
-        )
-    )
-    story.append(table_conges)
-    story.append(Spacer(1, 0.6 * cm))
-
-    return montant_conges + montant_cp_preavis
+    section = amounts_section(section_title, rows)
+    return section, montant_conges + montant_cp_preavis
 
 
-def build_autres_regularisations_section(
-    story: List, styles: Dict, section_number: int = 5
-) -> None:
-    """Construit la section Autres régularisations"""
-    story.append(
-        Paragraph(
-            f"<b>{section_number}. AUTRES RÉGULARISATIONS</b>", styles["Important"]
-        )
-    )
-    story.append(Spacer(1, 0.3 * cm))
-
-    data_autres = [
-        [
-            Paragraph("<b>Libellé</b>", styles["Normal"]),
-            Paragraph("<b>Détails</b>", styles["Normal"]),
-            Paragraph("<b>Montant</b>", styles["Normal"]),
-        ],
-        ["RTT / repos compensateurs", _NEANT, _NEANT],
-        ["Frais professionnels", _NEANT, _NEANT],
+def compute_autres_regularisations_section(
+    section_title: str = "AUTRES RÉGULARISATIONS",
+) -> Dict[str, Any]:
+    """Section « Autres régularisations » (RTT / frais professionnels)."""
+    rows = [
+        amount_row("RTT / repos compensateurs", _NEANT, None),
+        amount_row("Frais professionnels", _NEANT, None),
     ]
-
-    table_autres = Table(data_autres, colWidths=[6 * cm, 7 * cm, 3 * cm])
-    table_autres.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e5e7eb")),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ("ALIGN", (2, 1), (2, -1), "RIGHT"),
-                ("GRID", (0, 0), (-1, -1), 1, colors.HexColor("#d1d5db")),
-                ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ]
-        )
-    )
-    story.append(table_autres)
-    story.append(Spacer(1, 0.6 * cm))
+    return amounts_section(section_title, rows)
 
 
-def build_retenues_section(story: List, styles: Dict, section_number: int = 6) -> None:
-    """Construit la section Retenues éventuelles"""
-    story.append(
-        Paragraph(f"<b>{section_number}. RETENUES ÉVENTUELLES</b>", styles["Important"])
-    )
-    story.append(Spacer(1, 0.3 * cm))
-
-    data_retenues = [
-        [
-            Paragraph("<b>Libellé</b>", styles["Normal"]),
-            Paragraph("<b>Détails</b>", styles["Normal"]),
-            Paragraph("<b>Montant</b>", styles["Normal"]),
-        ],
-        ["Retenues sur salaire", _NEANT, _NEANT],
-    ]
-
-    table_retenues = Table(data_retenues, colWidths=[6 * cm, 7 * cm, 3 * cm])
-    table_retenues.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e5e7eb")),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ("ALIGN", (2, 1), (2, -1), "RIGHT"),
-                ("GRID", (0, 0), (-1, -1), 1, colors.HexColor("#d1d5db")),
-                ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ]
-        )
-    )
-    story.append(table_retenues)
-    story.append(Spacer(1, 0.8 * cm))
-
-
-def build_total_section(
-    story: List,
-    styles: Dict,
-    total_brut: float,
-    total_cotisations: float,
-    total_net: float,
-) -> None:
-    """Construit la section Total général"""
-    data_total = [
-        [
-            "",
-            Paragraph("<b>TOTAL BRUT</b>", styles["Normal"]),
-            Paragraph(f"<b>{format_currency(total_brut)}</b>", styles["Normal"]),
-        ],
-        [
-            "",
-            Paragraph("<b>TOTAL COTISATIONS</b>", styles["Normal"]),
-            Paragraph(f"<b>{format_currency(total_cotisations)}</b>", styles["Normal"]),
-        ],
-        [
-            "",
-            Paragraph("<b>TOTAL NET À PAYER</b>", styles["Normal"]),
-            Paragraph(f"<b>{format_currency(total_net)}</b>", styles["Normal"]),
-        ],
-    ]
-
-    table_total = Table(data_total, colWidths=[6 * cm, 7 * cm, 3 * cm])
-    table_total.setStyle(
-        TableStyle(
-            [
-                ("FONTNAME", (1, 0), (-1, -1), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 10),
-                ("ALIGN", (2, 0), (2, -1), "RIGHT"),
-                ("LINEABOVE", (1, 0), (2, 0), 2, colors.HexColor("#1e3a8a")),
-                ("BACKGROUND", (1, -1), (2, -1), colors.HexColor("#dbeafe")),
-                ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                ("TOPPADDING", (0, 0), (-1, -1), 8),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-            ]
-        )
-    )
-    story.append(table_total)
-    story.append(Spacer(1, 0.8 * cm))
+def compute_retenues_section(
+    section_title: str = "RETENUES ÉVENTUELLES",
+) -> Dict[str, Any]:
+    """Section « Retenues éventuelles »."""
+    rows = [amount_row("Retenues sur salaire", _NEANT, None)]
+    return amounts_section(section_title, rows)

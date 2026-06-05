@@ -159,6 +159,8 @@ def generate_payslip_route(
             "status": result.status,
             "message": result.message,
             "download_url": result.download_url,
+            "payslip_id": result.payslip_id,
+            "warnings": result.warnings or [],
         }
     except HTTPException:
         raise

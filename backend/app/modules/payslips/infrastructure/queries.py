@@ -12,6 +12,10 @@ from typing import Any
 from app.core.database import supabase
 
 from app.modules.payslips.infrastructure.mappers import build_payslip_detail
+from app.modules.payslips.infrastructure.storage_urls import (
+    create_payslip_signed_urls,
+    create_payslip_url_maps,
+)
 
 
 def get_employee_statut(employee_id: str) -> str | None:
@@ -56,22 +60,13 @@ def get_my_payslips(employee_id: str) -> list[dict[str, Any]]:
     if not paths:
         return []
 
-    signed = supabase.storage.from_("payslips").create_signed_urls(
-        paths, 3600, options={"download": True}
-    )
-    if isinstance(signed, dict) and signed.get("error"):
-        raise RuntimeError(signed.get("message", "Storage error"))
-
-    url_map = {
-        path: item["signedURL"]
-        for path, item in zip(paths, signed)
-        if item.get("signedURL")
-    }
+    signed = create_payslip_url_maps(paths, 3600)
+    download_map, preview_map = signed
 
     result = []
     for p in payslips_db:
         storage_path = p.get("pdf_storage_path")
-        if storage_path not in url_map:
+        if storage_path not in download_map:
             continue
         file_name = storage_path.split("/")[-1]
         net_amount = None
@@ -86,7 +81,8 @@ def get_my_payslips(employee_id: str) -> list[dict[str, Any]]:
                 "name": file_name,
                 "month": p["month"],
                 "year": p["year"],
-                "url": url_map[storage_path],
+                "url": download_map[storage_path],
+                "preview_url": preview_map.get(storage_path, ""),
                 "net_a_payer": net_amount,
             }
         )
@@ -109,17 +105,7 @@ def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
     if not paths:
         return []
 
-    signed = supabase.storage.from_("payslips").create_signed_urls(
-        paths, 3600, options={"download": True}
-    )
-    if isinstance(signed, dict) and signed.get("error"):
-        raise RuntimeError(signed.get("message", "Storage error"))
-
-    url_map = {
-        path: item["signedURL"]
-        for path, item in zip(paths, signed)
-        if item.get("signedURL")
-    }
+    download_map, preview_map = create_payslip_url_maps(paths, 3600)
 
     return [
         {
@@ -127,10 +113,11 @@ def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
             "name": p["pdf_storage_path"].split("/")[-1],
             "month": p["month"],
             "year": p["year"],
-            "url": url_map[p["pdf_storage_path"]],
+            "url": download_map[p["pdf_storage_path"]],
+            "preview_url": preview_map.get(p["pdf_storage_path"], ""),
         }
         for p in payslips_db
-        if p.get("pdf_storage_path") in url_map
+        if p.get("pdf_storage_path") in download_map
     ]
 
 
@@ -148,12 +135,10 @@ def get_payslip_details(payslip_id: str) -> dict[str, Any] | None:
         return None
 
     signed_url = ""
+    preview_url = ""
     storage_path = row.get("pdf_storage_path")
     if storage_path:
-        signed = supabase.storage.from_("payslips").create_signed_url(
-            storage_path, 3600, options={"download": True}
-        )
-        signed_url = signed.get("signedURL", "")
+        signed_url, preview_url = create_payslip_signed_urls(storage_path, 3600)
 
     cumuls = None
     emp_id = row.get("employee_id")
@@ -173,7 +158,7 @@ def get_payslip_details(payslip_id: str) -> dict[str, Any] | None:
             else None
         )
 
-    return build_payslip_detail(row, signed_url, cumuls)
+    return build_payslip_detail(row, signed_url, cumuls, preview_url)
 
 
 def get_payslip_history(payslip_id: str) -> list[dict[str, Any]]:

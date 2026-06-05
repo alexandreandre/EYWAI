@@ -5,6 +5,8 @@ from app.core.logging import get_logger, log_payroll_debug
 
 logger = get_logger("modules.payroll.engine.calcul_reduction_generale")
 
+from .cotisations_rubriques import enrichir_ligne_cotisation
+
 from typing import Any
 
 from app.modules.payroll.engine.contexte import ContextePaie
@@ -208,16 +210,19 @@ def _resultat_remboursement_seul(
     """Ligne de remboursement quand plus aucune réduction n'est due (régularisation)."""
     if reduction_deja_appliquee <= 0:
         return None
-    return {
-        "libelle": "Réduction générale de cotisations patronales",
-        "base": salaire_brut_mois,
-        "taux_salarial": None,
-        "montant_salarial": 0.0,
-        "taux_patronal": None,
-        # Remboursement : montant patronal positif (annule le cumul déjà appliqué).
-        "montant_patronal": round(reduction_deja_appliquee, 2),
-        "valeur_cumulative_a_enregistrer": 0.0,
-    }
+    return enrichir_ligne_cotisation(
+        {
+            "libelle": "Réduction générale de cotisations patronales",
+            "base": salaire_brut_mois,
+            "taux_salarial": None,
+            "montant_salarial": 0.0,
+            "taux_patronal": None,
+            # Remboursement : montant patronal positif (annule le cumul déjà appliqué).
+            "montant_patronal": round(reduction_deja_appliquee, 2),
+            "valeur_cumulative_a_enregistrer": 0.0,
+        },
+        coti_id="reduction_generale",
+    )
 
 
 def calculer_reduction_generale(
@@ -298,15 +303,18 @@ def _calculer_reduction_rgdu(
 
     log_payroll_debug(logger, f'DEBUG [RGDU]: Coeff = {coefficient_C} | Total dû = {reduction_totale_due:.2f} € | Mois = {montant_final} €')
 
-    return {
-        "libelle": "Réduction générale de cotisations patronales",
-        "base": salaire_brut_mois,
-        "taux_salarial": None,
-        "montant_salarial": 0.0,
-        "taux_patronal": coefficient_C if coefficient_C > 0 else None,
-        "montant_patronal": montant_final,
-        "valeur_cumulative_a_enregistrer": reduction_totale_due,
-    }
+    return enrichir_ligne_cotisation(
+        {
+            "libelle": "Réduction générale de cotisations patronales",
+            "base": salaire_brut_mois,
+            "taux_salarial": None,
+            "montant_salarial": 0.0,
+            "taux_patronal": coefficient_C if coefficient_C > 0 else None,
+            "montant_patronal": montant_final,
+            "valeur_cumulative_a_enregistrer": reduction_totale_due,
+        },
+        coti_id="reduction_generale",
+    )
 
 
 def _calculer_reduction_fillon(
@@ -371,13 +379,16 @@ def _calculer_reduction_fillon(
     log_payroll_debug(logger, f'DEBUG [Réduction]: Coeff C cumulé = {coefficient_C:.6f} | Réduction totale due = {reduction_totale_due:.2f} €')
     log_payroll_debug(logger, f'DEBUG [Réduction]: Déjà appliqué = {reduction_deja_appliquee_N_1:.2f} € | Montant du mois = {montant_final} €')
 
-    return {
-        "libelle": "Réduction générale de cotisations patronales",
-        "base": salaire_brut_mois,
-        "taux_salarial": None,
-        "montant_salarial": 0.0,
-        "taux_patronal": round(coefficient_C, 6) if coefficient_C > 0 else None,
-        "montant_patronal": montant_final,
-        # Info supplémentaire pour la mise à jour des cumuls
-        "valeur_cumulative_a_enregistrer": round(reduction_totale_due, 2),
-    }
+    return enrichir_ligne_cotisation(
+        {
+            "libelle": "Réduction générale de cotisations patronales",
+            "base": salaire_brut_mois,
+            "taux_salarial": None,
+            "montant_salarial": 0.0,
+            "taux_patronal": round(coefficient_C, 6) if coefficient_C > 0 else None,
+            "montant_patronal": montant_final,
+            # Info supplémentaire pour la mise à jour des cumuls
+            "valeur_cumulative_a_enregistrer": round(reduction_totale_due, 2),
+        },
+        coti_id="reduction_generale",
+    )

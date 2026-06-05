@@ -345,197 +345,23 @@ class EmployeeExitDocumentGenerator:
         employee_data: Dict[str, Any],
         company_data: Dict[str, Any],
         exit_data: Dict[str, Any],
+        indemnities: Dict[str, Any] | None = None,
+        supabase_client=None,
+        document_data: Dict[str, Any] | None = None,
     ) -> bytes:
         """
-        Attestation employeur simplifiée pour France Travail.
-
-        Complète le certificat de travail ; l'attestation officielle doit
-        impérativement être transmise via la DSN (événement fin de contrat).
+        Attestation employeur destinée à France Travail (structure officielle).
         """
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(
-            buffer, pagesize=A4, topMargin=2 * cm, bottomMargin=2 * cm
-        )
-        story = []
-
-        pdf_helpers.build_company_header(story, self.styles, company_data)
-
-        story.append(
-            Paragraph(
-                "<b>ATTESTATION EMPLOYEUR</b><br/>"
-                "<i>Document d'accompagnement — France Travail</i>",
-                self.styles["TitrePrincipal"],
-            )
-        )
-        story.append(Spacer(1, 0.4 * cm))
-
-        story.append(
-            Paragraph(
-                "<i>Ce document reprend les informations essentielles transmises au salarié. "
-                "L'employeur doit obligatoirement déclarer la fin de contrat via la DSN "
-                "(Déclaration Sociale Nominative) dans les délais légaux. "
-                "Seule l'attestation transmise par DSN fait foi auprès de France Travail.</i>",
-                ParagraphStyle(
-                    name="Avertissement",
-                    parent=self.styles["Normal"],
-                    fontSize=9,
-                    textColor=colors.HexColor("#92400e"),
-                    spaceAfter=16,
-                    alignment=TA_CENTER,
-                    borderPadding=8,
-                    borderColor=colors.HexColor("#fde68a"),
-                    borderWidth=1,
-                    backColor=colors.HexColor("#fffbeb"),
-                ),
-            )
-        )
-        story.append(Spacer(1, 0.6 * cm))
-
-        story.append(
-            Paragraph("<b>1. EMPLOYEUR</b>", self.styles["Important"])
-        )
-        story.append(Spacer(1, 0.2 * cm))
-
-        company_name = (
-            company_data.get("name")
-            or company_data.get("raison_sociale")
-            or company_data.get("company_name")
-            or ""
-        )
-        data_employeur = [
-            ["Raison sociale :", company_name],
-            ["SIRET :", company_data.get("siret", "")],
-            ["Adresse :", get_company_address(company_data)],
-        ]
-
-        table_employeur = Table(data_employeur, colWidths=[5 * cm, 11 * cm])
-        table_employeur.setStyle(
-            TableStyle(
-                [
-                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 10),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ]
-            )
-        )
-        story.append(table_employeur)
-        story.append(Spacer(1, 0.6 * cm))
-
-        story.append(Paragraph("<b>2. SALARIÉ</b>", self.styles["Important"]))
-        story.append(Spacer(1, 0.2 * cm))
-
-        nom_complet = f"{employee_data.get('first_name', '')} {employee_data.get('last_name', '')}"
-        data_salarie = [
-            ["Nom et prénom :", nom_complet],
-            [
-                "Date de naissance :",
-                self._format_date(employee_data.get("date_naissance", "")),
-            ],
-            ["N° de Sécurité Sociale :", employee_data.get("nir", "") or "Non renseigné"],
-            ["Emploi occupé :", employee_data.get("job_title", "")],
-            ["Type de contrat :", employee_data.get("contract_type", "CDI")],
-            [
-                "Date d'embauche :",
-                self._format_date(employee_data.get("hire_date", "")),
-            ],
-            [
-                "Date de fin de contrat :",
-                self._format_date(exit_data.get("last_working_day", "")),
-            ],
-        ]
-
-        table_salarie = Table(data_salarie, colWidths=[5 * cm, 11 * cm])
-        table_salarie.setStyle(
-            TableStyle(
-                [
-                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 10),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ]
-            )
-        )
-        story.append(table_salarie)
-        story.append(Spacer(1, 0.6 * cm))
-
-        story.append(
-            Paragraph("<b>3. FIN DE CONTRAT</b>", self.styles["Important"])
-        )
-        story.append(Spacer(1, 0.2 * cm))
-
-        exit_type = exit_data.get("exit_type", "")
-        motif = EXIT_TYPE_LABELS.get(exit_type, exit_type.replace("_", " ").title() if exit_type else "Non spécifié")
-        story.append(Paragraph(f"Motif de rupture : <b>{motif}</b>", self.styles["CorpsTexte"]))
-
-        if exit_data.get("exit_reason"):
-            story.append(
-                Paragraph(
-                    f"Précisions : {exit_data['exit_reason']}", self.styles["CorpsTexte"]
-                )
-            )
-
-        notice_days = exit_data.get("notice_period_days") or 0
-        if notice_days and int(notice_days) > 0:
-            story.append(
-                Paragraph(
-                    f"Durée du préavis : <b>{notice_days} jours</b>.",
-                    self.styles["CorpsTexte"],
-                )
-            )
-
-        story.append(Spacer(1, 0.5 * cm))
-
-        # Rémunération de référence
-        salaire_ref = format_salary_euros(employee_data)
-        story.append(
-            Paragraph("<b>4. RÉMUNÉRATION DE RÉFÉRENCE</b>", self.styles["Important"])
-        )
-        story.append(Spacer(1, 0.2 * cm))
-        story.append(
-            Paragraph(
-                f"Dernier salaire brut mensuel connu : <b>{salaire_ref}</b>. "
-                "Les indemnités et droits acquis sont détaillés dans le reçu pour solde de tout compte.",
-                self.styles["CorpsTexte"],
-            )
-        )
-        story.append(Spacer(1, 1 * cm))
-
-        company_city = get_company_city(company_data) or "…………………"
-        date_aujourd_hui = self._format_date(datetime.now().date())
-        story.append(
-            Paragraph(
-                f"Fait à {company_city}, le {date_aujourd_hui}",
-                self.styles["Signature"],
-            )
-        )
-        story.append(Spacer(1, 0.3 * cm))
-        story.append(
-            Paragraph("Signature et cachet de l'employeur", self.styles["Signature"])
-        )
-        story.append(Spacer(1, 1.5 * cm))
-
-        story.append(
-            Paragraph(
-                "<b>Rappel :</b> la déclaration DSN de fin de contrat est obligatoire. "
-                "Ce document ne se substitue pas à l'attestation officielle transmise "
-                "électroniquement à France Travail.",
-                ParagraphStyle(
-                    name="RappelDSN",
-                    parent=self.styles["Normal"],
-                    fontSize=9,
-                    textColor=colors.HexColor("#1e3a8a"),
-                    alignment=TA_CENTER,
-                    borderPadding=8,
-                    borderColor=colors.HexColor("#dbeafe"),
-                    borderWidth=1,
-                    backColor=colors.HexColor("#eff6ff"),
-                ),
-            )
+        from app.modules.payroll.documents.attestation_employeur_generator import (
+            build_attestation_employeur_pdf,
         )
 
-        doc.build(story)
-        pdf_bytes = buffer.getvalue()
-        buffer.close()
-
-        return pdf_bytes
+        return build_attestation_employeur_pdf(
+            self.styles,
+            employee_data,
+            company_data,
+            exit_data,
+            indemnities=indemnities,
+            supabase_client=supabase_client,
+            document_data=document_data,
+        )

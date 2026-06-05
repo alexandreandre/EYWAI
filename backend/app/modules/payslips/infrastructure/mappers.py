@@ -13,6 +13,7 @@ def build_payslip_detail(
     row: dict[str, Any],
     signed_url: str,
     cumuls: dict[str, Any] | None,
+    preview_url: str = "",
 ) -> dict[str, Any]:
     """
     Construit le dict détail bulletin à partir de la ligne BDD, URL signée et cumuls.
@@ -20,6 +21,7 @@ def build_payslip_detail(
     """
     out = dict(row)
     out["url"] = signed_url
+    out["preview_url"] = preview_url
     out["cumuls"] = cumuls
     return out
 

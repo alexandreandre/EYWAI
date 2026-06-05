@@ -13,6 +13,10 @@ Le forfait jour fonctionne différemment du mode horaire :
 """
 
 from .contexte import ContextePaie
+from app.modules.collective_agreements.rules.resolver import (
+    code_postal_from_entreprise,
+    resolve_salaires_minima,
+)
 from datetime import datetime, date
 from typing import Dict, Any, List
 from .calcul_conges import calculer_indemnite_conges
@@ -62,9 +66,11 @@ def _construire_ligne_avantages_en_nature(
 
 
 def _calculer_prime_anciennete(contexte: ContextePaie) -> Dict[str, Any] | None:
-    """
-    Calcule la prime d'ancienneté (identique au mode horaire).
-    """
+    """Calcule la prime d'ancienneté (identique au mode horaire)."""
+    from app.modules.collective_agreements.rules.prime_calcul import (
+        calculer_montant_prime_anciennete,
+    )
+
     date_entree_str = contexte.contrat.get("contrat", {}).get("date_entree")
     if not date_entree_str:
         return None
@@ -84,44 +90,26 @@ def _calculer_prime_anciennete(contexte: ContextePaie) -> Dict[str, Any] | None:
         f"idcc_{idcc}", {}
     )
     regles_prime = regles_cc.get("prime_anciennete", {})
-    taux_applicable = 0.0
-
-    for palier in regles_prime.get("bareme", []):
-        if palier["annees_min"] <= anciennete_annees:
-            taux_applicable = palier.get("taux", 0.0)
-
-    if taux_applicable == 0.0:
+    minima_applicables = resolve_salaires_minima(
+        regles_cc,
+        code_postal=code_postal_from_entreprise(contexte.entreprise),
+    )
+    result = calculer_montant_prime_anciennete(
+        regles_prime=regles_prime,
+        contrat=contexte.contrat,
+        anciennete_annees=anciennete_annees,
+        salaire_base_mensuel=contexte.salaire_base_mensuel,
+        minima_applicables=minima_applicables,
+    )
+    if not result:
         return None
-
-    base_de_calcul = 0.0
-    regle_base = regles_prime.get("base_de_calcul", {})
-    methode = regle_base.get("methode")
-
-    if methode == "salaire_minimum_conventionnel":
-        coeff_salarie = (
-            contexte.contrat.get("remuneration", {})
-            .get("classification_conventionnelle", {})
-            .get("coefficient")
-        )
-        for minima in regles_cc.get("salaires_minima", []):
-            if minima.get("coefficient") == coeff_salarie:
-                base_de_calcul = minima.get("valeur", 0.0)
-                break
-    elif methode == "pourcentage_salaire_de_base":
-        pourcentage = regle_base.get("valeur", 0.0)
-        base_de_calcul = contexte.salaire_base_mensuel * pourcentage
-    else:
-        base_de_calcul = contexte.salaire_base_mensuel
-
-    if base_de_calcul == 0.0:
-        return None
-
-    montant_prime = base_de_calcul * taux_applicable
+    base_de_calcul, montant_prime, libelle = result
+    taux = montant_prime / base_de_calcul if base_de_calcul else 0.0
     return {
-        "libelle": f"Prime d'ancienneté ({anciennete_annees:.0f} ans, {taux_applicable * 100:.0f}%)",
+        "libelle": libelle,
         "quantite": base_de_calcul,
-        "taux": taux_applicable,
-        "gain": round(montant_prime, 2),
+        "taux": taux,
+        "gain": montant_prime,
         "perte": None,
     }
 

@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from reportlab.lib.styles import getSampleStyleSheet
-
 from app.modules.payroll.solde_de_tout_compte.common import socle_commun
-from app.shared.infrastructure.pdf.helpers import setup_custom_styles
 
 
 class _FakeQuery:
@@ -39,24 +36,21 @@ class _FakeClient:
         return _FakeQuery(self._row)
 
 
-def test_build_remunerations_section_uses_neant_without_payslip() -> None:
-    styles = setup_custom_styles(getSampleStyleSheet())
-    story = []
-    total_brut, _, _ = socle_commun.build_remunerations_section(
-        story,
-        styles,
+def test_compute_remunerations_section_uses_neant_without_payslip() -> None:
+    section, total_brut, _, _ = socle_commun.compute_remunerations_section(
         {"salaire_de_base": {"valeur": 0}},
         {"last_working_day": "2025-06-15"},
         employee_id="emp-1",
         supabase_client=_FakeClient(None),
     )
     assert total_brut == 0.0
-    assert story
+    assert section["type"] == "amounts"
+    assert section["rows"]
+    # Sans bulletin, le salaire prorata est à 0 → détail « Néant ».
+    assert section["rows"][0]["detail"] == "Néant"
 
 
-def test_build_remunerations_section_reads_last_payslip() -> None:
-    styles = setup_custom_styles(getSampleStyleSheet())
-    story = []
+def test_compute_remunerations_section_reads_last_payslip() -> None:
     payslip = {
         "year": 2025,
         "month": 6,
@@ -66,12 +60,11 @@ def test_build_remunerations_section_reads_last_payslip() -> None:
             "total_primes": 150.0,
         },
     }
-    total_brut, _, _ = socle_commun.build_remunerations_section(
-        story,
-        styles,
+    section, total_brut, _, _ = socle_commun.compute_remunerations_section(
         {"salaire_de_base": {"valeur": 2500}, "id": "emp-1"},
         {"last_working_day": "2025-06-30"},
         employee_id="emp-1",
         supabase_client=_FakeClient(payslip),
     )
     assert total_brut > 2500
+    assert section["rows"]

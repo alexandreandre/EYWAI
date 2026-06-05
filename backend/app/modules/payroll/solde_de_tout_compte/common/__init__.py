@@ -2,6 +2,7 @@
 Shared utilities and common sections for Solde de Tout Compte PDF generation
 """
 
+from . import html_renderer
 from . import pdf_helpers
 from . import socle_commun
 from .pdf_helpers import (
@@ -11,21 +12,24 @@ from .pdf_helpers import (
     safe_float,
     safe_str,
     build_company_header,
-    build_title_header,
-    build_legal_mentions,
-    build_signatures,
-    build_footer,
+)
+from .html_renderer import (
+    amount_row,
+    amounts_section,
+    info_row,
+    info_section,
+    render_solde_tout_compte_html,
 )
 from .socle_commun import (
     get_salary_prorata,
-    build_remunerations_section,
-    build_conges_section,
-    build_autres_regularisations_section,
-    build_retenues_section,
-    build_total_section,
+    compute_remunerations_section,
+    compute_conges_section,
+    compute_autres_regularisations_section,
+    compute_retenues_section,
 )
 
 __all__ = [
+    "html_renderer",
     "pdf_helpers",
     "socle_commun",
     "setup_custom_styles",
@@ -34,14 +38,14 @@ __all__ = [
     "safe_float",
     "safe_str",
     "build_company_header",
-    "build_title_header",
-    "build_legal_mentions",
-    "build_signatures",
-    "build_footer",
+    "amount_row",
+    "amounts_section",
+    "info_row",
+    "info_section",
+    "render_solde_tout_compte_html",
     "get_salary_prorata",
-    "build_remunerations_section",
-    "build_conges_section",
-    "build_autres_regularisations_section",
-    "build_retenues_section",
-    "build_total_section",
+    "compute_remunerations_section",
+    "compute_conges_section",
+    "compute_autres_regularisations_section",
+    "compute_retenues_section",
 ]

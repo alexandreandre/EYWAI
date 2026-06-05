@@ -19,6 +19,7 @@ class PayslipInfo(BaseModel):
     month: int
     year: int
     url: str
+    preview_url: str = ""
     net_a_payer: float | None = None
     manually_edited: bool = False
     edit_count: int = 0
@@ -58,6 +59,7 @@ class PayslipDetail(BaseModel):
     month: int
     year: int
     url: str
+    preview_url: str = ""
     pdf_storage_path: str
     payslip_data: dict[str, Any]
     manually_edited: bool = False

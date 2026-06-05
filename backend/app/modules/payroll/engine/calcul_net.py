@@ -20,6 +20,86 @@ def _get_safe_float(value: Any, default: float = 0.0) -> float:
 # Dans le fichier moteur_paie/calcul_net.py
 
 
+def _get_part_patronale_mutuelle(contexte: ContextePaie) -> float:
+    """Part patronale mutuelle soumise à CSG (incluse dans le MNS)."""
+    mutuelle_spec = contexte.contrat.get("specificites_paie", {}).get("mutuelle", {})
+    part_patronale_mutuelle = 0.0
+    if not mutuelle_spec.get("adhesion"):
+        return part_patronale_mutuelle
+
+    mutuelle_type_ids = mutuelle_spec.get("mutuelle_type_ids", [])
+    if mutuelle_type_ids:
+        try:
+            supabase_url = os.environ.get("SUPABASE_URL")
+            supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
+            if supabase_url and supabase_key:
+                supabase_client: Client = create_client(supabase_url, supabase_key)
+                mutuelles_response = (
+                    supabase_client.table("company_mutuelle_types")
+                    .select("*")
+                    .in_("id", mutuelle_type_ids)
+                    .eq("is_active", True)
+                    .execute()
+                )
+                if mutuelles_response.data:
+                    for mutuelle in mutuelles_response.data:
+                        if mutuelle.get("part_patronale_soumise_a_csg", True):
+                            part_patronale_mutuelle += _get_safe_float(
+                                mutuelle.get("montant_patronal")
+                            )
+            else:
+                logger.warning(
+                    "WARN: Variables Supabase non configurées, impossible de charger les mutuelles depuis la BDD"
+                )
+        except Exception as e:
+            logger.warning(
+                f"ERREUR: Impossible de charger les mutuelles depuis la BDD: {e}"
+            )
+
+    for ligne in mutuelle_spec.get("lignes_specifiques", []):
+        if ligne.get("part_patronale_soumise_a_csg", True):
+            part_patronale_mutuelle += _get_safe_float(ligne.get("montant_patronal"))
+
+    if (
+        not mutuelle_type_ids
+        and not mutuelle_spec.get("lignes_specifiques")
+        and mutuelle_spec.get("montant_patronal") is not None
+        and mutuelle_spec.get("part_patronale_soumise_a_csg", True)
+    ):
+        part_patronale_mutuelle += _get_safe_float(mutuelle_spec.get("montant_patronal"))
+
+    return round(part_patronale_mutuelle, 2)
+
+
+def calculer_montant_net_social(
+    contexte: ContextePaie,
+    salaire_brut: float,
+    total_cotisations_salariales: float,
+    primes_non_soumises: List[Dict[str, Any]],
+) -> float:
+    """
+    Montant net social (BOSS, arrêté 25/02/2016 modifié).
+
+    MNS = brut
+        + part patronale complémentaire santé (non soumise)
+        + primes non soumises
+        − cotisations sociales obligatoires salariales (CSG/CRDS incluses)
+
+    Hors PAS, remboursements de frais professionnels et IJSS.
+    """
+    part_patronale_mutuelle = _get_part_patronale_mutuelle(contexte)
+    total_primes_non_soumises = sum(
+        _get_safe_float(p.get("montant")) for p in primes_non_soumises
+    )
+    mns = (
+        _get_safe_float(salaire_brut)
+        + part_patronale_mutuelle
+        + total_primes_non_soumises
+        - _get_safe_float(total_cotisations_salariales)
+    )
+    return round(mns, 2)
+
+
 def _calculer_net_imposable(
     contexte: ContextePaie,
     salaire_brut: float,
@@ -39,46 +119,7 @@ def _calculer_net_imposable(
         if "csg/crds" in libelle and "non déductible" in libelle:
             montant_csg_non_deductible += _get_safe_float(ligne.get("montant_salarial"))
 
-    mutuelle_spec = contexte.contrat.get("specificites_paie", {}).get("mutuelle", {})
-    part_patronale_mutuelle = 0.0
-    if mutuelle_spec.get("adhesion"):
-        # Nouveau format : charger depuis company_mutuelle_types si mutuelle_type_ids présent
-        mutuelle_type_ids = mutuelle_spec.get("mutuelle_type_ids", [])
-        if mutuelle_type_ids:
-            # Charger les formules depuis la base de données
-            try:
-                supabase_url = os.environ.get("SUPABASE_URL")
-                supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
-                if supabase_url and supabase_key:
-                    supabase_client: Client = create_client(supabase_url, supabase_key)
-                    mutuelles_response = (
-                        supabase_client.table("company_mutuelle_types")
-                        .select("*")
-                        .in_("id", mutuelle_type_ids)
-                        .eq("is_active", True)
-                        .execute()
-                    )
-
-                    if mutuelles_response.data:
-                        for mutuelle in mutuelles_response.data:
-                            # On ajoute la part patronale seulement si soumise à CSG
-                            if mutuelle.get("part_patronale_soumise_a_csg", True):
-                                part_patronale_mutuelle += _get_safe_float(
-                                    mutuelle.get("montant_patronal")
-                                )
-                else:
-                    logger.warning('WARN: Variables Supabase non configurées, impossible de charger les mutuelles depuis la BDD')
-            except Exception as e:
-                logger.warning(f'ERREUR: Impossible de charger les mutuelles depuis la BDD: {e}')
-                # Fallback sur l'ancien format si erreur
-
-        # Ancien format : lignes_specifiques (rétrocompatibilité)
-        for ligne in mutuelle_spec.get("lignes_specifiques", []):
-            # On ajoute la part patronale seulement si la ligne est marquée comme soumise à CSG
-            if ligne.get("part_patronale_soumise_a_csg", True):
-                part_patronale_mutuelle += _get_safe_float(
-                    ligne.get("montant_patronal")
-                )
+    part_patronale_mutuelle = _get_part_patronale_mutuelle(contexte)
 
     salaire_brut_safe = _get_safe_float(salaire_brut)
     total_cotisations_safe = _get_safe_float(total_cotisations_salariales)
@@ -341,6 +382,12 @@ def calculer_net_et_impot(
 
     montant_impot = _calculer_prelevement_a_la_source(contexte, net_imposable)
     base_pas = _base_pas_du_mois(contexte, net_imposable)
+    montant_net_social = calculer_montant_net_social(
+        contexte,
+        salaire_brut,
+        total_cotisations_salariales,
+        primes_non_soumises,
+    )
     net_a_payer, remboursement_transport = _calculer_net_a_payer(
         net_social,
         montant_impot,
@@ -352,6 +399,7 @@ def calculer_net_et_impot(
     logger.info("INFO: Calcul des nets et de l'impôt terminé.")
     return {
         "net_social": net_social,
+        "montant_net_social": montant_net_social,
         "net_imposable": net_imposable,
         "base_pas": base_pas,
         "montant_impot_pas": montant_impot,

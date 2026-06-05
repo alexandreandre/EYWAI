@@ -2,15 +2,15 @@
 Case 1: Démission - Solde de tout compte generation
 """
 
-import io
 from typing import Dict, Any
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import cm
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib import colors
 
-from app.modules.payroll.solde_de_tout_compte.common import pdf_helpers
 from app.modules.payroll.solde_de_tout_compte.common import socle_commun
+from app.modules.payroll.solde_de_tout_compte.common import pdf_helpers
+from app.modules.payroll.solde_de_tout_compte.common.html_renderer import (
+    amount_row,
+    amounts_section,
+    render_solde_tout_compte_html,
+)
 
 
 def generate_demission_solde(
@@ -21,71 +21,32 @@ def generate_demission_solde(
     indemnities: Dict[str, Any],
     supabase_client=None,
 ) -> bytes:
-    """
-    Génère le PDF pour une démission
-
-    Returns:
-        bytes: PDF content
-    """
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2 * cm, bottomMargin=2 * cm)
-    story = []
-
-    # En-tête entreprise
-    pdf_helpers.build_company_header(story, styles, company_data)
-
-    # Titre principal
-    pdf_helpers.build_title_header(story, styles)
-
-    # Informations salarié et date de sortie
-    nom_complet = (
-        f"{employee_data.get('first_name', '')} {employee_data.get('last_name', '')}"
-    )
-    date_sortie = pdf_helpers.format_date(exit_data.get("last_working_day", ""))
-
-    story.append(
-        Paragraph(
-            f"Je soussigné(e) <b>{nom_complet}</b>, ayant quitté l'entreprise le {date_sortie} par <b>DÉMISSION</b>, "
-            f"reconnais avoir reçu les sommes suivantes :",
-            styles["CorpsTexte"],
-        )
-    )
-    story.append(Spacer(1, 0.8 * cm))
-
-    # === SECTION 1 : RÉMUNÉRATIONS ACQUISES (SOCLE COMMUN) ===
-    total_brut_remun, total_cotisations_remun, total_net_remun = (
-        socle_commun.build_remunerations_section(
-            story,
-            styles,
+    """Génère le PDF de solde de tout compte pour une démission."""
+    # === Rémunérations acquises ===
+    remun_section, total_brut_remun, total_cotisations_remun, total_net_remun = (
+        socle_commun.compute_remunerations_section(
             employee_data,
             exit_data,
-            section_number=1,
             employee_id=employee_data.get("id"),
             supabase_client=supabase_client,
         )
     )
 
-    # === SECTION 2 : CONGÉS PAYÉS (SOCLE COMMUN) ===
-    montant_conges = socle_commun.build_conges_section(
-        story, styles, indemnities, section_number=2
-    )
-
-    # === SECTION 3 : PRÉAVIS (SPÉCIFIQUE DÉMISSION) ===
-    story.append(Paragraph("<b>3. PRÉAVIS</b>", styles["Important"]))
-    story.append(Spacer(1, 0.3 * cm))
-
+    # === Préavis (spécifique démission) ===
     notice_period = exit_data.get("notice_period_days", 0)
     notice_indemnity_type = exit_data.get("notice_indemnity_type", "not_applicable")
     indemnite_preavis = indemnities.get("indemnite_preavis", {})
     montant_preavis = pdf_helpers.safe_float(indemnite_preavis.get("montant", 0))
     is_gross_misconduct = exit_data.get("is_gross_misconduct", False)
 
-    # Préavis exécuté
     if notice_period > 0 and not is_gross_misconduct:
         if notice_indemnity_type == "waived" or montant_preavis == 0:
-            preavis_text = f"Préavis de {notice_period} jours exécuté - Salaire inclus dans rémunérations"
+            preavis_text = (
+                f"Préavis de {notice_period} jours exécuté — "
+                "salaire inclus dans les rémunérations"
+            )
         else:
-            preavis_text = f"Préavis de {notice_period} jours - Dispense d'exécution"
+            preavis_text = f"Préavis de {notice_period} jours — dispense d'exécution"
     elif is_gross_misconduct:
         preavis_text = "Aucun préavis (faute grave)"
     else:
@@ -95,72 +56,49 @@ def generate_demission_solde(
             else f"Préavis de {notice_period} jours"
         )
 
-    # Indemnité compensatrice de préavis (si dispense employeur)
     if notice_indemnity_type == "paid" and montant_preavis > 0:
-        preavis_text_comp = "Dispense d'exécution - Indemnité compensatrice"
+        preavis_text_comp = "Dispense d'exécution — indemnité compensatrice"
     else:
         preavis_text_comp = "Non applicable (préavis exécuté ou non prévu)"
 
-    data_preavis = [
+    preavis_section = amounts_section(
+        "PRÉAVIS",
         [
-            Paragraph("<b>Libellé</b>", styles["Normal"]),
-            Paragraph("<b>Détails</b>", styles["Normal"]),
-            Paragraph("<b>Montant</b>", styles["Normal"]),
+            amount_row("Préavis", preavis_text, None),
+            amount_row(
+                "Indemnité compensatrice de préavis",
+                preavis_text_comp,
+                montant_preavis if montant_preavis > 0 else None,
+            ),
         ],
-        ["Préavis exécuté", preavis_text, ""],
-        [
-            "Indemnité compensatrice de préavis",
-            preavis_text_comp,
-            pdf_helpers.format_currency(montant_preavis) if montant_preavis > 0 else "",
-        ],
-    ]
-
-    table_preavis = Table(data_preavis, colWidths=[6 * cm, 7 * cm, 3 * cm])
-    table_preavis.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e5e7eb")),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ("ALIGN", (2, 1), (2, -1), "RIGHT"),
-                ("GRID", (0, 0), (-1, -1), 1, colors.HexColor("#d1d5db")),
-                ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ]
-        )
     )
-    story.append(table_preavis)
-    story.append(Spacer(1, 0.6 * cm))
 
-    # === SECTION 4 : AUTRES RÉGULARISATIONS (SOCLE COMMUN) ===
-    socle_commun.build_autres_regularisations_section(story, styles, section_number=4)
+    # === Congés payés ===
+    conges_section, montant_conges = socle_commun.compute_conges_section(indemnities)
 
-    # === SECTION 5 : RETENUES ÉVENTUELLES (SOCLE COMMUN) ===
-    socle_commun.build_retenues_section(story, styles, section_number=5)
+    # === Sections génériques ===
+    autres_section = socle_commun.compute_autres_regularisations_section()
+    retenues_section = socle_commun.compute_retenues_section()
 
-    # === TOTAL GÉNÉRAL ===
+    # === Totaux ===
     total_brut_final = total_brut_remun + montant_conges + montant_preavis
     total_cotisations_final = total_cotisations_remun
     total_net_final = total_net_remun + montant_conges + montant_preavis
 
-    socle_commun.build_total_section(
-        story, styles, total_brut_final, total_cotisations_final, total_net_final
+    return render_solde_tout_compte_html(
+        employee_data,
+        company_data,
+        exit_data,
+        motif_label="démission",
+        sections=[
+            remun_section,
+            preavis_section,
+            conges_section,
+            autres_section,
+            retenues_section,
+        ],
+        total_brut=total_brut_final,
+        total_cotisations=total_cotisations_final,
+        total_net=total_net_final,
+        specific_mention="Rupture du contrat de travail à l'initiative du salarié (démission).",
     )
-
-    # Mentions légales
-    pdf_helpers.build_legal_mentions(story, styles)
-
-    # Signatures
-    pdf_helpers.build_signatures(story, styles, company_data)
-
-    # Pied de page
-    pdf_helpers.build_footer(story, styles)
-
-    # Build PDF
-    doc.build(story)
-    pdf_bytes = buffer.getvalue()
-    buffer.close()
-
-    return pdf_bytes

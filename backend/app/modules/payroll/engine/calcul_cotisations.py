@@ -16,9 +16,10 @@ from .exoneration_stage import (
     assiette_stage_residuelle,
     contexte_exoneration_stage,
 )
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 import json
 from supabase import create_client, Client
+from .cotisations_rubriques import enrichir_ligne_cotisation
 
 # Fichier : moteur_paie/calcul_cotisations.py
 
@@ -166,7 +167,11 @@ def _calculer_assiettes(
 
 
 def _calculer_une_ligne(
-    libelle: str, assiette: float, taux_salarial: float, taux_patronal: float
+    libelle: str,
+    assiette: float,
+    taux_salarial: float,
+    taux_patronal: float,
+    coti_id: Optional[str] = None,
 ) -> Dict[str, Any] | None:
     if assiette <= 0 and not (taux_salarial is None and taux_patronal is None):
         return None
@@ -174,14 +179,17 @@ def _calculer_une_ligne(
     montant_patronal = round(assiette * (taux_patronal or 0.0), 2)
     if montant_salarial == 0 and montant_patronal == 0:
         return None
-    return {
-        "libelle": libelle,
-        "base": assiette,
-        "taux_salarial": taux_salarial,
-        "montant_salarial": montant_salarial,
-        "taux_patronal": taux_patronal,
-        "montant_patronal": montant_patronal,
-    }
+    return enrichir_ligne_cotisation(
+        {
+            "libelle": libelle,
+            "base": assiette,
+            "taux_salarial": taux_salarial,
+            "montant_salarial": montant_salarial,
+            "taux_patronal": taux_patronal,
+            "montant_patronal": montant_patronal,
+        },
+        coti_id=coti_id,
+    )
 
 
 def calculer_cotisations(
@@ -204,24 +212,30 @@ def calculer_cotisations(
         plafond_stage = exo_stage["plafond"]
         if salaire_brut <= plafond_stage + 0.01:
             return [
-                {
-                    "libelle": "Gratification de stage exonérée",
-                    "base": round(salaire_brut, 2),
-                    "taux_salarial": None,
-                    "montant_salarial": 0.0,
-                    "taux_patronal": None,
-                    "montant_patronal": 0.0,
-                }
+                enrichir_ligne_cotisation(
+                    {
+                        "libelle": "Gratification de stage exonérée",
+                        "base": round(salaire_brut, 2),
+                        "taux_salarial": None,
+                        "montant_salarial": 0.0,
+                        "taux_patronal": None,
+                        "montant_patronal": 0.0,
+                    },
+                    coti_id="exoneration_stage",
+                )
             ], 0.0
         part_exo = round(min(salaire_brut, plafond_stage), 2)
-        ligne_exo_stage = {
-            "libelle": "Gratification de stage exonérée",
-            "base": part_exo,
-            "taux_salarial": None,
-            "montant_salarial": 0.0,
-            "taux_patronal": None,
-            "montant_patronal": 0.0,
-        }
+        ligne_exo_stage = enrichir_ligne_cotisation(
+            {
+                "libelle": "Gratification de stage exonérée",
+                "base": part_exo,
+                "taux_salarial": None,
+                "montant_salarial": 0.0,
+                "taux_patronal": None,
+                "montant_patronal": 0.0,
+            },
+            coti_id="exoneration_stage",
+        )
         brut_cotisable = assiette_stage_residuelle(salaire_brut, plafond_stage)
 
     assiettes = _calculer_assiettes(contexte, brut_cotisable, remuneration_heures_supp)
@@ -355,12 +369,14 @@ def calculer_cotisations(
                         base_csg_apprenti,
                         taux_csg_deductible,
                         None,
+                        coti_id="csg_deductible",
                     ),
                     _calculer_une_ligne(
                         "CSG/CRDS non déductible",
                         base_csg_apprenti,
                         taux_csg_non_deductible,
                         None,
+                        coti_id="csg_non_deductible",
                     ),
                 ]:
                     if ligne:
@@ -373,18 +389,21 @@ def calculer_cotisations(
                     assiettes["csg_crds_base_normale"],
                     taux_csg_deductible,
                     None,
+                    coti_id="csg_deductible",
                 ),
                 _calculer_une_ligne(
                     "CSG/CRDS non déductible",
                     assiettes["csg_crds_base_normale"],
                     taux_csg_non_deductible,
                     None,
+                    coti_id="csg_non_deductible",
                 ),
                 _calculer_une_ligne(
                     "CSG/CRDS sur HS non déductible",
                     assiettes["csg_crds_base_hs"],
                     taux_csg_total,
                     None,
+                    coti_id="csg_non_deductible",
                 ),
             ]:
                 if ligne:
@@ -395,7 +414,7 @@ def calculer_cotisations(
             taux_patronal_final = 0.0
 
         ligne_calculee = _calculer_une_ligne(
-            libelle, assiette, taux_salarial, taux_patronal_final
+            libelle, assiette, taux_salarial, taux_patronal_final, coti_id=coti_id
         )
 
         if ligne_calculee:
@@ -422,7 +441,7 @@ def calculer_cotisations(
     for ligne_pro in exonerations_patronales_professionnalisation(
         contexte, salaire_brut
     ):
-        bulletin_cotisations.append(ligne_pro)
+        bulletin_cotisations.append(enrichir_ligne_cotisation(ligne_pro))
 
     # Contrôle (non bloquant) du salaire minimum conventionnel alternant.
     alerte_salaire = controle_salaire_minimum_alternant(contexte, salaire_brut)
@@ -432,14 +451,17 @@ def calculer_cotisations(
     # Ligne d'allègement visible : exonération des cotisations salariales apprenti.
     if exo_apprenti is not None and exoneration_salariale_apprenti > 0:
         bulletin_cotisations.append(
-            {
-                "libelle": "Exonération cotisations salariales apprenti",
-                "base": round(min(salaire_brut, exo_apprenti["plafond"]), 2),
-                "taux_salarial": None,
-                "montant_salarial": -round(exoneration_salariale_apprenti, 2),
-                "taux_patronal": None,
-                "montant_patronal": 0.0,
-            }
+            enrichir_ligne_cotisation(
+                {
+                    "libelle": "Exonération cotisations salariales apprenti",
+                    "base": round(min(salaire_brut, exo_apprenti["plafond"]), 2),
+                    "taux_salarial": None,
+                    "montant_salarial": -round(exoneration_salariale_apprenti, 2),
+                    "taux_patronal": None,
+                    "montant_patronal": 0.0,
+                },
+                coti_id="exoneration_apprenti_salariale",
+            )
         )
 
     # Ajout manuel des cotisations forfaitaires (mutuelle, etc.)
@@ -467,20 +489,23 @@ def calculer_cotisations(
                     if mutuelles_response.data:
                         for mutuelle in mutuelles_response.data:
                             bulletin_cotisations.append(
-                                {
-                                    "libelle": mutuelle.get(
-                                        "libelle", "Mutuelle Frais de Santé"
-                                    ),
-                                    "base": None,
-                                    "taux_salarial": None,
-                                    "montant_salarial": float(
-                                        mutuelle.get("montant_salarial", 0.0)
-                                    ),
-                                    "taux_patronal": None,
-                                    "montant_patronal": float(
-                                        mutuelle.get("montant_patronal", 0.0)
-                                    ),
-                                }
+                                enrichir_ligne_cotisation(
+                                    {
+                                        "libelle": mutuelle.get(
+                                            "libelle", "Mutuelle Frais de Santé"
+                                        ),
+                                        "base": None,
+                                        "taux_salarial": None,
+                                        "montant_salarial": float(
+                                            mutuelle.get("montant_salarial", 0.0)
+                                        ),
+                                        "taux_patronal": None,
+                                        "montant_patronal": float(
+                                            mutuelle.get("montant_patronal", 0.0)
+                                        ),
+                                    },
+                                    coti_id="mutuelle",
+                                )
                             )
                 else:
                     logger.warning('WARN: Variables Supabase non configurées, impossible de charger les mutuelles depuis la BDD')
@@ -492,14 +517,17 @@ def calculer_cotisations(
         lignes_specifiques = mutuelle_spec.get("lignes_specifiques", [])
         for ligne in lignes_specifiques:
             bulletin_cotisations.append(
-                {
-                    "libelle": ligne.get("libelle", "Mutuelle Frais de Santé"),
-                    "base": None,
-                    "taux_salarial": None,
-                    "montant_salarial": ligne.get("montant_salarial", 0.0),
-                    "taux_patronal": None,
-                    "montant_patronal": ligne.get("montant_patronal", 0.0),
-                }
+                enrichir_ligne_cotisation(
+                    {
+                        "libelle": ligne.get("libelle", "Mutuelle Frais de Santé"),
+                        "base": None,
+                        "taux_salarial": None,
+                        "montant_salarial": ligne.get("montant_salarial", 0.0),
+                        "taux_patronal": None,
+                        "montant_patronal": ligne.get("montant_patronal", 0.0),
+                    },
+                    coti_id="mutuelle",
+                )
             )
 
         # Fallback montants inline (sans mutuelle_type_ids ni lignes_specifiques)
@@ -512,18 +540,21 @@ def calculer_cotisations(
             )
         ):
             bulletin_cotisations.append(
-                {
-                    "libelle": mutuelle_spec.get("libelle", "Mutuelle Frais de Santé"),
-                    "base": None,
-                    "taux_salarial": None,
-                    "montant_salarial": float(
-                        mutuelle_spec.get("montant_salarial", 0.0) or 0.0
-                    ),
-                    "taux_patronal": None,
-                    "montant_patronal": float(
-                        mutuelle_spec.get("montant_patronal", 0.0) or 0.0
-                    ),
-                }
+                enrichir_ligne_cotisation(
+                    {
+                        "libelle": mutuelle_spec.get("libelle", "Mutuelle Frais de Santé"),
+                        "base": None,
+                        "taux_salarial": None,
+                        "montant_salarial": float(
+                            mutuelle_spec.get("montant_salarial", 0.0) or 0.0
+                        ),
+                        "taux_patronal": None,
+                        "montant_patronal": float(
+                            mutuelle_spec.get("montant_patronal", 0.0) or 0.0
+                        ),
+                    },
+                    coti_id="mutuelle",
+                )
             )
 
     if ligne_exo_stage is not None:
@@ -551,6 +582,7 @@ def calculer_cotisations(
                 assiette,
                 ligne.get("salarial"),
                 ligne.get("patronal"),
+                coti_id="prevoyance_cadre",
             )
             if ligne_calculee:
                 bulletin_cotisations.append(ligne_calculee)
@@ -563,8 +595,9 @@ def calculer_cotisations(
                     ligne_fs = _calculer_une_ligne(
                         f"Forfait social {taux_fs * 100:.0f}% sur prévoyance",
                         montant_patronal_prev,
-                        None,  # Pas de taux salarial
+                        None,
                         taux_fs,
+                        coti_id="forfait_social",
                     )
                     if ligne_fs:
                         bulletin_cotisations.append(ligne_fs)
@@ -583,6 +616,7 @@ def calculer_cotisations(
                 assiette,
                 coti_data.get("salarial"),
                 coti_data.get("patronal"),
+                coti_id="prevoyance_non_cadre",
             )
             if ligne_calculee:
                 bulletin_cotisations.append(ligne_calculee)
@@ -605,14 +639,17 @@ def calculer_cotisations(
         )
         montant_reduction = round(-remuneration_heures_supp * taux_reduction, 2)
         bulletin_cotisations.append(
-            {
-                "libelle": "Réduction de cotisations sur heures sup.",
-                "base": remuneration_heures_supp,
-                "taux_salarial": -taux_reduction,
-                "montant_salarial": montant_reduction,
-                "taux_patronal": None,
-                "montant_patronal": 0.0,
-            }
+            enrichir_ligne_cotisation(
+                {
+                    "libelle": "Réduction de cotisations sur heures sup.",
+                    "base": remuneration_heures_supp,
+                    "taux_salarial": -taux_reduction,
+                    "montant_salarial": montant_reduction,
+                    "taux_patronal": None,
+                    "montant_patronal": 0.0,
+                },
+                coti_id="reduction_hs_salariale",
+            )
         )
 
     # Ajout de la déduction forfaitaire patronale sur les heures supplémentaires
@@ -633,18 +670,24 @@ def calculer_cotisations(
         if montant_par_heure > 0:
             montant_deduction = round(-total_heures_supp * montant_par_heure, 2)
             bulletin_cotisations.append(
-                {
-                    "libelle": "Déduction forfaitaire heures suppl. pat.",
-                    "base": total_heures_supp,
-                    "taux_salarial": None,
-                    "montant_salarial": 0.0,
-                    "taux_patronal": None,
-                    "montant_patronal": montant_deduction,
-                }
+                enrichir_ligne_cotisation(
+                    {
+                        "libelle": "Déduction forfaitaire heures suppl. pat.",
+                        "base": total_heures_supp,
+                        "taux_salarial": None,
+                        "montant_salarial": 0.0,
+                        "taux_patronal": None,
+                        "montant_patronal": montant_deduction,
+                    },
+                    coti_id="deduction_hs_patronale",
+                )
             )
 
     total_cotisations_salariales = sum(
         ligne.get("montant_salarial", 0.0) or 0.0 for ligne in bulletin_cotisations
     )
+    bulletin_cotisations = [
+        enrichir_ligne_cotisation(ligne) for ligne in bulletin_cotisations
+    ]
     logger.info('INFO: Calcul des cotisations terminé.')
     return bulletin_cotisations, round(total_cotisations_salariales, 2)

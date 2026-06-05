@@ -9,6 +9,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from fastapi import HTTPException
+
+from app.modules.employees.infrastructure.repository import EmployeeRepository
+from app.modules.onboarding.domain.profile import payroll_block_reason
 from app.modules.payslips.application.dto import (
     EditPayslipInput,
     GeneratePayslipInput,
@@ -22,6 +26,8 @@ from app.modules.payslips.infrastructure.providers import (
 )
 from app.modules.payslips.infrastructure.readers import employee_statut_reader
 
+_employee_repository = EmployeeRepository()
+
 
 def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
     """
@@ -29,6 +35,13 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
     Logique applicative : récupère le statut employé (via port), choisit forfait jour ou heures,
     délègue au provider (services legacy).
     """
+    employee = _employee_repository.get_by_id_only(cmd.employee_id)
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employé non trouvé.")
+    block_reason = payroll_block_reason(employee)
+    if block_reason:
+        raise HTTPException(status_code=400, detail=block_reason)
+
     statut = employee_statut_reader.get_employee_statut(cmd.employee_id)
     if is_forfait_jour(statut):
         result = payslip_generator_provider.generate_forfait(
@@ -46,6 +59,8 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
         status=result["status"],
         message=result["message"],
         download_url=result["download_url"],
+        payslip_id=result.get("payslip_id"),
+        warnings=result.get("warnings"),
     )
 
 

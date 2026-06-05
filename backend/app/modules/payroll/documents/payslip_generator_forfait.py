@@ -57,7 +57,7 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
         if not company_id:
             raise HTTPException(
                 status_code=400,
-                detail=f"L'employé {employee_id} n'est pas associé à une entreprise (company_id manquant).",
+                detail="Ce collaborateur n'est rattaché à aucune entreprise. Complétez sa fiche employé.",
             )
 
         employee_folder_name = employee_data["employee_folder_name"]
@@ -66,8 +66,10 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
         if not is_forfait_jour(statut):
             raise HTTPException(
                 status_code=400,
-                detail=f"L'employé {employee_id} n'est pas en forfait jour (statut: {statut}). "
-                f"Utilisez process_payslip_generation à la place.",
+                detail=(
+                    "Ce collaborateur n'est pas en forfait jour. "
+                    "Utilisez la génération standard ou corrigez son statut."
+                ),
             )
 
         company_data = (
@@ -81,14 +83,10 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
         if not company_data:
             raise HTTPException(
                 status_code=404,
-                detail=f"Données de l'entreprise (ID: {company_id}) non trouvées.",
+                detail="Les informations de l'entreprise sont introuvables. Contactez le support.",
             )
 
-        duree_hebdo = employee_data.get("duree_hebdomadaire")
-        if not duree_hebdo:
-            raise HTTPException(
-                status_code=400, detail="Durée hebdomadaire non définie."
-            )
+        duree_hebdo = employee_data.get("duree_hebdomadaire") or 35.0
 
         dates_to_process = []
         for i in [-1, 0, 1]:
@@ -240,7 +238,15 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
                 json.dump(content, f, indent=2, ensure_ascii=False, default=str)
             files_to_cleanup.append(file_path)
 
+        salaire_base_raw = employee_data.get("salaire_de_base") or {}
+        salaire_base_valeur = (
+            salaire_base_raw.get("valeur", 0.0)
+            if isinstance(salaire_base_raw, dict)
+            else 0.0
+        )
+
         contrat_json_content = {
+            "employee_id": employee_id,
             "salarie": {
                 "nom": employee_data.get("last_name"),
                 "prenom": employee_data.get("first_name"),
@@ -260,11 +266,7 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
                 "temps_travail": {"duree_hebdomadaire": duree_hebdo},
             },
             "remuneration": {
-                "salaire_de_base": {
-                    "valeur": employee_data.get("salaire_de_base", {}).get(
-                        "valeur", 0.0
-                    )
-                },
+                "salaire_de_base": {"valeur": salaire_base_valeur},
                 "classification_conventionnelle": employee_data.get(
                     "classification_conventionnelle", {}
                 ),
@@ -382,7 +384,7 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
         )
         pdf_url = signed_url_response["signedURL"]
 
-        supabase.table("payslips").upsert(
+        upsert_result = supabase.table("payslips").upsert(
             {
                 "employee_id": employee_id,
                 "company_id": company_id,
@@ -392,28 +394,43 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
                 "payslip_data": payslip_json_data,
                 "pdf_storage_path": storage_path,
                 "url": pdf_url,
-            }
+            },
+            on_conflict="company_id,employee_id,year,month",
         ).execute()
+
+        payslip_id = None
+        if upsert_result.data:
+            payslip_id = upsert_result.data[0].get("id")
 
         supabase.table("employee_schedules").update({"cumuls": new_cumuls_json}).match(
             {"employee_id": employee_id, "year": year, "month": month}
         ).execute()
 
+        from app.modules.payroll.engine.controles_convention import (
+            extraire_alertes_rh_depuis_bulletin,
+        )
+
+        rh_warnings = [
+            a["message"]
+            for a in extraire_alertes_rh_depuis_bulletin(payslip_json_data)
+        ]
+
         return {
             "status": "success",
             "message": "Bulletin forfait jour généré avec succès.",
             "download_url": pdf_url,
+            "payslip_id": payslip_id,
+            "warnings": rh_warnings,
         }
 
     except HTTPException:
         raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logging.error(f"Erreur lors de la génération de paie forfait jour: {e}")
         traceback.print_exc()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erreur lors de la génération de paie forfait jour: {str(e)}",
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
     finally:
         for file_path in files_to_cleanup:

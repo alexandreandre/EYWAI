@@ -70,11 +70,13 @@ class GeneratePayslipInput:
 
 @dataclass
 class GeneratePayslipResult:
-    """Résultat de la génération (status, message, download_url)."""
+    """Résultat de la génération (status, message, download_url, alertes RH)."""
 
     status: str
     message: str
     download_url: str
+    payslip_id: str | None = None
+    warnings: list[str] | None = None
 
 
 @dataclass

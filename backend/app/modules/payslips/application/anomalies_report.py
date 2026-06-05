@@ -12,6 +12,9 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from app.core.database import supabase
 
 from app.modules.payslips.domain.comparison_engine import _sum_travail_base_hours, _to_float
+from app.modules.payroll.engine.controles_convention import (
+    extraire_alertes_rh_depuis_bulletin,
+)
 from app.modules.payslips.schemas.anomalies import (
     AnomaliePayslipItem,
     PayslipsAnomaliesReport,
@@ -224,6 +227,23 @@ def _collect_anomalies_for_row(
                     suggestion_correction="Valider ou régénérer le bulletin après contrôle RH.",
                 )
             )
+
+    for alerte in extraire_alertes_rh_depuis_bulletin(pdata):
+        out.append(
+            AnomaliePayslipItem(
+                employee_id=employee_id,
+                employee_name=employee_name,
+                payslip_id=payslip_id,
+                type=f"ALERTE_{alerte['code'].upper()}",
+                severite=alerte["severite"],
+                message=alerte["message"],
+                valeur_detectee=alerte.get("source") or "moteur_paie",
+                suggestion_correction=(
+                    "Ouvrir le bulletin, onglet Comparaison / alertes, "
+                    "puis corriger la fiche salarié ou la convention collective."
+                ),
+            )
+        )
 
     return out
 

@@ -6,6 +6,8 @@ Chaque commande est testée avec repositories et providers mockés (pas de DB, p
 
 from unittest.mock import patch
 
+import pytest
+from fastapi import HTTPException
 
 from app.modules.payslips.application.commands import (
     generate_payslip,
@@ -19,9 +21,34 @@ from app.modules.payslips.application.dto import (
     RestorePayslipInput,
 )
 
+_COMPLETE_EMPLOYEE = {
+    "id": "emp-1",
+    "employment_status": "actif",
+    "nir": "1850574001234",
+    "date_naissance": "1985-05-01",
+    "adresse": {"ville": "Paris"},
+    "coordonnees_bancaires": {"iban": "FR7612345678901234567890123"},
+    "salaire_de_base": {"montant": 2500},
+}
+
 
 class TestGeneratePayslipCommand:
     """Tests de la commande generate_payslip."""
+
+    def test_raises_when_employee_onboarding_incomplete(self):
+        cmd = GeneratePayslipInput(employee_id="emp-1", year=2024, month=3)
+        with patch(
+            "app.modules.payslips.application.commands._employee_repository"
+        ) as mock_repo:
+            mock_repo.get_by_id_only.return_value = {
+                "id": "emp-1",
+                "employment_status": "en_onboarding",
+                "first_name": "Terence",
+            }
+            with pytest.raises(HTTPException) as exc:
+                generate_payslip(cmd)
+        assert exc.value.status_code == 400
+        assert "onboarding" in exc.value.detail.lower()
 
     def test_generates_forfait_when_statut_is_forfait_jour(self):
         """Quand le statut employé est forfait jour, délègue à generate_forfait."""
@@ -39,7 +66,14 @@ class TestGeneratePayslipCommand:
             patch(
                 "app.modules.payslips.application.commands.payslip_generator_provider"
             ) as mock_provider,
+            patch(
+                "app.modules.payslips.application.commands._employee_repository"
+            ) as mock_repo,
         ):
+            mock_repo.get_by_id_only.return_value = {
+                **_COMPLETE_EMPLOYEE,
+                "id": "emp-1",
+            }
             mock_reader.get_employee_statut.return_value = "Cadre forfait jour"
             mock_provider.generate_forfait.return_value = mock_result
             mock_provider.generate_heures.return_value = {}
@@ -71,7 +105,14 @@ class TestGeneratePayslipCommand:
             patch(
                 "app.modules.payslips.application.commands.payslip_generator_provider"
             ) as mock_provider,
+            patch(
+                "app.modules.payslips.application.commands._employee_repository"
+            ) as mock_repo,
         ):
+            mock_repo.get_by_id_only.return_value = {
+                **_COMPLETE_EMPLOYEE,
+                "id": "emp-2",
+            }
             mock_reader.get_employee_statut.return_value = "Cadre au forfait heures"
             mock_provider.generate_heures.return_value = mock_result
             mock_provider.generate_forfait.return_value = {}
@@ -98,7 +139,14 @@ class TestGeneratePayslipCommand:
             patch(
                 "app.modules.payslips.application.commands.payslip_generator_provider"
             ) as mock_provider,
+            patch(
+                "app.modules.payslips.application.commands._employee_repository"
+            ) as mock_repo,
         ):
+            mock_repo.get_by_id_only.return_value = {
+                **_COMPLETE_EMPLOYEE,
+                "id": "emp-3",
+            }
             mock_reader.get_employee_statut.return_value = None
             mock_provider.generate_heures.return_value = mock_result
 

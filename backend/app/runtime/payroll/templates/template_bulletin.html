@@ -279,6 +279,73 @@
         #primes-non-soumises, #notes-de-frais {
             margin-top: 20px;
         }
+
+        .rubrique-header td {
+            background-color: #e0e7ef !important;
+            font-weight: bold;
+            color: #003366;
+        }
+
+        .mns-row {
+            background-color: #dbeafe !important;
+            border-top: 3px solid #003366;
+            border-bottom: 3px solid #003366;
+            font-weight: bold;
+            font-size: 10pt;
+        }
+
+        #solde-conges {
+            margin-top: 16px;
+            padding: 10px 12px;
+            background-color: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            font-size: 8pt;
+        }
+
+        #solde-conges h2 {
+            font-size: 9pt;
+            margin: 0 0 8px 0;
+            color: #003366;
+        }
+
+        .solde-conges-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .solde-conges-table th,
+        .solde-conges-table td {
+            padding: 4px 8px;
+            text-align: right;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .solde-conges-table th:first-child,
+        .solde-conges-table td:first-child {
+            text-align: left;
+        }
+
+        .solde-conges-table th {
+            font-size: 7pt;
+            color: #64748b;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .solde-conges-table .solde-value {
+            font-weight: bold;
+            color: #003366;
+        }
+
+        #mentions-legales {
+            clear: both;
+            margin-top: 20px;
+            padding: 10px 12px;
+            font-size: 7.5pt;
+            color: #666;
+            border-top: 1px solid #ccc;
+        }
     </style>
 </head>
 <body>
@@ -298,6 +365,9 @@
             <h2>Entreprise</h2>
             <p class="company-name">{{ en_tete.entreprise.raison_sociale }}</p>
             <p class="company-info">SIRET : {{ en_tete.entreprise.siret }}</p>
+            {% if en_tete.entreprise.naf_ape %}
+            <p class="company-info">Code NAF/APE : {{ en_tete.entreprise.naf_ape }}</p>
+            {% endif %}
             {% if en_tete.entreprise.adresse %}
             <p class="company-info">{{ en_tete.entreprise.adresse.rue }}</p>
             <p class="company-info">{{ en_tete.entreprise.adresse.code_postal }} {{ en_tete.entreprise.adresse.ville }}</p>
@@ -307,6 +377,12 @@
             <h2>Salarié</h2>
             <p class="employee-name">{{ en_tete.salarie.nom_complet }}</p>
             <p class="employee-info">Emploi : {{ en_tete.salarie.emploi }}</p>
+            {% if en_tete.salarie.classification %}
+            <p class="employee-info">Classification : {{ en_tete.salarie.classification }}</p>
+            {% endif %}
+            {% if en_tete.salarie.convention_collective %}
+            <p class="employee-info">Convention collective : {{ en_tete.salarie.convention_collective }}</p>
+            {% endif %}
             {% if en_tete.salarie.statut %}
             <p class="employee-info">Statut : {{ en_tete.salarie.statut }}</p>
             {% endif %}
@@ -411,8 +487,53 @@
     </section>
     
     <section id="cotisations">
-        <h2>Détail des Cotisations et Contributions</h2>
-        
+        <h2>Cotisations et contributions sociales</h2>
+
+        {% if cotisations_officielles %}
+        <table>
+            <thead>
+                <tr>
+                    <th class="libelle">Libellé</th>
+                    <th class="numerique">Base</th>
+                    <th class="numerique">Taux Sal.</th>
+                    <th class="numerique">Montant Sal.</th>
+                    <th class="numerique">Taux Pat.</th>
+                    <th class="numerique">Montant Pat.</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rubrique in cotisations_officielles %}
+                <tr class="rubrique-header">
+                    <td colspan="6"><strong>{{ rubrique.libelle }}</strong></td>
+                </tr>
+                {% for ligne in rubrique.lignes %}
+                <tr>
+                    <td class="libelle">{{ ligne.libelle }}</td>
+                    <td class="numerique">{% if ligne.base is not none %}{{ "%.2f"|format(ligne.base) }} €{% endif %}</td>
+                    <td class="numerique">{% if ligne.taux_salarial is not none %}{{ "%.4f"|format(ligne.taux_salarial * 100) }} %{% endif %}</td>
+                    <td class="numerique">{{ "%.2f"|format(ligne.montant_salarial) }} €</td>
+                    <td class="numerique">{% if ligne.taux_patronal is not none %}{{ "%.4f"|format(ligne.taux_patronal * 100) }} %{% endif %}</td>
+                    <td class="numerique">{{ "%.2f"|format(ligne.montant_patronal) }} €</td>
+                </tr>
+                {% endfor %}
+                <tr class="subtotal-row">
+                    <td class="libelle" colspan="3"><strong>Sous-total {{ rubrique.libelle }}</strong></td>
+                    <td class="numerique"><strong>{{ "%.2f"|format(rubrique.total_salarial) }} €</strong></td>
+                    <td></td>
+                    <td class="numerique"><strong>{{ "%.2f"|format(rubrique.total_patronal) }} €</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr class="total-row">
+                    <td class="libelle" colspan="3"><strong>Total des cotisations et contributions</strong></td>
+                    <td class="numerique"><strong>{{ "%.2f"|format(structure_cotisations.total_salarial) }} €</strong></td>
+                    <td></td>
+                    <td class="numerique"><strong>{{ "%.2f"|format(structure_cotisations.total_patronal) }} €</strong></td>
+                </tr>
+            </tfoot>
+        </table>
+        {% else %}
         <table>
             <thead>
                 <tr>
@@ -437,72 +558,35 @@
                 {% endfor %}
             </tbody>
         </table>
+        {% endif %}
 
-        {% if structure_cotisations.bloc_allegements %}
-        <h3 class="sub-header">Allègements de cotisations</h3>
-        <table>
-             <tbody>
-                {% for ligne in structure_cotisations.bloc_allegements %}
-                <tr>
-                    <td class="libelle">{{ ligne.libelle }}</td>
-                    <td class="numerique">{% if ligne.base is not none %}{{ "%.2f"|format(ligne.base) }} €{% endif %}</td>
-                    <td class="numerique">{% if ligne.taux_salarial is not none %}{{ "%.4f"|format(ligne.taux_salarial * 100) }} %{% endif %}</td>
-                    <td class="numerique">{{ "%.2f"|format(ligne.montant_salarial) }} €</td>
-                    <td class="numerique">{% if ligne.taux_patronal is not none %}{{ "%.6f"|format(ligne.taux_patronal) }}{% endif %}</td>
-                    <td class="numerique">{{ "%.2f"|format(ligne.montant_patronal) }} €</td>
+        {% if total_exonerations and total_exonerations > 0 %}
+        <table class="table-summary">
+            <tbody>
+                <tr class="subtotal-row">
+                    <td class="libelle" colspan="5"><strong>Exonérations, allègements et réductions (total)</strong></td>
+                    <td class="numerique"><strong>{{ "%.2f"|format(total_exonerations) }} €</strong></td>
                 </tr>
-                {% endfor %}
             </tbody>
         </table>
         {% endif %}
-        
-        <h3 class="sub-header">Autres Contributions Dues par l'Employeur</h3>
-        <table>
-            <tbody>
-                {% for ligne in structure_cotisations.bloc_autres_contributions.lignes %}
-                <tr>
-                    <td class="libelle">{{ ligne.libelle }}</td>
-                    <td class="numerique">{% if ligne.base is not none %}{{ "%.2f"|format(ligne.base) }} €{% endif %}</td>
-                    <td></td> <td></td> <td class="numerique">{% if ligne.taux_patronal is not none %}{{ "%.4f"|format(ligne.taux_patronal * 100) }} %{% endif %}</td>
-                    <td class="numerique">{{ "%.2f"|format(ligne.montant_patronal) }} €</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-            <tfoot>
-                <tr class="subtotal-row">
-                    <td class="libelle" colspan="5"><strong>Total autres contributions employeur</strong></td>
-                    <td class="numerique"><strong>{{ "%.2f"|format(structure_cotisations.bloc_autres_contributions.total) }} €</strong></td>
-                </tr>
-            </tfoot>
-        </table>
-        
-        <table class="table-summary">
-            <tbody>
-                <tr class="total-row">
-                    <td class="libelle"><strong>{{ structure_cotisations.total_avant_csg_crds.libelle }}</strong></td>
-                    <td></td> <td></td> <td class="numerique"><strong>{{ "%.2f"|format(structure_cotisations.total_avant_csg_crds.montant_salarial) }} €</strong></td>
-                    <td></td> <td class="numerique"><strong>{{ "%.2f"|format(structure_cotisations.total_avant_csg_crds.montant_patronal) }} €</strong></td>
-                </tr>
-            </tbody>
-        </table>
-
-        <table>
-            <tbody>
-                {% for ligne in structure_cotisations.bloc_csg_non_deductible %}
-                <tr>
-                    <td class="libelle">{{ ligne.libelle }}</td>
-                    <td class="numerique">{{ "%.2f"|format(ligne.base) }} €</td>
-                    <td class="numerique">{{ "%.4f"|format(ligne.taux_salarial * 100) }} %</td>
-                    <td class="numerique">{{ "%.2f"|format(ligne.montant_salarial) }} €</td>
-                    <td></td>
-                    <td></td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
     </section>
 
     <hr>
+
+    {% if synthese_net.montant_net_social is not none %}
+    <section id="montant-net-social">
+        <table>
+            <tbody>
+                <tr class="mns-row">
+                    <td class="libelle" colspan="5"><strong>MONTANT NET SOCIAL</strong></td>
+                    <td class="numerique"><strong>{{ "%.2f"|format(synthese_net.montant_net_social) }} €</strong></td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+    <hr>
+    {% endif %}
 
     {% if primes_non_soumises and primes_non_soumises|length > 0 %}
     <section id="primes-non-soumises">
@@ -568,14 +652,23 @@
 
     <section id="resultat-final">
         <p><strong>Total Cotisations Salariales :</strong><span>- {{ "%.2f"|format(structure_cotisations.total_salarial) }} €</span></p>
+        {% if synthese_net.montant_net_social is not none %}
+        <p><strong>Montant net social :</strong><span>{{ "%.2f"|format(synthese_net.montant_net_social) }} €</span></p>
+        {% endif %}
         <p><strong>Net à payer avant impôt :</strong><span>{{ "%.2f"|format(synthese_net.net_social_avant_impot) }} €</span></p>
         <p><strong>Net Imposable :</strong><span>{{ "%.2f"|format(synthese_net.net_imposable) }} €</span></p>
 
         {% if synthese_net.exoneration_ir_apprenti %}
         <p class="employee-info"><em>Apprenti : rémunération exonérée d'impôt sur le revenu dans la limite du SMIC annuel.</em></p>
         {% endif %}
-        {% if synthese_net.impot_prelevement_a_la_source and synthese_net.impot_prelevement_a_la_source.montant %}
+
+        <h3 class="sub-header" style="margin-top: 10px;">Impôt sur le revenu — prélèvement à la source</h3>
+        {% if synthese_net.impot_prelevement_a_la_source %}
+        <p><strong>Base imposable PAS :</strong><span>{{ "%.2f"|format(synthese_net.impot_prelevement_a_la_source.base) }} €</span></p>
+        <p><strong>Taux PAS :</strong><span>{{ "%.2f"|format(synthese_net.impot_prelevement_a_la_source.taux) }} %</span></p>
+        {% if synthese_net.impot_prelevement_a_la_source.montant %}
         <p><strong>Impôt sur le revenu (Prélèvement à la source) :</strong><span class="perte">- {{ "%.2f"|format(synthese_net.impot_prelevement_a_la_source.montant) }} €</span></p>
+        {% endif %}
         {% endif %}
         {% if synthese_net.remboursement_transport and synthese_net.remboursement_transport > 0 %}
         <p><strong>Indemnité de transport (50%) :</strong><span class="gain">+ {{ "%.2f"|format(synthese_net.remboursement_transport) }} €</span></p>
@@ -592,8 +685,14 @@
         {% endif %}
 
         <h2 class="net-a-payer">NET À PAYER :<span>{{ "%.2f"|format(net_a_payer) }} €</span></h2>
+        {% if en_tete.date_paiement %}
+        <p><strong>Date de paiement :</strong><span>{{ en_tete.date_paiement }}</span></p>
+        {% endif %}
 
         <p class="total-employeur"><strong>Total versé par l'employeur :</strong><span>{{ "%.2f"|format(pied_de_page.cout_total_employeur) }} €</span></p>
+        {% if pied_de_page.total_exonerations and pied_de_page.total_exonerations > 0 %}
+        <p class="total-employeur"><strong>Total exonérations et allègements :</strong><span>{{ "%.2f"|format(pied_de_page.total_exonerations) }} €</span></p>
+        {% endif %}
     </section>
 
     {% if cumuls %}
@@ -627,6 +726,61 @@
             </div>
             {% endif %}
         </div>
+    </section>
+    {% endif %}
+
+    {% if pied_de_page.solde_conges %}
+    <section id="solde-conges">
+        <h2>Solde de congés au {{ pied_de_page.solde_conges.date_reference }}</h2>
+        <table class="solde-conges-table">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Acquis</th>
+                    <th>Pris</th>
+                    <th>Solde</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if pied_de_page.solde_conges.conges_payes_periode_precedente and pied_de_page.solde_conges.conges_payes_periode_precedente.solde > 0 %}
+                <tr>
+                    <td>CP période précédente<br><span style="font-size:6.5pt;color:#64748b;">{{ pied_de_page.solde_conges.conges_payes_periode_precedente.periode }}</span></td>
+                    <td>{{ "%.2f"|format(pied_de_page.solde_conges.conges_payes_periode_precedente.acquis) }} j</td>
+                    <td>{{ "%.2f"|format(pied_de_page.solde_conges.conges_payes_periode_precedente.pris) }} j</td>
+                    <td class="solde-value">{{ "%.2f"|format(pied_de_page.solde_conges.conges_payes_periode_precedente.solde) }} j</td>
+                </tr>
+                {% endif %}
+                <tr>
+                    <td>CP période en cours<br><span style="font-size:6.5pt;color:#64748b;">{{ pied_de_page.solde_conges.conges_payes.periode }}</span></td>
+                    <td>{{ "%.2f"|format(pied_de_page.solde_conges.conges_payes.acquis) }} j</td>
+                    <td>{{ "%.2f"|format(pied_de_page.solde_conges.conges_payes.pris) }} j</td>
+                    <td class="solde-value">{{ "%.2f"|format(pied_de_page.solde_conges.conges_payes.solde) }} j</td>
+                </tr>
+                {% if pied_de_page.solde_conges.rtt.acquis > 0 or pied_de_page.solde_conges.rtt.pris > 0 %}
+                <tr>
+                    <td>RTT</td>
+                    <td>{{ "%.2f"|format(pied_de_page.solde_conges.rtt.acquis) }} j</td>
+                    <td>{{ "%.2f"|format(pied_de_page.solde_conges.rtt.pris) }} j</td>
+                    <td class="solde-value">{{ "%.2f"|format(pied_de_page.solde_conges.rtt.solde) }} j</td>
+                </tr>
+                {% endif %}
+                {% if pied_de_page.solde_conges.repos_compensateur.acquis > 0 or pied_de_page.solde_conges.repos_compensateur.pris > 0 %}
+                <tr>
+                    <td>Repos compensateur</td>
+                    <td>{{ "%.2f"|format(pied_de_page.solde_conges.repos_compensateur.acquis) }} j</td>
+                    <td>{{ "%.2f"|format(pied_de_page.solde_conges.repos_compensateur.pris) }} j</td>
+                    <td class="solde-value">{{ "%.2f"|format(pied_de_page.solde_conges.repos_compensateur.solde) }} j</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </section>
+    {% endif %}
+
+    {% if pied_de_page.mentions_legales %}
+    <section id="mentions-legales">
+        <p>{{ pied_de_page.mentions_legales.conservation }}</p>
+        <p>{{ pied_de_page.mentions_legales.information }}</p>
     </section>
     {% endif %}
 </body>
