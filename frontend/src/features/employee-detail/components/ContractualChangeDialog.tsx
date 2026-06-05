@@ -159,7 +159,7 @@ export function ContractualChangeDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__eywai__">Standard EYWAI</SelectItem>
-                  {templatesForType.map((tpl: DocumentTemplate) => (
+                  {contractualTemplatesForType.map((tpl: DocumentTemplate) => (
                     <SelectItem key={tpl.id} value={tpl.id}>
                       {tpl.name}
                     </SelectItem>
