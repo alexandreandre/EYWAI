@@ -8,9 +8,19 @@ import os
 import re
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 import requests
+
+from app.modules.collective_agreements.rules.constants import (
+    EXTENDED_SALARY_IDCC,
+    MAX_PAYROLL_ANNEXES_DEFAULT,
+    MAX_PAYROLL_ANNEXES_EXTENDED,
+    MAX_SALARY_TEXTS_DEFAULT,
+    MAX_SALARY_TEXTS_EXTENDED,
+    MAX_SALARY_ZONES_MULTI,
+    MULTI_ZONE_IDCC,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +35,7 @@ class KaliConventionMeta:
     kalicont_id: str
     title: str
     legifrance_url: str
+    full_title: str = ""
 
 
 @dataclass
@@ -94,7 +105,7 @@ class KaliClient:
             raise KaliNotFoundError(f"Aucune section pour IDCC {idcc}")
 
         parts: list[str] = [
-            f"# {meta.title}",
+            f"# {meta.full_title or meta.title}",
             f"IDCC {meta.idcc}",
             f"Source : {meta.legifrance_url}",
             "",
@@ -103,13 +114,13 @@ class KaliClient:
         sections_fetched = 0
 
         # 1. Textes Salaires récents (grilles € + coefficients)
-        salary_blocks, af, sf = self._collect_salary_texts(top_sections)
+        salary_blocks, af, sf = self._collect_salary_texts(top_sections, idcc=meta.idcc)
         parts.extend(salary_blocks)
         articles_fetched += af
         sections_fetched += sf
 
         # 2. Annexes classification (Textes Attachés)
-        annex_blocks, af, sf = self._collect_payroll_annexes(top_sections)
+        annex_blocks, af, sf = self._collect_payroll_annexes(top_sections, idcc=meta.idcc)
         parts.extend(annex_blocks)
         articles_fetched += af
         sections_fetched += sf
@@ -144,32 +155,43 @@ class KaliClient:
         )
 
     def _collect_salary_texts(
-        self, top_sections: list[Any]
+        self, top_sections: list[Any], *, idcc: str = ""
     ) -> tuple[list[str], int, int]:
         blocks: list[str] = []
         articles = 0
         sections = 0
+        idcc_norm = _normalize_idcc(idcc) if idcc else ""
+        multi_zone = idcc_norm in MULTI_ZONE_IDCC
+
         for top in top_sections:
             if not _section_title_matches(top, "textes salaires"):
                 continue
             subs = _filter_vigueur_sections(top.get("sections") or [])
             candidates = [s for s in subs if _is_salary_kalitext(s)]
-            for sub in candidates[-3:]:
+            if multi_zone:
+                selected = _pick_latest_salary_texts_by_zone(
+                    candidates, max_zones=MAX_SALARY_ZONES_MULTI
+                )
+            else:
+                selected = _pick_salary_texts(candidates, idcc=idcc_norm)
+            for sub in selected:
                 sections += 1
                 text, af = self._fetch_subsection_text(sub)
                 if text:
-                    blocks.append(f"## Texte salarial : {sub.get('title', '').strip()}\n\n{text}")
+                    title = sub.get("title", "").strip()
+                    blocks.append(f"## Texte salarial : {title}\n\n{text}")
                     articles += af
                 time.sleep(0.12)
         return blocks, articles, sections
 
     def _collect_payroll_annexes(
-        self, top_sections: list[Any]
+        self, top_sections: list[Any], *, idcc: str = ""
     ) -> tuple[list[str], int, int]:
         blocks: list[str] = []
         articles = 0
         sections = 0
         seen: set[str] = set()
+        max_annexes = _payroll_annex_limit(idcc)
         for top in top_sections:
             if not _section_title_matches(top, "textes attach"):
                 continue
@@ -188,7 +210,7 @@ class KaliClient:
                     blocks.append(f"## {title.strip()}\n\n{text}")
                     articles += af
                 time.sleep(0.12)
-                if len(seen) >= 6:
+                if len(seen) >= max_annexes:
                     break
         return blocks, articles, sections
 
@@ -238,7 +260,7 @@ class KaliClient:
         data = self._post(
             "list/conventions",
             {
-                "pageSize": 5,
+                "pageSize": 20,
                 "pageNumber": 1,
                 "idcc": idcc.lstrip("0") or idcc,
                 "legalStatus": ["VIGUEUR", "VIGUEUR_DIFF"],
@@ -247,28 +269,7 @@ class KaliClient:
         )
         if not data:
             return None
-        for row in data.get("results") or []:
-            kalicont_id = _extract_kalicont_id(row)
-            if not kalicont_id:
-                continue
-            title = (
-                row.get("titre")
-                or row.get("title")
-                or row.get("titles", [{}])[0].get("title")
-            )
-            if not title or str(title).lower().startswith("arrêté"):
-                cont = self._post("consult/kaliCont", {"id": kalicont_id})
-                if cont:
-                    cont_data = cont.get("conteneur") or cont
-                    title = cont_data.get("title") or cont_data.get("titre") or title
-            title = str(title or f"Convention IDCC {idcc}").strip()
-            return KaliConventionMeta(
-                idcc=_normalize_idcc(idcc),
-                kalicont_id=kalicont_id,
-                title=title,
-                legifrance_url=_legifrance_url(kalicont_id),
-            )
-        return None
+        return self._pick_best_convention(data.get("results") or [], idcc)
 
     def _resolve_from_search(self, idcc: str) -> Optional[KaliConventionMeta]:
         data = self._post(
@@ -283,26 +284,72 @@ class KaliClient:
                         }
                     ],
                     "pageNumber": 1,
-                    "pageSize": 5,
+                    "pageSize": 20,
                     "sort": "CHRONO_DATE_PUBLI",
                 }
             },
         )
         if not data:
             return None
-        for row in data.get("results") or []:
+        return self._pick_best_convention(data.get("results") or [], idcc)
+
+    def _pick_best_convention(
+        self, rows: list[Any], idcc: str
+    ) -> Optional[KaliConventionMeta]:
+        candidates: list[tuple[str, str, int]] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
             kalicont_id = _extract_kalicont_id(row)
             if not kalicont_id:
                 continue
-            titles = row.get("titles") or []
-            title = titles[0].get("title") if titles else f"Convention IDCC {idcc}"
-            return KaliConventionMeta(
-                idcc=_normalize_idcc(idcc),
-                kalicont_id=kalicont_id,
-                title=str(title).strip(),
-                legifrance_url=_legifrance_url(kalicont_id),
-            )
-        return None
+            title = _extract_row_title(row)
+            candidates.append((kalicont_id, title, _score_convention_title(title, idcc)))
+
+        if not candidates:
+            return None
+
+        high_quality = [item for item in candidates if item[2] >= 80]
+        if high_quality:
+            kalicont_id, title, score = max(high_quality, key=lambda item: item[2])
+        else:
+            candidates.sort(key=lambda item: (-item[2], -len(item[1])))
+            kalicont_id, title, score = candidates[0]
+
+        if score < 40:
+            for cont_id, _, cont_score in sorted(candidates, key=lambda item: -item[2])[:5]:
+                cont_title = self._resolve_title_from_cont(cont_id)
+                if not cont_title:
+                    continue
+                resolved_score = _score_convention_title(cont_title, idcc)
+                if resolved_score > score:
+                    kalicont_id, title, score = cont_id, cont_title, resolved_score
+                    break
+
+        if score < 20 or _is_secondary_kali_title(title):
+            cont_title = self._resolve_title_from_cont(kalicont_id)
+            if cont_title and _score_convention_title(cont_title, idcc) >= score:
+                title = cont_title
+
+        full_title = title
+        display_title = _normalize_display_title(title, idcc)
+        return KaliConventionMeta(
+            idcc=_normalize_idcc(idcc),
+            kalicont_id=kalicont_id,
+            title=display_title,
+            legifrance_url=_legifrance_url(kalicont_id),
+            full_title=full_title,
+        )
+
+    def _resolve_title_from_cont(self, kalicont_id: str) -> Optional[str]:
+        cont = self._post("consult/kaliCont", {"id": kalicont_id})
+        if not cont:
+            return None
+        cont_data = cont.get("conteneur") or cont
+        title = cont_data.get("title") or cont_data.get("titre")
+        if not title:
+            return None
+        return str(title).strip()
 
     def _append_section_text(
         self, section: dict[str, Any], lines: list[str], *, depth: int
@@ -418,6 +465,74 @@ def _normalize_idcc(idcc: str) -> str:
     return s
 
 
+def _extract_row_title(row: dict[str, Any]) -> str:
+    titles = row.get("titles") or []
+    if titles and isinstance(titles[0], dict):
+        title = titles[0].get("title")
+        if title:
+            return str(title).strip()
+    for key in ("titre", "title"):
+        val = row.get(key)
+        if val:
+            return str(val).strip()
+    return ""
+
+
+def _score_convention_title(title: str, idcc: str) -> int:
+    t = title.lower()
+    score = 0
+    if "convention collective" in t:
+        score += 100
+    elif t.startswith("convention "):
+        score += 60
+    if f"idcc {idcc.lstrip('0')}" in t or f"idcc {idcc}" in t:
+        score += 40
+    if idcc.lstrip("0") in t and "idcc" in t:
+        score += 20
+    if t.startswith("adhésion") or t.startswith("adhesion"):
+        score -= 90
+    if t.startswith("accord ") or " accord du " in t:
+        score -= 70
+    if t.startswith("avenant"):
+        score -= 50
+    if "lettre du" in t or "lettre de" in t:
+        score -= 40
+    if t.startswith("arrêté") or t.startswith("arrete"):
+        score -= 60
+    if "protocole" in t:
+        score -= 30
+    if "dénonciation" in t or "denonciation" in t:
+        score -= 40
+    return score
+
+
+def _is_secondary_kali_title(title: str) -> bool:
+    return _score_convention_title(title, "") < 20
+
+
+def _normalize_display_title(title: str, idcc: str) -> str:
+    cleaned = re.sub(r"\s+", " ", str(title or "").strip())
+    if not cleaned or _is_secondary_kali_title(cleaned):
+        return f"Convention collective IDCC {_normalize_idcc(idcc)}"
+    return _shorten_catalog_display_title(cleaned)
+
+
+def _shorten_catalog_display_title(title: str) -> str:
+    """Intitulé court catalogue : tronque extensions légales après le titre principal."""
+    patterns = (
+        r"\s*\(c['']est",
+        r"\s*\(occupant",
+        r"\.\s*[ÉE]tendue par",
+        r"\.\s*Elle s['']applique",
+        r"\.\s*Dans sa rédaction",
+    )
+    for pat in patterns:
+        match = re.search(pat, title, re.IGNORECASE)
+        if match:
+            return title[: match.start()].strip()
+    return title
+
+
 def _extract_kalicont_id(row: dict[str, Any]) -> Optional[str]:
     cid_conteneur = row.get("cidConteneur")
     if isinstance(cid_conteneur, str) and cid_conteneur.startswith("KALICONT"):
@@ -475,16 +590,27 @@ def _section_title_matches(section: dict[str, Any], needle: str) -> bool:
 
 def _is_salary_kalitext(sub: dict[str, Any]) -> bool:
     title = str(sub.get("title") or "").lower()
-    return (
-        "salaire" in title
-        or "rémunération" in title
-        or "remuneration" in title
+    return any(
+        k in title
+        for k in (
+            "salaire",
+            "rémunération",
+            "remuneration",
+            "classification",
+            "positionnement",
+            "valeur du point",
+            "valeur de point",
+            "minima",
+            "grille",
+            "barème",
+            "bareme",
+        )
     )
 
 
 def _is_payroll_annex(title: str) -> bool:
     t = title.lower()
-    if "annexe" not in t:
+    if "annexe" not in t and "classification" not in t and "grille" not in t:
         return False
     return any(
         k in t
@@ -498,8 +624,51 @@ def _is_payroll_annex(title: str) -> bool:
             "ingenieur",
             "cadre",
             "etam",
+            "ouvrier",
+            "employé",
+            "employe",
+            "positionnement",
+            "valeur du point",
+            "valeur de point",
+            "coefficient",
+            "niveau",
         )
     )
+
+
+def _is_extended_salary_idcc(idcc: str) -> bool:
+    norm = _normalize_idcc(idcc)
+    stripped = norm.lstrip("0") or "0"
+    return norm in EXTENDED_SALARY_IDCC or stripped in {
+        x.lstrip("0") for x in EXTENDED_SALARY_IDCC
+    }
+
+
+def _salary_text_limit(idcc: str) -> int:
+    return MAX_SALARY_TEXTS_EXTENDED if _is_extended_salary_idcc(idcc) else MAX_SALARY_TEXTS_DEFAULT
+
+
+def _payroll_annex_limit(idcc: str) -> int:
+    return (
+        MAX_PAYROLL_ANNEXES_EXTENDED
+        if _is_extended_salary_idcc(idcc)
+        else MAX_PAYROLL_ANNEXES_DEFAULT
+    )
+
+
+def _pick_salary_texts(
+    candidates: list[dict[str, Any]], *, idcc: str
+) -> list[dict[str, Any]]:
+    """Garde les textes salariaux les plus récents (par année dans le titre)."""
+    if not candidates:
+        return []
+    limit = _salary_text_limit(idcc)
+    ordered = sorted(
+        candidates,
+        key=lambda s: _title_year(str(s.get("title") or "")),
+        reverse=True,
+    )
+    return ordered[:limit]
 
 
 def _annex_dedupe_key(title: str) -> str:
@@ -537,6 +706,51 @@ def _extract_remuneration_excerpt(text: str) -> str:
 
 def _text_len(lines: list[str]) -> int:
     return sum(len(x) for x in lines)
+
+
+def _title_year(title: str) -> int:
+    years = [int(y) for y in re.findall(r"(20\d{2})", title)]
+    return max(years) if years else 0
+
+
+def _salary_zone_key_from_title(title: str) -> str:
+    """Clé de déduplication géographique depuis le titre KALITEXT."""
+    cleaned = re.sub(r"\s+", " ", str(title or "").strip())
+    if " - " in cleaned:
+        return cleaned.rsplit(" - ", 1)[-1].strip().lower()
+    for marker in (
+        "pour la ",
+        "pour le ",
+        "département ",
+        "departement ",
+        "région ",
+        "region ",
+    ):
+        idx = cleaned.lower().find(marker)
+        if idx >= 0:
+            tail = cleaned[idx + len(marker) : idx + len(marker) + 60]
+            return tail.split(",")[0].split("(")[0].strip().lower()
+    return cleaned.lower()[:80]
+
+
+def _pick_latest_salary_texts_by_zone(
+    candidates: list[dict[str, Any]], *, max_zones: int
+) -> list[dict[str, Any]]:
+    """Garde le texte salarial le plus récent par zone géographique."""
+    by_zone: dict[str, dict[str, Any]] = {}
+    for sub in candidates:
+        title = str(sub.get("title") or "")
+        key = _salary_zone_key_from_title(title)
+        year = _title_year(title)
+        prev = by_zone.get(key)
+        if not prev or year >= _title_year(str(prev.get("title") or "")):
+            by_zone[key] = sub
+    ordered = sorted(
+        by_zone.values(),
+        key=lambda s: _title_year(str(s.get("title") or "")),
+        reverse=True,
+    )
+    return ordered[:max_zones]
 
 
 def _truncate(text: str) -> str:

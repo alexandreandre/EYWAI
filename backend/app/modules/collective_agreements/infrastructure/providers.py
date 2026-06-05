@@ -36,6 +36,8 @@ class AgreementStorageProvider:
         self._supabase = supabase_client or get_supabase_client()
 
     def create_signed_url(self, path: str, ttl_seconds: int = 3600) -> Optional[str]:
+        if not path:
+            return None
         try:
             signed = self._supabase.storage.from_(BUCKET_NAME).create_signed_url(
                 path, ttl_seconds
@@ -77,11 +79,54 @@ class AgreementTextCacheProvider:
                 .maybe_single()
                 .execute()
             )
-            if response.data and response.data.get("full_text"):
+            if response and response.data and response.data.get("full_text"):
                 return response.data["full_text"]
         except Exception as e:
             logger.warning(f"[WARNING] Impossible d'accéder au cache: {e}")
         return None
+
+    def get_text_with_meta(self, agreement_id: str) -> Optional[dict]:
+        """Récupère texte + hash source + synthèse en cache (une requête)."""
+        try:
+            response = (
+                self._supabase.table("collective_agreement_texts")
+                .select(
+                    "full_text, pdf_hash, synthesis_md, "
+                    "synthesis_source_hash, synthesis_model"
+                )
+                .eq("agreement_id", agreement_id)
+                .maybe_single()
+                .execute()
+            )
+            if response and response.data:
+                return dict(response.data)
+        except Exception as e:
+            logger.warning(f"[WARNING] Impossible d'accéder au cache (meta): {e}")
+        return None
+
+    def set_synthesis(
+        self,
+        agreement_id: str,
+        *,
+        synthesis_md: str,
+        source_hash: str,
+        model: str,
+    ) -> None:
+        """Met en cache la synthèse IA d'une convention."""
+        from datetime import datetime, timezone
+
+        payload = {
+            "synthesis_md": synthesis_md,
+            "synthesis_source_hash": source_hash,
+            "synthesis_model": model,
+            "synthesis_generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        try:
+            self._supabase.table("collective_agreement_texts").update(payload).eq(
+                "agreement_id", agreement_id
+            ).execute()
+        except Exception as e:
+            logger.warning(f"[WARNING] Impossible de sauvegarder la synthèse: {e}")
 
     def set_full_text(
         self,

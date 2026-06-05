@@ -9,9 +9,11 @@ Comportement HTTP identique au legacy (api/routers/collective_agreements*.py).
 from __future__ import annotations
 
 import traceback
+from io import BytesIO
 from typing import List
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 
 from app.modules.collective_agreements.api.dependencies import (
     CollectiveAgreementUserContext,
@@ -26,8 +28,11 @@ from app.modules.collective_agreements.schemas import (
     CompanyCollectiveAgreementWithDetails,
     KaliImportBatchRequest,
     KaliImportBatchResponse,
+    KaliImportCancelRequest,
+    KaliImportCancelResponse,
     KaliImportRequest,
     KaliImportResponse,
+    KaliSyncCatalogRequest,
     ExtractRulesBatchRequest,
     ExtractRulesBatchResponse,
     ExtractRulesResponse,
@@ -276,6 +281,62 @@ async def unassign_agreement_from_company(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# --- Documents PDF (texte intégral + synthèse) ---
+
+
+def _stream_convention_document(
+    agreement_id: str,
+    doc_kind: str,
+    current_user: CollectiveAgreementUserContext,
+) -> StreamingResponse:
+    company_id = current_user.active_company_id
+    has_rh_access = bool(
+        company_id and current_user.has_rh_access_in_company(str(company_id))
+    )
+    pdf_bytes, filename = queries.get_convention_document_query(
+        agreement_id,
+        doc_kind,
+        company_id=str(company_id) if company_id else None,
+        has_rh_access=has_rh_access,
+        is_platform_admin=current_user.is_platform_admin,
+    )
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
+@router.get("/catalog/{agreement_id}/document/full-text")
+async def get_convention_full_text_pdf(
+    agreement_id: str,
+    current_user: CollectiveAgreementUserContext = Depends(get_current_user),
+):
+    """PDF du texte intégral de la convention (RH de l'entreprise assignée)."""
+    try:
+        return _stream_convention_document(agreement_id, "full-text", current_user)
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/catalog/{agreement_id}/document/synthesis")
+async def get_convention_synthesis_pdf(
+    agreement_id: str,
+    current_user: CollectiveAgreementUserContext = Depends(get_current_user),
+):
+    """PDF de synthèse pédagogique (IA) de la convention (RH de l'entreprise assignée)."""
+    try:
+        return _stream_convention_document(agreement_id, "synthesis", current_user)
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # --- Super admin : vue globale ---
 
 
@@ -338,6 +399,49 @@ async def import_from_legifrance_batch(
             idcc_list=body.idcc_list,
             priority_only=body.priority_only,
             extract_rules=body.extract_rules,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/catalog/sync-legifrance",
+    response_model=KaliImportBatchResponse,
+)
+async def sync_catalog_from_legifrance(
+    body: KaliSyncCatalogRequest = Body(default_factory=KaliSyncCatalogRequest),
+    current_user: CollectiveAgreementUserContext = Depends(get_current_user),
+):
+    """Synchronise toutes les CC actives du catalogue depuis Légifrance (super admin)."""
+    try:
+        return commands.sync_catalog_from_legifrance(
+            is_platform_admin=current_user.is_platform_admin,
+            extract_rules=body.extract_rules,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/catalog/kali-import/cancel",
+    response_model=KaliImportCancelResponse,
+)
+async def cancel_kali_import(
+    body: KaliImportCancelRequest,
+    current_user: CollectiveAgreementUserContext = Depends(get_current_user),
+):
+    """Interrompt un import ou une sync Légifrance en cours (super admin)."""
+    try:
+        return commands.cancel_kali_import(
+            is_platform_admin=current_user.is_platform_admin,
+            idcc=body.idcc,
+            catalog_sync=body.catalog_sync,
         )
     except HTTPException:
         raise
@@ -430,10 +534,17 @@ async def get_rules_status(
     agreement_id: str,
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
-    """Statut des règles paie extraites pour une convention (super admin)."""
+    """Statut des règles paie extraites (super admin ou RH avec convention assignée)."""
     try:
+        company_id = current_user.active_company_id
+        has_rh_access = bool(
+            company_id and current_user.has_rh_access_in_company(str(company_id))
+        )
         return queries.get_rules_status_query(
-            agreement_id, is_platform_admin=current_user.is_platform_admin
+            agreement_id,
+            is_platform_admin=current_user.is_platform_admin,
+            company_id=str(company_id) if company_id else None,
+            has_rh_access=has_rh_access,
         )
     except HTTPException:
         raise

@@ -13,7 +13,9 @@ from app.modules.collective_agreements.infrastructure.kali_client import (
     _extract_kalicont_id,
     _filter_vigueur_sections,
     _idcc_variants,
+    _normalize_display_title,
     _normalize_idcc,
+    _score_convention_title,
 )
 
 
@@ -44,6 +46,66 @@ class TestKaliHelpers:
         assert len(out) == 2
         assert out[0]["title"] == "A"
         assert out[1]["title"] == "C"
+
+    def test_score_convention_title_prefers_main_convention(self):
+        adhesion = (
+            "Adhésion par lettre du 31 mars 2010 de la FNCB CFDT à l'accord "
+            "du 4 décembre 2009 relatif au financement de la formation"
+        )
+        convention = (
+            "Convention collective nationale des ouvriers employés par les "
+            "entreprises du bâtiment visées par le décret du 1er mars 1962"
+        )
+        assert _score_convention_title(adhesion, "1597") < _score_convention_title(
+            convention, "1597"
+        )
+
+    def test_normalize_display_title_fallback_for_secondary_text(self):
+        title = "Adhésion par lettre du 31 mars 2010"
+        assert _normalize_display_title(title, "1597") == "Convention collective IDCC 1597"
+
+    def test_normalize_display_title_keeps_full_official_title(self):
+        official = (
+            "Convention collective nationale des ouvriers employés par les entreprises "
+            "du bâtiment non visées par le décret du 1er mars 1962 (c'est-à-dire "
+            "occupant plus de 10 salariés) du 8 octobre 1990"
+        )
+        expected = (
+            "Convention collective nationale des ouvriers employés par les entreprises "
+            "du bâtiment non visées par le décret du 1er mars 1962"
+        )
+        assert _normalize_display_title(official, "1597") == expected
+
+    def test_pick_latest_salary_texts_by_zone(self):
+        from app.modules.collective_agreements.infrastructure.kali_client import (
+            _pick_latest_salary_texts_by_zone,
+            _pick_salary_texts,
+        )
+
+        candidates = [
+            {"title": "Accord 2021 relatif aux salaires - Seine-et-Marne"},
+            {"title": "Accord 2023 relatif aux salaires - Seine-et-Marne"},
+            {"title": "Accord 2023 relatif aux salaires - Hérault"},
+        ]
+        picked = _pick_latest_salary_texts_by_zone(candidates, max_zones=10)
+        assert len(picked) == 2
+        titles = {p["title"] for p in picked}
+        assert "Accord 2023 relatif aux salaires - Seine-et-Marne" in titles
+        assert "Accord 2023 relatif aux salaires - Hérault" in titles
+
+    def test_pick_salary_texts_prefers_latest_years(self):
+        from app.modules.collective_agreements.infrastructure.kali_client import (
+            _pick_salary_texts,
+        )
+
+        candidates = [
+            {"title": "Accord salaires 2019 - national"},
+            {"title": "Accord salaires 2024 - national"},
+            {"title": "Accord salaires 2022 - national"},
+        ]
+        picked = _pick_salary_texts(candidates, idcc="3248")
+        assert len(picked) == 3
+        assert picked[0]["title"] == "Accord salaires 2024 - national"
 
 
 class TestKaliClient:
@@ -126,3 +188,34 @@ class TestKaliClient:
         assert meta is not None
         assert meta.kalicont_id.startswith("KALICONT")
         assert meta.title == "Convention test"
+
+    @patch.object(KaliClient, "_resolve_title_from_cont")
+    @patch.object(KaliClient, "_post")
+    def test_pick_best_convention_over_adhesion(self, mock_post, mock_cont_title):
+        adhesion_title = (
+            "Adhésion par lettre du 31 mars 2010 de la FNCB CFDT à l'accord "
+            "du 4 décembre 2009 relatif au financement de la formation"
+        )
+        convention_title = (
+            "Convention collective nationale des ouvriers employés par les "
+            "entreprises du bâtiment visées par le décret du 1er mars 1962"
+        )
+        mock_post.return_value = {
+            "results": [
+                {
+                    "cidConteneur": "KALICONT000000000001",
+                    "titre": adhesion_title,
+                },
+                {
+                    "cidConteneur": "KALICONT000000000002",
+                    "titre": convention_title,
+                },
+            ]
+        }
+        mock_cont_title.return_value = None
+        client = KaliClient(client_id="id", client_secret="secret")
+        meta = client._resolve_from_list("1597")
+        assert meta is not None
+        assert meta.kalicont_id == "KALICONT000000000002"
+        assert meta.title == convention_title
+        assert meta.full_title == convention_title

@@ -86,8 +86,9 @@ class CollectiveAgreementsService:
                 sector=sector, search=search, active_only=active_only
             )
             for ag in agreements:
-                url = self._storage.create_signed_url(ag.get("rules_pdf_path"), 3600)
-                add_signed_url_to_agreement(ag, url)
+                if ag.get("rules_pdf_path"):
+                    url = self._storage.create_signed_url(ag["rules_pdf_path"], 3600)
+                    add_signed_url_to_agreement(ag, url)
             return agreements
         except (NotFoundError, ForbiddenError, ValidationError) as e:
             raise _to_http(e)
@@ -97,8 +98,9 @@ class CollectiveAgreementsService:
             agreement = self._repo.get_catalog_item(agreement_id)
             if not agreement:
                 return None
-            url = self._storage.create_signed_url(agreement.get("rules_pdf_path"), 3600)
-            add_signed_url_to_agreement(agreement, url)
+            if agreement.get("rules_pdf_path"):
+                url = self._storage.create_signed_url(agreement["rules_pdf_path"], 3600)
+                add_signed_url_to_agreement(agreement, url)
             return agreement
         except (NotFoundError, ForbiddenError, ValidationError) as e:
             raise _to_http(e)
@@ -196,6 +198,17 @@ class CollectiveAgreementsService:
         except (NotFoundError, ForbiddenError, ValidationError) as e:
             raise _to_http(e)
 
+    def get_company_agreements_for_user(
+        self,
+        company_id: str,
+        *,
+        is_platform_admin: bool,
+        has_rh_access: bool,
+    ) -> List[dict[str, Any]]:
+        if not is_platform_admin and not has_rh_access:
+            raise HTTPException(status_code=403, detail="Accès non autorisé")
+        return self.get_my_company_agreements(company_id, has_rh_access=True)
+
     def assign_to_company(
         self,
         company_id: str,
@@ -206,6 +219,10 @@ class CollectiveAgreementsService:
         if not has_rh_access:
             raise HTTPException(status_code=403, detail="Accès non autorisé")
         try:
+            if self._repo.check_assignment_exists(company_id, collective_agreement_id):
+                raise ValidationError(
+                    "Cette convention est déjà signée par votre entreprise"
+                )
             return self._repo.assign_to_company(
                 company_id, collective_agreement_id, user_id
             )

@@ -100,6 +100,26 @@ class KaliImportBatchRequest(BaseModel):
     extract_rules: bool = True
 
 
+class KaliSyncCatalogRequest(BaseModel):
+    """Corps POST sync catalogue Légifrance (toutes les CC actives)."""
+
+    extract_rules: bool = Field(
+        True,
+        description="Extraire les règles paie uniquement si le texte a changé",
+    )
+
+
+class KaliImportCancelRequest(BaseModel):
+    """Corps POST annulation import Légifrance en cours."""
+
+    idcc: Optional[str] = Field(
+        None, description="Numéro IDCC à interrompre (import unitaire)"
+    )
+    catalog_sync: bool = Field(
+        False, description="Interrompre la sync de tout le catalogue en cours"
+    )
+
+
 class ExtractRulesBatchRequest(BaseModel):
     """Corps POST batch extract-rules."""
 

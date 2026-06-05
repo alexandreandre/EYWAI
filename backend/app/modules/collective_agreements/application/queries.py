@@ -89,13 +89,56 @@ def ask_question_query(
     return svc.ask_question(agreement_id, question, company_id, has_rh_access)
 
 
+def get_convention_document_query(
+    agreement_id: str,
+    doc_kind: str,
+    *,
+    company_id: Optional[str],
+    has_rh_access: bool,
+    is_platform_admin: bool,
+) -> tuple[bytes, str]:
+    """Génère le PDF (texte intégral ou synthèse) d'une convention pour les RH."""
+    from app.modules.collective_agreements.application.documents import (
+        get_cc_document_service,
+    )
+
+    try:
+        return get_cc_document_service().get_document(
+            agreement_id,
+            doc_kind,
+            company_id=company_id,
+            has_rh_access=has_rh_access,
+            is_platform_admin=is_platform_admin,
+        )
+    except (NotFoundError, ForbiddenError) as exc:
+        raise _to_http(exc)
+    except ValidationError as exc:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=400, detail=exc.message)
+
+
 def get_rules_status_query(
     agreement_id: str,
     is_platform_admin: bool,
+    company_id: Optional[str] = None,
+    has_rh_access: bool = False,
 ) -> dict:
-    """Statut des règles paie extraites pour une convention (super admin)."""
+    """Statut des règles paie extraites pour une convention."""
     if not is_platform_admin:
-        raise _to_http(ForbiddenError("Accès réservé au super administrateur"))
+        if not has_rh_access or not company_id:
+            raise _to_http(ForbiddenError("Accès non autorisé"))
+        from app.modules.collective_agreements.infrastructure.repository import (
+            CollectiveAgreementRepository,
+        )
+
+        if not CollectiveAgreementRepository().check_assignment_exists(
+            company_id, agreement_id
+        ):
+            raise _to_http(
+                ForbiddenError("Cette convention n'est pas assignée à votre entreprise")
+            )
+
     from app.modules.collective_agreements.application.kali_import import (
         get_kali_import_service,
     )

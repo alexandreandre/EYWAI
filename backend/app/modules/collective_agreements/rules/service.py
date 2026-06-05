@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from app.modules.collective_agreements.application.service import (
     CollectiveAgreementsService,
@@ -15,7 +15,10 @@ from app.modules.collective_agreements.domain.exceptions import (
     NotFoundError,
     ValidationError,
 )
+from app.modules.collective_agreements.rules.completude import finalize_document
 from app.modules.collective_agreements.rules.constants import PRIORITY_IDCC, SCHEMA_VERSION
+from app.modules.collective_agreements.rules.diagnostics import log_cc_doc, log_cc_outcome, log_cc_stage
+from app.modules.collective_agreements.rules.deterministic import apply_deterministic_layer
 from app.modules.collective_agreements.rules.extractor import CCRulesExtractor
 from app.modules.collective_agreements.rules.repository import CCRulesRepository
 from app.modules.collective_agreements.rules.schema import document_to_engine_rules
@@ -38,6 +41,7 @@ class ExtractionOutcome:
     tokens_used: int = 0
     confidence: Optional[str] = None
     log_id: Optional[str] = None
+    cancelled: bool = False
 
 
 @dataclass
@@ -116,6 +120,7 @@ class CCRulesService:
                 tokens_used=tokens,
             )
 
+        doc = finalize_document(doc)
         validation = validate_cc_rules(doc, expected_idcc=idcc)
         if not validation.ok:
             msg = "; ".join(validation.errors)
@@ -255,6 +260,8 @@ class CCRulesService:
         self,
         agreement_id: str,
         full_text: str,
+        *,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> ExtractionOutcome:
         """Extraction IA depuis un texte déjà en cache (ex. import KALI)."""
         agreement = self._agreements.get_catalog_item(agreement_id)
@@ -271,11 +278,43 @@ class CCRulesService:
         text_hash = _hash_text(full_text)
         previous_row = self._rules_repo.get_rules_by_idcc(idcc)
         previous_rules = previous_row.get("rules") if previous_row else None
+        log_cc_stage(
+            idcc,
+            "persist_debut",
+            agreement_id=agreement_id,
+            text_chars=len(full_text),
+            had_previous_rules=bool(previous_rules),
+        )
 
         doc, tokens, extract_error = self._extractor.extract_from_text(
-            full_text, idcc=idcc
+            full_text,
+            idcc=idcc,
+            should_cancel=should_cancel,
         )
+        if extract_error == "Annulé par l'utilisateur":
+            log_cc_outcome(
+                idcc,
+                success=False,
+                agreement_id=agreement_id,
+                error=extract_error,
+                tokens_used=tokens,
+            )
+            return ExtractionOutcome(
+                success=False,
+                idcc=idcc,
+                agreement_id=agreement_id,
+                error=extract_error,
+                tokens_used=tokens,
+                cancelled=True,
+            )
         if extract_error or doc is None:
+            log_cc_outcome(
+                idcc,
+                success=False,
+                agreement_id=agreement_id,
+                error=extract_error or "Extraction échouée",
+                tokens_used=tokens,
+            )
             return self._log_error(
                 idcc,
                 agreement_id,
@@ -284,9 +323,21 @@ class CCRulesService:
                 tokens_used=tokens,
             )
 
+        doc = finalize_document(doc)
+        doc = apply_deterministic_layer(doc, full_text, idcc=idcc)
+        log_cc_doc(idcc, "apres_deterministic", doc)
+        log_cc_doc(idcc, "avant_validation", doc)
         validation = validate_cc_rules(doc, expected_idcc=idcc)
         if not validation.ok:
             msg = "; ".join(validation.errors)
+            log_cc_outcome(
+                idcc,
+                success=False,
+                agreement_id=agreement_id,
+                error=f"validation_rejetee: {msg}",
+                tokens_used=tokens,
+                doc=doc,
+            )
             self._rules_repo.log_extraction(
                 idcc=idcc,
                 agreement_id=agreement_id,
@@ -327,6 +378,15 @@ class CCRulesService:
             tokens_used=tokens,
         )
         confidence = doc.meta.confidence if doc.meta else None
+        persisted = row.get("rules", engine_rules)
+        log_cc_outcome(
+            idcc,
+            success=True,
+            agreement_id=agreement_id,
+            tokens_used=tokens,
+            doc=doc,
+            persisted_rules=persisted if isinstance(persisted, dict) else None,
+        )
         return ExtractionOutcome(
             success=True,
             idcc=idcc,

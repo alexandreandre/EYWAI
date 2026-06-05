@@ -7,7 +7,9 @@ from .requests import (
     ExtractRulesBatchRequest,
     GetUploadUrlBody,
     KaliImportBatchRequest,
+    KaliImportCancelRequest,
     KaliImportRequest,
+    KaliSyncCatalogRequest,
     QuestionRequest,
 )
 from .responses import (
@@ -18,6 +20,7 @@ from .responses import (
     ExtractRulesBatchResponse,
     ExtractRulesResponse,
     KaliImportBatchResponse,
+    KaliImportCancelResponse,
     KaliImportResponse,
     QuestionResponse,
     RollbackRulesResponse,
@@ -40,7 +43,10 @@ __all__ = [
     "GetUploadUrlBody",
     "KaliImportBatchRequest",
     "KaliImportBatchResponse",
+    "KaliImportCancelRequest",
+    "KaliImportCancelResponse",
     "KaliImportRequest",
+    "KaliSyncCatalogRequest",
     "KaliImportResponse",
     "QuestionRequest",
     "QuestionResponse",

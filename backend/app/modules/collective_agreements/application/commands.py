@@ -173,8 +173,28 @@ def _kali_outcome_to_dict(outcome) -> dict:
         "legifrance_url": outcome.legifrance_url,
         "character_count": outcome.character_count,
         "created": outcome.created,
+        "text_changed": outcome.text_changed,
+        "rules_skipped": outcome.rules_skipped,
         "error": outcome.error,
+        "cancelled": outcome.cancelled,
         "rules": rules,
+    }
+
+
+def _kali_batch_to_dict(outcomes) -> dict:
+    results = [_kali_outcome_to_dict(o) for o in outcomes]
+    succeeded = sum(1 for r in results if r["success"])
+    cancelled = sum(1 for r in results if r.get("cancelled"))
+    return {
+        "results": results,
+        "total": len(results),
+        "succeeded": succeeded,
+        "failed": len(results) - succeeded,
+        "cancelled": cancelled,
+        "updated": sum(1 for r in results if r.get("text_changed")),
+        "unchanged": sum(
+            1 for r in results if r.get("success") and not r.get("text_changed")
+        ),
     }
 
 
@@ -217,14 +237,50 @@ def import_from_legifrance_batch(
         priority_only=priority_only,
         extract_rules=extract_rules,
     )
-    results = [_kali_outcome_to_dict(o) for o in outcomes]
-    succeeded = sum(1 for r in results if r["success"])
-    return {
-        "results": results,
-        "total": len(results),
-        "succeeded": succeeded,
-        "failed": len(results) - succeeded,
-    }
+    return _kali_batch_to_dict(outcomes)
+
+
+def sync_catalog_from_legifrance(
+    is_platform_admin: bool,
+    *,
+    extract_rules: bool = True,
+) -> dict:
+    """Synchronise toutes les CC actives du catalogue depuis Légifrance KALI."""
+    if not is_platform_admin:
+        raise _to_http(ForbiddenError("Accès réservé au super administrateur"))
+    from app.modules.collective_agreements.application.kali_import import (
+        get_kali_import_service,
+    )
+
+    outcomes = get_kali_import_service().sync_active_catalog(
+        extract_rules=extract_rules
+    )
+    return _kali_batch_to_dict(outcomes)
+
+
+def cancel_kali_import(
+    is_platform_admin: bool,
+    *,
+    idcc: Optional[str] = None,
+    catalog_sync: bool = False,
+) -> dict:
+    """Demande l'arrêt d'un import Légifrance en cours (super admin)."""
+    if not is_platform_admin:
+        raise _to_http(ForbiddenError("Accès réservé au super administrateur"))
+    from app.modules.collective_agreements.application.kali_import_cancel import (
+        request_cancel_catalog_sync,
+        request_cancel_idcc,
+    )
+
+    if catalog_sync:
+        request_cancel_catalog_sync()
+        return {"success": True, "message": "Annulation de la sync catalogue demandée"}
+    if idcc and request_cancel_idcc(idcc):
+        return {
+            "success": True,
+            "message": f"Annulation de l'import IDCC {idcc.strip()} demandée",
+        }
+    raise _to_http(ValidationError("Indiquez un IDCC ou catalog_sync=true"))
 
 
 def rollback_rules(

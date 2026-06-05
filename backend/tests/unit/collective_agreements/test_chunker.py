@@ -6,6 +6,8 @@ from app.modules.collective_agreements.rules.chunker import (
     build_fallback_sample,
     build_scout_window,
     extract_article_blocks,
+    split_salary_grille_chunks,
+    strip_html,
 )
 
 SAMPLE_TEXT = """
@@ -51,3 +53,82 @@ class TestChunker:
         sample = build_fallback_sample(SAMPLE_TEXT, max_chars=500)
         assert len(sample) <= 500
         assert "Article 15" in sample
+
+    def test_split_salary_grille_chunks_multiple_blocks(self):
+        text = """
+## Texte salarial : Accord Seine-et-Marne
+Coefficient 150 : 1 782 €
+Coefficient 170 : 1 850 €
+
+## Texte salarial : Accord Hérault
+Coefficient 150 : 1 900 €
+Coefficient 170 : 1 980 €
+"""
+        chunks = split_salary_grille_chunks(text)
+        assert len(chunks) == 2
+        assert "Seine-et-Marne" in chunks[0]
+        assert "Hérault" in chunks[1]
+
+    def test_split_salary_grille_chunks_single_short_block_returns_empty(self):
+        text = "## Texte salarial : National\nCoefficient 150 : 1 800 €"
+        assert split_salary_grille_chunks(text) == []
+
+    def test_split_salary_grille_chunks_single_large_block_returns_one(self):
+        body = "Coefficient 150 : 1 800 €\n" * 200
+        text = f"## Texte salarial : Métallurgie nationale\n{body}"
+        chunks = split_salary_grille_chunks(text)
+        assert len(chunks) == 1
+        assert "Métallurgie" in chunks[0]
+
+    def test_split_classification_annexe_block(self):
+        text = """
+## Annexe I — Classification ETAM
+Valeur du point : 6,50 €
+Position 275 — Agent de maîtrise
+Position 240 — Technicien
+""" + ("Position 200 — coefficient associé 1 300 €\n" * 50)
+        chunks = split_salary_grille_chunks(text)
+        assert len(chunks) == 1
+
+    def test_strip_html_preserves_markdown_headers(self):
+        html = "<p>Intro</p><br/>## Texte salarial : Accord 77</p><p>150 1 782 €</p>"
+        cleaned = strip_html(html)
+        assert "## Texte salarial" in cleaned
+        assert "1 782" in cleaned
+
+    def test_split_after_strip_html(self):
+        html = (
+            "<p>## Texte salarial : Seine-et-Marne</p>"
+            "<p>Coefficient 150 : 1 782 €</p>"
+            "<p>## Texte salarial : Hérault</p>"
+            "<p>Coefficient 150 : 1 900 €</p>"
+        )
+        chunks = split_salary_grille_chunks(strip_html(html))
+        assert len(chunks) == 2
+
+    def test_subsplit_geo_zones_in_single_text(self):
+        text = """
+Accord national des minima
+Pour la Seine-et-Marne, barème :
+Coefficient 150 : 1 782 €
+Pour la Hérault, barème :
+Coefficient 150 : 1 900 €
+"""
+        chunks = split_salary_grille_chunks(text)
+        assert len(chunks) == 2
+        assert "Seine-et-Marne" in chunks[0]
+        assert "Hérault" in chunks[1]
+
+    def test_dedupe_keeps_latest_zone(self):
+        text = """
+## Texte salarial : Accord 2021 - Seine-et-Marne
+Coefficient 150 : 1 600 €
+## Texte salarial : Accord 2023 - Seine-et-Marne
+Coefficient 150 : 1 782 €
+## Texte salarial : Accord 2023 - Hérault
+Coefficient 150 : 1 900 €
+"""
+        chunks = split_salary_grille_chunks(text)
+        assert len(chunks) == 2
+        assert any("1 782" in c for c in chunks)
+        assert not any("1 600" in c for c in chunks)

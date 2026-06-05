@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from dataclasses import dataclass
 from typing import Any, Optional
 
 from app.modules.collective_agreements.application.dto import CatalogCreateInput
+from app.modules.collective_agreements.application.kali_import_cancel import (
+    KaliImportCancelled,
+    clear_catalog_sync_cancel,
+    is_cancel_requested,
+    kali_import_scope,
+    raise_if_cancelled,
+)
 from app.modules.collective_agreements.application.service import (
     CollectiveAgreementsService,
     get_collective_agreements_service,
@@ -22,6 +30,11 @@ from app.modules.collective_agreements.infrastructure.providers import (
     AgreementTextCacheProvider,
 )
 from app.modules.collective_agreements.rules.constants import PRIORITY_IDCC
+from app.modules.collective_agreements.rules.diagnostics import (
+    log_cc_outcome,
+    log_cc_stage,
+    payroll_grid_available_from_rules,
+)
 from app.modules.collective_agreements.rules.repository import CCRulesRepository
 from app.modules.collective_agreements.rules.service import (
     CCRulesService,
@@ -41,8 +54,11 @@ class KaliImportOutcome:
     legifrance_url: Optional[str] = None
     character_count: int = 0
     created: bool = False
+    text_changed: bool = False
+    rules_skipped: bool = False
     rules_extraction: Optional[ExtractionOutcome] = None
     error: Optional[str] = None
+    cancelled: bool = False
 
 
 class KaliImportService:
@@ -70,6 +86,30 @@ class KaliImportService:
         extract_rules: bool = True,
         sector: Optional[str] = None,
     ) -> KaliImportOutcome:
+        with kali_import_scope(idcc=idcc):
+            try:
+                return self._import_by_idcc_impl(
+                    idcc,
+                    extract_rules=extract_rules,
+                    sector=sector,
+                )
+            except KaliImportCancelled:
+                logger.info("Import KALI IDCC %s annulé par l'utilisateur", idcc)
+                return KaliImportOutcome(
+                    success=False,
+                    idcc=idcc,
+                    cancelled=True,
+                    error="Annulé par l'utilisateur",
+                )
+
+    def _import_by_idcc_impl(
+        self,
+        idcc: str,
+        *,
+        extract_rules: bool = True,
+        sector: Optional[str] = None,
+    ) -> KaliImportOutcome:
+        raise_if_cancelled(idcc=idcc)
         try:
             fetched = self._kali.fetch_convention_text(idcc)
         except PisteNotConfiguredError as exc:
@@ -82,11 +122,30 @@ class KaliImportService:
                 success=False, idcc=idcc, error=f"Erreur API Légifrance : {exc}"
             )
 
+        raise_if_cancelled(idcc=idcc)
         meta = fetched.meta
         agreement, created = self._ensure_catalog_entry(
-            meta.idcc, meta.title, meta.legifrance_url, sector=sector
+            meta.idcc,
+            meta.title,
+            meta.legifrance_url,
+            sector=sector,
+            official_title=meta.full_title or meta.title,
         )
         agreement_id = agreement["id"]
+        new_hash = _hash_text(fetched.full_text)
+        previous_hash = (
+            None if created else self._previous_text_hash(agreement_id, meta.idcc)
+        )
+        text_changed = previous_hash is None or new_hash != previous_hash
+
+        log_cc_stage(
+            meta.idcc,
+            "kali_import_texte",
+            agreement_id=agreement_id,
+            text_changed=text_changed,
+            character_count=fetched.character_count,
+            created=created,
+        )
 
         self._text_cache.set_full_text(
             agreement_id,
@@ -96,11 +155,59 @@ class KaliImportService:
         )
 
         rules_outcome: Optional[ExtractionOutcome] = None
+        rules_skipped = False
         if extract_rules:
-            rules_outcome = self._rules_service.extract_and_persist_from_text(
-                agreement_id,
-                fetched.full_text,
+            existing_rules = self._rules_repo.get_rules_by_idcc(meta.idcc)
+            stored_rules = (
+                existing_rules.get("rules")
+                if existing_rules and isinstance(existing_rules.get("rules"), dict)
+                else None
             )
+            has_rules = bool(stored_rules)
+            has_payroll_grid = payroll_grid_available_from_rules(stored_rules)
+            should_extract = text_changed or not has_rules or not has_payroll_grid
+            log_cc_stage(
+                meta.idcc,
+                "kali_import_decision_extraction",
+                extract_rules=extract_rules,
+                should_extract=should_extract,
+                has_rules=has_rules,
+                has_payroll_grid=has_payroll_grid,
+                text_changed=text_changed,
+            )
+            if should_extract:
+                raise_if_cancelled(idcc=meta.idcc)
+                rules_outcome = self._rules_service.extract_and_persist_from_text(
+                    agreement_id,
+                    fetched.full_text,
+                    should_cancel=lambda: is_cancel_requested(idcc=meta.idcc),
+                )
+                if rules_outcome.cancelled:
+                    raise KaliImportCancelled()
+                log_cc_outcome(
+                    meta.idcc,
+                    success=rules_outcome.success,
+                    agreement_id=agreement_id,
+                    error=rules_outcome.error,
+                    tokens_used=rules_outcome.tokens_used,
+                    rules_skipped=False,
+                    persisted_rules=rules_outcome.rules
+                    if isinstance(rules_outcome.rules, dict)
+                    else None,
+                )
+            else:
+                rules_skipped = True
+                log_cc_outcome(
+                    meta.idcc,
+                    success=True,
+                    agreement_id=agreement_id,
+                    rules_skipped=True,
+                    error="extraction_ia_ignoree_texte_et_grille_inchangees",
+                )
+                logger.info(
+                    "IDCC %s : texte et grille paie inchangés, extraction ignorée",
+                    meta.idcc,
+                )
 
         return KaliImportOutcome(
             success=True,
@@ -110,6 +217,8 @@ class KaliImportService:
             legifrance_url=meta.legifrance_url,
             character_count=fetched.character_count,
             created=created,
+            text_changed=text_changed,
+            rules_skipped=rules_skipped,
             rules_extraction=rules_outcome,
         )
 
@@ -124,6 +233,32 @@ class KaliImportService:
         return [
             self.import_by_idcc(idcc, extract_rules=extract_rules) for idcc in targets
         ]
+
+    def sync_active_catalog(
+        self,
+        *,
+        extract_rules: bool = True,
+    ) -> list[KaliImportOutcome]:
+        """Ré-importe depuis Légifrance toutes les CC actives du catalogue."""
+        clear_catalog_sync_cancel()
+        items = self._rules_repo.list_all_active_catalog()
+        outcomes: list[KaliImportOutcome] = []
+        for item in items:
+            if is_cancel_requested():
+                logger.info("Sync catalogue Légifrance annulée après %d convention(s)", len(outcomes))
+                break
+            idcc = str(item.get("idcc") or "").strip()
+            if not idcc:
+                continue
+            outcomes.append(
+                self.import_by_idcc(
+                    idcc,
+                    extract_rules=extract_rules,
+                )
+            )
+            if outcomes[-1].cancelled:
+                break
+        return outcomes
 
     def get_text_source(self, agreement_id: str) -> str:
         """Retourne kali | pdf | text | missing."""
@@ -156,9 +291,11 @@ class KaliImportService:
         legifrance_url: str,
         *,
         sector: Optional[str],
+        official_title: Optional[str] = None,
     ) -> tuple[dict[str, Any], bool]:
         existing = self._rules_repo.list_catalog_by_idcc(idcc)
-        description = f"Texte officiel Légifrance (KALI). {legifrance_url}"
+        full_title = (official_title or title).strip()
+        description = f"{full_title}\n\nSource Légifrance : {legifrance_url}"
         if existing:
             updated = self._agreements.update_catalog_item(
                 existing["id"],
@@ -186,6 +323,20 @@ class KaliImportService:
             is_platform_admin=True,
         )
         return created, True
+
+    def _previous_text_hash(self, agreement_id: str, idcc: str) -> Optional[str]:
+        rules_row = self._rules_repo.get_rules_by_idcc(idcc)
+        if rules_row and rules_row.get("source_text_hash"):
+            return str(rules_row["source_text_hash"])
+        cached = self._text_cache.get_full_text(agreement_id)
+        if cached:
+            return _hash_text(cached)
+        return None
+
+
+def _hash_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
 
 def get_kali_import_service() -> KaliImportService:
     return KaliImportService()

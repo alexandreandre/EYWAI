@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from app.modules.collective_agreements.rules.schema import CCRulesDocument
+from app.modules.collective_agreements.rules.schema import CCRulesDocument, GrilleSalaires
 
 
 @dataclass
@@ -30,22 +30,31 @@ def validate_cc_rules(
         )
 
     has_prime = bool(
-        doc.prime_anciennete and doc.prime_anciennete.bareme
+        doc.prime_anciennete
+        and (
+            doc.prime_anciennete.bareme
+            or (
+                doc.prime_anciennete.taux_par_classe
+                and doc.prime_anciennete.base_de_calcul
+            )
+        )
     )
-    has_minima = bool(doc.salaires_minima)
+    has_minima = bool(doc.salaires_minima) or any(
+        g.minima for g in doc.grilles_salaires
+    )
     if not has_prime and not has_minima:
         errors.append(
-            "au moins prime_anciennete.bareme ou salaires_minima requis"
+            "au moins prime_anciennete.bareme ou salaires_minima / grilles_salaires requis"
         )
 
     if doc.prime_anciennete:
         errors.extend(_validate_bareme(doc.prime_anciennete.bareme))
 
     for idx, minima in enumerate(doc.salaires_minima):
-        if minima.valeur <= 0:
-            errors.append(f"salaires_minima[{idx}].valeur doit être > 0")
-        if minima.coefficient <= 0:
-            errors.append(f"salaires_minima[{idx}].coefficient doit être > 0")
+        errors.extend(_validate_minima(minima, f"salaires_minima[{idx}]"))
+
+    for g_idx, grille in enumerate(doc.grilles_salaires):
+        errors.extend(_validate_grille(grille, g_idx))
 
     return ValidationResult(ok=len(errors) == 0, errors=errors)
 
@@ -55,6 +64,26 @@ def _normalize_idcc(idcc: str) -> str:
     if stripped.isdigit():
         return stripped.lstrip("0") or "0"
     return stripped
+
+
+def _validate_minima(minima, prefix: str) -> list[str]:
+    errors: list[str] = []
+    if minima.valeur <= 0:
+        errors.append(f"{prefix}.valeur doit être > 0")
+    if minima.coefficient <= 0:
+        errors.append(f"{prefix}.coefficient doit être > 0")
+    return errors
+
+
+def _validate_grille(grille: GrilleSalaires, index: int) -> list[str]:
+    errors: list[str] = []
+    if not grille.minima:
+        return errors
+    for m_idx, minima in enumerate(grille.minima):
+        errors.extend(
+            _validate_minima(minima, f"grilles_salaires[{index}].minima[{m_idx}]")
+        )
+    return errors
 
 
 def _validate_bareme(bareme: list) -> list[str]:

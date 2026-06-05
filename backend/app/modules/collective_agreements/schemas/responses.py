@@ -114,6 +114,9 @@ class KaliImportResponse(BaseModel):
     legifrance_url: Optional[str] = None
     character_count: int = 0
     created: bool = False
+    text_changed: bool = False
+    rules_skipped: bool = False
+    cancelled: bool = False
     error: Optional[str] = None
     rules: Optional[KaliImportRulesSummary] = None
 
@@ -123,6 +126,14 @@ class KaliImportBatchResponse(BaseModel):
     total: int
     succeeded: int
     failed: int
+    updated: int = 0
+    unchanged: int = 0
+    cancelled: int = 0
+
+
+class KaliImportCancelResponse(BaseModel):
+    success: bool
+    message: str
 
 
 class ExtractRulesResponse(BaseModel):
