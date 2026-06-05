@@ -46,7 +46,7 @@ export function SharkFinBootProgress({ value, className }: SharkFinBootProgressP
       {/* Aileron : sa base plate repose sur la ligne d'eau (top de la barre) */}
       <div className="pointer-events-none absolute inset-x-0 bottom-2">
         <div className="shark-swimmer absolute bottom-0 left-0">
-          <div className="shark-surger origin-bottom -translate-x-1/2">
+          <div className="shark-surger origin-bottom">
             <SharkFin className="block drop-shadow-[0_1px_1px_rgba(0,0,0,0.12)]" />
           </div>
         </div>
