@@ -5,6 +5,7 @@ Chaque requête délègue au service. Le router (lors de la migration) appellera
 ces fonctions et convertira les exceptions applicatives en HTTPException.
 """
 
+from datetime import date
 from decimal import Decimal
 from typing import Any, List, Optional
 
@@ -71,6 +72,20 @@ def get_my_salary_advances(employee_id: str) -> List[Any]:
 def get_my_advance_available(employee_id: str) -> Any:
     """Montant disponible pour une avance (employé)."""
     return service.get_my_advance_available(employee_id)
+
+
+def get_employee_advance_available(
+    employee_id: str,
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+) -> Any:
+    """Montant disponible pour une avance (RH / admin)."""
+    today = date.today()
+    return service.get_employee_advance_available(
+        employee_id,
+        year if year is not None else today.year,
+        month if month is not None else today.month,
+    )
 
 
 def get_salary_advances(

@@ -48,6 +48,13 @@ def build_document_data_from_exit(
     include_indemnities: bool = False,
 ) -> Dict[str, Any]:
     """Construit document_data pour ExitDocumentDetails (comportement identique au router)."""
+    ccn = (
+        company_data.get("convention_collective")
+        or company_data.get("collective_agreement_name")
+        or company_data.get("ccn_name")
+        or ""
+    )
+    idcc = company_data.get("idcc") or company_data.get("code_idcc") or ""
     document_data = {
         "employee": {
             "first_name": employee_data.get("first_name", ""),
@@ -57,7 +64,8 @@ def build_document_data_from_exit(
             "birth_place": employee_data.get("birth_place")
             or employee_data.get("lieu_naissance", ""),
             "social_security_number": employee_data.get("social_security_number")
-            or employee_data.get("numero_securite_sociale", ""),
+            or employee_data.get("numero_securite_sociale")
+            or employee_data.get("nir", ""),
             "job_title": employee_data.get("job_title", ""),
             "hire_date": employee_data.get("hire_date", ""),
             "contract_type": employee_data.get("contract_type", "CDI"),
@@ -81,6 +89,10 @@ def build_document_data_from_exit(
             "exit_reason": exit_data.get("exit_reason", ""),
             "exit_type": exit_data.get("exit_type", ""),
         },
+        "convention_collective": ccn,
+        "idcc": idcc,
+        "salary_history": [],
+        "primes_lines": [],
     }
     if include_indemnities:
         document_data["indemnities"] = exit_data.get("calculated_indemnities", {})
@@ -89,7 +101,7 @@ def build_document_data_from_exit(
 
 DOCUMENT_NAME_MAP = {
     "certificat_travail": "Certificat de travail",
-    "attestation_pole_emploi": "Attestation Pôle Emploi",
+    "attestation_pole_emploi": "Attestation employeur",
     "solde_tout_compte": "Solde de tout compte",
 }
 

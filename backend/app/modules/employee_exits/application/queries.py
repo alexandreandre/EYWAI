@@ -19,6 +19,9 @@ from app.modules.employee_exits.application.service import (
 from app.modules.employee_exits.infrastructure.mappers import (
     build_document_data_from_exit,
 )
+from app.modules.payroll.documents.attestation_employeur_salary_history import (
+    get_salary_history,
+)
 from app.modules.employee_exits.infrastructure.providers import (
     get_exit_storage_provider,
     get_indemnity_calculator,
@@ -216,6 +219,31 @@ def document_edit_history_entries(doc: Dict[str, Any]) -> List[Dict[str, Any]]:
     return []
 
 
+def _enrich_attestation_document_data(
+    document_data: Dict[str, Any],
+    employee_data: Dict[str, Any],
+    exit_data: Dict[str, Any],
+    supabase_client: Any,
+) -> Dict[str, Any]:
+    """Pré-remplit salary_history et primes_lines si absents."""
+    if document_data.get("salary_history"):
+        return document_data
+    employee_id = str(employee_data.get("id") or exit_data.get("employee_id") or "")
+    history = get_salary_history(
+        employee_id=employee_id,
+        employee_data=employee_data,
+        end_date=exit_data.get("last_working_day"),
+        supabase_client=supabase_client,
+    )
+    enriched = dict(document_data)
+    enriched["salary_history"] = history.get("months") or []
+    enriched["salary_month_count"] = history.get("month_count", 25)
+    enriched["primes_lines"] = history.get("primes_lines") or []
+    if not enriched.get("indemnities") and exit_data.get("calculated_indemnities"):
+        enriched["indemnities"] = exit_data.get("calculated_indemnities")
+    return enriched
+
+
 def get_exit_document_details(
     exit_id: str,
     document_id: str,
@@ -242,7 +270,22 @@ def get_exit_document_details(
             employee_data,
             company_data,
             exit_data,
-            include_indemnities=(doc.get("document_type") == "solde_tout_compte"),
+            include_indemnities=(
+                doc.get("document_type")
+                in ("solde_tout_compte", "attestation_pole_emploi")
+            ),
+        )
+    if doc.get("document_type") == "attestation_pole_emploi":
+        exit_data = exit_repo.get_by_id(exit_id, company_id) or {}
+        emp_id = exit_data.get("employee_id")
+        employee_data = (
+            get_employee_full(str(emp_id), sb) if emp_id else {}
+        )
+        document_data = _enrich_attestation_document_data(
+            document_data if isinstance(document_data, dict) else {},
+            employee_data,
+            exit_data,
+            sb,
         )
     edit_history = document_edit_history_entries(doc)
     download_url = None

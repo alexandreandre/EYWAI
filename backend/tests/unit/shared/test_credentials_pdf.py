@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 weasyprint = pytest.importorskip("weasyprint")
@@ -28,3 +30,22 @@ def test_generate_credentials_pdf_dynamic_signatory() -> None:
     )
     assert pdf.startswith(b"%PDF")
     assert len(pdf) > 2000
+
+
+def test_generate_credentials_pdf_mentions_password_change() -> None:
+    """Le HTML source doit insister sur le changement de mot de passe."""
+    captured: dict[str, str] = {}
+
+    def _capture_html(*, string: str, **kwargs):
+        captured["html"] = string
+        return MagicMock(write_pdf=lambda: b"%PDF")
+
+    with patch(
+        "app.shared.infrastructure.pdf.credentials.HTML",
+        side_effect=_capture_html,
+    ):
+        generate_credentials_pdf("Paul", "Durand", "paul.durand", "TempPass123!")
+
+    html = captured["html"]
+    assert "changement de mot de passe" in html.lower()
+    assert "première connexion" in html.lower()

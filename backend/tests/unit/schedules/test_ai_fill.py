@@ -120,6 +120,18 @@ class TestCoerceDays:
 
 
 class TestParseInstruction:
+    def test_uses_fast_path_without_llm(self):
+        with patch.object(ai_fill, "extract_structured_json") as mock_llm:
+            proposal = ai_fill.parse_instruction(
+                year=2026,
+                month=6,
+                instruction="Paul Martin a fait 8h du 1 au 3",
+                roster=ROSTER,
+            )
+        mock_llm.assert_not_called()
+        assert proposal.source == "texte (analyse rapide)"
+        assert proposal.employees[0].employee_id == "e1"
+
     def test_builds_proposal_with_resolution(self):
         extracted = {
             "employees": [
@@ -136,7 +148,10 @@ class TestParseInstruction:
             ai_fill, "extract_structured_json", return_value=_result(extracted)
         ):
             proposal = ai_fill.parse_instruction(
-                year=2026, month=6, instruction="Paul a fait 8h le 1er", roster=ROSTER
+                year=2026,
+                month=6,
+                instruction="Paul a fait 8h le 1er et Sophie 7h le 2",
+                roster=ROSTER,
             )
 
         assert proposal.source == "texte"

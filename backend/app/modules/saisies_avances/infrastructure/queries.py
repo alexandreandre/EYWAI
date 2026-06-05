@@ -16,7 +16,9 @@ from app.core.database import supabase
 
 from app.modules.saisies_avances.domain.rules import (
     MAX_ADVANCE_DAYS,
+    MAX_ADVANCE_NET_RATIO,
     compute_advance_available_from_figures,
+    compute_max_advance_from_net,
     remaining_to_pay_value,
 )
 
@@ -205,8 +207,8 @@ def get_advances_to_repay(
     return result
 
 
-def get_daily_salary_for_employee(employee_id: str) -> Decimal:
-    """Salaire journalier : dernier bulletin net_a_payer/30 ou salaire_de_base/30."""
+def get_reference_net_salary_for_employee(employee_id: str) -> Decimal:
+    """Salaire net de référence : net_a_payer du dernier bulletin ou salaire_de_base."""
     r = (
         supabase.table("payslips")
         .select("payslip_data, year, month")
@@ -218,8 +220,7 @@ def get_daily_salary_for_employee(employee_id: str) -> Decimal:
     )
     if r.data:
         payslip_data = r.data[0].get("payslip_data", {})
-        net = Decimal(str(payslip_data.get("net_a_payer", 0)))
-        return net / Decimal("30")
+        return Decimal(str(payslip_data.get("net_a_payer", 0)))
     emp_r = (
         supabase.table("employees")
         .select("salaire_de_base")
@@ -230,11 +231,14 @@ def get_daily_salary_for_employee(employee_id: str) -> Decimal:
     if emp_r.data:
         sb = emp_r.data.get("salaire_de_base", {})
         if isinstance(sb, dict):
-            base = Decimal(str(sb.get("valeur", 0)))
-        else:
-            base = Decimal(str(sb))
-        return base / Decimal("30")
+            return Decimal(str(sb.get("valeur", 0)))
+        return Decimal(str(sb))
     return Decimal("0")
+
+
+def get_daily_salary_for_employee(employee_id: str) -> Decimal:
+    """Salaire journalier : net de référence / 30."""
+    return get_reference_net_salary_for_employee(employee_id) / Decimal("30")
 
 
 def get_outstanding_advances_sum(employee_id: str) -> Decimal:
@@ -263,18 +267,27 @@ def build_advance_available(employee_id: str, year: int, month: int) -> Dict[str
     Construit le montant disponible pour une avance (données + règle pure).
     Retourne un dict avec daily_salary, days_worked, outstanding_advances, available_amount, max_advance_days.
     """
-    daily_salary = get_daily_salary_for_employee(employee_id)
+    reference_net_salary = get_reference_net_salary_for_employee(employee_id)
+    daily_salary = reference_net_salary / Decimal("30")
     days_worked = get_days_worked_for_month(year, month)
     total_outstanding = get_outstanding_advances_sum(employee_id)
     available_amount, _ = compute_advance_available_from_figures(
-        daily_salary, days_worked, total_outstanding, MAX_ADVANCE_DAYS
+        daily_salary,
+        days_worked,
+        total_outstanding,
+        MAX_ADVANCE_DAYS,
+        reference_net_salary,
     )
+    max_advance_from_net = compute_max_advance_from_net(reference_net_salary)
     return {
         "daily_salary": daily_salary,
         "days_worked": days_worked,
         "outstanding_advances": total_outstanding,
         "available_amount": available_amount,
         "max_advance_days": MAX_ADVANCE_DAYS,
+        "reference_net_salary": reference_net_salary,
+        "max_advance_from_net": max_advance_from_net,
+        "max_advance_net_ratio": MAX_ADVANCE_NET_RATIO,
     }
 
 

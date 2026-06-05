@@ -29,6 +29,16 @@ class GenerateDocumentRequest(BaseModel):
         None,
         description="Persisté dans generation_context pour rebouclage à la signature.",
     )
+    ancien_salaire: Optional[float] = Field(
+        None,
+        description="Salaire avant modification (snapshot ou valeur front).",
+    )
+    ancien_poste: Optional[str] = None
+    nouveau_poste: Optional[str] = None
+    ancienne_duree: Optional[str] = None
+    nouvelle_duree: Optional[str] = None
+    ancien_lieu: Optional[str] = None
+    nouveau_lieu: Optional[str] = None
 
 
 class UpdateDocumentStatusRequest(BaseModel):

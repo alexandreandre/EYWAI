@@ -35,6 +35,8 @@ _BUILD_VARIABLES_KEYS = frozenset(
         "nouveau_poste",
         "ancienne_duree",
         "nouvelle_duree",
+        "ancien_lieu",
+        "nouveau_lieu",
         "nom_entreprise",
         "siret",
         "code_ape",
@@ -91,6 +93,8 @@ def test_t1_build_variables_complete_no_none_french_amounts_and_dates() -> None:
         "nouveau_poste": "Confirmé",
         "ancienne_duree": "35 h",
         "nouvelle_duree": "39 h",
+        "ancien_lieu": "Paris",
+        "nouveau_lieu": "Lyon",
         "nom_signataire_rh": "Signataire Ctx",
         "qualite_signataire_rh": "Responsable RH",
         "signature_lieu": "Lyon",
@@ -109,6 +113,8 @@ def test_t1_build_variables_complete_no_none_french_amounts_and_dates() -> None:
     assert out["salaire_brut_annuel"] == "30 000,00 €"
     assert out["nouveau_salaire"] == "2 500,00 €"
     assert out["ancien_salaire"] == "2 400,00 €"
+    assert out["ancien_lieu"] == "Paris"
+    assert out["nouveau_lieu"] == "Lyon"
 
     assert _DATE_FR_RE.match(out["date_naissance"])
     assert out["date_naissance"] == "10/05/1990"

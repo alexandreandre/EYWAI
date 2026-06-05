@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
 from app.modules.documents.infrastructure.repository import documents_repository
+from app.modules.payslips.infrastructure.storage_urls import create_payslip_url_maps
 from app.modules.employees.infrastructure.providers import get_storage_provider
 
 
@@ -57,23 +58,13 @@ def _fetch_company_payslips(company_id: str) -> List[Dict[str, Any]]:
     if not paths:
         return []
 
-    signed = supabase.storage.from_("payslips").create_signed_urls(
-        paths, 3600, options={"download": True}
-    )
-    if isinstance(signed, dict) and signed.get("error"):
-        raise RuntimeError(signed.get("message", "Storage error"))
-
-    url_map = {
-        path: item["signedURL"]
-        for path, item in zip(paths, signed)
-        if item.get("signedURL")
-    }
+    download_map, preview_map = create_payslip_url_maps(paths, 3600)
 
     result: List[Dict[str, Any]] = []
     for p in rows:
         storage_path = p.get("pdf_storage_path")
         eid = str(p.get("employee_id") or "")
-        if not storage_path or storage_path not in url_map or not eid:
+        if not storage_path or storage_path not in download_map or not eid:
             continue
         result.append(
             {
@@ -81,7 +72,8 @@ def _fetch_company_payslips(company_id: str) -> List[Dict[str, Any]]:
                 "employee_id": eid,
                 "employee_name": names.get(eid) or eid,
                 "name": storage_path.split("/")[-1],
-                "url": url_map[storage_path],
+                "url": download_map[storage_path],
+                "preview_url": preview_map.get(storage_path, ""),
                 "month": int(p["month"]),
                 "year": int(p["year"]),
             }
@@ -146,7 +138,14 @@ def get_documents_explorer(company_id: str) -> Dict[str, Any]:
     from app.modules.employees.infrastructure.repository import EmployeeRepository
 
     emp_rows = EmployeeRepository().get_by_company(company_id)
-    employees = {str(e["id"]): e for e in emp_rows if e.get("id")}
+    employees: Dict[str, Dict[str, Any]] = {}
+    for row in emp_rows:
+        if not row.get("id"):
+            continue
+        employees[str(row["id"])] = row
+        user_id = row.get("user_id")
+        if user_id:
+            employees.setdefault(str(user_id), row)
 
     storage: List[Dict[str, Any]] = []
 

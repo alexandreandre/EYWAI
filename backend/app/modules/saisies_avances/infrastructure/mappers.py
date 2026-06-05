@@ -22,6 +22,9 @@ def to_advance_available_amount(data: Dict[str, Any]) -> AdvanceAvailableAmount:
         outstanding_advances=data["outstanding_advances"],
         available_amount=data["available_amount"],
         max_advance_days=data.get("max_advance_days", 10),
+        reference_net_salary=data.get("reference_net_salary", Decimal("0")),
+        max_advance_from_net=data.get("max_advance_from_net", Decimal("0")),
+        max_advance_net_ratio=data.get("max_advance_net_ratio", Decimal("0.5")),
     )
 
 

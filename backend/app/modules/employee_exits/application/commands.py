@@ -252,7 +252,7 @@ def _run_post_create_indemnities_and_docs(
     exit_full_data = exit_repo.get_with_employee(
         exit_id,
         company_id,
-        "id, first_name, last_name, hire_date, salaire_de_base, job_title, date_naissance",
+        "id, first_name, last_name, hire_date, salaire_de_base, job_title, date_naissance, nir, contract_type, address, lieu_naissance, birth_place, duree_hebdomadaire",
     )
     if not exit_full_data:
         return
@@ -290,7 +290,11 @@ def _run_post_create_indemnities_and_docs(
                 )
             else:
                 pdf_bytes = generator.generate_attestation_pole_emploi(
-                    employee_full_data, company_data, exit_full_data
+                    employee_full_data,
+                    company_data,
+                    exit_full_data,
+                    indemnities=indemnities,
+                    supabase_client=sb,
                 )
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{doc_type}_{ts}.pdf"
@@ -508,7 +512,7 @@ def generate_exit_document(
     exit_data = exit_repo.get_with_employee(
         exit_id,
         company_id,
-        "id, first_name, last_name, date_naissance, job_title, hire_date",
+        "id, first_name, last_name, date_naissance, job_title, hire_date, contract_type, nir, address, lieu_naissance, birth_place, salaire_de_base, duree_hebdomadaire",
     )
     if not exit_data:
         raise EmployeeExitApplicationError(404, "Départ non trouvé")
@@ -522,7 +526,11 @@ def generate_exit_document(
         )
     elif document_type == "attestation_pole_emploi":
         pdf_bytes = generator.generate_attestation_pole_emploi(
-            employee_data, company_data, exit_data
+            employee_data,
+            company_data,
+            exit_data,
+            indemnities=exit_data.get("calculated_indemnities"),
+            supabase_client=sb,
         )
     elif document_type == "solde_tout_compte":
         indemnities = exit_data.get("calculated_indemnities")
@@ -712,7 +720,13 @@ def edit_exit_document(
         )
     elif document_type == "attestation_pole_emploi":
         pdf_bytes = generator.generate_attestation_pole_emploi(
-            gen_employee, gen_company, gen_exit
+            gen_employee,
+            gen_company,
+            gen_exit,
+            indemnities=merged_data.get("indemnities")
+            or exit_data.get("calculated_indemnities"),
+            supabase_client=sb,
+            document_data=merged_data,
         )
     elif document_type == "solde_tout_compte":
         indemnities = merged_data.get("indemnities") or exit_data.get(

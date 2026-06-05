@@ -21,3 +21,4 @@ PaymentMethod = Literal["virement", "cheque", "especes"]
 AUTO_APPROVAL_THRESHOLD_EUR = 100
 BUCKET_ADVANCE_PAYMENTS = "advance_payments"
 MAX_ADVANCE_DAYS = 10
+MAX_ADVANCE_NET_RATIO = 0.5

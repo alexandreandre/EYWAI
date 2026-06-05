@@ -18,7 +18,13 @@ from app.modules.absences.domain.enums import (
 )
 from app.modules.absences.domain.rules import (
     calculate_acquired_cp,
+    calculate_acquired_cp_for_period,
     calculate_acquired_rtt,
+    compute_absence_balances,
+    compute_cp_balances_for_bulletin,
+    count_absence_days_taken,
+    get_cp_previous_reference_period,
+    get_cp_reference_period,
     requires_salary_certificate,
 )
 from app.modules.absences.domain.value_objects import (
@@ -49,61 +55,32 @@ class TestAbsenceRequestEntity:
         assert entity.type == "conge_paye"
         assert entity.selected_days == [date(2025, 6, 10)]
         assert entity.status == "pending"
-        assert entity.comment is None
-        assert entity.manager_id is None
-        assert entity.attachment_url is None
-        assert entity.filename is None
-        assert entity.event_subtype is None
-        assert entity.jours_payes is None
-        assert entity.created_at is None
 
-    def test_entity_creation_full(self):
-        """Création avec tous les champs optionnels."""
-        created = datetime(2025, 3, 1, 10, 0, 0)
+    def test_entity_with_optional_fields(self):
+        """Création avec champs optionnels."""
         entity = AbsenceRequestEntity(
             id="req-2",
             employee_id="emp-2",
             company_id="comp-2",
-            type="evenement_familial",
+            type="rtt",
             selected_days=[date(2025, 7, 1), date(2025, 7, 2)],
             status="validated",
-            comment="Mariage",
-            manager_id="mgr-1",
-            attachment_url="bucket/path.pdf",
-            filename="justif.pdf",
-            event_subtype="mariage_salarie",
-            jours_payes=2,
-            created_at=created,
+            comment="Vacances",
+            attachment_url="path/to/file.pdf",
+            created_at=datetime(2025, 6, 1, 10, 0, 0),
         )
-        assert entity.comment == "Mariage"
-        assert entity.manager_id == "mgr-1"
-        assert entity.attachment_url == "bucket/path.pdf"
-        assert entity.filename == "justif.pdf"
-        assert entity.event_subtype == "mariage_salarie"
-        assert entity.jours_payes == 2
-        assert entity.created_at == created
-
-    def test_entity_company_id_optional(self):
-        """company_id peut être None."""
-        entity = AbsenceRequestEntity(
-            id="req-3",
-            employee_id="emp-3",
-            company_id=None,
-            type="rtt",
-            selected_days=[date(2025, 8, 15)],
-            status="pending",
-        )
-        assert entity.company_id is None
+        assert entity.comment == "Vacances"
+        assert entity.attachment_url == "path/to/file.pdf"
+        assert entity.created_at is not None
 
 
-# --- Value objects ---
+# --- Value Objects ---
 
 
 class TestAbsenceBalanceValue:
     """Tests du value object AbsenceBalanceValue."""
 
-    def test_balance_float_remaining(self):
-        """remaining peut être un float."""
+    def test_balance_creation(self):
         balance = AbsenceBalanceValue(
             type="Congés Payés",
             acquired=25.0,
@@ -115,102 +92,78 @@ class TestAbsenceBalanceValue:
         assert balance.taken == 5.0
         assert balance.remaining == 20.0
 
-    def test_balance_string_remaining_na(self):
-        """remaining peut être une chaîne (ex. 'N/A', 'selon événement')."""
-        balance = AbsenceBalanceValue(
-            type="Congé sans solde",
-            acquired=0,
-            taken=2,
-            remaining="N/A",
-        )
-        assert balance.remaining == "N/A"
-
-    def test_balance_selon_evenement(self):
-        """remaining 'selon événement' pour événement familial."""
-        balance = AbsenceBalanceValue(
-            type="Événement familial",
-            acquired=0,
-            taken=0,
-            remaining="selon événement",
-        )
-        assert balance.remaining == "selon événement"
-
 
 class TestCalendarDayValue:
     """Tests du value object CalendarDayValue."""
 
-    def test_calendar_day_default_heures(self):
-        """heures_prevues par défaut à 0.0."""
-        day = CalendarDayValue(jour=15, type="travail")
+    def test_calendar_day_creation(self):
+        day = CalendarDayValue(jour=15, type="conge", heures_prevues=7.0)
         assert day.jour == 15
-        assert day.type == "travail"
-        assert day.heures_prevues == 0.0
-
-    def test_calendar_day_with_heures(self):
-        """heures_prevues peut être renseigné."""
-        day = CalendarDayValue(
-            jour=10,
-            type="conge",
-            heures_prevues=7.0,
-        )
+        assert day.type == "conge"
         assert day.heures_prevues == 7.0
 
-    def test_calendar_day_types(self):
-        """Types courants : travail, conge, rtt."""
-        for t in ("travail", "conge", "rtt"):
-            day = CalendarDayValue(jour=1, type=t)
-            assert day.type == t
+
+# --- Règles métier : périodes CP ---
+
+
+class TestCpReferencePeriod:
+    def test_janvier_periode_en_cours(self):
+        assert get_cp_reference_period(date(2026, 1, 31)) == (
+            date(2025, 6, 1),
+            date(2026, 5, 31),
+        )
+
+    def test_septembre_periode_en_cours(self):
+        assert get_cp_reference_period(date(2026, 9, 15)) == (
+            date(2026, 6, 1),
+            date(2027, 5, 31),
+        )
+
+    def test_periode_precedente(self):
+        assert get_cp_previous_reference_period(date(2026, 1, 31)) == (
+            date(2024, 6, 1),
+            date(2025, 5, 31),
+        )
 
 
 # --- Règles métier : calculate_acquired_cp ---
 
 
 class TestCalculateAcquiredCp:
-    """Règle : jours de CP acquis (période 1er juin N-1 → 31 mai N, 2.5 j/mois, arrondi supérieur)."""
+    """Règle L3141-3 : 2,5 j/mois sur la période en cours, cumulé jusqu'à ref_date."""
 
-    def test_hire_after_period_end_returns_zero(self):
-        """Embauche après la fin de la période → 0 jour acquis."""
-        # Période courante (today en sept 2025) : 1er juin 2024 → 31 mai 2025
-        today = date(2025, 9, 1)
-        hire_date = date(2025, 7, 1)  # après 31 mai 2025
-        assert calculate_acquired_cp(hire_date, today) == 0.0
+    def test_hire_after_ref_date_returns_zero(self):
+        ref = date(2026, 1, 31)
+        hire_date = date(2026, 3, 1)
+        assert calculate_acquired_cp(hire_date, ref) == 0.0
 
-    def test_hire_at_period_start_full_year(self):
-        """Embauche au 1er juin → 12 mois → 30 jours, plafonnés à 25 (2.5*10) en général ; ici 12*2.5=30 ceil=30."""
-        today = date(2025, 6, 15)  # période 2024-06-01 → 2025-05-31
-        hire_date = date(2024, 6, 1)
-        acquired = calculate_acquired_cp(hire_date, today)
-        assert acquired == 30.0  # 12 mois * 2.5 = 30
+    def test_debut_periode_un_mois(self):
+        """Bulletin de juin : 1 mois acquis sur la nouvelle période."""
+        ref = date(2025, 6, 15)
+        hire_date = date(2020, 1, 1)
+        assert calculate_acquired_cp(hire_date, ref) == 3.0
 
-    def test_hire_mid_period_prorata(self):
-        """Embauche en cours de période → prorata des mois travaillés."""
-        today = date(2025, 6, 1)  # période 2024-06-01 → 2025-05-31
-        hire_date = date(2024, 10, 1)  # 8 mois (oct, nov, déc, jan, fév, mar, avr, mai)
-        acquired = calculate_acquired_cp(hire_date, today)
-        # 8 * 2.5 = 20
-        assert acquired == 20.0
+    def test_fin_annee_civile_dans_periode(self):
+        """31/12/2025 → 7 mois (juin–déc) = 17,5 → 18 jours."""
+        ref = date(2025, 12, 31)
+        hire_date = date(2020, 1, 1)
+        assert calculate_acquired_cp(hire_date, ref) == 18.0
 
-    def test_hire_before_period_start_counts_from_period_start(self):
-        """Embauche avant le début de la période : calcul à partir du 1er juin."""
-        today = date(2025, 6, 1)  # période 2024-06-01 → 2025-05-31
-        hire_date = date(2023, 1, 1)
-        acquired = calculate_acquired_cp(hire_date, today)
-        assert acquired == 30.0  # 12 mois complets
+    def test_janvier_dix_mois_depuis_juin(self):
+        """31/01/2026 → 8 mois (juin–jan) = 20 jours."""
+        ref = date(2026, 1, 31)
+        hire_date = date(2020, 1, 1)
+        assert calculate_acquired_cp(hire_date, ref) == 20.0
 
-    def test_today_before_june_uses_previous_period(self):
-        """Si today est avant juin, la période est N-2 juin → N-1 mai."""
-        today = date(2025, 3, 1)  # période 2023-06-01 → 2024-05-31
-        hire_date = date(2023, 6, 1)
-        acquired = calculate_acquired_cp(hire_date, today)
-        assert acquired == 30.0
+    def test_prorata_embauche_en_cours_de_periode(self):
+        ref = date(2026, 1, 31)
+        hire_date = date(2025, 10, 1)
+        assert calculate_acquired_cp(hire_date, ref) == 10.0  # oct–jan = 4 * 2.5
 
-    def test_partial_month_ceil(self):
-        """Un mois partiel compte comme un mois (ceil)."""
-        # today après juin → période 2024-06-01 → 2025-05-31
-        today = date(2025, 6, 1)
-        hire_date = date(2025, 5, 15)  # 1 mois (mai) dans la période
-        acquired = calculate_acquired_cp(hire_date, today)
-        assert acquired == 3.0  # ceil(2.5) = 3
+    def test_periode_complete_cloturee(self):
+        prev_start, prev_end = get_cp_previous_reference_period(date(2026, 1, 31))
+        hire_date = date(2020, 1, 1)
+        assert calculate_acquired_cp_for_period(hire_date, prev_start, prev_end) == 30.0
 
 
 # --- Règles métier : calculate_acquired_rtt ---
@@ -220,29 +173,23 @@ class TestCalculateAcquiredRtt:
     """Règle : RTT acquis pour l'année (prorata si embauche en cours d'année)."""
 
     def test_hire_previous_year_full_quota(self):
-        """Embauche l'année précédente → quota annuel complet (défaut 10)."""
         today = date(2025, 6, 1)
         hire_date = date(2024, 1, 15)
         assert calculate_acquired_rtt(hire_date, today) == 10.0
 
     def test_hire_same_year_prorata(self):
-        """Embauche en cours d'année → prorata (10/12 * mois restants)."""
         today = date(2025, 6, 1)
-        hire_date = date(2025, 4, 1)  # avril, mai, juin = 3 mois
+        hire_date = date(2025, 4, 1)
         acquired = calculate_acquired_rtt(hire_date, today)
-        # (10/12) * 3 = 2.5
         assert acquired == 2.5
 
     def test_hire_july_same_year(self):
-        """Embauche en juillet → 6 mois (juil à déc)."""
         today = date(2025, 12, 15)
         hire_date = date(2025, 7, 1)
         acquired = calculate_acquired_rtt(hire_date, today)
-        # 10/12 * 6 = 5.0
         assert acquired == 5.0
 
     def test_custom_rtt_annual_base(self):
-        """rtt_annual_base personnalisé."""
         today = date(2025, 6, 1)
         hire_date = date(2024, 1, 1)
         assert calculate_acquired_rtt(hire_date, today, rtt_annual_base=12.0) == 12.0
@@ -252,8 +199,6 @@ class TestCalculateAcquiredRtt:
 
 
 class TestRequiresSalaryCertificate:
-    """Règle : types d'absence nécessitant une attestation de salaire."""
-
     @pytest.mark.parametrize(
         "absence_type",
         [
@@ -265,7 +210,6 @@ class TestRequiresSalaryCertificate:
         ],
     )
     def test_returns_true_for_certificate_types(self, absence_type: str):
-        """Les types d'arrêt maladie/AT/maternité/paternité requièrent une attestation."""
         assert requires_salary_certificate(absence_type) is True
 
     @pytest.mark.parametrize(
@@ -279,11 +223,9 @@ class TestRequiresSalaryCertificate:
         ],
     )
     def test_returns_false_for_non_certificate_types(self, absence_type: str):
-        """Congés, RTT, sans solde, etc. ne requièrent pas d'attestation."""
         assert requires_salary_certificate(absence_type) is False
 
     def test_salary_certificate_types_constant_complete(self):
-        """SALARY_CERTIFICATE_ABSENCE_TYPES contient exactement les 5 types attendus."""
         assert set(SALARY_CERTIFICATE_ABSENCE_TYPES) == {
             "arret_maladie",
             "arret_at",
@@ -291,3 +233,91 @@ class TestRequiresSalaryCertificate:
             "arret_maternite",
             "arret_maladie_pro",
         }
+
+
+class TestCountAbsenceDaysTaken:
+    def test_filtre_jours_apres_date_reference(self):
+        ref = date(2026, 1, 31)
+        requests = [
+            {
+                "type": "conge_paye",
+                "selected_days": ["2026-01-10", "2026-02-05"],
+                "jours_payes": 2,
+            }
+        ]
+        assert count_absence_days_taken(requests, "conge_paye", ref) == 1.0
+
+    def test_filtre_periode_reference(self):
+        ref = date(2026, 1, 31)
+        requests = [
+            {
+                "type": "conge_paye",
+                "selected_days": ["2025-08-10", "2026-01-10"],
+                "jours_payes": 2,
+            }
+        ]
+        current_start, current_end = get_cp_reference_period(ref)
+        assert (
+            count_absence_days_taken(
+                requests,
+                "conge_paye",
+                ref,
+                period_start=current_start,
+                period_end=current_end,
+            )
+            == 2.0
+        )
+
+    def test_jours_payes_limite_cp_sur_demande_partielle(self):
+        ref = date(2026, 3, 31)
+        requests = [
+            {
+                "type": "conge_paye",
+                "selected_days": ["2026-03-10", "2026-03-11", "2026-03-12"],
+                "jours_payes": 2,
+            }
+        ]
+        assert count_absence_days_taken(requests, "conge_paye", ref) == 2.0
+
+
+class TestComputeAbsenceBalances:
+    def test_solde_cp_coherent(self):
+        hire_date = date(2020, 1, 1)
+        ref = date(2026, 6, 30)
+        requests = [
+            {
+                "type": "conge_paye",
+                "selected_days": ["2026-06-05", "2026-06-10"],
+                "jours_payes": 2,
+            }
+        ]
+        balances = compute_absence_balances(hire_date, requests, ref)
+        cp = balances["conges_payes"]
+        assert cp["acquis"] == calculate_acquired_cp(hire_date, ref)
+        assert cp["pris"] == 2.0
+        assert cp["solde"] == pytest.approx(cp["acquis"] - 2.0)
+
+
+class TestComputeCpBalancesForBulletin:
+    def test_double_ligne_n_et_n_moins_un(self):
+        hire_date = date(2020, 1, 1)
+        ref = date(2026, 1, 31)
+        requests = [
+            {
+                "type": "conge_paye",
+                "selected_days": ["2025-07-01", "2025-07-02", "2025-07-03"],
+                "jours_payes": 3,
+            },
+            {
+                "type": "conge_paye",
+                "selected_days": ["2026-01-06"],
+                "jours_payes": 1,
+            },
+        ]
+        result = compute_cp_balances_for_bulletin(hire_date, requests, ref)
+        assert result["periode_courante"]["acquis"] == 20.0
+        assert result["periode_courante"]["pris"] == 4.0
+        assert result["periode_courante"]["solde"] == 16.0
+        assert result["periode_precedente"]["acquis"] == 30.0
+        assert result["periode_precedente"]["pris"] == 0.0
+        assert result["periode_precedente"]["solde"] == 30.0

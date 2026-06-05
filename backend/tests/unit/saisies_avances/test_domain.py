@@ -13,6 +13,7 @@ from app.modules.saisies_avances.domain import rules
 from app.modules.saisies_avances.domain.enums import (
     AUTO_APPROVAL_THRESHOLD_EUR,
     MAX_ADVANCE_DAYS,
+    MAX_ADVANCE_NET_RATIO,
 )
 
 
@@ -27,6 +28,9 @@ class TestDomainEnums:
 
     def test_max_advance_days(self):
         assert MAX_ADVANCE_DAYS == 10
+
+    def test_max_advance_net_ratio(self):
+        assert MAX_ADVANCE_NET_RATIO == 0.5
 
 
 # --- calculate_seizable_amount ---
@@ -162,6 +166,37 @@ class TestComputeAdvanceAvailableFromFigures:
             daily, days_worked, total_outstanding, max_advance_days=10
         )
         assert available == Decimal("0")
+
+    def test_disponible_plafonne_par_50_pourcent_net(self):
+        daily = Decimal("200")
+        days_worked = Decimal("15")
+        total_outstanding = Decimal("0")
+        reference_net = Decimal("2000")
+        available, _ = rules.compute_advance_available_from_figures(
+            daily,
+            days_worked,
+            total_outstanding,
+            max_advance_days=10,
+            reference_net_salary=reference_net,
+        )
+        assert available == Decimal("1000")
+
+    def test_disponible_50_pourcent_net_moins_outstanding(self):
+        daily = Decimal("200")
+        days_worked = Decimal("15")
+        total_outstanding = Decimal("700")
+        reference_net = Decimal("2000")
+        available, _ = rules.compute_advance_available_from_figures(
+            daily,
+            days_worked,
+            total_outstanding,
+            max_advance_days=10,
+            reference_net_salary=reference_net,
+        )
+        assert available == Decimal("300")
+
+    def test_compute_max_advance_from_net(self):
+        assert rules.compute_max_advance_from_net(Decimal("2400")) == Decimal("1200")
 
 
 # --- initial_advance_status ---

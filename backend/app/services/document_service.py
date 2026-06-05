@@ -369,6 +369,23 @@ class DocumentService:
                 logger.warning("CommonAttestationGenerator: %s", e)
                 pdf_bytes = None
 
+        if not pdf_bytes and document_type.startswith("avenant"):
+            try:
+                from app.shared.infrastructure.pdf import generate_avenant_pdf
+
+                pdf_bytes = generate_avenant_pdf(
+                    employee_data=employee_data,
+                    company_data=company_data,
+                    context=ctx,
+                    logo_path="",
+                )
+                is_eywai_template = True
+                template_id = None
+                template_version_id = None
+            except Exception as e:
+                logger.warning("generate_avenant_pdf (bibliothèque): %s", e)
+                pdf_bytes = None
+
         if not pdf_bytes and (is_eywai_template or tpl_bundle is not None):
             try:
                 fb = self._generate_fallback_pdf(document_type, variables)

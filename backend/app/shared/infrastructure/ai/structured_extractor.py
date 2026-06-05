@@ -28,6 +28,7 @@ def extract_structured_json(
     schema_name: str = "extraction",
     model: str,
     temperature: float = 0.0,
+    max_tokens: int | None = None,
 ) -> StructuredExtractionResult | None:
     """
     Appelle OpenRouter avec sortie JSON strictement schématisée.
@@ -51,6 +52,8 @@ def extract_structured_json(
             },
         },
     }
+    if max_tokens is not None:
+        request_kwargs["max_tokens"] = max_tokens
 
     last_error: Exception | None = None
     for attempt in range(2):

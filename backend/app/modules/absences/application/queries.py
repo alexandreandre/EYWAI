@@ -10,6 +10,7 @@ from app.core.logging import get_logger, log_app_debug
 
 logger = get_logger("modules.absences.application.queries")
 
+import calendar
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
@@ -18,6 +19,9 @@ from app.core.database import supabase
 from app.modules.absences.domain.rules import (
     calculate_acquired_cp,
     calculate_acquired_rtt,
+    compute_absence_balances,
+    compute_cp_balances_for_bulletin,
+    count_absence_days_taken,
     requires_salary_certificate,
 )
 from app.modules.absences.infrastructure.providers import (
@@ -119,43 +123,34 @@ def get_absence_requests(
         if emp_id not in hire_dates:
             continue
         hire_date = hire_dates[emp_id]
-        cp_acquis = calculate_acquired_cp(hire_date, today)
-        rtt_acquis = calculate_acquired_rtt(hire_date, today)
         emp_validated = [r for r in validated_reqs if r["employee_id"] == emp_id]
-        cp_pris = sum(
-            r.get("jours_payes")
-            if r.get("jours_payes") is not None
-            else len(r.get("selected_days", []))
-            for r in emp_validated
-            if r["type"] == "conge_paye"
+        soldes = compute_absence_balances(
+            hire_date,
+            emp_validated,
+            today,
+            repos_acquis=repos_credits_by_emp.get(emp_id, 0.0),
         )
-        rtt_pris = sum(
-            len(r["selected_days"]) for r in emp_validated if r["type"] == "rtt"
-        )
-        repos_pris = sum(
-            len(r["selected_days"])
-            for r in emp_validated
-            if r["type"] == "repos_compensateur"
-        )
-        repos_acquis = repos_credits_by_emp.get(emp_id, 0.0)
+        cp = soldes["conges_payes"]
+        rtt = soldes["rtt"]
+        repos = soldes["repos_compensateur"]
         balances_map[emp_id] = [
             {
                 "type": "Congés Payés",
-                "acquired": cp_acquis,
-                "taken": cp_pris,
-                "remaining": cp_acquis - cp_pris,
+                "acquired": cp["acquis"],
+                "taken": cp["pris"],
+                "remaining": cp["solde"],
             },
             {
                 "type": "RTT",
-                "acquired": rtt_acquis,
-                "taken": rtt_pris,
-                "remaining": rtt_acquis - rtt_pris,
+                "acquired": rtt["acquis"],
+                "taken": rtt["pris"],
+                "remaining": rtt["solde"],
             },
             {
                 "type": "Repos compensateur",
-                "acquired": repos_acquis,
-                "taken": repos_pris,
-                "remaining": repos_acquis - repos_pris,
+                "acquired": repos["acquis"],
+                "taken": repos["pris"],
+                "remaining": repos["solde"],
             },
             {
                 "type": "Événement familial",
@@ -232,63 +227,102 @@ def get_absence_request_detail(
     return enriched
 
 
-def get_my_absence_balances(employee_id: str) -> List[dict]:
-    """Soldes (CP, RTT, repos, événement familial, sans solde) pour un employé. Raises LookupError si pas de hire_date."""
-    today = date.today()
+def _parse_hire_date(employee_id: str) -> date | None:
     hire_date_raw = get_employee_hire_date(employee_id)
     if not hire_date_raw:
-        raise LookupError("Date d'embauche non trouvée pour l'employé.")
-    hire_date = (
+        return None
+    return (
         date.fromisoformat(hire_date_raw)
         if isinstance(hire_date_raw, str)
         else hire_date_raw
     )
 
-    cp_acquis = calculate_acquired_cp(hire_date, today)
-    rtt_acquis = calculate_acquired_rtt(hire_date, today)
+
+def get_absence_balances_at_date(
+    employee_id: str, ref_date: date
+) -> dict[str, dict[str, float]] | None:
+    """Soldes CP / RTT / repos à une date de référence (même logique que la page Absences)."""
+    hire_date = _parse_hire_date(employee_id)
+    if not hire_date:
+        return None
     validated_list = absence_repository.list_validated_for_employees([employee_id])
-    cp_pris = sum(
-        r.get("jours_payes")
-        if r.get("jours_payes") is not None
-        else len(r.get("selected_days", []))
-        for r in validated_list
-        if r.get("type") == "conge_paye"
-    )
-    rtt_pris = sum(
-        len(r["selected_days"]) for r in validated_list if r.get("type") == "rtt"
-    )
-    ss_pris = sum(
-        len(r["selected_days"]) for r in validated_list if r.get("type") == "sans_solde"
-    )
-    repos_pris = sum(
-        len(r["selected_days"])
-        for r in validated_list
-        if r.get("type") == "repos_compensateur"
-    )
-    cp_restant = cp_acquis - cp_pris
-    rtt_restant = rtt_acquis - rtt_pris
-    repos_credits = get_repos_credits_by_employee_year([employee_id], today.year)
+    repos_credits = get_repos_credits_by_employee_year([employee_id], ref_date.year)
     repos_acquis = repos_credits.get(employee_id, 0.0)
-    repos_restant = repos_acquis - repos_pris
+    return compute_absence_balances(
+        hire_date,
+        validated_list,
+        ref_date,
+        repos_acquis=repos_acquis,
+    )
+
+
+def get_absence_balances_for_payslip(
+    employee_id: str, year: int, month: int
+) -> dict[str, object] | None:
+    """Soldes affichés sur le bulletin : calcul à la fin du mois de paie."""
+    hire_date = _parse_hire_date(employee_id)
+    if not hire_date:
+        return None
+    _, last_day = calendar.monthrange(year, month)
+    ref_date = date(year, month, last_day)
+    validated_list = absence_repository.list_validated_for_employees([employee_id])
+    repos_credits = get_repos_credits_by_employee_year([employee_id], ref_date.year)
+    repos_acquis = repos_credits.get(employee_id, 0.0)
+    cp_lines = compute_cp_balances_for_bulletin(hire_date, validated_list, ref_date)
+    autres = compute_absence_balances(
+        hire_date,
+        validated_list,
+        ref_date,
+        repos_acquis=repos_acquis,
+    )
+    return {
+        "date_reference": ref_date.strftime("%d/%m/%Y"),
+        "conges_payes": cp_lines["periode_courante"],
+        "conges_payes_periode_precedente": cp_lines["periode_precedente"],
+        "rtt": autres["rtt"],
+        "repos_compensateur": autres["repos_compensateur"],
+    }
+
+
+def get_my_absence_balances(employee_id: str) -> List[dict]:
+    """Soldes (CP, RTT, repos, événement familial, sans solde) pour un employé. Raises LookupError si pas de hire_date."""
+    today = date.today()
+    hire_date = _parse_hire_date(employee_id)
+    if not hire_date:
+        raise LookupError("Date d'embauche non trouvée pour l'employé.")
+
+    validated_list = absence_repository.list_validated_for_employees([employee_id])
+    balances = compute_absence_balances(
+        hire_date,
+        validated_list,
+        today,
+        repos_acquis=get_repos_credits_by_employee_year([employee_id], today.year).get(
+            employee_id, 0.0
+        ),
+    )
+    cp = balances["conges_payes"]
+    rtt = balances["rtt"]
+    repos = balances["repos_compensateur"]
+    ss_pris = count_absence_days_taken(validated_list, "sans_solde", today)
 
     return [
         {
             "type": "Congés Payés",
-            "acquired": cp_acquis,
-            "taken": cp_pris,
-            "remaining": cp_restant,
+            "acquired": cp["acquis"],
+            "taken": cp["pris"],
+            "remaining": cp["solde"],
         },
         {
             "type": "RTT",
-            "acquired": rtt_acquis,
-            "taken": rtt_pris,
-            "remaining": rtt_restant,
+            "acquired": rtt["acquis"],
+            "taken": rtt["pris"],
+            "remaining": rtt["solde"],
         },
         {
             "type": "Repos compensateur",
-            "acquired": repos_acquis,
-            "taken": repos_pris,
-            "remaining": repos_restant,
+            "acquired": repos["acquis"],
+            "taken": repos["pris"],
+            "remaining": repos["solde"],
         },
         {
             "type": "Événement familial",
@@ -333,50 +367,37 @@ def get_my_absences_page_data(employee_id: str, year: int, month: int) -> dict:
         else hire_date_raw
     )
 
-    cp_acquis = calculate_acquired_cp(hire_date, today)
-    rtt_acquis = calculate_acquired_rtt(hire_date, today)
     validated_requests = absence_repository.list_validated_for_employees([employee_id])
-    cp_pris = sum(
-        req.get("jours_payes")
-        if req.get("jours_payes") is not None
-        else len(req.get("selected_days", []))
-        for req in validated_requests
-        if req["type"] == "conge_paye"
-    )
-    rtt_pris = sum(
-        len(req["selected_days"]) for req in validated_requests if req["type"] == "rtt"
-    )
-    ss_pris = sum(
-        len(req["selected_days"])
-        for req in validated_requests
-        if req["type"] == "sans_solde"
-    )
-    repos_pris = sum(
-        len(req["selected_days"])
-        for req in validated_requests
-        if req["type"] == "repos_compensateur"
-    )
     repos_credits = get_repos_credits_by_employee_year([employee_id], today.year)
-    repos_acquis = repos_credits.get(employee_id, 0.0)
+    soldes = compute_absence_balances(
+        hire_date,
+        validated_requests,
+        today,
+        repos_acquis=repos_credits.get(employee_id, 0.0),
+    )
+    cp = soldes["conges_payes"]
+    rtt = soldes["rtt"]
+    repos = soldes["repos_compensateur"]
+    ss_pris = count_absence_days_taken(validated_requests, "sans_solde", today)
 
     balances_data = [
         {
             "type": "Congés Payés",
-            "acquired": cp_acquis,
-            "taken": cp_pris,
-            "remaining": cp_acquis - cp_pris,
+            "acquired": cp["acquis"],
+            "taken": cp["pris"],
+            "remaining": cp["solde"],
         },
         {
             "type": "RTT",
-            "acquired": rtt_acquis,
-            "taken": rtt_pris,
-            "remaining": rtt_acquis - rtt_pris,
+            "acquired": rtt["acquis"],
+            "taken": rtt["pris"],
+            "remaining": rtt["solde"],
         },
         {
             "type": "Repos compensateur",
-            "acquired": repos_acquis,
-            "taken": repos_pris,
-            "remaining": repos_acquis - repos_pris,
+            "acquired": repos["acquis"],
+            "taken": repos["pris"],
+            "remaining": repos["solde"],
         },
         {
             "type": "Événement familial",

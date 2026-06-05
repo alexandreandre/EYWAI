@@ -105,52 +105,61 @@ def _normalize(value: str) -> str:
     return " ".join(text.lower().split())
 
 
-def _month_calendar_hint(year: int, month: int) -> str:
-    """Décrit chaque jour du mois (numéro -> jour de semaine) pour guider le LLM."""
+def _month_calendar_anchor(year: int, month: int) -> str:
+    """Ancre calendaire compacte (évite d'énumérer chaque jour du mois)."""
     num_days = cal_mod.monthrange(year, month)[1]
-    lines = []
-    for day in range(1, num_days + 1):
-        weekday = _WEEKDAYS_FR[cal_mod.weekday(year, month, day)]
-        lines.append(f"{day}={weekday}")
-    return ", ".join(lines)
+    first_weekday = _WEEKDAYS_FR[cal_mod.weekday(year, month, 1)]
+    return (
+        f"Le 1er est un {first_weekday}. Le mois compte {num_days} jours "
+        f"(jour 1 à {num_days})."
+    )
 
 
 def _build_system_prompt(year: int, month: int, default_nature: str) -> str:
     num_days = cal_mod.monthrange(year, month)[1]
-    default_label = (
-        "heures prévues (prevu)" if default_nature == "prevu" else "heures faites (reel)"
-    )
     return (
-        "Tu es un assistant RH qui convertit une saisie d'heures de travail en "
-        "données structurées pour un calendrier de paie mensuel français.\n"
-        f"Période : mois {month}, année {year} ({num_days} jours).\n"
-        f"Correspondance jour du mois -> jour de la semaine : {_month_calendar_hint(year, month)}.\n\n"
-        "Règles :\n"
-        "- Pour chaque employé mentionné, retourne la liste des jours concernés avec "
-        "le nombre d'heures (heures), un type et une nature.\n"
-        "- type doit valoir l'une de ces valeurs : travail, conge, ferie, "
-        "arret_maladie, absence, weekend.\n"
-        "- Pour un jour travaillé, type=travail et heures = nombre d'heures "
-        "(ex: 7, 8, 7.5). Pour un repos/absence, heures=0 ou null avec le type adapté.\n\n"
-        "DISTINCTION IMPORTANTE — nature des heures (champ nature) :\n"
-        "- nature='prevu' = heures PRÉVUES / planifiées (planning prévisionnel, "
-        "ce qui est PLANIFIÉ ou À FAIRE). Indices : « prévu », « prévoit », "
-        "« planning », « doit faire », « est censé », « théorique », « contrat », au futur.\n"
-        "- nature='reel' = heures FAITES / réalisées (ce qui a EFFECTIVEMENT été "
-        "travaillé). Indices : « a fait », « a travaillé », « réalisé », « pointage », "
-        "« relevé de pointeuse », « effectué », au passé.\n"
-        f"- En l'absence d'indication claire, utilise nature='{default_nature}' "
-        f"({default_label}) par défaut.\n"
-        "- Une même demande peut mélanger les deux (ex: « prévu 8h mais n'a fait que 6h ») : "
-        "produis alors deux jours distincts avec la même date et une nature différente.\n"
-        "- Si la nature est ambiguë, choisis la valeur par défaut et ajoute un warning.\n\n"
-        "- N'invente jamais de jour ou d'employé non mentionné. Ne déduis pas de jours "
-        "implicites au-delà de ce qui est demandé.\n"
-        f"- jour est le numéro du jour dans le mois (1 à {num_days}).\n"
-        "- Recopie le nom de l'employé exactement comme écrit dans la source, dans le champ name.\n"
-        "- Mets dans warnings toute ambiguïté (employé non identifiable, heures illisibles, "
-        "nature prévu/fait incertaine, etc.)."
+        "Assistant RH : convertis une consigne d'heures en JSON pour un calendrier "
+        "de paie mensuel français.\n"
+        f"Période : {month}/{year}. {_month_calendar_anchor(year, month)}\n\n"
+        "Champs par jour : jour (1-" + str(num_days) + "), heures (nombre ou null), "
+        "type (travail|conge|ferie|arret_maladie|absence|weekend), "
+        "nature (prevu|reel).\n"
+        "- prevu = heures planifiées ; reel = heures faites / pointage.\n"
+        f"- Par défaut nature='{default_nature}' si non précisé.\n"
+        "- Même date peut avoir prevu et reel si la consigne le distingue.\n"
+        "- Ne crée aucun employé ni jour non mentionné.\n"
+        "- Recopie name tel qu'écrit dans la consigne.\n"
+        "- warnings : ambiguïtés (nom, heures, nature)."
     )
+
+
+def _roster_hint_for_text(roster: List[RosterEmployee], limit: int = 30) -> str:
+    """Liste compacte d'employés pour le LLM (résolution finale côté serveur)."""
+    return "; ".join(f"{e.first_name} {e.last_name}" for e in roster[:limit])
+
+
+def _roster_matching_document(
+    text: str, roster: List[RosterEmployee], *, limit: int = 40
+) -> List[RosterEmployee]:
+    """Ne garde que les employés dont le nom apparaît dans le document OCR."""
+    norm_text = _normalize(text)
+    if not norm_text:
+        return roster[:limit]
+    matched: List[RosterEmployee] = []
+    for emp in roster:
+        full = _normalize(f"{emp.first_name} {emp.last_name}")
+        last = _normalize(emp.last_name)
+        first = _normalize(emp.first_name)
+        if full in norm_text:
+            matched.append(emp)
+        elif len(last) >= 3 and last in norm_text:
+            matched.append(emp)
+        elif len(first) >= 3 and first in norm_text:
+            matched.append(emp)
+    return matched if matched else roster[:limit]
+
+
+_MAX_TIMESHEET_TEXT_CHARS = 14_000
 
 
 def _resolve_employee(raw_name: str, roster: List[RosterEmployee]) -> AiEmployeeProposal:
@@ -280,25 +289,36 @@ def parse_instruction(
     roster: List[RosterEmployee],
 ) -> AiCalendarProposalResponse:
     """Convertit une instruction en langage naturel en proposition de calendrier."""
+    if not (instruction or "").strip():
+        raise ScheduleAppError(
+            "validation", "L'instruction est vide.", status_code=400
+        )
+
+    from app.modules.schedules.application.nl_fast_path import (
+        try_fast_parse_instruction,
+    )
+
+    fast = try_fast_parse_instruction(
+        year=year,
+        month=month,
+        instruction=instruction,
+        roster=roster,
+    )
+    if fast is not None:
+        return fast
+
     if not is_llm_configured():
         raise ScheduleAppError(
             "validation",
             "L'assistant IA n'est pas configuré sur ce serveur.",
             status_code=503,
         )
-    if not (instruction or "").strip():
-        raise ScheduleAppError(
-            "validation", "L'instruction est vide.", status_code=400
-        )
 
-    roster_hint = "; ".join(
-        f"{e.first_name} {e.last_name}" for e in roster[:200]
-    )
+    roster_hint = _roster_hint_for_text(roster)
     user_prompt = (
-        "Employés de l'entreprise (utilise ces noms pour identifier qui est concerné) :\n"
+        "Employés connus (pour orthographe des noms) :\n"
         f"{roster_hint or '(non fourni)'}\n\n"
-        "Détermine pour chaque jour s'il s'agit d'heures prévues ou faites (champ nature).\n\n"
-        "Instruction du RH :\n"
+        "Consigne RH :\n"
         f"{instruction.strip()}"
     )
 
@@ -312,6 +332,7 @@ def parse_instruction(
         json_schema=_PROPOSAL_JSON_SCHEMA,
         schema_name="schedule_fill",
         model=MODEL_SCHEDULE_NL_FILL,
+        max_tokens=4096,
     )
     if result is None:
         raise ScheduleAppError(
@@ -351,16 +372,17 @@ def extract_timesheet(
     except DocumentExtractionError as e:
         raise ScheduleAppError("validation", str(e), status_code=400) from e
 
-    roster_hint = "; ".join(f"{e.first_name} {e.last_name}" for e in roster[:200])
+    if len(text) > _MAX_TIMESHEET_TEXT_CHARS:
+        text = text[:_MAX_TIMESHEET_TEXT_CHARS] + "\n…(document tronqué)"
+
+    filtered_roster = _roster_matching_document(text, roster)
+    roster_hint = _roster_hint_for_text(filtered_roster, limit=40)
     user_prompt = (
-        "Voici le texte brut extrait d'un relevé de pointeuse (peut contenir "
-        "plusieurs employés et un tableau jours x heures).\n"
-        "Un relevé de pointeuse décrit des heures FAITES (nature='reel'), sauf si le "
-        "document indique explicitement qu'il s'agit d'un planning prévisionnel "
-        "(nature='prevu').\n\n"
-        "Employés connus de l'entreprise (pour rapprochement des noms) :\n"
+        "Texte extrait d'un relevé de pointeuse (heures FAITES, nature='reel' "
+        "sauf mention explicite de planning).\n\n"
+        "Employés à rapprocher :\n"
         f"{roster_hint or '(non fourni)'}\n\n"
-        "--- TEXTE DU RELEVÉ ---\n"
+        "--- RELEVÉ ---\n"
         f"{text}"
     )
 
@@ -372,6 +394,7 @@ def extract_timesheet(
         json_schema=_PROPOSAL_JSON_SCHEMA,
         schema_name="timesheet_extraction",
         model=MODEL_TIMESHEET_EXTRACTION,
+        max_tokens=8192,
     )
     if result is None:
         raise ScheduleAppError(

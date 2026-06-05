@@ -240,6 +240,8 @@ def build_variables(
     variables["nouveau_poste"] = _s(ctx.get("nouveau_poste"))
     variables["ancienne_duree"] = _s(ctx.get("ancienne_duree"))
     variables["nouvelle_duree"] = _s(ctx.get("nouvelle_duree"))
+    variables["ancien_lieu"] = _s(ctx.get("ancien_lieu"))
+    variables["nouveau_lieu"] = _s(ctx.get("nouveau_lieu"))
 
     # --- Entreprise ---
     variables["nom_entreprise"] = _company_field(

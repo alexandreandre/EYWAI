@@ -96,16 +96,6 @@ class AbstractTrainingRepository(ABC):
         ...
 
     @abstractmethod
-    def approve_by_manager(
-        self,
-        enrollment_id: str,
-        company_id: str,
-        approved: bool,
-        rejection_reason: Optional[str],
-    ) -> Dict[str, Any]:
-        ...
-
-    @abstractmethod
     def approve_by_rh(
         self,
         enrollment_id: str,
@@ -115,14 +105,6 @@ class AbstractTrainingRepository(ABC):
         planned_start_date: Optional[str],
         planned_end_date: Optional[str],
     ) -> Dict[str, Any]:
-        ...
-
-    @abstractmethod
-    def list_pending_manager_approval(
-        self,
-        company_id: str,
-        filter_manager_employee_id: Optional[str],
-    ) -> List[Dict[str, Any]]:
         ...
 
     @abstractmethod

@@ -82,9 +82,13 @@ class UserByLoginResolver(IUserByLoginResolver):
             .eq("username", login_input)
             .execute()
         )
-        if not resp.data or len(resp.data) == 0:
+        rows = resp.data or []
+        if not rows:
             return None
-        return resp.data[0]["email"]
+        if len(rows) > 1:
+            # Username ambigu (doublons en base) — forcer la connexion par email
+            return None
+        return rows[0]["email"]
 
 
 class EmailSenderProvider(IEmailSender):

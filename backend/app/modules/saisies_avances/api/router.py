@@ -202,6 +202,26 @@ async def get_my_advance_available(
 
 
 @router.get(
+    "/employees/{employee_id}/advance-available",
+    response_model=AdvanceAvailableAmount,
+)
+async def get_employee_advance_available(
+    employee_id: str,
+    year: Optional[int] = Query(None),
+    month: Optional[int] = Query(None, ge=1, le=12),
+    current_user: User = Depends(get_current_user),
+):
+    """Récupère le montant disponible pour une avance (RH / admin)."""
+    try:
+        _require_rh_or_admin(current_user)
+        return queries.get_employee_advance_available(employee_id, year, month)
+    except SaisiesAvancesError as e:
+        _handle_error(e)
+    except Exception as e:
+        _handle_error(e)
+
+
+@router.get(
     "/employees/{employee_id}/salary-seizures",
     response_model=List[SalarySeizure],
 )

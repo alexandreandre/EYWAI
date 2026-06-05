@@ -121,6 +121,14 @@ def get_my_advance_available(employee_id: str) -> AdvanceAvailableAmount:
     return infra_mappers.to_advance_available_amount(data)
 
 
+def get_employee_advance_available(
+    employee_id: str, year: int, month: int
+) -> AdvanceAvailableAmount:
+    """Montant disponible pour une avance (RH / admin)."""
+    data = build_advance_available(employee_id, year, month)
+    return infra_mappers.to_advance_available_amount(data)
+
+
 def get_salary_advances(
     employee_id: Optional[str] = None,
     status: Optional[str] = None,
@@ -231,6 +239,36 @@ def delete_salary_seizure(seizure_id: str) -> None:
     seizure_repository.delete(seizure_id)
 
 
+def delete_salary_seizure(seizure_id: str) -> None:
+    """Supprime une saisie."""
+    seizure_repository.delete(seizure_id)
+
+
+def _validate_advance_requested_amount(
+    employee_id: str,
+    requested_amount: Decimal,
+    requested_date: date,
+) -> None:
+    """Vérifie que le montant demandé respecte le disponible (dont plafond 50 % du net)."""
+    data = build_advance_available(employee_id, requested_date.year, requested_date.month)
+    available = data["available_amount"]
+    if requested_amount <= available:
+        return
+
+    reference_net = data.get("reference_net_salary", Decimal("0"))
+    max_from_net = data.get("max_advance_from_net", Decimal("0"))
+    outstanding = data.get("outstanding_advances", Decimal("0"))
+    net_cap_remaining = max(Decimal("0"), max_from_net - outstanding)
+    if reference_net > 0 and requested_amount > net_cap_remaining:
+        raise ValidationError(
+            "Le montant demandé dépasse le plafond de 50 % du salaire net "
+            f"({max_from_net:.2f} €, net de référence : {reference_net:.2f} €)."
+        )
+    raise ValidationError(
+        f"Montant demandé supérieur au disponible ({available:.2f} €)"
+    )
+
+
 def create_salary_advance(advance_data: Any, ctx: UserContext) -> Dict[str, Any]:
     """Crée une demande d'avance (employé ou RH)."""
     if ctx.role == "collaborateur":
@@ -244,18 +282,11 @@ def create_salary_advance(advance_data: Any, ctx: UserContext) -> Dict[str, Any]
     if not company_id:
         raise NotFoundError("Employé non trouvé.")
 
-    if ctx.role == "collaborateur":
-        data = build_advance_available(
-            employee_id,
-            advance_data.requested_date.year,
-            advance_data.requested_date.month,
-        )
-        available = data["available_amount"]
-        if Decimal(str(advance_data.requested_amount)) > available:
-            raise ValidationError(
-                f"Montant demandé supérieur au disponible ({available}€)"
-            )
-
+    _validate_advance_requested_amount(
+        employee_id,
+        Decimal(str(advance_data.requested_amount)),
+        advance_data.requested_date,
+    )
     is_employee_request = ctx.role == "collaborateur"
     initial_status = domain_rules.initial_advance_status(
         is_employee_request,
@@ -291,6 +322,19 @@ def approve_salary_advance(advance_id: str, approved_by_id: Any) -> Dict[str, An
         raise NotFoundError("Avance non trouvée.")
     if advance["status"] != "pending":
         raise ValidationError("Cette avance ne peut plus être approuvée.")
+
+    requested_date_raw = advance.get("requested_date")
+    if isinstance(requested_date_raw, str):
+        requested_date = date.fromisoformat(requested_date_raw[:10])
+    else:
+        requested_date = date.today()
+
+    _validate_advance_requested_amount(
+        advance["employee_id"],
+        Decimal(str(advance["requested_amount"])),
+        requested_date,
+    )
+
     requested_amount = float(advance["requested_amount"])
     update_dict = {
         "status": "approved",

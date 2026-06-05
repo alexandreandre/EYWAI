@@ -12,7 +12,6 @@ from app.modules.training.application import commands, queries
 from app.modules.training.application import router_support as training_router
 from app.modules.training.schemas.requests import (
     EnrollmentRequestBySalarie,
-    ManagerApprovalRequest,
     RHApprovalRequest,
     TrainingCatalogCreate,
     TrainingCatalogUpdate,
@@ -67,18 +66,6 @@ def _is_rh(user: User) -> bool:
 
 def _employee_scope_id(user: User, company_id: str) -> Optional[str]:
     return queries.get_employee_id_for_user_scope(str(user.id), company_id)
-
-
-def _can_manager_act_on_enrollment(
-    user: User, enrollment_row: Dict[str, Any], company_id: str
-) -> bool:
-    if _is_rh(user):
-        return True
-    my_emp = _employee_scope_id(user, company_id)
-    mid = enrollment_row.get("manager_id")
-    if not my_emp or not mid:
-        return False
-    return str(mid) == str(my_emp)
 
 
 def _can_access_enrollment_eval_or_cert(
@@ -228,30 +215,6 @@ def route_list_enrollments(
 
 
 @router.get(
-    "/enrollments/pending-manager-approval",
-    response_model=List[TrainingEnrollment],
-)
-def route_pending_manager_approval(current_user: User = Depends(get_current_user)):
-    cid = _company_id(current_user)
-    try:
-        if _is_rh(current_user):
-            rows = training_router.list_pending_manager_approval(cid, None)
-        else:
-            my_emp = _employee_scope_id(current_user, cid)
-            if not my_emp:
-                raise HTTPException(
-                    status_code=403,
-                    detail="Profil collaborateur introuvable pour cette entreprise.",
-                )
-            rows = training_router.list_pending_manager_approval(cid, my_emp)
-        return [queries.training_enrollment_from_row(dict(x)) for x in rows]
-    except HTTPException:
-        raise
-    except Exception as e:
-        _handle_application_errors(e)
-
-
-@router.get(
     "/enrollments/pending-rh-approval",
     response_model=List[TrainingEnrollment],
 )
@@ -360,40 +323,6 @@ def route_cancel_enrollment(
         _handle_application_errors(e)
 
 
-@router.post(
-    "/enrollments/{enrollment_id}/manager-approve",
-    response_model=TrainingEnrollment,
-)
-def route_manager_approve(
-    enrollment_id: str,
-    body: ManagerApprovalRequest,
-    current_user: User = Depends(get_current_user),
-):
-    cid = _company_id(current_user)
-    try:
-        row = training_router.get_enrollment_by_id(enrollment_id, cid)
-        if not row:
-            raise HTTPException(status_code=404, detail="Inscription non trouvée.")
-        if str(row.get("status") or "") != "demande_salarie":
-            raise HTTPException(
-                status_code=400,
-                detail="Cette inscription n'est pas en attente de validation manager.",
-            )
-        if not _can_manager_act_on_enrollment(current_user, row, cid):
-            raise HTTPException(status_code=403, detail="Accès refusé.")
-        updated = training_router.approve_enrollment_by_manager(
-            enrollment_id,
-            cid,
-            body.approved,
-            body.rejection_reason,
-        )
-        return queries.training_enrollment_from_row(dict(updated))
-    except HTTPException:
-        raise
-    except Exception as e:
-        _handle_application_errors(e)
-
-
 @router.post("/enrollments/{enrollment_id}/rh-approve", response_model=TrainingEnrollment)
 def route_rh_approve(
     enrollment_id: str,
@@ -407,18 +336,23 @@ def route_rh_approve(
         row = training_router.get_enrollment_by_id(enrollment_id, cid)
         if not row:
             raise HTTPException(status_code=404, detail="Inscription non trouvée.")
-        if str(row.get("status") or "") != "approuve_manager":
+        st = str(row.get("status") or "")
+        if st not in ("demande_salarie", "approuve_manager"):
             raise HTTPException(
                 status_code=400,
-                detail="Cette inscription n'est pas en attente de validation RH.",
+                detail="Cette demande n'est pas en attente de traitement RH.",
             )
         updated = training_router.approve_enrollment_by_rh(
             enrollment_id,
             cid,
-            body.approved,
-            body.rejection_reason,
-            body.planned_start_date.isoformat() if body.planned_start_date else None,
-            body.planned_end_date.isoformat() if body.planned_end_date else None,
+            approved=body.approved,
+            rejection_reason=body.rejection_reason,
+            planned_start_date=body.planned_start_date.isoformat()
+            if body.planned_start_date
+            else None,
+            planned_end_date=body.planned_end_date.isoformat()
+            if body.planned_end_date
+            else None,
         )
         return queries.training_enrollment_from_row(dict(updated))
     except HTTPException:

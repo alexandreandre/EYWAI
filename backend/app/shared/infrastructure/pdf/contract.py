@@ -144,48 +144,100 @@ def generate_contract_pdf(
         <style>
             @page {{
                 size: A4;
-                margin: 2cm 2.5cm;
+                margin: 2.5cm 2.5cm 2cm 2.5cm;
             }}
             body {{
-                font-family: 'Helvetica', 'Arial', sans-serif;
-                line-height: 1.55;
-                color: #111;
-                font-size: 10.5pt;
+                font-family: 'Times New Roman', Times, Georgia, serif;
+                line-height: 1.45;
+                color: #000;
+                font-size: 11.5pt;
             }}
-            .header {{ text-align: center; margin-bottom: 24px; }}
-            .company-header {{ text-align: center; margin-bottom: 16px; font-size: 10pt; }}
+            .header {{
+                text-align: left;
+                margin-bottom: 18px;
+                border-bottom: 0.5pt solid #000;
+                padding-bottom: 10px;
+            }}
+            .company-header {{
+                text-align: left;
+                margin-bottom: 0;
+                font-size: 9.5pt;
+                line-height: 1.35;
+            }}
+            .company-header p {{
+                margin: 2px 0;
+            }}
+            .company-header img {{
+                max-width: 70px;
+                max-height: 35px;
+                margin-bottom: 6px;
+                display: block;
+            }}
             .title {{
-                font-size: 15pt;
+                font-size: 14pt;
                 font-weight: bold;
                 text-align: center;
-                margin: 20px 0 24px 0;
+                margin: 22px 0 18px 0;
+                padding-bottom: 8px;
+                border-bottom: 0.75pt solid #000;
                 text-transform: uppercase;
-                letter-spacing: 0.5px;
+                letter-spacing: 0.3px;
             }}
-            .parties {{ margin: 16px 0 24px 0; }}
-            .parties p {{ margin: 4px 0; }}
+            .parties {{
+                margin: 18px 0 22px 0;
+            }}
+            .parties p {{
+                margin: 5px 0;
+                text-align: justify;
+            }}
+            .parties-intro {{
+                margin-bottom: 10px;
+            }}
+            .party-block {{
+                margin-left: 24px;
+                margin-bottom: 8px;
+            }}
+            .party-separator {{
+                text-align: center;
+                margin: 12px 0;
+                font-weight: bold;
+            }}
             .subtitle {{
-                font-size: 11pt;
+                font-size: 11.5pt;
                 font-weight: bold;
                 text-align: center;
-                margin: 24px 0 16px 0;
+                margin: 22px 0 18px 0;
+                text-transform: uppercase;
+                letter-spacing: 0.2px;
             }}
-            .article {{ margin: 14px 0; page-break-inside: avoid; }}
+            .article {{
+                margin: 12px 0;
+                page-break-inside: avoid;
+            }}
             .article-title {{
                 font-weight: bold;
-                font-size: 10.5pt;
-                margin: 0 0 6px 0;
-                color: #1e3a5f;
+                font-size: 11.5pt;
+                margin: 0 0 5px 0;
+                color: #000;
+                text-transform: uppercase;
             }}
-            .article p {{ margin: 4px 0; text-align: justify; }}
+            .article p {{
+                margin: 4px 0;
+                text-align: justify;
+            }}
             .mention {{
-                font-size: 9pt;
-                color: #555;
-                margin-top: 20px;
-                font-style: italic;
+                font-size: 9.5pt;
+                color: #000;
+                margin-top: 22px;
+                text-align: justify;
+            }}
+            .fait-a {{
+                margin-top: 28px;
+                margin-bottom: 8px;
+                text-align: left;
             }}
             .signature-area {{
-                margin-top: 36px;
+                margin-top: 12px;
                 display: table;
                 width: 100%;
             }}
@@ -196,10 +248,10 @@ def generate_contract_pdf(
                 padding: 0 1%;
             }}
             .signature-line {{
-                border-top: 1px solid #333;
-                margin-top: 50px;
+                border-top: 0.5pt solid #000;
+                margin-top: 55px;
                 padding-top: 6px;
-                font-size: 9pt;
+                font-size: 9.5pt;
                 text-align: center;
             }}
         </style>
@@ -212,15 +264,15 @@ def generate_contract_pdf(
         <div class="title">Contrat de travail — {_e(contract_type)}</div>
 
         <div class="parties">
-            <p><strong>Entre les soussignés :</strong></p>
-            <p style="margin-left: 20px;">
+            <p class="parties-intro"><strong>Entre les soussignés :</strong></p>
+            <p class="party-block">
                 <strong>{_e(company_name)}</strong><br/>
                 SIRET : {company_siret}<br/>
                 Siège social : {_e(company_address)}<br/>
                 Ci-après dénommée « <strong>l'Employeur</strong> »,
             </p>
-            <p style="text-align: center; margin: 14px 0;"><strong>D'une part,</strong></p>
-            <p style="margin-left: 20px;">
+            <p class="party-separator">D'une part,</p>
+            <p class="party-block">
                 <strong>{first_name} {last_name}</strong><br/>
                 Né(e) le {date_naissance} à {lieu_naissance}<br/>
                 Nationalité : {nationalite}<br/>
@@ -228,7 +280,7 @@ def generate_contract_pdf(
                 N° de sécurité sociale : {nir}<br/>
                 Ci-après dénommé(e) « <strong>le Salarié</strong> »,
             </p>
-            <p style="text-align: center; margin: 14px 0;"><strong>D'autre part,</strong></p>
+            <p class="party-separator">D'autre part,</p>
         </div>
 
         <div class="subtitle">IL A ÉTÉ CONVENU CE QUI SUIT :</div>
@@ -321,14 +373,17 @@ def generate_contract_pdf(
         </div>
 
         <p class="mention">
-            Le présent contrat est établi en deux exemplaires originaux, remis à chaque partie.
             Il contient les mentions obligatoires prévues à l'article L1221-1 du Code du travail.
             {"Le salaire indiqué est provisoire et devra être complété avant signature définitive." if get_salary_amount(employee_data) <= 0 else ""}
         </p>
 
+        <p class="fait-a">
+            Fait à <strong>{_e(company_city)}</strong>, le <strong>{hire_date}</strong>,
+            en deux exemplaires originaux, remis à chaque partie.
+        </p>
+
         <div class="signature-area">
             <div class="signature-box">
-                <p>Fait à <strong>{_e(company_city)}</strong>, le <strong>{hire_date}</strong></p>
                 <div class="signature-line">
                     {signatory}<br/>
                     <em>{signatory_title}</em><br/>
@@ -337,7 +392,6 @@ def generate_contract_pdf(
                 </div>
             </div>
             <div class="signature-box">
-                <p>&nbsp;</p>
                 <div class="signature-line">
                     {first_name} {last_name}<br/>
                     Signature du Salarié<br/>

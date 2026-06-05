@@ -116,11 +116,6 @@ class EnrollmentRequestBySalarie(BaseModel):
     motivation: Optional[str] = None
 
 
-class ManagerApprovalRequest(BaseModel):
-    approved: bool
-    rejection_reason: Optional[str] = None
-
-
 class RHApprovalRequest(BaseModel):
     approved: bool
     rejection_reason: Optional[str] = None

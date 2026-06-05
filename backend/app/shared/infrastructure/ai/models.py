@@ -19,8 +19,8 @@ MODEL_CSE_RECORDING = GPT_4O_MINI
 MODEL_CC_RULES_EXTRACTION = "google/gemini-2.5-flash"
 
 # Saisie assistée du calendrier (page Calendriers RH)
-# - Instruction en langage naturel -> heures par jour
-MODEL_SCHEDULE_NL_FILL = GPT_4O_MINI
+# - Instruction en langage naturel -> heures par jour (Gemini Flash : rapide + JSON fiable)
+MODEL_SCHEDULE_NL_FILL = "google/gemini-2.5-flash"
 # - Relevé de pointeuse (PDF/image OCR) -> heures par jour : Gemini pour
 #   les tableaux denses multi-employés
 MODEL_TIMESHEET_EXTRACTION = "google/gemini-2.5-flash"

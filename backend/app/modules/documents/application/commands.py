@@ -81,6 +81,85 @@ def _validate_template_choice(
     return tid
 
 
+def _salaire_valeur(employee_data: Dict[str, Any]) -> Optional[float]:
+    sb = employee_data.get("salaire_de_base")
+    if isinstance(sb, dict):
+        val = sb.get("valeur", sb.get("amount"))
+        if val is not None:
+            try:
+                return float(val)
+            except (TypeError, ValueError):
+                return None
+    if sb is not None:
+        try:
+            return float(sb)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _lieu_travail_str(employee_data: Dict[str, Any]) -> str:
+    lt = employee_data.get("lieu_travail") or employee_data.get("workplace")
+    if isinstance(lt, str):
+        return lt.strip()
+    if isinstance(lt, dict):
+        return str(lt.get("libelle") or lt.get("label") or lt.get("name") or "").strip()
+    return ""
+
+
+def _duree_str(employee_data: Dict[str, Any]) -> str:
+    v = employee_data.get("duree_hebdomadaire") or employee_data.get("weekly_hours")
+    if v is None:
+        return ""
+    try:
+        return f"{float(v):g} h"
+    except (TypeError, ValueError):
+        return str(v).strip()
+
+
+def _enrichir_contexte_avenant(
+    ctx: Dict[str, Any],
+    employee_data: Dict[str, Any],
+    request: GenerateDocumentRequest,
+) -> None:
+    """Remplit ancien_* depuis l'employé et nouveau_* depuis la requête (front prioritaire)."""
+    if "ancien_salaire" not in ctx:
+        sal = _salaire_valeur(employee_data)
+        if request.ancien_salaire is not None:
+            ctx["ancien_salaire"] = float(request.ancien_salaire)
+        elif sal is not None:
+            ctx["ancien_salaire"] = sal
+
+    if "ancien_poste" not in ctx:
+        if request.ancien_poste:
+            ctx["ancien_poste"] = request.ancien_poste
+        elif employee_data.get("job_title"):
+            ctx["ancien_poste"] = str(employee_data["job_title"])
+
+    if "ancienne_duree" not in ctx:
+        if request.ancienne_duree:
+            ctx["ancienne_duree"] = request.ancienne_duree
+        else:
+            d = _duree_str(employee_data)
+            if d:
+                ctx["ancienne_duree"] = d
+
+    if "ancien_lieu" not in ctx:
+        if request.ancien_lieu:
+            ctx["ancien_lieu"] = request.ancien_lieu
+        else:
+            l = _lieu_travail_str(employee_data)
+            if l:
+                ctx["ancien_lieu"] = l
+
+    if request.nouveau_poste is not None:
+        ctx["nouveau_poste"] = request.nouveau_poste
+    if request.nouvelle_duree is not None:
+        ctx["nouvelle_duree"] = request.nouvelle_duree
+    if request.nouveau_lieu is not None:
+        ctx["nouveau_lieu"] = request.nouveau_lieu
+
+
 def generate_document(
     company_id: str,
     current_user_id: str,
@@ -111,6 +190,7 @@ def generate_document(
         ctx["motif_avenant"] = request.motif
     if "avenant" in request.document_type:
         ctx["type_avenant"] = request.document_type
+        _enrichir_contexte_avenant(ctx, employee_data, request)
     if request.nouveau_salaire is not None:
         ctx["nouveau_salaire"] = float(request.nouveau_salaire)
 

@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Tuple
 MAJORATION_PAR_CHARGE = Decimal("104.00")
 MINIMUM_UNTOUCHABLE_DIVISOR = 20  # 1/20e du salaire net
 MAX_ADVANCE_DAYS = 10
+MAX_ADVANCE_NET_RATIO = Decimal("0.5")  # Plafond : 50 % du salaire net de référence
 
 
 def calculate_seizable_amount(
@@ -87,11 +88,17 @@ def calculate_seizure_deduction(
     return seizable_amount
 
 
+def compute_max_advance_from_net(reference_net_salary: Decimal) -> Decimal:
+    """Plafond légal interne : 50 % du salaire net de référence."""
+    return reference_net_salary * MAX_ADVANCE_NET_RATIO
+
+
 def compute_advance_available_from_figures(
     daily_salary: Decimal,
     days_worked: Decimal,
     total_outstanding: Decimal,
     max_advance_days: int = MAX_ADVANCE_DAYS,
+    reference_net_salary: Decimal = Decimal("0"),
 ) -> Tuple[Decimal, Decimal]:
     """
     À partir des données déjà récupérées, calcule le montant disponible pour une avance.
@@ -101,6 +108,12 @@ def compute_advance_available_from_figures(
     available_amount = max(Decimal("0"), gross_available - total_outstanding)
     max_advance_amount = daily_salary * Decimal(str(max_advance_days))
     available_amount = min(available_amount, max_advance_amount)
+
+    if reference_net_salary > 0:
+        max_from_net = compute_max_advance_from_net(reference_net_salary)
+        net_cap_remaining = max(Decimal("0"), max_from_net - total_outstanding)
+        available_amount = min(available_amount, net_cap_remaining)
+
     return available_amount, max_advance_amount
 
 

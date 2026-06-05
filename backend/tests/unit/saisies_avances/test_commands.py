@@ -201,24 +201,58 @@ class TestCreateSalaryAdvance:
             with patch(f"{SERVICE_MODULE}.employee_company_provider") as prov:
                 with patch(f"{SERVICE_MODULE}.build_advance_available") as build:
                     prov.get_company_id.return_value = COMPANY_ID
-                    build.return_value = {"available_amount": Decimal("100")}
+                    build.return_value = {
+                        "available_amount": Decimal("100"),
+                        "reference_net_salary": Decimal("2000"),
+                        "max_advance_from_net": Decimal("1000"),
+                        "outstanding_advances": Decimal("0"),
+                    }
                     with pytest.raises(Exception) as exc_info:
                         commands.create_salary_advance(advance_data, ctx)
                 assert "Montant" in str(exc_info.value) or "disponible" in str(
                     exc_info.value
                 )
 
+    def test_create_salary_advance_rh_exceeds_net_cap_raises(self):
+        advance_data = _advance_create(requested_amount=Decimal("1500"))
+        ctx = UserContext(user_id=USER_ID, role="rh")
+        with patch(f"{SERVICE_MODULE}.employee_company_provider") as prov:
+            with patch(f"{SERVICE_MODULE}.build_advance_available") as build:
+                prov.get_company_id.return_value = COMPANY_ID
+                build.return_value = {
+                    "available_amount": Decimal("500"),
+                    "reference_net_salary": Decimal("2000"),
+                    "max_advance_from_net": Decimal("1000"),
+                    "outstanding_advances": Decimal("0"),
+                }
+                with pytest.raises(Exception) as exc_info:
+                    commands.create_salary_advance(advance_data, ctx)
+        assert "50 %" in str(exc_info.value)
+
 
 class TestApproveSalaryAdvance:
     """Commande approve_salary_advance."""
 
     def test_approve_salary_advance_returns_updated(self):
-        advance = {"id": "adv-1", "status": "pending", "requested_amount": 200.0}
+        advance = {
+            "id": "adv-1",
+            "status": "pending",
+            "requested_amount": 200.0,
+            "employee_id": EMPLOYEE_ID,
+            "requested_date": "2025-03-15",
+        }
         updated = {"id": "adv-1", "status": "approved"}
         with patch(f"{SERVICE_MODULE}.advance_repository") as repo:
-            repo.get_by_id.return_value = advance
-            repo.update.return_value = updated
-            result = commands.approve_salary_advance("adv-1", USER_ID)
+            with patch(f"{SERVICE_MODULE}.build_advance_available") as build:
+                build.return_value = {
+                    "available_amount": Decimal("500"),
+                    "reference_net_salary": Decimal("2000"),
+                    "max_advance_from_net": Decimal("1000"),
+                    "outstanding_advances": Decimal("0"),
+                }
+                repo.get_by_id.return_value = advance
+                repo.update.return_value = updated
+                result = commands.approve_salary_advance("adv-1", USER_ID)
         assert result == updated
         repo.update.assert_called_once()
         call_data = repo.update.call_args[0][1]
