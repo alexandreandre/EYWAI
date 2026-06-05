@@ -1,4 +1,4 @@
-import { Progress } from '@/components/ui/progress';
+import { SharkFinBootProgress } from '@/components/SharkFinBootProgress';
 import { useBoot } from '@/contexts/BootContext';
 
 export function AppBootScreen() {
@@ -21,7 +21,7 @@ export function AppBootScreen() {
           height={48}
         />
         <div className="w-full space-y-3">
-          <Progress value={progress} className="h-1.5" />
+          <SharkFinBootProgress value={progress} className="pt-6 pb-2" />
           <p className="text-center text-sm font-medium text-foreground">{stepLabel}</p>
           <p className="text-center text-xs text-muted-foreground">
             Préparation de vos données pour une navigation plus fluide

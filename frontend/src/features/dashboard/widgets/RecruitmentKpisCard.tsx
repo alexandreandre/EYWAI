@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getCandidates, getJobs, getRecruitmentSettings } from '@/api/recruitment';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ChevronRight, UserPlus } from 'lucide-react';
 import { queryKeys } from '@/lib/queryKeys';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
@@ -15,12 +16,12 @@ export function RecruitmentKpisCard() {
     queryFn: getRecruitmentSettings,
     enabled: Boolean(companyId),
   });
-  const { data: jobs = [] } = useQuery({
+  const { data: jobs = [], isLoading: loadingJobs } = useQuery({
     queryKey: [...queryKeys.recruitmentSettings(companyId), 'jobs'],
     queryFn: () => getJobs('active'),
     enabled: Boolean(companyId) && !!settings?.enabled,
   });
-  const { data: candidates = [] } = useQuery({
+  const { data: candidates = [], isLoading: loadingCandidates } = useQuery({
     queryKey: queryKeys.recruitmentCandidates(companyId),
     queryFn: () => getCandidates(),
     enabled: Boolean(companyId) && !!settings?.enabled,
@@ -28,6 +29,14 @@ export function RecruitmentKpisCard() {
   const inProgress = candidates.filter((c) => c.current_stage_type !== 'hired' && c.current_stage_type !== 'rejected').length;
   const hired = candidates.filter((c) => c.current_stage_type === 'hired').length;
   if (!settings?.enabled) return null;
+
+  const isLoadingKpis = loadingJobs || loadingCandidates;
+  const renderKpi = (value: number) =>
+    isLoadingKpis ? (
+      <Skeleton className="h-5 w-8" />
+    ) : (
+      <p className="font-bold text-foreground">{value}</p>
+    );
 
   return (
     <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/recruitment')}>
@@ -41,15 +50,15 @@ export function RecruitmentKpisCard() {
         <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <p className="text-muted-foreground">Offres actives</p>
-            <p className="font-bold text-foreground">{jobs.length}</p>
+            {renderKpi(jobs.length)}
           </div>
           <div>
             <p className="text-muted-foreground">En cours</p>
-            <p className="font-bold text-foreground">{inProgress}</p>
+            {renderKpi(inProgress)}
           </div>
           <div>
             <p className="text-muted-foreground">Embauchés</p>
-            <p className="font-bold text-foreground">{hired}</p>
+            {renderKpi(hired)}
           </div>
         </div>
         <Button variant="ghost" size="sm" className="mt-2 w-full" onClick={(e) => { e.stopPropagation(); navigate('/recruitment'); }}>

@@ -54,6 +54,8 @@ export interface CompanyDetails {
   adresse_rue: string | null;
   adresse_code_postal: string | null;
   adresse_ville: string | null;
+  nom_signataire_rh: string | null;
+  qualite_signataire_rh: string | null;
   settings?: { medical_follow_up_enabled?: boolean };
 }
 
@@ -113,6 +115,8 @@ export type CompanyDetailsUpdate = Partial<
     | "adresse_rue"
     | "adresse_code_postal"
     | "adresse_ville"
+    | "nom_signataire_rh"
+    | "qualite_signataire_rh"
   >
 >;
 

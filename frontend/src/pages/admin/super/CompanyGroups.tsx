@@ -61,6 +61,7 @@ export default function CompanyGroups() {
   const [newGroupLogoUrl, setNewGroupLogoUrl] = useState<string | null>(null);
   const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([]);
   const [availableCompanies, setAvailableCompanies] = useState<AvailableCompany[]>([]);
+  const [isLoadingAvailable, setIsLoadingAvailable] = useState(false);
 
   useEffect(() => {
     loadGroups();
@@ -82,11 +83,14 @@ export default function CompanyGroups() {
 
   const loadAvailableCompanies = async () => {
     try {
+      setIsLoadingAvailable(true);
       // Utiliser un groupe temporaire pour récupérer toutes les entreprises sans groupe
       const response = await apiClient.get('/api/company-groups/temp/available-companies');
       setAvailableCompanies(response.data);
     } catch (err: any) {
       log.error('Erreur lors du chargement des entreprises:', err);
+    } finally {
+      setIsLoadingAvailable(false);
     }
   };
 
@@ -242,7 +246,11 @@ export default function CompanyGroups() {
                 <p className="text-sm text-muted-foreground">
                   Sélectionnez les entreprises à inclure dans ce groupe
                 </p>
-                {availableCompanies.length === 0 ? (
+                {isLoadingAvailable ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : availableCompanies.length === 0 ? (
                   <p className="text-sm text-muted-foreground italic py-4">
                     Aucune entreprise disponible (toutes sont déjà assignées à des groupes)
                   </p>

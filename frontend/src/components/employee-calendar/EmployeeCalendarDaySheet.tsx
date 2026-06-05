@@ -32,6 +32,7 @@ interface EmployeeCalendarDaySheetProps {
   isForfaitJour: boolean;
   dayShifts?: Shift[];
   isPayrollLoading?: boolean;
+  isShiftsLoading?: boolean;
   onViewWeek?: (weekStartIso: string) => void;
 }
 
@@ -46,6 +47,7 @@ export function EmployeeCalendarDaySheet({
   isForfaitJour,
   dayShifts = [],
   isPayrollLoading = false,
+  isShiftsLoading = false,
   onViewWeek,
 }: EmployeeCalendarDaySheetProps) {
   if (day === null) return null;
@@ -129,7 +131,12 @@ export function EmployeeCalendarDaySheet({
             <h3 id="shifts-day-heading" className="text-sm font-medium mb-2">
               Créneaux publiés
             </h3>
-            {dayShifts.length === 0 ? (
+            {isShiftsLoading ? (
+              <div className="space-y-1.5">
+                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-9 w-full" />
+              </div>
+            ) : dayShifts.length === 0 ? (
               <p className="text-sm text-muted-foreground">Aucun créneau publié ce jour.</p>
             ) : (
               <ul className="flex flex-col gap-1.5">

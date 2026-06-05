@@ -8,6 +8,7 @@ import {
 } from '@/api/cse';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { formatCseDate, pickNextMeeting } from '@/lib/employeeCseUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import { ArrowRight, Calendar, Clock, Handshake } from 'lucide-react';
@@ -31,7 +32,7 @@ export function EmployeeCseDashboardCard() {
     .toISOString()
     .split('T')[0];
 
-  const { data: meetings = [] } = useQuery({
+  const { data: meetings = [], isLoading: loadingMeetings } = useQuery({
     queryKey: ['cse', 'my-meetings'],
     queryFn: () => getMeetings(),
     enabled: isElected,
@@ -73,7 +74,9 @@ export function EmployeeCseDashboardCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {nextMeeting ? (
+        {loadingMeetings ? (
+          <Skeleton className="h-9 w-full" />
+        ) : nextMeeting ? (
           <div className="text-sm">
             <p className="font-medium text-muted-foreground">Prochaine réunion</p>
             <p className="flex items-center gap-1.5 font-semibold">

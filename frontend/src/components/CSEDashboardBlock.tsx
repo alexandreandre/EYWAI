@@ -46,7 +46,7 @@ export function CSEDashboardBlock() {
   });
 
   // Charger la prochaine réunion
-  const { data: meetings = [] } = useQuery({
+  const { data: meetings = [], isLoading: loadingMeetings } = useQuery({
     queryKey: ["cse", "meetings", "upcoming"],
     queryFn: () => getMeetings("a_venir"),
     enabled: !!companyId,
@@ -59,7 +59,7 @@ export function CSEDashboardBlock() {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
 
-  const { data: delegationSummary = [] } = useQuery({
+  const { data: delegationSummary = [], isLoading: loadingDelegation } = useQuery({
     queryKey: ["cse", "delegation-summary", monthStart, monthEnd],
     queryFn: () => getDelegationSummary(monthStart, monthEnd),
     enabled: !!companyId,
@@ -72,7 +72,7 @@ export function CSEDashboardBlock() {
 
   const totalAlerts = mandateAlerts.length + electionAlerts.length;
 
-  if (loadingMandateAlerts || loadingElectionAlerts) {
+  if (loadingMandateAlerts || loadingElectionAlerts || loadingMeetings || loadingDelegation) {
     return (
       <Card>
         <CardContent className="pt-4">

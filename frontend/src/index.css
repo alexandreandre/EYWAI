@@ -188,3 +188,47 @@ All colors MUST be HSL.
     @apply bg-gradient-to-r from-red-500 to-red-600 text-white;
   }
 }
+
+/* ── Écran de démarrage : aileron de requin qui « surgit » de gauche à droite ── */
+@keyframes shark-swim {
+  0% {
+    left: 0%;
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  92% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+
+/* Bob : l'aileron tangue légèrement comme s'il fendait l'eau, sans décoller de la ligne. */
+@keyframes shark-surge {
+  0%,
+  100% {
+    transform: rotate(-3deg) translateY(0);
+  }
+  50% {
+    transform: rotate(3deg) translateY(1px);
+  }
+}
+
+.shark-swimmer {
+  animation: shark-swim 2.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+.shark-surger {
+  animation: shark-surge 0.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shark-swimmer,
+  .shark-surger {
+    animation: none;
+  }
+}

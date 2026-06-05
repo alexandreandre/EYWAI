@@ -230,7 +230,7 @@ export default function AnnualReviews({
     [list],
   );
 
-  const { data: employees = [] } = useQuery({
+  const { data: employees = [], isLoading: planningEmployeesLoading } = useQuery({
     queryKey: ["employees", activeCompanyId],
     queryFn: async () => {
       const res = await apiClient.get("/api/employees");
@@ -248,7 +248,7 @@ export default function AnnualReviews({
     enabled: !!planningEmployeeId && planningModalOpen,
   });
 
-  const { data: interviewTemplates = [] } = useQuery({
+  const { data: interviewTemplates = [], isLoading: templatesLoading } = useQuery({
     queryKey: ["interview-templates", activeCompanyId],
     queryFn: async () => {
       const res = await getTemplates();
@@ -910,7 +910,9 @@ export default function AnnualReviews({
                   ))}
                   {employees.length === 0 && (
                     <SelectItem value="_" disabled>
-                      Aucun employé disponible
+                      {planningEmployeesLoading
+                        ? "Chargement des employés…"
+                        : "Aucun employé disponible"}
                     </SelectItem>
                   )}
                 </SelectContent>
@@ -968,7 +970,7 @@ export default function AnnualReviews({
                   ))}
                 </SelectContent>
               </Select>
-              {templatesForType.length === 0 && (
+              {templatesForType.length === 0 && !templatesLoading && (
                 <p className="text-xs text-muted-foreground">
                   Aucun modèle actif pour ce type.
                   {onManageTemplates ? (

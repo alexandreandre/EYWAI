@@ -96,6 +96,8 @@ export default function CompanyPage() {
       adresse_rue: company.adresse_rue ?? undefined,
       adresse_code_postal: company.adresse_code_postal ?? undefined,
       adresse_ville: company.adresse_ville ?? undefined,
+      nom_signataire_rh: company.nom_signataire_rh ?? undefined,
+      qualite_signataire_rh: company.qualite_signataire_rh ?? undefined,
     });
     setEditOpen(true);
   }, [company]);

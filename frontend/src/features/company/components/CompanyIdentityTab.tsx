@@ -92,6 +92,16 @@ export function CompanyIdentityTab({
               <DlRow label="Email" value={company.email} />
               <DlRow label="Site web" value={company.website} />
             </dl>
+            <dl>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                Signataire des documents RH
+              </p>
+              <DlRow label="Nom" value={company.nom_signataire_rh} />
+              <DlRow label="Qualité" value={company.qualite_signataire_rh} />
+              <p className="text-xs text-muted-foreground mt-2">
+                Apparaît sur les contrats, attestations et documents générés automatiquement.
+              </p>
+            </dl>
           </div>
         </CardContent>
       </Card>
@@ -209,6 +219,31 @@ export function CompanyIdentityTab({
                 value={draft.website ?? ""}
                 onChange={(e) => onDraftChange({ ...draft, website: e.target.value })}
               />
+            </div>
+            <div className="border-t pt-4 space-y-4">
+              <p className="text-sm font-medium">Signataire des documents RH</p>
+              <div className="space-y-2">
+                <Label htmlFor="nom_signataire_rh">Nom du signataire</Label>
+                <Input
+                  id="nom_signataire_rh"
+                  placeholder="Ex. Marie Dupont"
+                  value={draft.nom_signataire_rh ?? ""}
+                  onChange={(e) =>
+                    onDraftChange({ ...draft, nom_signataire_rh: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="qualite_signataire_rh">Qualité</Label>
+                <Input
+                  id="qualite_signataire_rh"
+                  placeholder="Ex. Directeur RH, Gérant"
+                  value={draft.qualite_signataire_rh ?? ""}
+                  onChange={(e) =>
+                    onDraftChange({ ...draft, qualite_signataire_rh: e.target.value })
+                  }
+                />
+              </div>
             </div>
           </div>
           <SheetFooter>

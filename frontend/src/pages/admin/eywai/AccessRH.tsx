@@ -105,7 +105,7 @@ export default function AccessRH() {
   const [customPermissions, setCustomPermissions] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  const { data: companies = [] } = useQuery({
+  const { data: companies = [], isLoading: companiesLoading } = useQuery({
     queryKey: ["admin", "companies-list"],
     queryFn: async () => {
       const res = await apiClient.get<{ companies: CompanyRow[] }>("/api/super-admin/companies", {
@@ -285,7 +285,7 @@ export default function AccessRH() {
           </div>
           <Card>
             <CardContent className="pt-6">
-              {templatesLoading ? (
+              {templatesLoading || companiesLoading || !selectedCompanyId ? (
                 <Loader2 className="mx-auto h-6 w-6 animate-spin" />
               ) : templates.length === 0 ? (
                 <p className="text-sm text-muted-foreground">

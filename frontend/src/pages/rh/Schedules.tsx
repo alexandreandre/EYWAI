@@ -334,6 +334,7 @@ export default function Schedules() {
           rows={sortedRows}
           year={selectedYear}
           month={selectedMonth}
+          isLoading={isPageLoading}
           employeesLoadError={employeesLoadError}
           employeesLoadErrorMessage={employeesLoadErrorMessage(employeesQuery.error)}
           onRetryEmployees={() => void refetchEmployees()}

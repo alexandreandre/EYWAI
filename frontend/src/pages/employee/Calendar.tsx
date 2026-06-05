@@ -531,6 +531,7 @@ export default function EmployeeCalendarPage() {
         isForfaitJour={isForfaitJour}
         dayShifts={resolvedSheetShifts}
         isPayrollLoading={isCalendarLoading && sheetOpen}
+        isShiftsLoading={isMonthShiftsLoading && sheetOpen}
         onViewWeek={handleViewWeekFromSheet}
       />
     </EmployeePageShell>

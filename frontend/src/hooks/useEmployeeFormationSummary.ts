@@ -55,7 +55,11 @@ export function useEmployeeFormationSummary(
     staleTime: 60_000,
   });
 
-  const isLoading = reviewsQ.isLoading || enrollQ.isLoading || certsQ.isLoading;
+  const isLoading =
+    reviewsQ.isLoading ||
+    enrollQ.isLoading ||
+    certsQ.isLoading ||
+    onboardingQ.isLoading;
 
   const onboardingIncomplete =
     onboardingQ.isSuccess &&

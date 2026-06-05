@@ -3,6 +3,7 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, ChevronRight, RefreshCw } from 'lucide-react';
 import {
   Tooltip,
@@ -46,6 +47,7 @@ interface TeamPlanningViewProps {
   rows: EmployeeCalendarOverviewRow[];
   year: number;
   month: number;
+  isLoading?: boolean;
   employeesLoadError?: boolean;
   employeesLoadErrorMessage?: string;
   onRetryEmployees?: () => void;
@@ -83,6 +85,7 @@ export function TeamPlanningView({
   rows,
   year,
   month,
+  isLoading = false,
   employeesLoadError = false,
   employeesLoadErrorMessage,
   onRetryEmployees,
@@ -96,6 +99,16 @@ export function TeamPlanningView({
   const [openEditor, setOpenEditor] = useState<{ employeeId: string; day: number } | null>(null);
 
   const todayIso = new Date().toDateString();
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-16 w-full rounded-md" />
+        ))}
+      </div>
+    );
+  }
 
   if (rows.length === 0) {
     if (employeesLoadError) {

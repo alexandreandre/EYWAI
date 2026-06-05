@@ -91,7 +91,11 @@ export default function DsnTransmissions() {
         <Card>
           <CardContent className="p-4">
             <p className="text-sm text-muted-foreground">Total</p>
-            <p className="mt-1 text-2xl font-bold">{total}</p>
+            {isLoading ? (
+              <Skeleton className="mt-1 h-8 w-12" />
+            ) : (
+              <p className="mt-1 text-2xl font-bold">{total}</p>
+            )}
           </CardContent>
         </Card>
         {STATUS_FILTERS.map((s) => (
@@ -100,7 +104,11 @@ export default function DsnTransmissions() {
               <p className="text-xs text-muted-foreground">
                 {TRANSMISSION_STATUS_LABELS[s]}
               </p>
-              <p className="mt-1 text-2xl font-bold">{counts[s] ?? 0}</p>
+              {isLoading ? (
+                <Skeleton className="mt-1 h-8 w-10" />
+              ) : (
+                <p className="mt-1 text-2xl font-bold">{counts[s] ?? 0}</p>
+              )}
             </CardContent>
           </Card>
         ))}
