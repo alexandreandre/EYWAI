@@ -25,7 +25,6 @@ export function EmployeeDetailSaisiesTab({
   onDeleteSaisie,
 }: Props) {
   return (
-        <TabsContent value="saisie" className="mt-4">
           <Card>
             <CardHeader className="flex flex-row justify-between items-center">
               <div>
@@ -69,7 +68,6 @@ export function EmployeeDetailSaisiesTab({
               </Table>
             </CardContent>
           </Card>
-        </TabsContent>
 
   );
 }

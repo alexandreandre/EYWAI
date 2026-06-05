@@ -200,7 +200,6 @@ export function EmployeeDetailAugmentationsPromotionsTab({
 
   return (
     <>
-        <TabsContent value={TAB_AUGMENTATIONS_PROMOTIONS} className="mt-4">
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-0">
           <div className="space-y-6 min-w-0 lg:pr-6">
           <Card>
@@ -647,7 +646,6 @@ export function EmployeeDetailAugmentationsPromotionsTab({
           </Card>
           </div>
           </div>
-        </TabsContent>
 
       <PromotionModal
         isOpen={promotionModalOpen}
