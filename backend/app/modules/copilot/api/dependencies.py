@@ -7,10 +7,15 @@ le schéma User d’un autre module. Contrat minimal : objet avec id (str).
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Optional, Protocol
 
 
 class AuthenticatedUser(Protocol):
-    """Contrat minimal pour l’utilisateur authentifié (router copilot). Seul .id est utilisé."""
+    """Contrat minimal pour l’utilisateur authentifié (router copilot).
+
+    On utilise .id et .active_company_id (entreprise active issue du header
+    X-Active-Company, résolue côté auth).
+    """
 
     id: str
+    active_company_id: Optional[str]

@@ -19,6 +19,7 @@ from app.modules.copilot.application.service import (
     get_company_collective_agreements,
     analyze_intent_and_plan,
     execute_retrieval_step,
+    answer_app_usage_question,
     answer_collective_agreement_question,
     synthesize_final_answer,
 )
@@ -197,6 +198,29 @@ class TestAnswerCollectiveAgreementQuestion:
         mock_provider.answer_collective_agreement_question.assert_called_once_with(
             "Congés payés ?", agreement, plan
         )
+
+
+class TestAnswerAppUsageQuestion:
+    @patch("app.modules.copilot.application.service.get_openai_provider")
+    def test_delegates_to_provider_with_guide(self, mock_get_provider):
+        mock_provider = MagicMock()
+        mock_provider.answer_app_usage_question.return_value = (
+            "Menu latéral → EYWAI Paie → Lancer la paie."
+        )
+        mock_get_provider.return_value = mock_provider
+        history = [AgentMessageDto(role="user", content="Comment lancer la paie ?")]
+
+        result = answer_app_usage_question("Comment lancer la paie ?", history)
+
+        assert result == "Menu latéral → EYWAI Paie → Lancer la paie."
+        mock_provider.answer_app_usage_question.assert_called_once()
+        call_args = mock_provider.answer_app_usage_question.call_args
+        assert call_args[0][0] == "Comment lancer la paie ?"
+        assert call_args[0][1] == [
+            {"role": "user", "content": "Comment lancer la paie ?"}
+        ]
+        # Le guide produit est transmis en 3e argument et n'est pas vide.
+        assert isinstance(call_args[0][2], str) and call_args[0][2]
 
 
 class TestSynthesizeFinalAnswer:

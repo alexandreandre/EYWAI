@@ -20,6 +20,7 @@ from app.modules.copilot.application.dto import (
 )
 from app.modules.copilot.application.service import (
     analyze_intent_and_plan,
+    answer_app_usage_question,
     answer_collective_agreement_question,
     execute_retrieval_step,
     execute_sql_query,
@@ -75,11 +76,14 @@ def handle_agent_query(input_: AgentQueryInput) -> AgentQueryResult:
     prompt = input_.prompt
     conversation_history = input_.conversation_history or []
 
-    company_id = get_company_id_for_user(input_.user_id)
-    if not company_id:
-        raise LookupError("Company ID non trouvé pour cet utilisateur")
+    # Entreprise active : priorité au contexte de la requête (header X-Active-Company,
+    # géré côté auth) puis repli sur le company_id du profil. L'aide à l'utilisation du
+    # logiciel ne dépend pas de l'entreprise et reste accessible même sans company_id.
+    company_id = input_.active_company_id or get_company_id_for_user(input_.user_id)
 
-    company_agreements = get_company_collective_agreements(company_id)
+    company_agreements = (
+        get_company_collective_agreements(company_id) if company_id else []
+    )
     log_app_debug(
         logger,
         "Conventions collectives trouvées pour l'entreprise: %s",
@@ -97,6 +101,17 @@ def handle_agent_query(input_: AgentQueryInput) -> AgentQueryResult:
             clarification_question=plan.get("clarification_question"),
             thought_process=thought_process,
         )
+
+    if plan.get("requires_app_help"):
+        answer = answer_app_usage_question(prompt, conversation_history)
+        return AgentQueryResult(
+            answer=answer,
+            needs_clarification=False,
+            thought_process=thought_process + "\n\nRéponse: aide à l'utilisation du logiciel.",
+        )
+
+    if not company_id:
+        raise LookupError("Company ID non trouvé pour cet utilisateur")
 
     if plan.get("requires_collective_agreement"):
         if not company_agreements:

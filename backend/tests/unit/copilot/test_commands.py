@@ -90,9 +90,23 @@ class TestHandleAgentQuery:
                     )
                 )
 
+    @patch("app.modules.copilot.application.commands.analyze_intent_and_plan")
+    @patch("app.modules.copilot.application.commands.get_company_collective_agreements")
     @patch("app.modules.copilot.application.commands.get_company_id_for_user")
-    def test_raises_lookup_error_when_no_company(self, mock_get_company):
+    def test_raises_lookup_error_when_no_company_for_data_question(
+        self, mock_get_company, mock_get_agreements, mock_analyze
+    ):
+        # Ni entreprise active, ni company_id de profil : une question de données
+        # nécessite une entreprise → LookupError.
         mock_get_company.return_value = None
+        mock_get_agreements.return_value = []
+        mock_analyze.return_value = {
+            "needs_clarification": False,
+            "requires_app_help": False,
+            "requires_collective_agreement": False,
+            "requires_data_retrieval": True,
+            "data_retrieval_steps": ["Compter les employés"],
+        }
         os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
 
         with pytest.raises(LookupError, match="Company ID non trouvé"):
@@ -101,8 +115,79 @@ class TestHandleAgentQuery:
                     prompt="Combien d'employés ?",
                     conversation_history=[],
                     user_id="user-1",
+                    active_company_id=None,
                 )
             )
+
+    @patch("app.modules.copilot.application.commands.answer_app_usage_question")
+    @patch("app.modules.copilot.application.commands.analyze_intent_and_plan")
+    @patch("app.modules.copilot.application.commands.get_company_collective_agreements")
+    @patch("app.modules.copilot.application.commands.get_company_id_for_user")
+    def test_app_help_works_without_company(
+        self, mock_get_company, mock_get_agreements, mock_analyze, mock_app_help
+    ):
+        # L'aide à l'utilisation du logiciel ne dépend pas de l'entreprise.
+        mock_get_company.return_value = None
+        mock_get_agreements.return_value = []
+        mock_analyze.return_value = {
+            "needs_clarification": False,
+            "requires_app_help": True,
+        }
+        mock_app_help.return_value = "Menu latéral → EYWAI Paie → Lancer la paie."
+        os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
+
+        result = handle_agent_query(
+            AgentQueryInput(
+                prompt="Comment lancer la paie ?",
+                conversation_history=[],
+                user_id="user-1",
+                active_company_id=None,
+            )
+        )
+
+        assert "EYWAI Paie" in result.answer
+        mock_app_help.assert_called_once()
+
+    @patch("app.modules.copilot.application.commands.synthesize_final_answer")
+    @patch("app.modules.copilot.application.commands.execute_retrieval_step")
+    @patch("app.modules.copilot.application.commands.get_company_collective_agreements")
+    @patch("app.modules.copilot.application.commands.get_company_id_for_user")
+    @patch("app.modules.copilot.application.commands.analyze_intent_and_plan")
+    def test_active_company_id_used_over_profile_lookup(
+        self,
+        mock_analyze,
+        mock_get_company,
+        mock_get_agreements,
+        mock_retrieval,
+        mock_synthesize,
+    ):
+        # Si une entreprise active est fournie, on ne lit pas le profil.
+        mock_get_agreements.return_value = []
+        mock_analyze.return_value = {
+            "needs_clarification": False,
+            "requires_data_retrieval": True,
+            "data_retrieval_steps": ["Compter les employés"],
+        }
+        mock_retrieval.return_value = {
+            "success": True,
+            "sql": "SELECT COUNT(*) FROM employees",
+            "data": [{"count": 3}],
+        }
+        mock_synthesize.return_value = "3 employés."
+        os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
+
+        result = handle_agent_query(
+            AgentQueryInput(
+                prompt="Combien d'employés ?",
+                conversation_history=[],
+                user_id="user-1",
+                active_company_id="company-active",
+            )
+        )
+
+        assert result.answer == "3 employés."
+        mock_get_company.assert_not_called()
+        mock_get_agreements.assert_called_once_with("company-active")
 
     @patch("app.modules.copilot.application.commands.get_company_collective_agreements")
     @patch("app.modules.copilot.application.commands.get_company_id_for_user")
@@ -132,6 +217,38 @@ class TestHandleAgentQuery:
             == "Voulez-vous compter tous les employés ou seulement les CDI ?"
         )
         assert result.answer == ""
+
+    @patch("app.modules.copilot.application.commands.answer_app_usage_question")
+    @patch("app.modules.copilot.application.commands.get_company_collective_agreements")
+    @patch("app.modules.copilot.application.commands.get_company_id_for_user")
+    @patch("app.modules.copilot.application.commands.analyze_intent_and_plan")
+    def test_requires_app_help_returns_usage_answer(
+        self, mock_analyze, mock_get_company, mock_get_agreements, mock_app_help
+    ):
+        os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
+        mock_get_company.return_value = "company-123"
+        mock_get_agreements.return_value = []
+        mock_analyze.return_value = {
+            "needs_clarification": False,
+            "requires_app_help": True,
+            "requires_collective_agreement": False,
+            "requires_data_retrieval": False,
+        }
+        mock_app_help.return_value = (
+            "Pour lancer la paie : Menu latéral → EYWAI Paie → Lancer la paie."
+        )
+
+        result = handle_agent_query(
+            AgentQueryInput(
+                prompt="Comment lancer la paie ?",
+                conversation_history=[],
+                user_id="user-1",
+            )
+        )
+
+        assert result.needs_clarification is False
+        assert "EYWAI Paie" in result.answer
+        mock_app_help.assert_called_once()
 
     @patch("app.modules.copilot.application.commands.synthesize_final_answer")
     @patch("app.modules.copilot.application.commands.execute_retrieval_step")

@@ -81,6 +81,7 @@ async def handle_agent_query(
                 prompt=request.prompt,
                 conversation_history=history,
                 user_id=current_user.id,
+                active_company_id=getattr(current_user, "active_company_id", None),
             )
         )
         debug = is_app_debug_enabled()

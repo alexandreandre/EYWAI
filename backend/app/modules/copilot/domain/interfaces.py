@@ -50,6 +50,15 @@ class IOpenAIProvider(Protocol):
         """Répond à une question sur une convention collective à partir de son texte."""
         ...
 
+    def answer_app_usage_question(
+        self,
+        prompt: str,
+        conversation_history: List[Dict[str, str]],
+        feature_guide: str,
+    ) -> str:
+        """Répond à une question d'aide à l'utilisation du logiciel via le guide produit."""
+        ...
+
     def synthesize_final_answer(
         self, prompt: str, plan: Dict[str, Any], retrieval_results: List[Dict[str, Any]]
     ) -> str:

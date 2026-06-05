@@ -18,6 +18,7 @@ from app.modules.copilot.infrastructure.providers import (
     get_openai_provider,
     get_user_company_resolver,
 )
+from app.modules.copilot.infrastructure.app_knowledge import APP_FEATURE_GUIDE
 from app.modules.copilot.infrastructure.schema_context import (
     DATABASE_SCHEMA_TEXT_TO_SQL,
 )
@@ -118,6 +119,18 @@ def answer_collective_agreement_question(
     """Répond à une question sur une convention collective. Délègue à OpenAIProvider."""
     return get_openai_provider().answer_collective_agreement_question(
         prompt, agreement, plan
+    )
+
+
+def answer_app_usage_question(
+    prompt: str, conversation_history: List[AgentMessageDto]
+) -> str:
+    """Répond à une question d'aide à l'utilisation du logiciel. Délègue à OpenAIProvider."""
+    conversation_as_dicts = [
+        {"role": msg.role, "content": msg.content} for msg in conversation_history
+    ]
+    return get_openai_provider().answer_app_usage_question(
+        prompt, conversation_as_dicts, APP_FEATURE_GUIDE
     )
 
 

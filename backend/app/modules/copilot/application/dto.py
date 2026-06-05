@@ -43,6 +43,7 @@ class AgentQueryInput:
     prompt: str
     conversation_history: List[AgentMessageDto]
     user_id: str
+    active_company_id: Optional[str] = None
 
 
 @dataclass

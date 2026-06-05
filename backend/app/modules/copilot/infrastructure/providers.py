@@ -13,6 +13,7 @@ from difflib import SequenceMatcher
 from typing import Any, Dict, List
 
 from app.shared.infrastructure.ai import MODEL_COPILOT, chat_completions_create
+from app.modules.copilot.infrastructure.app_knowledge import APP_FEATURE_GUIDE
 from app.modules.copilot.infrastructure.schema_context import DATABASE_SCHEMA_AGENT
 from app.modules.copilot.infrastructure.queries import (
     get_company_collective_agreements as queries_get_company_agreements,
@@ -99,7 +100,11 @@ class OpenAIProvider:
             f"{msg.get('role', '')}: {msg.get('content', '')}"
             for msg in conversation_history[-5:]
         )
-        system_prompt = f"""Tu es un agent RH intelligent qui aide à répondre aux questions sur les employés ET les conventions collectives.
+        system_prompt = f"""Tu es un agent RH intelligent. Tu réponds à TROIS familles de questions :
+1. Les données RH de l'entreprise (employés, paie, absences, etc.) → via SQL.
+2. Les conventions collectives → via leur texte.
+3. L'aide à l'utilisation du logiciel EYWAI (« comment faire X ? », « où trouver Y ? »,
+   « à quoi sert tel module ? ») → via le guide produit.
 
 Date actuelle: {date.today().isoformat()}
 
@@ -117,6 +122,7 @@ Tu dois retourner un JSON avec cette structure:
   "intent": "description de l'intention en une phrase",
   "needs_clarification": true/false,
   "clarification_question": "question à poser si besoin de clarification" ou null,
+  "requires_app_help": true/false,
   "requires_employee_search": true/false,
   "employee_query": "nom de l'employé à rechercher" ou null,
   "requires_collective_agreement": true/false,
@@ -127,15 +133,28 @@ Tu dois retourner un JSON avec cette structure:
 }}
 
 Règles importantes:
-1. Si le nom d'un employé est mentionné mais semble incomplet ou ambigu, demande une clarification
-2. Si la question nécessite plusieurs données (ex: "combien gagne X et Y"), prévois plusieurs étapes
-3. Si la question est vague (ex: "combien d'employés"), demande de préciser (type de contrat? statut?)
-4. **NOUVEAU**: Si la question concerne une convention collective, active requires_collective_agreement: true
-5. **NOUVEAU**: Si plusieurs conventions existent et que la question ne précise pas laquelle, demande une clarification
-6. **NOUVEAU**: Si une seule convention existe, utilise-la automatiquement (agreement_id_if_unique)
-7. Détecte les questions sur conventions: congés, RTT, temps de travail, période d'essai, préavis, jours fériés, classifications, etc.
+1. **AIDE LOGICIEL (prioritaire)** : si l'utilisateur demande comment utiliser le logiciel,
+   où se trouve une fonctionnalité, comment faire une action, à quoi sert un module / un écran /
+   un bouton, ou demande de l'aide pour naviguer, active requires_app_help: true et NE déclenche
+   ni recherche employé, ni convention, ni requête de données (mets les autres à false).
+   Ce type de question ne nécessite jamais de clarification.
+2. Si le nom d'un employé est mentionné mais semble incomplet ou ambigu, demande une clarification
+3. Si la question nécessite plusieurs données (ex: "combien gagne X et Y"), prévois plusieurs étapes
+4. Si la question (de données) est vague (ex: "combien d'employés"), demande de préciser (type de contrat? statut?)
+5. Si la question concerne une convention collective, active requires_collective_agreement: true
+6. Si plusieurs conventions existent et que la question ne précise pas laquelle, demande une clarification
+7. Si une seule convention existe, utilise-la automatiquement (agreement_id_if_unique)
+8. Détecte les questions sur conventions: congés, RTT, temps de travail, période d'essai, préavis, jours fériés, classifications, etc.
 
 Exemples:
+- "Comment lancer la paie ?" → requires_app_help: true
+- "Où je trouve les notes de frais ?" → requires_app_help: true
+- "Comment ajouter un nouvel employé ?" → requires_app_help: true
+- "À quoi sert le module CSE ?" → requires_app_help: true
+- "Comment un salarié demande un congé ?" → requires_app_help: true
+- "Où trouver les identifiants de connexion d'un employé ?" → requires_app_help: true
+- "Comment récupérer le mot de passe d'un collaborateur ?" → requires_app_help: true
+- "Où est le PDF de création de compte ?" → requires_app_help: true
 - "Combien gagne Jean" → requires_employee_search: true, requires_data_retrieval: true
 - "Nombre d'employés" → needs_clarification: true (tous? CDI seulement? cadres?)
 - "Combien de jours de congés payés par an ?" → requires_collective_agreement: true
@@ -170,6 +189,60 @@ Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire."""
                 "data_retrieval_steps": ["Requête SQL simple"],
                 "estimated_sql_queries": [],
             }
+
+    def answer_app_usage_question(
+        self,
+        prompt: str,
+        conversation_history: List[Dict[str, str]],
+        feature_guide: str = APP_FEATURE_GUIDE,
+    ) -> str:
+        conversation_context = "\n".join(
+            f"{msg.get('role', '')}: {msg.get('content', '')}"
+            for msg in conversation_history[-5:]
+        )
+        system_prompt = f"""Tu es l'assistant intégré du logiciel RH EYWAI. Tu aides les
+utilisateurs (gestionnaires RH et salariés) à se servir du logiciel : où trouver une
+fonctionnalité, comment réaliser une action, à quoi sert un module ou un écran.
+
+Tu disposes du guide officiel des fonctionnalités et de la navigation ci-dessous.
+
+--- GUIDE DES FONCTIONNALITÉS EYWAI ---
+{feature_guide}
+--- FIN DU GUIDE ---
+
+{f"Historique de conversation récent:{chr(10)}{conversation_context}{chr(10)}" if conversation_context else ""}
+Règles de réponse:
+- Réponds en français, de manière claire, concise et orientée action.
+- Donne le chemin de navigation exact en t'appuyant sur les libellés du guide
+  (ex. « Menu latéral → EYWAI Paie → Notes de frais »).
+- Précise si la fonctionnalité concerne l'espace RH ou l'espace collaborateur.
+- Quand c'est utile, liste les étapes à suivre sous forme de courte liste numérotée.
+- Pour les titres de section (ex. Côté RH, Chemin alternatif), utilise le gras
+  avec la syntaxe **Titre :** — les astérisques ne seront pas affichées, seul le
+  gras le sera. N'utilise pas d'autre syntaxe Markdown (pas de #, pas de listes à
+  puces avec *, pas d'italique avec un seul astérisque).
+- Ne mentionne JAMAIS de détails techniques (routes /url, code, tables).
+- N'invente aucune fonctionnalité, bouton ou écran absent du guide. Si la demande
+  ne correspond à rien dans le guide, dis-le honnêtement et oriente vers le module
+  Support."""
+
+        try:
+            response = chat_completions_create(
+                model=MODEL_COPILOT,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.3,
+                max_tokens=1200,
+            )
+            return (response.choices[0].message.content or "").strip()
+        except Exception as e:
+            logging.error("Erreur lors de la réponse d'aide logiciel: %s", e)
+            return (
+                "Je rencontre des difficultés pour répondre à votre question sur "
+                "l'utilisation du logiciel. Pouvez-vous reformuler ?"
+            )
 
     def generate_sql_for_step(
         self, step_description: str, context: Dict[str, Any]
