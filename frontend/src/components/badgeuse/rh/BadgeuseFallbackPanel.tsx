@@ -41,7 +41,7 @@ function CandidateRow({
   onPunch: (c: PunchCandidate) => void;
 }) {
   const actionLabel =
-    candidate.next_action === "ENTREE" ? "Entrée" : "Sortie";
+    candidate.next_action === "ENTREE" ? "Marquer comme entré" : "Sortie";
 
   return (
     <button
@@ -67,14 +67,7 @@ function CandidateRow({
           </p>
         )}
       </div>
-      <span
-        className={cn(
-          "shrink-0 rounded-md px-2.5 py-1 text-xs font-semibold",
-          candidate.next_action === "ENTREE"
-            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
-            : "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200"
-        )}
-      >
+      <span className="shrink-0 rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground">
         {actionLabel}
       </span>
     </button>

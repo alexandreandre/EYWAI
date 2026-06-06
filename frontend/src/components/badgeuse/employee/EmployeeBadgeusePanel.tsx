@@ -1,10 +1,7 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Maximize2, ScanLine } from "lucide-react";
-import {
-  getMyBadgeuseStatusToday,
-  toggleMyBadge,
-} from "@/api/badgeuse";
+import { getMyBadgeQr, getMyBadgeuseStatusToday } from "@/api/badgeuse";
 import {
   EmployeePageHeader,
   employeePageClassName,
@@ -12,6 +9,7 @@ import {
 import { BadgeQrDisplay } from "@/components/badgeuse/BadgeQrDisplay";
 import { BadgeuseDayTimeline } from "@/components/badgeuse/employee/BadgeuseDayTimeline";
 import { formatSecondsToHoursMinutes } from "@/lib/badgeuseFormat";
+import { todayIso } from "@/lib/badgeuseApiUtils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,38 +21,30 @@ import {
 import { cn } from "@/lib/utils";
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
-
 const PAGE_ROOT = employeePageClassName;
 /** Cartes centrées ; le titre reste aligné à gauche sur toute la largeur du main */
 const CONTENT_COLUMN = "mx-auto w-full max-w-3xl space-y-4";
 
 export function EmployeeBadgeusePanel() {
-  const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState(todayIso);
-  const [error, setError] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
   const isToday = selectedDate === todayIso();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["badgeuse", "status-today", selectedDate],
-    queryFn: () => getMyBadgeuseStatusToday(selectedDate),
+    queryFn: () =>
+      getMyBadgeuseStatusToday(isToday ? undefined : selectedDate),
   });
 
-  const mutation = useMutation({
-    mutationFn: toggleMyBadge,
-    onSuccess: (newStatus) => {
-      queryClient.setQueryData(["badgeuse", "status-today", todayIso()], newStatus);
-      queryClient.invalidateQueries({ queryKey: ["badgeuse", "status-today", selectedDate] });
-      setError(null);
-    },
-    onError: (err: unknown) => {
-      const message =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data
-          ?.detail ||
-        (err as Error)?.message ||
-        "Une erreur est survenue lors du badgeage.";
-      setError(String(message));
-    },
+  const { data: qrFallback } = useQuery({
+    queryKey: ["badgeuse", "my-qr"],
+    queryFn: getMyBadgeQr,
+    enabled:
+      !isLoading &&
+      !isError &&
+      isToday &&
+      Boolean(data?.is_eligible_for_badgeuse) &&
+      !data?.qr_payload,
   });
 
   const pageHeader = (description?: string) => (
@@ -104,7 +94,10 @@ export function EmployeeBadgeusePanel() {
 
   const totalLabel = formatSecondsToHoursMinutes(data.total_seconds);
   const inPresence = data.next_action === "SORTIE";
-  const showToggle = isToday && (data.allow_self_toggle !== false);
+  const qrPayload = data.qr_payload ?? qrFallback?.qr_payload;
+  const qrDisplayName =
+    data.employee_display_name ?? qrFallback?.employee_display_name;
+  const qrUsername = data.badge_username ?? qrFallback?.badge_username;
 
   return (
     <div className={PAGE_ROOT}>
@@ -161,14 +154,14 @@ export function EmployeeBadgeusePanel() {
         </div>
       </Card>
 
-      {isToday && data.qr_payload && (
+      {isToday && qrPayload && (
         <Card className="p-6 flex flex-col items-center">
           <Dialog>
             <div className="relative">
               <BadgeQrDisplay
-                payload={data.qr_payload}
-                displayName={data.employee_display_name}
-                username={data.badge_username}
+                payload={qrPayload}
+                displayName={qrDisplayName}
+                username={qrUsername}
                 size={180}
                 allowDownload
               />
@@ -186,9 +179,9 @@ export function EmployeeBadgeusePanel() {
             </div>
             <DialogContent className="flex flex-col items-center max-w-sm">
               <BadgeQrDisplay
-                payload={data.qr_payload}
-                displayName={data.employee_display_name}
-                username={data.badge_username}
+                payload={qrPayload}
+                displayName={qrDisplayName}
+                username={qrUsername}
                 size={280}
                 allowDownload
               />
@@ -200,25 +193,6 @@ export function EmployeeBadgeusePanel() {
       <Card className="p-4">
         <BadgeuseDayTimeline data={data} />
       </Card>
-
-      {showToggle && (
-        <Card className="p-4 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
-            Badgeage à distance (télétravail)
-          </p>
-          <Button
-            size="lg"
-            onClick={() => mutation.mutate()}
-            disabled={mutation.isPending}
-          >
-            {mutation.isPending
-              ? "Enregistrement…"
-              : data.next_action === "ENTREE"
-                ? "Badger mon arrivée"
-                : "Badger mon départ"}
-          </Button>
-        </Card>
-      )}
 
       {isToday && data.allow_self_toggle === false && (
         <p className="text-center text-sm text-muted-foreground">

@@ -1,8 +1,7 @@
 import { RhPageHeader } from '@/components/layout';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
 import { isAxiosError } from "axios";
-import { ArrowLeft, AlertTriangle, RefreshCw, UserX, Users } from "lucide-react";
+import { AlertTriangle, RefreshCw, ScanLine, UserX, Users } from "lucide-react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { getBadgeuseDashboardToday } from "@/api/badgeuse";
 import { QrScannerPanel } from "@/components/badgeuse/rh/QrScannerPanel";
@@ -28,6 +27,16 @@ export default function BadgeuseRhScanPage() {
   const { activeCompany } = useCompany();
   const queryClient = useQueryClient();
   const companyId = activeCompany?.company_id;
+  const headerLogo = activeCompany?.logo_url ? (
+    <img
+      src={activeCompany.logo_url}
+      alt={`Logo ${activeCompany.company_name}`}
+      className="h-9 w-auto max-w-[160px] object-contain"
+      style={{ transform: `scale(${activeCompany.logo_scale || 1})` }}
+    />
+  ) : (
+    <img src="/Colorplast.png" alt="Logo" className="h-9 w-auto" />
+  );
 
   const {
     data: dashboard,
@@ -59,20 +68,20 @@ export default function BadgeuseRhScanPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/badgeuse-rh">
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              Pilotage
-            </Link>
-          </Button>
-          <RhPageHeader
-            title="Scan badgeuse"
-            description="QR devant la caméra, ou secours sans téléphone ci-dessous"
-          />
-        </div>
-      </div>
+      <header className="flex items-center justify-between gap-4 border-b pb-4">
+        <div className="min-w-0">{headerLogo}</div>
+        {activeCompany?.company_name ? (
+          <p className="truncate text-sm font-medium text-muted-foreground">
+            {activeCompany.company_name}
+          </p>
+        ) : null}
+      </header>
+
+      <RhPageHeader
+        title="Badgeuse"
+        icon={<ScanLine />}
+        description="Scannez votre QR code devant la caméra, ou utilisez le mode secours ci-dessous"
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4 flex-1">
         <Card className="overflow-hidden">

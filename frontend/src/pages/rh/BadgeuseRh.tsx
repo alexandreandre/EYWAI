@@ -2,7 +2,8 @@ import { RhPageHeader } from '@/components/layout';
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Download, RefreshCw, Trash2, UserX, Users } from "lucide-react";
+import { AlertTriangle, Download, ExternalLink, RefreshCw, Trash2, UserX, Users } from "lucide-react";
+import { BADGEUSE_RH_TERMINAL_PATH } from "@/lib/badgeuseRoutes";
 import { useCompany } from "@/contexts/CompanyContext";
 import {
   getCompanyBadgeuseSummary,
@@ -222,6 +223,18 @@ export default function BadgeuseRhPage() {
       <RhPageHeader
         title="Badgeuse"
         description="Scan, secours sans QR et pilotage des pointages"
+        actions={
+          <Button variant="outline" size="sm" asChild>
+            <a
+              href={BADGEUSE_RH_TERMINAL_PATH}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <ExternalLink className="mr-2 h-4 w-4" aria-hidden />
+              Ouvrir dans un nouvel onglet
+            </a>
+          </Button>
+        }
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>

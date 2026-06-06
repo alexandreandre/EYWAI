@@ -25,6 +25,7 @@ import { BackgroundDataIndicator } from '@/components/BackgroundDataIndicator';
 import * as Pages from '@/app/lazyPages';
 import { employeeCollaboratorRoutes } from '@/app/employeeRoutes';
 import { isEmployeeOnlyPath } from '@/lib/routeAccess';
+import { BADGEUSE_RH_TERMINAL_PATH } from '@/lib/badgeuseRoutes';
 
 function EmployeeLayout() {
   const { accessibleCompanies, activeCompany } = useCompany();
@@ -110,6 +111,28 @@ function ProtectedRoutes() {
       <Routes>
         <Route element={<EmployeeLayout />}>{employeeCollaboratorRoutes}</Route>
       </Routes>
+    );
+  }
+
+  const isRhBadgeuseTerminal =
+    !isCollaborateurRhView &&
+    (location.pathname === BADGEUSE_RH_TERMINAL_PATH ||
+      location.pathname === '/badgeuse-rh/scan');
+
+  if (location.pathname === '/badgeuse-rh/scan') {
+    return <Navigate to={BADGEUSE_RH_TERMINAL_PATH} replace />;
+  }
+
+  if (isRhBadgeuseTerminal) {
+    return (
+      <div className="min-h-screen bg-background">
+        <main className="mx-auto w-full max-w-6xl p-4 sm:p-6 lg:p-8">
+          <BackgroundDataIndicator />
+          <Routes>
+            <Route path={BADGEUSE_RH_TERMINAL_PATH} element={<Pages.BadgeuseRhScanPage />} />
+          </Routes>
+        </main>
+      </div>
     );
   }
 
@@ -225,7 +248,6 @@ function ProtectedRoutes() {
                   <Route path="/onboarding" element={<Pages.OnboardingHubPage />} />
                   <Route path="/onboarding/:employeeId" element={<Pages.OnboardingPage />} />
                   <Route path="/badgeuse-rh" element={<Pages.BadgeuseRhPage />} />
-                  <Route path="/badgeuse-rh/scan" element={<Navigate to="/badgeuse-rh" replace />} />
                   <Route path="/simulation" element={<Pages.Simulation />} />
                   <Route path="/exports" element={<Pages.Exports />} />
                   <Route path="/company" element={<Pages.CompanyPage />} />
