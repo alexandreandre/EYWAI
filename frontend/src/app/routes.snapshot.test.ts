@@ -4,12 +4,29 @@ import path from 'path';
 
 const baselinePath = path.resolve(__dirname, '../../scripts/.baseline/pages-routes.json');
 
-function extractRoutePaths(appSource: string): string[] {
-  const paths: string[] = [];
-  const re = /<Route\s+[^>]*path=["']([^"']+)["']/g;
+function readRouteConstants(frontendRoot: string): Record<string, string> {
+  const badgeuseRoutesPath = path.resolve(frontendRoot, 'src/lib/badgeuseRoutes.ts');
+  const source = fs.readFileSync(badgeuseRoutesPath, 'utf8');
+  const constants: Record<string, string> = {};
+  const re = /export const (\w+) = ['"]([^'"]+)['"]/g;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(appSource)) !== null) {
+  while ((m = re.exec(source)) !== null) {
+    constants[m[1]] = m[2];
+  }
+  return constants;
+}
+
+function extractRoutePaths(appSource: string, routeConstants: Record<string, string>): string[] {
+  const paths: string[] = [];
+  const literalRe = /<Route\s+[^>]*path=["']([^"']+)["']/g;
+  let m: RegExpExecArray | null;
+  while ((m = literalRe.exec(appSource)) !== null) {
     paths.push(m[1]);
+  }
+  const constRe = /<Route\s+[^>]*path=\{([A-Z_][A-Z0-9_]*)\}/g;
+  while ((m = constRe.exec(appSource)) !== null) {
+    const resolved = routeConstants[m[1]];
+    if (resolved) paths.push(resolved);
   }
   return paths.sort();
 }
@@ -38,10 +55,12 @@ describe('routes snapshot (post pages migration)', () => {
       routePaths: string[];
       lazyExportNames: string[];
     };
-    const appSource = fs.readFileSync(path.resolve(__dirname, '../App.tsx'), 'utf8');
+    const frontendRoot = path.resolve(__dirname, '../..');
+    const appSource = fs.readFileSync(path.resolve(frontendRoot, 'src/App.tsx'), 'utf8');
     const lazySource = fs.readFileSync(path.resolve(__dirname, 'lazyPages.ts'), 'utf8');
+    const routeConstants = readRouteConstants(frontendRoot);
 
-    expect(extractRoutePaths(appSource)).toEqual(baseline.routePaths);
+    expect(extractRoutePaths(appSource, routeConstants)).toEqual(baseline.routePaths);
     expect(extractLazyExports(lazySource)).toEqual(baseline.lazyExportNames);
   });
 });

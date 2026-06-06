@@ -15,12 +15,29 @@ const baselinePath = path.join(__dirname, '.baseline', 'pages-routes.json');
 const appPath = path.join(frontendRoot, 'src', 'App.tsx');
 const lazyPath = path.join(frontendRoot, 'src', 'app', 'lazyPages.ts');
 
-function extractRoutePaths(appSource) {
-  const paths = [];
-  const re = /<Route\s+[^>]*path=["']([^"']+)["']/g;
+function readRouteConstants() {
+  const badgeuseRoutesPath = path.join(frontendRoot, 'src', 'lib', 'badgeuseRoutes.ts');
+  const source = fs.readFileSync(badgeuseRoutesPath, 'utf8');
+  const constants = {};
+  const re = /export const (\w+) = ['"]([^'"]+)['"]/g;
   let m;
-  while ((m = re.exec(appSource)) !== null) {
+  while ((m = re.exec(source)) !== null) {
+    constants[m[1]] = m[2];
+  }
+  return constants;
+}
+
+function extractRoutePaths(appSource, routeConstants) {
+  const paths = [];
+  const literalRe = /<Route\s+[^>]*path=["']([^"']+)["']/g;
+  let m;
+  while ((m = literalRe.exec(appSource)) !== null) {
     paths.push(m[1]);
+  }
+  const constRe = /<Route\s+[^>]*path=\{([A-Z_][A-Z0-9_]*)\}/g;
+  while ((m = constRe.exec(appSource)) !== null) {
+    const resolved = routeConstants[m[1]];
+    if (resolved) paths.push(resolved);
   }
   return paths.sort();
 }
@@ -46,9 +63,10 @@ function extractLazyExports(lazySource) {
 function readSnapshot() {
   const appSource = fs.readFileSync(appPath, 'utf8');
   const lazySource = fs.readFileSync(lazyPath, 'utf8');
+  const routeConstants = readRouteConstants();
   return {
     generatedAt: new Date().toISOString(),
-    routePaths: extractRoutePaths(appSource),
+    routePaths: extractRoutePaths(appSource, routeConstants),
     lazyExportNames: extractLazyExports(lazySource),
   };
 }

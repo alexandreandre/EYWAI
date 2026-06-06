@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-04T17:57:19.000Z",
+  "generatedAt": "2026-06-06T00:24:06.707Z",
   "routePaths": [
     "*",
     "*",
@@ -13,7 +13,7 @@
     "/augmentations-collectives",
     "/augmentations-et-promotions",
     "/badgeuse-rh",
-    "/badgeuse-rh/scan",
+    "/badgeuse-rh/terminal",
     "/catalogue-formations",
     "/company",
     "/cse",
