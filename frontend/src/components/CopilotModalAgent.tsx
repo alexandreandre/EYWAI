@@ -129,14 +129,9 @@ export function CopilotModalAgent({ isOpen, onClose }: CopilotModalProps) {
         <div className="flex min-h-[360px] max-h-[480px] flex-1 flex-col overflow-y-auto px-6 py-5">
           {messages.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center text-center">
-              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-100 via-rose-50 to-fuchsia-100 shadow-sm">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-100 via-rose-50 to-fuchsia-100 shadow-sm">
                 <Sparkles className="h-8 w-8 text-rose-500" />
               </div>
-              <p className="max-w-lg text-sm leading-relaxed text-muted-foreground">
-                Formulez votre question comme vous le feriez à un collègue RH : une
-                donnée à retrouver, une règle de convention collective, ou de l&apos;aide
-                pour utiliser le logiciel. L&apos;assistant vous répond directement ici.
-              </p>
             </div>
           ) : (
             <div className="space-y-4">
