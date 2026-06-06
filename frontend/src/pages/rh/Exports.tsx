@@ -60,8 +60,7 @@ export default function Exports() {
           </TabsTrigger>
           <TabsTrigger value="planifies" className="flex items-center gap-2 text-xs sm:text-sm">
             <CalendarClock className="h-4 w-4 shrink-0" />
-            <span className="hidden sm:inline">Planifiés</span>
-            <span className="sm:hidden">Planif.</span>
+            Envois
           </TabsTrigger>
           <TabsTrigger value="historique" className="flex items-center gap-2 text-xs sm:text-sm">
             <History className="h-4 w-4 shrink-0" />
