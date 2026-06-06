@@ -7,14 +7,31 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
-import { Download, Calculator, Info, Save, FolderOpen } from "lucide-react";
+import { Download, Calculator, Info, Save, CheckCircle2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import apiClient from '@/api/apiClient';
+import * as saisiesApi from '@/api/saisies';
 
 import { log } from '@/lib/logger';
-import { downloadBlob, openBlobInNewTab } from '@/lib/downloadBlob';
+import { downloadBlob } from '@/lib/downloadBlob';
+
+const MONTH_OPTIONS = [
+  { value: 1, label: "Janvier" },
+  { value: 2, label: "Février" },
+  { value: 3, label: "Mars" },
+  { value: 4, label: "Avril" },
+  { value: 5, label: "Mai" },
+  { value: 6, label: "Juin" },
+  { value: 7, label: "Juillet" },
+  { value: 8, label: "Août" },
+  { value: 9, label: "Septembre" },
+  { value: 10, label: "Octobre" },
+  { value: 11, label: "Novembre" },
+  { value: 12, label: "Décembre" },
+];
 // Types
 interface Employee {
   id: string;
@@ -83,6 +100,14 @@ export function ParticipationInteressementTab() {
   const [simulationName, setSimulationName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [selectedSimulationId, setSelectedSimulationId] = useState<string>('');
+
+  // Validation du calcul : création des saisies de paie (éléments variables)
+  const [showValidateDialog, setShowValidateDialog] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const [validateMonth, setValidateMonth] = useState<number>(new Date().getMonth() + 1);
+  const [validateYear, setValidateYear] = useState<number>(new Date().getFullYear());
+  const [validateSocial, setValidateSocial] = useState<boolean>(false);
+  const [validateTaxable, setValidateTaxable] = useState<boolean>(false);
 
   // Charger le PASS depuis Supabase
   useEffect(() => {
@@ -465,6 +490,88 @@ export function ParticipationInteressementTab() {
       };
     });
   }, [employeeData, participationDistribution, interessementDistribution]);
+
+  // Lignes de paie qui seront créées à la validation (montants > 0)
+  const linesPreview = useMemo(() => {
+    let participationCount = 0;
+    let interessementCount = 0;
+    results.forEach((r) => {
+      if (r.participationAmount > 0.005) participationCount += 1;
+      if (interessementEnabled && r.interessementAmount > 0.005) interessementCount += 1;
+    });
+    return {
+      participationCount,
+      interessementCount,
+      total: participationCount + interessementCount,
+    };
+  }, [results, interessementEnabled]);
+
+  const openValidateDialog = () => {
+    // Par défaut, la paie est versée l'année qui suit l'exercice de référence
+    setValidateYear(year + 1);
+    setValidateMonth(new Date().getMonth() + 1);
+    setShowValidateDialog(true);
+  };
+
+  // Valider le calcul : crée une ligne de saisie de paie par employé et par dispositif
+  const handleValidateCalculation = async () => {
+    const payloads: saisiesApi.MonthlyInputCreate[] = [];
+    results.forEach((r) => {
+      if (r.participationAmount > 0.005) {
+        payloads.push({
+          employee_id: r.employeeId,
+          year: validateYear,
+          month: validateMonth,
+          name: `Participation ${year}`,
+          description: `Participation aux bénéfices (exercice ${year})`,
+          amount: Math.round(r.participationAmount * 100) / 100,
+          is_socially_taxed: validateSocial,
+          is_taxable: validateTaxable,
+        });
+      }
+      if (interessementEnabled && r.interessementAmount > 0.005) {
+        payloads.push({
+          employee_id: r.employeeId,
+          year: validateYear,
+          month: validateMonth,
+          name: `Intéressement ${year}`,
+          description: `Intéressement (exercice ${year})`,
+          amount: Math.round(r.interessementAmount * 100) / 100,
+          is_socially_taxed: validateSocial,
+          is_taxable: validateTaxable,
+        });
+      }
+    });
+
+    if (payloads.length === 0) {
+      toast({
+        title: "Aucune ligne à créer",
+        description: "Tous les montants calculés sont nuls. Renseignez d'abord les données de l'exercice.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsValidating(true);
+    try {
+      await saisiesApi.createMonthlyInputs(payloads);
+      const monthLabel = MONTH_OPTIONS.find((m) => m.value === validateMonth)?.label ?? '';
+      toast({
+        title: "Saisies créées",
+        description: `${payloads.length} ligne(s) ajoutée(s) aux saisies de ${monthLabel} ${validateYear}. Retrouvez-les dans l'onglet Primes.`,
+      });
+      setShowValidateDialog(false);
+    } catch (error: any) {
+      log.error('Erreur lors de la validation du calcul:', error);
+      toast({
+        title: "Erreur",
+        description: error.response?.data?.detail || "Impossible de créer les saisies de paie.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsValidating(false);
+    }
+  };
 
   // Export CSV
   const exportToCSV = () => {
@@ -916,14 +1023,23 @@ export function ParticipationInteressementTab() {
         </CardContent>
       </Card>
 
-      {/* Bouton de sauvegarde en bas de page */}
-      <div className="flex justify-end pt-4">
-        <Button 
-          onClick={() => setShowSaveDialog(true)} 
+      {/* Actions en bas de page */}
+      <div className="flex flex-col gap-2 pt-4 sm:flex-row sm:justify-end">
+        <Button
+          onClick={() => setShowSaveDialog(true)}
           size="lg"
+          variant="outline"
         >
           <Save className="h-4 w-4 mr-2" />
           Sauvegarder la simulation
+        </Button>
+        <Button
+          onClick={openValidateDialog}
+          size="lg"
+          disabled={linesPreview.total === 0}
+        >
+          <CheckCircle2 className="h-4 w-4 mr-2" />
+          Valider et créer les saisies
         </Button>
       </div>
 
@@ -964,6 +1080,113 @@ export function ParticipationInteressementTab() {
             </Button>
             <Button onClick={handleSaveSimulation} disabled={isSaving || !simulationName.trim()}>
               {isSaving ? "Sauvegarde..." : "Sauvegarder"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog pour valider le calcul et créer les saisies de paie */}
+      <Dialog open={showValidateDialog} onOpenChange={setShowValidateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Valider le calcul et créer les saisies</DialogTitle>
+            <DialogDescription>
+              Une ligne d'élément variable de paie sera créée pour chaque salarié sur la période choisie.
+              Les montants nuls sont ignorés.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Lignes de participation</span>
+                <span className="font-medium">{linesPreview.participationCount}</span>
+              </div>
+              {interessementEnabled && (
+                <div className="mt-1 flex justify-between">
+                  <span className="text-muted-foreground">Lignes d'intéressement</span>
+                  <span className="font-medium">{linesPreview.interessementCount}</span>
+                </div>
+              )}
+              <div className="mt-2 flex justify-between border-t pt-2">
+                <span className="font-semibold">Total de lignes</span>
+                <span className="font-semibold">{linesPreview.total}</span>
+              </div>
+              <div className="mt-1 flex justify-between text-muted-foreground">
+                <span>Montant total distribué</span>
+                <span>{formatCurrency(results.reduce((sum, r) => sum + r.totalAmount, 0))}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Mois de paie</Label>
+                <Select value={validateMonth.toString()} onValueChange={(v) => setValidateMonth(parseInt(v))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MONTH_OPTIONS.map((m) => (
+                      <SelectItem key={m.value} value={m.value.toString()}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Année de paie</Label>
+                <Select value={validateYear.toString()} onValueChange={(v) => setValidateYear(parseInt(v))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(() => {
+                      const base = new Date().getFullYear();
+                      return Array.from({ length: 5 }, (_, i) => base - 1 + i).map((y) => (
+                        <SelectItem key={y} value={y.toString()}>
+                          {y}
+                        </SelectItem>
+                      ));
+                    })()}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Traitement social et fiscal des lignes</Label>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="validate-social"
+                  checked={validateSocial}
+                  onCheckedChange={(c) => setValidateSocial(!!c)}
+                />
+                <Label htmlFor="validate-social" className="cursor-pointer font-normal">
+                  Soumis à cotisations
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="validate-taxable"
+                  checked={validateTaxable}
+                  onCheckedChange={(c) => setValidateTaxable(!!c)}
+                />
+                <Label htmlFor="validate-taxable" className="cursor-pointer font-normal">
+                  Soumis à l'impôt sur le revenu
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Par défaut, les montants sont exonérés (cas d'un placement sur un plan d'épargne salariale).
+                Cochez les cases si les sommes sont versées directement. Chaque ligne reste modifiable dans l'onglet Primes.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowValidateDialog(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleValidateCalculation} disabled={isValidating || linesPreview.total === 0}>
+              {isValidating ? "Création..." : `Créer ${linesPreview.total} ligne(s)`}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -16,7 +16,7 @@ export default function Saisies() {
     <div className="space-y-6">
       <RhPageHeader
         title="Primes"
-        description="Gestion des primes mensuelles et simulation de la participation & intéressement"
+        description="Gestion des primes mensuelles, simulation et validation de la participation & intéressement"
       />
 
       {/* Onglets principaux */}
