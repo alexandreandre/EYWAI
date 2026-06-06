@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Loader2, PartyPopper } from 'lucide-react';
 import { PayrollProgressBar } from '@/features/payroll/components/PayrollProgressBar';
+import { PayrollPreflightChecklist } from '@/features/payroll/components/PayrollPreflightChecklist';
 import { usePayrollGeneration } from '@/features/payroll/hooks/usePayrollGeneration';
 import type { SimpleEmployee } from '@/features/dashboard/types';
 
@@ -133,7 +134,7 @@ export function GeneratePayrollModal({ isOpen, onClose, employees }: GeneratePay
         if (!open && uiPhase !== 'running') handleClose();
       }}
     >
-      <DialogContent className="max-w-md p-0" hideClose={uiPhase === 'running'}>
+      <DialogContent className="max-w-md p-0 max-h-[90vh] overflow-y-auto" hideClose={uiPhase === 'running'}>
         <DialogHeader className="p-6 pb-4">
           <DialogTitle>
             {uiPhase === 'select' && 'Générer la Paie'}
@@ -144,6 +145,10 @@ export function GeneratePayrollModal({ isOpen, onClose, employees }: GeneratePay
 
         {uiPhase === 'select' && (
           <>
+            <div className="px-6 pb-4">
+              <PayrollPreflightChecklist onNavigate={handleClose} />
+            </div>
+
             <div className="px-6 pb-4">
               <Label htmlFor="month-select" className="text-sm font-medium mb-2 block">
                 Mois de paie
