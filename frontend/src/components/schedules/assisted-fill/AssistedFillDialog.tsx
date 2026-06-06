@@ -32,6 +32,8 @@ interface AssistedFillDialogProps {
   month: number;
   roster: RosterEmployee[];
   onApplied: () => void;
+  /** Mode fiche collaborateur : tout est attribué à l'unique employé du roster. */
+  singleEmployee?: boolean;
 }
 
 export function AssistedFillDialog({
@@ -41,6 +43,7 @@ export function AssistedFillDialog({
   month,
   roster,
   onApplied,
+  singleEmployee = false,
 }: AssistedFillDialogProps) {
   const { toast } = useToast();
   const [instruction, setInstruction] = useState('');
@@ -54,6 +57,10 @@ export function AssistedFillDialog({
   const dictation = useSpeechDictation(appendTranscript);
 
   const periodLabel = `${MONTHS[month - 1]} ${year}`;
+  const targetName =
+    singleEmployee && roster[0]
+      ? `${roster[0].first_name} ${roster[0].last_name}`
+      : null;
 
   const reset = () => {
     setInstruction('');
@@ -86,7 +93,13 @@ export function AssistedFillDialog({
     if (!instruction.trim()) return;
     setIsAnalyzing(true);
     try {
-      const result = await parseScheduleInstruction(year, month, instruction, roster);
+      const result = await parseScheduleInstruction(
+        year,
+        month,
+        instruction,
+        roster,
+        singleEmployee,
+      );
       showProposal(result);
     } catch (e) {
       toast({
@@ -113,8 +126,18 @@ export function AssistedFillDialog({
             Remplissage par IA — {periodLabel}
           </DialogTitle>
           <DialogDescription>
-            Dictez ou écrivez vos consignes de planning. L&apos;IA distingue les heures
-            prévues des heures faites, vous validez avant enregistrement.
+            {targetName ? (
+              <>
+                Dictez ou écrivez les heures de {targetName}. Inutile de répéter son
+                nom : tout sera attribué à ce collaborateur. L&apos;IA distingue les
+                heures prévues des heures faites, vous validez avant enregistrement.
+              </>
+            ) : (
+              <>
+                Dictez ou écrivez vos consignes de planning. L&apos;IA distingue les heures
+                prévues des heures faites, vous validez avant enregistrement.
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -136,7 +159,11 @@ export function AssistedFillDialog({
               <Textarea
                 value={instruction}
                 onChange={(e) => setInstruction(e.target.value)}
-                placeholder="Ex : Paul Martin a fait 8h du lundi au jeudi et 7h le vendredi (heures faites). Sophie Durand est prévue 7h tous les jours la semaine prochaine (heures prévues)."
+                placeholder={
+                  targetName
+                    ? 'Ex : a fait 8h du lundi au jeudi et 7h le vendredi (heures faites). La semaine prochaine, prévu 7h tous les jours (heures prévues).'
+                    : 'Ex : Paul Martin a fait 8h du lundi au jeudi et 7h le vendredi (heures faites). Sophie Durand est prévue 7h tous les jours la semaine prochaine (heures prévues).'
+                }
                 rows={6}
                 className="resize-none border-0 bg-transparent px-4 pt-4 pb-16 text-sm shadow-none focus-visible:ring-0"
               />

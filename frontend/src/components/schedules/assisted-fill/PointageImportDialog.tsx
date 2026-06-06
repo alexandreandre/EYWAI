@@ -32,6 +32,8 @@ interface PointageImportDialogProps {
   month: number;
   roster: RosterEmployee[];
   onApplied: () => void;
+  /** Mode fiche collaborateur : tout est attribué à l'unique employé du roster. */
+  singleEmployee?: boolean;
 }
 
 export function PointageImportDialog({
@@ -41,6 +43,7 @@ export function PointageImportDialog({
   month,
   roster,
   onApplied,
+  singleEmployee = false,
 }: PointageImportDialogProps) {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
@@ -50,6 +53,10 @@ export function PointageImportDialog({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const periodLabel = `${MONTHS[month - 1]} ${year}`;
+  const targetName =
+    singleEmployee && roster[0]
+      ? `${roster[0].first_name} ${roster[0].last_name}`
+      : null;
 
   const reset = () => {
     setFile(null);
@@ -79,7 +86,7 @@ export function PointageImportDialog({
     if (!file) return;
     setIsAnalyzing(true);
     try {
-      const result = await extractTimesheet(file, year, month, roster);
+      const result = await extractTimesheet(file, year, month, roster, singleEmployee);
       showProposal(result);
     } catch (e) {
       toast({
@@ -106,8 +113,17 @@ export function PointageImportDialog({
             Importer des pointages — {periodLabel}
           </DialogTitle>
           <DialogDescription>
-            Importez un relevé de pointeuse (PDF ou image). L&apos;IA extrait les heures
-            prévues et faites, vous validez avant enregistrement.
+            {targetName ? (
+              <>
+                Importez le relevé de pointeuse de {targetName} (PDF ou image). Toutes
+                les heures lues lui seront attribuées. Vous validez avant enregistrement.
+              </>
+            ) : (
+              <>
+                Importez un relevé de pointeuse (PDF ou image). L&apos;IA extrait les heures
+                prévues et faites, vous validez avant enregistrement.
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
 

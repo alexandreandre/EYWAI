@@ -176,6 +176,7 @@ def assisted_fill_parse_text(
             month=payload.month,
             instruction=payload.instruction,
             roster=payload.employees,
+            single_employee=payload.single_employee,
         )
     except ScheduleAppError as e:
         _handle_schedule_error(e)
@@ -189,12 +190,14 @@ async def assisted_fill_extract_timesheet(
     year: int = Form(...),
     month: int = Form(...),
     employees: str = Form("[]"),
+    single_employee: bool = Form(False),
     current_user: User = Depends(get_current_user),
 ):
     """Analyse un relevé de pointeuse (PDF/image) en proposition d'heures réelles.
 
     `employees` est une chaîne JSON [{id, first_name, last_name}] pour la
-    résolution des noms. Ne persiste rien.
+    résolution des noms. `single_employee` force l'attribution à l'unique
+    employé du roster (mode fiche collaborateur). Ne persiste rien.
     """
     _ = current_user
     content = await file.read()
@@ -216,6 +219,7 @@ async def assisted_fill_extract_timesheet(
             file_content=content,
             filename=file.filename or "",
             roster=roster,
+            single_employee=single_employee,
         )
     except ScheduleAppError as e:
         _handle_schedule_error(e)

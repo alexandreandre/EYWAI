@@ -112,10 +112,11 @@ export const parseScheduleInstruction = async (
   month: number,
   instruction: string,
   employees: RosterEmployee[],
+  singleEmployee = false,
 ): Promise<AiCalendarProposal> => {
   const { data } = await apiClient.post<AiCalendarProposal>(
     '/api/schedules/assisted-fill/parse-text',
-    { year, month, instruction, employees },
+    { year, month, instruction, employees, single_employee: singleEmployee },
   );
   return data;
 };
@@ -129,12 +130,14 @@ export const extractTimesheet = async (
   year: number,
   month: number,
   employees: RosterEmployee[],
+  singleEmployee = false,
 ): Promise<AiCalendarProposal> => {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('year', String(year));
   formData.append('month', String(month));
   formData.append('employees', JSON.stringify(employees));
+  formData.append('single_employee', String(singleEmployee));
   const { data } = await apiClient.post<AiCalendarProposal>(
     '/api/schedules/assisted-fill/extract-timesheet',
     formData,

@@ -187,6 +187,64 @@ class TestParseInstruction:
                 )
         assert exc.value.status_code == 502
 
+    def test_single_employee_forces_attribution_without_name(self):
+        # L'IA renvoie un nom générique / vide, mais en mode mono-employé tout
+        # est rattaché à l'unique salarié du roster.
+        extracted = {
+            "employees": [
+                {
+                    "name": "le salarié",
+                    "days": [
+                        {"jour": 1, "heures": 8, "type": "travail", "nature": "reel"},
+                        {"jour": 2, "heures": 7, "type": "travail", "nature": "reel"},
+                    ],
+                }
+            ],
+            "warnings": [],
+        }
+        with patch.object(ai_fill, "is_llm_configured", return_value=True), patch.object(
+            ai_fill, "extract_structured_json", return_value=_result(extracted)
+        ):
+            proposal = ai_fill.parse_instruction(
+                year=2026,
+                month=6,
+                instruction="a fait 8h le 1 et 7h le 2",
+                roster=[ROSTER[0]],
+                single_employee=True,
+            )
+
+        assert len(proposal.employees) == 1
+        emp = proposal.employees[0]
+        assert emp.employee_id == "e1"
+        assert emp.match_confidence == "high"
+        assert [d.jour for d in emp.days] == [1, 2]
+
+    def test_single_employee_skips_fast_path(self):
+        # Même une consigne « fast-path friendly » passe par le LLM en mode mono.
+        extracted = {
+            "employees": [
+                {
+                    "name": "x",
+                    "days": [
+                        {"jour": 1, "heures": 8, "type": "travail", "nature": "reel"}
+                    ],
+                }
+            ],
+            "warnings": [],
+        }
+        with patch.object(ai_fill, "is_llm_configured", return_value=True), patch.object(
+            ai_fill, "extract_structured_json", return_value=_result(extracted)
+        ) as mock_llm:
+            proposal = ai_fill.parse_instruction(
+                year=2026,
+                month=6,
+                instruction="a fait 8h du 1 au 3",
+                roster=[ROSTER[1]],
+                single_employee=True,
+            )
+        mock_llm.assert_called_once()
+        assert proposal.employees[0].employee_id == "e2"
+
 
 # --- extract_timesheet ---
 
@@ -221,6 +279,45 @@ class TestExtractTimesheet:
         assert proposal.employees[0].employee_id == "e2"
         assert proposal.employees[0].days[0].heures == 7
         assert proposal.employees[0].days[0].nature == "reel"
+
+    def test_single_employee_merges_all_rows(self):
+        # Le relevé peut contenir plusieurs blocs / un nom différent : tout est
+        # fusionné sur l'unique salarié ciblé.
+        extracted = {
+            "employees": [
+                {
+                    "name": "MARTIN P.",
+                    "days": [
+                        {"jour": 1, "heures": 8, "type": "travail", "nature": "reel"}
+                    ],
+                },
+                {
+                    "name": "P. MARTIN",
+                    "days": [
+                        {"jour": 2, "heures": 7, "type": "travail", "nature": "reel"}
+                    ],
+                },
+            ],
+            "warnings": [],
+        }
+        with patch.object(ai_fill, "is_llm_configured", return_value=True), patch.object(
+            ai_fill, "extract_document_text", return_value=("texte ocr", "PDF natif")
+        ), patch.object(
+            ai_fill, "extract_structured_json", return_value=_result(extracted)
+        ):
+            proposal = ai_fill.extract_timesheet(
+                year=2026,
+                month=6,
+                file_content=b"%PDF-1.4 fake",
+                filename="releve.pdf",
+                roster=[ROSTER[0]],
+                single_employee=True,
+            )
+
+        assert len(proposal.employees) == 1
+        emp = proposal.employees[0]
+        assert emp.employee_id == "e1"
+        assert [d.jour for d in emp.days] == [1, 2]
 
     def test_raises_on_extraction_error(self):
         from app.shared.infrastructure.documents import DocumentExtractionError

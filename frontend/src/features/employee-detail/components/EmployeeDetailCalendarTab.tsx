@@ -1,4 +1,5 @@
-import { CalendarDays, ChevronLeft, ChevronRight, Grid3x3, Loader2, Save } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CalendarDays, ChevronLeft, ChevronRight, Grid3x3, Loader2, Save, Sparkles, Upload } from "lucide-react";
 import { CalendarDayCell } from "@/components/CalendarDayCell";
 import { CalendarAbsencesHint } from "@/components/employee-detail/CalendarAbsencesHint";
 import { CalendarKpiBand } from "@/components/employee-detail/CalendarKpiBand";
@@ -9,6 +10,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { BulkActionPanel } from "@/features/employee-detail/components/calendar/BulkActionPanel";
 import { WeekTemplateForm } from "@/features/employee-detail/components/calendar/WeekTemplateForm";
 import { YearCalendarView } from "@/features/employee-detail/components/calendar/YearCalendarView";
+import { AssistedFillDialog } from "@/components/schedules/assisted-fill/AssistedFillDialog";
+import { PointageImportDialog } from "@/components/schedules/assisted-fill/PointageImportDialog";
 import type { Employee } from "@/features/employee-detail/types";
 import { WeekTemplate } from "@/hooks/useCalendar";
 import type { DayData } from "@/components/ScheduleModal";
@@ -43,6 +46,7 @@ interface CalendarTabProps {
   copyPlannedToActualForDay: (day: number) => void;
   bulkCopyPlannedToActual: () => void;
   isCopyingPrevMonth: boolean;
+  reloadCalendar: () => void;
 }
 
 export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
@@ -76,7 +80,22 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
     copyPlannedToActualForDay,
     bulkCopyPlannedToActual,
     isCopyingPrevMonth,
+    reloadCalendar,
   } = props;
+
+  const [assistedFillOpen, setAssistedFillOpen] = useState(false);
+  const [pointageImportOpen, setPointageImportOpen] = useState(false);
+
+  const roster = useMemo(
+    () => [
+      {
+        id: employeeId,
+        first_name: employee.first_name,
+        last_name: employee.last_name,
+      },
+    ],
+    [employeeId, employee.first_name, employee.last_name],
+  );
 
   return (
     <>
@@ -176,12 +195,30 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
                 </div>
 
                 {/* ✅ MODIFIÉ : Le bouton principal, avec la parenthèse manquante corrigée */}
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {!isDirty && !isSaving && (
                     <Badge variant="outline" className="text-xs font-normal text-muted-foreground">
                       À jour
                     </Badge>
                   )}
+                  <Button
+                    variant="outline"
+                    onClick={() => setAssistedFillOpen(true)}
+                    title="Remplir le calendrier de ce collaborateur par IA (texte ou dictée)"
+                  >
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    <span className="hidden sm:inline">Remplir par IA</span>
+                    <span className="sm:hidden">IA</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setPointageImportOpen(true)}
+                    title="Importer un relevé de pointeuse pour ce collaborateur"
+                  >
+                    <Upload className="mr-2 h-4 w-4" />
+                    <span className="hidden sm:inline">Importer un relevé</span>
+                    <span className="sm:hidden">Import</span>
+                  </Button>
                   <Button
                     onClick={saveAllCalendarData}
                     disabled={isSaving || !isDirty}
@@ -309,6 +346,26 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
           isForfaitJour={isForfaitJour}
         />
       )}
+
+      <AssistedFillDialog
+        open={assistedFillOpen}
+        onOpenChange={setAssistedFillOpen}
+        year={selectedDate.year}
+        month={selectedDate.month}
+        roster={roster}
+        singleEmployee
+        onApplied={reloadCalendar}
+      />
+
+      <PointageImportDialog
+        open={pointageImportOpen}
+        onOpenChange={setPointageImportOpen}
+        year={selectedDate.year}
+        month={selectedDate.month}
+        roster={roster}
+        singleEmployee
+        onApplied={reloadCalendar}
+      />
     </>
   );
 }

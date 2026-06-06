@@ -118,6 +118,7 @@ export default function EmployeeDetail() {
     copyPlannedToActualForDay,
     bulkCopyPlannedToActual,
     isCopyingPrevMonth,
+    refetch: refetchCalendar,
   } = useCalendar(employeeId, employeeStatut, { enabled: activeTab === "calendrier" });
 
   const [saisieModalOpen, setSaisieModalOpen] = useState(false);
@@ -604,6 +605,7 @@ export default function EmployeeDetail() {
               copyPlannedToActualForDay={copyPlannedToActualForDay}
               bulkCopyPlannedToActual={bulkCopyPlannedToActual}
               isCopyingPrevMonth={isCopyingPrevMonth}
+              reloadCalendar={refetchCalendar}
             />
           </Suspense>
         </TabsContent>

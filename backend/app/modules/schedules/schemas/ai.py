@@ -33,6 +33,9 @@ class ParseInstructionRequest(BaseModel):
     month: int
     instruction: str = Field(..., min_length=1)
     employees: List[RosterEmployee] = Field(default_factory=list)
+    # Mode « fiche collaborateur » : toutes les heures sont attribuées à l'unique
+    # employé du roster, même si la consigne ne mentionne aucun nom.
+    single_employee: bool = False
 
 
 class AiDayEntry(BaseModel):

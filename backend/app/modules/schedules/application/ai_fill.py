@@ -115,9 +115,14 @@ def _month_calendar_anchor(year: int, month: int) -> str:
     )
 
 
-def _build_system_prompt(year: int, month: int, default_nature: str) -> str:
+def _build_system_prompt(
+    year: int,
+    month: int,
+    default_nature: str,
+    single_employee_name: str | None = None,
+) -> str:
     num_days = cal_mod.monthrange(year, month)[1]
-    return (
+    base = (
         "Assistant RH : convertis une consigne d'heures en JSON pour un calendrier "
         "de paie mensuel français.\n"
         f"Période : {month}/{year}. {_month_calendar_anchor(year, month)}\n\n"
@@ -127,7 +132,18 @@ def _build_system_prompt(year: int, month: int, default_nature: str) -> str:
         "- prevu = heures planifiées ; reel = heures faites / pointage.\n"
         f"- Par défaut nature='{default_nature}' si non précisé.\n"
         "- Même date peut avoir prevu et reel si la consigne le distingue.\n"
-        "- Ne crée aucun employé ni jour non mentionné.\n"
+        "- Ne crée aucun jour non mentionné.\n"
+    )
+    if single_employee_name:
+        return base + (
+            "- IMPORTANT : la consigne concerne UN SEUL salarié : "
+            f"{single_employee_name}.\n"
+            "- Attribue 100% des heures à ce salarié, même si aucun nom n'est écrit.\n"
+            f"- Renseigne toujours name='{single_employee_name}' (un seul employé en sortie).\n"
+            "- warnings : ambiguïtés (heures, nature)."
+        )
+    return base + (
+        "- Ne crée aucun employé non mentionné.\n"
         "- Recopie name tel qu'écrit dans la consigne.\n"
         "- warnings : ambiguïtés (nom, heures, nature)."
     )
@@ -281,31 +297,94 @@ def _build_proposal(
     )
 
 
+def _build_single_employee_proposal(
+    *,
+    year: int,
+    month: int,
+    source: str,
+    extracted: Dict[str, Any],
+    target: RosterEmployee,
+    default_nature: str,
+) -> AiCalendarProposalResponse:
+    """Force l'attribution de toutes les heures détectées à un unique employé.
+
+    Utilisé depuis la fiche collaborateur : quelle que soit la façon dont l'IA a
+    nommé (ou non) la personne, on rattache l'ensemble des jours au salarié ciblé.
+    """
+    num_days = cal_mod.monthrange(year, month)[1]
+    raw_days: List[Dict[str, Any]] = []
+    for raw_emp in extracted.get("employees", []) or []:
+        raw_days.extend(raw_emp.get("days", []) or [])
+
+    days = _coerce_days(raw_days, num_days, default_nature)
+    full_name = f"{target.first_name} {target.last_name}"
+    global_warnings = [
+        str(w) for w in (extracted.get("warnings") or []) if str(w).strip()
+    ]
+
+    if not days:
+        global_warnings.append(
+            "Aucune donnée exploitable n'a été extraite. Reformulez ou vérifiez le document."
+        )
+        return AiCalendarProposalResponse(
+            year=year,
+            month=month,
+            source=source,
+            employees=[],
+            warnings=global_warnings,
+        )
+
+    proposal = AiEmployeeProposal(
+        raw_name=full_name,
+        employee_id=target.id,
+        matched_name=full_name,
+        match_confidence="high",
+        days=days,
+    )
+    return AiCalendarProposalResponse(
+        year=year,
+        month=month,
+        source=source,
+        employees=[proposal],
+        warnings=global_warnings,
+    )
+
+
 def parse_instruction(
     *,
     year: int,
     month: int,
     instruction: str,
     roster: List[RosterEmployee],
+    single_employee: bool = False,
 ) -> AiCalendarProposalResponse:
-    """Convertit une instruction en langage naturel en proposition de calendrier."""
+    """Convertit une instruction en langage naturel en proposition de calendrier.
+
+    Si `single_employee` est vrai, toutes les heures sont rattachées à l'unique
+    employé du roster (mode fiche collaborateur), même sans nom dans la consigne.
+    """
     if not (instruction or "").strip():
         raise ScheduleAppError(
             "validation", "L'instruction est vide.", status_code=400
         )
 
-    from app.modules.schedules.application.nl_fast_path import (
-        try_fast_parse_instruction,
-    )
+    target = roster[0] if (single_employee and roster) else None
 
-    fast = try_fast_parse_instruction(
-        year=year,
-        month=month,
-        instruction=instruction,
-        roster=roster,
-    )
-    if fast is not None:
-        return fast
+    # En mode mono-employé, on saute le fast-path (résolution par nom) pour
+    # garantir l'attribution à la bonne personne via le LLM puis le forçage.
+    if target is None:
+        from app.modules.schedules.application.nl_fast_path import (
+            try_fast_parse_instruction,
+        )
+
+        fast = try_fast_parse_instruction(
+            year=year,
+            month=month,
+            instruction=instruction,
+            roster=roster,
+        )
+        if fast is not None:
+            return fast
 
     if not is_llm_configured():
         raise ScheduleAppError(
@@ -314,20 +393,32 @@ def parse_instruction(
             status_code=503,
         )
 
-    roster_hint = _roster_hint_for_text(roster)
-    user_prompt = (
-        "Employés connus (pour orthographe des noms) :\n"
-        f"{roster_hint or '(non fourni)'}\n\n"
-        "Consigne RH :\n"
-        f"{instruction.strip()}"
-    )
+    if target is not None:
+        user_prompt = (
+            f"La consigne concerne uniquement le salarié : {target.first_name} "
+            f"{target.last_name}.\n\n"
+            "Consigne RH :\n"
+            f"{instruction.strip()}"
+        )
+        system_prompt_name = f"{target.first_name} {target.last_name}"
+    else:
+        roster_hint = _roster_hint_for_text(roster)
+        user_prompt = (
+            "Employés connus (pour orthographe des noms) :\n"
+            f"{roster_hint or '(non fourni)'}\n\n"
+            "Consigne RH :\n"
+            f"{instruction.strip()}"
+        )
+        system_prompt_name = None
 
     # Une instruction en langage naturel décrit le plus souvent ce qui a été fait ;
     # par défaut on retient « reel », mais l'IA bascule sur « prevu » si le libellé
     # parle de planning / prévisionnel.
     default_nature = "reel"
     result = extract_structured_json(
-        system_prompt=_build_system_prompt(year, month, default_nature),
+        system_prompt=_build_system_prompt(
+            year, month, default_nature, system_prompt_name
+        ),
         user_prompt=user_prompt,
         json_schema=_PROPOSAL_JSON_SCHEMA,
         schema_name="schedule_fill",
@@ -339,6 +430,16 @@ def parse_instruction(
             "error",
             "L'analyse de l'instruction a échoué. Reformulez et réessayez.",
             status_code=502,
+        )
+
+    if target is not None:
+        return _build_single_employee_proposal(
+            year=year,
+            month=month,
+            source="texte",
+            extracted=result.data,
+            target=target,
+            default_nature=default_nature,
         )
 
     return _build_proposal(
@@ -358,8 +459,13 @@ def extract_timesheet(
     file_content: bytes,
     filename: str,
     roster: List[RosterEmployee],
+    single_employee: bool = False,
 ) -> AiCalendarProposalResponse:
-    """Lit un relevé de pointeuse (PDF/image) et en extrait une proposition."""
+    """Lit un relevé de pointeuse (PDF/image) et en extrait une proposition.
+
+    Si `single_employee` est vrai, toutes les heures lues sont rattachées à
+    l'unique employé du roster (mode fiche collaborateur).
+    """
     if not is_llm_configured():
         raise ScheduleAppError(
             "validation",
@@ -375,21 +481,38 @@ def extract_timesheet(
     if len(text) > _MAX_TIMESHEET_TEXT_CHARS:
         text = text[:_MAX_TIMESHEET_TEXT_CHARS] + "\n…(document tronqué)"
 
-    filtered_roster = _roster_matching_document(text, roster)
-    roster_hint = _roster_hint_for_text(filtered_roster, limit=40)
-    user_prompt = (
-        "Texte extrait d'un relevé de pointeuse (heures FAITES, nature='reel' "
-        "sauf mention explicite de planning).\n\n"
-        "Employés à rapprocher :\n"
-        f"{roster_hint or '(non fourni)'}\n\n"
-        "--- RELEVÉ ---\n"
-        f"{text}"
-    )
+    target = roster[0] if (single_employee and roster) else None
+
+    if target is not None:
+        full_name = f"{target.first_name} {target.last_name}"
+        user_prompt = (
+            "Texte extrait d'un relevé de pointeuse (heures FAITES, nature='reel' "
+            "sauf mention explicite de planning).\n\n"
+            f"Le relevé concerne uniquement le salarié : {full_name}.\n"
+            "Attribue toutes les heures à ce salarié.\n\n"
+            "--- RELEVÉ ---\n"
+            f"{text}"
+        )
+        system_prompt_name = full_name
+    else:
+        filtered_roster = _roster_matching_document(text, roster)
+        roster_hint = _roster_hint_for_text(filtered_roster, limit=40)
+        user_prompt = (
+            "Texte extrait d'un relevé de pointeuse (heures FAITES, nature='reel' "
+            "sauf mention explicite de planning).\n\n"
+            "Employés à rapprocher :\n"
+            f"{roster_hint or '(non fourni)'}\n\n"
+            "--- RELEVÉ ---\n"
+            f"{text}"
+        )
+        system_prompt_name = None
 
     # Un relevé de pointeuse est par nature un réalisé.
     default_nature = "reel"
     result = extract_structured_json(
-        system_prompt=_build_system_prompt(year, month, default_nature),
+        system_prompt=_build_system_prompt(
+            year, month, default_nature, system_prompt_name
+        ),
         user_prompt=user_prompt,
         json_schema=_PROPOSAL_JSON_SCHEMA,
         schema_name="timesheet_extraction",
@@ -401,6 +524,16 @@ def extract_timesheet(
             "error",
             "L'analyse du relevé a échoué. Vérifiez la lisibilité du document.",
             status_code=502,
+        )
+
+    if target is not None:
+        return _build_single_employee_proposal(
+            year=year,
+            month=month,
+            source=f"relevé ({method})",
+            extracted=result.data,
+            target=target,
+            default_nature=default_nature,
         )
 
     return _build_proposal(
