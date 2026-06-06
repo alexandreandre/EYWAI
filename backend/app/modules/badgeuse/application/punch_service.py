@@ -3,6 +3,9 @@ from __future__ import annotations
 
 from app.modules.badgeuse.application.deps import deps
 from app.modules.badgeuse.application._internals import *  # noqa: F403
+from app.modules.badgeuse.application.qr_service import get_qr_for_employee
+
+
 def get_dashboard_today(*, company_id: str) -> Dict[str, Any]:
     today = date.today()
     start_dt = datetime.combine(today, datetime.min.time())
