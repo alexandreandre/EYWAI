@@ -21,7 +21,10 @@ from app.modules.payroll.engine.calcul_net import calculer_net_et_impot
 from app.modules.payroll.engine.calcul_reduction_generale import (
     calculer_reduction_generale,
 )
-from app.modules.payroll.engine.baremes_loader import comparer_taux_vm_entreprise
+from app.modules.payroll.engine.baremes_loader import (
+    commune_entreprise_depuis_donnees,
+    comparer_taux_vm_entreprise,
+)
 from app.modules.payroll.engine.calcul_frais import appliquer_exoneration_note_frais
 from app.modules.payroll.engine.contexte import ContextePaie
 
@@ -349,7 +352,9 @@ def run_payslip_generation_forfait(
         .get("taux_versement_mobilite")
     )
     alerte_vm = comparer_taux_vm_entreprise(
-        taux_vm, contexte.baremes.get("taux_vmrr")
+        taux_vm,
+        contexte.baremes.get("taux_vmrr"),
+        commune=commune_entreprise_depuis_donnees(contexte.entreprise),
     )
     if alerte_vm:
         contexte.alertes_baremes.append(alerte_vm)

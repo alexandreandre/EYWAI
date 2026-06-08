@@ -21,23 +21,16 @@ import { RatesSectionUpdateMenu } from '@/components/rates/RatesSectionUpdateMen
 import { RatesSourceUpdateList } from '@/components/rates/RatesSourceUpdateList';
 import { RatesSingleUpdateMenu } from '@/components/rates/RatesActionsMenu';
 import { RatesPanelFooter, ratesPanelSurfaceClass } from '@/components/rates/RatesPanelShell';
+import { RatesVmrrView } from '@/components/rates/RatesVmrrView';
 import { getCategoryTitle } from '@/lib/ratesUtils';
-import { getBaremesRateKeysFromData, sourceLinksForRateKey, sourcesForRateKey } from '@/lib/ratesSyncManifest';
+import {
+  getBaremesRateKeysFromData,
+  isBaremesRateKeyPending,
+  listBaremesSectionKeys,
+  sourceLinksForRateKey,
+  sourcesForRateKey,
+} from '@/lib/ratesSyncManifest';
 import { cn } from '@/lib/utils';
-
-const KNOWN_KEYS = new Set([
-  'smic',
-  'pss',
-  'ij_plafonds',
-  'cotisations',
-  'pas',
-  'frais_pro',
-  'avantages_en_nature',
-  'heures_supp',
-  'primes',
-]);
-
-type BaremeEntry = { key: string; category: RateCategory };
 
 function renderBaremeContent(key: string, category: RateCategory) {
   const cfg = category.config_data as Record<string, unknown>;
@@ -55,7 +48,42 @@ function renderBaremeContent(key: string, category: RateCategory) {
   if (key === 'primes') {
     return <RatesPrimesView configData={cfg} />;
   }
+  if (key === 'taux_vmrr') {
+    return <RatesVmrrView configData={category.config_data} />;
+  }
   return <RatesComplexObject obj={cfg} />;
+}
+
+function buildManifestLinks(sources: { primary_url?: string | null }[]): string[] {
+  const links: string[] = [];
+  for (const src of sources) {
+    const url = src.primary_url?.trim();
+    if (url) links.push(url);
+  }
+  return links;
+}
+
+function renderPendingBaremeContent(key: string, canUpdate: boolean) {
+  if (key === 'taux_vmrr') {
+    if (!canUpdate) {
+      return (
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Source « Versement mobilité » absente du référentiel scraping. Contactez
+          l&apos;administrateur plateforme ou lancez une{' '}
+          <span className="font-medium text-foreground">Mise à jour complète</span> après
+          déploiement des sources.
+        </p>
+      );
+    }
+    return <RatesVmrrView configData={null} />;
+  }
+  return (
+    <p className="text-sm leading-relaxed text-muted-foreground">
+      Référentiel non chargé. Cliquez sur{' '}
+      <span className="font-medium text-foreground">⋮</span> puis{' '}
+      <span className="font-medium text-foreground">Mise à jour</span>.
+    </p>
+  );
 }
 
 type RatesBaremesSectionProps = {
@@ -85,22 +113,16 @@ export function RatesBaremesSection({
   isSourceRunning,
   updatesLocked,
 }: RatesBaremesSectionProps) {
-  const sectionRateKeys = useMemo(() => getBaremesRateKeysFromData(data), [data]);
+  const sectionRateKeys = useMemo(
+    () => getBaremesRateKeysFromData(data, manifest),
+    [data, manifest],
+  );
   const sectionRunning = sectionRateKeys.some((k) => isTargetRunning(k));
 
-  const entries = useMemo(() => {
-    const items: BaremeEntry[] = [];
-    const ordered = ['pas', 'frais_pro', 'avantages_en_nature', 'heures_supp', 'primes'] as const;
-    for (const key of ordered) {
-      if (data[key]) items.push({ key, category: data[key] });
-    }
-    for (const [key, cat] of Object.entries(data)) {
-      if (!KNOWN_KEYS.has(key) && cat?.config_data) {
-        items.push({ key, category: cat });
-      }
-    }
-    return items;
-  }, [data]);
+  const sectionKeys = useMemo(
+    () => listBaremesSectionKeys(data, manifest),
+    [data, manifest],
+  );
 
   const [openBaremes, setOpenBaremes] = useState<string[]>([]);
 
@@ -110,7 +132,7 @@ export function RatesBaremesSection({
     setOpenBaremes((prev) => [...new Set([...prev, ...highlightedKeys])]);
   }, [highlightedKeys, onOpenChange]);
 
-  if (entries.length === 0) return null;
+  if (sectionKeys.length === 0) return null;
 
   return (
     <section>
@@ -118,7 +140,7 @@ export function RatesBaremesSection({
         <RatesSectionHeader
           open={open}
           title="Barèmes & abattements"
-          description="Prélèvement à la source, frais professionnels, avantages en nature"
+          description="Prélèvement à la source, frais professionnels, versement mobilité, avantages en nature"
           onToggle={() => onOpenChange(!open)}
           actions={
             <RatesSectionUpdateMenu
@@ -139,9 +161,12 @@ export function RatesBaremesSection({
             onValueChange={setOpenBaremes}
             className="space-y-3"
           >
-            {entries.map(({ key, category }) => {
+            {sectionKeys.map((key) => {
+              const category = data[key];
+              const pending = isBaremesRateKeyPending(data, key);
               const sources = sourcesForRateKey(manifest, key);
               const singleSource = sources.length === 1;
+              const canUpdate = sources.length > 0;
 
               return (
                 <AccordionItem
@@ -152,7 +177,7 @@ export function RatesBaremesSection({
                   <AccordionHeaderWithActions
                     className="px-4 py-3 hover:no-underline"
                     actions={
-                      sources.length > 0 ? (
+                      canUpdate ? (
                         singleSource ? (
                           <RatesSingleUpdateMenu
                             onUpdate={() => onUpdateRateKey(key)}
@@ -176,19 +201,31 @@ export function RatesBaremesSection({
                       <span className="min-w-0 truncate font-semibold">
                         {getCategoryTitle(key)}
                       </span>
-                      <RatesLastCheckedMeta
-                        lastCheckedAt={category.last_checked_at}
-                      />
+                      {pending ? (
+                        <span className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                          Non synchronisé — lancez la mise à jour
+                        </span>
+                      ) : (
+                        category && (
+                          <RatesLastCheckedMeta lastCheckedAt={category.last_checked_at} />
+                        )
+                      )}
                     </div>
                   </AccordionHeaderWithActions>
                   <AccordionContent className="pb-0 pt-0">
                     <div className="border-t border-border/60 px-4 pb-3 pt-3">
-                      {renderBaremeContent(key, category)}
+                      {category && !pending
+                        ? renderBaremeContent(key, category)
+                        : renderPendingBaremeContent(key, canUpdate)}
                     </div>
-                    <RatesPanelFooter
-                      category={category}
-                      links={sourceLinksForRateKey(manifest, key, category.source_links)}
-                    />
+                    {category ? (
+                      <RatesPanelFooter
+                        category={category}
+                        links={sourceLinksForRateKey(manifest, key, category.source_links)}
+                      />
+                    ) : sources.length > 0 ? (
+                      <RatesPanelFooter links={buildManifestLinks(sources)} />
+                    ) : null}
                   </AccordionContent>
                 </AccordionItem>
               );

@@ -205,47 +205,42 @@ export default function Rates({ admin = false }: { admin?: boolean } = {}) {
 
   const handleUpdateRateKey = useCallback(
     (rateKey: string) => {
-      if (isSyncing) return;
       clearSyncError();
       void startSync({ scope: 'rate_key', rateKey });
     },
-    [clearSyncError, isSyncing, startSync],
+    [clearSyncError, startSync],
   );
 
   const handleUpdateSection = useCallback(
     (rateKeys: string[], sectionLabel: string) => {
-      if (isSyncing) return;
       clearSyncError();
       void startSync({ scope: 'rate_keys', rateKeys, sectionLabel });
     },
-    [clearSyncError, isSyncing, startSync],
+    [clearSyncError, startSync],
   );
 
   const handleUpdateSource = useCallback(
     (sourceKey: string) => {
-      if (isSyncing) return;
       clearSyncError();
       void startSync({ scope: 'source_key', sourceKey });
     },
-    [clearSyncError, isSyncing, startSync],
+    [clearSyncError, startSync],
   );
 
   const handleUpdateCotisation = useCallback(
     (cotisationId: string) => {
-      if (isSyncing) return;
       clearSyncError();
       void startSync({ scope: 'cotisation_id', cotisationId });
     },
-    [clearSyncError, isSyncing, startSync],
+    [clearSyncError, startSync],
   );
 
   const handleUpdateCotisationBundle = useCallback(
     (cotisationIds: string[]) => {
-      if (isSyncing) return;
       clearSyncError();
       void startSync({ scope: 'cotisation_bundle', cotisationIds });
     },
-    [clearSyncError, isSyncing, startSync],
+    [clearSyncError, startSync],
   );
 
   useEffect(() => {
@@ -356,7 +351,6 @@ export default function Rates({ admin = false }: { admin?: boolean } = {}) {
         onUpdateRateKey={handleUpdateRateKey}
         onUpdateSection={handleUpdateSection}
         isTargetRunning={isRateKeyRunning}
-        updatesLocked={isSyncing}
       />
 
       {data.cotisations && (
@@ -373,7 +367,6 @@ export default function Rates({ admin = false }: { admin?: boolean } = {}) {
           isCotisationRunning={isCotisationRunning}
           isSourceRunning={isSourceRunning}
           isTargetRunning={isRateKeyRunning}
-          updatesLocked={isSyncing}
         />
       )}
 
@@ -388,7 +381,6 @@ export default function Rates({ admin = false }: { admin?: boolean } = {}) {
         onUpdateSection={handleUpdateSection}
         isTargetRunning={isRateKeyRunning}
         isSourceRunning={isSourceRunning}
-        updatesLocked={isSyncing}
       />
     </div>
   );

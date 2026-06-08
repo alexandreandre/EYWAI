@@ -7,6 +7,8 @@ from app.modules.payroll.engine.baremes_loader import (
     baremes_lookup,
     comparer_taux_vm_entreprise,
     controler_integrite_baremes,
+    resoudre_taux_vm_officiel,
+    resoudre_taux_vm_pour_paie,
 )
 from app.modules.payroll.application.simulation_queries import load_baremes
 from tests.unit.payroll.fixtures.baremes_snapshot import baremes_snapshot
@@ -44,9 +46,66 @@ def test_baremes_lookup_present():
     assert alertes == []
 
 
+def test_baremes_lookup_liste_heures_supp():
+    baremes = baremes_snapshot()
+    alertes = []
+    val = baremes_lookup(
+        baremes,
+        "heures_supp",
+        "regles_calcul_communes",
+        "taux_majoration_par_defaut",
+        "heures_supplementaires",
+        0,
+        "taux",
+        alertes=alertes,
+    )
+    assert val == 0.25
+    assert alertes == []
+
+
 def test_controler_integrite_ok():
     alertes = controler_integrite_baremes(baremes_snapshot())
     assert isinstance(alertes, list)
+
+
+def test_resoudre_taux_vm_officiel_depuis_bareme():
+    baremes = baremes_snapshot()
+    taux = resoudre_taux_vm_officiel(baremes["taux_vmrr"], "Paris")
+    assert taux == 0.025
+
+
+def test_resoudre_taux_vm_absent_sans_defaut():
+    alertes = []
+    assert resoudre_taux_vm_officiel([], "Paris", alertes=alertes) is None
+    assert alertes[0]["code"] == "vm_bareme_absent"
+
+
+def test_resoudre_taux_vm_pour_paie_repli_entreprise():
+    entreprise = {
+        "identification": {"adresse": {"ville": "Magnieu"}},
+        "parametres_paie": {
+            "taux_specifiques": {"taux_versement_mobilite": 0.0},
+        },
+    }
+    alertes = []
+    taux = resoudre_taux_vm_pour_paie({}, entreprise, alertes=alertes)
+    assert taux == 0.0
+    assert alertes == []
+
+
+def test_resoudre_taux_vm_pour_paie_alerte_si_aucune_source():
+    entreprise = {
+        "identification": {"adresse": {"ville": "Magnieu"}},
+        "parametres_paie": {"taux_specifiques": {}},
+    }
+    alertes = []
+    assert resoudre_taux_vm_pour_paie({}, entreprise, alertes=alertes) is None
+    assert alertes[0]["code"] == "vm_bareme_absent"
+
+
+def test_comparer_taux_vm_ignore_surcharge_nulle():
+    assert comparer_taux_vm_entreprise(0.0, [{"commune": "Paris", "taux": 0.025}]) is None
+    assert comparer_taux_vm_entreprise(None, [{"commune": "Paris", "taux": 0.025}]) is None
 
 
 def test_comparer_taux_vm_ecart():

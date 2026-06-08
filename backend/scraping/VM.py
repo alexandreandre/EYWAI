@@ -16,6 +16,157 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 load_dotenv(os.path.join(REPO_ROOT, ".env"))
 
 PAGE_URL = "https://fichierdirect.declaration.urssaf.fr/TablesReference.htm"
+OPEN_DATA_CSV_URL = (
+    "https://open.urssaf.fr/api/explore/v2.1/catalog/datasets/table_taux_vmrr/exports/csv"
+)
+OPEN_DATA_PAGE_URL = "https://open.urssaf.fr/explore/dataset/table_taux_vmrr/"
+FICHIERDIRECT_PROBE_TIMEOUT = 8
+FICHIERDIRECT_DOWNLOAD_TIMEOUT = 20
+FICHIERDIRECT_PAGE_TIMEOUT = 20
+
+
+def _today_yyyymmdd() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%d")
+
+
+def _direct_vmrr_urls() -> list[str]:
+    year = datetime.now(timezone.utc).year
+    return [
+        f"https://fichierdirect.declaration.urssaf.fr/static/tauxVMRR-0101{year}.xlsx",
+        "https://fichierdirect.declaration.urssaf.fr/static/tauxVMRR-01012026.xlsx",
+    ]
+
+
+def _pct_to_decimal(value: object) -> float | None:
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        raw = float(str(value).replace(",", "."))
+    except ValueError:
+        return None
+    if abs(raw) > 1:
+        return raw / 100.0
+    if raw > 0.05:
+        return raw / 100.0
+    return raw
+
+
+def _normalize_open_data_row(row: dict[str, object]) -> dict[str, object]:
+    taux_vm = _pct_to_decimal(row.get("taux_vm"))
+    taux_vma = _pct_to_decimal(row.get("taux_vma")) or 0.0
+    taux_vmr = _pct_to_decimal(row.get("taux_vmr")) or 0.0
+    total = (taux_vm or 0.0) + taux_vma + taux_vmr
+    nom = str(row.get("nom_commune") or "").strip()
+    return {
+        "code_commune": row.get("code_commune"),
+        "nom_commune": nom,
+        "commune": nom,
+        "region": row.get("region"),
+        "date_debut": row.get("date_debut"),
+        "date_fin": row.get("date_fin"),
+        "taux_vm": total if total > 0 else taux_vm,
+        "taux": total if total > 0 else taux_vm,
+    }
+
+
+def _row_active(row: dict[str, object], today: str) -> bool:
+    debut = str(row.get("date_debut") or "").strip()
+    fin = str(row.get("date_fin") or "").strip()
+    if debut and debut > today:
+        return False
+    if fin and fin < today:
+        return False
+    return True
+
+
+def _select_current_open_data_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    today = _today_yyyymmdd()
+    active = [row for row in rows if _row_active(row, today)]
+    by_commune: dict[str, dict[str, object]] = {}
+    for row in active:
+        code = str(row.get("code_commune") or row.get("nom_commune") or "").strip()
+        if not code:
+            continue
+        previous = by_commune.get(code)
+        if not previous or str(row.get("date_debut") or "") >= str(
+            previous.get("date_debut") or ""
+        ):
+            by_commune[code] = row
+    return [_normalize_open_data_row(row) for row in by_commune.values()]
+
+
+def fetch_vmrr_from_open_data() -> list[dict] | None:
+    """Repli Open Data URSSAF si fichierdirect est inaccessible."""
+    print(f"Repli Open Data URSSAF : {OPEN_DATA_CSV_URL}")
+    try:
+        response = requests.get(OPEN_DATA_CSV_URL, headers=HEADERS, timeout=120)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as exc:
+        print(f"❌ Open Data URSSAF inaccessible : {exc}")
+        return None
+
+    raw_rows: list[dict[str, object]] = []
+    text = response.content.decode("utf-8-sig", errors="replace")
+    for row in csv.DictReader(text.splitlines(), delimiter=";"):
+        raw_rows.append(dict(row))
+
+    data = _select_current_open_data_rows(raw_rows)
+    if len(data) < 100:
+        print(f"❌ Open Data URSSAF : seulement {len(data)} communes actives.")
+        return None
+
+    print(f"✅ {len(data)} communes actives via Open Data URSSAF.")
+    return data
+
+
+def _try_download_vmrr_xlsx(url: str, download_folder: str) -> list[dict] | None:
+    downloaded_file_path = download_file(url, download_folder, HEADERS)
+    if not downloaded_file_path:
+        return None
+    if not downloaded_file_path.lower().endswith(".xlsx"):
+        print(f"❌ Format VMRR non géré: {downloaded_file_path}")
+        return None
+    data = convert_xlsx_to_data(downloaded_file_path)
+    if not data:
+        return None
+    return data
+
+
+def _scrape_vmrr_from_reference_page(
+    download_folder: str,
+) -> tuple[list[dict] | None, list[str]]:
+    print(f"Scraping VMRR : {PAGE_URL}")
+    last_error: Exception | None = None
+    response = None
+    for attempt in range(1, 3):
+        try:
+            response = requests.get(
+                PAGE_URL,
+                headers=HEADERS,
+                timeout=FICHIERDIRECT_PAGE_TIMEOUT,
+            )
+            response.raise_for_status()
+            break
+        except requests.exceptions.RequestException as exc:
+            last_error = exc
+            if attempt < 2:
+                print(f"Tentative {attempt}/2 échouée, nouvel essai… ({exc})")
+            continue
+    else:
+        print(f"Impossible d'accéder à la page URSSAF. Erreur : {last_error}")
+        return None, []
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    link_tag = soup.find("a", id="url_vmrr")
+    if not link_tag or not link_tag.has_attr("href"):
+        print("❌ Lien 'url_vmrr' introuvable sur la page URSSAF.")
+        return None, []
+
+    absolute_url = urljoin(PAGE_URL, link_tag["href"])
+    data = _try_download_vmrr_xlsx(absolute_url, download_folder)
+    if not data:
+        return None, []
+    return data, [PAGE_URL, absolute_url]
 
 
 def get_supabase():
@@ -86,7 +237,7 @@ def upsert_payroll_config(
     print(f"✅ {config_key}: v{new_row['version']} créée dans payroll_config.")
 
 
-def download_file(url, folder, headers):
+def download_file(url, folder, headers, timeout=FICHIERDIRECT_DOWNLOAD_TIMEOUT):
     """
     Télécharge un fichier depuis une URL et le sauvegarde dans le dossier spécifié.
     Retourne le chemin du fichier téléchargé en cas de succès, sinon None.
@@ -96,8 +247,7 @@ def download_file(url, folder, headers):
         path_to_save = os.path.join(folder, local_filename)
 
         print(f"Téléchargement de : {url}")
-        # Utilise les en-têtes (headers) pour la requête de téléchargement aussi
-        with requests.get(url, stream=True, headers=headers) as r:
+        with requests.get(url, stream=True, headers=headers, timeout=timeout) as r:
             r.raise_for_status()
             with open(path_to_save, "wb") as f:
                 for chunk in r.iter_content(chunk_size=8192):
@@ -107,6 +257,28 @@ def download_file(url, folder, headers):
     except requests.exceptions.RequestException as e:
         print(f"❌ Erreur lors du téléchargement de {url}: {e}\n")
         return None
+
+
+def _fichierdirect_reachable() -> bool:
+    probe_url = _direct_vmrr_urls()[0]
+    try:
+        response = requests.head(
+            probe_url,
+            headers=HEADERS,
+            timeout=FICHIERDIRECT_PROBE_TIMEOUT,
+            allow_redirects=True,
+        )
+        return response.status_code < 400
+    except requests.exceptions.RequestException:
+        try:
+            response = requests.get(
+                PAGE_URL,
+                headers=HEADERS,
+                timeout=FICHIERDIRECT_PROBE_TIMEOUT,
+            )
+            return response.status_code < 400
+        except requests.exceptions.RequestException:
+            return False
 
 
 def convert_csv_to_data(csv_path):
@@ -150,41 +322,30 @@ def scrape_vmrr_from_urssaf(
     if not os.path.exists(download_folder):
         os.makedirs(download_folder)
 
-    print(f"Scraping VMRR : {PAGE_URL}")
-    last_error: Exception | None = None
-    for attempt in range(1, 4):
-        try:
-            response = requests.get(PAGE_URL, headers=HEADERS, timeout=45)
-            response.raise_for_status()
-            break
-        except requests.exceptions.RequestException as e:
-            last_error = e
-            if attempt < 3:
-                print(f"Tentative {attempt}/3 échouée, nouvel essai… ({e})")
-            continue
+    if _fichierdirect_reachable():
+        for direct_url in _direct_vmrr_urls():
+            print(f"Tentative XLSX direct : {direct_url}")
+            try:
+                data = _try_download_vmrr_xlsx(direct_url, download_folder)
+            except Exception as exc:
+                print(f"❌ Échec XLSX direct ({direct_url}) : {exc}")
+                data = None
+            if data:
+                return data, [direct_url]
+
+        data, links = _scrape_vmrr_from_reference_page(download_folder)
+        if data:
+            return data, links
     else:
-        print(f"Impossible d'accéder à la page URSSAF. Erreur : {last_error}")
-        return None, []
+        print(
+            "fichierdirect.declaration.urssaf.fr inaccessible — "
+            "repli Open Data URSSAF."
+        )
 
-    soup = BeautifulSoup(response.text, "html.parser")
-    link_tag = soup.find("a", id="url_vmrr")
-    if not link_tag or not link_tag.has_attr("href"):
-        print("❌ Lien 'url_vmrr' introuvable sur la page URSSAF.")
-        return None, []
-
-    absolute_url = urljoin(PAGE_URL, link_tag["href"])
-    downloaded_file_path = download_file(absolute_url, download_folder, HEADERS)
-    if not downloaded_file_path:
-        return None, []
-
-    if not downloaded_file_path.lower().endswith(".xlsx"):
-        print(f"❌ Format VMRR non géré: {downloaded_file_path}")
-        return None, []
-
-    data = convert_xlsx_to_data(downloaded_file_path)
-    if not data:
-        return None, []
-    return data, [PAGE_URL, absolute_url]
+    data = fetch_vmrr_from_open_data()
+    if data:
+        return data, [OPEN_DATA_PAGE_URL, OPEN_DATA_CSV_URL]
+    return None, []
 
 
 def main():
@@ -197,7 +358,7 @@ def main():
 
     print(f"\nScraping de la page : {PAGE_URL}")
     try:
-        response = requests.get(PAGE_URL, headers=HEADERS)
+        response = requests.get(PAGE_URL, headers=HEADERS, timeout=60)
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
         print(f"Impossible d'accéder à la page. Erreur : {e}")

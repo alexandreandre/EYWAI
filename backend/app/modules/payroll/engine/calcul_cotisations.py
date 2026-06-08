@@ -20,6 +20,7 @@ from typing import Dict, Any, List, Tuple, Optional
 import json
 from supabase import create_client, Client
 from .cotisations_rubriques import enrichir_ligne_cotisation
+from .baremes_loader import resoudre_taux_vm_pour_paie
 
 # Fichier : moteur_paie/calcul_cotisations.py
 
@@ -345,6 +346,15 @@ def calculer_cotisations(
                 .get("taux_at_mp", 0.0)
                 / 100.0
             )
+
+        elif coti_id == "versement_mobilite":
+            taux_patronal_final = resoudre_taux_vm_pour_paie(
+                contexte.baremes,
+                contexte.entreprise,
+                alertes=contexte.alertes_baremes,
+            )
+            if taux_patronal_final is None:
+                continue
 
         if coti_id == "csg" and isinstance(taux_salarial, dict):
             taux_csg_deductible = taux_salarial.get("deductible", 0.0)

@@ -5,7 +5,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Loader2, PartyPopper } from 'lucide-react';
+import { AlertTriangle, Loader2, PartyPopper } from 'lucide-react';
 import { PayrollProgressBar } from '@/features/payroll/components/PayrollProgressBar';
 import { PayrollPreflightChecklist } from '@/features/payroll/components/PayrollPreflightChecklist';
 import { usePayrollGeneration } from '@/features/payroll/hooks/usePayrollGeneration';
@@ -125,6 +125,8 @@ export function GeneratePayrollModal({ isOpen, onClose, employees }: GeneratePay
 
   const isAllSelected = employees.length > 0 && selectedEmployees.size === employees.length;
   const successCount = generation.log.filter((l) => l.status === 'success').length;
+  const warningCount = generation.log.filter((l) => l.status === 'warning').length;
+  const generatedCount = successCount + warningCount;
   const errorCount = generation.log.filter((l) => l.status === 'error').length;
 
   return (
@@ -236,24 +238,47 @@ export function GeneratePayrollModal({ isOpen, onClose, employees }: GeneratePay
 
             {uiPhase === 'done' && (
               <div className="mt-4 flex items-center gap-2 rounded-lg bg-muted/40 p-3 text-sm">
-                {errorCount === 0 ? (
-                  <>
-                    <PartyPopper className="h-5 w-5 shrink-0 text-green-600" />
-                    <span className="font-medium text-green-700">
-                      {successCount} bulletin{successCount > 1 ? 's' : ''} généré
-                      {successCount > 1 ? 's' : ''} avec succès.
-                    </span>
-                  </>
-                ) : (
+                {errorCount > 0 ? (
                   <span className="text-foreground">
                     <span className="font-medium text-green-700">
-                      {successCount} réussi{successCount > 1 ? 's' : ''}
+                      {generatedCount} généré{generatedCount !== 1 ? 's' : ''}
                     </span>
                     {' · '}
                     <span className="font-medium text-red-600">
                       {errorCount} en échec
                     </span>
                   </span>
+                ) : generatedCount === 0 ? (
+                  <span className="text-muted-foreground">Aucun bulletin généré.</span>
+                ) : warningCount === 0 ? (
+                  <>
+                    <PartyPopper className="h-5 w-5 shrink-0 text-green-600" />
+                    <span className="font-medium text-green-700">
+                      {generatedCount} bulletin{generatedCount > 1 ? 's' : ''} généré
+                      {generatedCount > 1 ? 's' : ''} avec succès.
+                    </span>
+                  </>
+                ) : successCount === 0 ? (
+                  <>
+                    <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" />
+                    <span className="font-medium text-amber-700">
+                      {generatedCount} bulletin{generatedCount > 1 ? 's' : ''} généré
+                      {generatedCount > 1 ? 's' : ''} avec des alertes.
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <PartyPopper className="h-5 w-5 shrink-0 text-green-600" />
+                    <span className="text-foreground">
+                      <span className="font-medium text-green-700">
+                        {successCount} sans alerte
+                      </span>
+                      {' · '}
+                      <span className="font-medium text-amber-700">
+                        {warningCount} avec alerte{warningCount > 1 ? 's' : ''}
+                      </span>
+                    </span>
+                  </>
                 )}
               </div>
             )}

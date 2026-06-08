@@ -170,18 +170,21 @@ export function buildCotisationDisplayRows(
   }
 
   const rowLabel = (row: CotisationDisplayRow): string =>
-    row.type === 'bundle' ? row.sourceName : row.cotisation.libelle;
+    row.type === 'bundle' ? row.sourceName : (row.cotisation.libelle ?? '');
 
   return rows.sort((a, b) => rowLabel(a).localeCompare(rowLabel(b), 'fr'));
+}
+
+function cotisationSearchText(c: Cotisation): string {
+  return [c.libelle, c.base, c.id].filter(Boolean).join(' ').toLowerCase();
 }
 
 export function rowMatchesSearch(row: CotisationDisplayRow, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
+  if (row.type === 'bundle' && row.sourceName.toLowerCase().includes(q)) return true;
   const cotis = row.type === 'bundle' ? row.cotisations : [row.cotisation];
-  return cotis.some(
-    (c) => c.libelle.toLowerCase().includes(q) || c.base.toLowerCase().includes(q),
-  );
+  return cotis.some((c) => cotisationSearchText(c).includes(q));
 }
 
 export function bundleSourceNorm(sourceKey: string): string {

@@ -146,7 +146,47 @@ def baremes_lookup(
     path_so_far: List[str] = []
     for segment in chemin:
         path_so_far.append(str(segment))
-        if not isinstance(cur, dict):
+        if isinstance(cur, dict):
+            if segment in cur:
+                cur = cur[segment]
+            elif str(segment) in cur:
+                cur = cur[str(segment)]
+            else:
+                _ajouter_alerte(
+                    alertes,
+                    code="bareme_chemin_absent",
+                    cle=cle,
+                    chemin=path_so_far,
+                    critique=critique,
+                    message=f"Valeur absente : {cle}.{'.'.join(path_so_far)}",
+                )
+                return None
+        elif isinstance(cur, list):
+            try:
+                idx = int(segment)
+            except (TypeError, ValueError):
+                _ajouter_alerte(
+                    alertes,
+                    code="bareme_chemin_invalide",
+                    cle=cle,
+                    chemin=path_so_far,
+                    critique=critique,
+                    message=f"Chemin invalide {cle}.{'.'.join(path_so_far)}",
+                )
+                return None
+            if 0 <= idx < len(cur):
+                cur = cur[idx]
+            else:
+                _ajouter_alerte(
+                    alertes,
+                    code="bareme_chemin_absent",
+                    cle=cle,
+                    chemin=path_so_far,
+                    critique=critique,
+                    message=f"Valeur absente : {cle}.{'.'.join(path_so_far)}",
+                )
+                return None
+        else:
             _ajouter_alerte(
                 alertes,
                 code="bareme_chemin_invalide",
@@ -156,17 +196,6 @@ def baremes_lookup(
                 message=f"Chemin invalide {cle}.{'.'.join(path_so_far)}",
             )
             return None
-        if segment not in cur:
-            _ajouter_alerte(
-                alertes,
-                code="bareme_chemin_absent",
-                cle=cle,
-                chemin=path_so_far,
-                critique=critique,
-                message=f"Valeur absente : {cle}.{'.'.join(path_so_far)}",
-            )
-            return None
-        cur = cur[segment]
 
     return cur
 
@@ -301,6 +330,200 @@ def controler_integrite_baremes(baremes: Dict[str, Any]) -> List[Dict[str, Any]]
     return alertes
 
 
+def _normaliser_taux_vm_decimal(raw: Any) -> Optional[float]:
+    """Convertit une valeur barème VM en décimal (0.025), sans défaut arbitraire."""
+    if raw is None:
+        return None
+    try:
+        if isinstance(raw, str):
+            raw = raw.replace(",", ".").replace("%", "").strip()
+        val = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if abs(val) > 1:
+        val = val / 100.0
+    return val
+
+
+def _lignes_vmrr(taux_vmrr: Any) -> List[Dict[str, Any]]:
+    if isinstance(taux_vmrr, list):
+        return [r for r in taux_vmrr if isinstance(r, dict)]
+    if isinstance(taux_vmrr, dict):
+        inner = taux_vmrr.get("rows") or taux_vmrr.get("taux") or []
+        if isinstance(inner, list):
+            return [r for r in inner if isinstance(r, dict)]
+    return []
+
+
+def _libelle_commune_vmrr(row: Dict[str, Any]) -> str:
+    for key, val in row.items():
+        key_l = str(key).lower()
+        if val is None or not str(val).strip():
+            continue
+        if key_l in ("commune", "libelle", "libcom", "libcommune") or "commune" in key_l:
+            return str(val).strip()
+    for key in ("commune", "libelle", "Commune", "LIBCOM"):
+        val = row.get(key)
+        if val is not None and str(val).strip():
+            return str(val).strip()
+    return ""
+
+
+def _taux_ligne_vmrr(row: Dict[str, Any]) -> Optional[float]:
+    for key in ("taux", "Taux", "taux_vm", "TAUX", "Taux VM", "TauxVM"):
+        if key in row:
+            taux = _normaliser_taux_vm_decimal(row[key])
+            if taux is not None:
+                return taux
+    for key, val in row.items():
+        if "taux" in str(key).lower():
+            taux = _normaliser_taux_vm_decimal(val)
+            if taux is not None:
+                return taux
+    return None
+
+
+def commune_entreprise_depuis_donnees(entreprise: Dict[str, Any]) -> Optional[str]:
+    ident = entreprise.get("identification") or {}
+    adresse = ident.get("adresse") or {}
+    ville = adresse.get("ville")
+    if ville and str(ville).strip():
+        return str(ville).strip()
+    return None
+
+
+def resoudre_taux_vm_officiel(
+    taux_vmrr: Any,
+    commune: Optional[str],
+    *,
+    alertes: Optional[List[Dict[str, Any]]] = None,
+) -> Optional[float]:
+    """
+    Taux VM applicable depuis le barème scrapé URSSAF (taux_vmrr) et la commune.
+    Aucune valeur en dur : None + alerte si barème, commune ou ligne absents.
+    """
+    commune_clean = str(commune).strip() if commune else ""
+    if not commune_clean:
+        _ajouter_alerte(
+            alertes,
+            code="vm_commune_absente",
+            cle="taux_vmrr",
+            chemin=[],
+            critique=False,
+            message="Commune entreprise absente — taux VM non résolu depuis le barème scrapé",
+        )
+        return None
+
+    if not taux_vmrr:
+        _ajouter_alerte(
+            alertes,
+            code="vm_bareme_absent",
+            cle="taux_vmrr",
+            chemin=[],
+            critique=False,
+            message=(
+                "Barème taux_vmrr absent — synchronisez la source "
+                "« Versement mobilité » (VM) dans les référentiels taux"
+            ),
+        )
+        return None
+
+    rows = _lignes_vmrr(taux_vmrr)
+    if not rows:
+        _ajouter_alerte(
+            alertes,
+            code="vm_bareme_vide",
+            cle="taux_vmrr",
+            chemin=[],
+            critique=False,
+            message="Barème taux_vmrr vide — relancez le scraping VM",
+        )
+        return None
+
+    commune_norm = commune_clean.lower()
+    for row in rows:
+        lib = _libelle_commune_vmrr(row).lower()
+        if not lib:
+            continue
+        if commune_norm in lib or lib in commune_norm:
+            taux = _taux_ligne_vmrr(row)
+            if taux is not None:
+                return taux
+
+    _ajouter_alerte(
+        alertes,
+        code="vm_commune_introuvable",
+        cle="taux_vmrr",
+        chemin=[commune_clean],
+        critique=False,
+        message=(
+            f"Taux VM introuvable pour « {commune_clean} » dans le barème scrapé taux_vmrr"
+        ),
+    )
+    return None
+
+
+def taux_vm_entreprise_depuis_donnees(entreprise: Dict[str, Any]) -> Optional[float]:
+    raw = (
+        (entreprise.get("parametres_paie") or {})
+        .get("taux_specifiques", {})
+        .get("taux_versement_mobilite")
+    )
+    if raw is None:
+        return None
+    return _normaliser_taux_vm_decimal(raw)
+
+
+def resoudre_taux_vm_pour_paie(
+    baremes: Dict[str, Any],
+    entreprise: Dict[str, Any],
+    *,
+    alertes: Optional[List[Dict[str, Any]]] = None,
+) -> Optional[float]:
+    """
+    Taux VM pour le calcul du bulletin :
+    1. Barème scrapé taux_vmrr + commune (prioritaire)
+    2. Repli fiche entreprise (taux_vm) si le barème n'est pas encore synchronisé
+    3. Alerte seulement si aucune des deux sources n'est utilisable
+    """
+    commune = commune_entreprise_depuis_donnees(entreprise)
+    taux_vmrr = baremes.get("taux_vmrr")
+    taux_officiel = resoudre_taux_vm_officiel(taux_vmrr, commune, alertes=None)
+    if taux_officiel is not None:
+        return taux_officiel
+
+    taux_entreprise = taux_vm_entreprise_depuis_donnees(entreprise)
+    if taux_entreprise is not None:
+        return taux_entreprise
+
+    if not commune:
+        _ajouter_alerte(
+            alertes,
+            code="vm_commune_absente",
+            cle="taux_vmrr",
+            chemin=[],
+            critique=False,
+            message="Commune entreprise absente — taux VM non résolu",
+        )
+        return None
+
+    if not taux_vmrr:
+        _ajouter_alerte(
+            alertes,
+            code="vm_bareme_absent",
+            cle="taux_vmrr",
+            chemin=[],
+            critique=False,
+            message=(
+                "Barème taux_vmrr absent et aucun taux VM sur la fiche entreprise — "
+                "synchronisez la source « Versement mobilité » (VM) ou renseignez le taux"
+            ),
+        )
+        return None
+
+    return resoudre_taux_vm_officiel(taux_vmrr, commune, alertes=alertes)
+
+
 def comparer_taux_vm_entreprise(
     taux_entreprise: Optional[float],
     taux_vmrr: Any,
@@ -309,51 +532,11 @@ def comparer_taux_vm_entreprise(
     tolerance: float = 0.001,
 ) -> Optional[Dict[str, Any]]:
     """
-    Contrôle de cohérence VM entreprise vs barème scrapé (alerte, pas de calcul auto).
-    Retourne une alerte dict si écart détecté, sinon None.
+    Contrôle optionnel : taux VM saisi manuellement sur l'entreprise vs barème scrapé.
+    Si aucune surcharge (null ou 0), le barème scrapé fait foi — pas d'alerte ici.
     """
     if taux_entreprise is None:
         return None
-    if not taux_vmrr:
-        return {
-            "code": "vm_bareme_absent",
-            "severity": "info",
-            "message": "Barème taux_vmrr absent — contrôle VM impossible",
-        }
-
-    taux_officiel: Optional[float] = None
-    rows: List[Dict[str, Any]] = []
-    if isinstance(taux_vmrr, list):
-        rows = [r for r in taux_vmrr if isinstance(r, dict)]
-    elif isinstance(taux_vmrr, dict):
-        inner = taux_vmrr.get("rows") or taux_vmrr.get("taux") or []
-        if isinstance(inner, list):
-            rows = [r for r in inner if isinstance(r, dict)]
-
-    if commune and rows:
-        commune_norm = commune.strip().lower()
-        for row in rows:
-            lib = str(
-                row.get("commune")
-                or row.get("libelle")
-                or row.get("Commune")
-                or ""
-            ).lower()
-            if commune_norm in lib or lib in commune_norm:
-                raw = row.get("taux") or row.get("Taux") or row.get("taux_vm")
-                if raw is not None:
-                    try:
-                        taux_officiel = float(raw)
-                        break
-                    except (TypeError, ValueError):
-                        pass
-
-    if taux_officiel is None:
-        return {
-            "code": "vm_commune_introuvable",
-            "severity": "info",
-            "message": "Taux VM officiel introuvable pour la commune — contrôle partiel",
-        }
 
     try:
         te = float(taux_entreprise)
@@ -363,6 +546,25 @@ def comparer_taux_vm_entreprise(
             "severity": "warning",
             "message": "Taux VM entreprise non numérique",
         }
+
+    if abs(te) > 1:
+        te = te / 100.0
+
+    if abs(te) <= 1e-9:
+        return None
+
+    taux_officiel = resoudre_taux_vm_officiel(taux_vmrr, commune, alertes=None)
+    if taux_officiel is None:
+        if not taux_vmrr:
+            return {
+                "code": "vm_bareme_absent",
+                "severity": "info",
+                "message": (
+                    "Barème taux_vmrr absent — impossible de contrôler la surcharge VM "
+                    "entreprise"
+                ),
+            }
+        return None
 
     if abs(te - taux_officiel) > tolerance:
         return {

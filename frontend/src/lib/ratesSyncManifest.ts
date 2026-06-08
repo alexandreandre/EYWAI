@@ -24,21 +24,80 @@ const BAREMES_EXCLUDED_KEYS = new Set([
   'cotisations',
 ]);
 
-const BAREMES_ORDERED_KEYS = ['pas', 'frais_pro', 'avantages_en_nature', 'heures_supp', 'primes'] as const;
+const BAREMES_ORDERED_KEYS = [
+  'pas',
+  'frais_pro',
+  'avantages_en_nature',
+  'heures_supp',
+  'primes',
+  'taux_vmrr',
+  'baremes_km',
+] as const;
+
+/** Toujours visible dans « Barèmes & abattements » (même si la source n'est pas encore en base). */
+export const ALWAYS_VISIBLE_BAREME_KEYS = ['taux_vmrr'] as const;
+
+export function manifestHasRateKey(
+  manifest: RatesSyncSourcesManifest | undefined,
+  rateKey: string,
+): boolean {
+  return (
+    manifest?.rate_categories.some(
+      (category) => category.rate_key === rateKey && category.sources.length > 0,
+    ) ?? false
+  );
+}
+
+/** Clés barèmes affichées dans « Barèmes & abattements » (données et/ou manifeste sync). */
+export function listBaremesSectionKeys(
+  data: Record<string, { config_data?: unknown } | undefined>,
+  manifest?: RatesSyncSourcesManifest,
+): string[] {
+  const keys: string[] = [];
+  const seen = new Set<string>();
+
+  const push = (key: string) => {
+    if (seen.has(key)) return;
+    seen.add(key);
+    keys.push(key);
+  };
+
+  for (const key of BAREMES_ORDERED_KEYS) {
+    const hasData = data[key]?.config_data != null;
+    if (hasData || manifestHasRateKey(manifest, key)) {
+      push(key);
+    }
+  }
+
+  for (const key of ALWAYS_VISIBLE_BAREME_KEYS) {
+    push(key);
+  }
+
+  for (const key of Object.keys(data)) {
+    if (!BAREMES_EXCLUDED_KEYS.has(key) && data[key]?.config_data != null) {
+      push(key);
+    }
+  }
+
+  return keys;
+}
 
 export function getBaremesRateKeysFromData(
   data: Record<string, { config_data?: unknown } | undefined>,
+  manifest?: RatesSyncSourcesManifest,
 ): string[] {
-  const keys: string[] = [];
-  for (const key of BAREMES_ORDERED_KEYS) {
-    if (data[key]?.config_data) keys.push(key);
-  }
-  for (const key of Object.keys(data)) {
-    if (!BAREMES_EXCLUDED_KEYS.has(key) && data[key]?.config_data) {
-      keys.push(key);
-    }
-  }
-  return keys;
+  return listBaremesSectionKeys(data, manifest);
+}
+
+export function isBaremesRateKeyPending(
+  data: Record<string, { config_data?: unknown } | undefined>,
+  rateKey: string,
+): boolean {
+  const raw = data[rateKey]?.config_data;
+  if (raw == null) return true;
+  if (Array.isArray(raw)) return raw.length === 0;
+  if (typeof raw === 'object') return Object.keys(raw as object).length === 0;
+  return false;
 }
 
 export function syncTargetToRequest(target: RatesSyncTarget): RatesSyncRequest {
@@ -58,6 +117,10 @@ export function syncTargetToRequest(target: RatesSyncTarget): RatesSyncRequest {
     default:
       return {};
   }
+}
+
+export function syncTargetsEqual(a: RatesSyncTarget, b: RatesSyncTarget): boolean {
+  return JSON.stringify(syncTargetToRequest(a)) === JSON.stringify(syncTargetToRequest(b));
 }
 
 export function sourcesForRateKey(

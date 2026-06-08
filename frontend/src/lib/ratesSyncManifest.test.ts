@@ -11,6 +11,8 @@ import {
   sourceLinksForCotisationId,
   sourceLinksForRateKey,
   sourcesForCotisationId,
+  listBaremesSectionKeys,
+  isBaremesRateKeyPending,
   syncTargetToRequest,
 } from '@/lib/ratesSyncManifest';
 
@@ -42,6 +44,37 @@ describe('ratesSyncManifest', () => {
     expect(syncTargetToRequest({ scope: 'rate_key', rateKey: 'smic' })).toEqual({
       rate_keys: ['smic'],
     });
+  });
+
+  it('affiche toujours taux_vmrr même sans manifeste ni données', () => {
+    expect(listBaremesSectionKeys({ pas: { config_data: { x: 1 } } })).toContain('taux_vmrr');
+  });
+
+  it('affiche taux_vmrr dans les barèmes via le manifeste même sans données', () => {
+    const vmManifest: RatesSyncSourcesManifest = {
+      all_critical_count: 1,
+      rate_categories: [
+        {
+          rate_key: 'taux_vmrr',
+          sources: [
+            {
+              source_key: 'VM',
+              source_name: 'Versement mobilité',
+              is_running: false,
+              primary_url: 'https://fichierdirect.declaration.urssaf.fr/TablesReference.htm',
+            },
+          ],
+        },
+      ],
+    };
+    expect(listBaremesSectionKeys({ pas: { config_data: {} } }, vmManifest)).toContain('taux_vmrr');
+    expect(isBaremesRateKeyPending({}, 'taux_vmrr')).toBe(true);
+    expect(
+      isBaremesRateKeyPending(
+        { taux_vmrr: { config_data: [{ commune: 'Paris', taux: 0.025 }] } },
+        'taux_vmrr',
+      ),
+    ).toBe(false);
   });
 
   it('resolves source keys for cotisation', () => {

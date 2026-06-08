@@ -11,6 +11,7 @@ const RATE_KEY_LABELS: Record<string, string> = {
   heures_supplementaires: 'Heures supplémentaires',
   primes: 'Primes',
   baremes_km: 'Barème kilométrique',
+  taux_vmrr: 'Versement mobilité',
   alternance: 'Alternance (apprentis / pro)',
   reduction_generale: 'Réduction générale (RGDU 2026)',
 

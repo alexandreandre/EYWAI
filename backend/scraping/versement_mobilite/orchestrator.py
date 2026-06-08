@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Orchestrateur versement mobilité — exécute VM.py avec dry-run."""
+"""Orchestrateur versement mobilité — scrape VMRR puis écrit payroll_config."""
 
 import argparse
 import json
@@ -33,34 +33,30 @@ def main() -> None:
 
     load_env()
     dry = is_dry_run()
-    from VM import scrape_vmrr_from_urssaf  # noqa: WPS433
+    from VM import scrape_vmrr_from_urssaf, upsert_payroll_config  # noqa: WPS433
 
-    if dry:
+    data, links = scrape_vmrr_from_urssaf()
+    success = bool(data)
+
+    if success and not dry:
+        try:
+            upsert_payroll_config("taux_vmrr", data, source_links=links)
+        except Exception as exc:
+            logging.error("Erreur Supabase taux_vmrr: %s", exc)
+            success = False
+    elif dry:
         logging.info("Dry-run VM — pas d'écriture Supabase")
-        data, _links = scrape_vmrr_from_urssaf()
-        out = {
-            "scraper": "VM",
-            "success": bool(data),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "config_key": "taux_vmrr",
-            "data": {"rows": len(data or [])},
-            "sources_used": ["VM.py"],
-        }
-        print(json.dumps(out, ensure_ascii=False))
-        sys.exit(0 if out["success"] else 1)
 
-    import VM as vm_mod  # noqa: WPS433
-
-    vm_mod.main()
     out = {
         "scraper": "VM",
-        "success": True,
+        "success": success,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "config_key": "taux_vmrr",
-        "data": {},
-        "sources_used": ["VM.py"],
+        "data": {"rows": len(data or [])},
+        "sources_used": links or ["VM.py"],
     }
     print(json.dumps(out, ensure_ascii=False))
+    sys.exit(0 if success else 1)
 
 
 if __name__ == "__main__":

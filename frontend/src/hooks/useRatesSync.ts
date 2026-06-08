@@ -26,6 +26,7 @@ import {
   sourceKeysForTarget,
   syncRequestToTarget,
   syncTargetToRequest,
+  syncTargetsEqual,
   type RatesSyncTarget,
 } from '@/lib/ratesSyncManifest';
 import {
@@ -59,6 +60,22 @@ type ActiveSync = {
   isMonthly: boolean;
   isOptimistic?: boolean;
 };
+
+type PendingSync = {
+  target: RatesSyncTarget;
+  options?: { monthly?: boolean; snapshot?: RatesSnapshot };
+};
+
+function isTargetScheduled(
+  target: RatesSyncTarget,
+  active: ActiveSync[],
+  queue: PendingSync[],
+): boolean {
+  if (active.some((s) => isSyncEntryActive(s) && syncTargetsEqual(s.target, target))) {
+    return true;
+  }
+  return queue.some((entry) => syncTargetsEqual(entry.target, target));
+}
 
 function isOptimisticSyncId(syncId: string): boolean {
   return syncId.startsWith(OPTIMISTIC_SYNC_PREFIX);
@@ -190,6 +207,10 @@ export function useRatesSync(onSyncComplete?: (changedKeys: string[]) => void) {
   /** Si l’utilisateur ferme la bannière avant la fin du refetch, ne pas la réafficher. */
   const outcomeDismissedGenerationRef = useRef<number | null>(null);
   const ratesRefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingQueueRef = useRef<PendingSync[]>([]);
+  const launchSyncRef = useRef<
+    (target: RatesSyncTarget, options?: PendingSync['options']) => Promise<void>
+  >(() => Promise.resolve());
 
   const [activeSyncs, setActiveSyncs] = useState<ActiveSync[]>(hydrateActiveSyncsFromStorage);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -349,7 +370,13 @@ export function useRatesSync(onSyncComplete?: (changedKeys: string[]) => void) {
       applyCompletedSyncJobsToRatesCache(queryClient, companyId, finalStatus.jobs);
 
       if (!anyStillRunning) {
-        await finalizeWhenIdle(finalStatus, wasMonthly, finalizeGenerationRef.current);
+        const next = pendingQueueRef.current.shift();
+        if (next) {
+          notifyRatesDataRefresh();
+          void launchSyncRef.current(next.target, next.options);
+        } else {
+          await finalizeWhenIdle(finalStatus, wasMonthly, finalizeGenerationRef.current);
+        }
       } else {
         notifyRatesDataRefresh();
       }
@@ -591,6 +618,7 @@ export function useRatesSync(onSyncComplete?: (changedKeys: string[]) => void) {
       .map((s) => s.syncId);
     stopAllPollers();
     attachedSyncIdsRef.current.clear();
+    pendingQueueRef.current = [];
     writePersistedSyncSessions([]);
     setActiveSyncs([]);
     finalizeGenerationRef.current += 1;
@@ -686,26 +714,9 @@ export function useRatesSync(onSyncComplete?: (changedKeys: string[]) => void) {
     );
   }, [activeSyncs, manifest]);
 
-  const startSync = useCallback(
-    async (target: RatesSyncTarget, options?: { monthly?: boolean; snapshot?: RatesSnapshot }) => {
+  const launchSync = useCallback(
+    async (target: RatesSyncTarget, options?: PendingSync['options']) => {
       const keys = sourceKeysForTarget(manifest, target);
-      if (target.scope !== 'all' && keys.length === 0) {
-        toast.error(
-          target.scope === 'rate_keys'
-            ? 'Aucune source de mise à jour disponible pour cette section.'
-            : 'Aucune source de mise à jour disponible pour cet élément.',
-        );
-        return;
-      }
-      if (isGlobalSyncInFlight()) {
-        const runningIds = collectRunningSyncIdsFromManifest(manifest);
-        for (const syncId of runningIds) {
-          await attachExistingSync(syncId, { isMonthly: options?.monthly });
-        }
-        toast.info('Une mise à jour est déjà en cours.');
-        return;
-      }
-
       setSyncError(null);
       finalizeGenerationRef.current += 1;
       outcomeDismissedGenerationRef.current = null;
@@ -765,18 +776,61 @@ export function useRatesSync(onSyncComplete?: (changedKeys: string[]) => void) {
         const { message } = parseRatesError(e);
         setSyncError(message);
         toast.error(message);
+
+        if (pendingQueueRef.current.length > 0) {
+          const next = pendingQueueRef.current.shift()!;
+          void launchSyncRef.current(next.target, next.options);
+        }
       }
     },
     [
-      attachExistingSync,
       companyId,
       invalidateSyncManifest,
-      isGlobalSyncInFlight,
       manifest,
       persistActiveSyncIds,
       pollStatus,
       queryClient,
     ],
+  );
+
+  launchSyncRef.current = launchSync;
+
+  const startSync = useCallback(
+    async (target: RatesSyncTarget, options?: PendingSync['options']) => {
+      const keys = sourceKeysForTarget(manifest, target);
+      if (target.scope !== 'all' && keys.length === 0) {
+        toast.error(
+          target.scope === 'rate_keys'
+            ? 'Aucune source de mise à jour disponible pour cette section.'
+            : 'Aucune source de mise à jour disponible pour cet élément.',
+        );
+        return;
+      }
+
+      if (isGlobalSyncInFlight()) {
+        const runningIds = collectRunningSyncIdsFromManifest(manifest);
+        for (const syncId of runningIds) {
+          await attachExistingSync(syncId, { isMonthly: options?.monthly });
+        }
+
+        if (isTargetScheduled(target, activeSyncs, pendingQueueRef.current)) {
+          toast.info('Cette mise à jour est déjà en cours ou en attente.');
+          return;
+        }
+
+        pendingQueueRef.current.push({ target, options });
+        const pendingCount = pendingQueueRef.current.length;
+        toast.info(
+          pendingCount === 1
+            ? 'Mise à jour ajoutée à la file d’attente.'
+            : `${pendingCount} mises à jour en file d’attente.`,
+        );
+        return;
+      }
+
+      await launchSync(target, options);
+    },
+    [activeSyncs, attachExistingSync, isGlobalSyncInFlight, launchSync, manifest],
   );
 
   useEffect(

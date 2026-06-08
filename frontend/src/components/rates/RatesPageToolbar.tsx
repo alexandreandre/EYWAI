@@ -61,7 +61,6 @@ export function RatesPageToolbar({
               size="sm"
               className="h-9"
               onClick={onFullSync}
-              disabled={isSyncing}
             >
               <CloudDownload
                 className={cn('mr-2 h-4 w-4 shrink-0', isSyncing && 'animate-pulse')}

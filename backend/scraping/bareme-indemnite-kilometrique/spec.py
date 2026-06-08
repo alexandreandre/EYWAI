@@ -37,5 +37,6 @@ SPEC = RateSpec(
     build_config_data=build_config_data,
     persistence_mode=PersistenceMode.FULL,
     comment="Mise à jour automatique: barème kilométrique",
+    primary_label="bareme-indemnite-kilometrique.py",
     signature_for_emit=signature_for_emit,
 )

@@ -5,6 +5,7 @@ import {
   buildCotisationDisplayRows,
   bundleDisplayLabel,
   rowMatchesSearch,
+  type CotisationDisplayRow,
 } from '@/lib/cotisationDisplayGroups';
 import type { Cotisation } from '@/lib/ratesUtils';
 
@@ -126,5 +127,20 @@ describe('cotisationDisplayGroups', () => {
     ]);
     const bundle = rows[0];
     expect(rowMatchesSearch(bundle, 'ceg t1')).toBe(true);
+  });
+
+  it('rowMatchesSearch tolère libelle ou base null', () => {
+    const row: CotisationDisplayRow = {
+      type: 'single',
+      cotisation: {
+        id: 'retraite_comp_t1',
+        libelle: 'Retraite complémentaire T1',
+        base: null as unknown as string,
+        salarial: 0.01,
+        patronal: 0.02,
+      },
+    };
+    expect(() => rowMatchesSearch(row, 'retraite')).not.toThrow();
+    expect(rowMatchesSearch(row, 'retraite')).toBe(true);
   });
 });
