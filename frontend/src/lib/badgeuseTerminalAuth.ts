@@ -136,14 +136,13 @@ export async function openBadgeuseOnThisDevice(
     activated = true;
   }
 
-  const openedWindow = window.open(
-    BADGEUSE_RH_TERMINAL_PATH,
-    '_blank',
-    'noopener,noreferrer'
-  );
+  // Ne pas passer noopener dans features : les navigateurs renvoient alors null même
+  // si l'onglet s'ouvre, ce qui déclenche un faux positif « pop-up bloquée ».
+  const openedWindow = window.open(BADGEUSE_RH_TERMINAL_PATH, '_blank');
   if (!openedWindow) {
     throw new Error('Autorisez les fenêtres pop-up pour ouvrir la badgeuse.');
   }
+  openedWindow.opener = null;
 
   return { opened: true, activated };
 }
