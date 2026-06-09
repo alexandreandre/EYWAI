@@ -67,6 +67,7 @@ COTI_ID_TO_RUBRIQUE: Dict[str, str] = {
     "deduction_hs_patronale": RUBRIQUE_EXONERATIONS[0],
     "exoneration_apprenti_salariale": RUBRIQUE_EXONERATIONS[0],
     "exoneration_stage": RUBRIQUE_EXONERATIONS[0],
+    "exoneration_jei": RUBRIQUE_EXONERATIONS[0],
 }
 
 EXONERATION_KEYWORDS = (
@@ -78,6 +79,8 @@ EXONERATION_KEYWORDS = (
     "exoneration",
     "allègement",
     "allegement",
+    "exonération jei",
+    "exoneration jei",
     "gratification de stage exonérée",
 )
 

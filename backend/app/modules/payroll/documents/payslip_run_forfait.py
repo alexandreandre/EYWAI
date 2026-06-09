@@ -21,6 +21,13 @@ from app.modules.payroll.engine.calcul_net import calculer_net_et_impot
 from app.modules.payroll.engine.calcul_reduction_generale import (
     calculer_reduction_generale,
 )
+from app.modules.payroll.engine.exoneration_jei import (
+    calculer_exoneration_jei,
+    jei_applicable,
+)
+from app.modules.jei_settings.infrastructure.exonerations_repository import (
+    jei_exonerations_repository,
+)
 from app.modules.payroll.engine.baremes_loader import (
     commune_entreprise_depuis_donnees,
     comparer_taux_vm_entreprise,
@@ -88,6 +95,7 @@ def run_payslip_generation_forfait(
     engine_root: Path,
     baremes_override: dict | None = None,
     company_id: str | None = None,
+    employee_id: str | None = None,
 ) -> dict:
     """
     Génère un bulletin forfait jour en processus (sans subprocess).
@@ -122,6 +130,7 @@ def run_payslip_generation_forfait(
     )
     # Aiguillage Fillon (< 2026) / RGDU (>= 2026) et suppression des bandeaux maladie/AF.
     contexte.year = year
+    contexte.month = month
 
     if not contexte.is_forfait_jour:
         raise ValueError(
@@ -329,11 +338,29 @@ def run_payslip_generation_forfait(
 
     nombre_jours_travailles = resultat_brut.get("nombre_jours_travailles", 0)
     heures_equivalentes = nombre_jours_travailles * 7.0
-    ligne_reduction_generale = calculer_reduction_generale(
-        contexte, salaire_brut_calcule, heures_equivalentes
+
+    ligne_exoneration_jei = calculer_exoneration_jei(
+        contexte,
+        lignes_cotisations,
+        heures_equivalentes,
+        company_id=company_id,
+        employee_id=employee_id,
+        year=year,
+        month=month,
+        exonerations_repo=jei_exonerations_repository
+        if company_id and employee_id
+        else None,
     )
-    if ligne_reduction_generale:
-        lignes_cotisations.append(ligne_reduction_generale)
+    if ligne_exoneration_jei:
+        lignes_cotisations.append(ligne_exoneration_jei)
+
+    ligne_reduction_generale = None
+    if not jei_applicable(contexte, year, month):
+        ligne_reduction_generale = calculer_reduction_generale(
+            contexte, salaire_brut_calcule, heures_equivalentes
+        )
+        if ligne_reduction_generale:
+            lignes_cotisations.append(ligne_reduction_generale)
 
     resultats_nets = calculer_net_et_impot(
         contexte,

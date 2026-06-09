@@ -64,7 +64,16 @@ function buildRowState(
     return { status: 'loading', payslip };
   }
   if (payslip) {
-    return { status: 'success', payslip };
+    const warnings = [
+      ...(payslip.warnings ?? []),
+      ...(logEntry?.status === 'warning' ? logEntry.warnings ?? [] : []),
+    ];
+    const uniqueWarnings = [...new Set(warnings.filter(Boolean))];
+    return {
+      status: 'success',
+      payslip,
+      warnings: uniqueWarnings.length > 0 ? uniqueWarnings : undefined,
+    };
   }
   if (logEntry?.status === 'error' || persistedError) {
     return { status: 'error', errorMessage: logEntry?.error ?? persistedError };

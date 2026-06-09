@@ -111,6 +111,7 @@ export interface PayslipInfo {
   url: string;
   preview_url?: string;
   net_a_payer?: number;
+  warnings?: string[];
   manually_edited: boolean;
   edit_count: number;
   edited_at?: string;
@@ -191,6 +192,10 @@ export interface PayslipDetail {
   status?: 'brouillon' | 'valide';
   validated_at?: string;
   validated_by?: string;
+  period_edit_locked?: boolean;
+  manual_edit_locked?: boolean;
+  manual_edit_lock_reason?: string | null;
+  manual_edit_lock_until?: string | null;
 }
 
 export interface PayslipEditRequest {

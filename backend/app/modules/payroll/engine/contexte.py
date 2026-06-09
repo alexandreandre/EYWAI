@@ -6,6 +6,7 @@ import sys
 import os
 import tempfile
 import shutil
+import calendar
 from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -372,6 +373,38 @@ class ContextePaie:
             return True
         tc = self.type_contrat.lower()
         return "mandataire" in tc or "mandat social" in tc
+
+    @property
+    def is_personnel_rd_eligible_jei(self) -> bool:
+        """Vrai si le salarié est marqué éligible au dispositif JEI (personnel R&D)."""
+        spec = self.contrat.get("specificites_paie", {}) or {}
+        return bool(
+            spec.get("personnel_rd_eligible_jei")
+            or spec.get("mandataire_rd")
+        )
+
+    def jei_entreprise_active(self, year: int, month: int) -> bool:
+        """Vrai si l'entreprise bénéficie du statut JEI pour la période de paie."""
+        jei = self.entreprise.get("parametres_paie", {}).get("jei", {}) or {}
+        if not jei.get("enabled"):
+            return False
+        date_str = jei.get("date_creation_etablissement")
+        if not date_str:
+            return False
+        try:
+            creation = date.fromisoformat(str(date_str)[:10])
+        except ValueError:
+            return False
+
+        duree = int(
+            (self.baremes.get("jei", {}) or {}).get("duree_annees", 7) or 7
+        )
+        last_eligible = date(creation.year + duree, 12, 31)
+        _, num_days = calendar.monthrange(year, month)
+        period_end = date(year, month, num_days)
+        if period_end < creation:
+            return False
+        return period_end <= last_eligible
 
     @property
     def date_entree(self) -> str:

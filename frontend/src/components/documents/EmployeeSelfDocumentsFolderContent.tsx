@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from 'react';
-import { DOCUMENT_TYPE_LABELS } from '@/api/documentLibrary';
 import type { GeneratedDocument } from '@/api/documents';
+import { getGeneratedDocumentLabel } from '@/lib/generatedDocumentLabel';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { matchesFileSemantic } from '@/components/documents/companyDocumentsExplorerUtils';
@@ -107,7 +107,7 @@ export function EmployeeSelfDocumentsFolderContent({
   );
 
   const renderGeneratedRow = (doc: GeneratedDocument) => {
-    const typeLabel = DOCUMENT_TYPE_LABELS[doc.document_type] ?? doc.document_type;
+    const typeLabel = getGeneratedDocumentLabel(doc);
     return (
       <DocumentFileRow
         key={doc.id}

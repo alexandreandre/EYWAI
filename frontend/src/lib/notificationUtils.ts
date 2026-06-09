@@ -5,6 +5,7 @@ import {
   CheckCircle,
   Clock,
   FileCheck,
+  FileText,
   Stethoscope,
   XCircle,
 } from 'lucide-react';
@@ -27,6 +28,7 @@ export function resolveNotificationNavContext(
 
 const TYPE_LABELS: Record<string, string> = {
   avenant_signe: 'Document signé',
+  nouveau_document: 'Nouveau document',
   rappel_medical: 'Suivi médical',
   absence_soumise: 'Absence',
   absence_approuvee: 'Absence validée',
@@ -42,6 +44,8 @@ export function getNotificationIcon(type: string): LucideIcon {
   switch (type) {
     case 'avenant_signe':
       return FileCheck;
+    case 'nouveau_document':
+      return FileText;
     case 'rappel_medical':
       return Stethoscope;
     case 'absence_soumise':
@@ -60,6 +64,7 @@ export function getNotificationIcon(type: string): LucideIcon {
 export function getNotificationIconClass(type: string): string {
   switch (type) {
     case 'avenant_signe':
+    case 'nouveau_document':
     case 'absence_approuvee':
       return 'text-emerald-600';
     case 'rappel_medical':
@@ -80,6 +85,7 @@ export function getNotificationHref(
 ): string | null {
   switch (type) {
     case 'avenant_signe':
+    case 'nouveau_document':
       return ctx === 'employee' ? '/employee/documents' : '/documents';
     case 'rappel_medical':
       return ctx === 'employee' ? '/medical-follow-up' : '/medical-follow-up';

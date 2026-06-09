@@ -17,6 +17,7 @@ import {
   fetchAllEmployeesOverview,
   type SchedulesEmployeeInput,
 } from "@/lib/schedulesOverview";
+import { getWorkMedalSummary } from "@/api/workMedals";
 
 /** Données utiles à la sidebar (sous-ensemble de GET /api/dashboard/all). */
 interface DashboardSidebarSlice {
@@ -44,6 +45,7 @@ function buildCounts(
   annualReviewsDue: number | undefined,
   recruitmentDue: number | undefined,
   schedulesDue: number | undefined,
+  workMedalsDue: number | undefined,
 ): Record<string, number> {
   const out: Record<string, number> = {};
 
@@ -76,6 +78,10 @@ function buildCounts(
 
   if (schedulesDue != null && schedulesDue > 0) {
     out["/schedules"] = schedulesDue;
+  }
+
+  if (workMedalsDue != null && workMedalsDue > 0) {
+    out["/company"] = workMedalsDue;
   }
 
   return out;
@@ -160,6 +166,13 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
   const schedulesYear = now.getFullYear();
   const schedulesMonth = now.getMonth() + 1;
 
+  const workMedalsQuery = useQuery({
+    queryKey: ["work-medal-summary", "sidebar-badges"],
+    queryFn: getWorkMedalSummary,
+    enabled,
+    staleTime: 60_000,
+  });
+
   const schedulesBadgeQuery = useQuery({
     queryKey: ["schedules", "sidebar-badges", schedulesYear, schedulesMonth],
     queryFn: async () => {
@@ -182,6 +195,7 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
       recruitmentSettingsQuery.data?.enabled && recruitmentCandidatesQuery.data
         ? countRecruitmentPriorityCandidates(recruitmentCandidatesQuery.data)
         : undefined;
+    const workMedalsDue = workMedalsQuery.data?.awaiting_rh ?? undefined;
     return buildCounts(
       dashboardQuery.data,
       residenceQuery.data,
@@ -189,6 +203,7 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
       annualReviewsQuery.data,
       recruitmentDue,
       schedulesBadgeQuery.data,
+      workMedalsDue,
     );
   }, [
     dashboardQuery.data,
@@ -199,6 +214,7 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
     recruitmentSettingsQuery.data?.enabled,
     recruitmentCandidatesQuery.data,
     schedulesBadgeQuery.data,
+    workMedalsQuery.data?.awaiting_rh,
   ]);
 
   const totalRhPending = useMemo(() => {
@@ -221,7 +237,8 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
       (recruitmentSettingsQuery.data?.enabled === true &&
         recruitmentCandidatesQuery.isPending) ||
       (medicalSettingsQuery.data?.enabled === true && medicalKpisQuery.isPending) ||
-      schedulesBadgeQuery.isPending);
+      schedulesBadgeQuery.isPending ||
+      workMedalsQuery.isPending);
 
   const getCount = (url: string) => counts[url] ?? 0;
 

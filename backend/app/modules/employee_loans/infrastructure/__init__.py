@@ -1,0 +1,1 @@
+"""Infrastructure prêts employeur."""

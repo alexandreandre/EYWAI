@@ -19,6 +19,7 @@ export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   attestation_location: 'Attestation employeur pour location',
   attestation_pret: 'Attestation pour prêt bancaire',
   attestation_retraite: 'Attestation retraite',
+  document_transmis: 'Document transmis',
 };
 
 export interface DocumentTemplateVersion {

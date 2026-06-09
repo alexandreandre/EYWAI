@@ -12,6 +12,7 @@ from typing import Any
 from app.core.database import supabase
 
 from app.modules.payslips.infrastructure.mappers import build_payslip_detail
+from app.modules.payslips.infrastructure.payslip_list_meta import payslip_list_meta
 from app.modules.payslips.infrastructure.storage_urls import (
     create_payslip_signed_urls,
     create_payslip_url_maps,
@@ -31,10 +32,10 @@ def get_employee_statut(employee_id: str) -> str | None:
 
 
 def get_payslip_meta(payslip_id: str) -> dict[str, Any] | None:
-    """Récupère les champs minimaux d'un bulletin (company_id, employee_id) pour les contrôles d'accès."""
+    """Récupère les champs minimaux d'un bulletin pour les contrôles d'accès."""
     r = (
         supabase.table("payslips")
-        .select("company_id, employee_id")
+        .select("company_id, employee_id, year, month")
         .eq("id", payslip_id)
         .single()
         .execute()
@@ -69,12 +70,7 @@ def get_my_payslips(employee_id: str) -> list[dict[str, Any]]:
         if storage_path not in download_map:
             continue
         file_name = storage_path.split("/")[-1]
-        net_amount = None
-        payslip_json = p.get("payslip_data")
-        if isinstance(payslip_json, dict):
-            val = payslip_json.get("net_a_payer")
-            if isinstance(val, (int, float)):
-                net_amount = float(val)
+        meta = payslip_list_meta(p.get("payslip_data"))
         result.append(
             {
                 "id": p["id"],
@@ -83,18 +79,24 @@ def get_my_payslips(employee_id: str) -> list[dict[str, Any]]:
                 "year": p["year"],
                 "url": download_map[storage_path],
                 "preview_url": preview_map.get(storage_path, ""),
-                "net_a_payer": net_amount,
+                "net_a_payer": meta["net_a_payer"],
+                "warnings": meta["warnings"],
             }
         )
     return result
 
 
 def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
-    """Liste des bulletins d'un employé (sans net_a_payer)."""
+    """Liste des bulletins d'un employé (net, alertes RH, URLs signées)."""
     r = (
         supabase.table("payslips")
-        .select("id, month, year, pdf_storage_path")
+        .select(
+            "id, month, year, pdf_storage_path, payslip_data, "
+            "manually_edited, edit_count, edited_at, edited_by"
+        )
         .eq("employee_id", employee_id)
+        .order("year", desc=True)
+        .order("month", desc=True)
         .execute()
     )
     payslips_db = (r.data or []) if r else []
@@ -107,18 +109,29 @@ def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
 
     download_map, preview_map = create_payslip_url_maps(paths, 3600)
 
-    return [
-        {
-            "id": p["id"],
-            "name": p["pdf_storage_path"].split("/")[-1],
-            "month": p["month"],
-            "year": p["year"],
-            "url": download_map[p["pdf_storage_path"]],
-            "preview_url": preview_map.get(p["pdf_storage_path"], ""),
-        }
-        for p in payslips_db
-        if p.get("pdf_storage_path") in download_map
-    ]
+    result = []
+    for p in payslips_db:
+        storage_path = p.get("pdf_storage_path")
+        if storage_path not in download_map:
+            continue
+        meta = payslip_list_meta(p.get("payslip_data"))
+        result.append(
+            {
+                "id": p["id"],
+                "name": storage_path.split("/")[-1],
+                "month": p["month"],
+                "year": p["year"],
+                "url": download_map[storage_path],
+                "preview_url": preview_map.get(storage_path, ""),
+                "net_a_payer": meta["net_a_payer"],
+                "warnings": meta["warnings"],
+                "manually_edited": bool(p.get("manually_edited")),
+                "edit_count": int(p.get("edit_count") or 0),
+                "edited_at": p.get("edited_at"),
+                "edited_by": p.get("edited_by"),
+            }
+        )
+    return result
 
 
 def get_payslip_details(payslip_id: str) -> dict[str, Any] | None:

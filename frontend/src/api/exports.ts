@@ -59,6 +59,17 @@ export interface ExportPreviewResponse {
   anomalies: ExportAnomaly[];
   warnings: string[];
   can_generate: boolean;
+  details?: {
+    organismes?: Array<{
+      organisme: string;
+      nombre_salaries: number;
+      total_cotisations_salariales: number;
+      total_cotisations_patronales: number;
+      total_cotisations: number;
+    }>;
+    lines?: Array<Record<string, string | number>>;
+    include_consolidated?: boolean;
+  };
 }
 
 export interface ExportGenerateRequest {

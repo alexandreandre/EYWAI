@@ -13,6 +13,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { MonthlyReviewTab } from '@/features/admin/components/scraping/MonthlyReviewTab';
+import { PayrollPayslipEditLockCard } from '@/features/admin/components/PayrollPayslipEditLockCard';
 import { RatesManualEditDialog } from '@/components/rates/RatesManualEditDialog';
 
 type Props = {
@@ -60,6 +61,7 @@ export function RatesAdminPanel({ data, onManualSaved }: Props) {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        <PayrollPayslipEditLockCard />
         {hasReviewItems ? (
           <>
             <div className="flex flex-wrap items-center gap-2 text-sm">

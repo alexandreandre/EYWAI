@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import {
   formatProfileDate,
+  formatTrialPeriodLabel,
   formatWeeklyHours,
   type EmployeeProfileData,
 } from '@/lib/employeeProfileUtils';
@@ -21,6 +22,8 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
 }
 
 export function EmployeeProfileContractCard({ profile }: EmployeeProfileContractCardProps) {
+  const trialLabel = formatTrialPeriodLabel(profile);
+
   return (
     <Card>
       <CardHeader>
@@ -42,6 +45,9 @@ export function EmployeeProfileContractCard({ profile }: EmployeeProfileContract
             label="Durée hebdomadaire"
             value={formatWeeklyHours(profile.duree_hebdomadaire)}
           />
+          {trialLabel ? (
+            <ReadOnlyField label="Période d'essai" value={trialLabel} />
+          ) : null}
         </div>
       </CardContent>
     </Card>

@@ -6,10 +6,17 @@ from typing import Any, Dict, List, Literal
 from pydantic import BaseModel, field_validator
 
 
+PerimetreAugmentation = Literal["brut_seul", "brut_et_hs"]
+TypeAugmentation = Literal["pourcentage", "montant_fixe"]
+
+
 class UpdateSalaryRequest(BaseModel):
     nouveau_salaire: float  # montant brut mensuel
     motif: str | None = None
     effective_date: date
+    type_augmentation: TypeAugmentation | None = None
+    valeur_augmentation: float | None = None
+    perimetre_augmentation: PerimetreAugmentation | None = None
 
     @field_validator("nouveau_salaire")
     @classmethod
@@ -36,9 +43,10 @@ class SalaryUpdateResponse(BaseModel):
 
 
 class SimulationAugmentationRequest(BaseModel):
-    type_augmentation: Literal["pourcentage", "montant_fixe"]
+    type_augmentation: TypeAugmentation
     valeur: float  # % ou montant selon type
     effective_date: date
+    perimetre_augmentation: PerimetreAugmentation = "brut_et_hs"
 
     @field_validator("valeur")
     @classmethod
@@ -62,6 +70,12 @@ class SimulationResultat(BaseModel):
     cout_total_employeur_apres: float
     difference_cout_employeur: float
     taux_augmentation_reel: float  # % calculé même si montant fixe
+    perimetre_augmentation: PerimetreAugmentation
+    a_hs_structurelles: bool
+    ancien_base_35h: float
+    ancien_part_hs: float
+    nouveau_base_35h: float
+    nouveau_part_hs: float
 
 
 class FiltresCollectifs(BaseModel):
@@ -75,9 +89,10 @@ class FiltresCollectifs(BaseModel):
 
 class SimulationCollectiveRequest(BaseModel):
     filtres: FiltresCollectifs
-    type_augmentation: Literal["pourcentage", "montant_fixe"]
+    type_augmentation: TypeAugmentation
     valeur: float
     effective_date: date
+    perimetre_augmentation: PerimetreAugmentation = "brut_et_hs"
 
     @field_validator("valeur")
     @classmethod
@@ -96,6 +111,11 @@ class EmployeSimule(BaseModel):
     nouveau_salaire_brut: float
     difference_brut: float
     taux_augmentation_reel: float
+    a_hs_structurelles: bool = False
+    ancien_base_35h: float | None = None
+    ancien_part_hs: float | None = None
+    nouveau_base_35h: float | None = None
+    nouveau_part_hs: float | None = None
 
 
 class SimulationCollectiveResultat(BaseModel):
@@ -110,10 +130,11 @@ class SimulationCollectiveResultat(BaseModel):
 
 class ApplicationCollectiveRequest(BaseModel):
     employee_ids: List[str]
-    type_augmentation: Literal["pourcentage", "montant_fixe"]
+    type_augmentation: TypeAugmentation
     valeur: float
     effective_date: date
     motif: str | None = None
+    perimetre_augmentation: PerimetreAugmentation = "brut_et_hs"
 
     @field_validator("valeur")
     @classmethod
@@ -146,6 +167,8 @@ class GenerationAvenantsLotResultat(BaseModel):
 
 
 __all__ = [
+    "PerimetreAugmentation",
+    "TypeAugmentation",
     "UpdateSalaryRequest",
     "SalaryHistoryEntry",
     "SalaryUpdateResponse",

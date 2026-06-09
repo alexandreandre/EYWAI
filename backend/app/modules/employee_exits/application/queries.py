@@ -228,6 +228,18 @@ def get_employee_exit(
     if not exit_record:
         raise EmployeeExitApplicationError(404, "Départ non trouvé")
     enrich_exit_with_documents_and_checklist(exit_record, 3600, sb)
+    try:
+        from app.modules.employee_loans.infrastructure.payroll_queries import (
+            get_employee_outstanding_loans,
+        )
+
+        employee_id = exit_record.get("employee_id")
+        if employee_id:
+            exit_record["outstanding_loans"] = get_employee_outstanding_loans(
+                str(employee_id)
+            )
+    except Exception as exc:
+        log_app_debug(logger, f"Prêts employeur non chargés pour sortie: {exc}")
     return exit_record
 
 

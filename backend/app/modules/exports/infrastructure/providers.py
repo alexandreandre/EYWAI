@@ -27,6 +27,14 @@ from .export_journal_paie import (
     get_journal_paie_data as _get_journal_paie_data,
     preview_journal_paie as _preview_journal_paie,
 )
+from .export_charges_sociales import (
+    generate_charges_sociales_export as _generate_charges_sociales_export,
+    preview_charges_sociales as _preview_charges_sociales,
+)
+from .export_notes_frais import (
+    generate_notes_frais_export as _generate_notes_frais_export,
+    preview_notes_frais as _preview_notes_frais,
+)
 from .export_paiement_salaires import (
     generate_bank_file as _generate_bank_file,
     generate_paiement_salaires_export as _generate_paiement_salaires_export,
@@ -51,6 +59,40 @@ def get_journal_paie_data(
     company_id: str, period: str, employee_ids: Optional[List[str]]
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     return _get_journal_paie_data(company_id, period, employee_ids)
+
+
+def preview_charges_sociales(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]],
+    caisses: Optional[List[str]] = None,
+    include_consolidated: bool = True,
+) -> Dict[str, Any]:
+    return _preview_charges_sociales(
+        company_id,
+        period,
+        employee_ids,
+        caisses,
+        include_consolidated,
+    )
+
+
+def generate_charges_sociales_export(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]],
+    format: str,
+    caisses: Optional[List[str]] = None,
+    include_consolidated: bool = True,
+) -> bytes:
+    return _generate_charges_sociales_export(
+        company_id,
+        period,
+        employee_ids,
+        format,
+        caisses,
+        include_consolidated,
+    )
 
 
 def preview_paiement_salaires(
@@ -203,6 +245,33 @@ def generate_cabinet_sage_export(
     company_id: str, period: str, employee_ids: Optional[List[str]], format: str
 ) -> bytes:
     return _generate_cabinet_sage_export(company_id, period, employee_ids, format)
+
+
+def preview_notes_frais(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]] = None,
+    expense_types: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    return _preview_notes_frais(company_id, period, employee_ids, expense_types)
+
+
+def generate_notes_frais_export(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]],
+    file_format: str,
+    cabinet_format: str = "generique",
+    expense_types: Optional[List[str]] = None,
+) -> bytes:
+    return _generate_notes_frais_export(
+        company_id,
+        period,
+        employee_ids,
+        file_format,
+        cabinet_format,  # type: ignore[arg-type]
+        expense_types,
+    )
 
 
 def preview_dsn(

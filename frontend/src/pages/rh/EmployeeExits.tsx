@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { queryKeys } from '@/lib/queryKeys';
 import { PlusCircle, Eye, Calendar, Users as UsersIcon, Trash2, RefreshCw, FolderOpen } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { employeeDocumentsPath } from '@/lib/employeeExitDocumentsAccess';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,6 +35,7 @@ function loadErrorMessage(error: unknown): string {
 
 const EmployeeExitsPage = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const companyId = useActiveCompanyId();
   const [exits, setExits] = useState<EmployeeExitWithDetails[]>([]);
@@ -47,6 +48,15 @@ const EmployeeExitsPage = () => {
   useEffect(() => {
     void fetchExits();
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get('create') === '1') {
+      setShowCreateDialog(true);
+    }
+  }, [searchParams]);
+
+  const createPrefillEmployeeId = searchParams.get('employeeId') ?? undefined;
+  const createPrefillExitType = searchParams.get('exitType') as ExitType | null;
 
   const invalidateEmployeesCache = useCallback(
     (employeeId?: string) => {
@@ -315,9 +325,20 @@ const EmployeeExitsPage = () => {
       {/* Dialogs */}
       <CreateExitDialog
         open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
+        onOpenChange={(open) => {
+          setShowCreateDialog(open);
+          if (!open && searchParams.get('create') === '1') {
+            const next = new URLSearchParams(searchParams);
+            next.delete('create');
+            next.delete('employeeId');
+            next.delete('exitType');
+            setSearchParams(next, { replace: true });
+          }
+        }}
+        initialEmployeeId={createPrefillEmployeeId}
+        initialExitType={createPrefillExitType ?? undefined}
         onSuccess={() => {
-          invalidateEmployeesCache();
+          invalidateEmployeesCache(createPrefillEmployeeId);
           void fetchExits();
         }}
       />

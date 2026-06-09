@@ -21,6 +21,7 @@ class CreateExpenseInput:
     description: Optional[str] = None
     receipt_url: Optional[str] = None
     filename: Optional[str] = None
+    company_id: Optional[str] = None
 
 
 @dataclass

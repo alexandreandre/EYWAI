@@ -35,6 +35,31 @@ COTISATIONS_MINIMAL: Dict[str, Any] = {
             "patronal": 0.0202,
         },
         {
+            "id": "vieillesse_deplafonnee",
+            "libelle": "Vieillesse déplafonnée",
+            "base": "brut",
+            "salarial": 0.004,
+            "patronal": 0.0202,
+        },
+        {
+            "id": "securite_sociale_maladie",
+            "libelle": "Maladie, maternité, invalidité, décès",
+            "base": "brut",
+            "salarial": 0.0,
+            "patronal": 0.07,
+            "patronal_plein": 0.07,
+            "patronal_reduit": 0.07,
+        },
+        {
+            "id": "allocations_familiales",
+            "libelle": "Allocations familiales",
+            "base": "brut",
+            "salarial": None,
+            "patronal": 0.0525,
+            "patronal_plein": 0.0525,
+            "patronal_reduit": 0.0525,
+        },
+        {
             "id": "fnal",
             "libelle": "FNAL",
             "base": "brut",
@@ -207,6 +232,20 @@ def baremes_snapshot() -> Dict[str, Any]:
             "actif": True,
             "pct_plafond_horaire_ss": 0.15,
         },
+        "jei": {
+            "actif": True,
+            "facteur_smic_plafond": 4.5,
+            "facteur_pass_plafond_annuel": 5,
+            "duree_annees": 7,
+            "cotisations_exonerees_patronales": [
+                "securite_sociale_maladie",
+                "retraite_secu_plafond",
+                "retraite_secu_deplafond",
+                "allocations_familiales",
+                "vieillesse_plafonnee",
+                "vieillesse_deplafonnee",
+            ],
+        },
         "cdd": {
             "precarite": {
                 "actif": True,
@@ -272,7 +311,13 @@ def baremes_snapshot_csg_unifie() -> Dict[str, Any]:
     return b
 
 
-def entreprise_snapshot(effectif: int = 10) -> Dict[str, Any]:
+def entreprise_snapshot(
+    effectif: int = 10,
+    *,
+    jei_enabled: bool = False,
+    date_creation_etablissement: str | None = None,
+    taux_exoneration: float = 1.0,
+) -> Dict[str, Any]:
     return {
         "identification": {
             "raison_sociale": "Test SARL",
@@ -285,6 +330,11 @@ def entreprise_snapshot(effectif: int = 10) -> Dict[str, Any]:
             "taux_specifiques": {
                 "taux_versement_mobilite": 0.025,
                 "taux_at_mp": 0.01,
+            },
+            "jei": {
+                "enabled": jei_enabled,
+                "date_creation_etablissement": date_creation_etablissement,
+                "taux_exoneration": taux_exoneration,
             },
         },
     }

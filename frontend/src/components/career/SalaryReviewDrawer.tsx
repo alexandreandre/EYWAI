@@ -55,6 +55,7 @@ const defaultFilters = (): SalaryReviewFilterState => ({
   salaireMin: "",
   salaireMax: "",
   simType: "pourcentage",
+  perimetre: "brut_et_hs",
   valeurSim: "",
   effectiveDate: new Date().toISOString().slice(0, 10),
 });
@@ -173,6 +174,7 @@ export function SalaryReviewDrawer({
         type_augmentation: filters.simType,
         valeur: v,
         effective_date: filters.effectiveDate,
+        perimetre_augmentation: filters.perimetre,
       });
       setSimResult(data);
       toast({
@@ -208,6 +210,7 @@ export function SalaryReviewDrawer({
         type_augmentation: filters.simType,
         valeur: v,
         effective_date: filters.effectiveDate,
+        perimetre_augmentation: filters.perimetre,
         motif: applyMotif.trim() || undefined,
       });
 

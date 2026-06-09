@@ -24,7 +24,15 @@ from app.modules.rates.application import (
     get_rates_sync_status,
     start_rates_sync,
 )
-from app.modules.rates.schemas.requests import ManualRateUpdateRequest, RatesSyncRequest
+from app.modules.rates.application.payslip_edit_lock import (
+    get_payslip_edit_lock_settings,
+    save_payslip_edit_lock_settings,
+)
+from app.modules.rates.schemas.requests import (
+    ManualRateUpdateRequest,
+    PayslipEditLockUpdateRequest,
+    RatesSyncRequest,
+)
 
 router = APIRouter(tags=["Rates"])
 
@@ -100,6 +108,47 @@ async def manual_rate_update_endpoint(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logging.exception("❌ Erreur saisie manuelle taux : %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/payslip-edit-lock")
+async def get_payslip_edit_lock_endpoint(
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Règle globale de verrouillage de l'édition manuelle des bulletins."""
+    try:
+        _require_rh_or_admin(current_user)
+        return get_payslip_edit_lock_settings()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception("❌ Erreur lecture règle payslip-edit-lock : %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/payslip-edit-lock")
+async def patch_payslip_edit_lock_endpoint(
+    body: PayslipEditLockUpdateRequest,
+    writer: IRatesWriter = Depends(get_rates_writer),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Modifie la règle de verrouillage (admin plateforme uniquement)."""
+    try:
+        _require_platform_admin(current_user)
+        actor_label = getattr(current_user, "email", None) or str(current_user.id)
+        result = save_payslip_edit_lock_settings(
+            writer,
+            cutoff_day_of_next_month=body.cutoff_day_of_next_month,
+            actor_label=actor_label,
+            comment=body.comment,
+        )
+        return {"success": True, **result}
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logging.exception("❌ Erreur mise à jour payslip-edit-lock : %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 

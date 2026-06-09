@@ -172,6 +172,18 @@ class TestBulletinFinalOfficiel:
         assert bulletin["pied_de_page"]["mentions_legales"]["conservation"]
         assert "service-public.fr" in bulletin["pied_de_page"]["mentions_legales"]["information"]
 
+    def test_creer_bulletin_final_alerte_net_superieur_brut(self):
+        ctx = build_test_contexte(salaire_base=1000.0)
+        nets = {
+            "net_a_payer": 1100.0,
+            "net_imposable": 1050.0,
+            "montant_net_social": 1080.0,
+            "impot_prelevement_a_la_source": 0.0,
+        }
+        bulletin = creer_bulletin_final(ctx, 1000.0, [], [], nets, [], 2026, 6)
+        codes = [a.get("code") for a in bulletin.get("alertes_baremes") or []]
+        assert "net_superieur_brut" in codes
+
     def test_pipeline_golden_inclut_mns(self):
         ctx = build_test_contexte(salaire_base=2000.0)
         r = run_bulletin_pipeline_heures(ctx)

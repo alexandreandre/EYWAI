@@ -50,6 +50,13 @@ def is_profile_complete(employee: Dict[str, Any]) -> bool:
     return not missing_payroll_fields(employee)
 
 
+def enrich_employee_profile_completeness(employee: Dict[str, Any]) -> Dict[str, Any]:
+    """Ajoute profile_complete et missing_payroll_fields au dict employé."""
+    employee["profile_complete"] = is_profile_complete(employee)
+    employee["missing_payroll_fields"] = missing_payroll_fields(employee)
+    return employee
+
+
 def is_payroll_eligible(employee: Dict[str, Any]) -> bool:
     """Salarié actif avec fiche paie complète — éligible à la génération de bulletins."""
     status = str(employee.get("employment_status") or DEFAULT_EMPLOYMENT_STATUS).lower()

@@ -13,6 +13,7 @@ from app.modules.employees.application.service import (
     enrich_employee_with_annual_review,
     enrich_employee_with_exit_context,
     enrich_employee_with_residence_permit_status,
+    enrich_employee_with_trial_period_status,
 )
 from app.modules.employees.infrastructure.providers import (
     get_employee_rh_access as provider_get_employee_rh_access,
@@ -27,6 +28,7 @@ from app.modules.employees.infrastructure.queries import (
 )
 from app.core.database import supabase
 from app.modules.employees.infrastructure.repository import EmployeeRepository
+from app.modules.onboarding.domain.profile import enrich_employee_profile_completeness
 
 # Repository partagé (pas d'injection pour l'instant, comportement identique)
 _employee_repository = EmployeeRepository()
@@ -117,7 +119,12 @@ def get_employees(company_id: str) -> List[Dict[str, Any]]:
     Comportement identique à get_employees (router legacy).
     """
     rows = _employee_repository.get_by_company(company_id)
-    return [enrich_employee_with_residence_permit_status(row) for row in rows]
+    return [
+        enrich_employee_with_trial_period_status(
+            enrich_employee_with_residence_permit_status(row)
+        )
+        for row in rows
+    ]
 
 
 def get_employees_summary(
@@ -143,9 +150,10 @@ def get_employee_by_id(employee_id: str, company_id: str) -> Optional[Dict[str, 
     if not data:
         return None
     data = enrich_employee_with_residence_permit_status(data)
+    data = enrich_employee_with_trial_period_status(data)
     data = enrich_employee_with_annual_review(data)
     data = enrich_employee_with_exit_context(data)
-    return data
+    return enrich_employee_profile_completeness(data)
 
 
 def get_my_employee_profile(user_id: str, company_id: str) -> Optional[Dict[str, Any]]:

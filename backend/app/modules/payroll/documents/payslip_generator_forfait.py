@@ -24,6 +24,7 @@ from app.core.database import supabase
 from app.modules.collective_agreements.application.idcc_resolution import (
     build_convention_collective_payload,
 )
+from app.modules.jei_settings.application.queries import get_jei_settings_raw
 from app.core.paths import (
     payroll_engine_root,
     payroll_engine_employee_folder,
@@ -292,6 +293,17 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
 
         # Isolation par génération : écrit dans le dossier de l'employé plutôt que
         # dans le fichier partagé data/entreprise.json (concurrence multi-tenant).
+        jei_settings = get_jei_settings_raw(str(company_id))
+        jei_bloc = {
+            "enabled": jei_settings.jei_enabled,
+            "date_creation_etablissement": (
+                jei_settings.date_creation_etablissement.isoformat()
+                if jei_settings.date_creation_etablissement
+                else None
+            ),
+            "taux_exoneration": jei_settings.taux_exoneration,
+        }
+
         entreprise_json_path = employee_path / "entreprise.json"
         entreprise_json_content = {
             "_commentaire": "Ce fichier est généré dynamiquement à chaque cycle de paie.",
@@ -318,6 +330,7 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
                         "taux_versement_mobilite": company_data.get("taux_vm"),
                         "taux_fnal": company_data.get("taux_fnal"),
                     },
+                    "jei": jei_bloc,
                 },
             },
         }
@@ -367,7 +380,12 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
         )
 
         payslip_json_data = run_payslip_generation_forfait(
-            employee_path, year, month, engine_root, company_id=str(company_id)
+            employee_path,
+            year,
+            month,
+            engine_root,
+            company_id=str(company_id),
+            employee_id=str(employee_id),
         )
 
         # --- ÉTAPE 5 : SAUVEGARDER ---
@@ -419,13 +437,10 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
         ).execute()
 
         from app.modules.payroll.engine.controles_convention import (
-            extraire_alertes_rh_depuis_bulletin,
+            extraire_messages_alertes_rh,
         )
 
-        rh_warnings = [
-            a["message"]
-            for a in extraire_alertes_rh_depuis_bulletin(payslip_json_data)
-        ]
+        rh_warnings = extraire_messages_alertes_rh(payslip_json_data)
 
         return {
             "status": "success",

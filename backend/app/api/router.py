@@ -35,6 +35,7 @@ from app.modules.cse.api.router import router as cse_router
 from app.modules.dashboard.api.router import router as dashboard_router
 from app.modules.employees.api.router import router as employees_router
 from app.modules.employee_exits.api.router import router as employee_exits_router
+from app.modules.employee_loans.api.router import router as employee_loans_router
 from app.modules.exports.api.router import router as exports_router
 from app.modules.expenses.api.router import router as expenses_router
 from app.modules.monthly_inputs.api.router import router as monthly_inputs_router
@@ -46,7 +47,16 @@ from app.modules.platform_settings.api.router import (
     router as platform_email_settings_router,
 )
 from app.modules.notifications.api.router import router as notifications_router
+from app.modules.notifications.api.hr_deadline_reminders_router import (
+    router as hr_deadline_reminders_router,
+)
 from app.modules.maintenance_settings.api.router import router as maintenance_settings_router
+from app.modules.jei_settings.api.router import router as jei_settings_router
+from app.modules.work_medals.api.router import (
+    router as work_medals_router,
+    settings_router as work_medal_settings_router,
+)
+from app.modules.oeth_settings.api.router import router as oeth_settings_router
 from app.modules.document_library.api.router import router as document_library_router
 from app.modules.documents.api.router import router as documents_router
 from app.modules.medical_follow_up.api.router import router as medical_follow_up_router
@@ -106,6 +116,7 @@ router.include_router(cse_router)
 router.include_router(dashboard_router)
 router.include_router(employees_router)
 router.include_router(employee_exits_router)
+router.include_router(employee_loans_router)
 router.include_router(exports_router)
 router.include_router(net_entreprises_router)
 router.include_router(net_entreprises_admin_router)
@@ -114,7 +125,12 @@ router.include_router(webhooks_router)
 router.include_router(absences_router)
 router.include_router(monthly_inputs_router)
 router.include_router(notifications_router)
+router.include_router(hr_deadline_reminders_router)
 router.include_router(maintenance_settings_router)
+router.include_router(jei_settings_router)
+router.include_router(work_medal_settings_router)
+router.include_router(work_medals_router)
+router.include_router(oeth_settings_router)
 router.include_router(document_library_router)
 router.include_router(documents_router)
 router.include_router(expenses_router)

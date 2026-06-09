@@ -61,6 +61,7 @@ export interface PayslipItem {
   preview_url?: string;
   month: number;
   year: number;
+  warnings?: string[];
 }
 
 export function sortPayslipsDesc(payslips: PayslipItem[]): PayslipItem[] {

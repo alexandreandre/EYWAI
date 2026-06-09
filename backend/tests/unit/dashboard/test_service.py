@@ -5,6 +5,7 @@ build_full_dashboard et get_residence_permit_stats avec repository et
 calculator mockés. Aucune DB ni appel externe.
 """
 
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 
@@ -99,8 +100,12 @@ class TestGetResidencePermitStats:
 class TestBuildFullDashboard:
     """Tests de build_full_dashboard (service)."""
 
+    @patch(
+        "app.modules.dashboard.application.service.boeth_profiles_repository.count_active_by_company",
+        return_value=0,
+    )
     @patch("app.modules.dashboard.application.service.get_dashboard_repository")
-    def test_returns_dashboard_data_structure(self, mock_get_repo):
+    def test_returns_dashboard_data_structure(self, mock_get_repo, _mock_boeth):
         """build_full_dashboard retourne un DashboardData avec tous les champs."""
         mock_repo = MagicMock()
         mock_repo.get_employees_for_dashboard.return_value = [
@@ -128,14 +133,20 @@ class TestBuildFullDashboard:
         assert result.kpis.cddCount == 0
         assert result.actions.pendingAbsences == 2
         assert result.actions.pendingExpenses == 1
+        assert result.alerts.expiringContracts == 0
+        assert result.alerts.endOfTrialPeriods == 0
         assert len(result.employees) == 1
         assert result.employees[0].first_name == "Jean"
         assert result.employees[0].last_name == "Dupont"
         assert result.teamPulse.absentToday == []
         mock_repo.get_employees_for_dashboard.assert_called_once_with(COMPANY_ID)
 
+    @patch(
+        "app.modules.dashboard.application.service.boeth_profiles_repository.count_active_by_company",
+        return_value=0,
+    )
     @patch("app.modules.dashboard.application.service.get_dashboard_repository")
-    def test_contract_distribution_in_kpis(self, mock_get_repo):
+    def test_contract_distribution_in_kpis(self, mock_get_repo, _mock_boeth):
         """La répartition des contrats (CDI/CDD) est dans kpis.contractDistribution."""
         mock_repo = MagicMock()
         mock_repo.get_employees_for_dashboard.return_value = [
@@ -156,3 +167,41 @@ class TestBuildFullDashboard:
         assert result.kpis.contractDistribution.get("CDD") == 1
         assert result.kpis.cdiCount == 2
         assert result.kpis.cddCount == 1
+
+    @patch(
+        "app.modules.dashboard.application.service.boeth_profiles_repository.count_active_by_company",
+        return_value=0,
+    )
+    @patch("app.modules.dashboard.application.service.get_dashboard_repository")
+    def test_alerts_count_expiring_contracts_and_trial_periods(
+        self, mock_get_repo, _mock_boeth
+    ):
+        mock_repo = MagicMock()
+        mock_repo.get_employees_for_dashboard.return_value = [
+            {
+                "id": "1",
+                "first_name": "A",
+                "last_name": "A",
+                "employment_status": "actif",
+                "contract_type": "CDD",
+                "contract_end_date": "2099-06-01",
+                "hire_date": "2099-04-01",
+                "periode_essai": {"duree_initiale": 2, "unite": "mois"},
+            },
+        ]
+        mock_repo.get_pending_absence_requests_count.return_value = 0
+        mock_repo.get_pending_expense_reports_count.return_value = 0
+        mock_repo.get_absence_requests_validated_today.return_value = []
+        mock_repo.get_payslips_by_company.return_value = []
+        mock_repo.get_absence_requests_for_absenteeism.return_value = []
+        mock_get_repo.return_value = mock_repo
+
+        with patch(
+            "app.modules.dashboard.application.service.date"
+        ) as mock_date:
+            mock_date.today.return_value = date(2099, 5, 20)
+            mock_date.side_effect = lambda *args, **kwargs: date(*args, **kwargs)
+            result = build_full_dashboard(COMPANY_ID)
+
+        assert result.alerts.expiringContracts == 1
+        assert result.alerts.endOfTrialPeriods == 1

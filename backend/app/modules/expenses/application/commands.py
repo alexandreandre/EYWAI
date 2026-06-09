@@ -33,6 +33,7 @@ def create_expense(input: CreateExpenseInput) -> dict:
         description=input.description,
         receipt_url=input.receipt_url,
         filename=input.filename,
+        company_id=input.company_id,
     )
     return repo.create(db_data)
 

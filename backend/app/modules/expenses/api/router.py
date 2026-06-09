@@ -95,6 +95,7 @@ async def create_expense_report(
             description=expense_data.description,
             receipt_url=expense_data.receipt_url,
             filename=expense_data.filename,
+            company_id=current_user.active_company_id,
         )
         return _expense_service.create_expense(input_)
     except HTTPException:

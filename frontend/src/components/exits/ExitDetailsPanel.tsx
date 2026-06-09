@@ -52,6 +52,7 @@ import {
   Send,
   Edit,
   FolderOpen,
+  AlertTriangle,
 } from 'lucide-react';
 import { employeeDocumentsPath } from '@/lib/employeeExitDocumentsAccess';
 import { ViewLinkButton } from '@/components/employee-detail/DocumentFileRow';
@@ -461,6 +462,33 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                 <p className="text-sm">{exitDetails.exit_reason}</p>
               </div>
             )}
+            {exitDetails.outstanding_loans &&
+              exitDetails.outstanding_loans.total_remaining_capital > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/30">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-600" />
+                    <div>
+                      <p className="font-medium text-amber-900 dark:text-amber-100">
+                        Prêt(s) employeur non soldé(s)
+                      </p>
+                      <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">
+                        Capital restant dû :{' '}
+                        <strong>
+                          {new Intl.NumberFormat('fr-FR', {
+                            style: 'currency',
+                            currency: 'EUR',
+                          }).format(exitDetails.outstanding_loans.total_remaining_capital)}
+                        </strong>{' '}
+                        ({exitDetails.outstanding_loans.active_loans_count} prêt
+                        {exitDetails.outstanding_loans.active_loans_count > 1 ? 's' : ''} actif
+                        {exitDetails.outstanding_loans.active_loans_count > 1 ? 's' : ''}).
+                        Prévoir le remboursement ou une retenue sur le solde de tout compte dans
+                        la limite saisissable.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             {exitDetails.employee_id && (
               <div className="pt-4 border-t">
                 <p className="text-sm text-muted-foreground mb-3">

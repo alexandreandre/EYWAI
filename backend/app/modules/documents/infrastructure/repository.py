@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from app.core.database import supabase
 
 BUCKET = "generated_documents"
+_EMPLOYEE_VISIBLE_STATUSES = ("envoye", "signe")
 
 
 def _data(resp: Any) -> Any:
@@ -29,6 +30,8 @@ class SupabaseDocumentsRepository:
         status: Optional[str] = None,
         date_from: Optional[str] = None,
         date_to: Optional[str] = None,
+        *,
+        employee_visible_only: bool = False,
     ) -> List[Dict[str, Any]]:
         q = (
             supabase.table("generated_documents")
@@ -39,7 +42,9 @@ class SupabaseDocumentsRepository:
             q = q.eq("employee_id", employee_id)
         if document_type:
             q = q.eq("document_type", document_type)
-        if status:
+        if employee_visible_only:
+            q = q.in_("status", list(_EMPLOYEE_VISIBLE_STATUSES))
+        elif status:
             q = q.eq("status", status)
         if date_from:
             q = q.gte("created_at", date_from)
@@ -101,6 +106,18 @@ class SupabaseDocumentsRepository:
             return None
         self._enrich_rows([row])
         return row
+
+    def insert(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        ins = supabase.table("generated_documents").insert(row).execute()
+        rows = _list(ins)
+        if not rows:
+            raise RuntimeError("Échec insertion generated_documents")
+        self._enrich_rows(rows)
+        return rows[0]
+
+    @staticmethod
+    def employee_can_access_status(status: str) -> bool:
+        return str(status or "") in _EMPLOYEE_VISIBLE_STATUSES
 
     def update_status(self, document_id: str, company_id: str, status: str) -> Dict[str, Any]:
         upd = (

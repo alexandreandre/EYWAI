@@ -6,6 +6,7 @@ import {
   Home,
   User,
   Wallet,
+  Landmark,
   CalendarDays,
   Plane,
   Notebook,
@@ -60,6 +61,7 @@ const coreNavItems: NavItem[] = [
   { to: "/absences", label: "Congés & absences", icon: Plane },
   { to: "/expenses", label: "Notes de frais", icon: Notebook },
   { to: "/salary-advances", label: "Avances sur salaire", icon: Wallet },
+  { to: "/employee-loans", label: "Prêts employeur", icon: Landmark },
   { to: "/employee/documents", label: "Mes documents", icon: FileText },
   { to: "/employee/formation", label: "Ma formation", icon: GraduationCap },
 ];

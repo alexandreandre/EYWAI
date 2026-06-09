@@ -143,12 +143,20 @@ class TestGetPayslipDetailsForUser:
             "id": "ps-1",
             "employee_id": "emp-1",
             "company_id": "co-1",
+            "year": 2026,
+            "month": 6,
             "url": "https://u.fr",
         }
         ctx = _ctx_employee("emp-1")
-        with patch(
-            "app.modules.payslips.application.service.get_payslip_details",
-            return_value=detail,
+        with (
+            patch(
+                "app.modules.payslips.application.service.get_payslip_details",
+                return_value=detail,
+            ),
+            patch(
+                "app.modules.payslips.application.service.enrich_payslip_detail_with_edit_lock",
+                side_effect=lambda d, **_: d,
+            ),
         ):
             result = get_payslip_details_for_user("ps-1", ctx)
         assert result == detail
@@ -165,7 +173,7 @@ class TestGetPayslipDetailsForUser:
 
     def test_raises_forbidden_when_user_cannot_view(self):
         """Lève PayslipForbiddenError si l'utilisateur n'a pas le droit (pas employé, pas RH, pas super admin)."""
-        detail = {"id": "ps-1", "employee_id": "emp-1", "company_id": "co-1"}
+        detail = {"id": "ps-1", "employee_id": "emp-1", "company_id": "co-1", "year": 2026, "month": 6}
         ctx = _ctx_employee("other-user")  # autre utilisateur, pas RH
         with patch(
             "app.modules.payslips.application.service.get_payslip_details",
@@ -176,22 +184,34 @@ class TestGetPayslipDetailsForUser:
 
     def test_rh_with_access_can_view(self):
         """Un RH avec accès à l'entreprise du bulletin peut consulter."""
-        detail = {"id": "ps-1", "employee_id": "emp-1", "company_id": "co-1"}
+        detail = {"id": "ps-1", "employee_id": "emp-1", "company_id": "co-1", "year": 2026, "month": 6}
         ctx = _ctx_rh("co-1")
-        with patch(
-            "app.modules.payslips.application.service.get_payslip_details",
-            return_value=detail,
+        with (
+            patch(
+                "app.modules.payslips.application.service.get_payslip_details",
+                return_value=detail,
+            ),
+            patch(
+                "app.modules.payslips.application.service.enrich_payslip_detail_with_edit_lock",
+                side_effect=lambda d, **_: d,
+            ),
         ):
             result = get_payslip_details_for_user("ps-1", ctx)
         assert result == detail
 
     def test_super_admin_can_view_any(self):
         """Un super admin peut consulter n'importe quel bulletin."""
-        detail = {"id": "ps-1", "employee_id": "emp-1", "company_id": "co-1"}
+        detail = {"id": "ps-1", "employee_id": "emp-1", "company_id": "co-1", "year": 2026, "month": 6}
         ctx = _ctx_super_admin()
-        with patch(
-            "app.modules.payslips.application.service.get_payslip_details",
-            return_value=detail,
+        with (
+            patch(
+                "app.modules.payslips.application.service.get_payslip_details",
+                return_value=detail,
+            ),
+            patch(
+                "app.modules.payslips.application.service.enrich_payslip_detail_with_edit_lock",
+                side_effect=lambda d, **_: d,
+            ),
         ):
             result = get_payslip_details_for_user("ps-1", ctx)
         assert result == detail
@@ -245,7 +265,7 @@ class TestEditPayslipForUser:
 
     def test_returns_result_when_rh_edits(self):
         """Un RH avec droit d'édition peut modifier et reçoit le résultat."""
-        meta = {"employee_id": "emp-1", "company_id": "co-1"}
+        meta = {"employee_id": "emp-1", "company_id": "co-1", "year": 2026, "month": 6}
         ctx = _ctx_rh("co-1")
         expected = {"payslip": {"id": "ps-1"}, "new_pdf_url": "https://new.pdf"}
         with (
@@ -286,7 +306,7 @@ class TestEditPayslipForUser:
 
     def test_raises_forbidden_when_user_cannot_edit(self):
         """Lève PayslipForbiddenError si l'utilisateur n'a pas le droit d'éditer."""
-        meta = {"employee_id": "emp-1", "company_id": "co-1"}
+        meta = {"employee_id": "emp-1", "company_id": "co-1", "year": 2026, "month": 6}
         ctx = _ctx_employee("emp-1")  # employé (pas RH) ne peut pas éditer
         with patch(
             "app.modules.payslips.application.service.payslip_meta_reader"
@@ -295,13 +315,55 @@ class TestEditPayslipForUser:
             with pytest.raises(PayslipForbiddenError):
                 edit_payslip_for_user("ps-1", {}, "Résumé", ctx)
 
+    def test_raises_bad_request_when_period_locked_for_rh(self):
+        """Lève PayslipBadRequestError si la période est verrouillée pour un RH."""
+        meta = {"employee_id": "emp-1", "company_id": "co-1", "year": 2026, "month": 6}
+        ctx = _ctx_rh("co-1")
+        with (
+            patch(
+                "app.modules.payslips.application.service.payslip_meta_reader"
+            ) as mock_reader,
+            patch(
+                "app.modules.payslips.application.service.assert_payslip_manual_edit_allowed",
+                side_effect=ValueError("Période verrouillée"),
+            ),
+        ):
+            mock_reader.get_payslip_meta.return_value = meta
+            with pytest.raises(PayslipBadRequestError) as exc_info:
+                edit_payslip_for_user("ps-1", {}, "Résumé", ctx)
+            assert "verrouillée" in str(exc_info.value).lower()
+
+    def test_platform_admin_bypasses_period_lock(self):
+        """Un admin plateforme peut éditer même si la période est verrouillée."""
+        meta = {"employee_id": "emp-1", "company_id": "co-1", "year": 2026, "month": 6}
+        ctx = _ctx_super_admin()
+        expected = {"payslip": {"id": "ps-1"}, "new_pdf_url": "https://new.pdf"}
+        with (
+            patch(
+                "app.modules.payslips.application.service.payslip_meta_reader"
+            ) as mock_reader,
+            patch(
+                "app.modules.payslips.application.service.edit_payslip",
+                return_value=expected,
+            ) as mock_edit,
+            patch(
+                "app.modules.payslips.application.service.assert_payslip_manual_edit_allowed"
+            ) as mock_assert,
+        ):
+            mock_reader.get_payslip_meta.return_value = meta
+            result = edit_payslip_for_user("ps-1", {}, "Résumé", ctx)
+        mock_assert.assert_called_once()
+        assert mock_assert.call_args.kwargs["bypass_lock"] is True
+        assert result == expected
+        mock_edit.assert_called_once()
+
 
 class TestRestorePayslipForUser:
     """Tests de restore_payslip_for_user."""
 
     def test_returns_result_when_rh_restores(self):
         """Un RH peut restaurer une version et reçoit le résultat."""
-        meta = {"employee_id": "emp-1", "company_id": "co-1"}
+        meta = {"employee_id": "emp-1", "company_id": "co-1", "year": 2026, "month": 6}
         ctx = _ctx_rh("co-1")
         expected = {"payslip": {"id": "ps-1"}, "restored_version": 2}
         with (

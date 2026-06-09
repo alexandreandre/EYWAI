@@ -234,7 +234,7 @@ def _collect_anomalies_for_row(
                 employee_name=employee_name,
                 payslip_id=payslip_id,
                 type="NET_SUPERIEUR_BRUT",
-                severite="bloquant",
+                severite="avertissement",
                 message="Net à payer supérieur au salaire brut.",
                 valeur_detectee=f"net={net:.2f} €, brut={brut:.2f} €",
                 suggestion_correction="Contrôler cotisations, PAS, acomptes et net dans payslip_data.",

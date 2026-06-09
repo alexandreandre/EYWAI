@@ -8,6 +8,8 @@ from app.core.logging import get_logger, log_payroll_debug
 
 logger = get_logger("modules.payroll.application.analyzer")
 
+from app.modules.payroll.planning_repli import mois_sans_pointage
+
 from datetime import date
 from typing import Any, Dict, List
 from collections import defaultdict
@@ -63,6 +65,12 @@ def analyser_horaires_du_mois(
 
     prevu_data = planned_data_all_months
     reel_data = actual_data_all_months
+    if mois_sans_pointage(reel_data, annee=annee, mois=mois):
+        log_payroll_debug(
+            logger,
+            f"INFO: Aucun pointage sur {mois:02d}/{annee} — pas de retenue d'absence "
+            "(salaire de base conservé, pas d'heures sup. fictives).",
+        )
     log_payroll_debug(logger, f'DEBUG: nb_jours_prevus={len(prevu_data)}, nb_jours_reels={len(reel_data)}')
 
     # Étape 1 : Regrouper les données par semaine ISO
@@ -191,6 +199,12 @@ def analyser_horaires_du_mois(
             heures_prevues_jour_centiemes = int(
                 (jour_prevu.get("heures_prevues") or 0.0) * 100
             )  # Robuste à None
+            jour_annee = jour_prevu.get("annee", annee)
+            jour_mois = jour_prevu["mois"]
+            if mois_sans_pointage(reel_data, annee=jour_annee, mois=jour_mois):
+                compteur_heures_faites_semaine_centiemes += heures_prevues_jour_centiemes
+                continue
+
             jour_reel = next(
                 (
                     j

@@ -26,6 +26,13 @@ from app.modules.dashboard.infrastructure.providers import (
     get_residence_permit_calculator,
 )
 from app.modules.dashboard.infrastructure.repository import get_dashboard_repository
+from app.modules.employees.domain.deadline_reminders import (
+    count_ending_trial_periods,
+    count_expiring_cdds,
+)
+from app.modules.oeth_settings.infrastructure.boeth_repository import (
+    boeth_profiles_repository,
+)
 from app.modules.dashboard.schemas.responses import (
     AbsentéismeDetail,
     ActionItems,
@@ -120,8 +127,8 @@ def build_full_dashboard(company_id: str) -> DashboardData:
 
     alerts = AlertItems(
         obsoleteRates=0,
-        expiringContracts=0,
-        endOfTrialPeriods=0,
+        expiringContracts=count_expiring_cdds(all_employees, today),
+        endOfTrialPeriods=count_ending_trial_periods(all_employees, today),
     )
 
     # Team pulse : absents du jour + événements à venir
@@ -177,6 +184,8 @@ def build_full_dashboard(company_id: str) -> DashboardData:
     cdi_count = sum(1 for e in all_employees if e.get("contract_type") == "CDI")
     cdd_count = sum(1 for e in all_employees if e.get("contract_type") == "CDD")
 
+    handicapes_count = boeth_profiles_repository.count_active_by_company(company_id)
+
     kpis = KpiData(
         coutTotal=round(cout_total_mois_actuel, 2),
         netVerse=round(net_verse_mois_actuel, 2),
@@ -188,7 +197,7 @@ def build_full_dashboard(company_id: str) -> DashboardData:
         contractDistribution=contract_distribution,
         hommesCount=None,
         femmesCount=None,
-        handicapesCount=None,
+        handicapesCount=handicapes_count,
     )
 
     simple_employees_list = to_simple_employees(all_employees)

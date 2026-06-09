@@ -1,4 +1,4 @@
-import { HeartHandshake, Percent, Umbrella } from 'lucide-react';
+import { FlaskConical, HeartHandshake, Percent, Umbrella } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -25,6 +25,10 @@ export function EmployeeProfilePayBenefitsGrid({ profile }: EmployeeProfilePayBe
   const pasTaux = profile.specificites_paie?.prelevement_a_la_source?.taux;
   const mutuelleAdhesion = profile.specificites_paie?.mutuelle?.adhesion ?? false;
   const prevoyanceAdhesion = profile.specificites_paie?.prevoyance?.adhesion ?? false;
+  const jeiEligible =
+    profile.specificites_paie?.personnel_rd_eligible_jei
+    || profile.specificites_paie?.mandataire_rd
+    || false;
   const mutuelleLine = getFirstSocialLine(profile, 'mutuelle');
   const prevoyanceLine = getFirstSocialLine(profile, 'prevoyance');
   const mutuelleAmount = mutuelleLine
@@ -97,6 +101,23 @@ export function EmployeeProfilePayBenefitsGrid({ profile }: EmployeeProfilePayBe
               <p className="font-semibold tabular-nums">{prevoyanceAmount}</p>
             </>
           ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
+          <CardTitle className="flex items-center">
+            <FlaskConical className="mr-2 h-5 w-5" />
+            Exonération JEI
+          </CardTitle>
+          <AffiliationBadge affiliated={jeiEligible} />
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            {jeiEligible
+              ? 'Personnel R&D éligible à l’exonération de cotisations patronales JEI.'
+              : 'Non éligible au dispositif JEI (personnel non R&D).'}
+          </p>
         </CardContent>
       </Card>
     </div>

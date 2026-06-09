@@ -68,9 +68,28 @@ class UpdateEmployee(BaseModel):
     collective_agreement_id: str | None = None
     email: EmailStr | None = None
     phone_number: str | None = None
+    nir: str | None = None
+    date_naissance: date | None = None
+    lieu_naissance: str | None = None
+    nationalite: str | None = None
     adresse: Dict[str, Any] | None = None
     coordonnees_bancaires: Dict[str, Any] | None = None
+    salaire_de_base: Dict[str, Any] | None = None
     contract_end_date: date | None = None
+    prior_service_months: int | None = None
+    specificites_paie: Dict[str, Any] | None = None
+    hire_date: date | None = None
+    job_title: str | None = None
+    contract_type: str | None = None
+    statut: str | None = None
+    is_temps_partiel: bool | None = None
+    duree_hebdomadaire: float | None = None
+    classification_conventionnelle: Dict[str, Any] | None = None
+    team_id: str | None = None
+    is_subject_to_residence_permit: bool | None = None
+    residence_permit_expiry_date: date | None = None
+    residence_permit_type: str | None = None
+    residence_permit_number: str | None = None
 
 
 __all__ = ["NewFullEmployee", "UpdateEmployee"]

@@ -104,6 +104,7 @@ class FullEmployee(BaseModel):
     coordonnees_bancaires: Dict[str, Any] | None = None
     # Section Contrat
     hire_date: date | None = None
+    prior_service_months: int | None = 0
     contract_type: str | None = None
     statut: str | None = None
     job_title: str | None = None
@@ -133,6 +134,14 @@ class FullEmployee(BaseModel):
     )
     residence_permit_days_remaining: int | None = None
     residence_permit_data_complete: bool | None = None
+    # Section Période d'essai (données calculées par le backend)
+    trial_period_applicable: bool | None = None
+    trial_period_status: str | None = (
+        None  # "in_progress", "ending_soon", "ended", "confirmed", "to_complete"
+    )
+    trial_period_end_date: date | None = None
+    trial_period_days_remaining: int | None = None
+    trial_period_renewal_possible: bool | None = None
     # Section Entretien annuel (données calculées pour l'année courante)
     annual_review_current_status: str | None = None
     annual_review_current_year: int | None = None
@@ -148,6 +157,9 @@ class FullEmployee(BaseModel):
     college_electoral: str | None = None
     statut_cse: str | None = None
     heures_delegation_mensuelles: float | None = None
+    # Complétude fiche paie (calculé à la lecture — onboarding)
+    profile_complete: bool | None = None
+    missing_payroll_fields: List[str] | None = None
 
 class NewEmployeeResponse(FullEmployee):
     """Modèle de réponse pour la création d'un employé, incluant le mot de passe généré."""

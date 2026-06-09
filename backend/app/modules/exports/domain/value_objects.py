@@ -5,6 +5,8 @@
 EXPORT_TYPES_PREVIEW = frozenset(
     {
         "journal_paie",
+        "charges_sociales",
+        "notes_frais",
         "virement_salaires",
         "od_salaires",
         "od_charges_sociales",
@@ -21,6 +23,8 @@ EXPORT_TYPES_PREVIEW = frozenset(
 EXPORT_TYPES_GENERATE = frozenset(
     {
         "journal_paie",
+        "charges_sociales",
+        "notes_frais",
         "virement_salaires",
         "od_salaires",
         "od_charges_sociales",

@@ -4,6 +4,10 @@ import { AlertTriangle, CalendarDays, ChevronDown, Percent } from "lucide-react"
 import type { CompanyDetails } from "@/api/company";
 import CollectiveAgreementCard from "@/components/CollectiveAgreementCard";
 import MaintenanceSettingsCard from "@/features/company/components/MaintenanceSettingsCard";
+import JeiSettingsCard from "@/features/company/components/JeiSettingsCard";
+import WorkMedalSettingsCard from "@/features/company/components/WorkMedalSettingsCard";
+import { WorkMedalCasesList } from "@/features/work-medals/components/WorkMedalCasesList";
+import OethSettingsCard from "@/features/company/components/OethSettingsCard";
 import NetEntreprisesConfigCard from "@/features/net-entreprises/components/NetEntreprisesConfigCard";
 import type { ComplianceAnchor } from "@/features/company/components/CompanyComplianceBand";
 import { formatCollectiveAgreementLabel } from "@/features/company/lib/companyPageTabs";
@@ -200,6 +204,22 @@ export function CompanyPayrollTab({
       <section className="space-y-3">
         <SectionHeading>Déclarations</SectionHeading>
         <NetEntreprisesConfigCard />
+      </section>
+
+      <section className="space-y-3">
+        <SectionHeading>Primes et distinctions</SectionHeading>
+        <WorkMedalSettingsCard />
+        <WorkMedalCasesList statusFilter="awaiting_rh" />
+      </section>
+
+      <section className="space-y-3">
+        <SectionHeading>Dispositifs d’exonération</SectionHeading>
+        <JeiSettingsCard />
+      </section>
+
+      <section className="space-y-3">
+        <SectionHeading>OETH / DOETH</SectionHeading>
+        <OethSettingsCard />
       </section>
 
       <section className="space-y-3">

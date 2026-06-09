@@ -684,6 +684,13 @@
         <p><strong>Retenues sur salaire (saisies) :</strong><span class="perte">- {{ "%.2f"|format(retenues_saisies.total_preleve) }} €</span></p>
         {% endif %}
 
+        {% if remboursements_prets and remboursements_prets.total_rembourse and remboursements_prets.total_rembourse > 0 %}
+        <p><strong>Remboursement prêt employeur :</strong><span class="perte">- {{ "%.2f"|format(remboursements_prets.total_rembourse) }} €</span></p>
+        {% if remboursements_prets.total_capital and remboursements_prets.total_capital > 0 %}
+        <p style="font-size: 9pt; color: #555; margin-left: 12px;">dont capital : {{ "%.2f"|format(remboursements_prets.total_capital) }} €{% if remboursements_prets.total_interets and remboursements_prets.total_interets > 0 %}, intérêts : {{ "%.2f"|format(remboursements_prets.total_interets) }} €{% endif %}</p>
+        {% endif %}
+        {% endif %}
+
         <h2 class="net-a-payer">NET À PAYER :<span>{{ "%.2f"|format(net_a_payer) }} €</span></h2>
         {% if en_tete.date_paiement %}
         <p><strong>Date de paiement :</strong><span>{{ en_tete.date_paiement }}</span></p>

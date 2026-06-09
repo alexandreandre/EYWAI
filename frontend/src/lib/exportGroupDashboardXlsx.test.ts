@@ -4,6 +4,7 @@ import type { CompanyStats } from "@/api/companyGroups";
 import { computeCompanyKpis } from "@/lib/groupConsolidatedKpis";
 import {
   getGroupDashboardWorkbookSheetNames,
+  getGroupDashboardTableWorkbookSheetNames,
   getSyntheseChargeRateDisplayValue,
 } from "@/lib/exportGroupDashboardXlsx";
 
@@ -136,5 +137,42 @@ describe("exportGroupDashboardXlsx", () => {
       "Statistiques KPI",
       "Évolution mensuelle",
     ]);
+  });
+});
+
+describe("exportGroupDashboardTableXlsx", () => {
+  const tablePayload = {
+    groupName: "Groupe ACME",
+    periodLabel: "Janvier 2026",
+    periodExportKey: "2026-01",
+    compareTo: "previous_month" as const,
+    companies: sampleCompanies,
+    totals: basePayload.totals,
+    totalEmployerCostValue: basePayload.totalEmployerCostValue,
+    chargeRate: basePayload.chargeRate,
+    comparison: basePayload.comparison,
+  };
+
+  it("produit une feuille Tableau des charges", async () => {
+    expect(await getGroupDashboardTableWorkbookSheetNames(tablePayload)).toEqual([
+      "Tableau des charges",
+    ]);
+  });
+
+  it("n'inclut pas la colonne évolution sans comparaison", async () => {
+    const { buildGroupDashboardTableWorkbook } = await import("@/lib/exportGroupDashboardXlsx");
+    const wb = await buildGroupDashboardTableWorkbook({
+      ...tablePayload,
+      compareTo: "off",
+      comparison: undefined,
+    });
+    const ws = wb.getWorksheet("Tableau des charges");
+    expect(ws).toBeDefined();
+    const headerRow = ws!.getRow(4);
+    expect(headerRow.getCell(1).value).toBe("Entreprise");
+    expect(headerRow.getCell(10).value).toBe("Taux charges");
+    expect(headerRow.getCell(11).value).not.toBe("Évol. masse brute");
+    const totalRow = ws!.getRow(4 + sampleCompanies.length + 1);
+    expect(totalRow.getCell(1).value).toBe("TOTAL");
   });
 });

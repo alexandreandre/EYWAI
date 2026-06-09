@@ -9,16 +9,7 @@ import { prefetchEmployeeDetail } from "@/lib/prefetchEmployeeDetail";
 import { useActiveCompanyId } from "@/hooks/queries/useCompanyId";
 import type { EmployeeDetailLocationState } from "@/features/employees/utils/employeePreview";
 
-export interface EmployeeListItem {
-  id: string;
-  first_name: string;
-  last_name: string;
-  job_title: string | null;
-  contract_type: string | null;
-  hire_date: string | null;
-  employment_status?: string | null;
-  current_exit_id?: string | null;
-}
+import type { EmployeeListItem } from "@/hooks/queries/useEmployeesQuery";
 
 export function getContractBadge(type: string) {
   const variants = { CDI: "bg-blue-100 text-blue-800", CDD: "bg-purple-100 text-purple-800" };
@@ -82,6 +73,15 @@ export function EmployeesTableRow({ employee }: { employee: EmployeeListItem }) 
                   Parti
                 </Badge>
               )}
+              {employee.trial_period_status === "ending_soon" &&
+                employee.trial_period_days_remaining != null && (
+                  <Badge
+                    variant="outline"
+                    className="text-xs bg-orange-50 text-orange-800 border-orange-200"
+                  >
+                    Essai J-{employee.trial_period_days_remaining}
+                  </Badge>
+                )}
             </div>
             <p className="text-xs text-muted-foreground">
               Entrée:{" "}

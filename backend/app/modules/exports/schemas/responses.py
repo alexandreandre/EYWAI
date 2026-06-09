@@ -47,6 +47,7 @@ class ExportPreviewResponse(BaseModel):
     anomalies: List[ExportAnomaly] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
     can_generate: bool = True
+    details: Optional[Dict[str, Any]] = None
 
 
 class ExportFileInfo(BaseModel):

@@ -138,6 +138,48 @@ def preview_export(
             warnings=preview["warnings"],
             can_generate=preview["can_generate"],
         )
+    elif request.export_type == "charges_sociales":
+        caisses = request.filters.get("caisses") if request.filters else None
+        include_consolidated = (
+            request.filters.get("include_consolidated", True)
+            if request.filters
+            else True
+        )
+        preview = providers.preview_charges_sociales(
+            company_id,
+            request.period,
+            request.employee_ids,
+            caisses,
+            include_consolidated,
+        )
+        return ExportPreviewResponse(
+            export_type=request.export_type,
+            period=request.period,
+            employees_count=preview["employees_count"],
+            totals=ExportTotals(**preview["totals"]),
+            anomalies=[ExportAnomaly(**a) for a in preview["anomalies"]],
+            warnings=preview["warnings"],
+            can_generate=preview["can_generate"],
+            details=preview.get("details"),
+        )
+    elif request.export_type == "notes_frais":
+        expense_types = request.filters.get("expense_types") if request.filters else None
+        preview = providers.preview_notes_frais(
+            company_id,
+            request.period,
+            request.employee_ids,
+            expense_types,
+        )
+        return ExportPreviewResponse(
+            export_type=request.export_type,
+            period=request.period,
+            employees_count=preview["employees_count"],
+            totals=ExportTotals(**preview["totals"]),
+            anomalies=[ExportAnomaly(**a) for a in preview["anomalies"]],
+            warnings=preview["warnings"],
+            can_generate=preview["can_generate"],
+            details=preview.get("details"),
+        )
     else:
         raise ValueError(f"Type d'export '{request.export_type}' non implémenté")
 

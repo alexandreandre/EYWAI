@@ -331,6 +331,11 @@ def _construire_ligne_avantages_en_nature(
                     valeur += tranche["valeur_par_piece"] * (nb_pieces - 1)
                 total_avantages += valeur
                 break
+    situation_pret = situation_salarie_aen.get("pret_employeur", {})
+    if isinstance(situation_pret, dict):
+        montant_pret = situation_pret.get("montant_mensuel", 0) or 0
+        if montant_pret > 0:
+            total_avantages += float(montant_pret)
     if total_avantages > 0:
         return {
             "libelle": "Avantages en nature",

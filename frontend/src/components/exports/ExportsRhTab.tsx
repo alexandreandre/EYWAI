@@ -107,7 +107,7 @@ export function ExportsRhTab() {
         <Dialog open={!!selectedExport} onOpenChange={(open) => !open && setSelectedExport(null)}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <ExportCommonModel
-              exportType={exports.find(e => e.id === selectedExport)?.name || ""}
+              exportType={selectedExport}
               exportDescription={exports.find(e => e.id === selectedExport)?.description || ""}
               onClose={() => setSelectedExport(null)}
             />

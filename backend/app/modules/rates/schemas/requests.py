@@ -43,3 +43,19 @@ class ManualRateUpdateRequest(BaseModel):
         default=None,
         description="Liens de référence éventuels (sources officielles)",
     )
+
+
+class PayslipEditLockUpdateRequest(BaseModel):
+    """Modification de la règle de verrouillage d'édition manuelle des bulletins."""
+
+    cutoff_day_of_next_month: int = Field(
+        ...,
+        ge=1,
+        le=28,
+        description="Jour du mois suivant à partir duquel l'édition manuelle est bloquée",
+    )
+    comment: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Note justifiant la modification",
+    )

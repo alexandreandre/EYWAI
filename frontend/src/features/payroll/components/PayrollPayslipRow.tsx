@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { DocumentFileRow, DownloadLinkButton, ViewLinkButton } from '@/components/employee-detail/DocumentFileRow';
 import type { PayslipInfo } from '@/api/payslips';
-import { Edit, Loader2, Trash2 } from 'lucide-react';
+import { Edit, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 
 export type PayslipRowStatus = 'idle' | 'loading' | 'success' | 'error';
 
@@ -23,6 +23,7 @@ export type PayslipRowState = {
   status: PayslipRowStatus;
   payslip?: PayslipInfo;
   errorMessage?: string;
+  warnings?: string[];
 };
 
 type PayrollPayslipRowProps = {
@@ -55,12 +56,21 @@ export function PayrollPayslipRow({
 }: PayrollPayslipRowProps) {
   const payslip = state.payslip;
   const netLabel = payslip ? formatNet(payslip.net_a_payer) : null;
+  const warnings = state.warnings ?? payslip?.warnings ?? [];
+  const firstWarning = warnings[0];
 
   const statusBadge =
     state.status === 'success' ? (
-      <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800">
-        Généré
-      </Badge>
+      warnings.length > 0 ? (
+        <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">
+          <AlertTriangle className="mr-1 h-3 w-3" aria-hidden />
+          Alerte
+        </Badge>
+      ) : (
+        <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800">
+          Généré
+        </Badge>
+      )
     ) : state.status === 'loading' ? (
       <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-800">
         En cours…
@@ -147,9 +157,12 @@ export function PayrollPayslipRow({
   return (
     <DocumentFileRow
       name={name}
+      rowHref={state.status === 'success' && payslip ? `/payslips/${payslip.id}/edit` : undefined}
       subtitle={
         state.status === 'error' && state.errorMessage ? (
           <span className="text-destructive">{state.errorMessage}</span>
+        ) : firstWarning ? (
+          <span className="text-amber-700 dark:text-amber-400">{firstWarning}</span>
         ) : undefined
       }
       meta={meta}

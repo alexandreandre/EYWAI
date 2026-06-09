@@ -16,6 +16,10 @@ from app.modules.payslips.application.commands import (
     generate_payslip,
     restore_payslip_version,
 )
+from app.modules.payslips.application.period_edit_lock import (
+    assert_payslip_manual_edit_allowed,
+    enrich_payslip_detail_with_edit_lock,
+)
 from app.modules.payslips.application.dto import (
     EditPayslipInput,
     GeneratePayslipInput,
@@ -96,7 +100,9 @@ def get_payslip_details_for_user(
         raise PayslipForbiddenError(
             "Accès refusé: vous n'avez pas les permissions pour consulter ce bulletin"
         )
-    return detail
+    return enrich_payslip_detail_with_edit_lock(
+        detail, bypass_lock=ctx.is_platform_admin
+    )
 
 
 def get_payslip_history_for_user(
@@ -151,6 +157,10 @@ def edit_payslip_for_user(
         raise PayslipForbiddenError(
             "Vous n'avez pas les permissions pour modifier les bulletins"
         )
+    try:
+        assert_payslip_manual_edit_allowed(meta, bypass_lock=ctx.is_platform_admin)
+    except ValueError as exc:
+        raise PayslipBadRequestError(str(exc)) from exc
     return edit_payslip(
         EditPayslipInput(
             payslip_id=payslip_id,
@@ -188,6 +198,10 @@ def restore_payslip_for_user(
         raise PayslipForbiddenError(
             "Vous n'avez pas les permissions pour restaurer les bulletins"
         )
+    try:
+        assert_payslip_manual_edit_allowed(meta, bypass_lock=ctx.is_platform_admin)
+    except ValueError as exc:
+        raise PayslipBadRequestError(str(exc)) from exc
     return restore_payslip_version(
         RestorePayslipInput(
             payslip_id=payslip_id,

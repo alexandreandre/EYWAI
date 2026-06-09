@@ -4,10 +4,22 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from app.modules.collective_agreements.application.idcc_resolution import (
+    resolve_minimum_for_classification,
+)
+from app.modules.collective_agreements.rules.constants import SMH_NATIONAL_IDCC
 from app.modules.collective_agreements.rules.resolver import (
     code_postal_from_entreprise,
     resolve_salaires_minima,
 )
+
+
+def _is_smh_national_idcc(idcc: str) -> bool:
+    normalized = idcc.strip()
+    if normalized in SMH_NATIONAL_IDCC:
+        return True
+    stripped = normalized.lstrip("0") or "0"
+    return stripped in {x.lstrip("0") for x in SMH_NATIONAL_IDCC}
 
 
 def _alert(
@@ -24,6 +36,19 @@ def _alert(
         "message": message,
         "donnee_non_officielle": donnee_non_officielle,
     }
+
+
+def _minimum_conventionnel_ajuste(contexte, minimum: float) -> float:
+    """Prorata temps partiel (< 35 h) sur le minimum mensuel SMH."""
+    contrat = (contexte.contrat.get("contrat") or {}) if hasattr(contexte, "contrat") else {}
+    temps = contrat.get("temps_travail") or {}
+    try:
+        duree = float(temps.get("duree_hebdomadaire") or 35)
+    except (TypeError, ValueError):
+        duree = 35.0
+    if 0 < duree < 35:
+        return round(minimum * duree / 35.0, 2)
+    return minimum
 
 
 def controle_convention_collective(contexte, salaire_brut: float) -> List[Dict[str, Any]]:
@@ -72,8 +97,11 @@ def controle_convention_collective(contexte, salaire_brut: float) -> List[Dict[s
         contexte.contrat.get("remuneration", {}).get("classification_conventionnelle")
         or {}
     )
-    coeff = classification.get("coefficient")
-    if coeff is None:
+    has_lookup_key = any(
+        classification.get(field) is not None
+        for field in ("coefficient", "classe_emploi", "classe")
+    )
+    if not has_lookup_key:
         alertes.append(
             _alert(
                 code="cc_classification_manquante",
@@ -82,18 +110,6 @@ def controle_convention_collective(contexte, salaire_brut: float) -> List[Dict[s
                     f"Classification conventionnelle absente sur la fiche salarié "
                     f"({libelle_cc}). Impossible de contrôler le minimum conventionnel."
                 ),
-            )
-        )
-        return alertes
-
-    try:
-        coeff_num = float(coeff)
-    except (TypeError, ValueError):
-        alertes.append(
-            _alert(
-                code="cc_coefficient_invalide",
-                critique=True,
-                message=f"Coefficient conventionnel invalide ({coeff!r}).",
             )
         )
         return alertes
@@ -115,32 +131,48 @@ def controle_convention_collective(contexte, salaire_brut: float) -> List[Dict[s
         )
         return alertes
 
-    minimum_applicable: Optional[float] = None
-    libelle_poste: Optional[str] = None
-    for row in minima:
-        if not isinstance(row, dict):
-            continue
-        row_coeff = row.get("coefficient")
+    min_row = resolve_minimum_for_classification(
+        minima, classification, idcc=idcc
+    )
+    if min_row is None:
+        coeff = classification.get("coefficient")
         try:
-            if float(row_coeff) == coeff_num:
-                minimum_applicable = float(row.get("valeur") or 0)
-                libelle_poste = row.get("libelle")
-                break
+            coeff_num = float(coeff) if coeff is not None else None
         except (TypeError, ValueError):
-            continue
+            coeff_num = None
 
-    if minimum_applicable is None:
+        if _is_smh_national_idcc(idcc) and coeff_num is not None and coeff_num > 18:
+            message = (
+                f"Classe d'emploi absente ou invalide pour {libelle_cc} "
+                f"(coefficient de position {coeff_num:g} non utilisable pour le "
+                f"barème SMH). Renseignez la classe (1-18) sur la fiche salarié."
+            )
+        elif coeff_num is not None:
+            message = (
+                f"Coefficient {coeff_num:g} absent de la grille {libelle_cc}. "
+                "Vérifiez la classification ou mettez à jour la convention."
+            )
+        else:
+            message = (
+                f"Classification absente de la grille {libelle_cc}. "
+                "Vérifiez la classification ou mettez à jour la convention."
+            )
         alertes.append(
             _alert(
                 code="cc_coefficient_hors_grille",
                 critique=True,
-                message=(
-                    f"Coefficient {coeff_num:g} absent de la grille {libelle_cc}. "
-                    "Vérifiez la classification ou mettez à jour la convention."
-                ),
+                message=message,
             )
         )
         return alertes
+
+    minimum_applicable = float(min_row.get("valeur") or 0)
+    minimum_applicable = _minimum_conventionnel_ajuste(contexte, minimum_applicable)
+    libelle_poste = min_row.get("libelle")
+    try:
+        coeff_affiche = float(min_row.get("coefficient") or 0)
+    except (TypeError, ValueError):
+        coeff_affiche = 0.0
 
     if salaire_brut + 0.01 < minimum_applicable:
         poste = f" ({libelle_poste})" if libelle_poste else ""
@@ -150,13 +182,72 @@ def controle_convention_collective(contexte, salaire_brut: float) -> List[Dict[s
                 critique=True,
                 message=(
                     f"Salaire brut ({salaire_brut:.2f} €) inférieur au minimum "
-                    f"conventionnel{poste} pour le coefficient {coeff_num:g} "
+                    f"conventionnel{poste} pour le coefficient {coeff_affiche:g} "
                     f"({minimum_applicable:.2f} € — {libelle_cc})."
                 ),
             )
         )
 
     return alertes
+
+
+def controle_net_superieur_brut(
+    salaire_brut: float,
+    net_a_payer: float,
+) -> List[Dict[str, Any]]:
+    """Signale un net à payer supérieur au brut (avertissement non bloquant)."""
+    try:
+        brut = float(salaire_brut)
+        net = float(net_a_payer)
+    except (TypeError, ValueError):
+        return []
+    if brut < 0 or net <= brut + 0.009:
+        return []
+    return [
+        _alert(
+            code="net_superieur_brut",
+            critique=False,
+            message=(
+                f"Net à payer ({net:.2f} €) supérieur au salaire brut ({brut:.2f} €). "
+                "Cas possible (remboursements, acomptes…) — vérifiez le bulletin."
+            ),
+        )
+    ]
+
+
+def _codes_alertes_baremes(payslip_data: Dict[str, Any]) -> set[str]:
+    codes: set[str] = set()
+    for raw in payslip_data.get("alertes_baremes") or []:
+        if isinstance(raw, dict) and raw.get("code"):
+            codes.add(str(raw["code"]))
+    return codes
+
+
+def extraire_messages_alertes_rh(payslip_data: Dict[str, Any]) -> List[str]:
+    """Messages d'alerte RH pour listes / génération (persistés + détection legacy)."""
+    messages: List[str] = []
+    seen: set[str] = set()
+    for raw in extraire_alertes_rh_depuis_bulletin(payslip_data):
+        msg = str(raw.get("message") or "").strip()
+        if msg and msg not in seen:
+            messages.append(msg)
+            seen.add(msg)
+
+    if "net_superieur_brut" not in _codes_alertes_baremes(payslip_data):
+        brut = payslip_data.get("salaire_brut")
+        net = payslip_data.get("net_a_payer")
+        try:
+            brut_f = float(brut) if brut is not None else None
+            net_f = float(net) if net is not None else None
+        except (TypeError, ValueError):
+            brut_f = net_f = None
+        if brut_f is not None and net_f is not None:
+            for alerte in controle_net_superieur_brut(brut_f, net_f):
+                msg = str(alerte.get("message") or "").strip()
+                if msg and msg not in seen:
+                    messages.append(msg)
+                    seen.add(msg)
+    return messages
 
 
 def extraire_alertes_rh_depuis_bulletin(

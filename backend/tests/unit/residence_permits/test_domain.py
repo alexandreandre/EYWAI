@@ -151,7 +151,7 @@ class TestCalculateResidencePermitStatusWithExpiryDate:
     def test_to_renew_within_anticipation_threshold(self):
         """Date d'expiration dans la fenêtre d'anticipation → to_renew."""
         ref = date(2025, 3, 17)
-        expiry = ref + timedelta(days=30)  # < 45 jours
+        expiry = ref + timedelta(days=30)  # <= 30 jours
         result = calculate_residence_permit_status(
             is_subject_to_residence_permit=True,
             residence_permit_expiry_date=expiry,
@@ -162,7 +162,7 @@ class TestCalculateResidencePermitStatusWithExpiryDate:
         assert result["residence_permit_days_remaining"] == 30
 
     def test_to_renew_exactly_at_threshold(self):
-        """Date d'expiration exactement au seuil (ref + 45 jours) → to_renew (<= threshold)."""
+        """Date d'expiration exactement au seuil (ref + 30 jours) → to_renew (<= threshold)."""
         ref = date(2025, 3, 17)
         expiry = ref + timedelta(days=ANTICIPATION_THRESHOLD_DAYS)
         result = calculate_residence_permit_status(
@@ -210,5 +210,5 @@ class TestAnticipationThreshold:
     """Constante métier ANTICIPATION_THRESHOLD_DAYS."""
 
     def test_threshold_value(self):
-        """Seuil d'anticipation à 45 jours (aligné legacy)."""
-        assert ANTICIPATION_THRESHOLD_DAYS == 45
+        """Seuil d'anticipation à 30 jours (relance RH J-30)."""
+        assert ANTICIPATION_THRESHOLD_DAYS == 30

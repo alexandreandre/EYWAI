@@ -63,7 +63,11 @@ def get_company_overview(company_id: str, current_user: Any) -> CompanyOverviewD
     absenteeism = compute_absenteeism(raw["absences"], employee_ids)
     company_cc_ids = raw.get("company_cc_ids") or set()
     alerts = compute_alerts(
-        company, employees, raw["mutuelle_employee_ids"], company_cc_ids
+        company,
+        employees,
+        raw["mutuelle_employee_ids"],
+        company_cc_ids,
+        cdd_horizon_days=15,
     )
     compliance = compute_compliance_flags(
         company, demographics["total_headcount"], company_cc_ids

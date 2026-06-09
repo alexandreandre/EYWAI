@@ -31,6 +31,8 @@ interface CreateExitDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
+  initialEmployeeId?: string;
+  initialExitType?: ExitType;
 }
 
 function noticeSourceLabel(source: NoticePeriodPreview['source']): string {
@@ -46,7 +48,13 @@ function noticeSourceLabel(source: NoticePeriodPreview['source']): string {
   }
 }
 
-export function CreateExitDialog({ open, onOpenChange, onSuccess }: CreateExitDialogProps) {
+export function CreateExitDialog({
+  open,
+  onOpenChange,
+  onSuccess,
+  initialEmployeeId,
+  initialExitType,
+}: CreateExitDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const companyId = useActiveCompanyId();
@@ -87,10 +95,16 @@ export function CreateExitDialog({ open, onOpenChange, onSuccess }: CreateExitDi
   useEffect(() => {
     if (open) {
       fetchEmployees();
+      if (initialEmployeeId) {
+        setEmployeeId(initialEmployeeId);
+      }
+      if (initialExitType) {
+        setExitType(initialExitType);
+      }
     } else {
       resetForm();
     }
-  }, [open]);
+  }, [open, initialEmployeeId, initialExitType]);
 
   useEffect(() => {
     if (!open || !employeeId) {

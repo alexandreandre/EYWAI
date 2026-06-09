@@ -26,6 +26,16 @@ export interface EmployeeProfileData {
   statut?: string | null;
   job_title?: string | null;
   duree_hebdomadaire?: number | null;
+  trial_period_applicable?: boolean | null;
+  trial_period_status?:
+    | "in_progress"
+    | "ending_soon"
+    | "ended"
+    | "confirmed"
+    | "to_complete"
+    | null;
+  trial_period_end_date?: string | null;
+  trial_period_days_remaining?: number | null;
   salaire_de_base?: { valeur?: number } | null;
   specificites_paie?: {
     prelevement_a_la_source?: { taux?: number | null };
@@ -56,6 +66,20 @@ export function formatProfileAddress(adresse: EmployeeAddress | null | undefined
 export function formatWeeklyHours(hours: number | null | undefined): string {
   if (hours == null) return 'Non renseigné';
   return `${hours} h/semaine`;
+}
+
+export function formatTrialPeriodLabel(profile: EmployeeProfileData): string | null {
+  if (!profile.trial_period_applicable) return null;
+  if (profile.trial_period_status === 'confirmed') {
+    return 'Confirmée';
+  }
+  if (profile.trial_period_end_date) {
+    return `Se termine le ${formatProfileDate(profile.trial_period_end_date)}`;
+  }
+  if (profile.trial_period_status === 'to_complete') {
+    return 'À renseigner par les RH';
+  }
+  return null;
 }
 
 export function maskIban(iban: string | undefined): string {

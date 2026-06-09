@@ -24,6 +24,7 @@ import {
   MessageSquare,
   Scale,
   Wallet,
+  Landmark,
   Home,
   FolderKanban,
   Handshake,
@@ -205,6 +206,7 @@ const RH_PAIE_GROUPS: SidebarLinkGroup[] = [
       { title: "Primes", url: "/saisies", icon: ClipboardEdit },
       { title: "Saisies sur salaire", url: "/salary-seizures", icon: Scale },
       { title: "Avances sur salaire", url: "/salary-advances", icon: Wallet },
+      { title: "Prêts employeur", url: "/employee-loans", icon: Landmark },
     ],
   },
   {
@@ -329,6 +331,7 @@ const menuItems = {
     { title: "Congés & Absences", url: "/absences", icon: Plane },
     { title: "Notes de Frais", url: "/expenses", icon: Notebook },
     { title: "Avances sur salaire", url: "/salary-advances", icon: Wallet },
+    { title: "Prêts employeur", url: "/employee-loans", icon: Landmark },
     { title: "Mes Documents", url: "/documents", icon: FolderKanban },
     { title: "Profil", url: "/profile", icon: User },
   ]

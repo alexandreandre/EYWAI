@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from app.core.database import get_supabase_client
 from app.modules.collective_agreements.domain.rules import idcc_variants
+from app.modules.collective_agreements.rules.constants import SMH_NATIONAL_IDCC
 from app.modules.collective_agreements.rules.repository import CCRulesRepository
 from app.modules.collective_agreements.rules.resolver import resolve_salaires_minima
 from app.modules.payroll.engine.baremes_loader import ensure_dict
@@ -149,27 +150,60 @@ def get_salary_minima_for_agreement(
     )
 
 
-def _classification_lookup_keys(classification: Dict[str, Any]) -> List[float]:
+def _is_smh_national_idcc(idcc: str | None) -> bool:
+    if not idcc:
+        return False
+    normalized = idcc.strip()
+    if normalized in SMH_NATIONAL_IDCC:
+        return True
+    stripped = normalized.lstrip("0") or "0"
+    return stripped in {x.lstrip("0") for x in SMH_NATIONAL_IDCC}
+
+
+def _classification_lookup_keys(
+    classification: Dict[str, Any],
+    *,
+    idcc: str | None = None,
+) -> List[float]:
+    """
+    Clés de recherche dans la grille CC.
+
+    Métallurgie SMH (3248) : la grille est indexée par classe d'emploi (1-18),
+    le coefficient de position (ex. 710) ne correspond pas aux minima SMH.
+    """
+    if _is_smh_national_idcc(idcc):
+        field_order = ("classe_emploi", "classe", "coefficient")
+    else:
+        field_order = ("coefficient", "classe_emploi", "classe")
+
     keys: List[float] = []
-    for field in ("coefficient", "classe_emploi", "classe"):
+    seen: set[float] = set()
+    for field in field_order:
         raw = classification.get(field)
         if raw is None:
             continue
         try:
-            keys.append(float(raw))
+            value = float(raw)
         except (TypeError, ValueError):
             continue
+        if _is_smh_national_idcc(idcc) and field == "coefficient" and value > 18:
+            continue
+        if value not in seen:
+            keys.append(value)
+            seen.add(value)
     return keys
 
 
 def resolve_minimum_for_classification(
     minima: List[Dict[str, Any]],
     classification: Dict[str, Any],
+    *,
+    idcc: str | None = None,
 ) -> Optional[Dict[str, Any]]:
     """Retourne la ligne de minimum correspondant à la classification."""
     if not minima or not classification:
         return None
-    lookup = _classification_lookup_keys(classification)
+    lookup = _classification_lookup_keys(classification, idcc=idcc)
     if not lookup:
         return None
     for key in lookup:

@@ -3,23 +3,33 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
+import re
+from datetime import date, datetime, timezone
 from typing import Any, Dict, Optional
 
 from app.core.database import supabase
-from app.modules.documents.infrastructure.repository import documents_repository
+from app.modules.documents.infrastructure.repository import BUCKET, documents_repository
+from app.modules.employees.infrastructure.providers import get_storage_provider
 from app.modules.employees.infrastructure.repository import EmployeeRepository
 from app.modules.documents.schemas.requests import (
     GenerateDocumentRequest,
     UpdateDocumentStatusRequest,
 )
-from app.modules.document_library.schemas.requests import KNOWN_DOCUMENT_TYPES
+from app.modules.document_library.schemas.requests import (
+    DOCUMENT_TYPE_LABELS,
+    KNOWN_DOCUMENT_TYPES,
+)
+from app.modules.notifications.application.employee_document_alerts import (
+    notify_employee_new_document,
+)
 from app.services.document_service import document_service
 
 _ALLOWED_STATUS = frozenset({"brouillon", "envoye", "signe", "archive"})
 _CONTRACT_LIKE_TYPES = frozenset(
     {"cdi", "cdd", "convention_stage", "contrat_alternance"}
 )
+_TRANSMIT_DOCUMENT_TYPE = "document_transmis"
+_MAX_TRANSMIT_BYTES = 10 * 1024 * 1024
 
 logger = logging.getLogger(__name__)
 _employees_repo_avenants = EmployeeRepository()
@@ -329,6 +339,102 @@ def _handle_avenant_signe(
         logger.error("[avenant_signe] Erreur non bloquante : %s", e)
 
 
+def _document_display_label(document: Dict[str, Any]) -> str:
+    gc = document.get("generation_context") or {}
+    if isinstance(gc, dict):
+        custom = gc.get("custom_label")
+        if custom is not None and str(custom).strip():
+            return str(custom).strip()
+    document_type = str(document.get("document_type") or "")
+    if document_type in DOCUMENT_TYPE_LABELS:
+        return DOCUMENT_TYPE_LABELS[document_type]
+    return document_type.replace("_", " ").strip().title() or "Document"
+
+
+def _validate_transmit_file(
+    file_content: bytes,
+    filename: str,
+) -> None:
+    if not file_content:
+        raise ValueError("Fichier vide.")
+    if len(file_content) > _MAX_TRANSMIT_BYTES:
+        raise ValueError("Le fichier dépasse la taille maximale autorisée (10 Mo).")
+    name = (filename or "").lower().strip()
+    if not name.endswith(".pdf"):
+        raise ValueError("Seuls les fichiers PDF sont acceptés.")
+
+
+def transmit_employee_document(
+    company_id: str,
+    current_user_id: str,
+    employee_id: str,
+    document_label: str,
+    file_content: bytes,
+    filename: str,
+    *,
+    send_immediately: bool = True,
+    content_type: Optional[str] = None,
+) -> dict:
+    """Dépose un PDF RH et l'enregistre dans generated_documents (optionnellement envoyé)."""
+    label = document_label.strip()
+    if len(label) < 2:
+        raise ValueError("L'intitulé du document doit contenir au moins 2 caractères.")
+
+    _validate_transmit_file(file_content, filename)
+    _load_employee(employee_id, company_id)
+
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    storage_path = f"{company_id}/{employee_id}/{_TRANSMIT_DOCUMENT_TYPE}_{ts}.pdf"
+    storage = get_storage_provider()
+    try:
+        storage.upload(
+            BUCKET,
+            storage_path,
+            file_content,
+            content_type or "application/pdf",
+        )
+    except Exception as exc:
+        logger.warning("transmit_employee_document upload failed: %s", exc)
+        raise RuntimeError("Impossible d'enregistrer le fichier PDF.") from exc
+
+    original_name = (filename or "document.pdf").strip() or "document.pdf"
+    safe_name = re.sub(r"[^\w.\- ]+", "_", original_name)[:200]
+    status = "envoye" if send_immediately else "brouillon"
+    row = documents_repository.insert(
+        {
+            "company_id": company_id,
+            "employee_id": employee_id,
+            "document_type": _TRANSMIT_DOCUMENT_TYPE,
+            "category": "attestation_courante",
+            "template_id": None,
+            "template_version_id": None,
+            "is_eywai_template": False,
+            "file_url": storage_path,
+            "file_name": safe_name,
+            "status": status,
+            "generation_context": {
+                "custom_label": label,
+                "transmitted_by_rh": True,
+            },
+            "generated_by": current_user_id,
+        }
+    )
+    if send_immediately:
+        _notify_document_sent_to_employee(row, company_id)
+    return row
+
+
+def _notify_document_sent_to_employee(document: Dict[str, Any], company_id: str) -> None:
+    employee_id = document.get("employee_id")
+    if not employee_id:
+        return
+    label = _document_display_label(document)
+    try:
+        notify_employee_new_document(str(employee_id), company_id, label)
+    except Exception as exc:
+        logger.info("[doc_notif] Non bloquant envoi document %s: %s", document.get("id"), exc)
+
+
 def update_document_status(
     document_id: str,
     company_id: str,
@@ -338,7 +444,11 @@ def update_document_status(
 ) -> dict:
     if body.status not in _ALLOWED_STATUS:
         raise ValueError(f"Statut invalide : {body.status}")
+    previous = documents_repository.get_by_id(document_id, company_id)
+    previous_status = str((previous or {}).get("status") or "")
     updated_row = documents_repository.update_status(document_id, company_id, body.status)
+    if body.status == "envoye" and previous_status == "brouillon":
+        _notify_document_sent_to_employee(updated_row, company_id)
     if body.status == "signe":
         _handle_avenant_signe(updated_row, company_id, updated_by_user_id or "")
     return updated_row

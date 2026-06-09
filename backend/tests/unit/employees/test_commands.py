@@ -166,6 +166,67 @@ async def test_create_employee_profile_upsert_failure_rollback_auth(
 
 
 @patch("app.modules.employees.application.commands._employee_repository")
+def test_update_employee_merges_specificites_paie(mock_emp_repo):
+    """update_employee : fusionne specificites_paie sans écraser les autres clés."""
+    mock_emp_repo.get_by_id_only.return_value = {
+        "id": "emp-1",
+        "specificites_paie": {
+            "mutuelle": {"adhesion": True},
+            "prelevement_a_la_source": {"is_personnalise": False, "taux": 0},
+        },
+    }
+    mock_emp_repo.update.return_value = {"id": "emp-1"}
+    mock_emp_repo.get_by_id_only.side_effect = [
+        mock_emp_repo.get_by_id_only.return_value,
+        {
+            "id": "emp-1",
+            "employment_status": "actif",
+            "specificites_paie": {
+                "mutuelle": {"adhesion": True},
+                "prelevement_a_la_source": {"is_personnalise": True, "taux": 12.5},
+            },
+            "nir": "1850574001234",
+            "date_naissance": "1985-05-01",
+            "adresse": {"rue": "1 rue Test"},
+            "coordonnees_bancaires": {"iban": "FR7612345678901234567890123"},
+            "salaire_de_base": {"valeur": 2500},
+        },
+        {
+            "id": "emp-1",
+            "specificites_paie": {
+                "mutuelle": {"adhesion": True},
+                "prelevement_a_la_source": {"is_personnalise": True, "taux": 12.5},
+            },
+            "employment_status": "actif",
+            "nir": "1850574001234",
+            "date_naissance": "1985-05-01",
+            "adresse": {"rue": "1 rue Test"},
+            "coordonnees_bancaires": {"iban": "FR7612345678901234567890123"},
+            "salaire_de_base": {"valeur": 2500},
+        },
+    ]
+
+    update_employee(
+        "emp-1",
+        {
+            "specificites_paie": {
+                "prelevement_a_la_source": {"is_personnalise": True, "taux": 12.5},
+            },
+        },
+    )
+
+    mock_emp_repo.update.assert_called_once_with(
+        "emp-1",
+        {
+            "specificites_paie": {
+                "mutuelle": {"adhesion": True},
+                "prelevement_a_la_source": {"is_personnalise": True, "taux": 12.5},
+            },
+        },
+    )
+
+
+@patch("app.modules.employees.application.commands._employee_repository")
 def test_update_employee_success_returns_updated_data(mock_emp_repo):
     """update_employee : succès, retourne les données mises à jour."""
     mock_emp_repo.get_by_id_only.return_value = {
@@ -174,7 +235,12 @@ def test_update_employee_success_returns_updated_data(mock_emp_repo):
         "first_name": "Jean",
         "last_name": "Dupont",
         "phone_number": "+33600000000",
-        "coordonnees_bancaires": {},
+        "coordonnees_bancaires": {"iban": "FR7612345678901234567890123", "bic": "BNPAFRPP"},
+        "employment_status": "actif",
+        "nir": "1850574001234",
+        "date_naissance": "1985-05-01",
+        "adresse": {"rue": "1 rue Test"},
+        "salaire_de_base": {"valeur": 2500},
     }
     mock_emp_repo.update.return_value = {
         "id": "emp-1",
@@ -184,9 +250,107 @@ def test_update_employee_success_returns_updated_data(mock_emp_repo):
     }
     result = update_employee("emp-1", {"phone_number": "+33600000000"})
     assert result["phone_number"] == "+33600000000"
+    assert result["profile_complete"] is True
+    assert result["missing_payroll_fields"] == []
     mock_emp_repo.update.assert_called_once_with(
         "emp-1", {"phone_number": "+33600000000"}
     )
+
+
+@patch("app.modules.employees.application.commands.is_profile_complete")
+@patch("app.modules.employees.application.commands._employee_repository")
+def test_update_employee_completes_onboarding_and_activates(
+    mock_emp_repo, mock_is_complete
+):
+    """update_employee : fiche paie complète + en_onboarding → passage en actif."""
+    mock_emp_repo.update.return_value = {"id": "emp-1"}
+    complete_employee = {
+        "id": "emp-1",
+        "employment_status": "en_onboarding",
+        "nir": "1850574001234",
+        "date_naissance": "1985-05-01",
+        "adresse": {"rue": "1 rue Test", "ville": "Paris"},
+        "coordonnees_bancaires": {"iban": "FR7612345678901234567890123"},
+        "salaire_de_base": {"valeur": 2500},
+    }
+    activated_employee = {
+        **complete_employee,
+        "employment_status": "actif",
+    }
+    mock_emp_repo.get_by_id_only.side_effect = [
+        complete_employee,  # alertes RIB
+        complete_employee,  # _maybe_activate_after_onboarding
+        activated_employee,  # refresh final
+    ]
+    mock_is_complete.return_value = True
+
+    result = update_employee(
+        "emp-1",
+        {
+            "nir": "1850574001234",
+            "date_naissance": "1985-05-01",
+            "adresse": {"rue": "1 rue Test", "ville": "Paris"},
+            "coordonnees_bancaires": {"iban": "FR7612345678901234567890123"},
+            "salaire_de_base": {"valeur": 2500},
+        },
+    )
+
+    mock_emp_repo.update.assert_any_call("emp-1", {"employment_status": "actif"})
+    assert result["employment_status"] == "actif"
+    assert result["profile_complete"] is True
+
+
+@patch("app.modules.employees.application.commands._employee_repository")
+def test_update_employee_contract_and_specificites_paie(mock_emp_repo):
+    """update_employee : champs contrat et specificites_paie persistés."""
+    mock_emp_repo.get_by_id_only.return_value = {
+        "id": "emp-1",
+        "company_id": "company-1",
+        "employment_status": "actif",
+        "nir": "1850574001234",
+        "date_naissance": "1985-05-01",
+        "adresse": {"rue": "1 rue Test", "ville": "Paris"},
+        "coordonnees_bancaires": {"iban": "FR7612345678901234567890123"},
+        "salaire_de_base": {"valeur": 2500},
+        "specificites_paie": {"is_alsace_moselle": False},
+    }
+    mock_emp_repo.update.return_value = {"id": "emp-1", "job_title": "Dev senior"}
+    update_data = {
+        "job_title": "Dev senior",
+        "statut": "Cadre",
+        "duree_hebdomadaire": 39.0,
+        "classification_conventionnelle": {
+            "groupe_emploi": "C",
+            "classe_emploi": 6,
+            "coefficient": 240,
+        },
+        "team_id": "team-1",
+        "specificites_paie": {
+            "is_alsace_moselle": False,
+            "mutuelle": {"adhesion": True, "mutuelle_type_ids": ["mut-1"]},
+        },
+    }
+    result = update_employee("emp-1", update_data)
+    mock_emp_repo.update.assert_called_with("emp-1", update_data)
+    assert result["profile_complete"] is True
+
+
+@patch("app.modules.employees.application.commands._employee_repository")
+def test_update_employee_nir_duplicate_raises_400(mock_emp_repo):
+    """update_employee : NIR déjà enregistré → HTTP 400."""
+    mock_emp_repo.get_by_id_only.return_value = {
+        "id": "emp-1",
+        "company_id": "company-1",
+        "coordonnees_bancaires": {},
+    }
+    mock_emp_repo.update.side_effect = Exception(
+        'duplicate key value violates unique constraint "employees_nir_key"'
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        update_employee("emp-1", {"nir": "1850574001234"})
+    assert exc_info.value.status_code == 400
+    assert "sécurité sociale" in (exc_info.value.detail or "").lower()
 
 
 @patch("app.modules.employees.application.commands._employee_repository")

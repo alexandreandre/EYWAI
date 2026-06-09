@@ -13,6 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, PlusCircle, Loader2, Upload, FileText, Trash2 } from "lucide-react";
 import { mutuelleTypesApi, MutuelleType } from "@/api/mutuelleTypes";
@@ -23,6 +24,25 @@ import {
   translateFieldName,
   type CreateEmployeeFormValues,
 } from "@/features/employees/components/createEmployeeFormSchema";
+
+function defaultTrialSettings(contractType: string) {
+  const ct = (contractType || "").toLowerCase();
+  const excluded =
+    ct.includes("stage") ||
+    ct.includes("alternance") ||
+    ct.includes("apprentissage") ||
+    ct.includes("professionnalisation");
+  if (excluded) {
+    return { enabled: false, duree: 2, unite: "mois" as const, renouvellement: true };
+  }
+  const isCdd = ct.includes("cdd") && !ct.includes("cdi");
+  return {
+    enabled: true,
+    duree: isCdd ? 1 : 2,
+    unite: "mois" as const,
+    renouvellement: true,
+  };
+}
 
 export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
   const companyId = useActiveCompanyId();
@@ -94,7 +114,12 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
       date_debut_execution: "",
       contract_end_date: "",
       team_id: "",
-      // periode_essai: { duree_initiale: 2, unite: "mois", renouvellement_possible: true },
+      has_periode_essai: true,
+      periode_essai: {
+        duree_initiale: 2,
+        unite: "mois",
+        renouvellement_possible: true,
+      },
       is_temps_partiel: false,
       duree_hebdomadaire: 39, 
       salaire_de_base: {
@@ -115,6 +140,8 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
       specificites_paie: {
         is_alsace_moselle: false,
         maintien_regime_apprenti: false,
+        personnel_rd_eligible_jei: false,
+        mandataire_rd: false,
         prelevement_a_la_source: {
           is_personnalise: false,
           taux: 0,
@@ -170,6 +197,19 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
       setClassificationsCc([]);
     }
   }, [selectedCcId]);
+
+  const watchedContractType = form.watch("contract_type");
+  useEffect(() => {
+    const settings = defaultTrialSettings(watchedContractType);
+    form.setValue("has_periode_essai", settings.enabled);
+    if (settings.enabled) {
+      form.setValue("periode_essai", {
+        duree_initiale: settings.duree,
+        unite: settings.unite,
+        renouvellement_possible: settings.renouvellement,
+      });
+    }
+  }, [watchedContractType, form]);
 
   // Charger les mutuelles disponibles
   const [availableMutuelles, setAvailableMutuelles] = useState<MutuelleType[]>([]);
@@ -599,6 +639,12 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
   const payload = {
     ...values,
     team_id: values.team_id?.trim() ? values.team_id.trim() : null,
+    periode_essai: values.has_periode_essai
+      ? {
+          ...values.periode_essai!,
+          statut: "en_cours",
+        }
+      : null,
     specificites_paie: {
       ...values.specificites_paie,
       // On met à jour la section mutuelle pour inclure "adhesion"
@@ -617,6 +663,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
       },
     }
   };
+  delete (payload as { has_periode_essai?: boolean }).has_periode_essai;
 
   try {
     // 1. Créer un objet FormData
@@ -1168,6 +1215,78 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                             </div>
                           );
                         })()}
+                        <div className="space-y-4 rounded-md border border-dashed p-4">
+                          <FormField
+                            control={form.control}
+                            name="has_periode_essai"
+                            render={({ field }) => (
+                              <FormItem className="flex flex-row items-center justify-between gap-4">
+                                <div className="space-y-1">
+                                  <FormLabel>Période d&apos;essai</FormLabel>
+                                  <p className="text-xs text-muted-foreground">
+                                    Active le suivi des échéances et alimente le contrat PDF.
+                                  </p>
+                                </div>
+                                <FormControl>
+                                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          {form.watch("has_periode_essai") && (
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                              <FormField
+                                control={form.control}
+                                name="periode_essai.duree_initiale"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Durée</FormLabel>
+                                    <FormControl>
+                                      <Input type="number" min={1} {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name="periode_essai.unite"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Unité</FormLabel>
+                                    <Select value={field.value} onValueChange={field.onChange}>
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        <SelectItem value="jours">Jours</SelectItem>
+                                        <SelectItem value="semaines">Semaines</SelectItem>
+                                        <SelectItem value="mois">Mois</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name="periode_essai.renouvellement_possible"
+                                render={({ field }) => (
+                                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 sm:mt-6">
+                                    <FormControl>
+                                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                                    </FormControl>
+                                    <div className="space-y-1 leading-none">
+                                      <FormLabel>Renouvellement possible</FormLabel>
+                                    </div>
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          )}
+                        </div>
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end">
                           <FormField control={form.control} name="duree_hebdomadaire" render={({ field }) => (<FormItem><FormLabel>Durée hebdo. (heures)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
                           <FormField
@@ -1351,6 +1470,27 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                     </TabsContent>
                     <TabsContent value="specifiques">
                       <div className="space-y-6">
+                        <div>
+                          <h3 className="font-semibold mb-2">Statut JEI — personnel R&D</h3>
+                          <FormField
+                            control={form.control}
+                            name="specificites_paie.personnel_rd_eligible_jei"
+                            render={({ field }) => (
+                              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                                <FormControl>
+                                  <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                                </FormControl>
+                                <div className="space-y-1 leading-none">
+                                  <FormLabel>Personnel R&D éligible à l&apos;exonération JEI</FormLabel>
+                                  <p className="text-xs text-muted-foreground">
+                                    Chercheurs, ingénieurs, techniciens R&D, gestionnaires de projet R&D,
+                                    etc. L&apos;entreprise doit avoir le statut JEI activé dans les paramètres paie.
+                                  </p>
+                                </div>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
                         <div>
                           <h3 className="font-semibold mb-2">Prélèvement à la Source (PAS)</h3>
                           <FormField

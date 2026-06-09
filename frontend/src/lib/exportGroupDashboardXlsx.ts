@@ -845,3 +845,137 @@ export async function getSyntheseChargeRateDisplayValue(
   }
   return undefined;
 }
+
+export interface GroupDashboardTableExportPayload {
+  groupName: string;
+  periodLabel: string;
+  periodExportKey: string;
+  compareTo: CompareToMode;
+  companies: CompanyStats[];
+  totals: ConsolidatedTotalsLike;
+  totalEmployerCostValue: number;
+  chargeRate: number;
+  comparison?: ConsolidatedStats["comparison"];
+}
+
+function comparisonCompanyGross(
+  comparison: ConsolidatedStats["comparison"],
+  companyId: string,
+): number | undefined {
+  return comparison?.by_company?.find((c) => c.company_id === companyId)?.gross_salary;
+}
+
+function buildTableauChargesSheet(
+  wb: ExcelJS.Workbook,
+  payload: GroupDashboardTableExportPayload,
+): void {
+  const hasComparison = payload.compareTo !== "off" && !!payload.comparison?.by_company?.length;
+  const lastCol = hasComparison ? "K" : "J";
+  const colWidths = hasComparison
+    ? [26, 16, 12, 8, 10, 14, 14, 14, 14, 14, 12]
+    : [26, 16, 12, 8, 10, 14, 14, 14, 14, 12];
+  const ws = createReportSheet(wb, "Tableau des charges", colWidths);
+  const b = new SheetBuilder(ws, lastCol);
+
+  b.titleBand(
+    "Tableau des charges par entreprise",
+    `${payload.groupName}  ·  ${payload.periodLabel}`,
+  );
+
+  const headers = [
+    "Entreprise",
+    "SIRET",
+    "Emp. hors-RH",
+    "RH",
+    "Bulletins",
+    "Masse brute",
+    ...(hasComparison ? ["Évol. masse brute"] : []),
+    "Coût employeur",
+    "Masse nette",
+    "Charges patron.",
+    "Taux charges",
+  ];
+  b.tableHeader(headers);
+
+  for (const company of payload.companies) {
+    const employerCost = company.gross_salary + company.employer_charges;
+    const companyChargeRate =
+      company.gross_salary > 0 ? (company.employer_charges / company.gross_salary) * 100 : 0;
+    const prevGross = hasComparison
+      ? comparisonCompanyGross(payload.comparison, company.company_id)
+      : undefined;
+    const grossDelta =
+      prevGross != null ? percentDelta(company.gross_salary, prevGross) : null;
+
+    const cells: CellValue[] = [
+      t(company.company_name),
+      t(company.siret ?? "—"),
+      num(company.employee_count, FMT.INT),
+      num(company.rh_count, FMT.INT),
+      num(company.payslip_count, FMT.INT),
+      num(company.gross_salary, FMT.EUR),
+    ];
+    if (hasComparison) {
+      cells.push(deltaText(grossDelta));
+    }
+    cells.push(
+      num(employerCost, FMT.EUR),
+      num(company.net_salary, FMT.EUR),
+      num(company.employer_charges, FMT.EUR),
+      pctRate(companyChargeRate),
+    );
+    b.tableRow(cells, 0);
+  }
+
+  const totalCells: CellValue[] = [
+    t("TOTAL"),
+    t("—"),
+    num(payload.totals.total_employees_excluding_rh, FMT.INT),
+    num(payload.totals.total_rh, FMT.INT),
+    num(payload.totals.total_payslip_count, FMT.INT),
+    num(payload.totals.total_gross_salary, FMT.EUR),
+  ];
+  if (hasComparison) {
+    totalCells.push(t("—"));
+  }
+  totalCells.push(
+    num(payload.totalEmployerCostValue, FMT.EUR),
+    num(payload.totals.total_net_salary, FMT.EUR),
+    num(payload.totals.total_employer_charges, FMT.EUR),
+    pctRate(payload.chargeRate),
+  );
+  b.tableRow(totalCells, payload.companies.length, { bold: true });
+
+  ws.views = [{ state: "frozen", ySplit: 3, showGridLines: true }];
+}
+
+export async function buildGroupDashboardTableWorkbook(
+  payload: GroupDashboardTableExportPayload,
+): Promise<ExcelJS.Workbook> {
+  const ExcelJSRuntime = await loadExcelJS();
+  const wb = new ExcelJSRuntime.Workbook();
+  wb.creator = "EYWAI";
+  wb.created = new Date();
+  buildTableauChargesSheet(wb, payload);
+  return wb;
+}
+
+export async function exportGroupDashboardTableXlsx(
+  payload: GroupDashboardTableExportPayload,
+): Promise<void> {
+  const wb = await buildGroupDashboardTableWorkbook(payload);
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const groupPart = sanitizeFilenamePart(payload.groupName || "groupe");
+  downloadBlob(blob, `groupe-${groupPart}-tableau-charges-${payload.periodExportKey}.xlsx`);
+}
+
+/** Utilitaire de test : noms des feuilles du classeur tableau. */
+export async function getGroupDashboardTableWorkbookSheetNames(
+  payload: GroupDashboardTableExportPayload,
+): Promise<string[]> {
+  const wb = await buildGroupDashboardTableWorkbook(payload);
+  return wb.worksheets.map((ws) => ws.name);
+}

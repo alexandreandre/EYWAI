@@ -1,9 +1,13 @@
 import apiClient from '@/api/apiClient';
 
+export type PerimetreAugmentation = 'brut_seul' | 'brut_et_hs';
+export type TypeAugmentation = 'pourcentage' | 'montant_fixe';
+
 export type SimulationRequest = {
-  type_augmentation: 'pourcentage' | 'montant_fixe';
+  type_augmentation: TypeAugmentation;
   valeur: number;
   effective_date: string;
+  perimetre_augmentation?: PerimetreAugmentation;
 };
 
 /** Réponse backend (schéma Pydantic SimulationResultat). */
@@ -21,12 +25,21 @@ export type SimulationResultat = {
   cout_total_employeur_apres: number;
   difference_cout_employeur: number;
   taux_augmentation_reel: number;
+  perimetre_augmentation: PerimetreAugmentation;
+  a_hs_structurelles: boolean;
+  ancien_base_35h: number;
+  ancien_part_hs: number;
+  nouveau_base_35h: number;
+  nouveau_part_hs: number;
 };
 
 export type UpdateSalaryRequest = {
   nouveau_salaire: number;
   motif?: string;
   effective_date: string;
+  type_augmentation?: TypeAugmentation;
+  valeur_augmentation?: number;
+  perimetre_augmentation?: PerimetreAugmentation;
 };
 
 export type SalaryHistoryEntry = {
@@ -83,9 +96,10 @@ export type FiltresCollectifs = {
 
 export type SimulationCollectiveRequest = {
   filtres: FiltresCollectifs;
-  type_augmentation: 'pourcentage' | 'montant_fixe';
+  type_augmentation: TypeAugmentation;
   valeur: number;
   effective_date: string;
+  perimetre_augmentation?: PerimetreAugmentation;
 };
 
 export type EmployeSimule = {
@@ -97,6 +111,11 @@ export type EmployeSimule = {
   nouveau_salaire_brut: number;
   difference_brut: number;
   taux_augmentation_reel: number;
+  a_hs_structurelles?: boolean;
+  ancien_base_35h?: number | null;
+  ancien_part_hs?: number | null;
+  nouveau_base_35h?: number | null;
+  nouveau_part_hs?: number | null;
 };
 
 export type SimulationCollectiveResultat = {
@@ -111,10 +130,11 @@ export type SimulationCollectiveResultat = {
 
 export type ApplicationCollectiveRequest = {
   employee_ids: string[];
-  type_augmentation: 'pourcentage' | 'montant_fixe';
+  type_augmentation: TypeAugmentation;
   valeur: number;
   effective_date: string;
   motif?: string | null;
+  perimetre_augmentation?: PerimetreAugmentation;
 };
 
 export type ApplicationCollectiveResultat = {

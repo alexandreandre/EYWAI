@@ -10,9 +10,92 @@ export type EmployeeLite = {
 
 export type EmployeeSummaryStatus = 'active' | 'all' | 'payroll';
 
+export type UpdateEmployeePayload = {
+  first_name?: string;
+  last_name?: string;
+  collective_agreement_id?: string | null;
+  email?: string;
+  phone_number?: string | null;
+  nir?: string;
+  date_naissance?: string;
+  lieu_naissance?: string;
+  nationalite?: string;
+  adresse?: {
+    rue?: string;
+    code_postal?: string;
+    ville?: string;
+    voie?: string;
+  };
+  coordonnees_bancaires?: {
+    iban?: string;
+    bic?: string;
+  };
+  salaire_de_base?: {
+    valeur?: number;
+    montant?: number;
+  };
+  contract_end_date?: string | null;
+  prior_service_months?: number | null;
+  periode_essai?: Record<string, unknown> | null;
+  hire_date?: string;
+  job_title?: string;
+  contract_type?: string;
+  statut?: string;
+  is_temps_partiel?: boolean;
+  duree_hebdomadaire?: number;
+  classification_conventionnelle?: {
+    groupe_emploi?: string;
+    classe_emploi?: number;
+    coefficient?: number;
+  };
+  team_id?: string | null;
+  is_subject_to_residence_permit?: boolean;
+  residence_permit_expiry_date?: string | null;
+  residence_permit_type?: string | null;
+  residence_permit_number?: string | null;
+  specificites_paie?: {
+    prelevement_a_la_source?: {
+      is_personnalise?: boolean;
+      taux?: number;
+    };
+    transport?: { abonnement_mensuel_total?: number };
+    titres_restaurant?: { beneficie?: boolean; nombre_par_mois?: number };
+    mutuelle?: {
+      adhesion?: boolean;
+      mutuelle_type_ids?: string[];
+      lignes_specifiques?: unknown[];
+    };
+    prevoyance?: {
+      adhesion?: boolean;
+      lignes_specifiques?: unknown[];
+    };
+    [key: string]: unknown;
+  };
+};
+
 export async function getEmployee(employeeId: string): Promise<Employee> {
   const { data } = await apiClient.get<Employee>(`/api/employees/${employeeId}`);
   return data;
+}
+
+export async function updateEmployee(
+  employeeId: string,
+  payload: UpdateEmployeePayload,
+): Promise<Employee> {
+  const { data } = await apiClient.put<Employee>(`/api/employees/${employeeId}`, payload);
+  return data;
+}
+
+export async function confirmTrialPeriod(employeeId: string): Promise<Employee> {
+  const { data } = await apiClient.patch<Employee>(
+    `/api/employees/${employeeId}/trial-period/confirm`,
+  );
+  return data;
+}
+
+export async function fetchEmployees(): Promise<Employee[]> {
+  const { data } = await apiClient.get<Employee[]>('/api/employees');
+  return data ?? [];
 }
 
 export async function uploadEmployeeContract(employeeId: string, file: File): Promise<string | null> {

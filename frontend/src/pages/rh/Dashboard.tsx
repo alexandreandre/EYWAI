@@ -266,6 +266,14 @@ export default function Dashboard() {
       hint: 'Échéances à surveiller',
     },
     {
+      key: 'contracts',
+      label: "Contrats & périodes d'essai",
+      count: data.alerts.expiringContracts + data.alerts.endOfTrialPeriods,
+      href: '/employees?alert=deadlines',
+      icon: UserPlus,
+      hint: 'Fin de CDD ou période d\'essai sous 15 jours',
+    },
+    {
       key: 'annualReviews',
       label: 'Entretiens planifiés',
       count: annualReviewsUpcomingCount,

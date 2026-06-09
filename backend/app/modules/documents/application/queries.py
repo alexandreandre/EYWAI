@@ -15,6 +15,8 @@ def get_documents(
     status: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    *,
+    employee_visible_only: bool = False,
 ) -> List[dict]:
     return documents_repository.get_all(
         company_id,
@@ -23,6 +25,7 @@ def get_documents(
         status=status,
         date_from=date_from,
         date_to=date_to,
+        employee_visible_only=employee_visible_only,
     )
 
 

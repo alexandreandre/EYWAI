@@ -41,6 +41,8 @@ EXPORT_TYPE_LABELS: Dict[str, str] = {
     "od_charges_sociales": "Écritures OD — Charges sociales",
     "od_pas": "Écritures OD — PAS",
     "od_globale": "Écritures OD — Globale",
+    "charges_sociales": "Charges sociales par caisse",
+    "notes_frais": "Notes de frais",
     "export_cabinet_generique": "Export cabinet (générique)",
     "export_cabinet_quadra": "Export cabinet Quadra",
     "export_cabinet_sage": "Export cabinet Sage",

@@ -203,7 +203,7 @@ def compute_alerts(
     mutuelle_employee_ids: Set[str],
     company_cc_ids: Set[str] | None = None,
     *,
-    cdd_horizon_days: int = 30,
+    cdd_horizon_days: int = 15,
 ) -> List[Dict[str, Any]]:
     """Alertes conformité et opérationnelles."""
     alerts: List[Dict[str, Any]] = []

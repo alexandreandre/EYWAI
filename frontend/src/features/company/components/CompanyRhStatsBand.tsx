@@ -51,7 +51,7 @@ export function CompanyRhStatsBand({
           ? `${d.male_percent} % / ${d.female_percent} %`
           : "—",
     },
-    { label: "CDD < 30 j", value: String(overview.cdd_ending_within_30_days) },
+    { label: "CDD < 15 j", value: String(overview.cdd_ending_within_30_days) },
   ];
 
   const paieStats: Stat[] = [

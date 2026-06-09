@@ -23,6 +23,7 @@ import {
   EmployeePageShell,
 } from '@/components/employee/EmployeePageHeader';
 import { PendingSignaturesWidget } from '@/components/dashboard/PendingSignaturesWidget';
+import { NewDocumentsDashboardAlert } from '@/components/dashboard/NewDocumentsDashboardAlert';
 import { EmployeeBadgeuseDashboardCard } from '@/components/dashboard/EmployeeBadgeuseDashboardCard';
 import { EmployeeCseDashboardCard } from '@/components/employee-cse/EmployeeCseDashboardCard';
 import { EmployeeAbsenceBalanceRow } from '@/components/employee-absences/EmployeeAbsenceBalanceRow';
@@ -229,6 +230,7 @@ export default function EmployeeDashboard() {
           À traiter
         </h2>
         <PendingSignaturesWidget mode="employee" />
+        <NewDocumentsDashboardAlert />
 
         {pendingAbsences.length > 0 && (
           <Card className="border-amber-200 bg-amber-50/80 dark:border-amber-900/50 dark:bg-amber-950/20">

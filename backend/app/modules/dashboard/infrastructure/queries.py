@@ -24,7 +24,9 @@ def fetch_employees_for_dashboard(company_id: str) -> List[dict]:
         client.table("employees")
         .select(
             "id, first_name, last_name, hire_date, date_naissance, "
-            "salaire_de_base, contract_type"
+            "salaire_de_base, contract_type, employment_status, "
+            "contract_end_date, periode_essai, is_subject_to_residence_permit, "
+            "residence_permit_expiry_date"
         )
         .eq("company_id", company_id)
         .execute()

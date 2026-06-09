@@ -70,6 +70,21 @@ export function GeneratePayrollModal({ isOpen, onClose, employees }: GeneratePay
   }, [generation.phase]);
 
   useEffect(() => {
+    if (!isOpen || uiPhase !== 'done' || generation.phase !== 'done') return;
+
+    const hasErrors = generation.log.some((e) => e.status === 'error');
+    const hasWarnings = generation.log.some((e) => e.status === 'warning');
+    if (hasErrors || hasWarnings) return;
+
+    const delayMs = generation.totalJobs <= 1 ? 3500 : 6000;
+    const timer = window.setTimeout(() => {
+      handleClose();
+    }, delayMs);
+
+    return () => window.clearTimeout(timer);
+  }, [isOpen, uiPhase, generation.phase, generation.log, generation.totalJobs]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
     if (feedRef.current) {
       feedRef.current.scrollTop = feedRef.current.scrollHeight;
     }

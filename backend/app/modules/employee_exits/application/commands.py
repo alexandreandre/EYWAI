@@ -54,6 +54,9 @@ from app.modules.employee_exits.infrastructure.providers import (
 )
 from app.services.document_service import document_service
 from app.services.portability_document_generator import portability_generator
+from app.modules.notifications.application.employee_document_alerts import (
+    notify_employee_new_document,
+)
 
 ELIGIBLE_PORTABILITY_MOTIFS = frozenset(
     {"licenciement", "fin_cdd", "rupture_conventionnelle"}
@@ -946,6 +949,18 @@ def publish_exit_documents(
                 employee_doc_id = inserted["id"]
                 status = "published"
                 total_published += 1
+                try:
+                    notify_employee_new_document(
+                        str(employee_id),
+                        company_id,
+                        document_name,
+                    )
+                except Exception as notif_err:
+                    logger.info(
+                        "[doc_notif] Publication sortie %s non notifiée: %s",
+                        doc.get("id"),
+                        notif_err,
+                    )
             insert_exit_document_publication(
                 exit_id,
                 doc["id"],

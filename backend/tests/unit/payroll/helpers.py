@@ -45,6 +45,9 @@ def build_test_contexte(
     specificites_extra: Optional[Dict[str, Any]] = None,
     is_temps_partiel: bool = False,
     proratiser_plafond_ss: bool = False,
+    jei_enabled: bool = False,
+    date_creation_etablissement: str | None = None,
+    taux_exoneration_jei: float = 1.0,
 ) -> ContextePaie:
     tmp = Path(tempfile.mkdtemp(prefix="payroll_test_"))
     contrat = {
@@ -81,7 +84,14 @@ def build_test_contexte(
             **(specificites_extra or {}),
         },
     }
-    entreprise = {"entreprise": entreprise_snapshot(effectif)}
+    entreprise = {
+        "entreprise": entreprise_snapshot(
+            effectif,
+            jei_enabled=jei_enabled,
+            date_creation_etablissement=date_creation_etablissement,
+            taux_exoneration=taux_exoneration_jei,
+        )
+    }
     _write_json(tmp / "contrat.json", contrat)
     _write_json(tmp / "entreprise.json", entreprise)
     _write_json(tmp / "cumuls.json", {"cumuls": cumuls or {}})

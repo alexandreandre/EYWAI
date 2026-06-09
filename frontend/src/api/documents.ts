@@ -109,6 +109,23 @@ export async function generateDocument(data: GenerateDocumentPayload): Promise<G
   return response.data;
 }
 
+export async function transmitEmployeeDocument(
+  employeeId: string,
+  file: File,
+  documentLabel: string,
+  sendImmediately = true,
+): Promise<GeneratedDocument> {
+  const formData = new FormData();
+  formData.append('employee_id', employeeId);
+  formData.append('document_label', documentLabel.trim());
+  formData.append('send_immediately', sendImmediately ? 'true' : 'false');
+  formData.append('file', file, file.name || 'document.pdf');
+  const response = await apiClient.post<GeneratedDocument>('/api/documents/transmit', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
+}
+
 export async function updateDocumentStatus(
   id: string,
   status: DocumentStatus

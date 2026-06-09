@@ -15,6 +15,10 @@ from typing import Dict, Any, List
 from collections import defaultdict
 import json
 
+from app.modules.payroll.planning_repli import (
+    reel_forfait_avec_repli_planning_si_sans_pointage,
+)
+
 
 def analyser_jours_forfait_du_mois(
     planned_data_all_months: List[Dict[str, Any]],
@@ -51,7 +55,9 @@ def analyser_jours_forfait_du_mois(
     log_payroll_debug(logger, f'INFO: Analyse des jours forfait pour {employee_name} - {mois:02d}/{annee}...')
 
     prevu_data = planned_data_all_months
-    reel_data = actual_data_all_months
+    reel_data = reel_forfait_avec_repli_planning_si_sans_pointage(
+        prevu_data, actual_data_all_months, annee=annee, mois=mois
+    )
     log_payroll_debug(logger, f'DEBUG: nb_jours_prevus={len(prevu_data)}, nb_jours_reels={len(reel_data)}')
 
     # Debug : Afficher la répartition par mois

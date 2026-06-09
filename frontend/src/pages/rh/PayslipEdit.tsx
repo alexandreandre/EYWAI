@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { ArrowLeft, Save, Eye, History, Loader2 } from 'lucide-react';
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 import {
   getPayslipDetails,
@@ -21,6 +22,7 @@ import {
   type PayslipBulletinData,
 } from '@/api/payslips';
 import { useAuth, hasRhAccess } from '@/contexts/AuthContext';
+import { isPlatformAdmin } from '@/lib/platformAdmin';
 
 // Import des composants d'édition (à créer)
 import PayslipHeaderSection from '@/components/payslip-edit/PayslipHeaderSection';
@@ -73,6 +75,10 @@ export default function PayslipEdit() {
   const [validateBusy, setValidateBusy] = useState(false);
 
   const isRH = payslip ? hasRhAccess(user, payslip.company_id) : false;
+  const isAdminPlatform = isPlatformAdmin(user);
+  const isEditLocked = Boolean(payslip?.manual_edit_locked);
+  const showAdminOverride =
+    Boolean(payslip?.period_edit_locked) && isAdminPlatform && !isEditLocked;
   const payslipStatus = payslip?.status ?? 'brouillon';
 
   const refreshPayslipFromServer = useCallback(async () => {
@@ -149,6 +155,7 @@ export default function PayslipEdit() {
 
   // Fonction pour mettre à jour les données éditées
   const updateEditedData = (path: string[], value: any) => {
+    if (isEditLocked) return;
     const newData = JSON.parse(JSON.stringify(editedData));
     let current = newData;
 
@@ -235,6 +242,32 @@ export default function PayslipEdit() {
     <div className="container mx-auto space-y-6">
       <PayslipAlertsBanner data={editedData} />
 
+      {isEditLocked && payslip.manual_edit_lock_reason ? (
+        <Alert variant="destructive">
+          <AlertTitle>Édition verrouillée</AlertTitle>
+          <AlertDescription>{payslip.manual_edit_lock_reason}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {showAdminOverride ? (
+        <Alert>
+          <AlertTitle>Override administrateur</AlertTitle>
+          <AlertDescription>
+            La période est normalement verrouillée pour les RH, mais vous pouvez
+            encore modifier ce bulletin en tant qu&apos;administrateur plateforme.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {!isEditLocked && payslip.manual_edit_lock_until ? (
+        <Alert>
+          <AlertDescription>
+            Édition manuelle autorisée jusqu&apos;au{' '}
+            {new Date(payslip.manual_edit_lock_until).toLocaleDateString('fr-FR')}.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       {/* Header avec navigation */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -283,7 +316,7 @@ export default function PayslipEdit() {
           </Button>
           <Button
             onClick={handleSave}
-            disabled={isSaving || !hasUnsavedChanges}
+            disabled={isSaving || !hasUnsavedChanges || isEditLocked}
           >
             {isSaving ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -323,6 +356,7 @@ export default function PayslipEdit() {
 
         {/* Onglet Édition */}
         <TabsContent value="edit" className="space-y-6 mt-6">
+          <fieldset disabled={isEditLocked} className="space-y-6 border-0 p-0 m-0 min-w-0">
           {/* Section En-tête */}
           <PayslipHeaderSection
             data={editedData.en_tete}
@@ -390,6 +424,7 @@ export default function PayslipEdit() {
             onInternalNoteChange={setInternalNote}
             onChangesSummaryChange={setChangesSummary}
           />
+          </fieldset>
         </TabsContent>
 
         {/* Onglet Aperçu */}
@@ -401,6 +436,7 @@ export default function PayslipEdit() {
         <TabsContent value="history" className="mt-6">
           <HistoryPanel
             payslipId={payslipId!}
+            canRestore={!isEditLocked}
             onRestore={() => {
               // Recharger après restauration
               getPayslipDetails(payslipId!).then((data) => {

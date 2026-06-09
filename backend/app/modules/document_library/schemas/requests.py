@@ -25,6 +25,7 @@ DOCUMENT_TYPE_LABELS: dict[str, str] = {
     "attestation_location": "Attestation employeur pour location",
     "attestation_pret": "Attestation pour prêt bancaire",
     "attestation_retraite": "Attestation retraite",
+    "document_transmis": "Document transmis",
 }
 
 KNOWN_DOCUMENT_TYPES: frozenset[str] = frozenset(DOCUMENT_TYPE_LABELS.keys())

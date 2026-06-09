@@ -14,6 +14,7 @@ export type SalaryReviewFilterState = {
   salaireMin: string;
   salaireMax: string;
   simType: "pourcentage" | "montant_fixe";
+  perimetre: "brut_seul" | "brut_et_hs";
   valeurSim: string;
   effectiveDate: string;
 };
@@ -142,6 +143,29 @@ export function SalaryReviewFiltersForm({
               </Label>
             </div>
           </RadioGroup>
+          <div className="space-y-3">
+            <Label>Périmètre</Label>
+            <RadioGroup
+              value={filters.perimetre}
+              onValueChange={(val) =>
+                onChange({ perimetre: val as "brut_seul" | "brut_et_hs" })
+              }
+              className="flex flex-col gap-2"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="brut_seul" id="drawer-brut-seul" />
+                <Label htmlFor="drawer-brut-seul" className="cursor-pointer font-normal">
+                  Salaire de base (35 h)
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="brut_et_hs" id="drawer-brut-hs" />
+                <Label htmlFor="drawer-brut-hs" className="cursor-pointer font-normal">
+                  Salaire mensuel total (base + HS structurelles)
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="drawer-val">
               {filters.simType === "pourcentage" ? "Valeur (%)" : "Montant (€)"}

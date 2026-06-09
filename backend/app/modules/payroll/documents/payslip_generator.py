@@ -21,6 +21,7 @@ from app.core.paths import (
     payroll_engine_root,
     payroll_engine_employee_folder,
 )
+from app.modules.jei_settings.application.queries import get_jei_settings_raw
 from app.modules.payroll.application.analyzer import (
     analyser_horaires_du_mois as payroll_analyzer_analyser,
 )
@@ -195,6 +196,19 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
         payroll_events_json = {
             "periode": {"annee": year, "mois": month},
             "calendrier_analyse": payroll_events_list,
+        }
+        # M-1 : recalcul (pas le cache BDD) pour la portion de période chevauchante.
+        payroll_events_prev_list = payroll_analyzer_analyser(
+            planned_data_all_months,
+            actual_data_all_months,
+            duree_hebdo,
+            prev_year,
+            prev_month,
+            employee_folder_name,
+        )
+        payroll_events_M_minus_1 = {
+            "periode": {"annee": prev_year, "mois": prev_month},
+            "calendrier_analyse": payroll_events_prev_list,
         }
         log_payroll_debug(logger, f'\nDEBUG [Generator]: Nombre de saisies trouvées en BDD pour ce mois : {len(saisies_res.data)}\n')
 
@@ -385,10 +399,42 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
         except Exception as e:
             logger.warning(f'DEBUG [Generator]: ERREUR LORS DU DEBUG PRINT: {e}')
         log_payroll_debug(logger, '=' * 80 + '\n')
+
+        try:
+            from app.modules.employee_loans.infrastructure.payroll_queries import (
+                compute_total_loan_benefit_in_kind,
+            )
+
+            loan_an = compute_total_loan_benefit_in_kind(employee_id, year, month)
+            if loan_an > 0:
+                remuneration = contrat_json_content.setdefault("remuneration", {})
+                aen = remuneration.get("avantages_en_nature")
+                if not isinstance(aen, dict):
+                    aen = {}
+                aen["pret_employeur"] = {"montant_mensuel": loan_an}
+                remuneration["avantages_en_nature"] = aen
+                log_payroll_debug(
+                    logger,
+                    f"[DEBUG GENERATOR] Avantage en nature prêt employeur: {loan_an}€",
+                )
+        except Exception as loan_an_err:
+            logger.warning(f"Erreur calcul AN prêt employeur: {loan_an_err}")
+
         write_temp_json(employee_path / "contrat.json", contrat_json_content)
 
         # Isolation par génération : écrit dans le dossier de l'employé plutôt que
         # dans le fichier partagé data/entreprise.json (concurrence multi-tenant).
+        jei_settings = get_jei_settings_raw(str(company_id))
+        jei_bloc = {
+            "enabled": jei_settings.jei_enabled,
+            "date_creation_etablissement": (
+                jei_settings.date_creation_etablissement.isoformat()
+                if jei_settings.date_creation_etablissement
+                else None
+            ),
+            "taux_exoneration": jei_settings.taux_exoneration,
+        }
+
         entreprise_json_path = employee_path / "entreprise.json"
         entreprise_json_content = {
             "_commentaire": "Ce fichier est généré dynamiquement à chaque cycle de paie.",
@@ -415,6 +461,7 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
                         "taux_versement_mobilite": company_data.get("taux_vm"),
                         "taux_fnal": company_data.get("taux_fnal"),
                     },
+                    "jei": jei_bloc,
                 },
             },
         }
@@ -435,18 +482,6 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
         write_temp_json(
             employee_path / "evenements_paie" / f"{month:02d}.json", payroll_events_json
         )
-        events_res_M_minus_1 = (
-            supabase.table("employee_schedules")
-            .select("payroll_events")
-            .match({"employee_id": employee_id, "year": prev_year, "month": prev_month})
-            .maybe_single()
-            .execute()
-        )
-        payroll_events_M_minus_1 = (
-            (events_res_M_minus_1.data or {}).get("payroll_events")
-            if events_res_M_minus_1
-            else {}
-        )
         write_temp_json(
             employee_path / "evenements_paie" / f"{prev_month:02d}.json",
             payroll_events_M_minus_1,
@@ -462,7 +497,12 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
         )
 
         payslip_json_data = run_payslip_generation_heures(
-            employee_path, year, month, engine_root, company_id=str(company_id)
+            employee_path,
+            year,
+            month,
+            engine_root,
+            company_id=str(company_id),
+            employee_id=str(employee_id),
         )
 
         new_cumuls_path = employee_path / "cumuls" / f"{month:02d}.json"
@@ -523,6 +563,22 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
                     month,
                     payslip_id=payslip_id,
                 )
+                try:
+                    from app.modules.employee_loans.application.enrichment import (
+                        enrich_payslip_loans,
+                    )
+
+                    enriched_data = enrich_payslip_loans(
+                        enriched_data,
+                        employee_id,
+                        year,
+                        month,
+                        payslip_id=payslip_id,
+                    )
+                except Exception as loan_enrich_err:
+                    logger.warning(
+                        f"Erreur enrichissement prêts employeur: {loan_enrich_err}"
+                    )
                 final_payslip_data = enriched_data
 
                 supabase.table("payslips").update({"payslip_data": enriched_data}).eq(
@@ -578,13 +634,10 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
             logger.warning(f'[WARNING] COR recalc après génération bulletin: {cor_err}')
 
         from app.modules.payroll.engine.controles_convention import (
-            extraire_alertes_rh_depuis_bulletin,
+            extraire_messages_alertes_rh,
         )
 
-        rh_warnings = [
-            a["message"]
-            for a in extraire_alertes_rh_depuis_bulletin(final_payslip_data)
-        ]
+        rh_warnings = extraire_messages_alertes_rh(final_payslip_data)
 
         return {
             "status": "success",

@@ -8,6 +8,7 @@ import {
   openDocumentPreview,
   triggerSignedDocumentDownload,
   generateDocument,
+  updateDocumentStatus,
   type DocumentCategory,
 } from '@/api/documents';
 import { DOCUMENT_TYPE_LABELS, getTemplates, type DocumentTemplate } from '@/api/documentLibrary';
@@ -130,6 +131,28 @@ export function useCompanyDocumentGeneration() {
     void queryClient.invalidateQueries({ queryKey: ['rh-documents'] });
   };
 
+  const sendMut = useMutation({
+    mutationFn: (id: string) => updateDocumentStatus(id, 'envoye'),
+    onSuccess: () => {
+      invalidateExplorer();
+      toast({
+        title: 'Document envoyé',
+        description: 'Le collaborateur a été notifié.',
+      });
+    },
+    onError: (e: unknown) => {
+      const msg =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast({
+        title: 'Envoi impossible',
+        description: typeof msg === 'string' ? msg : 'Erreur serveur.',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const deleteMut = useMutation({
     mutationFn: deleteDocument,
     onSuccess: () => {
@@ -248,7 +271,11 @@ export function useCompanyDocumentGeneration() {
       if (!window.confirm('Supprimer ce document ? Cette action est irréversible.')) return;
       deleteMut.mutate(id);
     },
+    handleSend: (id: string) => {
+      sendMut.mutate(id);
+    },
     deletingId: deleteMut.isPending ? (deleteMut.variables as string) : null,
+    sendingId: sendMut.isPending ? (sendMut.variables as string) : null,
     loadingAction,
   };
 

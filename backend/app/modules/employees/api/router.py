@@ -41,6 +41,10 @@ from app.modules.employees.schemas.salary import (
     SimulationResultat,
     UpdateSalaryRequest,
 )
+from app.modules.employees.domain.salary_augmentation import (
+    calculer_nouveau_salaire_brut,
+    enrichir_salaire_avec_augmentation,
+)
 from app.modules.employees.schemas.responses import (
     ContractResponse,
     EmployeeRhAccess,
@@ -88,14 +92,14 @@ TAUX_SALARIE = 0.2284  # ~22,84 % cotisations salariales moyennes (simulation)
 TAUX_PATRONAL = 0.4200  # ~42 % cotisations patronales moyennes (simulation)
 
 
-def _nouveau_brut_collectif(
-    ancien: float,
-    type_augmentation: str,
-    valeur: float,
-) -> float:
-    if type_augmentation == "pourcentage":
-        return ancien * (1 + valeur / 100)
-    return ancien + valeur
+def _duree_hebdo_employe(employee: Dict[str, Any]) -> float | None:
+    raw = employee.get("duree_hebdomadaire")
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
 
 
 def _estimer_paie(salaire_brut: float, employee: Dict[str, Any]) -> Dict[str, float]:
@@ -191,13 +195,15 @@ def simulate_augmentation_collective(
 
         for emp in rows:
             ancien = _valeur_salaire_float(emp.get("salaire_de_base"))
-            nouveau = _nouveau_brut_collectif(
-                ancien, body.type_augmentation, body.valeur
+            calc = calculer_nouveau_salaire_brut(
+                ancien,
+                _duree_hebdo_employe(emp),
+                body.type_augmentation,
+                body.valeur,
+                body.perimetre_augmentation,
             )
-            diff_b = nouveau - ancien
-            masse_avant += ancien
-            masse_apres += nouveau
-            taux_r = ((nouveau - ancien) / ancien * 100) if ancien > 0 else 0.0
+            masse_avant += calc["ancien_salaire_brut"]
+            masse_apres += calc["nouveau_salaire_brut"]
             fn = str(emp.get("first_name") or "").strip()
             ln = str(emp.get("last_name") or "").strip()
             nom_complet = f"{fn} {ln}".strip() or str(emp.get("id"))
@@ -208,10 +214,15 @@ def simulate_augmentation_collective(
                     nom_complet=nom_complet,
                     poste=emp.get("job_title"),
                     service_id=str(sid) if sid else None,
-                    ancien_salaire_brut=ancien,
-                    nouveau_salaire_brut=nouveau,
-                    difference_brut=diff_b,
-                    taux_augmentation_reel=taux_r,
+                    ancien_salaire_brut=calc["ancien_salaire_brut"],
+                    nouveau_salaire_brut=calc["nouveau_salaire_brut"],
+                    difference_brut=calc["difference_brut"],
+                    taux_augmentation_reel=calc["taux_augmentation_reel"],
+                    a_hs_structurelles=calc["a_hs_structurelles"],
+                    ancien_base_35h=calc["ancien_base_35h"],
+                    ancien_part_hs=calc["ancien_part_hs"],
+                    nouveau_base_35h=calc["nouveau_base_35h"],
+                    nouveau_part_hs=calc["nouveau_part_hs"],
                 )
             )
 
@@ -254,11 +265,20 @@ def appliquer_augmentation_collective(
                     erreurs.append(f"{eid}: employé introuvable.")
                     continue
                 ancien = _valeur_salaire_float(emp.get("salaire_de_base"))
-                nouveau = _nouveau_brut_collectif(
-                    ancien, body.type_augmentation, body.valeur
+                calc = calculer_nouveau_salaire_brut(
+                    ancien,
+                    _duree_hebdo_employe(emp),
+                    body.type_augmentation,
+                    body.valeur,
+                    body.perimetre_augmentation,
                 )
                 ancien_dict = _ancien_salaire_dict(emp.get("salaire_de_base"))
-                nouveau_dict = {"valeur": nouveau}
+                nouveau_dict = enrichir_salaire_avec_augmentation(
+                    {"valeur": calc["nouveau_salaire_brut"]},
+                    body.type_augmentation,
+                    body.valeur,
+                    body.perimetre_augmentation,
+                )
                 commands.apply_salary_update(
                     employee_id=eid,
                     company_id=company_id,
@@ -477,8 +497,38 @@ async def update_employee(
 ):
     """Met à jour les informations d'un salarié."""
     try:
+        company_id = current_user.active_company_id
+        if not company_id:
+            raise HTTPException(status_code=400, detail="Aucune entreprise active.")
         update_data = employee_data.model_dump(exclude_unset=True)
-        return commands.update_employee(employee_id, update_data)
+        commands.update_employee(employee_id, update_data)
+        data = queries.get_employee_by_id(employee_id, company_id)
+        if not data:
+            raise HTTPException(status_code=404, detail="Employé non trouvé.")
+        return data
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500, detail=f"Erreur interne du serveur: {str(e)}"
+        )
+
+
+@router.patch("/{employee_id}/trial-period/confirm", response_model=FullEmployee)
+async def confirm_trial_period(
+    employee_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Confirme l'embauche (fin de suivi période d'essai)."""
+    try:
+        company_id = require_rh_access(current_user.active_company_id, current_user)
+        assert_can_read_employee_profile(current_user, employee_id, company_id)
+        commands.confirm_trial_period(employee_id, company_id)
+        data = queries.get_employee_by_id(employee_id, company_id)
+        if not data:
+            raise HTTPException(status_code=404, detail="Employé non trouvé.")
+        return data
     except HTTPException:
         raise
     except Exception as e:
@@ -692,7 +742,12 @@ def update_employee_salary(
             raise HTTPException(status_code=404, detail="Employé non trouvé.")
 
         ancien_salaire = _ancien_salaire_dict(employee.get("salaire_de_base"))
-        nouveau_salaire = {"valeur": body.nouveau_salaire}
+        nouveau_salaire = enrichir_salaire_avec_augmentation(
+            {"valeur": body.nouveau_salaire},
+            body.type_augmentation,
+            body.valeur_augmentation,
+            body.perimetre_augmentation,
+        )
         hist = commands.apply_salary_update(
             employee_id=employee_id,
             company_id=company_id,
@@ -782,27 +837,21 @@ def simulate_augmentation(
             raise HTTPException(status_code=404, detail="Employé non trouvé.")
 
         salaire_brut_actuel = _valeur_salaire_float(employee.get("salaire_de_base"))
+        calc = calculer_nouveau_salaire_brut(
+            salaire_brut_actuel,
+            _duree_hebdo_employe(employee),
+            body.type_augmentation,
+            body.valeur,
+            body.perimetre_augmentation,
+        )
 
-        if body.type_augmentation == "pourcentage":
-            nouveau_salaire_brut = salaire_brut_actuel * (1 + body.valeur / 100)
-        else:
-            nouveau_salaire_brut = salaire_brut_actuel + body.valeur
-
-        est_avant = _estimer_paie(salaire_brut_actuel, employee)
-        est_apres = _estimer_paie(nouveau_salaire_brut, employee)
-
-        diff_brut = nouveau_salaire_brut - salaire_brut_actuel
-        if salaire_brut_actuel > 0:
-            taux_augmentation_reel = (nouveau_salaire_brut - salaire_brut_actuel) / (
-                salaire_brut_actuel
-            ) * 100
-        else:
-            taux_augmentation_reel = 0.0
+        est_avant = _estimer_paie(calc["ancien_salaire_brut"], employee)
+        est_apres = _estimer_paie(calc["nouveau_salaire_brut"], employee)
 
         return SimulationResultat(
-            ancien_salaire_brut=salaire_brut_actuel,
-            nouveau_salaire_brut=nouveau_salaire_brut,
-            difference_brut=diff_brut,
+            ancien_salaire_brut=calc["ancien_salaire_brut"],
+            nouveau_salaire_brut=calc["nouveau_salaire_brut"],
+            difference_brut=calc["difference_brut"],
             ancien_net_estime=est_avant["net_estime"],
             nouveau_net_estime=est_apres["net_estime"],
             difference_net=est_apres["net_estime"] - est_avant["net_estime"],
@@ -814,7 +863,13 @@ def simulate_augmentation(
             cout_total_employeur_apres=est_apres["cout_employeur"],
             difference_cout_employeur=est_apres["cout_employeur"]
             - est_avant["cout_employeur"],
-            taux_augmentation_reel=taux_augmentation_reel,
+            taux_augmentation_reel=calc["taux_augmentation_reel"],
+            perimetre_augmentation=calc["perimetre_augmentation"],
+            a_hs_structurelles=calc["a_hs_structurelles"],
+            ancien_base_35h=calc["ancien_base_35h"],
+            ancien_part_hs=calc["ancien_part_hs"],
+            nouveau_base_35h=calc["nouveau_base_35h"],
+            nouveau_part_hs=calc["nouveau_part_hs"],
         )
     except HTTPException:
         raise

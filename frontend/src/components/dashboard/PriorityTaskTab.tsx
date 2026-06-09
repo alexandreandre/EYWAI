@@ -214,7 +214,7 @@ function buildQueue(
             title: "Contrats & périodes d'essai",
             description: "Contrats qui se terminent ou fins de période d'essai.",
             count: employeesTotal,
-            href: "/employees",
+            href: "/employees?filter=trial_ending",
             icon: UserPlus,
           }
         : null,

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Contrat de prêt employeur</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #222; margin: 40px; }
+    h1 { font-size: 16pt; text-align: center; margin-bottom: 24px; }
+    h2 { font-size: 12pt; margin-top: 20px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 10pt; }
+    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: right; }
+    th:first-child, td:first-child { text-align: center; }
+    th { background: #f5f5f5; }
+    .parties { margin-bottom: 20px; }
+    .signature { margin-top: 40px; display: flex; justify-content: space-between; }
+    .signature div { width: 45%; }
+    .mention { font-size: 9pt; color: #555; margin-top: 24px; }
+  </style>
+</head>
+<body>
+  <h1>CONTRAT DE PRÊT EMPLOYEUR</h1>
+
+  <div class="parties">
+    <p><strong>Entre :</strong><br>
+    {{ company.name or company.raison_sociale or 'L\'employeur' }}<br>
+    {% if company.siret %}SIRET : {{ company.siret }}<br>{% endif %}
+    {% if company.address %}{{ company.address }}{% endif %}
+    </p>
+    <p><strong>Et :</strong><br>
+    {{ employee.first_name }} {{ employee.last_name }}<br>
+    {% if employee.email %}{{ employee.email }}{% endif %}
+    </p>
+  </div>
+
+  <h2>Article 1 — Objet et montant</h2>
+  <p>L'employeur accorde au salarié un prêt d'un montant de <strong>{{ format_currency(loan.principal_amount) }} €</strong>,
+  consenti le {{ loan.start_date }}, remboursable en {{ loan.duration_months }} mensualités de
+  <strong>{{ format_currency(loan.monthly_payment) }} €</strong>.</p>
+  {% if loan.reason %}<p>Motif : {{ loan.reason }}</p>{% endif %}
+
+  <h2>Article 2 — Taux d'intérêt</h2>
+  <p>Taux d'intérêt annuel : <strong>{{ (loan.annual_interest_rate * 100)|round(2) }} %</strong>.
+  {% if loan.annual_interest_rate == 0 %}
+  En cas de taux inférieur au taux d'intérêt légal, la différence peut constituer un avantage en nature imposable.
+  {% endif %}
+  </p>
+
+  <h2>Article 3 — Modalités de remboursement</h2>
+  <p>Le remboursement s'effectue par retenue sur salaire, avec l'accord express du salarié,
+  dans la limite de la fraction saisissable du salaire net.</p>
+
+  <h2>Article 4 — Tableau d'amortissement</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>N°</th>
+        <th>Période</th>
+        <th>Capital</th>
+        <th>Intérêts</th>
+        <th>Échéance</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in schedule %}
+      <tr>
+        <td>{{ row.installment_number }}</td>
+        <td>{{ "%02d"|format(row.month) }}/{{ row.year }}</td>
+        <td>{{ format_currency(row.capital_part) }} €</td>
+        <td>{{ format_currency(row.interest_part) }} €</td>
+        <td>{{ format_currency(row.total_due) }} €</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if loan.requires_2062_declaration %}
+  <p class="mention"><strong>Information fiscale :</strong> ce prêt est soumis à déclaration au formulaire n°2062
+  (montant ≥ 5 000 €). Le salarié est invité à le déclarer à l'administration fiscale.</p>
+  {% endif %}
+
+  <p class="mention">Document généré le {{ generated_at }} — Ce contrat est distinct du contrat de travail.</p>
+
+  <div class="signature">
+    <div>
+      <p>L'employeur<br><br><br>_______________________</p>
+    </div>
+    <div>
+      <p>Le salarié (bon pour accord)<br><br><br>_______________________</p>
+    </div>
+  </div>
+</body>
+</html>

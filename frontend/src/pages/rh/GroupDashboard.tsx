@@ -86,7 +86,7 @@ import {
   percentDelta,
   totalsEmployerCost,
 } from "@/lib/groupConsolidatedKpis";
-import { exportGroupDashboardXlsx } from "@/lib/exportGroupDashboardXlsx";
+import { exportGroupDashboardXlsx, exportGroupDashboardTableXlsx } from "@/lib/exportGroupDashboardXlsx";
 import {
   applyPreset,
   buildYearOptions,
@@ -176,6 +176,7 @@ export function GroupDashboard() {
     "employees",
   );
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingTable, setIsExportingTable] = useState(false);
 
   const periodBounds = useMemo(() => getPeriodBounds(period), [period]);
   const isPlatformAdminUser = isPlatformAdmin(user);
@@ -555,6 +556,35 @@ export function GroupDashboard() {
       toast.error("Impossible de générer l'export Excel");
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleExportTableExcel = async () => {
+    if (!stats) return;
+    setIsExportingTable(true);
+    try {
+      const periodExportKey =
+        periodBounds.startYear === periodBounds.endYear &&
+        periodBounds.startMonth === periodBounds.endMonth
+          ? `${periodBounds.endYear}-${String(periodBounds.endMonth).padStart(2, "0")}`
+          : `${periodBounds.startYear}${String(periodBounds.startMonth).padStart(2, "0")}-${periodBounds.endYear}${String(periodBounds.endMonth).padStart(2, "0")}`;
+
+      await exportGroupDashboardTableXlsx({
+        groupName: groupDetails?.group_name ?? "Groupe",
+        periodLabel: periodBounds.label,
+        periodExportKey,
+        compareTo,
+        companies: filteredAndSortedCompanies,
+        totals: filteredTotals,
+        totalEmployerCostValue,
+        chargeRate,
+        comparison: stats.comparison,
+      });
+      toast.success("Export Excel du tableau téléchargé");
+    } catch {
+      toast.error("Impossible de générer l'export Excel du tableau");
+    } finally {
+      setIsExportingTable(false);
     }
   };
 
@@ -992,6 +1022,21 @@ export function GroupDashboard() {
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="max-w-xs"
                     />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleExportTableExcel()}
+                      disabled={
+                        !stats ||
+                        isLoading ||
+                        isExportingTable ||
+                        noCompaniesSelected ||
+                        filteredAndSortedCompanies.length === 0
+                      }
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      {isExportingTable ? "Export…" : "Exporter Excel"}
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent>

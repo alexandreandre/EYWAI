@@ -25,6 +25,8 @@ class TestExportValueObjects:
         """EXPORT_TYPES_PREVIEW contient journal_paie, virement_salaires, od_*, cabinet, dsn_mensuelle."""
         expected = {
             "journal_paie",
+            "charges_sociales",
+            "notes_frais",
             "virement_salaires",
             "od_salaires",
             "od_charges_sociales",
@@ -91,6 +93,18 @@ class TestRulesPreview:
             "export_cabinet_sage",
         ]:
             assert rules.is_supported_export_type_for_preview(t) is True
+
+    def test_preview_charges_sociales_supported(self):
+        assert rules.is_supported_export_type_for_preview("charges_sociales") is True
+
+    def test_generate_charges_sociales_supported(self):
+        assert rules.is_supported_export_type_for_generate("charges_sociales") is True
+
+    def test_preview_notes_frais_supported(self):
+        assert rules.is_supported_export_type_for_preview("notes_frais") is True
+
+    def test_generate_notes_frais_supported(self):
+        assert rules.is_supported_export_type_for_generate("notes_frais") is True
 
     def test_preview_unknown_type_not_supported(self):
         assert rules.is_supported_export_type_for_preview("export_fictif") is False

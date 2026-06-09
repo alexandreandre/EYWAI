@@ -15,6 +15,7 @@ export type OnboardingEmployeeHeader = {
   contract_type?: string | null;
   statut?: string | null;
   periode_essai?: Record<string, unknown> | null;
+  trial_period_end_date?: string | null;
 };
 
 export type TaskFilter = "all" | "todo" | "overdue" | "done";
@@ -167,7 +168,13 @@ export function isWithinLookback(hireDate: string | null | undefined, days = ONB
 export function formatPeriodeEssaiEnd(
   hireDate: string | null | undefined,
   periodeEssai: Record<string, unknown> | null | undefined,
+  trialPeriodEndDate?: string | null,
 ): string | null {
+  if (trialPeriodEndDate) {
+    return new Date(trialPeriodEndDate.slice(0, 10)).toLocaleDateString("fr-FR", {
+      dateStyle: "long",
+    });
+  }
   const hire = parseDateOnly(hireDate);
   if (!hire || !periodeEssai) return null;
   const duree = Number(periodeEssai.duree_initiale ?? periodeEssai.duree);
@@ -188,7 +195,11 @@ export function formatEmployeeMetaLine(employee: OnboardingEmployeeHeader): stri
   if (hireLabel) parts.push(`Embauché le ${hireLabel}`);
   const j = daysSinceHire(employee.hire_date);
   if (j != null) parts.push(`J+${j}`);
-  const peEnd = formatPeriodeEssaiEnd(employee.hire_date, employee.periode_essai);
+  const peEnd = formatPeriodeEssaiEnd(
+    employee.hire_date,
+    employee.periode_essai,
+    employee.trial_period_end_date,
+  );
   if (peEnd) parts.push(`Fin période d'essai ${peEnd}`);
   return parts.join(" · ");
 }

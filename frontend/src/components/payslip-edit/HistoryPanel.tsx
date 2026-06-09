@@ -12,9 +12,14 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 interface HistoryPanelProps {
   payslipId: string;
   onRestore?: () => void;
+  canRestore?: boolean;
 }
 
-export default function HistoryPanel({ payslipId, onRestore }: HistoryPanelProps) {
+export default function HistoryPanel({
+  payslipId,
+  onRestore,
+  canRestore = true,
+}: HistoryPanelProps) {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRestoring, setIsRestoring] = useState<number | null>(null);
@@ -85,7 +90,9 @@ export default function HistoryPanel({ payslipId, onRestore }: HistoryPanelProps
     <div className="space-y-4">
       <Alert>
         <AlertDescription>
-          Vous pouvez restaurer une version précédente du bulletin. Une nouvelle entrée d'historique sera créée.
+          {canRestore
+            ? 'Vous pouvez restaurer une version précédente du bulletin. Une nouvelle entrée d\'historique sera créée.'
+            : 'La restauration est désactivée : la période de ce bulletin est verrouillée pour l\'édition manuelle.'}
         </AlertDescription>
       </Alert>
 
@@ -120,7 +127,7 @@ export default function HistoryPanel({ payslipId, onRestore }: HistoryPanelProps
                     variant="outline"
                     size="sm"
                     onClick={() => handleRestore(entry.version)}
-                    disabled={isRestoring !== null}
+                    disabled={isRestoring !== null || !canRestore}
                   >
                     {isRestoring === entry.version ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

@@ -3,6 +3,7 @@ import {
   ClipboardList,
   Loader2,
   MoreHorizontal,
+  Pencil,
   Trash2,
   UserPlus,
 } from 'lucide-react';
@@ -15,6 +16,7 @@ import {
   getStatutCadreBadge,
 } from '@/lib/employeeDisplayUtils';
 import { ResidencePermitBadge } from '@/components/ResidencePermitBadge';
+import { TrialPeriodBadge } from '@/components/TrialPeriodBadge';
 import type { CompanyCollectiveAgreementWithDetails } from '@/api/collectiveAgreements';
 import type { Team } from '@/api/teams';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -63,6 +65,17 @@ export interface EmployeeDetailHeaderEmployee {
   residence_permit_expiry_date?: string | null;
   residence_permit_days_remaining?: number | null;
   residence_permit_data_complete?: boolean | null;
+  trial_period_applicable?: boolean | null;
+  trial_period_status?:
+    | 'in_progress'
+    | 'ending_soon'
+    | 'ended'
+    | 'confirmed'
+    | 'to_complete'
+    | null;
+  trial_period_end_date?: string | null;
+  trial_period_days_remaining?: number | null;
+  trial_period_renewal_possible?: boolean | null;
 }
 
 interface EmployeeDetailHeaderCardProps {
@@ -84,6 +97,7 @@ interface EmployeeDetailHeaderCardProps {
   isSavingCC: boolean;
   onSaveCollectiveAgreement: () => void | Promise<void>;
   companyHasCollectiveAgreements?: boolean;
+  onEditProfile?: () => void;
 }
 
 function MetadataField({
@@ -132,6 +146,7 @@ export function EmployeeDetailHeaderCard({
   isSavingCC,
   onSaveCollectiveAgreement,
   companyHasCollectiveAgreements = false,
+  onEditProfile,
 }: EmployeeDetailHeaderCardProps) {
   const fullName = `${employee.first_name} ${employee.last_name}`.trim();
   const initials = `${employee.first_name.charAt(0)}${employee.last_name.charAt(0)}`;
@@ -250,6 +265,18 @@ export function EmployeeDetailHeaderCard({
           </div>
 
           <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+            {onEditProfile ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
+                onClick={onEditProfile}
+              >
+                <Pencil className="mr-2 h-4 w-4" aria-hidden />
+                Modifier la fiche
+              </Button>
+            ) : null}
             {showOnboarding ? (
               <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
                 <Link to={`/onboarding/${employee.id}`}>
@@ -446,6 +473,15 @@ export function EmployeeDetailHeaderCard({
               employee.residence_permit_days_remaining ?? null,
             residence_permit_data_complete:
               employee.residence_permit_data_complete ?? null,
+          }}
+        />
+        <TrialPeriodBadge
+          data={{
+            trial_period_applicable: employee.trial_period_applicable,
+            trial_period_status: employee.trial_period_status,
+            trial_period_end_date: employee.trial_period_end_date,
+            trial_period_days_remaining: employee.trial_period_days_remaining,
+            trial_period_renewal_possible: employee.trial_period_renewal_possible,
           }}
         />
       </CardContent>

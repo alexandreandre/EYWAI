@@ -14,6 +14,7 @@ from datetime import date
 from typing import Any, Dict
 
 from app.modules.employees.domain.rules import DEFAULT_EMPLOYMENT_STATUS
+from app.modules.employees.domain.trial_period import calculate_trial_period_status
 from app.modules.employees.infrastructure.providers import (
     get_residence_permit_calculator,
 )
@@ -49,6 +50,33 @@ def enrich_employee_with_residence_permit_status(
             is_subject_to_residence_permit=is_subject,
             residence_permit_expiry_date=expiry_date,
             employment_status=employment_status,
+        )
+        result = dict(employee_data)
+        result.update(status_data)
+        return result
+    except Exception:
+        logger.exception("Exception")
+        return employee_data
+
+
+def enrich_employee_with_trial_period_status(
+    employee_data: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Enrichit la fiche avec le statut calculé de la période d'essai."""
+    try:
+        hire_date_str = employee_data.get("hire_date")
+        hire_date = None
+        if hire_date_str:
+            if isinstance(hire_date_str, str):
+                hire_date = date.fromisoformat(hire_date_str[:10])
+            elif isinstance(hire_date_str, date):
+                hire_date = hire_date_str
+
+        status_data = calculate_trial_period_status(
+            hire_date,
+            employee_data.get("periode_essai"),
+            employee_data.get("employment_status", DEFAULT_EMPLOYMENT_STATUS),
+            employee_data.get("contract_type"),
         )
         result = dict(employee_data)
         result.update(status_data)

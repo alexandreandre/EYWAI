@@ -1,10 +1,11 @@
-import { useMemo, useRef, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/api/apiClient';
 import { uploadEmployeeContract } from '@/api/employees';
-import { DOCUMENT_TYPE_LABELS } from '@/api/documentLibrary';
+import { getGeneratedDocumentLabel } from '@/lib/generatedDocumentLabel';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/components/ui/use-toast';
 import { Edit, RefreshCw } from 'lucide-react';
@@ -23,9 +24,11 @@ import {
   EmployeeDocumentAddMenu,
   GeneratedDocActions,
   GeneratedDocMeta,
+  QK_EMPLOYEE_GENERATED_DOCS,
   useEmployeeDocumentGeneration,
   type EmployeeDetailDocumentsRhEmployee,
 } from '@/components/employee-detail/EmployeeDetailDocumentsRhSection';
+import { TransmitEmployeeDocumentDialog } from '@/components/employee-detail/TransmitEmployeeDocumentDialog';
 import { getMissingContractGenerationFields } from '@/lib/employeeContractSetup';
 import { EmployeeDocumentsFolderExplorer } from '@/components/documents/EmployeeDocumentsFolderExplorer';
 import { countRhDetailFolderItems } from '@/components/documents/employeeDocumentsFolderCounts';
@@ -56,11 +59,12 @@ function filterGeneratedDocs(docs: GeneratedDocument[], fileSearch: string): Gen
   return docs.filter((d) =>
     matchesFileSemantic(
       [
-        DOCUMENT_TYPE_LABELS[d.document_type] ?? d.document_type,
+        getGeneratedDocumentLabel(d),
         d.document_type,
         d.file_name ?? '',
         d.status,
         d.template_name ?? '',
+        String(d.generation_context?.custom_label ?? ''),
         d.is_eywai_template ? 'eywai standard' : 'personnalise',
       ],
       fileSearch
@@ -84,6 +88,8 @@ export function EmployeeDetailDocumentsTab({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const contractUploadInputRef = useRef<HTMLInputElement>(null);
+  const [transmitDialogOpen, setTransmitDialogOpen] = useState(false);
+  const employeeDisplayName = `${employee.first_name} ${employee.last_name}`.trim();
 
   const missingContractFields = useMemo(
     () => getMissingContractGenerationFields(employee),
@@ -219,7 +225,7 @@ export function EmployeeDetailDocumentsTab({
     : "Aucune pièce d'identité trouvée.";
 
   const renderGeneratedRow = (doc: GeneratedDocument) => {
-    const typeLabel = DOCUMENT_TYPE_LABELS[doc.document_type] ?? doc.document_type;
+    const typeLabel = getGeneratedDocumentLabel(doc);
     return (
       <DocumentFileRow
         key={doc.id}
@@ -358,24 +364,40 @@ export function EmployeeDetailDocumentsTab({
     );
   };
 
-  const renderPayslipRow = (p: PayslipItem) => (
-    <DocumentFileRow
-      key={p.id}
-      name={payslipLabel(p)}
-      actions={
-        <>
-          <ViewLinkButton href={p.preview_url ?? ''} title="Visualiser le bulletin" />
-          <Button variant="outline" size="sm" asChild>
-            <Link to={`/payslips/${p.id}/edit`}>
-              <Edit className="mr-2 h-4 w-4" />
-              Modifier
-            </Link>
-          </Button>
-          <DownloadLinkButton href={p.url} download={p.name} />
-        </>
-      }
-    />
-  );
+  const renderPayslipRow = (p: PayslipItem) => {
+    const warning = p.warnings?.[0];
+    return (
+      <DocumentFileRow
+        key={p.id}
+        name={payslipLabel(p)}
+        rowHref={`/payslips/${p.id}/edit`}
+        subtitle={
+          warning ? (
+            <span className="text-amber-700 dark:text-amber-400">{warning}</span>
+          ) : undefined
+        }
+        meta={
+          warning ? (
+            <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">
+              Alerte
+            </Badge>
+          ) : undefined
+        }
+        actions={
+          <>
+            <ViewLinkButton href={p.preview_url ?? ''} title="Visualiser le bulletin" />
+            <Button variant="outline" size="sm" asChild>
+              <Link to={`/payslips/${p.id}/edit`}>
+                <Edit className="mr-2 h-4 w-4" />
+                Modifier
+              </Link>
+            </Button>
+            <DownloadLinkButton href={p.url} download={p.name} />
+          </>
+        }
+      />
+    );
+  };
 
   const renderBulletinsFiles = (fileSearch: string) => {
     if (payslipsQuery.isLoading) return <FileListSkeleton />;
@@ -542,13 +564,26 @@ export function EmployeeDetailDocumentsTab({
 
       {dialogs}
 
+      <TransmitEmployeeDocumentDialog
+        open={transmitDialogOpen}
+        onOpenChange={setTransmitDialogOpen}
+        employeeId={employeeId}
+        employeeName={employeeDisplayName}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: QK_EMPLOYEE_GENERATED_DOCS(employeeId) });
+        }}
+      />
+
       <EmployeeDocumentsFolderExplorer
+        key={employeeId}
+        initialFolder="contrat"
         folderCounts={folderCounts}
         renderFolderContent={renderFolderContent}
         headerActions={
           <EmployeeDocumentAddMenu
             handlers={handlers}
             onManageTemplates={manageTemplates}
+            onTransmitDocument={() => setTransmitDialogOpen(true)}
             onImportContract={openContractUploadPicker}
             menuAlign="end"
           />

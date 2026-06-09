@@ -76,6 +76,25 @@ class TestResolveMinimumForClassification:
         assert row is not None
         assert row["valeur"] == pytest.approx(2020.83)
 
+    def test_metallurgie_smh_priorise_classe_sur_position(self):
+        minima = [{"coefficient": 7, "valeur": 2200.0}]
+        row = resolve_minimum_for_classification(
+            minima,
+            {"classe_emploi": 7, "coefficient": 710},
+            idcc="3248",
+        )
+        assert row is not None
+        assert row["valeur"] == pytest.approx(2200.0)
+
+    def test_metallurgie_smh_ignore_position_sans_classe(self):
+        minima = [{"coefficient": 7, "valeur": 2200.0}]
+        row = resolve_minimum_for_classification(
+            minima,
+            {"coefficient": 710},
+            idcc="3248",
+        )
+        assert row is None
+
 
 class TestResolveMinimumSalaryValue:
     @patch(

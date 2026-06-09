@@ -172,6 +172,7 @@ function ProtectedRoutes() {
                   <Route path="/saisies" element={<Pages.Saisies />} />
                   <Route path="/salary-seizures" element={<Pages.SalarySeizures />} />
                   <Route path="/salary-advances" element={<Pages.SalaryAdvances />} />
+                  <Route path="/employee-loans" element={<Pages.EmployeeLoans />} />
                   <Route path="/rates" element={<Pages.Rates />} />
                   <Route
                     path="/payroll/generate"

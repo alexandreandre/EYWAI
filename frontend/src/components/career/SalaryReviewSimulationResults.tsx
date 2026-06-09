@@ -108,9 +108,19 @@ export function SalaryReviewSimulationResults({
                   <TableCell>{formatEuroAmount(e.ancien_salaire_brut)}</TableCell>
                   <TableCell>{formatEuroAmount(e.nouveau_salaire_brut)}</TableCell>
                   <TableCell>
-                    <span className="font-medium text-emerald-700 whitespace-nowrap">
-                      {ligneAugmentation(e)}
-                    </span>
+                    <div className="space-y-0.5">
+                      <span className="font-medium text-emerald-700 whitespace-nowrap">
+                        {ligneAugmentation(e)}
+                      </span>
+                      {e.a_hs_structurelles &&
+                        e.ancien_base_35h != null &&
+                        e.nouveau_base_35h != null && (
+                          <p className="text-xs text-muted-foreground whitespace-nowrap">
+                            Base 35 h : {formatEuroAmount(e.ancien_base_35h)} →{" "}
+                            {formatEuroAmount(e.nouveau_base_35h)}
+                          </p>
+                        )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-center">
                     <Checkbox

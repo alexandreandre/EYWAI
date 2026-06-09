@@ -30,7 +30,9 @@ export function LogoUploader({
   const [logoScale, setLogoScale] = useState<number>(currentLogoScale);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragCounterRef = useRef(0);
 
   // Mettre à jour le scale quand currentLogoScale change
   useEffect(() => {
@@ -43,18 +45,13 @@ export function LogoUploader({
     lg: 'w-32 h-32'
   };
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Vérifier le type de fichier
+  const processFile = async (file: File) => {
     const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
       setError('Format non supporté. Utilisez PNG, JPG, SVG ou WebP.');
       return;
     }
 
-    // Vérifier la taille (2 MB max)
     if (file.size > 2 * 1024 * 1024) {
       setError('Le fichier est trop volumineux (max 2 MB).');
       return;
@@ -62,7 +59,6 @@ export function LogoUploader({
 
     setError(null);
 
-    // Si entityId est fourni, uploader directement
     if (entityId) {
       try {
         setUploading(true);
@@ -87,7 +83,6 @@ export function LogoUploader({
         setUploading(false);
       }
     } else {
-      // Pas d'entityId : prévisualiser localement ET passer le File au parent
       const reader = new FileReader();
       reader.onload = (e) => {
         const result = e.target?.result as string;
@@ -95,9 +90,54 @@ export function LogoUploader({
         onLogoChange?.(result);
       };
       reader.readAsDataURL(file);
-
-      // Passer le File object au parent pour upload ultérieur
       onFileChange?.(file);
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processFile(file);
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (disabled || uploading) return;
+    dragCounterRef.current += 1;
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsDragging(false);
+    if (disabled || uploading) return;
+
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    await processFile(file);
+  };
+
+  const openFilePicker = () => {
+    if (!disabled && !uploading) {
+      fileInputRef.current?.click();
     }
   };
 
@@ -149,23 +189,47 @@ export function LogoUploader({
       <label className="text-sm font-medium text-gray-700">Logo</label>
 
       <div className="flex items-center gap-4">
-        {/* Prévisualisation du logo */}
+        {/* Prévisualisation du logo — clic ou glisser-déposer */}
         <div
-          className={`${sizeClasses[size]} border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50 overflow-hidden relative group`}
+          role="button"
+          tabIndex={disabled || uploading ? -1 : 0}
+          aria-label={logoUrl ? 'Changer le logo' : 'Déposer ou sélectionner un logo'}
+          onClick={openFilePicker}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              openFilePicker();
+            }
+          }}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          className={`${sizeClasses[size]} border-2 border-dashed rounded-lg flex items-center justify-center overflow-hidden relative group transition-colors ${
+            disabled || uploading
+              ? 'border-gray-300 bg-gray-50 cursor-not-allowed'
+              : isDragging
+                ? 'border-primary bg-primary/5 cursor-copy'
+                : 'border-gray-300 bg-gray-50 hover:border-gray-400 hover:bg-gray-100 cursor-pointer'
+          }`}
         >
           {logoUrl ? (
             <>
               <img
                 src={logoUrl}
                 alt="Logo"
-                className="w-full h-full object-contain"
+                className="w-full h-full object-contain pointer-events-none"
                 style={{ transform: `scale(${logoScale})` }}
               />
               {!disabled && (
                 <button
                   type="button"
-                  onClick={handleRemoveLogo}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRemoveLogo();
+                  }}
                   disabled={uploading}
+                  aria-label="Supprimer le logo"
                   className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <X className="h-6 w-6 text-white" />
@@ -173,7 +237,14 @@ export function LogoUploader({
               )}
             </>
           ) : (
-            <ImageIcon className="h-8 w-8 text-gray-400" />
+            <div className="flex flex-col items-center gap-1 pointer-events-none px-2 text-center">
+              <ImageIcon className={`h-8 w-8 ${isDragging ? 'text-primary' : 'text-gray-400'}`} />
+              {!disabled && (
+                <span className="text-[10px] leading-tight text-gray-500">
+                  {isDragging ? 'Relâcher ici' : 'Déposer ou cliquer'}
+                </span>
+              )}
+            </div>
           )}
         </div>
 
@@ -190,15 +261,15 @@ export function LogoUploader({
             />
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={openFilePicker}
               disabled={uploading}
               className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               <Upload className="h-4 w-4" />
-              {uploading ? 'Upload en cours...' : logoUrl ? 'Changer' : 'Ajouter'}
+              {uploading ? 'Upload en cours...' : logoUrl ? 'Changer' : 'Parcourir'}
             </button>
             <p className="text-xs text-gray-500">
-              PNG, JPG, SVG ou WebP (max 2 MB)
+              Glisser-déposer, clic sur la zone ou parcourir · PNG, JPG, SVG, WebP (max 2 MB)
             </p>
           </div>
         )}

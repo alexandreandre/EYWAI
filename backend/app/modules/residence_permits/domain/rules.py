@@ -14,8 +14,8 @@ from typing import Dict, Optional
 from app.modules.residence_permits.domain.enums import ResidencePermitStatus
 
 
-# Seuil d'anticipation en jours (aligné sur le service legacy)
-ANTICIPATION_THRESHOLD_DAYS = 45
+# Seuil d'anticipation en jours (relance RH J-30)
+ANTICIPATION_THRESHOLD_DAYS = 30
 
 
 def calculate_residence_permit_status(

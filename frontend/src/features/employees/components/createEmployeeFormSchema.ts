@@ -37,11 +37,14 @@ export const createEmployeeFormSchema = z.object({
   job_title: z.string().min(2),
   /** Équipe (optionnel, vide = aucune) — affecté à la création si supporté par l’API */
   team_id: z.string().optional(),
-  // periode_essai: z.object({
-  //   duree_initiale: z.coerce.number().int().positive(),
-  //   unite: z.string(),
-  //   renouvellement_possible: z.boolean(),
-  // }),
+  has_periode_essai: z.boolean(),
+  periode_essai: z
+    .object({
+      duree_initiale: z.coerce.number().int().positive(),
+      unite: z.enum(["jours", "semaines", "mois"]),
+      renouvellement_possible: z.boolean(),
+    })
+    .optional(),
   is_temps_partiel: z.boolean(),
   duree_hebdomadaire: z.coerce.number().positive(),
   
@@ -74,6 +77,8 @@ export const createEmployeeFormSchema = z.object({
     // Apprenti : maintien de l'ancien régime d'exonération (contrat conclu avant
     // le 01/03/2025 mais débutant après). Optionnel.
     maintien_regime_apprenti: z.boolean().optional(),
+    personnel_rd_eligible_jei: z.boolean().optional(),
+    mandataire_rd: z.boolean().optional(),
     prelevement_a_la_source: z.object({
       is_personnalise: z.boolean(),
       taux: z.coerce.number().min(0).max(100).optional(),
@@ -111,6 +116,13 @@ export const createEmployeeFormSchema = z.object({
     }),
   }),
 }).superRefine((data, ctx) => {
+  if (data.has_periode_essai && !data.periode_essai) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Renseignez la durée de la période d'essai.",
+      path: ["periode_essai", "duree_initiale"],
+    });
+  }
   // Règle de validation personnalisée pour la prévoyance
   if (data.statut?.toLowerCase() === 'cadre' && data.specificites_paie.prevoyance.adhesion) {
     if (!data.specificites_paie.prevoyance.lignes_specifiques || data.specificites_paie.prevoyance.lignes_specifiques.length === 0) {

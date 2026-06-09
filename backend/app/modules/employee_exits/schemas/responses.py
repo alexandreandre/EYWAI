@@ -106,6 +106,7 @@ class EmployeeExitWithDetails(EmployeeExit):
     documents: List[Dict[str, Any]] = []
     checklist_items: List[Dict[str, Any]] = []
     checklist_completion_rate: float = 0.0
+    outstanding_loans: Optional[Dict[str, Any]] = None
 
 
 # ============================================================================

@@ -52,6 +52,7 @@ export function EmployeeDetailAugmentationsPromotionsTab({
   const queryClient = useQueryClient();
 
   const [augSimType, setAugSimType] = useState<"pourcentage" | "montant_fixe">("pourcentage");
+  const [augPerimetre, setAugPerimetre] = useState<"brut_seul" | "brut_et_hs">("brut_et_hs");
   const [augValeur, setAugValeur] = useState("");
   const [augEffectiveDate, setAugEffectiveDate] = useState(() =>
     new Date().toISOString().slice(0, 10),
@@ -138,6 +139,7 @@ export function EmployeeDetailAugmentationsPromotionsTab({
         type_augmentation: augSimType,
         valeur: v,
         effective_date: augEffectiveDate,
+        perimetre_augmentation: augPerimetre,
       });
       setAugSimResult(res);
     } catch (err: unknown) {
@@ -164,10 +166,14 @@ export function EmployeeDetailAugmentationsPromotionsTab({
     };
     setAugApplySubmitting(true);
     try {
+      const valeurNum = parseFloat(augValeur.replace(",", "."));
       await appliquerAugmentation(employeeId, activeCompanyId, {
         nouveau_salaire: augSimResult.nouveau_salaire_brut,
         motif: augApplyMotif.trim() || undefined,
         effective_date: augEffectiveDate,
+        type_augmentation: augSimType,
+        valeur_augmentation: Number.isNaN(valeurNum) ? undefined : valeurNum,
+        perimetre_augmentation: augPerimetre,
       });
       toast({
         title: "Augmentation enregistrée",
@@ -237,6 +243,32 @@ export function EmployeeDetailAugmentationsPromotionsTab({
                   </div>
                 </RadioGroup>
               </div>
+              <div className="space-y-3">
+                <Label>Périmètre</Label>
+                <RadioGroup
+                  value={augPerimetre}
+                  onValueChange={(v) => setAugPerimetre(v as "brut_seul" | "brut_et_hs")}
+                  className="flex flex-col gap-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="brut_seul" id="aug-brut-seul" />
+                    <Label htmlFor="aug-brut-seul" className="font-normal cursor-pointer">
+                      Salaire de base (35 h)
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="brut_et_hs" id="aug-brut-hs" />
+                    <Label htmlFor="aug-brut-hs" className="font-normal cursor-pointer">
+                      Salaire mensuel total (base + HS structurelles)
+                    </Label>
+                  </div>
+                </RadioGroup>
+                {Number(employee?.duree_hebdomadaire) <= 35 && (
+                  <p className="text-xs text-muted-foreground">
+                    Contrat ≤ 35 h : les deux périmètres donnent le même résultat.
+                  </p>
+                )}
+              </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="aug-valeur">
@@ -296,8 +328,22 @@ export function EmployeeDetailAugmentationsPromotionsTab({
                             {augSimResult.taux_augmentation_reel.toLocaleString("fr-FR", {
                               maximumFractionDigits: 2,
                             })}
-                            %)
+                            % sur le total)
                           </p>
+                          {augSimResult.a_hs_structurelles && (
+                            <div className="text-xs text-muted-foreground space-y-0.5 pt-1 border-t border-muted">
+                              <p>
+                                Base 35 h : {formatEuroAmount(augSimResult.ancien_base_35h)} →{" "}
+                                {formatEuroAmount(augSimResult.nouveau_base_35h)}
+                              </p>
+                              <p>
+                                HS structurelles : {formatEuroAmount(augSimResult.ancien_part_hs)}{" "}
+                                {augPerimetre === "brut_seul"
+                                  ? "(inchangées)"
+                                  : `→ ${formatEuroAmount(augSimResult.nouveau_part_hs)}`}
+                              </p>
+                            </div>
+                          )}
                         </div>
                         <div className="space-y-2">
                           <p className="text-sm font-semibold">Net estimé*</p>

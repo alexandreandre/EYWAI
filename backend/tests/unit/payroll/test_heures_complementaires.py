@@ -68,3 +68,17 @@ def test_analyzer_qualifie_les_hc_temps_partiel():
     assert "travail_hc10" in types
     assert "travail_hc25" in types
     assert types["travail_hc10"] + types["travail_hc25"] == pytest.approx(6.0, abs=0.05)
+
+
+def test_analyzer_repli_planning_sans_pointage():
+    prevu = [
+        {"annee": 2026, "mois": 6, "jour": 2, "type": "travail", "heures_prevues": 7.0},
+        {"annee": 2026, "mois": 6, "jour": 3, "type": "travail", "heures_prevues": 7.0},
+    ]
+    ev = analyser_horaires_du_mois(prevu, [], 35.0, 2026, 6, "x")
+    types = [e["type"] for e in ev]
+    # Sans pointage, le repli planning évite les absences fictives.
+    # Les heures normales (sans HS/HC) ne produisent pas d'événement : le salaire
+    # de base est versé tel quel dans calcul_brut.
+    assert "absence_injustifiee_base" not in types
+    assert not any(t.startswith("absence") for t in types)

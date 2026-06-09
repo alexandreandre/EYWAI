@@ -91,7 +91,7 @@ class NotesFraisExportRequest(BaseModel):
     period: str = Field(..., pattern=r"^\d{4}-\d{2}$")
     company_id: Optional[str] = None
     employee_ids: Optional[List[str]] = None
-    status: Optional[List[Literal["validated", "paid"]]] = None
+    status: Optional[List[Literal["validated"]]] = None
     expense_types: Optional[
         List[Literal["Transport", "Restaurant", "Hôtel", "Fournitures", "Autre"]]
     ] = None

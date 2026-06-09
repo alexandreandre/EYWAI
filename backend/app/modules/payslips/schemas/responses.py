@@ -5,7 +5,7 @@ Structure alignée sur schemas.payslip (legacy). Migration : remplacer les usage
 par ces schémas puis retirer l'ancien fichier.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel
@@ -21,6 +21,7 @@ class PayslipInfo(BaseModel):
     url: str
     preview_url: str = ""
     net_a_payer: float | None = None
+    warnings: list[str] = []
     manually_edited: bool = False
     edit_count: int = 0
     edited_at: datetime | None = None
@@ -73,6 +74,10 @@ class PayslipDetail(BaseModel):
     status: str = "brouillon"
     validated_at: datetime | None = None
     validated_by: str | None = None
+    period_edit_locked: bool = False
+    manual_edit_locked: bool = False
+    manual_edit_lock_reason: str | None = None
+    manual_edit_lock_until: date | None = None
 
 
 AlertLevelResponse = Literal["CRITIQUE", "AVERTISSEMENT", "INFO"]

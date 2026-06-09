@@ -1,8 +1,8 @@
 // src/components/exports/ExportCommonModel.tsx
 // Modèle commun d'export - ÉTAPE 1 : Structure et UX uniquement
 
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect, useMemo } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,6 +11,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { 
   Settings, 
   Eye, 
@@ -19,13 +27,68 @@ import {
   CheckCircle2, 
   Calendar,
   Building,
-  Users as UsersIcon
+  Users as UsersIcon,
+  FileSpreadsheet,
 } from "lucide-react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { previewExport, generateExport, ExportPreviewResponse, ExportGenerateResponse, ExportType } from "@/api/exports";
-import { useAuth } from "@/contexts/AuthContext";
 
 export type ExportStep = "parametrage" | "previsualisation" | "generation";
+export type ExportFileFormat = "csv" | "xlsx";
+export type NotesFraisCabinetFormat = "generique" | "quadra" | "sage";
+
+const EXPORT_TYPE_MAP: Record<string, ExportType> = {
+  journal_paie: "journal_paie",
+  od_salaires: "od_salaires",
+  od_charges_sociales: "od_charges_sociales",
+  od_pas: "od_pas",
+  od_globale: "od_globale",
+  export_cabinet_generique: "export_cabinet_generique",
+  export_cabinet_quadra: "export_cabinet_quadra",
+  export_cabinet_sage: "export_cabinet_sage",
+  dsn_mensuelle: "dsn_mensuelle",
+  virement_salaires: "virement_salaires",
+  "virement-salaires": "virement_salaires",
+  charges_sociales: "charges_sociales",
+  "charges-sociales": "charges_sociales",
+  conges_absences: "conges_absences",
+  "conges-absences": "conges_absences",
+  notes_frais: "notes_frais",
+  "notes-frais": "notes_frais",
+  "Journal de paie": "journal_paie",
+  "Écritures comptables (OD)": "ecritures_comptables",
+  "Charges sociales par caisse": "charges_sociales",
+  "Congés payés / Absences": "conges_absences",
+  "Notes de frais": "notes_frais",
+  "DSN mensuelle": "dsn_mensuelle",
+  "Virement salaires": "virement_salaires",
+  "Récapitulatif des montants": "recapitulatif_montants",
+};
+
+const FILE_FORMAT_EXPORT_TYPES = new Set<ExportType>([
+  "journal_paie",
+  "charges_sociales",
+  "notes_frais",
+  "od_salaires",
+  "od_charges_sociales",
+  "od_pas",
+  "od_globale",
+  "export_cabinet_generique",
+  "export_cabinet_quadra",
+  "export_cabinet_sage",
+]);
+
+function resolveApiExportType(exportType: string): ExportType {
+  return EXPORT_TYPE_MAP[exportType] || (exportType as ExportType);
+}
+
+function defaultExportFormat(exportType: string): ExportFileFormat {
+  const apiType = resolveApiExportType(exportType);
+  if (apiType === "charges_sociales" || apiType === "notes_frais") {
+    return "xlsx";
+  }
+  return "csv";
+}
 
 // Mapping des IDs techniques vers les noms lisibles
 const exportTypeLabels: Record<string, string> = {
@@ -61,15 +124,19 @@ interface ExportCommonModelProps {
 }
 
 export function ExportCommonModel({ exportType, exportDescription, onClose }: ExportCommonModelProps) {
-  // Convertir l'ID technique en nom lisible
   const displayName = exportTypeLabels[exportType] || exportType;
   const { activeCompany } = useCompany();
-  const { user } = useAuth();
+  const apiExportType = useMemo(() => resolveApiExportType(exportType), [exportType]);
+  const supportsFileFormat = FILE_FORMAT_EXPORT_TYPES.has(apiExportType);
   const [currentStep, setCurrentStep] = useState<ExportStep>("parametrage");
   const [isLoading, setIsLoading] = useState(false);
   const [previewData, setPreviewData] = useState<ExportPreviewResponse | null>(null);
   const [generateResponse, setGenerateResponse] = useState<ExportGenerateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exportFormat, setExportFormat] = useState<ExportFileFormat>(() =>
+    defaultExportFormat(exportType),
+  );
+  const [cabinetFormat, setCabinetFormat] = useState<NotesFraisCabinetFormat>("generique");
   
   // État pour le paramétrage
   const [selectedPeriod, setSelectedPeriod] = useState<string>("");
@@ -80,6 +147,18 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
   const [executionDate, setExecutionDate] = useState<string>("");
   const [paymentLabel, setPaymentLabel] = useState<string>("");
   const [excludedEmployees, setExcludedEmployees] = useState<string[]>([]);
+
+  useEffect(() => {
+    setExportFormat(defaultExportFormat(exportType));
+    setCabinetFormat("generique");
+  }, [exportType]);
+
+  const buildExportFilters = () => {
+    if (apiExportType === "notes_frais") {
+      return { cabinet_format: cabinetFormat };
+    }
+    return { include_consolidated: true };
+  };
 
   // Générer les options de mois
   const generateMonthOptions = () => {
@@ -115,36 +194,6 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
     setError(null);
     
     try {
-      // Mapper le nom d'export vers le type API
-      // Le exportType peut être soit un ID technique (depuis les onglets), soit un nom affiché (ancien code)
-      const exportTypeMap: Record<string, ExportType> = {
-        // IDs techniques (nouveaux)
-        "journal_paie": "journal_paie",
-        "od_salaires": "od_salaires",
-        "od_charges_sociales": "od_charges_sociales",
-        "od_pas": "od_pas",
-        "od_globale": "od_globale",
-        "export_cabinet_generique": "export_cabinet_generique",
-        "export_cabinet_quadra": "export_cabinet_quadra",
-        "export_cabinet_sage": "export_cabinet_sage",
-        "dsn_mensuelle": "dsn_mensuelle",
-        "virement_salaires": "virement_salaires",
-        "charges_sociales": "charges_sociales",
-        "conges_absences": "conges_absences",
-        "notes_frais": "notes_frais",
-        // Noms affichés (ancien code pour compatibilité)
-        "Journal de paie": "journal_paie",
-        "Écritures comptables (OD)": "ecritures_comptables",
-        "Charges sociales par caisse": "charges_sociales",
-        "Congés payés / Absences": "conges_absences",
-        "Notes de frais": "notes_frais",
-        "DSN mensuelle": "dsn_mensuelle",
-        "Virement salaires": "virement_salaires",
-        "Récapitulatif des montants": "recapitulatif_montants",
-      };
-      
-      const apiExportType = exportTypeMap[exportType] || exportType as ExportType;
-      
       const preview = await previewExport({
         export_type: apiExportType,
         period: selectedPeriod,
@@ -153,6 +202,7 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
         excluded_employee_ids: excludedEmployees.length > 0 ? excludedEmployees : undefined,
         execution_date: executionDate || undefined,
         payment_label: paymentLabel || undefined,
+        filters: buildExportFilters(),
       });
       
       setPreviewData(preview);
@@ -174,43 +224,16 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
     setError(null);
     
     try {
-      // Le exportType peut être soit un ID technique (depuis les onglets), soit un nom affiché (ancien code)
-      const exportTypeMap: Record<string, ExportType> = {
-        // IDs techniques (nouveaux)
-        "journal_paie": "journal_paie",
-        "od_salaires": "od_salaires",
-        "od_charges_sociales": "od_charges_sociales",
-        "od_pas": "od_pas",
-        "od_globale": "od_globale",
-        "export_cabinet_generique": "export_cabinet_generique",
-        "export_cabinet_quadra": "export_cabinet_quadra",
-        "export_cabinet_sage": "export_cabinet_sage",
-        "dsn_mensuelle": "dsn_mensuelle",
-        "virement_salaires": "virement_salaires",
-        "charges_sociales": "charges_sociales",
-        "conges_absences": "conges_absences",
-        "notes_frais": "notes_frais",
-        // Noms affichés (ancien code pour compatibilité)
-        "Journal de paie": "journal_paie",
-        "Écritures comptables (OD)": "ecritures_comptables",
-        "Charges sociales par caisse": "charges_sociales",
-        "Congés payés / Absences": "conges_absences",
-        "Notes de frais": "notes_frais",
-        "DSN mensuelle": "dsn_mensuelle",
-        "Virement salaires": "virement_salaires",
-      };
-      
-      const apiExportType = exportTypeMap[exportType] || exportType as ExportType;
-      
       const response = await generateExport({
         export_type: apiExportType,
         period: selectedPeriod,
         company_id: selectedCompany,
         employee_ids: selectedScope === "all" ? undefined : [],
-        format: "csv", // Par défaut CSV, peut être changé plus tard
+        format: exportFormat,
         excluded_employee_ids: excludedEmployees.length > 0 ? excludedEmployees : undefined,
         execution_date: executionDate || undefined,
         payment_label: paymentLabel || undefined,
+        filters: buildExportFilters(),
       });
       
       setGenerateResponse(response);
@@ -326,6 +349,49 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
                 </Select>
               </div>
             </div>
+
+            {supportsFileFormat ? (
+              <div className="space-y-2 max-w-xs">
+                <Label htmlFor="export-format" className="flex items-center gap-2">
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Format de fichier
+                </Label>
+                <Select
+                  value={exportFormat}
+                  onValueChange={(value) => setExportFormat(value as ExportFileFormat)}
+                >
+                  <SelectTrigger id="export-format">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="xlsx">Excel (.xlsx)</SelectItem>
+                    <SelectItem value="csv">CSV (.csv)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+
+            {apiExportType === "notes_frais" ? (
+              <div className="space-y-2 max-w-xs">
+                <Label htmlFor="cabinet-format" className="flex items-center gap-2">
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Format cabinet comptable
+                </Label>
+                <Select
+                  value={cabinetFormat}
+                  onValueChange={(value) => setCabinetFormat(value as NotesFraisCabinetFormat)}
+                >
+                  <SelectTrigger id="cabinet-format">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="generique">Générique</SelectItem>
+                    <SelectItem value="quadra">Quadra</SelectItem>
+                    <SelectItem value="sage">Sage</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
 
             {/* Périmètre */}
             <div className="space-y-3">
@@ -470,6 +536,53 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
                 </div>
               </CardContent>
             </Card>
+
+            {previewData.details?.organismes && previewData.details.organismes.length > 0 ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Tableau des charges par organisme</CardTitle>
+                </CardHeader>
+                <CardContent className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Organisme</TableHead>
+                        <TableHead className="text-right">Salariés</TableHead>
+                        <TableHead className="text-right">Part salariale</TableHead>
+                        <TableHead className="text-right">Part patronale</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {previewData.details.organismes.map((row) => (
+                        <TableRow key={row.organisme}>
+                          <TableCell className="font-medium">{row.organisme}</TableCell>
+                          <TableCell className="text-right">{row.nombre_salaries}</TableCell>
+                          <TableCell className="text-right">
+                            {row.total_cotisations_salariales.toLocaleString("fr-FR", {
+                              style: "currency",
+                              currency: "EUR",
+                            })}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {row.total_cotisations_patronales.toLocaleString("fr-FR", {
+                              style: "currency",
+                              currency: "EUR",
+                            })}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {row.total_cotisations.toLocaleString("fr-FR", {
+                              style: "currency",
+                              currency: "EUR",
+                            })}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            ) : null}
 
             {/* Anomalies bloquantes */}
             {previewData.anomalies.filter(a => a.severity === "blocking").length > 0 && (

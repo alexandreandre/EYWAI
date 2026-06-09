@@ -17,6 +17,8 @@ export const queryKeys = {
     companyQueryKey(companyId, 'collective-agreements'),
   dashboardAll: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'dashboard', 'all'),
+  hrDeadlineCandidates: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'hr-deadline-candidates'),
   residencePermitStats: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'dashboard', 'residence-permit-stats'),
   ribAlerts: (companyId: string | undefined) =>
@@ -53,6 +55,10 @@ export const queryKeys = {
     companyQueryKey(companyId, 'schedules'),
   salaryAdvances: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'salary-advances'),
+  employeeLoans: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'employee-loans'),
+  employeeLoansSelf: (userId: string | undefined) =>
+    ['employee', userId ?? 'none', 'employee-loans'] as const,
   documents: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'documents'),
   employeeDashboard: (userId: string | undefined) =>

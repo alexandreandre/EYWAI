@@ -16,6 +16,7 @@ export const PayslipEdit = lazy(() => import('@/pages/rh/PayslipEdit'));
 export const Saisies = lazy(() => import('@/pages/rh/Saisies'));
 export const SalarySeizures = lazy(() => import('@/pages/rh/SalarySeizures'));
 export const SalaryAdvances = lazy(() => import('@/pages/rh/SalaryAdvances'));
+export const EmployeeLoans = lazy(() => import('@/pages/rh/EmployeeLoans'));
 export const RhAbsencesPage = lazy(() => import('@/pages/rh/Absences'));
 export const Planning = lazy(() => import('@/pages/rh/Planning'));
 export const RhExpensesPage = lazy(() => import('@/pages/rh/Expenses'));
@@ -60,6 +61,7 @@ export const EmployeeCalendarPage = lazy(() => import('@/pages/employee/Calendar
 export const EmployeeBadgeusePage = lazy(() => import('@/pages/employee/Badgeuse'));
 export const ExpensesPage = lazy(() => import('@/pages/employee/Expenses'));
 export const SalaryAdvancesPage = lazy(() => import('@/pages/employee/SalaryAdvances'));
+export const EmployeeLoansPage = lazy(() => import('@/pages/employee/EmployeeLoans'));
 export const EmployeeAnnualReviews = lazy(() => import('@/pages/employee/AnnualReviews'));
 export const EmployeeFormationPage = lazy(() => import('@/pages/employee/EmployeeFormationPage'));
 export const EmployeeAnnualReviewDetail = lazy(() => import('@/pages/employee/AnnualReviewDetail'));

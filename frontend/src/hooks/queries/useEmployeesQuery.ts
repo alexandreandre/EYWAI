@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchEmployeesSummary } from '@/api/employees';
+import { fetchEmployees } from '@/api/employees';
 import { queryKeys } from '@/lib/queryKeys';
 import { useActiveCompanyId } from './useCompanyId';
+import type { TrialPeriodStatus } from '@/components/TrialPeriodBadge';
 
 export type EmployeeListItem = {
   id: string;
@@ -13,13 +14,17 @@ export type EmployeeListItem = {
   employment_status?: string | null;
   current_exit_id?: string | null;
   duree_hebdomadaire?: number | null;
+  trial_period_applicable?: boolean | null;
+  trial_period_status?: TrialPeriodStatus | null;
+  trial_period_end_date?: string | null;
+  trial_period_days_remaining?: number | null;
 };
 
 export function useEmployeesQuery(enabled = true) {
   const companyId = useActiveCompanyId();
   return useQuery({
     queryKey: queryKeys.employees(companyId),
-    queryFn: () => fetchEmployeesSummary('all'),
+    queryFn: fetchEmployees,
     enabled: enabled && Boolean(companyId),
     placeholderData: (previous) => previous,
   });

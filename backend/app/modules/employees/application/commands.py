@@ -19,12 +19,11 @@ from typing import Any, Dict, Optional
 from fastapi import HTTPException
 
 from app.modules.employees.application.dto import EmployeeCreateValidationError
-from app.modules.employees.domain.rules import (
-    build_employee_folder_name,
-    default_company_data_fallback,
-    derive_collaborator_username,
+from app.modules.employees.domain.trial_period import TRIAL_JSON_STATUT_CONFIRMED
+from app.modules.onboarding.domain.profile import (
+    enrich_employee_profile_completeness,
+    is_profile_complete,
 )
-from app.modules.onboarding.domain.profile import is_profile_complete
 from app.modules.employees.infrastructure.mappers import prepare_employee_insert_data
 from app.modules.employees.infrastructure.providers import (
     generate_contract_pdf,
@@ -371,6 +370,18 @@ def _maybe_activate_after_onboarding(employee_id: str) -> None:
         _employee_repository.update(employee_id, {"employment_status": "actif"})
 
 
+def _merge_json_dicts(
+    current: Dict[str, Any] | None, update: Dict[str, Any]
+) -> Dict[str, Any]:
+    merged = dict(current or {})
+    for key, value in update.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = {**merged[key], **value}
+        else:
+            merged[key] = value
+    return merged
+
+
 def update_employee(employee_id: str, update_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Met à jour un employé (dont alertes RIB si coordonnées bancaires modifiées).
@@ -379,6 +390,18 @@ def update_employee(employee_id: str, update_data: Dict[str, Any]) -> Dict[str, 
     for _key, _val in list(update_data.items()):
         if isinstance(_val, _date):
             update_data[_key] = _val.isoformat()
+
+    if "specificites_paie" in update_data:
+        curr = _employee_repository.get_by_id_only(employee_id)
+        current_spec = (curr or {}).get("specificites_paie") or {}
+        if not isinstance(current_spec, dict):
+            current_spec = {}
+        incoming_spec = update_data.get("specificites_paie") or {}
+        if not isinstance(incoming_spec, dict):
+            incoming_spec = {}
+        update_data["specificites_paie"] = _merge_json_dicts(
+            current_spec, incoming_spec
+        )
 
     if "coordonnees_bancaires" in update_data:
         try:
@@ -409,14 +432,24 @@ def update_employee(employee_id: str, update_data: Dict[str, Any]) -> Dict[str, 
             logger.warning(f'WARN: Alertes RIB ignorées lors de la mise à jour: {rib_err}')
             logger.exception("Exception")
 
-    updated = _employee_repository.update(employee_id, update_data)
+    try:
+        updated = _employee_repository.update(employee_id, update_data)
+    except Exception as e:
+        error_message = str(e)
+        if "duplicate key" in error_message.lower() and "nir" in error_message.lower():
+            raise HTTPException(
+                status_code=400,
+                detail="Ce numéro de sécurité sociale est déjà enregistré.",
+            ) from e
+        raise
     if updated is None:
         raise HTTPException(
             status_code=404, detail="Employé non trouvé ou aucune donnée modifiée."
         )
     _maybe_activate_after_onboarding(employee_id)
     refreshed = _employee_repository.get_by_id_only(employee_id)
-    return refreshed if refreshed is not None else updated
+    result = refreshed if refreshed is not None else updated
+    return enrich_employee_profile_completeness(result)
 
 
 def apply_salary_update(
@@ -528,3 +561,27 @@ def delete_employee(employee_id: str) -> None:
             status_code=500,
             detail=f"Erreur interne du serveur lors de la suppression: {str(e)}",
         ) from e
+
+
+def confirm_trial_period(employee_id: str, company_id: str) -> Dict[str, Any]:
+    """Confirme l'embauche en clôturant le suivi de période d'essai."""
+    emp = _employee_repository.get_by_id(employee_id, company_id)
+    if emp is None:
+        raise HTTPException(status_code=404, detail="Employé non trouvé.")
+
+    current_pe = emp.get("periode_essai")
+    if not isinstance(current_pe, dict) or not current_pe:
+        raise HTTPException(
+            status_code=400,
+            detail="Aucune période d'essai renseignée pour ce collaborateur.",
+        )
+
+    merged_pe = dict(current_pe)
+    merged_pe["statut"] = TRIAL_JSON_STATUT_CONFIRMED
+
+    updated = _employee_repository.update(employee_id, {"periode_essai": merged_pe})
+    if updated is None:
+        raise HTTPException(
+            status_code=404, detail="Employé non trouvé ou aucune donnée modifiée."
+        )
+    return updated

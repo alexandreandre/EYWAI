@@ -1,29 +1,33 @@
 import { useState, useRef, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQuery } from "@tanstack/react-query";
-import { useEmployeesQuery } from "@/hooks/queries/useEmployeesQuery";
+import { useEmployeesQuery, type EmployeeListItem } from "@/hooks/queries/useEmployeesQuery";
 import { useActiveCompanyId } from "@/hooks/queries/useCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
 import { TableSkeleton } from "@/components/skeletons/TableSkeleton";
 import { RhPageHeader } from '@/components/layout';
 import { PageFetchIndicator } from "@/components/skeletons/PageFetchIndicator";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Landmark, FileText } from "lucide-react";
+import { Search, Landmark, FileText, AlertTriangle } from "lucide-react";
 import * as ribAlertsApi from "@/api/ribAlerts";
 import { fetchCompanyOverview } from "@/api/company";
+import { fetchHrDeadlineCandidates } from "@/api/hrDeadlineReminders";
 import { CC_EMPLOYEES_CODE } from "@/features/company";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CreateEmployeeForm } from "@/features/employees/components/CreateEmployeeForm";
 import {
   EmployeesTableRow,
-  type EmployeeListItem,
 } from "@/features/employees/components/EmployeesTableRow";
 
 export default function Employees() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const deadlinesFilter = searchParams.get("alert") === "deadlines";
+  const trialEndingFilter = searchParams.get("filter") === "trial_ending";
+
   const employeesQuery = useEmployeesQuery();
   const companyId = useActiveCompanyId();
   const employees = (employeesQuery.data ?? []) as EmployeeListItem[];
@@ -31,6 +35,27 @@ export default function Employees() {
   const error = employeesQuery.error
     ? "Erreur : Impossible de récupérer la liste des collaborateurs."
     : null;
+
+  const deadlineCandidatesQuery = useQuery({
+    queryKey: queryKeys.hrDeadlineCandidates(companyId),
+    queryFn: fetchHrDeadlineCandidates,
+    enabled: Boolean(companyId) && deadlinesFilter,
+  });
+
+  const contractDeadlineIds = useMemo(() => {
+    if (!deadlinesFilter || !deadlineCandidatesQuery.data) return null;
+    const ids = new Set<string>();
+    for (const c of deadlineCandidatesQuery.data) {
+      if (
+        c.reminder_type === "cdd_end" ||
+        c.reminder_type === "trial_end" ||
+        c.reminder_type === "residence_permit"
+      ) {
+        ids.add(c.employee_id);
+      }
+    }
+    return ids;
+  }, [deadlinesFilter, deadlineCandidatesQuery.data]);
 
   const ribAlertsQuery = useQuery({
     queryKey: queryKeys.ribAlerts(companyId),
@@ -77,7 +102,11 @@ export default function Employees() {
           : employmentStatusFilter === "actifs_et_depart"
             ? status === "actif" || status === "active" || status === "en_sortie"
             : status === employmentStatusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesDeadlines =
+      !contractDeadlineIds || contractDeadlineIds.has(emp.id);
+    const matchesTrialEnding =
+      !trialEndingFilter || emp.trial_period_status === "ending_soon";
+    return matchesSearch && matchesStatus && matchesDeadlines && matchesTrialEnding;
   });
 
   const tableScrollRef = useRef<HTMLDivElement>(null);
@@ -94,6 +123,61 @@ export default function Employees() {
     <>
       <PageFetchIndicator isFetching={employeesQuery.isFetching} />
       <div className="space-y-6">
+      {trialEndingFilter && (
+        <Card className="border-amber-200 bg-amber-50/50">
+          <CardHeader className="py-3">
+            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+              <span className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-700" />
+                Fins de période d&apos;essai proches (15 jours)
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8"
+                onClick={() => {
+                  searchParams.delete("filter");
+                  setSearchParams(searchParams, { replace: true });
+                }}
+              >
+                Voir tous les salariés
+              </Button>
+            </CardTitle>
+          </CardHeader>
+        </Card>
+      )}
+      {deadlinesFilter && (
+        <Card className="border-amber-200 bg-amber-50/50">
+          <CardHeader className="py-3">
+            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+              <span className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-700" />
+                Échéances contrat / période d&apos;essai (15 jours)
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8"
+                onClick={() => {
+                  searchParams.delete("alert");
+                  setSearchParams(searchParams, { replace: true });
+                }}
+              >
+                Voir tous les salariés
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pb-3 pt-0 text-sm text-muted-foreground">
+            {deadlineCandidatesQuery.isLoading
+              ? "Chargement des échéances…"
+              : contractDeadlineIds && contractDeadlineIds.size === 0
+                ? "Aucune échéance dans les 15 prochains jours."
+                : `${contractDeadlineIds?.size ?? 0} salarié(s) à traiter.`}
+          </CardContent>
+        </Card>
+      )}
       {ribAlerts.length > 0 && (
         <Card className="border-amber-200 bg-amber-50/50">
           <CardHeader className="py-3">

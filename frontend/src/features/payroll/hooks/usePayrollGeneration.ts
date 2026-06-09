@@ -312,22 +312,6 @@ export function usePayrollGeneration() {
     reset();
   }, [reset]);
 
-  useEffect(() => {
-    if (phase !== 'done') return;
-
-    const hasErrors = log.some((entry) => entry.status === 'error');
-    const hasWarnings = log.some((entry) => entry.status === 'warning');
-    if (hasErrors || hasWarnings) return;
-
-    const delayMs = totalJobs <= 1 ? 3500 : 6000;
-    dismissTimerRef.current = window.setTimeout(() => {
-      dismissTimerRef.current = null;
-      reset();
-    }, delayMs);
-
-    return clearDismissTimer;
-  }, [phase, log, totalJobs, reset, clearDismissTimer]);
-
   useEffect(
     () => () => {
       stopTick();

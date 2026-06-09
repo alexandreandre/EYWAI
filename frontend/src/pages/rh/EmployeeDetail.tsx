@@ -3,7 +3,11 @@
 import { log } from '@/lib/logger';
 import { lazy, Suspense, useCallback, useState, useEffect, useRef, useMemo } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
+import { updateEmployee } from "@/api/employees";
 import apiClient from "@/api/apiClient";
+import { EmployeeOnboardingCompletion } from "@/features/employee-detail/components/EmployeeOnboardingCompletion";
+import { EmployeeProfileEditDialog } from "@/features/employee-detail/components/EmployeeProfileEditDialog";
+import { isProfileIncomplete } from "@/features/employee-detail/components/employeeProfileFormUtils";
 import * as saisiesApi from "@/api/saisies";
 import { useCalendar } from "@/hooks/useCalendar";
 import { toast } from "@/components/ui/use-toast";
@@ -14,6 +18,7 @@ import { EmployeeDetailBadgeuseSection } from "@/components/badgeuse/rh/Employee
 import { getEmployeeDaysSummary } from "@/api/badgeuse";
 import { periodRangeLastDays } from "@/lib/badgeuseApiUtils";
 import { EmployeeDetailHeaderCard } from "@/components/employee-detail/EmployeeDetailHeaderCard";
+import { EmployeeDetailTrialPeriodCard } from "@/components/employee-detail/EmployeeDetailTrialPeriodCard";
 import {
   EmployeeDetailAnnualReviewsTab,
   annualReviewsEmployeeQueryKey,
@@ -31,6 +36,8 @@ import { getMedicalSettings, getObligationsForEmployee } from "@/api/medicalFoll
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { assignEmployeeTeam, getTeams } from "@/api/teams";
 import { EmployeeDetailDocumentsTab } from "@/components/employee-detail/EmployeeDetailDocumentsTab";
+import { EmployeeBoethCard } from "@/features/employee-detail/components/EmployeeBoethCard";
+import { EmployeePasSettingsCard } from "@/features/employee-detail/components/EmployeePasSettingsCard";
 import {
   diffWatchedSnapshots,
   extractWatchedSnapshot,
@@ -44,6 +51,8 @@ import { cn } from "@/lib/utils";
 import { TAB_AUGMENTATIONS_PROMOTIONS, normalizeEmployeeDetailTab } from "@/features/employee-detail/utils/tabs";
 import type { Employee } from "@/features/employee-detail/types";
 import { EmployeeDetailSaisiesTab } from "@/features/employee-detail/components/EmployeeDetailSaisiesTab";
+import { WorkMedalEmployeeSection } from "@/features/work-medals/components/WorkMedalEmployeeSection";
+import { EmployeeLoansCard } from "@/features/employee-detail/components/EmployeeLoansCard";
 import { ContractualChangeDialog } from "@/features/employee-detail/components/ContractualChangeDialog";
 import {
   employeePlaceholderFromList,
@@ -92,6 +101,7 @@ export default function EmployeeDetail() {
     const params = new URLSearchParams(location.search);
     return normalizeEmployeeDetailTab(params.get("tab"));
   });
+  const [profileEditOpen, setProfileEditOpen] = useState(false);
 
   const {
     selectedDate,
@@ -128,16 +138,15 @@ export default function EmployeeDetail() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const tabParam = params.get("tab");
-    if (tabParam) {
-      setActiveTab(normalizeEmployeeDetailTab(tabParam));
-    }
-  }, [location.search]);
+    setActiveTab(normalizeEmployeeDetailTab(params.get("tab")));
+  }, [employeeId, location.search]);
 
   const { activeCompany } = useCompany();
   const activeCompanyId = activeCompany?.company_id ?? "";
   const { user } = useAuth();
   const showEmployeeCSEBlock =
+    user?.role === "rh" || user?.role === "admin" || user?.role === "collaborateur_rh";
+  const canEditEmployeePaySettings =
     user?.role === "rh" || user?.role === "admin" || user?.role === "collaborateur_rh";
   const canDeleteReview =
     user?.role === "rh" || user?.role === "admin" || user?.role === "collaborateur_rh";
@@ -288,11 +297,12 @@ export default function EmployeeDetail() {
     if (!employeeId) return;
     setIsSavingCC(true);
     try {
-      await apiClient.put(`/api/employees/${employeeId}`, { collective_agreement_id: collectiveAgreementId });
+      const updated = await updateEmployee(employeeId, {
+        collective_agreement_id: collectiveAgreementId,
+      });
       toast({ title: "Enregistré", description: "Convention collective mise à jour." });
-      const employeeRes = await apiClient.get<Employee>(`/api/employees/${employeeId}`);
-      updateEmployeeCache(employeeId, employeeRes.data);
-      evaluateContractualAfterPersist(employeeRes.data);
+      updateEmployeeCache(employeeId, updated);
+      evaluateContractualAfterPersist(updated);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Erreur";
       toast({ title: "Erreur", description: msg, variant: "destructive" });
@@ -414,6 +424,21 @@ export default function EmployeeDetail() {
   const employeeDisplayName = employee
     ? `${employee.first_name ?? ""} ${employee.last_name ?? ""}`.trim()
     : "";
+  const profileIncomplete = employee ? isProfileIncomplete(employee) : false;
+
+  const handleProfileEditSuccess = useCallback(
+    (updated: Employee) => {
+      if (!employeeId) return;
+      updateEmployeeCache(employeeId, updated);
+      evaluateContractualAfterPersist(updated);
+      if (updated.team_id) setDraftTeamId(updated.team_id);
+      else setDraftTeamId("__none__");
+      if (updated.collective_agreement_id !== undefined) {
+        setCollectiveAgreementId(updated.collective_agreement_id || null);
+      }
+    },
+    [employeeId, updateEmployeeCache, evaluateContractualAfterPersist],
+  );
 
   if (isInitialLoad) {
     return <SharkFinLoader variant="fullPage" label="Chargement du collaborateur…" />;
@@ -439,6 +464,7 @@ export default function EmployeeDetail() {
         employee={employee}
         credentialsPdfUrl={credentialsPdfUrl}
         onDelete={handleDeleteEmployee}
+        onEditProfile={() => setProfileEditOpen(true)}
         activeTeams={activeTeamsSorted}
         teamsLoading={teamsActiveQuery.isLoading}
         draftTeamId={draftTeamId}
@@ -455,6 +481,32 @@ export default function EmployeeDetail() {
         onSaveCollectiveAgreement={handleSaveCollectiveAgreement}
         companyHasCollectiveAgreements={companyAgreements.length > 0}
       />
+
+      {employeeId && employee && (
+        <EmployeeDetailTrialPeriodCard
+          employee={employee}
+          onEmployeeUpdated={(updated) => updateEmployeeCache(employeeId, updated)}
+        />
+      )}
+
+      {employeeId && employee && (
+        <EmployeeProfileEditDialog
+          open={profileEditOpen}
+          onOpenChange={setProfileEditOpen}
+          employeeId={employeeId}
+          employee={employee}
+          variant={profileIncomplete ? 'onboarding' : 'edit'}
+          onSuccess={handleProfileEditSuccess}
+        />
+      )}
+
+      {employeeId && employee && (
+        <EmployeeOnboardingCompletion
+          employeeId={employeeId}
+          employee={employee}
+          onOpenEdit={() => setProfileEditOpen(true)}
+        />
+      )}
 
       {employeeId && showEmployeeCSEBlock && (
         <EmployeeCSEBlock
@@ -519,12 +571,15 @@ export default function EmployeeDetail() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="documents" className="mt-4">
+        <TabsContent value="documents" className="mt-4 space-y-4">
           {employeeId && employee ? (
-            <EmployeeDetailDocumentsTab
-              employeeId={employeeId}
-              employee={employee}
-            />
+            <>
+              <EmployeeBoethCard employeeId={employeeId} />
+              <EmployeeDetailDocumentsTab
+                employeeId={employeeId}
+                employee={employee}
+              />
+            </>
           ) : (
             <TabPanelSkeleton />
           )}
@@ -544,7 +599,42 @@ export default function EmployeeDetail() {
           </Suspense>
         </TabsContent>
 
-        <TabsContent value="saisie" className="mt-4">
+        <TabsContent value="saisie" className="mt-4 space-y-4">
+          {employeeId && employee ? (
+            <>
+              <EmployeePasSettingsCard
+                employeeId={employeeId}
+                employee={employee}
+                canEdit={canEditEmployeePaySettings}
+                onEmployeeUpdated={(updated) => updateEmployeeCache(employeeId, updated)}
+              />
+              <WorkMedalEmployeeSection
+                employeeId={employeeId}
+                priorServiceMonths={employee.prior_service_months}
+                canEdit={user?.role === "admin" || user?.role === "rh"}
+                onPriorServiceChange={async (months) => {
+                  try {
+                    const updated = await updateEmployee(employeeId, {
+                      prior_service_months: months,
+                    });
+                    updateEmployeeCache(employeeId, updated);
+                    toast({ title: "Ancienneté antérieure enregistrée" });
+                  } catch {
+                    toast({
+                      title: "Erreur",
+                      description: "Impossible d'enregistrer l'ancienneté antérieure.",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+              />
+              <EmployeeLoansCard
+                employeeId={employeeId}
+                employeeName={`${employee.first_name ?? ""} ${employee.last_name ?? ""}`.trim()}
+                canEdit={canEditEmployeePaySettings}
+              />
+            </>
+          ) : null}
           <EmployeeDetailSaisiesTab
             selectedDate={selectedDate}
             isLoadingSaisies={isLoadingSaisies}

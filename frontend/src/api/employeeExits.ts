@@ -119,6 +119,18 @@ export interface EmployeeExitWithDetails extends EmployeeExit {
   documents?: ExitDocument[];
   checklist_items?: ChecklistItem[];
   checklist_completion_rate?: number;
+  outstanding_loans?: {
+    employee_id: string;
+    total_remaining_capital: number;
+    active_loans_count: number;
+    loans: Array<{
+      id: string;
+      principal_amount: number;
+      remaining_capital: number;
+      status: string;
+      monthly_payment: number;
+    }>;
+  } | null;
 }
 
 export interface ExitDocument {

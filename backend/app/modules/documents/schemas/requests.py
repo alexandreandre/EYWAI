@@ -43,3 +43,11 @@ class GenerateDocumentRequest(BaseModel):
 
 class UpdateDocumentStatusRequest(BaseModel):
     status: DocumentStatus
+
+
+class TransmitDocumentForm(BaseModel):
+    """Champs formulaire (hors fichier) pour POST /api/documents/transmit."""
+
+    employee_id: str = Field(..., min_length=1)
+    document_label: str = Field(..., min_length=2, max_length=120)
+    send_immediately: bool = True

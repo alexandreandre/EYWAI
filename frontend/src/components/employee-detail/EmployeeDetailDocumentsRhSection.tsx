@@ -29,13 +29,24 @@ import {
   triggerSignedDocumentDownload,
   generateDocument,
   getDocuments,
+  updateDocumentStatus,
   type DocumentCategory,
   type GeneratedDocument,
 } from '@/api/documents';
 import { DOCUMENT_TYPE_LABELS, getTemplates, type DocumentTemplate } from '@/api/documentLibrary';
 import { cn } from '@/lib/utils';
 import { resolveGeneratedContractDocType } from '@/lib/employeeContractSetup';
-import { ArrowDownToLine, ChevronDown, Eye, Loader2, Plus, Settings2, Trash2, Upload } from 'lucide-react';
+import {
+  ArrowDownToLine,
+  ChevronDown,
+  Eye,
+  Loader2,
+  Plus,
+  Send,
+  Settings2,
+  Trash2,
+  Upload,
+} from 'lucide-react';
 
 export const QK_EMPLOYEE_GENERATED_DOCS = (employeeId: string) =>
   ['employee-generated-documents', employeeId] as const;
@@ -121,7 +132,9 @@ export interface EmployeeDocumentGenerationHandlers {
   handleView: (id: string) => Promise<void>;
   handleDownload: (id: string, fileName?: string | null) => Promise<void>;
   handleDelete: (id: string) => void;
+  handleSend: (id: string) => void;
   deletingId: string | null;
+  sendingId: string | null;
   loadingAction: { id: string; kind: 'view' | 'download' } | null;
 }
 
@@ -166,6 +179,28 @@ export function useEmployeeDocumentGeneration(
   const invalidateDocs = () => {
     queryClient.invalidateQueries({ queryKey: QK_EMPLOYEE_GENERATED_DOCS(employeeId) });
   };
+
+  const sendMut = useMutation({
+    mutationFn: (id: string) => updateDocumentStatus(id, 'envoye'),
+    onSuccess: () => {
+      invalidateDocs();
+      toast({
+        title: 'Document envoyé',
+        description: 'Le collaborateur a été notifié.',
+      });
+    },
+    onError: (e: unknown) => {
+      const msg =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast({
+        title: 'Envoi impossible',
+        description: typeof msg === 'string' ? msg : 'Erreur serveur.',
+        variant: 'destructive',
+      });
+    },
+  });
 
   const deleteMut = useMutation({
     mutationFn: deleteDocument,
@@ -300,6 +335,10 @@ export function useEmployeeDocumentGeneration(
     deleteMut.mutate(id);
   };
 
+  const handleSend = (id: string) => {
+    sendMut.mutate(id);
+  };
+
   const canSubmitContrat = genMode === 'contrat' && !!genDocType && !!genDateEffet;
   const canSubmitAvenant = genMode === 'avenant' && !!genDocType && !!genDateEffet;
   const canSubmitAttestation = genMode === 'attestation' && !!genDocType;
@@ -311,7 +350,9 @@ export function useEmployeeDocumentGeneration(
     handleView,
     handleDownload,
     handleDelete,
+    handleSend,
     deletingId: deleteMut.isPending ? (deleteMut.variables as string) : null,
+    sendingId: sendMut.isPending ? (sendMut.variables as string) : null,
     loadingAction,
   };
 
@@ -503,11 +544,13 @@ export function EmployeeDocumentAddMenu({
   handlers,
   onManageTemplates,
   onImportContract,
+  onTransmitDocument,
   menuAlign = 'start',
 }: {
   handlers: EmployeeDocumentGenerationHandlers;
   onManageTemplates: () => void;
   onImportContract?: () => void;
+  onTransmitDocument?: () => void;
   menuAlign?: 'start' | 'end';
 }) {
   return (
@@ -520,6 +563,15 @@ export function EmployeeDocumentAddMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align={menuAlign} className="w-56">
+        {onTransmitDocument ? (
+          <>
+            <DropdownMenuItem onClick={onTransmitDocument}>
+              <Send className="mr-2 h-4 w-4" />
+              Transmettre un document
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
         {onImportContract ? (
           <DropdownMenuItem onClick={onImportContract}>
             <Upload className="mr-2 h-4 w-4" />
@@ -572,20 +624,40 @@ export function GeneratedDocActions({
 }) {
   const hasFile = Boolean(doc.file_url);
   const canDelete = doc.status === 'brouillon';
+  const canSend = doc.status === 'brouillon';
   const viewLoading =
     handlers.loadingAction?.id === doc.id && handlers.loadingAction.kind === 'view';
   const downloadLoading =
     handlers.loadingAction?.id === doc.id && handlers.loadingAction.kind === 'download';
   const isDeleting = handlers.deletingId === doc.id;
+  const isSending = handlers.sendingId === doc.id;
 
   return (
     <div className="flex items-center gap-0.5">
+      {canSend ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-primary hover:text-primary"
+          disabled={!hasFile || viewLoading || downloadLoading || isDeleting || isSending}
+          title="Envoyer au collaborateur"
+          onClick={() => handlers.handleSend(doc.id)}
+        >
+          {isSending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
+          <span className="sr-only">Envoyer au collaborateur</span>
+        </Button>
+      ) : null}
       <Button
         type="button"
         variant="ghost"
         size="icon"
         className="h-8 w-8"
-        disabled={!hasFile || viewLoading || downloadLoading || isDeleting}
+        disabled={!hasFile || viewLoading || downloadLoading || isDeleting || isSending}
         title="Visualiser le document"
         onClick={() => void handlers.handleView(doc.id)}
       >
@@ -601,7 +673,7 @@ export function GeneratedDocActions({
         variant="ghost"
         size="icon"
         className="h-8 w-8"
-        disabled={!hasFile || viewLoading || downloadLoading || isDeleting}
+        disabled={!hasFile || viewLoading || downloadLoading || isDeleting || isSending}
         title="Télécharger"
         onClick={() => void handlers.handleDownload(doc.id, doc.file_name)}
       >
@@ -617,7 +689,7 @@ export function GeneratedDocActions({
         variant="ghost"
         size="icon"
         className="h-8 w-8 text-destructive hover:text-destructive"
-        disabled={!canDelete || viewLoading || downloadLoading || isDeleting}
+        disabled={!canDelete || viewLoading || downloadLoading || isDeleting || isSending}
         title={
           canDelete
             ? 'Supprimer'
@@ -637,14 +709,22 @@ export function GeneratedDocActions({
 }
 
 export function GeneratedDocMeta({ doc }: { doc: GeneratedDocument }): ReactNode {
+  const isTransmitted = doc.document_type === 'document_transmis';
+  const sourceLabel = isTransmitted
+    ? 'Transmis par les RH'
+    : doc.is_eywai_template
+      ? 'Standard EYWAI'
+      : doc.template_name || 'Modèle personnalisé';
+
   return (
     <>
       {documentStatusBadge(doc.status)}
       <span className="text-xs text-muted-foreground">
         {formatGeneratedDocDate(doc.created_at)}
         {' · '}
-        {doc.is_eywai_template ? 'Standard EYWAI' : doc.template_name || 'Modèle personnalisé'}
+        {sourceLabel}
       </span>
     </>
   );
 }
+

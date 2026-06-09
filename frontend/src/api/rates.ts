@@ -137,3 +137,36 @@ export async function saveManualRate(
   const res = await apiClient.post<ManualRateUpdateResponse>('/api/rates/manual', request);
   return res.data;
 }
+
+export type PayslipEditLockSettings = {
+  cutoff_day_of_next_month: number;
+};
+
+export type PayslipEditLockUpdateRequest = {
+  cutoff_day_of_next_month: number;
+  comment?: string | null;
+};
+
+export type PayslipEditLockUpdateResponse = {
+  success: boolean;
+  cutoff_day_of_next_month: number;
+  config_key?: string;
+  version?: number;
+  changed?: boolean;
+  id?: string | null;
+};
+
+export async function getPayslipEditLockSettings(): Promise<PayslipEditLockSettings> {
+  const res = await apiClient.get<PayslipEditLockSettings>('/api/rates/payslip-edit-lock');
+  return res.data;
+}
+
+export async function updatePayslipEditLockSettings(
+  request: PayslipEditLockUpdateRequest,
+): Promise<PayslipEditLockUpdateResponse> {
+  const res = await apiClient.patch<PayslipEditLockUpdateResponse>(
+    '/api/rates/payslip-edit-lock',
+    request,
+  );
+  return res.data;
+}

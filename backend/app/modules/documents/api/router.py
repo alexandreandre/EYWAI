@@ -5,7 +5,7 @@ from __future__ import annotations
 import traceback
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 
 from app.core.security import get_current_user
 from app.modules.documents.application import commands, queries
@@ -14,6 +14,7 @@ from app.modules.documents.schemas.requests import (
     UpdateDocumentStatusRequest,
 )
 from app.modules.documents.application.explorer_queries import get_documents_explorer
+from app.modules.documents.infrastructure.repository import documents_repository
 from app.modules.documents.schemas.explorer import DocumentsExplorerResponse
 from app.modules.documents.schemas.responses import DownloadUrlResponse, GeneratedDocument
 from app.modules.users.schemas.responses import User
@@ -61,6 +62,14 @@ def _require_company_access(user: User, company_id: str) -> None:
 
 def _employee_scope_id(user: User, company_id: str) -> Optional[str]:
     return queries.get_employee_id_for_user_scope(str(user.id), company_id)
+
+
+def _assert_employee_can_access_document(row: dict) -> None:
+    if not documents_repository.employee_can_access_status(str(row.get("status") or "")):
+        raise HTTPException(
+            status_code=403,
+            detail="Ce document n'est pas accessible.",
+        )
 
 
 def _row_to_generated(row: dict) -> GeneratedDocument:
@@ -146,8 +155,38 @@ def list_documents_route(
                 status=status,
                 date_from=date_from,
                 date_to=date_to,
+                employee_visible_only=True,
             )
         return [_row_to_generated(r) for r in rows]
+    except Exception as e:
+        traceback.print_exc()
+        _handle_application_errors(e)
+
+
+@router.post("/transmit", response_model=GeneratedDocument, status_code=201)
+async def transmit_document_route(
+    employee_id: str = Form(...),
+    document_label: str = Form(...),
+    send_immediately: bool = Form(True),
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+) -> GeneratedDocument:
+    """(RH) Dépose un PDF personnalisé et le transmet au collaborateur."""
+    cid = _company_id(current_user)
+    _require_rh(current_user, cid)
+    try:
+        content = await file.read()
+        row = commands.transmit_employee_document(
+            cid,
+            str(current_user.id),
+            employee_id,
+            document_label,
+            content,
+            file.filename or "document.pdf",
+            send_immediately=send_immediately,
+            content_type=file.content_type or "application/pdf",
+        )
+        return _row_to_generated(row)
     except Exception as e:
         traceback.print_exc()
         _handle_application_errors(e)
@@ -191,6 +230,7 @@ def download_document_route(
             raise HTTPException(status_code=404, detail="Document introuvable")
         if str(row.get("employee_id") or "") != str(my_emp):
             raise HTTPException(status_code=403, detail="Accès non autorisé.")
+        _assert_employee_can_access_document(row)
         url = queries.get_download_url(document_id, cid)
         return DownloadUrlResponse(signed_url=url)
     except Exception as e:
@@ -221,6 +261,7 @@ def preview_document_route(
             raise HTTPException(status_code=404, detail="Document introuvable")
         if str(row.get("employee_id") or "") != str(my_emp):
             raise HTTPException(status_code=403, detail="Accès non autorisé.")
+        _assert_employee_can_access_document(row)
         url = queries.get_preview_url(document_id, cid)
         return DownloadUrlResponse(signed_url=url)
     except Exception as e:

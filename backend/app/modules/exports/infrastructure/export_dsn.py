@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from xml.dom import minidom
 
 from app.core.database import supabase
+from app.modules.oeth_settings.application import queries as oeth_queries
 
 
 def validate_nir(nir: Optional[str]) -> Tuple[bool, Optional[str]]:
@@ -479,6 +480,19 @@ def generate_dsn_xml(
         contrat = ET.SubElement(salarie, "Contrat")
         ET.SubElement(contrat, "TypeContrat").text = employee.get("contract_type", "")
         ET.SubElement(contrat, "DateEntree").text = employee.get("hire_date", "")
+        boeth_code = oeth_queries.get_boeth_code_for_employee(
+            employee.get("id", ""), period
+        )
+        if boeth_code:
+            ET.SubElement(contrat, "StatutBOETH").text = boeth_code
+            ET.SubElement(contrat, "S21.G00.40.072").text = boeth_code
+            previous = oeth_queries.get_previous_boeth_for_period(
+                employee.get("id", ""), period
+            )
+            if previous:
+                changement = ET.SubElement(salarie, "ChangementContrat")
+                ET.SubElement(changement, "AncienStatutBOETH").text = previous
+                ET.SubElement(changement, "S21.G00.41.048").text = previous
         remuneration = ET.SubElement(salarie, "Remuneration")
         ET.SubElement(remuneration, "Brut").text = str(emp_data.get("brut", 0))
         ET.SubElement(remuneration, "NetImposable").text = str(
@@ -503,6 +517,28 @@ def generate_dsn_xml(
                 ET.SubElement(cotisation, "MontantPatronal").text = str(
                     coti.get("montant_patronal", 0) or 0
                 )
+
+    if month == 4:
+        employment_year = year - 1
+        try:
+            dsn_oeth = oeth_queries.build_dsn_payload(company_id, employment_year)
+            if dsn_oeth.complement_oeth or dsn_oeth.cotisations_etablissement:
+                oeth_bloc = ET.SubElement(root, "OETH")
+                ET.SubElement(oeth_bloc, "EmploymentYear").text = str(employment_year)
+                for item in dsn_oeth.complement_oeth:
+                    complement = ET.SubElement(oeth_bloc, "ComplementOETH")
+                    for key, val in item.items():
+                        ET.SubElement(complement, key.replace(".", "_")).text = str(val)
+                for item in dsn_oeth.cotisations_etablissement:
+                    cot_etab = ET.SubElement(oeth_bloc, "CotisationEtablissement")
+                    for key, val in item.items():
+                        ET.SubElement(cot_etab, key.replace(".", "_")).text = str(val)
+                if dsn_oeth.cotisation_agregee:
+                    cot_agg = ET.SubElement(oeth_bloc, "CotisationAgregee")
+                    for key, val in dsn_oeth.cotisation_agregee.items():
+                        ET.SubElement(cot_agg, key.replace(".", "_")).text = str(val)
+        except Exception:
+            pass
 
     xml_string = ET.tostring(root, encoding="unicode")
     dom = minidom.parseString(xml_string)
