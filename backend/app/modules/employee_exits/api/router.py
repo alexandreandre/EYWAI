@@ -6,9 +6,10 @@ Aucune logique métier lourde : auth, permissions, conversion erreurs → HTTP.
 Comportement HTTP identique à api/routers/employee_exits.py.
 """
 
+from datetime import date
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.security import get_current_user
 from app.modules.access_control.application.service import get_access_control_service
@@ -32,8 +33,10 @@ from app.modules.employee_exits.schemas import (
     ExitDocumentEditRequest,
     ExitDocumentEditResponse,
     ExitIndemnityCalculation,
+    NoticePeriodPreview,
     PublishExitDocumentsRequest,
     PublishExitDocumentsResponse,
+    SimpleEmployee,
     StatusTransitionResponse,
     StatusUpdateRequest,
 )
@@ -140,6 +143,44 @@ async def create_employee_exit(
             str(current_user.id),
         )
         return EmployeeExit(**created)
+    except EmployeeExitApplicationError as e:
+        raise _to_http(e)
+
+
+@router.get("/eligible-employees", response_model=List[SimpleEmployee])
+async def list_exit_eligible_employees(
+    current_user: User = Depends(get_current_user),
+):
+    """Liste les collaborateurs éligibles à un nouveau départ (actifs + contrat généré)."""
+    company_id = _company_id_required(current_user)
+    _check_exit_permission(current_user, company_id, "create")
+    return queries.list_exit_eligible_employees(company_id)
+
+
+@router.get("/notice-period-preview", response_model=NoticePeriodPreview)
+async def preview_notice_period(
+    employee_id: str = Query(..., description="Identifiant du collaborateur"),
+    exit_type: str = Query(..., description="Type de départ"),
+    reference_date: Optional[date] = Query(
+        None, description="Date de référence (demande/notification), défaut : aujourd'hui"
+    ),
+    is_gross_misconduct: bool = Query(
+        False, description="Faute grave ou lourde (licenciement)"
+    ),
+    current_user: User = Depends(get_current_user),
+):
+    """Calcule le préavis applicable selon la convention collective ou le droit légal."""
+    company_id = _company_id_required(current_user)
+    _check_exit_permission(current_user, company_id, "create")
+    ref = reference_date or date.today()
+    try:
+        return queries.get_notice_period_preview(
+            employee_id,
+            company_id,
+            exit_type,
+            ref,
+            is_gross_misconduct=is_gross_misconduct,
+        )
     except EmployeeExitApplicationError as e:
         raise _to_http(e)
 

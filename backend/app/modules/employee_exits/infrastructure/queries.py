@@ -27,16 +27,25 @@ def enrich_exit_with_documents_and_checklist(
     documents = docs_response.data or []
     for doc in documents:
         try:
-            signed_url_response = sb.storage.from_("exit_documents").create_signed_url(
-                doc["storage_path"], signed_url_expiry_seconds
+            download_url = sb.storage.from_("exit_documents").create_signed_url(
+                doc["storage_path"], signed_url_expiry_seconds, options={"download": True}
+            )
+            preview_url = sb.storage.from_("exit_documents").create_signed_url(
+                doc["storage_path"], signed_url_expiry_seconds, options={"download": False}
             )
             doc["download_url"] = (
-                signed_url_response.get("signedURL")
-                if isinstance(signed_url_response, dict)
-                else signed_url_response
+                download_url.get("signedURL")
+                if isinstance(download_url, dict)
+                else download_url
+            )
+            doc["preview_url"] = (
+                preview_url.get("signedURL")
+                if isinstance(preview_url, dict)
+                else preview_url
             )
         except Exception:
             doc["download_url"] = None
+            doc["preview_url"] = None
     exit_record["documents"] = documents
 
     checklist_response = (

@@ -20,7 +20,9 @@ from app.modules.employee_exits.application.dto import (
     GENERATABLE_DOCUMENT_TYPES,
 )
 from app.modules.employee_exits.application.service import create_default_checklist_sync
+from app.modules.employees.application.queries import employee_has_work_contract
 from app.modules.employee_exits.domain.rules import (
+    exit_block_reason,
     get_initial_status,
     get_valid_status_transitions,
 )
@@ -81,6 +83,13 @@ def create_employee_exit(
             f"L'employé a déjà un processus de départ actif (statut: {employee['employment_status']})",
         )
 
+    block_reason = exit_block_reason(
+        employee,
+        has_work_contract=employee_has_work_contract(employee_id, company_id),
+    )
+    if block_reason:
+        raise EmployeeExitApplicationError(400, block_reason)
+
     exit_type = exit_data["exit_type"]
     initial_status = get_initial_status(exit_type)
     notice_start = None
@@ -125,10 +134,7 @@ def create_employee_exit(
         _run_post_create_indemnities_and_docs(exit_id, company_id, current_user_id, sb)
     except Exception as e:
         logger.warning(f'⚠ Erreur lors du calcul automatique ou génération des documents: {e}')
-        if sys:
-            import traceback
-
-            logger.exception("Exception")
+        logger.exception("Exception")
 
     return created
 
@@ -252,7 +258,7 @@ def _run_post_create_indemnities_and_docs(
     exit_full_data = exit_repo.get_with_employee(
         exit_id,
         company_id,
-        "id, first_name, last_name, hire_date, salaire_de_base, job_title, date_naissance, nir, contract_type, address, lieu_naissance, birth_place, duree_hebdomadaire",
+        "id, first_name, last_name, hire_date, salaire_de_base, job_title, date_naissance, nir, contract_type, adresse, lieu_naissance, duree_hebdomadaire",
     )
     if not exit_full_data:
         return
@@ -439,6 +445,24 @@ def update_exit_status(
             str(exit_data["employee_id"]), "parti", None, sb
         )
         logger.info(f"✓ Employé {exit_data['employee_id']} marqué 'parti'")
+        try:
+            from app.modules.payslips.infrastructure.anomaly_cleanup import (
+                cleanup_payslips_on_exit_archived,
+                parse_exit_last_working_day,
+            )
+
+            cleanup_payslips_on_exit_archived(
+                str(exit_data["employee_id"]),
+                company_id,
+                parse_exit_last_working_day(exit_data),
+                sb,
+            )
+        except Exception as cleanup_err:
+            logger.warning(
+                "Nettoyage bulletins après archivage sortie %s: %s",
+                exit_id,
+                cleanup_err,
+            )
     return updated or exit_data
 
 
@@ -512,7 +536,7 @@ def generate_exit_document(
     exit_data = exit_repo.get_with_employee(
         exit_id,
         company_id,
-        "id, first_name, last_name, date_naissance, job_title, hire_date, contract_type, nir, address, lieu_naissance, birth_place, salaire_de_base, duree_hebdomadaire",
+        "id, first_name, last_name, date_naissance, job_title, hire_date, contract_type, nir, adresse, lieu_naissance, salaire_de_base, duree_hebdomadaire",
     )
     if not exit_data:
         raise EmployeeExitApplicationError(404, "Départ non trouvé")

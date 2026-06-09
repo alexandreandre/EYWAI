@@ -39,6 +39,27 @@ class AnnualReviewQuery(IAnnualReviewQuery):
 _annual_review_query = AnnualReviewQuery()
 
 
+def fetch_exit_summary_for_employee(
+    exit_id: str, company_id: str
+) -> Optional[Dict[str, Any]]:
+    """Résumé du départ lié à un collaborateur (pour enrichissement fiche RH)."""
+    if not exit_id or not company_id:
+        return None
+    try:
+        resp = (
+            supabase.table("employee_exits")
+            .select("id, exit_type, status, last_working_day")
+            .eq("id", exit_id)
+            .eq("company_id", company_id)
+            .maybe_single()
+            .execute()
+        )
+        return dict(resp.data) if resp.data else None
+    except Exception:
+        logger.exception("Exception")
+        return None
+
+
 def get_annual_review_query() -> IAnnualReviewQuery:
     return _annual_review_query
 
@@ -48,6 +69,20 @@ def fetch_annual_review_for_employee(
 ) -> Optional[Dict[str, Any]]:
     """Entretien annuel d'un employé pour une année donnée."""
     return _annual_review_query.fetch_for_employee_year(employee_id, company_id, year)
+
+
+def _storage_signed_urls(
+    bucket: str, path: str, *, expiry_seconds: int = 3600
+) -> tuple[Optional[str], Optional[str]]:
+    storage = get_storage_provider()
+    return (
+        storage.create_signed_url(
+            bucket, path, expiry_seconds=expiry_seconds, download=True
+        ),
+        storage.create_signed_url(
+            bucket, path, expiry_seconds=expiry_seconds, download=False
+        ),
+    )
 
 
 def fetch_published_exit_documents(
@@ -68,24 +103,21 @@ def fetch_published_exit_documents(
     )
     if not docs_response.data:
         return []
-    storage = get_storage_provider()
     documents = []
     for doc in docs_response.data:
         try:
-            url = storage.create_signed_url(
-                "exit_documents",
-                doc["storage_path"],
-                expiry_seconds=3600,
-                download=True,
+            download_url, preview_url = _storage_signed_urls(
+                "exit_documents", doc["storage_path"]
             )
-            if url:
+            if download_url:
                 documents.append(
                     {
                         "id": doc["id"],
                         "name": doc.get(
                             "document_name", doc.get("filename", "Document")
                         ),
-                        "url": url,
+                        "url": download_url,
+                        "preview_url": preview_url or download_url,
                         "date": doc.get("published_at", doc.get("created_at")),
                         "document_type": doc.get("document_type"),
                         "document_category": doc.get("document_category", "autres"),

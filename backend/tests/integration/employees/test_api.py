@@ -244,6 +244,14 @@ class TestGetContractUrl:
         assert response.status_code == 401
 
 
+class TestUploadContract:
+    """POST /api/employees/{employee_id}/contract (espace RH)."""
+
+    def test_without_auth_returns_401(self, client: TestClient):
+        response = client.post("/api/employees/some-id/contract")
+        assert response.status_code == 401
+
+
 class TestGetEmployeePromotions:
     """GET /api/employees/{employee_id}/promotions."""
 

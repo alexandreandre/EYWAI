@@ -25,6 +25,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
+  employeeProfileHref,
   formatDateFR,
   getHubStatus,
   HUB_STATUS_LABELS,
@@ -227,7 +228,7 @@ export function OnboardingHubPage() {
                       <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <Link
-                            to={`/onboarding/${item.employee_id}`}
+                            to={employeeProfileHref(item.employee_id)}
                             className="font-semibold hover:underline"
                           >
                             {fullName}
@@ -252,12 +253,17 @@ export function OnboardingHubPage() {
                             </Badge>
                           ) : null}
                           {!item.profile_complete ? (
-                            <Badge
-                              variant="outline"
-                              className="border-amber-300 bg-amber-50 text-[10px] text-amber-700"
+                            <Link
+                              to={employeeProfileHref(item.employee_id)}
+                              className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             >
-                              Fiche à compléter ({item.nb_missing})
-                            </Badge>
+                              <Badge
+                                variant="outline"
+                                className="border-amber-300 bg-amber-50 text-[10px] text-amber-700 transition-colors hover:bg-amber-100"
+                              >
+                                Fiche à compléter ({item.nb_missing})
+                              </Badge>
+                            </Link>
                           ) : null}
                         </div>
                         <p className="text-xs text-muted-foreground">
@@ -290,7 +296,7 @@ export function OnboardingHubPage() {
                         </Button>
                         {!item.profile_complete ? (
                           <Button asChild size="sm" variant="ghost" className="text-amber-700 hover:text-amber-800">
-                            <Link to={`/employees/${item.employee_id}`}>Compléter la fiche</Link>
+                            <Link to={employeeProfileHref(item.employee_id)}>Compléter la fiche</Link>
                           </Button>
                         ) : null}
                       </div>

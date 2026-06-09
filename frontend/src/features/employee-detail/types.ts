@@ -9,6 +9,10 @@ export interface Employee {
   email?: string | null;
   username?: string | null;
   employment_status?: string | null;
+  current_exit_id?: string | null;
+  exit_last_working_day?: string | null;
+  exit_type?: string | null;
+  exit_status?: string | null;
   // Titre de séjour (données calculées par le backend)
   is_subject_to_residence_permit?: boolean | null;
   residence_permit_status?: "valid" | "to_renew" | "expired" | "to_complete" | null;

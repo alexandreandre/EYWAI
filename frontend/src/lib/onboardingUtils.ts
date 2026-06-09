@@ -284,3 +284,8 @@ export const HUB_STATUS_LABELS: Record<HubStatus, string> = {
   in_progress: "En cours",
   completed: "Terminé",
 };
+
+/** Fiche collaborateur RH (complétion paie, documents, contrat). */
+export function employeeProfileHref(employeeId: string): string {
+  return `/employees/${employeeId}`;
+}

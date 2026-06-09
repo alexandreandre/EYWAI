@@ -6,7 +6,10 @@ règle période de rétractation 15j (rupture conventionnelle).
 Aucune dépendance DB ni FastAPI.
 """
 
-from typing import List
+from typing import Any, Dict, List, Optional
+
+EXIT_ELIGIBLE_STATUSES = frozenset({"actif", "active"})
+DEFAULT_EMPLOYMENT_STATUS = "actif"
 
 # Map exit_type -> statut initial
 _INITIAL_STATUS: dict[str, str] = {
@@ -63,3 +66,25 @@ def get_initial_status(exit_type: str) -> str:
 def get_valid_status_transitions(exit_type: str, current_status: str) -> List[str]:
     """Retourne les transitions de statut valides. Source : router legacy."""
     return _TRANSITIONS.get(exit_type, {}).get(current_status, [])
+
+
+def exit_block_reason(
+    employee: Dict[str, Any], *, has_work_contract: bool
+) -> Optional[str]:
+    """Message d'erreur si le salarié ne peut pas faire l'objet d'un départ, sinon None."""
+    status = str(
+        employee.get("employment_status") or DEFAULT_EMPLOYMENT_STATUS
+    ).lower()
+    if status == "en_onboarding":
+        return (
+            "Impossible d'initier un départ : ce collaborateur est encore en onboarding. "
+            "Finalisez son intégration et générez son contrat de travail depuis sa fiche."
+        )
+    if status not in EXIT_ELIGIBLE_STATUSES:
+        return f"Ce collaborateur n'est pas éligible à un départ (statut : {status})."
+    if not has_work_contract:
+        return (
+            "Impossible d'initier un départ : le contrat de travail n'a pas encore été "
+            "généré pour ce collaborateur. Générez-le depuis sa fiche employé."
+        )
+    return None

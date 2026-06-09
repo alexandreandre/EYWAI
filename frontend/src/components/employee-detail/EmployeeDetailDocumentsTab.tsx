@@ -1,10 +1,12 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useRef, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/api/apiClient';
+import { uploadEmployeeContract } from '@/api/employees';
 import { DOCUMENT_TYPE_LABELS } from '@/api/documentLibrary';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from '@/components/ui/use-toast';
 import { Edit, RefreshCw } from 'lucide-react';
 import {
   DOCUMENT_FOLDERS,
@@ -15,7 +17,8 @@ import {
   sortPayslipsDesc,
   type PayslipItem,
 } from '@/components/employee-detail/employeeDetailDocumentsFolders';
-import { DocumentFileRow, DownloadLinkButton, ViewLinkButton } from '@/components/employee-detail/DocumentFileRow';
+import { DocumentFileRow, DocumentPreviewDownloadActions, DownloadLinkButton, ViewLinkButton } from '@/components/employee-detail/DocumentFileRow';
+import { EmployeeContractSetupPanel } from '@/components/employee-detail/EmployeeContractSetupPanel';
 import {
   EmployeeDocumentAddMenu,
   GeneratedDocActions,
@@ -23,13 +26,16 @@ import {
   useEmployeeDocumentGeneration,
   type EmployeeDetailDocumentsRhEmployee,
 } from '@/components/employee-detail/EmployeeDetailDocumentsRhSection';
+import { getMissingContractGenerationFields } from '@/lib/employeeContractSetup';
 import { EmployeeDocumentsFolderExplorer } from '@/components/documents/EmployeeDocumentsFolderExplorer';
 import { countRhDetailFolderItems } from '@/components/documents/employeeDocumentsFolderCounts';
 import { matchesFileSemantic } from '@/components/documents/companyDocumentsExplorerUtils';
 import type { GeneratedDocument } from '@/api/documents';
+import { rhEmployeeDocumentsAccessMessage } from '@/lib/employeeExitDocumentsAccess';
 
 interface ContractUrlResponse {
   url: string | null;
+  preview_url?: string | null;
 }
 
 export interface EmployeeDetailDocumentsTabProps {
@@ -76,20 +82,66 @@ export function EmployeeDetailDocumentsTab({
   employee,
 }: EmployeeDetailDocumentsTabProps) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const contractUploadInputRef = useRef<HTMLInputElement>(null);
+
+  const missingContractFields = useMemo(
+    () => getMissingContractGenerationFields(employee),
+    [employee],
+  );
+
+  const uploadContractMut = useMutation({
+    mutationFn: (file: File) => uploadEmployeeContract(employeeId, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employee', employeeId, 'contract-url'] });
+      toast({ title: 'Contrat enregistré', description: 'Le PDF a été ajouté au dossier.' });
+    },
+    onError: (error: unknown) => {
+      const msg =
+        error && typeof error === 'object' && 'response' in error
+          ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast({
+        title: 'Import impossible',
+        description: typeof msg === 'string' ? msg : 'Impossible d’enregistrer le contrat.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleContractUpload = (file: File) => {
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      toast({
+        title: 'Format non supporté',
+        description: 'Seuls les fichiers PDF sont acceptés.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    uploadContractMut.mutate(file);
+  };
+
+  const openContractUploadPicker = () => {
+    contractUploadInputRef.current?.click();
+  };
 
   const credentialsPdfQuery = useQuery({
     queryKey: ['employee', employeeId, 'credentials-pdf'],
     queryFn: async () => {
-      const res = await apiClient.get<{ url?: string | null }>(
+      const res = await apiClient.get<ContractUrlResponse>(
         `/api/employees/${employeeId}/credentials-pdf`,
       );
-      return res.data.url ?? null;
+      return {
+        downloadUrl: res.data.url ?? null,
+        previewUrl: res.data.preview_url ?? res.data.url ?? null,
+      };
     },
     enabled: Boolean(employeeId),
     retry: false,
     staleTime: 5 * 60_000,
   });
-  const credentialsPdfUrl = credentialsPdfQuery.data ?? null;
+  const credentialsPdfUrl = credentialsPdfQuery.data?.downloadUrl ?? null;
+  const credentialsPdfPreviewUrl = credentialsPdfQuery.data?.previewUrl ?? null;
 
   const {
     rows: generatedRows,
@@ -105,7 +157,10 @@ export function EmployeeDetailDocumentsTab({
     queryKey: ['employee', employeeId, 'contract-url'],
     queryFn: async () => {
       const res = await apiClient.get<ContractUrlResponse>(`/api/employees/${employeeId}/contract`);
-      return res.data.url ?? null;
+      return {
+        downloadUrl: res.data.url ?? null,
+        previewUrl: res.data.preview_url ?? res.data.url ?? null,
+      };
     },
   });
 
@@ -115,7 +170,10 @@ export function EmployeeDetailDocumentsTab({
       const res = await apiClient.get<ContractUrlResponse>(
         `/api/employees/${employeeId}/identity-document`
       );
-      return res.data.url ?? null;
+      return {
+        downloadUrl: res.data.url ?? null,
+        previewUrl: res.data.preview_url ?? res.data.url ?? null,
+      };
     },
   });
 
@@ -127,8 +185,10 @@ export function EmployeeDetailDocumentsTab({
     },
   });
 
-  const contractUrl = contractQuery.data ?? null;
-  const identityUrl = identityQuery.data ?? null;
+  const contractUrl = contractQuery.data?.downloadUrl ?? null;
+  const contractPreviewUrl = contractQuery.data?.previewUrl ?? null;
+  const identityUrl = identityQuery.data?.downloadUrl ?? null;
+  const identityPreviewUrl = identityQuery.data?.previewUrl ?? null;
   const payslips = payslipsQuery.data ?? [];
 
   const generatedByFolder = useMemo(() => groupGeneratedByFolder(generatedRows), [generatedRows]);
@@ -143,6 +203,11 @@ export function EmployeeDetailDocumentsTab({
   const payslipsByYear = useMemo(
     () => (payslips.length > 12 ? groupPayslipsByYear(payslips) : null),
     [payslips]
+  );
+
+  const exitDocumentsMessage = useMemo(
+    () => rhEmployeeDocumentsAccessMessage(employee),
+    [employee],
   );
 
   const identityLabel = employee.is_subject_to_residence_permit
@@ -200,9 +265,10 @@ export function EmployeeDetailDocumentsTab({
           name="Contrat de travail (fichier signé)"
           subtitle="Document importé à l’embauche"
           actions={
-            <DownloadLinkButton
-              href={contractUrl}
-              download={`Contrat_${employee.first_name}_${employee.last_name}.pdf`}
+            <DocumentPreviewDownloadActions
+              previewUrl={contractPreviewUrl}
+              downloadUrl={contractUrl}
+              downloadName={`Contrat_${employee.first_name}_${employee.last_name}.pdf`}
             />
           }
         />
@@ -215,12 +281,20 @@ export function EmployeeDetailDocumentsTab({
 
     if (items.length === 0) {
       const hasData = contractUrl || generatedByFolder.contrat.length > 0;
+      if (fileSearch.trim() && hasData) {
+        return (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            Aucun fichier ne correspond à votre recherche.
+          </p>
+        );
+      }
       return (
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          {fileSearch.trim() && hasData
-            ? 'Aucun fichier ne correspond à votre recherche.'
-            : DOCUMENT_FOLDERS.find((f) => f.id === 'contrat')?.emptyMessage}
-        </p>
+        <EmployeeContractSetupPanel
+          onUpload={handleContractUpload}
+          onGenerate={handlers.openContrat}
+          isUploading={uploadContractMut.isPending}
+          missingFields={missingContractFields}
+        />
       );
     }
 
@@ -273,9 +347,10 @@ export function EmployeeDetailDocumentsTab({
           name={identityLabel}
           subtitle={subtitleParts.length > 0 ? subtitleParts.join(' — ') : undefined}
           actions={
-            <DownloadLinkButton
-              href={identityUrl}
-              download={`${employee.is_subject_to_residence_permit ? 'Titre_sejour' : 'Piece_identite'}_${employee.first_name}_${employee.last_name}`}
+            <DocumentPreviewDownloadActions
+              previewUrl={identityPreviewUrl}
+              downloadUrl={identityUrl}
+              downloadName={`${employee.is_subject_to_residence_permit ? 'Titre_sejour' : 'Piece_identite'}_${employee.first_name}_${employee.last_name}`}
             />
           }
         />
@@ -393,9 +468,10 @@ export function EmployeeDetailDocumentsTab({
           name="Identifiants de connexion"
           subtitle="Identifiants de première connexion — mot de passe temporaire à modifier"
           actions={
-            <DownloadLinkButton
-              href={credentialsPdfUrl}
-              download={`Compte_${employee.first_name}_${employee.last_name}.pdf`}
+            <DocumentPreviewDownloadActions
+              previewUrl={credentialsPdfPreviewUrl}
+              downloadUrl={credentialsPdfUrl}
+              downloadName={`Compte_${employee.first_name}_${employee.last_name}.pdf`}
             />
           }
         />
@@ -440,6 +516,24 @@ export function EmployeeDetailDocumentsTab({
 
   return (
     <div className="space-y-4">
+      <input
+        ref={contractUploadInputRef}
+        type="file"
+        accept=".pdf,application/pdf"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) handleContractUpload(file);
+          event.target.value = '';
+        }}
+      />
+
+      {exitDocumentsMessage && (
+        <div className="rounded-md border border-blue-200 bg-blue-50/70 px-3 py-2 text-sm text-blue-950">
+          {exitDocumentsMessage}
+        </div>
+      )}
+
       {eywaiBanner && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
           Dernier document généré avec le modèle standard EYWAI.
@@ -455,6 +549,7 @@ export function EmployeeDetailDocumentsTab({
           <EmployeeDocumentAddMenu
             handlers={handlers}
             onManageTemplates={manageTemplates}
+            onImportContract={openContractUploadPicker}
             menuAlign="end"
           />
         }

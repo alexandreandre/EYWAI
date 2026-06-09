@@ -445,6 +445,42 @@ def apply_salary_update(
     return row
 
 
+def upload_employee_contract(
+    employee_id: str,
+    company_id: str,
+    file_content: bytes,
+    content_type: Optional[str] = None,
+) -> None:
+    """Dépose ou remplace le contrat PDF signé d'un collaborateur existant."""
+    if not file_content:
+        raise HTTPException(status_code=400, detail="Fichier vide.")
+
+    employee = _employee_repository.get_by_id(employee_id, company_id)
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Employé non trouvé.")
+
+    storage = get_storage_provider()
+    storage_prefix = f"{company_id}/{employee_id}"
+    try:
+        storage.upload(
+            "contracts",
+            f"{storage_prefix}/contrat.pdf",
+            file_content,
+            content_type or "application/pdf",
+        )
+    except Exception as storage_error:
+        logger.warning("ERROR: Échec de l'upload du contrat PDF: %s", storage_error)
+        logger.exception("Exception")
+        raise HTTPException(
+            status_code=500,
+            detail="Impossible d'enregistrer le contrat PDF.",
+        ) from storage_error
+
+    # Le dépôt du contrat peut être la dernière étape d'onboarding : si la fiche
+    # paie est déjà complète, activer le salarié sans attendre une autre action.
+    _maybe_activate_after_onboarding(employee_id)
+
+
 def delete_employee(employee_id: str) -> None:
     """
     Supprime un employé : permissions, accès entreprises, profil, ligne employees,

@@ -123,6 +123,10 @@ class FullEmployee(BaseModel):
     residence_permit_type: str | None = None
     residence_permit_number: str | None = None
     employment_status: str | None = None
+    current_exit_id: str | None = None
+    exit_last_working_day: date | None = None
+    exit_type: str | None = None
+    exit_status: str | None = None
     # Section Titre de séjour (données calculées par le backend)
     residence_permit_status: str | None = (
         None  # "valid", "to_renew", "expired", "to_complete"

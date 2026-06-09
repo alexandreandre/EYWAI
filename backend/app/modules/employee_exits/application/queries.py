@@ -7,7 +7,7 @@ from app.core.logging import get_logger, log_app_debug
 
 logger = get_logger("modules.employee_exits.application.queries")
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
@@ -36,6 +36,11 @@ from app.modules.employee_exits.infrastructure.repository import (
     ExitDocumentRepository,
     ExitChecklistRepository,
 )
+from app.modules.employees.application.queries import employee_has_work_contract
+from app.modules.employees.infrastructure.repository import EmployeeRepository
+from app.modules.employee_exits.domain.notice_period import compute_notice_period
+from app.modules.employee_exits.domain.rules import exit_block_reason
+from app.modules.collective_agreements.rules.repository import CCRulesRepository
 
 
 def get_employee_company_id(employee_id: str, supabase_client: Any = None) -> str:
@@ -45,6 +50,145 @@ def get_employee_company_id(employee_id: str, supabase_client: Any = None) -> st
     if not employee:
         raise EmployeeExitApplicationError(404, "Employé non trouvé")
     return str(employee["company_id"])
+
+
+def list_exit_eligible_employees(
+    company_id: str,
+    supabase_client: Any = None,
+) -> List[Dict[str, Any]]:
+    """Salariés actifs avec contrat de travail, éligibles à un nouveau départ."""
+    _ = supabase_client  # réservé pour tests / injection future
+    repo = EmployeeRepository()
+    rows = repo.get_summary_by_company(company_id, active_only=True)
+    eligible: List[Dict[str, Any]] = []
+    for employee in rows:
+        has_contract = employee_has_work_contract(str(employee["id"]), company_id)
+        if exit_block_reason(employee, has_work_contract=has_contract) is not None:
+            continue
+        eligible.append(
+            {
+                "id": str(employee["id"]),
+                "first_name": employee.get("first_name") or "",
+                "last_name": employee.get("last_name") or "",
+                "job_title": employee.get("job_title"),
+            }
+        )
+    return eligible
+
+
+def _parse_iso_date(value: Any) -> Optional[date]:
+    if value is None:
+        return None
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except (TypeError, ValueError):
+        return None
+
+
+def _resolve_employee_collective_agreement(
+    employee: Dict[str, Any],
+    company_id: str,
+    supabase_client: Any,
+) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    """Retourne (agreement_id, idcc, name) pour l'employé ou l'entreprise."""
+    sb = supabase_client
+    agreement_id = employee.get("collective_agreement_id")
+    if not agreement_id:
+        try:
+            company_cc = (
+                sb.table("company_collective_agreements")
+                .select("collective_agreement_id")
+                .eq("company_id", company_id)
+                .limit(1)
+                .execute()
+            )
+            if company_cc.data:
+                agreement_id = company_cc.data[0].get("collective_agreement_id")
+        except Exception:
+            agreement_id = None
+
+    if not agreement_id:
+        return None, None, None
+
+    try:
+        catalog = (
+            sb.table("collective_agreements_catalog")
+            .select("id, idcc, name")
+            .eq("id", agreement_id)
+            .maybe_single()
+            .execute()
+        )
+        if catalog and catalog.data:
+            row = catalog.data
+            return (
+                str(row.get("id") or agreement_id),
+                str(row["idcc"]) if row.get("idcc") is not None else None,
+                str(row.get("name") or "").strip() or None,
+            )
+    except Exception:
+        pass
+    return str(agreement_id), None, None
+
+
+def get_notice_period_preview(
+    employee_id: str,
+    company_id: str,
+    exit_type: str,
+    reference_date: date,
+    *,
+    is_gross_misconduct: bool = False,
+    supabase_client: Any = None,
+) -> Dict[str, Any]:
+    """Prévisualise le préavis applicable pour un collaborateur et un type de départ."""
+    sb = supabase_client or supabase
+    employee = get_employee_full(employee_id, sb)
+    if not employee:
+        raise EmployeeExitApplicationError(404, "Employé non trouvé")
+    if str(employee.get("company_id")) != str(company_id):
+        raise EmployeeExitApplicationError(404, "Employé non trouvé")
+
+    agreement_id, idcc, agreement_name = _resolve_employee_collective_agreement(
+        employee, company_id, sb
+    )
+    cc_rules: Optional[Dict[str, Any]] = None
+    if agreement_id or idcc:
+        rules_repo = CCRulesRepository(sb)
+        rules_row = None
+        if agreement_id:
+            rules_row = rules_repo.get_rules_by_agreement_id(agreement_id)
+        if not rules_row and idcc:
+            rules_row = rules_repo.get_rules_by_idcc(idcc)
+        if rules_row and isinstance(rules_row.get("rules"), dict):
+            cc_rules = rules_row["rules"]
+
+    result = compute_notice_period(
+        exit_type=exit_type,
+        hire_date=_parse_iso_date(employee.get("hire_date")),
+        reference_date=reference_date,
+        statut=employee.get("statut"),
+        is_gross_misconduct=is_gross_misconduct,
+        collective_agreement_name=agreement_name,
+        collective_agreement_idcc=idcc,
+        cc_rules=cc_rules,
+    )
+    return {
+        "employee_id": str(employee_id),
+        "exit_type": exit_type,
+        "reference_date": reference_date.isoformat(),
+        "notice_period_days": result.days,
+        "source": result.source,
+        "label": result.label,
+        "detail": result.detail,
+        "warnings": list(result.warnings),
+        "applicable": result.applicable,
+        "collective_agreement_name": result.collective_agreement_name,
+        "collective_agreement_idcc": result.collective_agreement_idcc,
+        "seniority_months": result.seniority_months,
+        "employee_category": result.employee_category,
+        "has_collective_agreement": bool(agreement_id or agreement_name or idcc),
+    }
 
 
 def list_employee_exits(

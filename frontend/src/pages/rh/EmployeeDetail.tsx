@@ -453,6 +453,7 @@ export default function EmployeeDetail() {
         onCollectiveAgreementIdChange={setCollectiveAgreementId}
         isSavingCC={isSavingCC}
         onSaveCollectiveAgreement={handleSaveCollectiveAgreement}
+        companyHasCollectiveAgreements={companyAgreements.length > 0}
       />
 
       {employeeId && showEmployeeCSEBlock && (

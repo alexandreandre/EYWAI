@@ -83,6 +83,7 @@ interface EmployeeDetailHeaderCardProps {
   onCollectiveAgreementIdChange: (id: string | null) => void;
   isSavingCC: boolean;
   onSaveCollectiveAgreement: () => void | Promise<void>;
+  companyHasCollectiveAgreements?: boolean;
 }
 
 function MetadataField({
@@ -130,6 +131,7 @@ export function EmployeeDetailHeaderCard({
   onCollectiveAgreementIdChange,
   isSavingCC,
   onSaveCollectiveAgreement,
+  companyHasCollectiveAgreements = false,
 }: EmployeeDetailHeaderCardProps) {
   const fullName = `${employee.first_name} ${employee.last_name}`.trim();
   const initials = `${employee.first_name.charAt(0)}${employee.last_name.charAt(0)}`;
@@ -424,6 +426,11 @@ export function EmployeeDetailHeaderCard({
                   Enregistrer
                 </Button>
               </div>
+              {companyHasCollectiveAgreements && collectiveAgreementId == null ? (
+                <p className="text-xs text-amber-800">
+                  Convention collective non renseignée sur cette fiche.
+                </p>
+              ) : null}
             </div>
           </div>
         </div>

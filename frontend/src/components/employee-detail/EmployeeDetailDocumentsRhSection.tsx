@@ -34,7 +34,8 @@ import {
 } from '@/api/documents';
 import { DOCUMENT_TYPE_LABELS, getTemplates, type DocumentTemplate } from '@/api/documentLibrary';
 import { cn } from '@/lib/utils';
-import { ArrowDownToLine, ChevronDown, Eye, Loader2, Plus, Settings2, Trash2 } from 'lucide-react';
+import { resolveGeneratedContractDocType } from '@/lib/employeeContractSetup';
+import { ArrowDownToLine, ChevronDown, Eye, Loader2, Plus, Settings2, Trash2, Upload } from 'lucide-react';
 
 export const QK_EMPLOYEE_GENERATED_DOCS = (employeeId: string) =>
   ['employee-generated-documents', employeeId] as const;
@@ -94,6 +95,9 @@ export interface EmployeeDetailDocumentsRhEmployee {
   first_name: string;
   last_name: string;
   job_title?: string | null;
+  contract_type?: string | null;
+  hire_date?: string | null;
+  statut?: string | null;
   salaire_de_base?: unknown;
   duree_hebdomadaire?: unknown;
   lieu_travail?: unknown;
@@ -104,6 +108,8 @@ export interface EmployeeDetailDocumentsRhEmployee {
   residence_permit_type?: string | null;
   residence_permit_number?: string | null;
   residence_permit_expiry_date?: string | null;
+  employment_status?: string | null;
+  exit_last_working_day?: string | null;
 }
 
 type GenMode = 'contrat' | 'avenant' | 'attestation' | null;
@@ -210,9 +216,9 @@ export function useEmployeeDocumentGeneration(
 
   const openContrat = () => {
     setGenMode('contrat');
-    setGenDocType('');
+    setGenDocType(resolveGeneratedContractDocType(employee.contract_type));
     setGenTemplate('__eywai__');
-    setGenDateEffet('');
+    setGenDateEffet(employee.hire_date ?? '');
     setGenMotif('');
     setEywaiBanner(false);
   };
@@ -496,10 +502,12 @@ export function useEmployeeDocumentGeneration(
 export function EmployeeDocumentAddMenu({
   handlers,
   onManageTemplates,
+  onImportContract,
   menuAlign = 'start',
 }: {
   handlers: EmployeeDocumentGenerationHandlers;
   onManageTemplates: () => void;
+  onImportContract?: () => void;
   menuAlign?: 'start' | 'end';
 }) {
   return (
@@ -512,6 +520,12 @@ export function EmployeeDocumentAddMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align={menuAlign} className="w-56">
+        {onImportContract ? (
+          <DropdownMenuItem onClick={onImportContract}>
+            <Upload className="mr-2 h-4 w-4" />
+            Importer un contrat PDF
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem onClick={handlers.openContrat}>Générer un contrat</DropdownMenuItem>
         <DropdownMenuItem onClick={() => handlers.openAvenant()}>Générer un avenant</DropdownMenuItem>
         <DropdownMenuItem onClick={handlers.openAttestation}>Générer une attestation</DropdownMenuItem>

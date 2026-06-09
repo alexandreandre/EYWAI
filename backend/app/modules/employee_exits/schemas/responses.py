@@ -80,6 +80,25 @@ class SimpleEmployee(BaseModel):
     job_title: Optional[str] = None
 
 
+class NoticePeriodPreview(BaseModel):
+    """Prévisualisation du préavis applicable pour un départ."""
+
+    employee_id: str
+    exit_type: ExitType
+    reference_date: date
+    notice_period_days: int
+    source: Literal["legal", "convention", "none", "not_applicable"]
+    label: str
+    detail: str
+    warnings: List[str] = []
+    applicable: bool = True
+    collective_agreement_name: Optional[str] = None
+    collective_agreement_idcc: Optional[str] = None
+    seniority_months: Optional[int] = None
+    employee_category: Optional[Literal["cadre", "non_cadre"]] = None
+    has_collective_agreement: bool = False
+
+
 class EmployeeExitWithDetails(EmployeeExit):
     """Sortie avec détails employé, documents et checklist"""
 

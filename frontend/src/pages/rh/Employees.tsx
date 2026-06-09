@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQuery } from "@tanstack/react-query";
 import { useEmployeesQuery } from "@/hooks/queries/useEmployeesQuery";
@@ -12,8 +12,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Landmark } from "lucide-react";
+import { Search, Landmark, FileText } from "lucide-react";
 import * as ribAlertsApi from "@/api/ribAlerts";
+import { fetchCompanyOverview } from "@/api/company";
+import { CC_EMPLOYEES_CODE } from "@/features/company";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CreateEmployeeForm } from "@/features/employees/components/CreateEmployeeForm";
 import {
@@ -43,14 +45,38 @@ export default function Employees() {
     enabled: Boolean(companyId),
   });
   const ribAlerts = ribAlertsQuery.data ?? [];
+
+  const overviewQuery = useQuery({
+    queryKey: ["company-overview", companyId],
+    queryFn: fetchCompanyOverview,
+    enabled: Boolean(companyId),
+  });
+  const ccEmployeesAlert = overviewQuery.data?.alerts.find(
+    (a) => a.code === CC_EMPLOYEES_CODE,
+  );
+  const ccEmployeeIds = useMemo(
+    () => new Set(ccEmployeesAlert?.employee_ids ?? []),
+    [ccEmployeesAlert?.employee_ids],
+  );
+
   const [searchTerm, setSearchTerm] = useState("");
-  const [employmentStatusFilter, setEmploymentStatusFilter] = useState<string>("actif");
+  const [employmentStatusFilter, setEmploymentStatusFilter] = useState<string>("actifs_et_depart");
 
   const navigate = useNavigate();
 
-  const filteredEmployees = employees.filter(emp => {
-    const matchesSearch = `${emp.first_name} ${emp.last_name}`.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = employmentStatusFilter === 'all' || (emp.employment_status || 'actif') === employmentStatusFilter;
+  const filteredEmployees = employees.filter((emp) => {
+    const matchesSearch = `${emp.first_name} ${emp.last_name}`
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
+    const status = emp.employment_status || "actif";
+    const matchesStatus =
+      employmentStatusFilter === "sans_cc"
+        ? ccEmployeeIds.has(emp.id)
+        : employmentStatusFilter === "all"
+          ? true
+          : employmentStatusFilter === "actifs_et_depart"
+            ? status === "actif" || status === "active" || status === "en_sortie"
+            : status === employmentStatusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -92,9 +118,47 @@ export default function Employees() {
           </CardContent>
         </Card>
       )}
+      {(ccEmployeesAlert?.count ?? 0) > 0 && (
+        <Card className="border-amber-200 bg-amber-50/50">
+          <CardHeader className="py-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <FileText className="h-4 w-4" />
+              Conventions collectives ({ccEmployeesAlert?.count})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="py-2">
+            <p className="mb-2 text-sm text-muted-foreground">
+              {ccEmployeesAlert?.label}
+            </p>
+            <ul className="space-y-1 text-sm">
+              {(ccEmployeesAlert?.employees ?? []).slice(0, 3).map((emp) => (
+                <li key={emp.id} className="flex items-center justify-between gap-2">
+                  <span className="text-muted-foreground truncate">
+                    {`${emp.first_name} ${emp.last_name}`.trim()}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 h-7"
+                    onClick={() => navigate(`/employees/${emp.id}`)}
+                  >
+                    Fiche
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
       <RhPageHeader
         title="Gestion des Collaborateurs"
-        description={loading ? 'Chargement...' : `${employees.length} collaborateurs`}
+        description={
+          loading
+            ? 'Chargement...'
+            : filteredEmployees.length !== employees.length
+              ? `${filteredEmployees.length} affichés sur ${employees.length} collaborateurs`
+              : `${employees.length} collaborateurs`
+        }
         actions={<CreateEmployeeForm />}
       />
       <Card>
@@ -116,9 +180,11 @@ export default function Employees() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tous</SelectItem>
-                  <SelectItem value="actif">Actifs</SelectItem>
+                  <SelectItem value="actifs_et_depart">Actifs et en départ</SelectItem>
+                  <SelectItem value="actif">Actifs uniquement</SelectItem>
                   <SelectItem value="en_onboarding">En onboarding</SelectItem>
                   <SelectItem value="en_sortie">En départ</SelectItem>
+                  <SelectItem value="sans_cc">Sans convention collective</SelectItem>
                   <SelectItem value="parti">Partis</SelectItem>
                   <SelectItem value="archive">Archivés</SelectItem>
                 </SelectContent>

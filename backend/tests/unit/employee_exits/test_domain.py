@@ -15,6 +15,7 @@ from app.modules.employee_exits.domain.entities import (
     ExitDocumentEntity,
 )
 from app.modules.employee_exits.domain.rules import (
+    exit_block_reason,
     get_initial_status,
     get_valid_status_transitions,
 )
@@ -243,3 +244,27 @@ class TestGetValidStatusTransitions:
     def test_type_inconnu_returns_empty(self):
         trans = get_valid_status_transitions("type_inconnu", "demission_recue")
         assert trans == []
+
+
+class TestExitBlockReason:
+    def test_actif_with_contract_is_eligible(self):
+        employee = {"employment_status": "actif", "first_name": "Terence"}
+        assert exit_block_reason(employee, has_work_contract=True) is None
+
+    def test_en_onboarding_is_blocked(self):
+        employee = {"employment_status": "en_onboarding", "first_name": "Terence"}
+        reason = exit_block_reason(employee, has_work_contract=False)
+        assert reason is not None
+        assert "onboarding" in reason.lower()
+
+    def test_actif_without_contract_is_blocked(self):
+        employee = {"employment_status": "actif", "first_name": "Terence"}
+        reason = exit_block_reason(employee, has_work_contract=False)
+        assert reason is not None
+        assert "contrat de travail" in reason.lower()
+
+    def test_ineligible_status_is_blocked(self):
+        employee = {"employment_status": "inactif"}
+        reason = exit_block_reason(employee, has_work_contract=True)
+        assert reason is not None
+        assert "éligible" in reason.lower()

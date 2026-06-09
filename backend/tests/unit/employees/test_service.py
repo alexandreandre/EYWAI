@@ -11,6 +11,7 @@ import pytest
 
 from app.modules.employees.application.service import (
     enrich_employee_with_annual_review,
+    enrich_employee_with_exit_context,
     enrich_employee_with_residence_permit_status,
 )
 
@@ -128,3 +129,35 @@ def test_enrich_employee_with_annual_review_missing_id_or_company_returns_unchan
     result = enrich_employee_with_annual_review(employee_data)
     assert result == employee_data
     mock_get_query.assert_not_called()
+
+
+@patch("app.modules.employees.application.service.fetch_exit_summary_for_employee")
+def test_enrich_employee_with_exit_context_adds_exit_fields(mock_fetch_exit):
+    mock_fetch_exit.return_value = {
+        "id": "exit-1",
+        "exit_type": "rupture_conventionnelle",
+        "status": "rupture_en_negociation",
+        "last_working_day": "2026-07-08",
+    }
+    employee_data = {
+        "id": "e1",
+        "company_id": "c1",
+        "current_exit_id": "exit-1",
+        "employment_status": "en_sortie",
+    }
+    result = enrich_employee_with_exit_context(employee_data)
+    assert result["current_exit_id"] == "exit-1"
+    assert result["exit_last_working_day"] == "2026-07-08"
+    assert result["exit_type"] == "rupture_conventionnelle"
+    assert result["exit_status"] == "rupture_en_negociation"
+    mock_fetch_exit.assert_called_once_with("exit-1", "c1")
+
+
+@patch("app.modules.employees.application.service.fetch_exit_summary_for_employee")
+def test_enrich_employee_with_exit_context_without_exit_clears_fields(mock_fetch_exit):
+    employee_data = {"id": "e1", "company_id": "c1", "employment_status": "actif"}
+    result = enrich_employee_with_exit_context(employee_data)
+    assert result["exit_last_working_day"] is None
+    assert result["exit_type"] is None
+    assert result["exit_status"] is None
+    mock_fetch_exit.assert_not_called()

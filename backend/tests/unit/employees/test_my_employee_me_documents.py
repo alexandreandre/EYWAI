@@ -47,6 +47,10 @@ class TestMyEmployeeMeDocumentsResolve:
                     "app.modules.employees.api.router_me.queries.get_my_contract_url",
                     return_value="https://signed-contract",
                 ) as mock_contract,
+                patch(
+                    "app.modules.employees.api.router_me.queries.get_my_contract_preview_url",
+                    return_value="https://preview-contract",
+                ),
             ):
                 response = client.get("/api/employees/me/contract")
         finally:
@@ -71,6 +75,10 @@ class TestMyEmployeeMeDocumentsResolve:
                     "app.modules.employees.api.router_me.queries.get_identity_document_url",
                     return_value="https://signed-id",
                 ) as mock_identity,
+                patch(
+                    "app.modules.employees.api.router_me.queries.get_identity_document_preview_url",
+                    return_value="https://preview-id",
+                ),
             ):
                 response = client.get("/api/employees/me/identity-document")
         finally:
@@ -93,6 +101,10 @@ class TestMyEmployeeMeDocumentsResolve:
                     "app.modules.employees.api.router_me.queries.get_credentials_pdf_url",
                     return_value="https://signed-credentials",
                 ) as mock_credentials,
+                patch(
+                    "app.modules.employees.api.router_me.queries.get_credentials_pdf_preview_url",
+                    return_value="https://preview-credentials",
+                ),
             ):
                 response = client.get("/api/employees/me/credentials-pdf")
         finally:

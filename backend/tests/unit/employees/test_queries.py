@@ -101,9 +101,13 @@ def test_get_my_contract_url_returns_signed_url(mock_get_company, mock_storage):
     mock_storage.return_value = storage
     result = queries_module.get_my_contract_url("emp-1")
     assert result == "https://signed.url/contrat.pdf"
-    storage.create_signed_url.assert_called_once()
+    # Désormais deux URLs signées sont générées : téléchargement + aperçu inline.
+    assert storage.create_signed_url.call_count == 2
     call_kw = storage.create_signed_url.call_args[1]
     assert call_kw.get("expiry_seconds") == 3600
+    download_kwargs = [c.kwargs for c in storage.create_signed_url.call_args_list]
+    assert any(kw.get("download") is True for kw in download_kwargs)
+    assert any(kw.get("download") is False for kw in download_kwargs)
     assert "contrat.pdf" in str(storage.create_signed_url.call_args[0])
 
 

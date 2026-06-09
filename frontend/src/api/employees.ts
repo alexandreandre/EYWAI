@@ -15,6 +15,19 @@ export async function getEmployee(employeeId: string): Promise<Employee> {
   return data;
 }
 
+export async function uploadEmployeeContract(employeeId: string, file: File): Promise<string | null> {
+  const formData = new FormData();
+  formData.append('file', file, file.name || 'contrat.pdf');
+  const { data } = await apiClient.post<{ url?: string | null }>(
+    `/api/employees/${employeeId}/contract`,
+    formData,
+    {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    },
+  );
+  return data.url ?? null;
+}
+
 export async function fetchEmployeesSummary(
   status: EmployeeSummaryStatus = 'all',
 ): Promise<EmployeeListItem[]> {

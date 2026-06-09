@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
+import { openSignedUrlPreview } from '@/lib/openSignedUrlPreview';
 import { Download, Eye, FileText, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -41,13 +42,41 @@ export function ViewLinkButton({
   title?: string;
   disabled?: boolean;
 }) {
+  const isDisabled = disabled || !href?.trim();
   return (
-    <Button variant="ghost" size="icon" className="h-8 w-8" asChild disabled={disabled || !href}>
-      <a href={href} target="_blank" rel="noopener noreferrer" title={title}>
-        <Eye className="h-4 w-4" />
-        <span className="sr-only">{title}</span>
-      </a>
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="h-8 w-8"
+      disabled={isDisabled}
+      title={title}
+      onClick={() => openSignedUrlPreview(href)}
+    >
+      <Eye className="h-4 w-4" />
+      <span className="sr-only">{title}</span>
     </Button>
+  );
+}
+
+export function DocumentPreviewDownloadActions({
+  previewUrl,
+  downloadUrl,
+  downloadName,
+  previewTitle = 'Visualiser',
+  downloadLabel = 'Télécharger',
+}: {
+  previewUrl?: string | null;
+  downloadUrl: string;
+  downloadName?: string;
+  previewTitle?: string;
+  downloadLabel?: string;
+}) {
+  return (
+    <>
+      <ViewLinkButton href={previewUrl ?? downloadUrl} title={previewTitle} />
+      <DownloadLinkButton href={downloadUrl} download={downloadName} label={downloadLabel} />
+    </>
   );
 }
 

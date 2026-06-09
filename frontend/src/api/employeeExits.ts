@@ -53,6 +53,25 @@ export interface SimpleEmployee {
   job_title?: string;
 }
 
+export type NoticePeriodSource = 'legal' | 'convention' | 'none' | 'not_applicable';
+
+export interface NoticePeriodPreview {
+  employee_id: string;
+  exit_type: ExitType;
+  reference_date: string;
+  notice_period_days: number;
+  source: NoticePeriodSource;
+  label: string;
+  detail: string;
+  warnings: string[];
+  applicable: boolean;
+  collective_agreement_name?: string | null;
+  collective_agreement_idcc?: string | null;
+  seniority_months?: number | null;
+  employee_category?: 'cadre' | 'non_cadre' | null;
+  has_collective_agreement: boolean;
+}
+
 export interface EmployeeExit {
   id: string;
   company_id: string;
@@ -143,6 +162,7 @@ export interface ExitDocument {
 
   // URL de téléchargement (ajoutée dynamiquement)
   download_url?: string;
+  preview_url?: string;
 }
 
 export interface ExitDocumentDetails extends ExitDocument {
@@ -304,6 +324,29 @@ export interface UpdateChecklistItemRequest {
 // ============================================================================
 
 /**
+ * Liste les collaborateurs éligibles à un nouveau départ (actifs + contrat généré).
+ */
+export async function getExitEligibleEmployees(): Promise<SimpleEmployee[]> {
+  const response = await apiClient.get('/api/employee-exits/eligible-employees');
+  return response.data;
+}
+
+/**
+ * Prévisualise le préavis applicable selon la convention collective ou le droit légal.
+ */
+export async function getNoticePeriodPreview(params: {
+  employee_id: string;
+  exit_type: ExitType;
+  reference_date?: string;
+  is_gross_misconduct?: boolean;
+}): Promise<NoticePeriodPreview> {
+  const response = await apiClient.get('/api/employee-exits/notice-period-preview', {
+    params,
+  });
+  return response.data;
+}
+
+/**
  * Liste toutes les sorties de l'entreprise active
  */
 export async function getEmployeeExits(params?: {
@@ -311,7 +354,7 @@ export async function getEmployeeExits(params?: {
   exit_type?: string;
   employee_id?: string;
 }): Promise<EmployeeExitWithDetails[]> {
-  const response = await apiClient.get('/api/employee-exits', { params });
+  const response = await apiClient.get('/api/employee-exits/', { params });
   return response.data;
 }
 
@@ -327,7 +370,7 @@ export async function getEmployeeExit(exitId: string): Promise<EmployeeExitWithD
  * Crée un nouveau processus de sortie
  */
 export async function createEmployeeExit(data: CreateEmployeeExitRequest): Promise<EmployeeExit> {
-  const response = await apiClient.post('/api/employee-exits', data);
+  const response = await apiClient.post('/api/employee-exits/', data);
   return response.data;
 }
 

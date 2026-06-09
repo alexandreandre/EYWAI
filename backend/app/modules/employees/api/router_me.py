@@ -44,9 +44,10 @@ def get_my_contract(current_user: User = Depends(get_current_user)):
     try:
         employee_id = resolve_my_employee_id(current_user)
         url = queries.get_my_contract_url(employee_id)
+        preview_url = queries.get_my_contract_preview_url(employee_id)
         if url is None:
-            return ContractResponse(url=None)
-        return ContractResponse(url=url)
+            return ContractResponse(url=None, preview_url=None)
+        return ContractResponse(url=url, preview_url=preview_url)
     except HTTPException:
         raise
     except Exception as e:
@@ -60,9 +61,10 @@ def get_my_identity_document(current_user: User = Depends(get_current_user)):
     try:
         employee_id = resolve_my_employee_id(current_user)
         url = queries.get_identity_document_url(employee_id)
+        preview_url = queries.get_identity_document_preview_url(employee_id)
         if url is None:
-            return ContractResponse(url=None)
-        return ContractResponse(url=url)
+            return ContractResponse(url=None, preview_url=None)
+        return ContractResponse(url=url, preview_url=preview_url)
     except HTTPException:
         raise
     except Exception as e:
@@ -76,7 +78,8 @@ def get_my_credentials_pdf(current_user: User = Depends(get_current_user)):
     try:
         employee_id = resolve_my_employee_id(current_user)
         url = queries.get_credentials_pdf_url(employee_id)
-        return ContractResponse(url=url)
+        preview_url = queries.get_credentials_pdf_preview_url(employee_id)
+        return ContractResponse(url=url, preview_url=preview_url)
     except HTTPException:
         raise
     except Exception as e:

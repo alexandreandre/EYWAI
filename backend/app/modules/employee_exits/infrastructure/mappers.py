@@ -69,7 +69,7 @@ def build_document_data_from_exit(
             "job_title": employee_data.get("job_title", ""),
             "hire_date": employee_data.get("hire_date", ""),
             "contract_type": employee_data.get("contract_type", "CDI"),
-            "address": employee_data.get("address", ""),
+            "address": employee_data.get("adresse") or employee_data.get("address") or "",
         },
         "company": {
             "name": company_data.get("name") or company_data.get("raison_sociale", ""),

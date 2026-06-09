@@ -517,7 +517,8 @@ def get_employee_credentials_pdf_url(
     """(Espace RH) URL signée du PDF de création de compte."""
     try:
         url = queries.get_credentials_pdf_url(employee_id)
-        return ContractResponse(url=url)
+        preview_url = queries.get_credentials_pdf_preview_url(employee_id)
+        return ContractResponse(url=url, preview_url=preview_url)
     except HTTPException:
         raise
     except Exception as e:
@@ -546,7 +547,8 @@ def get_employee_identity_document_url(
         if not is_rh and str(current_user.id) != str(employee_id):
             raise HTTPException(status_code=403, detail="Accès non autorisé.")
         url = queries.get_identity_document_url(employee_id)
-        return ContractResponse(url=url)
+        preview_url = queries.get_identity_document_preview_url(employee_id)
+        return ContractResponse(url=url, preview_url=preview_url)
     except HTTPException:
         raise
     except Exception as e:
@@ -562,7 +564,54 @@ def get_employee_contract_url(
     """(Espace RH) URL signée du contrat PDF."""
     try:
         url = queries.get_contract_url(employee_id)
-        return ContractResponse(url=url)
+        preview_url = queries.get_contract_preview_url(employee_id)
+        return ContractResponse(url=url, preview_url=preview_url)
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
+
+
+@router.post("/{employee_id}/contract", response_model=ContractResponse)
+async def upload_employee_contract(
+    request: Request,
+    employee_id: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """(Espace RH) Dépose ou remplace le contrat PDF signé."""
+    try:
+        company_id = require_rh_access(current_user.active_company_id, current_user)
+        assert_can_read_employee_profile(current_user, employee_id, company_id)
+
+        filename = (file.filename or "").lower()
+        if not filename.endswith(".pdf"):
+            raise HTTPException(
+                status_code=400,
+                detail="Seuls les fichiers PDF sont acceptés.",
+            )
+
+        content = await file.read()
+        commands.upload_employee_contract(
+            employee_id=employee_id,
+            company_id=company_id,
+            file_content=content,
+            content_type=file.content_type or "application/pdf",
+        )
+        url = queries.get_contract_url(employee_id)
+        preview_url = queries.get_contract_preview_url(employee_id)
+        log_audit_event(
+            company_id=str(company_id),
+            user_id=str(current_user.id),
+            user_email=current_user.email,
+            action="employee.contract.upload",
+            resource_type="employee",
+            resource_id=employee_id,
+            details={"file_name": file.filename},
+            ip_address=request.client.host if request.client else None,
+        )
+        return ContractResponse(url=url, preview_url=preview_url)
     except HTTPException:
         raise
     except Exception as e:

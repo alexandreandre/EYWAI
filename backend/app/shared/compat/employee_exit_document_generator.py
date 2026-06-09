@@ -42,9 +42,17 @@ class _ExitDocumentGeneratorAdapter(IExitDocumentGenerator):
         employee_data: Dict[str, Any],
         company_data: Dict[str, Any],
         exit_data: Dict[str, Any],
+        indemnities: Dict[str, Any] | None = None,
+        supabase_client: Any = None,
+        document_data: Dict[str, Any] | None = None,
     ) -> bytes:
         return self._generator.generate_attestation_pole_emploi(
-            employee_data, company_data, exit_data
+            employee_data,
+            company_data,
+            exit_data,
+            indemnities=indemnities,
+            supabase_client=supabase_client,
+            document_data=document_data,
         )
 
     def generate_solde_tout_compte(

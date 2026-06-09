@@ -17,7 +17,10 @@ from app.modules.employees.domain.rules import DEFAULT_EMPLOYMENT_STATUS
 from app.modules.employees.infrastructure.providers import (
     get_residence_permit_calculator,
 )
-from app.modules.employees.infrastructure.queries import get_annual_review_query
+from app.modules.employees.infrastructure.queries import (
+    fetch_exit_summary_for_employee,
+    get_annual_review_query,
+)
 
 
 def enrich_employee_with_residence_permit_status(
@@ -89,3 +92,33 @@ def enrich_employee_with_annual_review(
         logger.warning(f'ERROR [enrich_employee_with_annual_review]: {e}')
         logger.exception("Exception")
         return employee_data
+
+
+def enrich_employee_with_exit_context(
+    employee_data: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Enrichit la fiche avec le contexte de départ (dernier jour travaillé, type, statut).
+    Permet au RH de consulter le dossier documents pendant la période de sortie.
+    """
+    result = dict(employee_data)
+    exit_id = employee_data.get("current_exit_id")
+    company_id = employee_data.get("company_id")
+    if not exit_id or not company_id:
+        result["exit_last_working_day"] = None
+        result["exit_type"] = None
+        result["exit_status"] = None
+        return result
+
+    summary = fetch_exit_summary_for_employee(str(exit_id), str(company_id))
+    if not summary:
+        result["exit_last_working_day"] = None
+        result["exit_type"] = None
+        result["exit_status"] = None
+        return result
+
+    result["current_exit_id"] = str(summary.get("id") or exit_id)
+    result["exit_last_working_day"] = summary.get("last_working_day")
+    result["exit_type"] = summary.get("exit_type")
+    result["exit_status"] = summary.get("status")
+    return result

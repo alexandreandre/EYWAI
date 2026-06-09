@@ -59,6 +59,7 @@ def _make_exit_record(exit_id=EXIT_ID, status="demission_recue", exit_type="demi
     }
 
 
+@patch("app.modules.employee_exits.application.commands.employee_has_work_contract")
 @patch("app.modules.employee_exits.application.commands.get_employee_by_id")
 @patch("app.modules.employee_exits.application.commands.get_initial_status")
 @patch("app.modules.employee_exits.application.commands.EmployeeExitRepository")
@@ -80,8 +81,10 @@ class TestCreateEmployeeExit:
         mock_repo_class,
         mock_initial_status,
         mock_get_employee,
+        mock_has_work_contract,
     ):
         mock_get_employee.return_value = _make_employee()
+        mock_has_work_contract.return_value = True
         mock_initial_status.return_value = "demission_recue"
         mock_repo = MagicMock()
         created = _make_exit_record()
@@ -118,6 +121,7 @@ class TestCreateEmployeeExit:
         mock_repo_class,
         mock_initial_status,
         mock_get_employee,
+        mock_has_work_contract,
     ):
         mock_get_employee.return_value = None
 
@@ -144,6 +148,7 @@ class TestCreateEmployeeExit:
         mock_repo_class,
         mock_initial_status,
         mock_get_employee,
+        mock_has_work_contract,
     ):
         mock_get_employee.return_value = _make_employee(employment_status="en_sortie")
 
@@ -162,6 +167,34 @@ class TestCreateEmployeeExit:
         assert exc_info.value.status_code == 400
         assert "processus de départ actif" in exc_info.value.detail
 
+    def test_raises_400_when_employee_has_no_work_contract(
+        self,
+        mock_post_create,
+        mock_checklist,
+        mock_update_status,
+        mock_repo_class,
+        mock_initial_status,
+        mock_get_employee,
+        mock_has_work_contract,
+    ):
+        mock_get_employee.return_value = _make_employee()
+        mock_has_work_contract.return_value = False
+
+        with pytest.raises(EmployeeExitApplicationError) as exc_info:
+            create_employee_exit(
+                {
+                    "employee_id": EMPLOYEE_ID,
+                    "exit_type": "demission",
+                    "exit_request_date": "2025-01-15",
+                    "last_working_day": "2025-03-15",
+                },
+                COMPANY_ID,
+                USER_ID,
+                supabase_client=MagicMock(),
+            )
+        assert exc_info.value.status_code == 400
+        assert "contrat de travail" in exc_info.value.detail
+
     def test_raises_404_when_employee_other_company(
         self,
         mock_post_create,
@@ -170,6 +203,7 @@ class TestCreateEmployeeExit:
         mock_repo_class,
         mock_initial_status,
         mock_get_employee,
+        mock_has_work_contract,
     ):
         mock_get_employee.return_value = _make_employee(company_id="other-company")
 

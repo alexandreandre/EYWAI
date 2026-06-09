@@ -19,6 +19,7 @@ import {
   ExitDocumentEditRequest,
   documentTypeLabels,
 } from '@/api/employeeExits';
+import { openSignedUrlPreview } from '@/lib/openSignedUrlPreview';
 
 function loadErrorMessage(error: unknown): string {
   const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
@@ -225,11 +226,14 @@ export default function ExitDocumentEdit() {
 
         <div className="flex gap-2">
           {document.download_url && (
-            <Button variant="outline" asChild>
-              <a href={document.download_url} target="_blank" rel="noopener noreferrer">
-                <Eye className="h-4 w-4 mr-2" />
-                Voir le PDF
-              </a>
+            <Button
+              variant="outline"
+              onClick={() =>
+                openSignedUrlPreview(document.preview_url ?? document.download_url)
+              }
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              Voir le PDF
             </Button>
           )}
           <Button

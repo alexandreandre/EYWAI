@@ -132,6 +132,14 @@ class TestEmployeeExitsUnauthenticated:
         response = client.get(f"/api/employee-exits/{EXIT_ID}/checklist")
         assert response.status_code == 401
 
+    def test_notice_period_preview_returns_401_without_auth(self, client: TestClient):
+        """GET /api/employee-exits/notice-period-preview sans auth → 401."""
+        response = client.get(
+            "/api/employee-exits/notice-period-preview",
+            params={"employee_id": str(EMPLOYEE_ID), "exit_type": "demission"},
+        )
+        assert response.status_code == 401
+
 
 class TestEmployeeExitsWithRhUser:
     """Avec utilisateur RH injecté (dependency_overrides) et commands/queries mockés."""
@@ -155,6 +163,38 @@ class TestEmployeeExitsWithRhUser:
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
+
+    def test_notice_period_preview_returns_200(self, client_with_rh: TestClient):
+        """GET /api/employee-exits/notice-period-preview → 200 avec préavis calculé."""
+        with patch("app.modules.employee_exits.api.router.queries") as mock_queries:
+            mock_queries.get_notice_period_preview.return_value = {
+                "employee_id": str(EMPLOYEE_ID),
+                "exit_type": "demission",
+                "reference_date": "2025-06-01",
+                "notice_period_days": 60,
+                "source": "legal",
+                "label": "60 jours",
+                "detail": "Préavis légal",
+                "warnings": ["Aucune convention collective assignée"],
+                "applicable": True,
+                "collective_agreement_name": None,
+                "collective_agreement_idcc": None,
+                "seniority_months": 30,
+                "employee_category": "non_cadre",
+                "has_collective_agreement": False,
+            }
+            response = client_with_rh.get(
+                "/api/employee-exits/notice-period-preview",
+                params={
+                    "employee_id": str(EMPLOYEE_ID),
+                    "exit_type": "demission",
+                    "reference_date": "2025-06-01",
+                },
+            )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["notice_period_days"] == 60
+        assert data["source"] == "legal"
 
     def test_get_list_with_filters(self, client_with_rh: TestClient):
         """GET /api/employee-exits?status=...&exit_type=... transmet les filtres."""

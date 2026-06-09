@@ -1,8 +1,13 @@
 import { log } from '@/lib/logger';
 import { RhPageHeader } from '@/components/layout';
 import { SharkFinLoader } from '@/components/SharkFinLoader';
-import React, { useState, useEffect, useMemo } from 'react';
-import { PlusCircle, Eye, Calendar, Users as UsersIcon, Trash2, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
+import { queryKeys } from '@/lib/queryKeys';
+import { PlusCircle, Eye, Calendar, Users as UsersIcon, Trash2, RefreshCw, FolderOpen } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { employeeDocumentsPath } from '@/lib/employeeExitDocumentsAccess';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +34,9 @@ function loadErrorMessage(error: unknown): string {
 }
 
 const EmployeeExitsPage = () => {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const companyId = useActiveCompanyId();
   const [exits, setExits] = useState<EmployeeExitWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -39,6 +47,19 @@ const EmployeeExitsPage = () => {
   useEffect(() => {
     void fetchExits();
   }, []);
+
+  const invalidateEmployeesCache = useCallback(
+    (employeeId?: string) => {
+      if (!companyId) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.employees(companyId) });
+      if (employeeId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.employee(companyId, employeeId),
+        });
+      }
+    },
+    [companyId, queryClient],
+  );
 
   const fetchExits = async () => {
     setLoading(true);
@@ -70,6 +91,7 @@ const EmployeeExitsPage = () => {
     try {
       await deleteEmployeeExit(exitId);
       toast.success('Le départ a été supprimé avec succès. L\'employé est maintenant en statut "actif".');
+      invalidateEmployeesCache();
       fetchExits();
     } catch (error: any) {
       log.error('Erreur lors de la suppression:', error);
@@ -246,6 +268,17 @@ const EmployeeExitsPage = () => {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
+                              {exit.employee_id && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  title="Ouvrir le dossier documents du collaborateur"
+                                  onClick={() => navigate(employeeDocumentsPath(exit.employee_id))}
+                                >
+                                  <FolderOpen className="h-4 w-4 mr-1" />
+                                  Dossier
+                                </Button>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -283,14 +316,20 @@ const EmployeeExitsPage = () => {
       <CreateExitDialog
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
-        onSuccess={fetchExits}
+        onSuccess={() => {
+          invalidateEmployeesCache();
+          void fetchExits();
+        }}
       />
 
       <ExitDetailsPanel
         exitId={selectedExit?.id || null}
         open={!!selectedExit}
         onClose={() => setSelectedExit(null)}
-        onUpdate={fetchExits}
+        onUpdate={() => {
+          invalidateEmployeesCache(selectedExit?.employee_id);
+          void fetchExits();
+        }}
       />
     </div>
   );

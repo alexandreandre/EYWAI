@@ -48,11 +48,13 @@ import {
   Loader2,
   Trash2,
   FileUp,
-  Eye,
   X,
   Send,
   Edit,
+  FolderOpen,
 } from 'lucide-react';
+import { employeeDocumentsPath } from '@/lib/employeeExitDocumentsAccess';
+import { ViewLinkButton } from '@/components/employee-detail/DocumentFileRow';
 import {
   Dialog,
   DialogDescription,
@@ -459,6 +461,26 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                 <p className="text-sm">{exitDetails.exit_reason}</p>
               </div>
             )}
+            {exitDetails.employee_id && (
+              <div className="pt-4 border-t">
+                <p className="text-sm text-muted-foreground mb-3">
+                  Consultez le dossier complet du collaborateur (contrat, bulletins, pièces
+                  d&apos;identité) jusqu&apos;au{' '}
+                  <strong>{formatDate(exitDetails.last_working_day)}</strong>.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    onClose();
+                    navigate(employeeDocumentsPath(exitDetails.employee_id));
+                  }}
+                >
+                  <FolderOpen className="mr-2 h-4 w-4" />
+                  Ouvrir le dossier documents
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -605,16 +627,10 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                           )}
                           {doc.download_url && (
                             <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                asChild
+                              <ViewLinkButton
+                                href={doc.preview_url ?? doc.download_url}
                                 title="Voir le document"
-                              >
-                                <a href={doc.download_url} target="_blank" rel="noopener noreferrer">
-                                  <Eye className="h-4 w-4" />
-                                </a>
-                              </Button>
+                              />
                               <Button
                                 variant="ghost"
                                 size="icon"

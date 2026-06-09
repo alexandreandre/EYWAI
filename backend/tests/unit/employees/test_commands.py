@@ -13,6 +13,7 @@ from app.modules.employees.application.commands import (
     create_employee,
     delete_employee,
     update_employee,
+    upload_employee_contract,
 )
 
 
@@ -302,4 +303,106 @@ def test_delete_employee_not_found_raises_404(mock_emp_repo):
     mock_emp_repo.get_by_id_only.return_value = None
     with pytest.raises(HTTPException) as exc_info:
         delete_employee("missing")
+    assert exc_info.value.status_code == 404
+
+
+@patch("app.modules.employees.application.commands.get_storage_provider")
+@patch("app.modules.employees.application.commands._employee_repository")
+def test_upload_employee_contract_success(mock_emp_repo, mock_get_storage):
+    """upload_employee_contract : dépose le PDF dans le storage."""
+    mock_emp_repo.get_by_id.return_value = {"id": "emp-1"}
+    storage = MagicMock()
+    mock_get_storage.return_value = storage
+
+    upload_employee_contract(
+        employee_id="emp-1",
+        company_id="company-1",
+        file_content=b"%PDF-1.4 test",
+        content_type="application/pdf",
+    )
+
+    mock_emp_repo.get_by_id.assert_called_once_with("emp-1", "company-1")
+    storage.upload.assert_called_once_with(
+        "contracts",
+        "company-1/emp-1/contrat.pdf",
+        b"%PDF-1.4 test",
+        "application/pdf",
+    )
+
+
+@patch("app.modules.employees.application.commands.is_profile_complete")
+@patch("app.modules.employees.application.commands.get_storage_provider")
+@patch("app.modules.employees.application.commands._employee_repository")
+def test_upload_employee_contract_activates_when_onboarding_complete(
+    mock_emp_repo, mock_get_storage, mock_is_complete
+):
+    """Dépôt du contrat : si fiche paie complète et statut en_onboarding → actif."""
+    mock_emp_repo.get_by_id.return_value = {"id": "emp-1"}
+    mock_emp_repo.get_by_id_only.return_value = {
+        "id": "emp-1",
+        "employment_status": "en_onboarding",
+    }
+    mock_is_complete.return_value = True
+    mock_get_storage.return_value = MagicMock()
+
+    upload_employee_contract(
+        employee_id="emp-1",
+        company_id="company-1",
+        file_content=b"%PDF-1.4 test",
+        content_type="application/pdf",
+    )
+
+    mock_emp_repo.update.assert_called_once_with(
+        "emp-1", {"employment_status": "actif"}
+    )
+
+
+@patch("app.modules.employees.application.commands.is_profile_complete")
+@patch("app.modules.employees.application.commands.get_storage_provider")
+@patch("app.modules.employees.application.commands._employee_repository")
+def test_upload_employee_contract_no_activation_when_not_onboarding(
+    mock_emp_repo, mock_get_storage, mock_is_complete
+):
+    """Dépôt du contrat : salarié déjà actif → pas de changement de statut."""
+    mock_emp_repo.get_by_id.return_value = {"id": "emp-1"}
+    mock_emp_repo.get_by_id_only.return_value = {
+        "id": "emp-1",
+        "employment_status": "actif",
+    }
+    mock_is_complete.return_value = True
+    mock_get_storage.return_value = MagicMock()
+
+    upload_employee_contract(
+        employee_id="emp-1",
+        company_id="company-1",
+        file_content=b"%PDF-1.4 test",
+        content_type="application/pdf",
+    )
+
+    mock_emp_repo.update.assert_not_called()
+
+
+@patch("app.modules.employees.application.commands._employee_repository")
+def test_upload_employee_contract_empty_file_raises_400(mock_emp_repo):
+    """upload_employee_contract : fichier vide → 400."""
+    with pytest.raises(HTTPException) as exc_info:
+        upload_employee_contract(
+            employee_id="emp-1",
+            company_id="company-1",
+            file_content=b"",
+        )
+    assert exc_info.value.status_code == 400
+    mock_emp_repo.get_by_id.assert_not_called()
+
+
+@patch("app.modules.employees.application.commands._employee_repository")
+def test_upload_employee_contract_not_found_raises_404(mock_emp_repo):
+    """upload_employee_contract : employé absent → 404."""
+    mock_emp_repo.get_by_id.return_value = None
+    with pytest.raises(HTTPException) as exc_info:
+        upload_employee_contract(
+            employee_id="missing",
+            company_id="company-1",
+            file_content=b"%PDF-1.4",
+        )
     assert exc_info.value.status_code == 404
