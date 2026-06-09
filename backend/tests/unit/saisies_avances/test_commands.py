@@ -131,11 +131,12 @@ class TestCreateSalaryAdvance:
         created = {"id": "adv-1", "status": "approved"}
         with patch(f"{SERVICE_MODULE}.employee_company_provider") as prov:
             with patch(f"{SERVICE_MODULE}.build_advance_available") as build:
-                with patch(f"{SERVICE_MODULE}.advance_repository") as repo:
-                    prov.get_company_id.return_value = COMPANY_ID
-                    build.return_value = {"available_amount": Decimal("500")}
-                    repo.create.return_value = created
-                    result = commands.create_salary_advance(advance_data, ctx)
+                with patch(f"{SERVICE_MODULE}.get_accounting_account", return_value="4252"):
+                    with patch(f"{SERVICE_MODULE}.advance_repository") as repo:
+                        prov.get_company_id.return_value = COMPANY_ID
+                        build.return_value = {"available_amount": Decimal("500")}
+                        repo.create.return_value = created
+                        result = commands.create_salary_advance(advance_data, ctx)
         assert result == created
         repo.create.assert_called_once()
         call_data = repo.create.call_args[0][0]
@@ -157,11 +158,12 @@ class TestCreateSalaryAdvance:
         ):
             with patch(f"{SERVICE_MODULE}.employee_company_provider") as prov:
                 with patch(f"{SERVICE_MODULE}.build_advance_available") as build:
-                    with patch(f"{SERVICE_MODULE}.advance_repository") as repo:
-                        prov.get_company_id.return_value = COMPANY_ID
-                        build.return_value = {"available_amount": Decimal("200")}
-                        repo.create.return_value = created
-                        result = commands.create_salary_advance(advance_data, ctx)
+                    with patch(f"{SERVICE_MODULE}.get_accounting_account", return_value="4252"):
+                        with patch(f"{SERVICE_MODULE}.advance_repository") as repo:
+                            prov.get_company_id.return_value = COMPANY_ID
+                            build.return_value = {"available_amount": Decimal("200")}
+                            repo.create.return_value = created
+                            result = commands.create_salary_advance(advance_data, ctx)
         assert result == created
         call_data = repo.create.call_args[0][0]
         assert call_data["status"] == "pending"
@@ -200,18 +202,18 @@ class TestCreateSalaryAdvance:
         ):
             with patch(f"{SERVICE_MODULE}.employee_company_provider") as prov:
                 with patch(f"{SERVICE_MODULE}.build_advance_available") as build:
-                    prov.get_company_id.return_value = COMPANY_ID
-                    build.return_value = {
-                        "available_amount": Decimal("100"),
-                        "reference_net_salary": Decimal("2000"),
-                        "max_advance_from_net": Decimal("1000"),
-                        "outstanding_advances": Decimal("0"),
-                    }
-                    with pytest.raises(Exception) as exc_info:
-                        commands.create_salary_advance(advance_data, ctx)
-                assert "Montant" in str(exc_info.value) or "disponible" in str(
-                    exc_info.value
-                )
+                    with patch(f"{SERVICE_MODULE}.get_accounting_account", return_value="4252"):
+                        prov.get_company_id.return_value = COMPANY_ID
+                        build.return_value = {
+                            "available_amount": Decimal("100"),
+                            "reference_net_salary": Decimal("2000"),
+                            "max_advance_from_net": Decimal("1000"),
+                            "outstanding_advances": Decimal("0"),
+                        }
+                        with pytest.raises(Exception) as exc_info:
+                            commands.create_salary_advance(advance_data, ctx)
+                msg = str(exc_info.value).lower()
+                assert "montant" in msg or "disponible" in msg or "plafond" in msg
 
     def test_create_salary_advance_rh_exceeds_net_cap_raises(self):
         advance_data = _advance_create(requested_amount=Decimal("1500"))

@@ -13,6 +13,7 @@ SalarySeizureType = Literal["saisie_arret", "pension_alimentaire", "atd", "satd"
 SalarySeizureStatus = Literal["active", "suspended", "closed"]
 CalculationMode = Literal["fixe", "pourcentage", "barème_legal"]
 SalaryAdvanceStatus = Literal["pending", "approved", "rejected", "paid"]
+AdvanceType = Literal["avance_salaire", "acompte_salaire", "acompte_prime"]
 RepaymentMode = Literal["single", "multiple"]
 PaymentMethod = Literal["virement", "cheque", "especes"]
 
@@ -47,14 +48,26 @@ class SalarySeizureUpdate(BaseModel):
 
 
 class SalaryAdvanceCreate(BaseModel):
-    """Schéma pour la création d'une demande d'avance."""
+    """Schéma pour la création d'une demande d'avance ou d'acompte."""
 
     employee_id: str
     requested_amount: Decimal = Field(gt=0)
     requested_date: date
+    advance_type: AdvanceType = "avance_salaire"
     repayment_mode: RepaymentMode = "single"
     repayment_months: int = Field(default=1, ge=1, le=12)
     request_comment: Optional[str] = None
+    prime_label: Optional[str] = None
+    prime_id: Optional[str] = None
+    prime_expected_amount: Optional[Decimal] = Field(default=None, gt=0)
+
+
+class AcomptePrimeReconcile(BaseModel):
+    """Réconciliation d'un acompte sur prime avec le montant définitif."""
+
+    prime_final_amount: Decimal = Field(gt=0)
+    year: int = Field(ge=2000, le=2100)
+    month: int = Field(ge=1, le=12)
 
 
 class SalaryAdvanceApprove(BaseModel):
@@ -102,6 +115,7 @@ __all__ = [
     "SalarySeizureStatus",
     "CalculationMode",
     "SalaryAdvanceStatus",
+    "AdvanceType",
     "RepaymentMode",
     "PaymentMethod",
     "SalarySeizureCreate",
@@ -109,6 +123,7 @@ __all__ = [
     "SalaryAdvanceCreate",
     "SalaryAdvanceApprove",
     "SalaryAdvanceReject",
+    "AcomptePrimeReconcile",
     "SalaryAdvancePaymentCreate",
     "SalaryAdvancePaymentUpdate",
 ]

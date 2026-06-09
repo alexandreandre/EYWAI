@@ -9,6 +9,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 from .requests import (
+    AdvanceType,
     CalculationMode,
     PaymentMethod,
     RepaymentMode,
@@ -55,11 +56,13 @@ class SeizableAmountCalculation(BaseModel):
 
 
 class SalaryAdvance(BaseModel):
-    """Schéma représentant une avance complète depuis la BDD."""
+    """Schéma représentant une avance ou un acompte complet depuis la BDD."""
 
     id: str
     company_id: str
     employee_id: str
+    advance_type: AdvanceType = "avance_salaire"
+    accounting_account: Optional[str] = None
     requested_amount: Decimal
     approved_amount: Optional[Decimal] = None
     requested_date: date
@@ -74,6 +77,12 @@ class SalaryAdvance(BaseModel):
     )
     request_comment: Optional[str] = None
     rejection_reason: Optional[str] = None
+    prime_label: Optional[str] = None
+    prime_id: Optional[str] = None
+    prime_expected_amount: Optional[Decimal] = None
+    prime_final_amount: Optional[Decimal] = None
+    prime_reconciled_at: Optional[datetime] = None
+    prime_reconciled_payslip_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     approved_by: Optional[str] = None
@@ -83,8 +92,9 @@ class SalaryAdvance(BaseModel):
 
 
 class AdvanceAvailableAmount(BaseModel):
-    """Montant disponible pour une avance."""
+    """Montant disponible pour une avance ou un acompte."""
 
+    advance_type: AdvanceType = "avance_salaire"
     daily_salary: Decimal
     days_worked: Decimal
     outstanding_advances: Decimal
@@ -95,6 +105,7 @@ class AdvanceAvailableAmount(BaseModel):
     reference_payslip_month: Optional[int] = None
     max_advance_from_net: Decimal = Decimal("0")
     max_advance_net_ratio: Decimal = Decimal("0.5")
+    is_employee_right: bool = False
 
 
 class SalarySeizureDeduction(BaseModel):

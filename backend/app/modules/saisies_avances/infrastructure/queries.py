@@ -14,11 +14,13 @@ from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
 
+from app.modules.saisies_avances.domain.enums import DEFAULT_ACCOUNTING_ACCOUNTS
 from app.modules.saisies_avances.domain.rules import (
     MAX_ADVANCE_DAYS,
     MAX_ADVANCE_NET_RATIO,
-    compute_advance_available_from_figures,
+    compute_available_by_advance_type,
     compute_max_advance_from_net,
+    is_employee_right,
     remaining_to_pay_value,
 )
 
@@ -58,9 +60,42 @@ def list_seizures_with_employee(
     return seizures
 
 
+def get_accounting_account(company_id: str | None, advance_type: str) -> str:
+    """Résout le compte PCG (override société puis global, sinon défaut domain)."""
+    config_data: dict | None = None
+    if company_id:
+        r = (
+            supabase.table("payroll_config")
+            .select("config_data")
+            .eq("config_key", "comptes_avances_acomptes")
+            .eq("company_id", company_id)
+            .eq("is_active", True)
+            .limit(1)
+            .execute()
+        )
+        if r.data:
+            config_data = r.data[0].get("config_data") or {}
+    if not config_data:
+        r = (
+            supabase.table("payroll_config")
+            .select("config_data")
+            .eq("config_key", "comptes_avances_acomptes")
+            .is_("company_id", "null")
+            .eq("is_active", True)
+            .limit(1)
+            .execute()
+        )
+        if r.data:
+            config_data = r.data[0].get("config_data") or {}
+    if config_data and advance_type in config_data:
+        return str(config_data[advance_type])
+    return DEFAULT_ACCOUNTING_ACCOUNTS.get(advance_type, "425")
+
+
 def list_advances_with_employee_and_remaining_to_pay(
     employee_id: Optional[str] = None,
     status: Optional[str] = None,
+    advance_type: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Liste des avances enrichie employee_name et remaining_to_pay.
@@ -71,6 +106,8 @@ def list_advances_with_employee_and_remaining_to_pay(
         q = q.eq("employee_id", employee_id)
     if status:
         q = q.eq("status", status)
+    if advance_type:
+        q = q.eq("advance_type", advance_type)
     r = q.order("created_at", desc=True).execute()
     advances = r.data or []
 
@@ -281,25 +318,31 @@ def get_days_worked_for_month(year: int, month: int) -> Decimal:
     return Decimal("15")
 
 
-def build_advance_available(employee_id: str, year: int, month: int) -> Dict[str, Any]:
+def build_advance_available(
+    employee_id: str,
+    year: int,
+    month: int,
+    advance_type: str = "avance_salaire",
+) -> Dict[str, Any]:
     """
-    Construit le montant disponible pour une avance (données + règle pure).
-    Retourne un dict avec daily_salary, days_worked, outstanding_advances, available_amount, max_advance_days.
+    Construit le montant disponible selon la nature (avance / acompte salaire / acompte prime).
     """
     ref = get_reference_net_salary_context(employee_id)
     reference_net_salary = ref["reference_net_salary"]
     daily_salary = reference_net_salary / Decimal("30")
     days_worked = get_days_worked_for_month(year, month)
     total_outstanding = get_outstanding_advances_sum(employee_id)
-    available_amount, _ = compute_advance_available_from_figures(
+    available_amount, _ = compute_available_by_advance_type(
+        advance_type,  # type: ignore[arg-type]
         daily_salary,
         days_worked,
         total_outstanding,
-        MAX_ADVANCE_DAYS,
         reference_net_salary,
+        MAX_ADVANCE_DAYS,
     )
     max_advance_from_net = compute_max_advance_from_net(reference_net_salary)
     return {
+        "advance_type": advance_type,
         "daily_salary": daily_salary,
         "days_worked": days_worked,
         "outstanding_advances": total_outstanding,
@@ -310,6 +353,7 @@ def build_advance_available(employee_id: str, year: int, month: int) -> Dict[str
         "reference_payslip_month": ref.get("reference_payslip_month"),
         "max_advance_from_net": max_advance_from_net,
         "max_advance_net_ratio": MAX_ADVANCE_NET_RATIO,
+        "is_employee_right": is_employee_right(advance_type),  # type: ignore[arg-type]
     }
 
 

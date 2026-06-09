@@ -5,6 +5,8 @@ Définitions dans requests.py et responses.py.
 """
 
 from .requests import (
+    AdvanceType,
+    AcomptePrimeReconcile,
     CalculationMode,
     PaymentMethod,
     RepaymentMode,
@@ -40,6 +42,8 @@ __all__ = [
     "SalarySeizureStatus",
     "CalculationMode",
     "SalaryAdvanceStatus",
+    "AdvanceType",
+    "AcomptePrimeReconcile",
     "RepaymentMode",
     "PaymentMethod",
     "SalarySeizureCreate",

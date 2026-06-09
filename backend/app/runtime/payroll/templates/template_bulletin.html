@@ -675,9 +675,15 @@
         {% endif %}
         
         {% if remboursements_avances and remboursements_avances.total_rembourse and remboursements_avances.total_rembourse > 0 %}
-        <p><strong>Remboursement d'avances sur salaire :</strong><span class="perte">- {{ "%.2f"|format(remboursements_avances.total_rembourse) }} €</span></p>
+        {% if remboursements_avances.avances %}
+        {% for avance in remboursements_avances.avances %}
+        <p><strong>{{ avance.type_label or 'Remboursement avance/acompte' }} :</strong><span class="perte">- {{ "%.2f"|format(avance.montant) }} €</span>{% if avance.compte %} <span class="text-muted">(compte {{ avance.compte }})</span>{% endif %}</p>
+        {% endfor %}
+        {% else %}
+        <p><strong>Remboursement d'avances et acomptes :</strong><span class="perte">- {{ "%.2f"|format(remboursements_avances.total_rembourse) }} €</span></p>
+        {% endif %}
         {% elif synthese_net.acompte_verse and synthese_net.acompte_verse > 0 %}
-        <p><strong>Remboursement d'avances sur salaire :</strong><span class="perte">- {{ "%.2f"|format(synthese_net.acompte_verse) }} €</span></p>
+        <p><strong>Acompte / avance sur salaire :</strong><span class="perte">- {{ "%.2f"|format(synthese_net.acompte_verse) }} €</span></p>
         {% endif %}
         
         {% if retenues_saisies and retenues_saisies.total_preleve and retenues_saisies.total_preleve > 0 %}

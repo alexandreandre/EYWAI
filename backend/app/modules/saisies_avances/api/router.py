@@ -19,6 +19,7 @@ from app.modules.saisies_avances.application.dto import (
 )
 from app.modules.saisies_avances.schemas import (
     AdvanceAvailableAmount,
+    AcomptePrimeReconcile,
     SalaryAdvance,
     SalaryAdvanceCreate,
     SalaryAdvancePayment,
@@ -185,12 +186,17 @@ async def get_my_salary_advances(
     response_model=AdvanceAvailableAmount,
 )
 async def get_my_advance_available(
+    advance_type: Optional[
+        Literal["avance_salaire", "acompte_salaire", "acompte_prime"]
+    ] = Query("avance_salaire"),
     current_user: User = Depends(get_current_user),
 ):
-    """Récupère le montant disponible pour une avance (employé)."""
+    """Récupère le montant disponible pour une avance ou un acompte (employé)."""
     try:
         return queries.get_my_advance_available_for_user_account(
-            str(current_user.id), current_user.active_company_id
+            str(current_user.id),
+            current_user.active_company_id,
+            advance_type=advance_type or "avance_salaire",
         )
     except SaisiesAvancesError as e:
         _handle_error(e)
@@ -209,12 +215,17 @@ async def get_employee_advance_available(
     employee_id: str,
     year: Optional[int] = Query(None),
     month: Optional[int] = Query(None, ge=1, le=12),
+    advance_type: Optional[
+        Literal["avance_salaire", "acompte_salaire", "acompte_prime"]
+    ] = Query("avance_salaire"),
     current_user: User = Depends(get_current_user),
 ):
-    """Récupère le montant disponible pour une avance (RH / admin)."""
+    """Récupère le montant disponible pour une avance ou un acompte (RH / admin)."""
     try:
         _require_rh_or_admin(current_user)
-        return queries.get_employee_advance_available(employee_id, year, month)
+        return queries.get_employee_advance_available(
+            employee_id, year, month, advance_type=advance_type or "avance_salaire"
+        )
     except SaisiesAvancesError as e:
         _handle_error(e)
     except Exception as e:
@@ -259,14 +270,18 @@ async def create_salary_advance(
 async def get_salary_advances(
     employee_id: Optional[str] = Query(None),
     status: Optional[Literal["pending", "approved", "rejected", "paid"]] = Query(None),
+    advance_type: Optional[
+        Literal["avance_salaire", "acompte_salaire", "acompte_prime"]
+    ] = Query(None),
     current_user: User = Depends(get_current_user),
 ):
-    """Récupère la liste des avances avec filtres."""
+    """Récupère la liste des avances et acomptes avec filtres."""
     try:
         _require_rh_or_admin(current_user)
         return queries.get_salary_advances(
             employee_id=employee_id,
             status=status,
+            advance_type=advance_type,
         )
     except Exception as e:
         _handle_error(e)
@@ -321,6 +336,25 @@ async def reject_salary_advance(
             advance_id,
             rejection_data.rejection_reason,
         )
+    except SaisiesAvancesError as e:
+        _handle_error(e)
+    except Exception as e:
+        _handle_error(e)
+
+
+@router.patch(
+    "/salary-advances/{advance_id}/reconcile-prime",
+    response_model=SalaryAdvance,
+)
+async def reconcile_acompte_prime_endpoint(
+    advance_id: str,
+    reconcile_data: AcomptePrimeReconcile,
+    current_user: User = Depends(get_current_user),
+):
+    """Réconcilie un acompte sur prime avec le montant définitif (RH)."""
+    try:
+        _require_rh_or_admin(current_user)
+        return commands.reconcile_acompte_prime(advance_id, reconcile_data)
     except SaisiesAvancesError as e:
         _handle_error(e)
     except Exception as e:

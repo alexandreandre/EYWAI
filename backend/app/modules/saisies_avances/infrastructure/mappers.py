@@ -17,6 +17,7 @@ from app.modules.saisies_avances.schemas import (
 def to_advance_available_amount(data: Dict[str, Any]) -> AdvanceAvailableAmount:
     """Construit AdvanceAvailableAmount depuis le dict de build_advance_available."""
     return AdvanceAvailableAmount(
+        advance_type=data.get("advance_type", "avance_salaire"),
         daily_salary=data["daily_salary"],
         days_worked=data["days_worked"],
         outstanding_advances=data["outstanding_advances"],
@@ -27,6 +28,7 @@ def to_advance_available_amount(data: Dict[str, Any]) -> AdvanceAvailableAmount:
         reference_payslip_month=data.get("reference_payslip_month"),
         max_advance_from_net=data.get("max_advance_from_net", Decimal("0")),
         max_advance_net_ratio=data.get("max_advance_net_ratio", Decimal("0.5")),
+        is_employee_right=data.get("is_employee_right", False),
     )
 
 

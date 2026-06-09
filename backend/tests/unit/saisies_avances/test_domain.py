@@ -228,6 +228,61 @@ class TestInitialAdvanceStatus:
         )
 
 
+# --- compute_available_by_advance_type ---
+
+
+class TestComputeAvailableByAdvanceType:
+    def test_acompte_salaire_utilise_jours_travailles(self):
+        daily = Decimal("100")
+        days = Decimal("15")
+        available, _ = rules.compute_available_by_advance_type(
+            "acompte_salaire", daily, days, Decimal("0"), Decimal("2000")
+        )
+        assert available == Decimal("1000")
+
+    def test_avance_salaire_plafond_net_sans_jours(self):
+        available, cap = rules.compute_available_by_advance_type(
+            "avance_salaire",
+            Decimal("100"),
+            Decimal("5"),
+            Decimal("200"),
+            Decimal("2000"),
+        )
+        assert cap == Decimal("1000")
+        assert available == Decimal("800")
+
+    def test_acompte_prime_sans_plafond(self):
+        available, _ = rules.compute_available_by_advance_type(
+            "acompte_prime", Decimal("100"), Decimal("1"), Decimal("0"), Decimal("2000")
+        )
+        assert available == Decimal("999999999")
+
+
+class TestIsEmployeeRight:
+    def test_acompte_salaire_est_un_droit(self):
+        assert rules.is_employee_right("acompte_salaire") is True
+
+    def test_avance_salaire_pas_un_droit(self):
+        assert rules.is_employee_right("avance_salaire") is False
+
+
+class TestComputePrimeSolde:
+    def test_solde_apres_acompte(self):
+        assert rules.compute_prime_solde(Decimal("6500"), Decimal("2000")) == Decimal(
+            "4500"
+        )
+
+    def test_solde_zero_si_acompte_superieur(self):
+        assert rules.compute_prime_solde(Decimal("1000"), Decimal("2000")) == Decimal("0")
+
+
+class TestAdvanceTypeLabel:
+    def test_acompte_prime_avec_libelle(self):
+        assert "Prime annuelle" in rules.advance_type_label(
+            "acompte_prime", "Prime annuelle"
+        )
+
+
 # --- remaining_to_pay_value ---
 
 

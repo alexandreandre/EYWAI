@@ -110,7 +110,9 @@ class TestGetSalaryAdvances:
             result = queries.get_salary_advances(employee_id="emp-1", status="approved")
         assert len(result) == 1
         assert result[0]["remaining_to_pay"] == 100.0
-        list_fn.assert_called_once_with(employee_id="emp-1", status="approved")
+        list_fn.assert_called_once_with(
+            employee_id="emp-1", status="approved", advance_type=None
+        )
 
 
 class TestGetSalaryAdvance:

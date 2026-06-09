@@ -7,7 +7,9 @@ Comportement identique à services.saisies_avances_calculator pour les calculs p
 
 from datetime import date
 from decimal import Decimal
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Literal, Tuple
+
+AdvanceType = Literal["avance_salaire", "acompte_salaire", "acompte_prime"]
 
 
 # Constantes métier (alignées domain/enums.py et legacy)
@@ -91,6 +93,63 @@ def calculate_seizure_deduction(
 def compute_max_advance_from_net(reference_net_salary: Decimal) -> Decimal:
     """Plafond légal interne : 50 % du salaire net de référence."""
     return reference_net_salary * MAX_ADVANCE_NET_RATIO
+
+
+def is_employee_right(advance_type: AdvanceType) -> bool:
+    """L'acompte sur salaire (travail déjà effectué) est un droit du salarié mensualisé."""
+    return advance_type == "acompte_salaire"
+
+
+def compute_prime_solde(
+    prime_final_amount: Decimal, total_acompte_verse: Decimal
+) -> Decimal:
+    """Solde net à payer après déduction de l'acompte sur prime déjà versé."""
+    return max(Decimal("0"), prime_final_amount - total_acompte_verse)
+
+
+def compute_available_by_advance_type(
+    advance_type: AdvanceType,
+    daily_salary: Decimal,
+    days_worked: Decimal,
+    total_outstanding: Decimal,
+    reference_net_salary: Decimal = Decimal("0"),
+    max_advance_days: int = MAX_ADVANCE_DAYS,
+) -> Tuple[Decimal, Decimal]:
+    """
+    Montant disponible selon la nature de la demande.
+    Retourne (available_amount, max_advance_amount_cap).
+    """
+    max_from_net = compute_max_advance_from_net(reference_net_salary)
+    net_cap_remaining = max(Decimal("0"), max_from_net - total_outstanding)
+
+    if advance_type == "acompte_salaire":
+        return compute_advance_available_from_figures(
+            daily_salary,
+            days_worked,
+            total_outstanding,
+            max_advance_days,
+            reference_net_salary,
+        )
+
+    if advance_type == "avance_salaire":
+        available = net_cap_remaining
+        return available, max_from_net
+
+    # acompte_prime : pas de plafond automatique (montant libre RH)
+    return Decimal("999999999"), Decimal("999999999")
+
+
+def advance_type_label(advance_type: str, prime_label: str | None = None) -> str:
+    """Libellé affichage bulletin / UI."""
+    labels = {
+        "avance_salaire": "Avance sur salaire",
+        "acompte_salaire": "Acompte sur salaire",
+        "acompte_prime": "Acompte sur prime",
+    }
+    base = labels.get(advance_type, "Avance")
+    if advance_type == "acompte_prime" and prime_label:
+        return f"{base} ({prime_label})"
+    return base
 
 
 def compute_advance_available_from_figures(

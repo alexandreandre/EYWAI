@@ -151,3 +151,52 @@ class TestApproveSalaryAdvanceValidation:
             with pytest.raises(service.ValidationError) as exc_info:
                 service.approve_salary_advance("a1", USER_ID)
             assert "approuvée" in str(exc_info.value).lower()
+
+
+class TestReconcileAcomptePrime:
+    def test_reconcile_sets_remaining_and_prime_final(self):
+        from app.modules.saisies_avances.schemas import AcomptePrimeReconcile
+
+        reconcile_data = AcomptePrimeReconcile(
+            prime_final_amount=Decimal("6500"),
+            year=2026,
+            month=12,
+        )
+        with patch(f"{SERVICE_MODULE}.advance_repository") as repo:
+            with patch(f"{SERVICE_MODULE}.advance_payment_repository") as pay_repo:
+                repo.get_by_id.return_value = {
+                    "id": "a1",
+                    "advance_type": "acompte_prime",
+                    "status": "paid",
+                    "prime_reconciled_at": None,
+                }
+                pay_repo.get_total_paid_by_advance_id.return_value = Decimal("2000")
+                repo.update.return_value = {
+                    "id": "a1",
+                    "advance_type": "acompte_prime",
+                    "prime_final_amount": 6500.0,
+                    "remaining_amount": 2000.0,
+                }
+                result = service.reconcile_acompte_prime("a1", reconcile_data)
+        assert result["prime_solde_a_payer"] == 4500.0
+        repo.update.assert_called_once()
+        update_payload = repo.update.call_args[0][1]
+        assert update_payload["remaining_amount"] == 2000.0
+        assert update_payload["prime_final_amount"] == 6500.0
+
+    def test_reconcile_wrong_type_raises_validation(self):
+        from app.modules.saisies_avances.schemas import AcomptePrimeReconcile
+
+        reconcile_data = AcomptePrimeReconcile(
+            prime_final_amount=Decimal("1000"),
+            year=2026,
+            month=6,
+        )
+        with patch(f"{SERVICE_MODULE}.advance_repository") as repo:
+            repo.get_by_id.return_value = {
+                "id": "a1",
+                "advance_type": "avance_salaire",
+                "status": "paid",
+            }
+            with pytest.raises(service.ValidationError):
+                service.reconcile_acompte_prime("a1", reconcile_data)

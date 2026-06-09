@@ -57,7 +57,7 @@ def test_get_my_advance_available_for_user_account_uses_resolved_id(
 ):
     mock_available.return_value = {"available_amount": 100}
     result = get_my_advance_available_for_user_account("auth-1", "co-1")
-    mock_available.assert_called_once_with("emp-resolved")
+    mock_available.assert_called_once_with("emp-resolved", advance_type="avance_salaire")
     assert result == {"available_amount": 100}
 
 

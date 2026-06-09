@@ -86,12 +86,15 @@ class AdvanceRepository(IAdvanceRepository):
         self,
         employee_id: Optional[str] = None,
         status: Optional[str] = None,
+        advance_type: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         q = supabase.table("salary_advances").select("*")
         if employee_id:
             q = q.eq("employee_id", employee_id)
         if status:
             q = q.eq("status", status)
+        if advance_type:
+            q = q.eq("advance_type", advance_type)
         r = q.order("created_at", desc=True).execute()
         return r.data or []
 

@@ -37,13 +37,13 @@ def get_my_salary_advances_for_user_account(
 
 
 def get_my_advance_available_for_user_account(
-    user_id: str, company_id: str | None
+    user_id: str, company_id: str | None, advance_type: str = "avance_salaire"
 ) -> Any:
     """Montant disponible pour le collaborateur lié au compte auth."""
     employee_id = resolve_employee_id_for_advance_account(user_id, company_id)
     if not employee_id:
         raise NotFoundError("Profil collaborateur sans employé associé.")
-    return get_my_advance_available(employee_id)
+    return get_my_advance_available(employee_id, advance_type=advance_type)
 
 
 def get_salary_seizures(
@@ -69,31 +69,38 @@ def get_my_salary_advances(employee_id: str) -> List[Any]:
     return service.get_my_salary_advances(employee_id)
 
 
-def get_my_advance_available(employee_id: str) -> Any:
-    """Montant disponible pour une avance (employé)."""
-    return service.get_my_advance_available(employee_id)
+def get_my_advance_available(
+    employee_id: str, advance_type: str = "avance_salaire"
+) -> Any:
+    """Montant disponible pour une avance ou un acompte (employé)."""
+    return service.get_my_advance_available(employee_id, advance_type=advance_type)
 
 
 def get_employee_advance_available(
     employee_id: str,
     year: Optional[int] = None,
     month: Optional[int] = None,
+    advance_type: str = "avance_salaire",
 ) -> Any:
-    """Montant disponible pour une avance (RH / admin)."""
+    """Montant disponible pour une avance ou un acompte (RH / admin)."""
     today = date.today()
     return service.get_employee_advance_available(
         employee_id,
         year if year is not None else today.year,
         month if month is not None else today.month,
+        advance_type=advance_type,
     )
 
 
 def get_salary_advances(
     employee_id: Optional[str] = None,
     status: Optional[str] = None,
+    advance_type: Optional[str] = None,
 ) -> List[Any]:
-    """Liste des avances avec filtres (enrichie employee_name, remaining_to_pay)."""
-    return service.get_salary_advances(employee_id=employee_id, status=status)
+    """Liste des avances/acomptes avec filtres (enrichie employee_name, remaining_to_pay)."""
+    return service.get_salary_advances(
+        employee_id=employee_id, status=status, advance_type=advance_type
+    )
 
 
 def get_salary_advance(advance_id: str) -> Any:

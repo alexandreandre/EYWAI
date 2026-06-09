@@ -12,10 +12,17 @@ SalarySeizureType = Literal["saisie_arret", "pension_alimentaire", "atd", "satd"
 SalarySeizureStatus = Literal["active", "suspended", "closed"]
 CalculationMode = Literal["fixe", "pourcentage", "barème_legal"]
 
-# Avances sur salaire
+# Avances / acomptes sur salaire et acomptes sur prime
+AdvanceType = Literal["avance_salaire", "acompte_salaire", "acompte_prime"]
 SalaryAdvanceStatus = Literal["pending", "approved", "rejected", "paid"]
 RepaymentMode = Literal["single", "multiple"]
 PaymentMethod = Literal["virement", "cheque", "especes"]
+
+DEFAULT_ACCOUNTING_ACCOUNTS: dict[str, str] = {
+    "avance_salaire": "4252",
+    "acompte_salaire": "4251",
+    "acompte_prime": "4253",
+}
 
 # Constantes métier (à centraliser ici après migration)
 AUTO_APPROVAL_THRESHOLD_EUR = 100

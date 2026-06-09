@@ -32,6 +32,7 @@ from app.modules.saisies_avances.infrastructure.enrichment import (
 )
 from app.modules.saisies_avances.infrastructure.queries import (
     build_advance_available,
+    get_accounting_account,
     get_advances_to_repay,
     get_payment_with_advance,
     get_proof_file_path,
@@ -114,28 +115,35 @@ def get_my_salary_advances(employee_id: str) -> List[Dict[str, Any]]:
     return advance_repository.list_(employee_id=employee_id)
 
 
-def get_my_advance_available(employee_id: str) -> AdvanceAvailableAmount:
-    """Montant disponible pour une avance (employé)."""
+def get_my_advance_available(
+    employee_id: str, advance_type: str = "avance_salaire"
+) -> AdvanceAvailableAmount:
+    """Montant disponible pour une avance ou un acompte (employé)."""
     today = date.today()
-    data = build_advance_available(employee_id, today.year, today.month)
+    data = build_advance_available(
+        employee_id, today.year, today.month, advance_type=advance_type
+    )
     return infra_mappers.to_advance_available_amount(data)
 
 
 def get_employee_advance_available(
-    employee_id: str, year: int, month: int
+    employee_id: str, year: int, month: int, advance_type: str = "avance_salaire"
 ) -> AdvanceAvailableAmount:
-    """Montant disponible pour une avance (RH / admin)."""
-    data = build_advance_available(employee_id, year, month)
+    """Montant disponible pour une avance ou un acompte (RH / admin)."""
+    data = build_advance_available(
+        employee_id, year, month, advance_type=advance_type
+    )
     return infra_mappers.to_advance_available_amount(data)
 
 
 def get_salary_advances(
     employee_id: Optional[str] = None,
     status: Optional[str] = None,
+    advance_type: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Liste des avances avec filtres, enrichie employee_name et remaining_to_pay."""
+    """Liste des avances/acomptes avec filtres, enrichie employee_name et remaining_to_pay."""
     return list_advances_with_employee_and_remaining_to_pay(
-        employee_id=employee_id, status=status
+        employee_id=employee_id, status=status, advance_type=advance_type
     )
 
 
@@ -248,9 +256,18 @@ def _validate_advance_requested_amount(
     employee_id: str,
     requested_amount: Decimal,
     requested_date: date,
+    advance_type: str = "avance_salaire",
 ) -> None:
-    """Vérifie que le montant demandé respecte le disponible (dont plafond 50 % du net)."""
-    data = build_advance_available(employee_id, requested_date.year, requested_date.month)
+    """Vérifie que le montant demandé respecte le disponible selon la nature."""
+    if advance_type == "acompte_prime":
+        return
+
+    data = build_advance_available(
+        employee_id,
+        requested_date.year,
+        requested_date.month,
+        advance_type=advance_type,
+    )
     available = data["available_amount"]
     if requested_amount <= available:
         return
@@ -259,7 +276,12 @@ def _validate_advance_requested_amount(
     max_from_net = data.get("max_advance_from_net", Decimal("0"))
     outstanding = data.get("outstanding_advances", Decimal("0"))
     net_cap_remaining = max(Decimal("0"), max_from_net - outstanding)
-    if reference_net > 0 and requested_amount > net_cap_remaining:
+    if advance_type == "avance_salaire" and reference_net > 0:
+        raise ValidationError(
+            "Le montant demandé dépasse le plafond de 50 % du salaire net "
+            f"({max_from_net:.2f} €, net de référence : {reference_net:.2f} €)."
+        )
+    if advance_type == "acompte_salaire" and reference_net > 0 and requested_amount > net_cap_remaining:
         raise ValidationError(
             "Le montant demandé dépasse le plafond de 50 % du salaire net "
             f"({max_from_net:.2f} €, net de référence : {reference_net:.2f} €)."
@@ -270,13 +292,24 @@ def _validate_advance_requested_amount(
 
 
 def create_salary_advance(advance_data: Any, ctx: UserContext) -> Dict[str, Any]:
-    """Crée une demande d'avance (employé ou RH)."""
+    """Crée une demande d'avance ou d'acompte (employé ou RH)."""
+    advance_type = getattr(advance_data, "advance_type", "avance_salaire") or "avance_salaire"
+
     if ctx.role == "collaborateur":
+        if advance_type == "acompte_prime":
+            raise ForbiddenError(
+                "Seul le service RH peut créer un acompte sur prime."
+            )
         employee_id = _resolve_collaborator_advance_employee_id(
             ctx, advance_data.employee_id
         )
     else:
         employee_id = advance_data.employee_id
+
+    if advance_type == "acompte_prime" and not advance_data.prime_label:
+        raise ValidationError(
+            "Le libellé de la prime est obligatoire pour un acompte sur prime."
+        )
 
     company_id = employee_company_provider.get_company_id(employee_id)
     if not company_id:
@@ -286,6 +319,7 @@ def create_salary_advance(advance_data: Any, ctx: UserContext) -> Dict[str, Any]
         employee_id,
         Decimal(str(advance_data.requested_amount)),
         advance_data.requested_date,
+        advance_type=advance_type,
     )
     is_employee_request = ctx.role == "collaborateur"
     initial_status = domain_rules.initial_advance_status(
@@ -294,9 +328,13 @@ def create_salary_advance(advance_data: Any, ctx: UserContext) -> Dict[str, Any]
         AUTO_APPROVAL_THRESHOLD,
     )
 
+    accounting_account = get_accounting_account(company_id, advance_type)
+
     db_data = {
         "company_id": company_id,
         "employee_id": employee_id,
+        "advance_type": advance_type,
+        "accounting_account": accounting_account,
         "requested_amount": float(advance_data.requested_amount),
         "requested_date": advance_data.requested_date.isoformat(),
         "repayment_mode": advance_data.repayment_mode,
@@ -305,10 +343,17 @@ def create_salary_advance(advance_data: Any, ctx: UserContext) -> Dict[str, Any]
         "status": initial_status,
         "remaining_amount": 0,
     }
+    if advance_type == "acompte_prime":
+        db_data["prime_label"] = advance_data.prime_label
+        db_data["prime_id"] = advance_data.prime_id
+        if advance_data.prime_expected_amount is not None:
+            db_data["prime_expected_amount"] = float(advance_data.prime_expected_amount)
     if initial_status == "approved":
         approved_amount = float(advance_data.requested_amount)
         db_data["approved_amount"] = approved_amount
-        db_data["remaining_amount"] = approved_amount
+        db_data["remaining_amount"] = (
+            0.0 if advance_type == "acompte_prime" else approved_amount
+        )
         db_data["approved_by"] = ctx.user_id
         db_data["approved_at"] = datetime.now().isoformat()
 
@@ -333,15 +378,18 @@ def approve_salary_advance(advance_id: str, approved_by_id: Any) -> Dict[str, An
         advance["employee_id"],
         Decimal(str(advance["requested_amount"])),
         requested_date,
+        advance_type=advance.get("advance_type", "avance_salaire"),
     )
 
     requested_amount = float(advance["requested_amount"])
+    advance_type = advance.get("advance_type", "avance_salaire")
+    remaining_on_approve = 0.0 if advance_type == "acompte_prime" else requested_amount
     update_dict = {
         "status": "approved",
         "approved_amount": requested_amount,
         "approved_by": approved_by_id,
         "approved_at": datetime.now().isoformat(),
-        "remaining_amount": float(requested_amount),
+        "remaining_amount": remaining_on_approve,
     }
     if advance.get("repayment_mode"):
         update_dict["repayment_mode"] = advance["repayment_mode"]
@@ -359,6 +407,45 @@ def reject_salary_advance(advance_id: str, rejection_reason: str) -> Dict[str, A
     row = advance_repository.update(advance_id, update_dict)
     if not row:
         raise NotFoundError("Avance non trouvée.")
+    return row
+
+
+def reconcile_acompte_prime(advance_id: str, reconcile_data: Any) -> Dict[str, Any]:
+    """
+    Réconcilie un acompte sur prime avec le montant définitif.
+    Le solde (prime définitive - acompte versé) sera payé via la prime du bulletin ;
+    l'acompte versé est récupéré via remaining_amount sur le bulletin du mois choisi.
+    """
+    advance = advance_repository.get_by_id(advance_id)
+    if not advance:
+        raise NotFoundError("Avance non trouvée.")
+    if advance.get("advance_type") != "acompte_prime":
+        raise ValidationError("Seul un acompte sur prime peut être réconcilié.")
+    if advance.get("prime_reconciled_at"):
+        raise ValidationError("Cet acompte sur prime a déjà été réconcilié.")
+    if advance.get("status") not in ("approved", "paid"):
+        raise ValidationError(
+            "L'acompte sur prime doit être approuvé ou versé avant réconciliation."
+        )
+
+    total_paid = advance_payment_repository.get_total_paid_by_advance_id(advance_id)
+    if total_paid <= 0:
+        raise ValidationError(
+            "Aucun versement enregistré : impossible de réconcilier l'acompte."
+        )
+
+    prime_final = Decimal(str(reconcile_data.prime_final_amount))
+    solde = domain_rules.compute_prime_solde(prime_final, total_paid)
+
+    update_dict = {
+        "prime_final_amount": float(prime_final),
+        "remaining_amount": float(total_paid),
+        "prime_reconciled_at": datetime.now().isoformat(),
+    }
+    row = advance_repository.update(advance_id, update_dict)
+    if not row:
+        raise NotFoundError("Avance non trouvée.")
+    row["prime_solde_a_payer"] = float(solde)
     return row
 
 
@@ -525,11 +612,16 @@ def enrich_payslip(
     advances = get_advances_to_repay(employee_id, year, month)
     total_repayments = Decimal("0")
     remboursements_appliques: List[Dict[str, Any]] = []
+    total_par_compte: Dict[str, Decimal] = {}
 
     for advance in advances:
         remaining = Decimal(str(advance.get("remaining_amount", 0)))
         if remaining <= 0:
             continue
+        adv_type = advance.get("advance_type", "avance_salaire")
+        compte = advance.get("accounting_account") or "425"
+        prime_label = advance.get("prime_label")
+        type_label = domain_rules.advance_type_label(adv_type, prime_label)
         existing_repayment = None
         if payslip_id:
             existing_repayment = get_existing_repayment(advance["id"], payslip_id)
@@ -545,9 +637,16 @@ def enrich_payslip(
                         "montant": float(repayment_already),
                         "date_avance": advance.get("requested_date"),
                         "reste_apres": float(remaining_after),
+                        "type": adv_type,
+                        "type_label": type_label,
+                        "compte": compte,
+                        "prime_label": prime_label,
                     }
                 )
                 total_repayments += repayment_already
+                total_par_compte[compte] = (
+                    total_par_compte.get(compte, Decimal("0")) + repayment_already
+                )
                 continue
         if advance.get("repayment_mode") == "single":
             repayment_to_use = remaining
@@ -564,7 +663,14 @@ def enrich_payslip(
                     "montant": float(repayment_to_use),
                     "date_avance": advance.get("requested_date"),
                     "reste_apres": float(remaining_after_to_use),
+                    "type": adv_type,
+                    "type_label": type_label,
+                    "compte": compte,
+                    "prime_label": prime_label,
                 }
+            )
+            total_par_compte[compte] = (
+                total_par_compte.get(compte, Decimal("0")) + repayment_to_use
             )
             try:
                 update_data: Dict[str, Any] = {
@@ -597,6 +703,9 @@ def enrich_payslip(
     payslip_json_data["remboursements_avances"] = {
         "total_rembourse": float(total_repayments),
         "avances": remboursements_appliques,
+        "total_par_compte": {
+            compte: float(montant) for compte, montant in total_par_compte.items()
+        },
     }
 
     if total_repayments > 0 and acompte_deja_deduit == 0:

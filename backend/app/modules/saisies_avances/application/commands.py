@@ -54,3 +54,8 @@ def create_advance_payment(payment_data: Any, created_by_id: Any) -> Any:
 def delete_advance_payment(payment_id: str) -> Any:
     """Supprime un paiement d'avance."""
     return service.delete_advance_payment(payment_id)
+
+
+def reconcile_acompte_prime(advance_id: str, reconcile_data: Any) -> Any:
+    """Réconcilie un acompte sur prime avec le montant définitif."""
+    return service.reconcile_acompte_prime(advance_id, reconcile_data)
