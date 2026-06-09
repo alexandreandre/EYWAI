@@ -185,23 +185,6 @@ class TestIsMeetingParticipant:
             assert queries.is_meeting_participant("mtg-1", "emp-99") is False
 
 
-# --- get_recording_status ---
-
-
-class TestGetRecordingStatus:
-    """get_recording_status."""
-
-    def test_calls_recording_repository(self):
-        """Appelle recording_repository.get_status."""
-        status = MagicMock()
-        repo = MagicMock()
-        repo.get_status.return_value = status
-        with patch.object(queries, "recording_repository", repo):
-            result = queries.get_recording_status("mtg-1")
-        assert result == status
-        repo.get_status.assert_called_once_with("mtg-1")
-
-
 # --- get_delegation_quota / get_delegation_hours / get_delegation_summary ---
 
 
@@ -438,19 +421,21 @@ class TestListDelegationQuotas:
 class TestGetMeetingMinutesPath:
     """get_meeting_minutes_path."""
 
-    def test_calls_recording_repository_and_returns_path_or_none(self):
-        """Appelle get_minutes_path(meeting_id, company_id)."""
-        repo = MagicMock()
-        repo.get_minutes_path.return_value = "path/to/pv.pdf"
-        with patch.object(queries, "recording_repository", repo):
+    def test_calls_fetch_meeting_minutes_path_and_returns_path_or_none(self):
+        """Appelle fetch_meeting_minutes_path(meeting_id)."""
+        with patch(
+            "app.modules.cse.application.queries.fetch_meeting_minutes_path",
+            return_value="path/to/pv.pdf",
+        ) as mock_fetch:
             result = queries.get_meeting_minutes_path("mtg-1", "co-1")
         assert result == "path/to/pv.pdf"
-        repo.get_minutes_path.assert_called_once_with("mtg-1", "co-1")
+        mock_fetch.assert_called_once_with("mtg-1")
 
     def test_returns_none_when_no_minutes(self):
         """Retourne None si pas de PV."""
-        repo = MagicMock()
-        repo.get_minutes_path.return_value = None
-        with patch.object(queries, "recording_repository", repo):
+        with patch(
+            "app.modules.cse.application.queries.fetch_meeting_minutes_path",
+            return_value=None,
+        ):
             result = queries.get_meeting_minutes_path("mtg-1", "co-1")
         assert result is None

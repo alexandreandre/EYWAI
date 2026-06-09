@@ -16,7 +16,6 @@ import pytest
 from app.modules.cse.infrastructure.repository import (
     ElectedMemberRepository,
     MeetingRepository,
-    RecordingRepository,
     DelegationRepository,
     BDESDocumentRepository,
     ElectionCycleRepository,
@@ -135,43 +134,6 @@ class TestMeetingRepository:
             result = repo.get_participants("mtg-1")
             mock.assert_called_once_with("mtg-1")
         assert result == participants
-
-
-# --- RecordingRepository ---
-
-
-class TestRecordingRepository:
-    """RecordingRepository : get_status via impl, get_minutes_path via queries."""
-
-    def test_get_status_calls_impl(self):
-        repo = RecordingRepository()
-        status = {"meeting_id": "mtg-1", "status": "completed"}
-        with patch(
-            "app.modules.cse.infrastructure.cse_service_impl.get_recording_status",
-            return_value=status,
-        ) as mock:
-            result = repo.get_status("mtg-1")
-            mock.assert_called_once_with("mtg-1")
-        assert result == status
-
-    def test_get_minutes_path_calls_fetch_meeting_minutes_path(self):
-        repo = RecordingRepository()
-        with patch(
-            "app.modules.cse.infrastructure.repository.fetch_meeting_minutes_path",
-            return_value="path/to/pv.pdf",
-        ) as mock:
-            result = repo.get_minutes_path("mtg-1", "co-1")
-            mock.assert_called_once_with("mtg-1")
-        assert result == "path/to/pv.pdf"
-
-    def test_get_minutes_path_returns_none_when_absent(self):
-        repo = RecordingRepository()
-        with patch(
-            "app.modules.cse.infrastructure.repository.fetch_meeting_minutes_path",
-            return_value=None,
-        ):
-            result = repo.get_minutes_path("mtg-1", "co-1")
-        assert result is None
 
 
 # --- DelegationRepository ---

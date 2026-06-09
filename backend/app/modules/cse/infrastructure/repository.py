@@ -13,12 +13,10 @@ from app.modules.cse.domain.interfaces import (
     IElectionCycleRepository,
     IDelegationRepository,
     IMeetingRepository,
-    IRecordingRepository,
 )
 from app.modules.cse.infrastructure.mappers import map_delegation_quota_row_to_read
 from app.modules.cse.infrastructure.queries import (
     fetch_delegation_quotas_for_company,
-    fetch_meeting_minutes_path,
 )
 
 
@@ -85,18 +83,6 @@ class MeetingRepository(IMeetingRepository):
         )
 
         return get_meeting_participants(meeting_id)
-
-
-class RecordingRepository(IRecordingRepository):
-    """Délègue à services.cse_service pour get_status ; queries locales pour get_minutes_path."""
-
-    def get_status(self, meeting_id: str) -> Any:
-        from app.modules.cse.infrastructure.cse_service_impl import get_recording_status
-
-        return get_recording_status(meeting_id)
-
-    def get_minutes_path(self, meeting_id: str, company_id: str) -> Optional[str]:
-        return fetch_meeting_minutes_path(meeting_id)
 
 
 class DelegationRepository(IDelegationRepository):
@@ -183,7 +169,6 @@ class ElectionCycleRepository(IElectionCycleRepository):
 # Instances partagées pour l'application
 elected_member_repository: IElectedMemberRepository = ElectedMemberRepository()
 meeting_repository: IMeetingRepository = MeetingRepository()
-recording_repository: IRecordingRepository = RecordingRepository()
 delegation_repository: IDelegationRepository = DelegationRepository()
 bdes_document_repository: IBDESDocumentRepository = BDESDocumentRepository()
 election_cycle_repository: IElectionCycleRepository = ElectionCycleRepository()

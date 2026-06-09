@@ -471,77 +471,32 @@ class TestCSEMeetingsAPI:
         assert response.status_code == 200
 
 
-# --- Enregistrements ---
+class TestCSEParticipantAttendanceAPI:
+    """Mise à jour de la présence d'un participant."""
 
-
-class TestCSERecordingAPI:
-    """Start/stop recording, status, process."""
-
-    def test_get_recording_status_200(self, client: TestClient):
+    def test_update_participant_attendance_200(self, client: TestClient):
         from app.core.security import get_current_user
 
-        status = {"meeting_id": "mtg-1", "status": "not_started"}
+        participant = {
+            "meeting_id": "mtg-1",
+            "employee_id": "emp-1",
+            "role": "participant",
+            "attended": True,
+        }
         app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
         try:
             with patch(
-                "app.modules.cse.api.router.queries.get_recording_status",
-                return_value=status,
+                "app.modules.cse.api.router.commands.update_participant_attendance",
+                return_value=participant,
             ):
-                response = client.get(f"{PREFIX}/meetings/mtg-1/recording/status")
-        finally:
-            app.dependency_overrides.pop(get_current_user, None)
-        assert response.status_code == 200
-        assert response.json()["status"] == "not_started"
-
-    def test_start_recording_200(self, client: TestClient):
-        from app.core.security import get_current_user
-
-        status = {"meeting_id": "mtg-1", "status": "in_progress"}
-        app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
-        try:
-            with patch(
-                "app.modules.cse.api.router.commands.start_recording",
-                return_value=status,
-            ):
-                response = client.post(
-                    f"{PREFIX}/meetings/mtg-1/recording/start",
-                    json={
-                        "consents": [{"employee_id": "emp-1", "consent_given": True}]
-                    },
+                response = client.put(
+                    f"{PREFIX}/meetings/mtg-1/participants/emp-1",
+                    json={"attended": True},
                 )
         finally:
             app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
-
-    def test_stop_recording_200(self, client: TestClient):
-        from app.core.security import get_current_user
-
-        status = {"meeting_id": "mtg-1", "status": "completed"}
-        app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
-        try:
-            with patch(
-                "app.modules.cse.api.router.commands.stop_recording",
-                return_value=status,
-            ):
-                response = client.post(f"{PREFIX}/meetings/mtg-1/recording/stop")
-        finally:
-            app.dependency_overrides.pop(get_current_user, None)
-        assert response.status_code == 200
-
-    def test_process_recording_200(self, client: TestClient):
-        from app.core.security import get_current_user
-
-        result = {"transcription": "...", "summary": "..."}
-        app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
-        try:
-            with patch(
-                "app.modules.cse.api.router.commands.process_recording",
-                return_value=result,
-            ):
-                response = client.post(f"{PREFIX}/meetings/mtg-1/recording/process")
-        finally:
-            app.dependency_overrides.pop(get_current_user, None)
-        assert response.status_code == 200
+        assert response.json()["attended"] is True
 
 
 # --- PV et BDES ---

@@ -11,7 +11,6 @@ import apiClient from "./apiClient";
 export type ElectedMemberRole = "titulaire" | "suppleant" | "secretaire" | "tresorier" | "autre";
 export type MeetingType = "ordinaire" | "extraordinaire" | "cssct" | "autre";
 export type MeetingStatus = "a_venir" | "en_cours" | "terminee";
-export type RecordingStatus = "not_started" | "in_progress" | "completed" | "failed";
 export type ParticipantRole = "participant" | "observateur";
 export type BDESDocumentType = "bdes" | "pv" | "autre";
 export type ElectionCycleStatus = "in_progress" | "completed";
@@ -108,7 +107,6 @@ export interface Meeting {
   updated_at: string;
   participants?: MeetingParticipant[];
   participant_count?: number;
-  recording_status?: RecordingStatus;
 }
 
 export interface MeetingListItem {
@@ -120,7 +118,6 @@ export interface MeetingListItem {
   meeting_type: MeetingType;
   status: MeetingStatus;
   participant_count: number;
-  recording_status?: RecordingStatus | null;
   has_minutes?: boolean;
   created_at: string;
 }
@@ -162,32 +159,6 @@ export interface MeetingParticipant {
 export interface MeetingParticipantAdd {
   employee_ids: string[];
   role?: ParticipantRole;
-}
-
-// ============================================================================
-// Interfaces - Enregistrements
-// ============================================================================
-
-export interface RecordingConsent {
-  employee_id: string;
-  consent_given: boolean;
-  timestamp?: string | null;
-}
-
-export interface RecordingStart {
-  consents: RecordingConsent[];
-}
-
-export interface RecordingStatusRead {
-  meeting_id: string;
-  status: RecordingStatus;
-  recording_started_at: string | null;
-  recording_ended_at: string | null;
-  consent_given_by: Array<{ employee_id: string; timestamp: string }>;
-  error_message: string | null;
-  has_transcription: boolean;
-  has_summary: boolean;
-  has_minutes: boolean;
 }
 
 // ============================================================================
@@ -546,6 +517,18 @@ export async function removeMeetingParticipant(
   await apiClient.delete(`/api/cse/meetings/${meetingId}/participants/${employeeId}`);
 }
 
+export async function updateMeetingParticipantAttendance(
+  meetingId: string,
+  employeeId: string,
+  attended: boolean
+): Promise<MeetingParticipant> {
+  const response = await apiClient.put(
+    `/api/cse/meetings/${meetingId}/participants/${employeeId}`,
+    { attended }
+  );
+  return response.data;
+}
+
 export async function updateMeetingStatus(
   meetingId: string,
   status: MeetingStatus
@@ -553,33 +536,6 @@ export async function updateMeetingStatus(
   const response = await apiClient.put(`/api/cse/meetings/${meetingId}/status`, null, {
     params: { status },
   });
-  return response.data;
-}
-
-// ============================================================================
-// API Functions - Enregistrements
-// ============================================================================
-
-export async function startRecording(
-  meetingId: string,
-  data: RecordingStart
-): Promise<RecordingStatusRead> {
-  const response = await apiClient.post(`/api/cse/meetings/${meetingId}/recording/start`, data);
-  return response.data;
-}
-
-export async function stopRecording(meetingId: string): Promise<RecordingStatusRead> {
-  const response = await apiClient.post(`/api/cse/meetings/${meetingId}/recording/stop`);
-  return response.data;
-}
-
-export async function getRecordingStatus(meetingId: string): Promise<RecordingStatusRead> {
-  const response = await apiClient.get(`/api/cse/meetings/${meetingId}/recording/status`);
-  return response.data;
-}
-
-export async function processRecording(meetingId: string): Promise<any> {
-  const response = await apiClient.post(`/api/cse/meetings/${meetingId}/recording/process`);
   return response.data;
 }
 

@@ -21,12 +21,11 @@ from app.modules.cse.schemas.requests import (
     ExportParams,
     MeetingCreate,
     MeetingParticipantAdd,
+    MeetingParticipantUpdate,
     MeetingStatus,
     MeetingType,
     MeetingUpdate,
     ParticipantRole,
-    RecordingConsent,
-    RecordingStart,
 )
 from app.modules.cse.schemas.responses import (
     BDESDocumentBase,
@@ -54,8 +53,6 @@ from app.modules.cse.schemas.responses import (
     MeetingListItem,
     MeetingParticipantRead,
     MeetingRead,
-    RecordingStatus,
-    RecordingStatusRead,
     TimelineStepStatus,
 )
 
@@ -63,7 +60,6 @@ __all__ = [
     "ElectedMemberRole",
     "MeetingType",
     "MeetingStatus",
-    "RecordingStatus",
     "ParticipantRole",
     "BDESDocumentType",
     "ElectionCycleStatus",
@@ -80,10 +76,8 @@ __all__ = [
     "MeetingRead",
     "MeetingListItem",
     "MeetingParticipantAdd",
+    "MeetingParticipantUpdate",
     "MeetingParticipantRead",
-    "RecordingConsent",
-    "RecordingStart",
-    "RecordingStatusRead",
     "DelegationHourBase",
     "DelegationHourCreate",
     "DelegationHourRead",

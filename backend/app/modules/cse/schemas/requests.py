@@ -7,7 +7,7 @@ Comportement identique à l'ancien schemas.cse.
 from datetime import date as date_type, datetime, time
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 # Types littéraux utilisés par les schémas de requête
@@ -101,32 +101,10 @@ class MeetingParticipantAdd(BaseModel):
     role: ParticipantRole = Field("participant", description="Rôle des participants")
 
 
-# ============================================================================
-# Enregistrements
-# ============================================================================
+class MeetingParticipantUpdate(BaseModel):
+    """Schéma pour mettre à jour un participant (présence)."""
 
-
-class RecordingConsent(BaseModel):
-    """Schéma pour le consentement RGPD d'un participant."""
-
-    employee_id: str = Field(..., description="ID de l'employé")
-    consent_given: bool = Field(..., description="Consentement donné ou non")
-    timestamp: Optional[datetime] = Field(None, description="Timestamp du consentement")
-
-
-class RecordingStart(BaseModel):
-    """Schéma pour démarrer un enregistrement."""
-
-    consents: List[RecordingConsent] = Field(
-        ..., min_length=1, description="Liste des consentements RGPD des participants"
-    )
-
-    @model_validator(mode="after")
-    def validate_all_consents(self):
-        """Valide que tous les participants ont donné leur consentement."""
-        if not all(c.consent_given for c in self.consents):
-            raise ValueError("Tous les participants doivent donner leur consentement")
-        return self
+    attended: bool = Field(..., description="Présence effective à la réunion")
 
 
 # ============================================================================
@@ -284,8 +262,7 @@ __all__ = [
     "MeetingCreate",
     "MeetingUpdate",
     "MeetingParticipantAdd",
-    "RecordingConsent",
-    "RecordingStart",
+    "MeetingParticipantUpdate",
     "DelegationHourCreate",
     "DelegationConfigUpdate",
     "DelegationTransferCreate",

@@ -12,7 +12,6 @@ ElectedMemberRole = Literal[
 ]
 MeetingType = Literal["ordinaire", "extraordinaire", "cssct", "autre"]
 MeetingStatus = Literal["a_venir", "en_cours", "terminee"]
-RecordingStatus = Literal["not_started", "in_progress", "completed", "failed"]
 ParticipantRole = Literal["participant", "observateur"]
 BDESDocumentType = Literal["bdes", "pv", "autre"]
 ElectionCycleStatus = Literal["in_progress", "completed"]

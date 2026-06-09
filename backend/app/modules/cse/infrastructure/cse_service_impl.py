@@ -20,7 +20,6 @@ from app.modules.cse.schemas import (
     MeetingRead,
     MeetingListItem,
     MeetingParticipantRead,
-    RecordingStatusRead,
     DelegationHourCreate,
     DelegationHourRead,
     DelegationQuotaRead,
@@ -412,18 +411,40 @@ def get_mandate_alerts(company_id: str, months_before: int = 3) -> List[MandateA
 # ============================================================================
 
 
-def _recording_summary_from_nested(recordings: Any) -> tuple[Optional[str], bool]:
-    """Extrait statut d'enregistrement et présence d'un PV depuis la relation Supabase."""
+def _has_pv_text_in_notes(notes: Any) -> bool:
+    """True si les notes contiennent un texte de PV."""
+    if notes is None:
+        return False
+    if isinstance(notes, str):
+        return bool(notes.strip())
+    if not isinstance(notes, dict):
+        return False
+    for key in ("pv_text", "minutes_text", "contenu_pv", "texte_pv", "texte"):
+        value = notes.get(key)
+        if isinstance(value, str) and value.strip():
+            return True
+    return False
+
+
+def _has_minutes_from_recordings(recordings: Any) -> bool:
+    """True si un PDF de PV est référencé dans cse_meeting_recordings."""
     if not recordings:
-        return None, False
+        return False
     rec: Optional[Dict[str, Any]] = None
     if isinstance(recordings, list) and len(recordings) > 0:
         rec = recordings[0]
     elif isinstance(recordings, dict):
         rec = recordings
     if not rec:
-        return None, False
-    return rec.get("status"), bool(rec.get("minutes_pdf_path"))
+        return False
+    return bool(rec.get("minutes_pdf_path"))
+
+
+def _has_minutes_from_meeting(meeting: Dict[str, Any]) -> bool:
+    """Détermine si un PV est disponible (texte ou PDF)."""
+    if _has_pv_text_in_notes(meeting.get("notes")):
+        return True
+    return _has_minutes_from_recordings(meeting.get("cse_meeting_recordings"))
 
 
 def _build_meeting_list_item(meeting: Dict[str, Any]) -> MeetingListItem:
@@ -436,9 +457,7 @@ def _build_meeting_list_item(meeting: Dict[str, Any]) -> MeetingListItem:
         elif isinstance(participants_data, dict) and "count" in participants_data:
             participant_count = participants_data["count"]
 
-    recording_status, has_minutes = _recording_summary_from_nested(
-        meeting.get("cse_meeting_recordings")
-    )
+    has_minutes = _has_minutes_from_meeting(meeting)
 
     return MeetingListItem(
         id=meeting["id"],
@@ -451,7 +470,6 @@ def _build_meeting_list_item(meeting: Dict[str, Any]) -> MeetingListItem:
         meeting_type=meeting["meeting_type"],
         status=meeting["status"],
         participant_count=participant_count,
-        recording_status=recording_status,
         has_minutes=has_minutes,
         created_at=datetime.fromisoformat(meeting["created_at"])
         if isinstance(meeting["created_at"], str)
@@ -485,9 +503,9 @@ def get_meetings(
                 location,
                 meeting_type,
                 status,
+                notes,
                 created_at,
                 cse_meeting_recordings(
-                    status,
                     minutes_pdf_path
                 )
             )
@@ -515,10 +533,10 @@ def get_meetings(
             location,
             meeting_type,
             status,
+            notes,
             created_at,
             cse_meeting_participants(count),
             cse_meeting_recordings(
-                status,
                 minutes_pdf_path
             )
             """
@@ -597,9 +615,6 @@ def get_meeting_by_id(meeting_id: str, company_id: str) -> MeetingRead:
                 last_name,
                 job_title
             )
-        ),
-        cse_meeting_recordings(
-            status
         )
         """
         )
@@ -637,15 +652,6 @@ def get_meeting_by_id(meeting_id: str, company_id: str) -> MeetingRead:
             )
         )
 
-    # Statut d'enregistrement
-    recording_status = None
-    if meeting.get("cse_meeting_recordings"):
-        recordings = meeting["cse_meeting_recordings"]
-        if isinstance(recordings, list) and len(recordings) > 0:
-            recording_status = recordings[0].get("status")
-        elif isinstance(recordings, dict):
-            recording_status = recordings.get("status")
-
     return MeetingRead(
         id=meeting["id"],
         company_id=meeting["company_id"],
@@ -669,7 +675,6 @@ def get_meeting_by_id(meeting_id: str, company_id: str) -> MeetingRead:
         else meeting["updated_at"],
         participants=participants,
         participant_count=len(participants),
-        recording_status=recording_status,
     )
 
 
@@ -790,6 +795,41 @@ def remove_participant(meeting_id: str, employee_id: str) -> None:
     # Pas d'erreur si rien à supprimer (idempotent)
 
 
+def update_participant_attendance(
+    meeting_id: str, employee_id: str, company_id: str, attended: bool
+) -> MeetingParticipantRead:
+    """Met à jour la présence d'un participant."""
+    meeting_response = (
+        supabase.table("cse_meetings")
+        .select("id, company_id")
+        .eq("id", meeting_id)
+        .eq("company_id", company_id)
+        .execute()
+    )
+    if not meeting_response.data:
+        raise HTTPException(status_code=404, detail="Réunion non trouvée")
+
+    _check_module_active(company_id)
+
+    response = (
+        supabase.table("cse_meeting_participants")
+        .update({"attended": attended})
+        .eq("meeting_id", meeting_id)
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Participant non trouvé")
+
+    participants = get_meeting_participants(meeting_id)
+    for participant in participants:
+        if participant.employee_id == employee_id:
+            return participant
+
+    raise HTTPException(status_code=404, detail="Participant non trouvé")
+
+
 def get_meeting_participants(meeting_id: str) -> List[MeetingParticipantRead]:
     """Récupère la liste des participants d'une réunion."""
     response = (
@@ -833,155 +873,6 @@ def get_meeting_participants(meeting_id: str) -> List[MeetingParticipantRead]:
         )
 
     return participants
-
-
-# ============================================================================
-# Gestion des enregistrements et synthèse IA
-# ============================================================================
-
-
-def start_recording(
-    meeting_id: str, company_id: str, consents: List[Dict[str, Any]]
-) -> RecordingStatusRead:
-    """Démarre l'enregistrement d'une réunion avec consentements RGPD."""
-    _check_module_active(company_id)
-
-    # Vérifier que la réunion existe
-    meeting = get_meeting_by_id(meeting_id, company_id)
-
-    # Vérifier que tous les participants ont donné leur consentement
-    participant_ids = {p.employee_id for p in meeting.participants or []}
-    consent_ids = {c["employee_id"] for c in consents if c.get("consent_given")}
-
-    if participant_ids != consent_ids:
-        raise HTTPException(
-            status_code=400,
-            detail="Tous les participants doivent donner leur consentement",
-        )
-
-    # Créer ou mettre à jour l'enregistrement
-    consent_data = [
-        {"employee_id": c["employee_id"], "timestamp": datetime.now().isoformat()}
-        for c in consents
-        if c.get("consent_given")
-    ]
-
-    # Vérifier si un enregistrement existe déjà
-    existing_response = (
-        supabase.table("cse_meeting_recordings")
-        .select("id")
-        .eq("meeting_id", meeting_id)
-        .execute()
-    )
-
-    if existing_response.data:
-        # Mettre à jour
-        update_data = {
-            "status": "in_progress",
-            "consent_given_by": consent_data,
-            "recording_started_at": datetime.now().isoformat(),
-        }
-        response = (
-            supabase.table("cse_meeting_recordings")
-            .update(update_data)
-            .eq("meeting_id", meeting_id)
-            .execute()
-        )
-    else:
-        # Créer
-        insert_data = {
-            "meeting_id": meeting_id,
-            "status": "in_progress",
-            "consent_given_by": consent_data,
-            "recording_started_at": datetime.now().isoformat(),
-        }
-        response = (
-            supabase.table("cse_meeting_recordings").insert(insert_data).execute()
-        )
-
-    if not response.data:
-        raise HTTPException(
-            status_code=500, detail="Erreur lors du démarrage de l'enregistrement"
-        )
-
-    return get_recording_status(meeting_id)
-
-
-def stop_recording(meeting_id: str, company_id: str) -> RecordingStatusRead:
-    """Arrête l'enregistrement d'une réunion."""
-    _check_module_active(company_id)
-
-    # Vérifier que la réunion existe
-    meeting_response = (
-        supabase.table("cse_meetings")
-        .select("id")
-        .eq("id", meeting_id)
-        .eq("company_id", company_id)
-        .execute()
-    )
-    if not meeting_response.data:
-        raise HTTPException(status_code=404, detail="Réunion non trouvée")
-
-    # Mettre à jour le statut
-    update_data = {
-        "status": "completed",
-        "recording_ended_at": datetime.now().isoformat(),
-    }
-
-    response = (
-        supabase.table("cse_meeting_recordings")
-        .update(update_data)
-        .eq("meeting_id", meeting_id)
-        .execute()
-    )
-
-    if not response.data:
-        raise HTTPException(status_code=404, detail="Enregistrement non trouvé")
-
-    return get_recording_status(meeting_id)
-
-
-def get_recording_status(meeting_id: str) -> RecordingStatusRead:
-    """Récupère le statut d'un enregistrement."""
-    response = (
-        supabase.table("cse_meeting_recordings")
-        .select("*")
-        .eq("meeting_id", meeting_id)
-        .execute()
-    )
-
-    if not response.data:
-        return RecordingStatusRead(
-            meeting_id=meeting_id,
-            status="not_started",
-            recording_started_at=None,
-            recording_ended_at=None,
-            consent_given_by=[],
-            error_message=None,
-            has_transcription=False,
-            has_summary=False,
-            has_minutes=False,
-        )
-
-    recording = response.data[0]
-
-    return RecordingStatusRead(
-        meeting_id=meeting_id,
-        status=recording.get("status", "not_started"),
-        recording_started_at=datetime.fromisoformat(recording["recording_started_at"])
-        if recording.get("recording_started_at")
-        and isinstance(recording["recording_started_at"], str)
-        else recording.get("recording_started_at"),
-        recording_ended_at=datetime.fromisoformat(recording["recording_ended_at"])
-        if recording.get("recording_ended_at")
-        and isinstance(recording["recording_ended_at"], str)
-        else recording.get("recording_ended_at"),
-        consent_given_by=recording.get("consent_given_by", []),
-        error_message=recording.get("error_message"),
-        has_transcription=bool(recording.get("transcription_text")),
-        has_summary=bool(recording.get("ai_summary")),
-        has_minutes=bool(recording.get("minutes_pdf_path")),
-    )
 
 
 # ============================================================================

@@ -1,7 +1,7 @@
 """
 Tests unitaires des commandes CSE (application/commands.py).
 
-Les commandes délèguent à l'infrastructure (cse_service_impl, cse_ai_impl).
+Les commandes délèguent à l'infrastructure (cse_service_impl).
 On mocke ces appels pour vérifier les paramètres et retours.
 """
 
@@ -166,42 +166,20 @@ class TestRemoveParticipant:
         mock_remove.assert_called_once_with("mtg-1", "emp-1")
 
 
-# --- start_recording / stop_recording ---
-
-
-class TestStartRecording:
-    """Commande start_recording."""
-
-    def test_delegates_to_impl_with_consents(self):
-        """Délègue à cse_service_impl.start_recording avec consents."""
-        consents = [{"employee_id": "emp-1", "consent_given": True}]
-        expected = MagicMock()
-        with patch(
-            "app.modules.cse.infrastructure.cse_service_impl.start_recording",
-            return_value=expected,
-        ) as mock_start:
-            result = commands.start_recording(
-                meeting_id="mtg-1",
-                company_id="co-1",
-                consents=consents,
-            )
-        assert result == expected
-        mock_start.assert_called_once_with("mtg-1", "co-1", consents)
-
-
-class TestStopRecording:
-    """Commande stop_recording."""
+class TestUpdateParticipantAttendance:
+    """Commande update_participant_attendance."""
 
     def test_delegates_to_impl(self):
-        """Délègue à cse_service_impl.stop_recording."""
         expected = MagicMock()
         with patch(
-            "app.modules.cse.infrastructure.cse_service_impl.stop_recording",
+            "app.modules.cse.infrastructure.cse_service_impl.update_participant_attendance",
             return_value=expected,
-        ) as mock_stop:
-            result = commands.stop_recording("mtg-1", "co-1")
+        ) as mock_update:
+            result = commands.update_participant_attendance(
+                "mtg-1", "emp-1", "co-1", True
+            )
         assert result == expected
-        mock_stop.assert_called_once_with("mtg-1", "co-1")
+        mock_update.assert_called_once_with("mtg-1", "emp-1", "co-1", True)
 
 
 # --- create_delegation_hour ---
@@ -268,21 +246,3 @@ class TestCreateElectionCycle:
             result = commands.create_election_cycle("co-1", data)
         assert result == expected
         mock_create.assert_called_once_with("co-1", data)
-
-
-# --- process_recording ---
-
-
-class TestProcessRecording:
-    """Commande process_recording (IA)."""
-
-    def test_delegates_to_ai_impl_and_returns_dict(self):
-        """Délègue à cse_ai_impl.process_recording et retourne un dict."""
-        expected = {"transcription": "...", "summary": "..."}
-        with patch(
-            "app.modules.cse.infrastructure.cse_ai_impl.process_recording",
-            return_value=expected,
-        ) as mock_process:
-            result = commands.process_recording("mtg-1")
-        assert result == expected
-        mock_process.assert_called_once_with("mtg-1")

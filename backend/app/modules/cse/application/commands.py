@@ -56,18 +56,14 @@ def remove_participant(meeting_id: str, employee_id: str) -> None:
     return _remove(meeting_id, employee_id)
 
 
-def start_recording(meeting_id: str, company_id: str, consents: List[dict]) -> Any:
+def update_participant_attendance(
+    meeting_id: str, employee_id: str, company_id: str, attended: bool
+) -> Any:
     from app.modules.cse.infrastructure.cse_service_impl import (
-        start_recording as _start,
+        update_participant_attendance as _update,
     )
 
-    return _start(meeting_id, company_id, consents)
-
-
-def stop_recording(meeting_id: str, company_id: str) -> Any:
-    from app.modules.cse.infrastructure.cse_service_impl import stop_recording as _stop
-
-    return _stop(meeting_id, company_id)
+    return _update(meeting_id, employee_id, company_id, attended)
 
 
 def create_delegation_hour(
@@ -132,9 +128,3 @@ def complete_election_timeline_step(
     )
 
     return _complete(cycle_id, step_id, company_id)
-
-
-def process_recording(meeting_id: str) -> dict:
-    from app.modules.cse.infrastructure.cse_ai_impl import process_recording as _process
-
-    return _process(meeting_id)

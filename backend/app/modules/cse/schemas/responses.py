@@ -18,7 +18,6 @@ from app.modules.cse.schemas.requests import (
 )
 
 # Types littéraux supplémentaires pour les réponses
-RecordingStatus = Literal["not_started", "in_progress", "completed", "failed"]
 ElectionCycleStatus = Literal["in_progress", "completed"]
 TimelineStepStatus = Literal["pending", "completed", "overdue"]
 
@@ -149,7 +148,6 @@ class MeetingRead(BaseModel):
 
     participants: Optional[List[MeetingParticipantRead]] = None
     participant_count: Optional[int] = None
-    recording_status: Optional[RecordingStatus] = None
 
     class Config:
         from_attributes = True
@@ -166,31 +164,8 @@ class MeetingListItem(BaseModel):
     meeting_type: MeetingType
     status: MeetingStatus
     participant_count: int = 0
-    recording_status: Optional[RecordingStatus] = None
     has_minutes: bool = False
     created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
-# ============================================================================
-# Enregistrements
-# ============================================================================
-
-
-class RecordingStatusRead(BaseModel):
-    """Schéma pour le statut d'un enregistrement."""
-
-    meeting_id: str
-    status: RecordingStatus
-    recording_started_at: Optional[datetime] = None
-    recording_ended_at: Optional[datetime] = None
-    consent_given_by: List[Dict[str, Any]] = Field(default_factory=list)
-    error_message: Optional[str] = None
-    has_transcription: bool = False
-    has_summary: bool = False
-    has_minutes: bool = False
 
     class Config:
         from_attributes = True
@@ -487,7 +462,6 @@ ElectionCycleRead.model_rebuild()
 
 
 __all__ = [
-    "RecordingStatus",
     "ElectionCycleStatus",
     "TimelineStepStatus",
     "ElectedMemberBase",
@@ -498,7 +472,6 @@ __all__ = [
     "MeetingParticipantRead",
     "MeetingRead",
     "MeetingListItem",
-    "RecordingStatusRead",
     "DelegationHourBase",
     "DelegationHourRead",
     "DelegationQuotaRead",

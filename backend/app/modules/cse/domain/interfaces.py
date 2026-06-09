@@ -49,17 +49,6 @@ class IMeetingRepository(ABC):
         ...
 
 
-class IRecordingRepository(ABC):
-    """Accès persistance aux enregistrements CSE."""
-
-    @abstractmethod
-    def get_status(self, meeting_id: str) -> Any: ...
-    @abstractmethod
-    def get_minutes_path(self, meeting_id: str, company_id: str) -> Optional[str]:
-        """Chemin du PV (minutes_pdf_path) pour une réunion. None si absent."""
-        ...
-
-
 class IDelegationRepository(ABC):
     """Accès persistance aux quotas et heures de délégation."""
 
@@ -143,10 +132,3 @@ class ICSEExportProvider(ABC):
     ) -> bytes: ...
     @abstractmethod
     def export_meetings_history(self, meetings: List[Dict[str, Any]]) -> bytes: ...
-
-
-class ICSERecordingAIProvider(ABC):
-    """Traitement IA des enregistrements (transcription, synthèse, tâches)."""
-
-    @abstractmethod
-    def process_recording(self, meeting_id: str) -> Dict[str, Any]: ...

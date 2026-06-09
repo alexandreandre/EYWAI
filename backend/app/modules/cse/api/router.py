@@ -60,8 +60,7 @@ from app.modules.cse.schemas import (
     MeetingRead,
     MeetingUpdate,
     MeetingStatus,
-    RecordingStart,
-    RecordingStatusRead,
+    MeetingParticipantUpdate,
 )
 
 router = APIRouter(
@@ -152,10 +151,6 @@ def _check_meeting_access(current_user: User, meeting_id: str, company_id: str) 
             status_code=403,
             detail="Vous n'êtes pas participant à cette réunion.",
         )
-
-
-def _consents_to_dict(consents) -> list:
-    return [getattr(c, "model_dump", c.dict)() for c in consents]
 
 
 # ---------------------------------------------------------------------------
@@ -328,6 +323,25 @@ def remove_meeting_participant_endpoint(
     return {"message": "Participant retiré avec succès"}
 
 
+@router.put(
+    "/meetings/{meeting_id}/participants/{employee_id}",
+    response_model=MeetingParticipantRead,
+)
+def update_meeting_participant_endpoint(
+    meeting_id: str,
+    employee_id: str,
+    body: MeetingParticipantUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    """Met à jour la présence d'un participant. RH uniquement."""
+    _require_rh(current_user)
+    company_id = _get_company_id(current_user)
+    queries.check_module_active(company_id)
+    return commands.update_participant_attendance(
+        meeting_id, employee_id, company_id, body.attended
+    )
+
+
 @router.put("/meetings/{meeting_id}/status", response_model=MeetingRead)
 def update_meeting_status_endpoint(
     meeting_id: str,
@@ -339,70 +353,6 @@ def update_meeting_status_endpoint(
     company_id = _get_company_id(current_user)
     queries.check_module_active(company_id)
     return commands.update_meeting(meeting_id, company_id, MeetingUpdate(status=status))
-
-
-# ---------------------------------------------------------------------------
-# Enregistrements
-# ---------------------------------------------------------------------------
-
-
-@router.post(
-    "/meetings/{meeting_id}/recording/start", response_model=RecordingStatusRead
-)
-def start_recording_endpoint(
-    meeting_id: str,
-    body: RecordingStart,
-    current_user: User = Depends(get_current_user),
-):
-    """Démarre l'enregistrement d'une réunion avec consentements RGPD. RH uniquement."""
-    _require_rh(current_user)
-    company_id = _get_company_id(current_user)
-    queries.check_module_active(company_id)
-    return commands.start_recording(
-        meeting_id=meeting_id,
-        company_id=company_id,
-        consents=_consents_to_dict(body.consents),
-    )
-
-
-@router.post(
-    "/meetings/{meeting_id}/recording/stop", response_model=RecordingStatusRead
-)
-def stop_recording_endpoint(
-    meeting_id: str,
-    current_user: User = Depends(get_current_user),
-):
-    """Arrête l'enregistrement d'une réunion. RH uniquement."""
-    _require_rh(current_user)
-    company_id = _get_company_id(current_user)
-    queries.check_module_active(company_id)
-    return commands.stop_recording(meeting_id, company_id)
-
-
-@router.get(
-    "/meetings/{meeting_id}/recording/status", response_model=RecordingStatusRead
-)
-def get_recording_status_endpoint(
-    meeting_id: str,
-    current_user: User = Depends(get_current_user),
-):
-    """Statut d'un enregistrement. RH ou participant."""
-    company_id = _get_company_id(current_user)
-    queries.check_module_active(company_id)
-    _check_meeting_access(current_user, meeting_id, company_id)
-    return queries.get_recording_status(meeting_id)
-
-
-@router.post("/meetings/{meeting_id}/recording/process")
-def process_recording_endpoint(
-    meeting_id: str,
-    current_user: User = Depends(get_current_user),
-):
-    """Traite un enregistrement (transcription + synthèse IA). RH uniquement."""
-    _require_rh(current_user)
-    company_id = _get_company_id(current_user)
-    queries.check_module_active(company_id)
-    return commands.process_recording(meeting_id)
 
 
 # ---------------------------------------------------------------------------

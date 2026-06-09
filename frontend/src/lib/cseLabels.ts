@@ -2,7 +2,6 @@ import type {
   ElectedMemberRole,
   MeetingStatus,
   MeetingType,
-  RecordingStatus,
   BDESDocumentType,
   ElectionCycleStatus,
   TimelineStepStatus,
@@ -34,13 +33,6 @@ export const MEETING_STATUS_BADGE_CLASSES: Record<MeetingStatus, string> = {
   a_venir: "bg-blue-100 text-blue-800 border-blue-200",
   en_cours: "bg-amber-100 text-amber-800 border-amber-200",
   terminee: "bg-green-100 text-green-800 border-green-200",
-};
-
-export const RECORDING_STATUS_LABELS: Record<RecordingStatus, string> = {
-  not_started: "Non démarré",
-  in_progress: "En cours",
-  completed: "Terminé",
-  failed: "Échec",
 };
 
 export const MEETING_TYPE_LABELS: Record<MeetingType, string> = {

@@ -13,8 +13,8 @@ from app.modules.cse.infrastructure.repository import (
     elected_member_repository,
     election_cycle_repository,
     meeting_repository,
-    recording_repository,
 )
+from app.modules.cse.infrastructure.queries import fetch_meeting_minutes_path
 from app.modules.cse.schemas import DelegationQuotaRead, ElectedMemberStatus
 
 
@@ -69,10 +69,6 @@ def is_meeting_participant(meeting_id: str, employee_id: str) -> bool:
     """True si l'employé est inscrit comme participant à la réunion."""
     participants = meeting_repository.get_participants(meeting_id)
     return any(getattr(p, "employee_id", None) == employee_id for p in participants)
-
-
-def get_recording_status(meeting_id: str) -> Any:
-    return recording_repository.get_status(meeting_id)
 
 
 def get_delegation_quota(company_id: str, employee_id: str) -> Optional[Any]:
@@ -150,7 +146,7 @@ def list_delegation_quotas(company_id: str) -> List[DelegationQuotaRead]:
 def get_meeting_minutes_path(meeting_id: str, company_id: str) -> Optional[str]:
     """Chemin du PV d'une réunion (table cse_meeting_recordings)."""
     check_module_active(company_id)
-    return recording_repository.get_minutes_path(meeting_id, company_id)
+    return fetch_meeting_minutes_path(meeting_id)
 
 
 def get_delegation_config(company_id: str) -> Any:

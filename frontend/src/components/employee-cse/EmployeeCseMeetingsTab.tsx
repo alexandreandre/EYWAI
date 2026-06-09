@@ -15,7 +15,6 @@ import {
   MEETING_STATUS_BADGE_CLASSES,
   MEETING_STATUS_LABELS,
   MEETING_TYPE_LABELS,
-  RECORDING_STATUS_LABELS,
 } from '@/lib/cseLabels';
 import {
   formatCseDate,
@@ -174,13 +173,6 @@ function MeetingRow({ meeting }: { meeting: MeetingListItem }) {
             <Badge variant="secondary" className="gap-1">
               <FileText className="h-3 w-3" />
               PV disponible
-            </Badge>
-          ) : null}
-          {meeting.recording_status &&
-          meeting.recording_status !== 'not_started' ? (
-            <Badge variant="outline" className="text-xs">
-              {RECORDING_STATUS_LABELS[meeting.recording_status] ??
-                meeting.recording_status}
             </Badge>
           ) : null}
         </div>

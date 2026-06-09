@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -41,6 +42,21 @@ interface MeetingModalProps {
   meeting?: MeetingListItem;
 }
 
+function extractAgendaText(agenda: unknown): string {
+  if (agenda == null) return "";
+  if (typeof agenda === "string") return agenda;
+  if (typeof agenda !== "object") return "";
+  const o = agenda as Record<string, unknown>;
+  const text = o.text ?? o.content ?? o.ordre_du_jour;
+  return typeof text === "string" ? text : "";
+}
+
+function extractNotionUrl(notes: unknown): string {
+  if (notes == null || typeof notes !== "object") return "";
+  const v = (notes as Record<string, unknown>).notion_url;
+  return typeof v === "string" ? v : "";
+}
+
 export function MeetingModal({ open, onOpenChange, meeting }: MeetingModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -48,6 +64,8 @@ export function MeetingModal({ open, onOpenChange, meeting }: MeetingModalProps)
   const [meetingDate, setMeetingDate] = useState("");
   const [meetingTime, setMeetingTime] = useState("");
   const [location, setLocation] = useState("");
+  const [agenda, setAgenda] = useState("");
+  const [notionUrl, setNotionUrl] = useState("");
   const [meetingType, setMeetingType] = useState<
     "ordinaire" | "extraordinaire" | "cssct" | "autre"
   >("ordinaire");
@@ -73,6 +91,8 @@ export function MeetingModal({ open, onOpenChange, meeting }: MeetingModalProps)
       setMeetingTime(meetingDetail.meeting_time?.substring(0, 5) || "");
       setLocation(meetingDetail.location || "");
       setMeetingType(meetingDetail.meeting_type);
+      setAgenda(extractAgendaText(meetingDetail.agenda));
+      setNotionUrl(extractNotionUrl(meetingDetail.notes));
       setParticipantIds(
         (meetingDetail.participants ?? []).map((p) => p.employee_id),
       );
@@ -81,6 +101,8 @@ export function MeetingModal({ open, onOpenChange, meeting }: MeetingModalProps)
       setMeetingDate("");
       setMeetingTime("");
       setLocation("");
+      setAgenda("");
+      setNotionUrl("");
       setMeetingType("ordinaire");
       setParticipantIds([]);
     }
@@ -149,6 +171,14 @@ export function MeetingModal({ open, onOpenChange, meeting }: MeetingModalProps)
     );
   };
 
+  const buildAgenda = () => (agenda.trim() ? { text: agenda.trim() } : null);
+
+  const buildNotes = () => {
+    const notes: Record<string, string> = {};
+    if (notionUrl.trim()) notes.notion_url = notionUrl.trim();
+    return Object.keys(notes).length > 0 ? notes : null;
+  };
+
   const handleSubmit = () => {
     if (!title || !meetingDate) {
       toast({
@@ -160,6 +190,18 @@ export function MeetingModal({ open, onOpenChange, meeting }: MeetingModalProps)
     }
 
     if (meeting) {
+      const existingNotes =
+        meetingDetail?.notes != null &&
+        typeof meetingDetail.notes === "object" &&
+        !Array.isArray(meetingDetail.notes)
+          ? { ...(meetingDetail.notes as Record<string, unknown>) }
+          : {};
+      if (notionUrl.trim()) {
+        existingNotes.notion_url = notionUrl.trim();
+      } else {
+        delete existingNotes.notion_url;
+      }
+
       updateMutation.mutate({
         meetingId: meeting.id,
         data: {
@@ -168,6 +210,8 @@ export function MeetingModal({ open, onOpenChange, meeting }: MeetingModalProps)
           meeting_time: meetingTime || null,
           location: location || null,
           meeting_type: meetingType,
+          agenda: buildAgenda(),
+          notes: Object.keys(existingNotes).length > 0 ? existingNotes : null,
         },
       });
     } else {
@@ -177,6 +221,8 @@ export function MeetingModal({ open, onOpenChange, meeting }: MeetingModalProps)
         meeting_time: meetingTime || undefined,
         location: location || undefined,
         meeting_type: meetingType,
+        agenda: buildAgenda() ?? undefined,
+        notes: buildNotes() ?? undefined,
         participant_ids: participantIds.length > 0 ? participantIds : undefined,
       });
     }
@@ -255,6 +301,26 @@ export function MeetingModal({ open, onOpenChange, meeting }: MeetingModalProps)
                   )}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label htmlFor="agenda">Ordre du jour</Label>
+              <Textarea
+                id="agenda"
+                value={agenda}
+                onChange={(e) => setAgenda(e.target.value)}
+                placeholder="Points à aborder lors de la réunion…"
+                className="min-h-[100px] resize-y"
+              />
+            </div>
+            <div>
+              <Label htmlFor="notion">Lien Notion (optionnel)</Label>
+              <Input
+                id="notion"
+                type="url"
+                value={notionUrl}
+                onChange={(e) => setNotionUrl(e.target.value)}
+                placeholder="https://www.notion.so/…"
+              />
             </div>
             <div>
               <Label>Participants (élus CSE)</Label>

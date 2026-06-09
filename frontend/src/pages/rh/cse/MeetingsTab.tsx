@@ -44,7 +44,6 @@ import {
   MEETING_STATUS_LABELS,
   MEETING_STATUS_BADGE_CLASSES,
   MEETING_TYPE_LABELS,
-  RECORDING_STATUS_LABELS,
 } from "@/lib/cseLabels";
 import { Plus, Calendar, Users, Eye, Pencil, Play } from "lucide-react";
 import { SharkFinLoader } from '@/components/SharkFinLoader';
@@ -89,26 +88,11 @@ function truncateLocation(location: string | null | undefined, max = 28): string
   return t.length > max ? `${t.slice(0, max)}…` : t;
 }
 
-function MeetingRecordingCell({ meeting }: { meeting: MeetingListItem }) {
+function MeetingMinutesCell({ meeting }: { meeting: MeetingListItem }) {
   if (meeting.has_minutes) {
     return (
       <Badge variant="default" className="text-xs">
         PV disponible
-      </Badge>
-    );
-  }
-  if (meeting.recording_status) {
-    const label =
-      RECORDING_STATUS_LABELS[meeting.recording_status] ?? meeting.recording_status;
-    const variant =
-      meeting.recording_status === "failed"
-        ? "destructive"
-        : meeting.recording_status === "completed"
-          ? "secondary"
-          : "outline";
-    return (
-      <Badge variant={variant} className="text-xs">
-        {label}
       </Badge>
     );
   }
@@ -142,13 +126,16 @@ export default function MeetingsTab() {
   const updateStatusMutation = useMutation({
     mutationFn: ({ meetingId, status }: { meetingId: string; status: MeetingStatus }) =>
       updateMeetingStatus(meetingId, status),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["cse", "meetings"] });
       toast({
         title: "Statut mis à jour",
         description: "Le statut de la réunion a été modifié.",
       });
       setStatusConfirm(null);
+      if (variables.status === "en_cours") {
+        navigate(`/cse/meetings/${variables.meetingId}`);
+      }
     },
     onError: (error: unknown) => {
       const msg =
@@ -243,7 +230,7 @@ export default function MeetingsTab() {
                   <TableHead>Lieu</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Statut</TableHead>
-                  <TableHead>Enregistrement / PV</TableHead>
+                  <TableHead>Procès-verbal</TableHead>
                   <TableHead>Participants</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -286,7 +273,7 @@ export default function MeetingsTab() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <MeetingRecordingCell meeting={meeting} />
+                      <MeetingMinutesCell meeting={meeting} />
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">

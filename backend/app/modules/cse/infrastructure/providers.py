@@ -1,6 +1,6 @@
 # app/modules/cse/infrastructure/providers.py
 """
-Providers CSE — implémentations des interfaces domain (PDF, Excel, IA).
+Providers CSE — implémentations des interfaces domain (PDF, Excel).
 Délégation vers services existants ; comportement strictement identique.
 """
 
@@ -9,7 +9,6 @@ from typing import Any, Dict, List, Optional
 from app.modules.cse.domain.interfaces import (
     ICSEExportProvider,
     ICSEPdfProvider,
-    ICSERecordingAIProvider,
 )
 
 
@@ -66,16 +65,6 @@ class CSEExportProvider(ICSEExportProvider):
         return export_meetings_history(meetings)
 
 
-class CSERecordingAIProvider(ICSERecordingAIProvider):
-    """Délègue à services.cse_ai_service."""
-
-    def process_recording(self, meeting_id: str) -> Dict[str, Any]:
-        from app.modules.cse.infrastructure.cse_ai_impl import process_recording
-
-        return process_recording(meeting_id)
-
-
 # Instances partagées pour l'application
 cse_pdf_provider: ICSEPdfProvider = CSEPdfProvider()
 cse_export_provider: ICSEExportProvider = CSEExportProvider()
-cse_recording_ai_provider: ICSERecordingAIProvider = CSERecordingAIProvider()

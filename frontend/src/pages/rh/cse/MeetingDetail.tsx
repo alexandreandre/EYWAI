@@ -6,11 +6,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   getMeetingDetail,
-  getRecordingStatus,
   getMeetingMinutesPathIfAvailable,
   getBDESDocuments,
-  processRecording,
   updateMeeting,
+  updateMeetingStatus,
+  updateMeetingParticipantAttendance,
 } from "@/api/cse";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -23,19 +23,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   MEETING_STATUS_LABELS,
   MEETING_TYPE_LABELS,
 } from "@/lib/cseLabels";
-import { ArrowLeft, Calendar, MapPin, Users, FileText, Download, Sparkles, Loader2, ChevronRight } from "lucide-react";
+import {
+  ArrowLeft,
+  Calendar,
+  MapPin,
+  Users,
+  FileText,
+  Download,
+  Loader2,
+  ChevronRight,
+  ExternalLink,
+  Play,
+  Square,
+} from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-
-const RECORDING_STATUS_LABELS: Record<string, string> = {
-  not_started: "Non démarré",
-  in_progress: "En cours",
-  completed: "Terminé",
-  failed: "Échec",
-};
 
 function formatDate(dateString: string): string {
   try {
@@ -59,6 +66,13 @@ function formatTime(time: string | null | undefined): string {
   }
 }
 
+function extractNotesField(notes: unknown, key: string): string | null {
+  if (notes == null || typeof notes !== "object") return null;
+  const v = (notes as Record<string, unknown>)[key];
+  if (typeof v === "string" && v.trim()) return v.trim();
+  return null;
+}
+
 function extractPvTextFromNotes(notes: unknown): string | null {
   if (notes == null) return null;
   if (typeof notes === "string" && notes.trim()) return notes.trim();
@@ -70,6 +84,34 @@ function extractPvTextFromNotes(notes: unknown): string | null {
     if (typeof v === "string" && v.trim()) return v.trim();
   }
   return null;
+}
+
+function extractAgendaText(agenda: unknown): string | null {
+  if (agenda == null) return null;
+  if (typeof agenda === "string" && agenda.trim()) return agenda.trim();
+  if (typeof agenda !== "object") return null;
+  const o = agenda as Record<string, unknown>;
+  const text = o.text ?? o.content ?? o.ordre_du_jour;
+  if (typeof text === "string" && text.trim()) return text.trim();
+  return null;
+}
+
+function mergeNotes(
+  existing: unknown,
+  patch: Record<string, string | null>
+): Record<string, unknown> {
+  const base =
+    existing != null && typeof existing === "object" && !Array.isArray(existing)
+      ? { ...(existing as Record<string, unknown>) }
+      : {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (value == null || value === "") {
+      delete base[key];
+    } else {
+      base[key] = value;
+    }
+  }
+  return base;
 }
 
 function canUseRhCseActions(role: string | undefined): boolean {
@@ -99,18 +141,7 @@ export default function MeetingDetail() {
     ? new Date(meeting.meeting_date).getFullYear()
     : undefined;
 
-  const {
-    data: recording,
-    isError: recordingError,
-    isLoading: recordingLoading,
-  } = useQuery({
-    queryKey: ["cse", "recording", meetingId],
-    queryFn: () => getRecordingStatus(meetingId!),
-    enabled: Boolean(meetingId),
-    retry: false,
-  });
-
-  const { data: pdfPath, refetch: refetchMinutesPath } = useQuery({
+  const { data: pdfPath } = useQuery({
     queryKey: ["cse", "minutes-path", meetingId],
     queryFn: () => getMeetingMinutesPathIfAvailable(meetingId!),
     enabled: Boolean(meetingId),
@@ -123,22 +154,28 @@ export default function MeetingDetail() {
   });
 
   const pvText = meeting ? extractPvTextFromNotes(meeting.notes) : null;
+  const notionUrl = meeting ? extractNotesField(meeting.notes, "notion_url") : null;
+  const agendaText = meeting ? extractAgendaText(meeting.agenda) : null;
+
   const [draft, setDraft] = useState("");
+  const [notionDraft, setNotionDraft] = useState("");
 
   useEffect(() => {
     setDraft(pvText ?? "");
-  }, [meetingId, pvText]);
+    setNotionDraft(notionUrl ?? "");
+  }, [meetingId, pvText, notionUrl]);
 
   const notesMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (patch: Record<string, string | null>) =>
       updateMeeting(meetingId!, {
-        notes: { pv_text: draft.trim() || null },
+        notes: mergeNotes(meeting?.notes, patch),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cse", "meeting-detail", meetingId] });
+      queryClient.invalidateQueries({ queryKey: ["cse", "meetings"] });
       toast({
         title: "Notes enregistrées",
-        description: "Le procès-verbal textuel a été mis à jour.",
+        description: "Les informations de la réunion ont été mises à jour.",
       });
     },
     onError: (e: unknown) => {
@@ -154,16 +191,14 @@ export default function MeetingDetail() {
     },
   });
 
-  const processMutation = useMutation({
-    mutationFn: () => processRecording(meetingId!),
+  const statusMutation = useMutation({
+    mutationFn: (status: "en_cours" | "terminee") => updateMeetingStatus(meetingId!, status),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cse", "recording", meetingId] });
-      queryClient.invalidateQueries({ queryKey: ["cse", "minutes-path", meetingId] });
       queryClient.invalidateQueries({ queryKey: ["cse", "meeting-detail", meetingId] });
-      void refetchMinutesPath();
+      queryClient.invalidateQueries({ queryKey: ["cse", "meetings"] });
       toast({
-        title: "Traitement lancé",
-        description: "Le traitement d’enregistrement a été exécuté. Actualisez si le PV met du temps à apparaître.",
+        title: "Statut mis à jour",
+        description: "Le statut de la réunion a été modifié.",
       });
     },
     onError: (e: unknown) => {
@@ -173,19 +208,29 @@ export default function MeetingDetail() {
           : "";
       toast({
         variant: "destructive",
-        title: "Échec du traitement",
-        description: msg || "Impossible de traiter l’enregistrement.",
+        title: "Erreur",
+        description: msg || "Impossible de modifier le statut.",
+      });
+    },
+  });
+
+  const attendanceMutation = useMutation({
+    mutationFn: ({ employeeId, attended }: { employeeId: string; attended: boolean }) =>
+      updateMeetingParticipantAttendance(meetingId!, employeeId, attended),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cse", "meeting-detail", meetingId] });
+    },
+    onError: () => {
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "Impossible de mettre à jour la présence.",
       });
     },
   });
 
   const notesDirty = (draft.trim() || "") !== (pvText ?? "");
-  const showGeneratePv =
-    rhActions &&
-    !pdfPath &&
-    recording &&
-    recording.status !== "not_started" &&
-    !recording.has_minutes;
+  const notionDirty = (notionDraft.trim() || "") !== (notionUrl ?? "");
 
   if (!meetingId) {
     return (
@@ -250,6 +295,8 @@ export default function MeetingDetail() {
     }
   }
 
+  const displayNotionUrl = notionUrl ?? (notionDraft.trim() || null);
+
   return (
     <EmployeePageShell className="pb-4">
       <nav className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -280,14 +327,146 @@ export default function MeetingDetail() {
             <Badge variant="outline">
               {MEETING_TYPE_LABELS[meeting.meeting_type]}
             </Badge>
+            {rhActions && meeting.status === "a_venir" && (
+              <Button
+                size="sm"
+                onClick={() => statusMutation.mutate("en_cours")}
+                disabled={statusMutation.isPending}
+              >
+                {statusMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4 mr-2" />
+                )}
+                Démarrer la réunion
+              </Button>
+            )}
+            {rhActions && meeting.status === "en_cours" && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => statusMutation.mutate("terminee")}
+                disabled={statusMutation.isPending}
+              >
+                {statusMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Square className="h-4 w-4 mr-2" />
+                )}
+                Terminer la réunion
+              </Button>
+            )}
           </div>
         }
       />
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Procès-verbal
+          </CardTitle>
+          <CardDescription>
+            Saisissez vos notes pendant ou après la réunion
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {rhActions ? (
+            <div className="space-y-3">
+              <Textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder="Saisissez vos notes de réunion, points abordés, décisions prises…"
+                className="min-h-[240px] resize-y"
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    notesMutation.mutate({ pv_text: draft.trim() || null })
+                  }
+                  disabled={notesMutation.isPending || !notesDirty}
+                >
+                  {notesMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : null}
+                  Enregistrer les notes
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Visible par la RH et les élus participants.
+                </p>
+              </div>
+            </div>
+          ) : pvText ? (
+            <div className="rounded-md border bg-muted/30 p-4 text-sm whitespace-pre-wrap">
+              {pvText}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Aucun contenu textuel de PV renseigné sur cette réunion.
+            </p>
+          )}
+          {pdfPath ? (
+            <Button variant="default" size="sm" asChild>
+              <a href={pdfPath} target="_blank" rel="noopener noreferrer" download>
+                <Download className="h-4 w-4 mr-2" />
+                Télécharger le PV (PDF)
+              </a>
+            </Button>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Notion</CardTitle>
+          <CardDescription>
+            Lien vers une page Notion pour prendre des notes en parallèle
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {displayNotionUrl ? (
+            <Button variant="outline" size="sm" asChild>
+              <a href={displayNotionUrl} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Ouvrir dans Notion
+              </a>
+            </Button>
+          ) : null}
+          {rhActions ? (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="flex-1 space-y-1">
+                <Input
+                  type="url"
+                  value={notionDraft}
+                  onChange={(e) => setNotionDraft(e.target.value)}
+                  placeholder="https://www.notion.so/…"
+                />
+              </div>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() =>
+                  notesMutation.mutate({ notion_url: notionDraft.trim() || null })
+                }
+                disabled={notesMutation.isPending || !notionDirty}
+              >
+                {notesMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : null}
+                Enregistrer le lien
+              </Button>
+            </div>
+          ) : !displayNotionUrl ? (
+            <p className="text-sm text-muted-foreground">Aucun lien Notion renseigné.</p>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-lg">Informations</CardTitle>
-          <CardDescription>Date, lieu, participants</CardDescription>
+          <CardDescription>Date, lieu, ordre du jour, participants</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
           <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -310,11 +489,15 @@ export default function MeetingDetail() {
               <dt className="text-muted-foreground">Type</dt>
               <dd className="font-medium">{MEETING_TYPE_LABELS[meeting.meeting_type]}</dd>
             </div>
-            <div>
-              <dt className="text-muted-foreground">Statut</dt>
-              <dd className="font-medium">{MEETING_STATUS_LABELS[meeting.status]}</dd>
-            </div>
           </dl>
+          {agendaText ? (
+            <div>
+              <p className="text-muted-foreground mb-2 font-medium">Ordre du jour</p>
+              <div className="rounded-md border bg-muted/30 p-3 whitespace-pre-wrap text-sm">
+                {agendaText}
+              </div>
+            </div>
+          ) : null}
           <div>
             <p className="text-muted-foreground mb-2 flex items-center gap-2">
               <Users className="h-4 w-4" />
@@ -346,7 +529,23 @@ export default function MeetingDetail() {
                           {formatParticipantDate(p.confirmed_at)}
                         </td>
                         <td className="p-2">
-                          {p.attended ? (
+                          {rhActions ? (
+                            <label className="inline-flex items-center gap-2 cursor-pointer">
+                              <Checkbox
+                                checked={p.attended}
+                                disabled={attendanceMutation.isPending}
+                                onCheckedChange={(checked) =>
+                                  attendanceMutation.mutate({
+                                    employeeId: p.employee_id,
+                                    attended: checked === true,
+                                  })
+                                }
+                              />
+                              <span className="text-xs text-muted-foreground">
+                                {p.attended ? "Présent" : "Absent"}
+                              </span>
+                            </label>
+                          ) : p.attended ? (
                             <Badge variant="outline" className="text-green-700 border-green-200">
                               Oui
                             </Badge>
@@ -368,123 +567,9 @@ export default function MeetingDetail() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Enregistrement</CardTitle>
-          <CardDescription>Statut de l’enregistrement et synthèse</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          {recordingLoading ? (
-            <p className="text-muted-foreground">Chargement du statut…</p>
-          ) : recordingError ? (
-            <p className="text-muted-foreground">Statut d’enregistrement non accessible.</p>
-          ) : recording ? (
-            <>
-              <p>
-                <span className="text-muted-foreground">Statut : </span>
-                <span className="font-medium">
-                  {RECORDING_STATUS_LABELS[recording.status] ?? recording.status}
-                </span>
-              </p>
-              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                {recording.has_transcription && <Badge variant="outline">Transcription</Badge>}
-                {recording.has_summary && <Badge variant="outline">Synthèse IA</Badge>}
-                {recording.has_minutes && <Badge variant="outline">PV généré</Badge>}
-              </div>
-              {recording.error_message && (
-                <p className="text-destructive text-sm">{recording.error_message}</p>
-              )}
-              <p className="text-muted-foreground text-xs">
-                La lecture audio n’est pas exposée par l’API actuelle ; utilisez le traitement puis le
-                PV pour conserver la trace écrite.
-              </p>
-            </>
-          ) : (
-            <p className="text-muted-foreground">Aucune donnée d’enregistrement.</p>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Procès-verbal
-          </CardTitle>
-          <CardDescription>Synthèse textuelle et document PDF</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {rhActions ? (
-            <div className="space-y-3">
-              <Textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder="Saisissez vos notes de réunion, points abordés, décisions prises…"
-                className="min-h-[200px] resize-y"
-              />
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  size="sm"
-                  onClick={() => notesMutation.mutate()}
-                  disabled={notesMutation.isPending || !notesDirty}
-                >
-                  {notesMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : null}
-                  Enregistrer les notes
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  Visible par la RH et les élus participants.
-                </p>
-              </div>
-            </div>
-          ) : pvText ? (
-            <div className="rounded-md border bg-muted/30 p-4 text-sm whitespace-pre-wrap">{pvText}</div>
-          ) : recording?.has_summary ? (
-            <p className="text-sm text-muted-foreground">
-              Une synthèse est disponible côté serveur ; le texte détaillé peut être joint au PDF une
-              fois généré.
-            </p>
-          ) : (
-            <p className="text-sm text-muted-foreground">Aucun contenu textuel de PV renseigné sur cette réunion.</p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            {pdfPath ? (
-              <Button variant="default" size="sm" asChild>
-                <a href={pdfPath} target="_blank" rel="noopener noreferrer" download>
-                  <Download className="h-4 w-4 mr-2" />
-                  Télécharger le PV
-                </a>
-              </Button>
-            ) : null}
-            {showGeneratePv ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => processMutation.mutate()}
-                disabled={processMutation.isPending}
-              >
-                {processMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Sparkles className="h-4 w-4 mr-2" />
-                )}
-                Générer le PV à partir de l’enregistrement
-              </Button>
-            ) : null}
-          </div>
-          {!pdfPath && !showGeneratePv && rhActions && (
-            <p className="text-xs text-muted-foreground">
-              Pour générer un procès-verbal, terminez l’enregistrement de la réunion puis lancez la
-              génération lorsque le traitement est disponible.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
           <CardTitle className="text-lg">Documents liés</CardTitle>
           <CardDescription>
-            Documents BDES de l’année {meetingYear} (même exercice que la date de réunion)
+            Documents BDES de l'année {meetingYear} (même exercice que la date de réunion)
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -493,7 +578,10 @@ export default function MeetingDetail() {
           ) : (
             <ul className="space-y-2 text-sm">
               {bdesDocs.map((doc) => (
-                <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 last:border-0">
+                <li
+                  key={doc.id}
+                  className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 last:border-0"
+                >
                   <span className="font-medium">{doc.title}</span>
                   <span className="text-muted-foreground text-xs">{doc.document_type}</span>
                 </li>
