@@ -161,16 +161,32 @@ def update_payslip_data_alerts_status(
 def mark_payslip_validated(payslip_id: str, user_id: str) -> dict[str, Any]:
     from datetime import datetime, timezone
 
+    from app.modules.payslips.infrastructure.anomaly_cleanup import (
+        strip_engine_alerts_from_payslip_data,
+    )
+
     now = datetime.now(timezone.utc).isoformat()
+    current = (
+        supabase.table("payslips")
+        .select("payslip_data")
+        .eq("id", payslip_id)
+        .maybe_single()
+        .execute()
+    )
+    payload: dict[str, Any] = {
+        "status": "valide",
+        "validated_at": now,
+        "validated_by": user_id,
+    }
+    pdata = current.data.get("payslip_data") if current and current.data else None
+    if isinstance(pdata, dict):
+        cleaned = strip_engine_alerts_from_payslip_data(pdata)
+        if cleaned != pdata:
+            payload["payslip_data"] = cleaned
+
     upd = (
         supabase.table("payslips")
-        .update(
-            {
-                "status": "valide",
-                "validated_at": now,
-                "validated_by": user_id,
-            }
-        )
+        .update(payload)
         .eq("id", payslip_id)
         .execute()
     )

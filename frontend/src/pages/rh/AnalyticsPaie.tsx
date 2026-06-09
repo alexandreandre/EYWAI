@@ -118,7 +118,7 @@ function KpiTile({
       <CardContent className="flex flex-col gap-1 p-4">
         <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">{label}</p>
         <div className="flex flex-wrap items-end justify-between gap-2">
-          <p className="text-2xl font-bold tabular-nums leading-none">{value}</p>
+          <div className="text-2xl font-bold tabular-nums leading-none">{value}</div>
           {badge}
         </div>
         {hint ? <div className="text-muted-foreground text-xs">{hint}</div> : null}

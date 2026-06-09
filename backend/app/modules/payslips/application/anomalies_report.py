@@ -11,6 +11,16 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.core.database import supabase
 
+from app.modules.payroll.infrastructure.analytics_repository import (
+    payroll_analytics_repository,
+)
+from app.modules.payslips.domain.anomaly_visibility import (
+    EmployeeAnomalyContext,
+    is_system_config_anomaly,
+    parse_date_value,
+    should_include_anomaly_in_report,
+    should_include_payslip_in_anomalies_report,
+)
 from app.modules.payslips.domain.comparison_engine import _sum_travail_base_hours, _to_float
 from app.modules.payroll.engine.controles_convention import (
     extraire_alertes_rh_depuis_bulletin,
@@ -87,8 +97,69 @@ def _sum_cotisations_patronales(payslip_data: Dict[str, Any]) -> Tuple[float, bo
     return round(s, 2), neg
 
 
+def _employee_context_from_row(
+    row: Dict[str, Any],
+    exits_by_employee: Dict[str, Dict[str, Any]],
+) -> EmployeeAnomalyContext:
+    emp = row.get("employees")
+    if isinstance(emp, list) and emp:
+        emp = emp[0]
+    employment_status = ""
+    if isinstance(emp, dict):
+        employment_status = str(emp.get("employment_status") or "")
+    employee_id = str(row.get("employee_id") or "")
+    exit_row = exits_by_employee.get(employee_id) or {}
+    return EmployeeAnomalyContext(
+        employment_status=employment_status,
+        exit_status=str(exit_row.get("status") or "") or None,
+        last_working_day=parse_date_value(exit_row.get("last_working_day")),
+    )
+
+
+def _fetch_archived_exits_by_employee(
+    company_id: str,
+) -> Dict[str, Dict[str, Any]]:
+    r = (
+        supabase.table("employee_exits")
+        .select("employee_id, status, last_working_day")
+        .eq("company_id", company_id)
+        .execute()
+    )
+    out: Dict[str, Dict[str, Any]] = {}
+    for row in r.data or []:
+        if not isinstance(row, dict):
+            continue
+        employee_id = str(row.get("employee_id") or "")
+        if not employee_id:
+            continue
+        existing = out.get(employee_id)
+        if existing is None or str(row.get("status") or "") == "archivee":
+            out[employee_id] = row
+    return out
+
+
+def _dedupe_system_config_anomalies(
+    anomalies: List[AnomaliePayslipItem],
+) -> List[AnomaliePayslipItem]:
+    seen: Set[Tuple[str, str]] = set()
+    out: List[AnomaliePayslipItem] = []
+    for item in anomalies:
+        key = (item.type, item.message)
+        if is_system_config_anomaly(item.type, item.valeur_detectee):
+            if key in seen:
+                continue
+            seen.add(key)
+        out.append(item)
+    return out
+
+
 def _collect_anomalies_for_row(
     row: Dict[str, Any],
+    *,
+    year: int,
+    month: int,
+    period_closed: bool,
+    employee_ctx: EmployeeAnomalyContext,
 ) -> List[AnomaliePayslipItem]:
     payslip_id = str(row.get("id") or "")
     employee_id = str(row.get("employee_id") or "")
@@ -101,8 +172,18 @@ def _collect_anomalies_for_row(
 
     out: List[AnomaliePayslipItem] = []
 
+    def _append(item: AnomaliePayslipItem) -> None:
+        if should_include_anomaly_in_report(
+            anomaly_type=item.type,
+            severite=item.severite,
+            payslip_status=status,
+            period_closed=period_closed,
+            employee_ctx=employee_ctx,
+        ):
+            out.append(item)
+
     if not isinstance(pdata, dict):
-        out.append(
+        _append(
             AnomaliePayslipItem(
                 employee_id=employee_id,
                 employee_name=employee_name,
@@ -120,7 +201,7 @@ def _collect_anomalies_for_row(
     net = _to_float(pdata.get("net_a_payer"))
 
     if brut < 0:
-        out.append(
+        _append(
             AnomaliePayslipItem(
                 employee_id=employee_id,
                 employee_name=employee_name,
@@ -133,7 +214,7 @@ def _collect_anomalies_for_row(
             )
         )
     elif brut == 0:
-        out.append(
+        _append(
             AnomaliePayslipItem(
                 employee_id=employee_id,
                 employee_name=employee_name,
@@ -147,7 +228,7 @@ def _collect_anomalies_for_row(
         )
 
     if net > brut and brut >= 0:
-        out.append(
+        _append(
             AnomaliePayslipItem(
                 employee_id=employee_id,
                 employee_name=employee_name,
@@ -164,7 +245,7 @@ def _collect_anomalies_for_row(
     if heures > 0 and brut > 0:
         th = brut / heures
         if th < TAUX_HORAIRE_MIN or th > TAUX_HORAIRE_MAX:
-            out.append(
+            _append(
                 AnomaliePayslipItem(
                     employee_id=employee_id,
                     employee_name=employee_name,
@@ -183,7 +264,7 @@ def _collect_anomalies_for_row(
     if brut > 0:
         primes = _sum_primes_from_brut(pdata.get("calcul_du_brut"))
         if primes > 0.5 * brut:
-            out.append(
+            _append(
                 AnomaliePayslipItem(
                     employee_id=employee_id,
                     employee_name=employee_name,
@@ -198,7 +279,7 @@ def _collect_anomalies_for_row(
 
     tot_pat, any_neg_line = _sum_cotisations_patronales(pdata)
     if any_neg_line or tot_pat < 0:
-        out.append(
+        _append(
             AnomaliePayslipItem(
                 employee_id=employee_id,
                 employee_name=employee_name,
@@ -215,7 +296,7 @@ def _collect_anomalies_for_row(
         ref = created_at or updated_at
         now = datetime.now(timezone.utc)
         if ref and (now - ref) > timedelta(days=30):
-            out.append(
+            _append(
                 AnomaliePayslipItem(
                     employee_id=employee_id,
                     employee_name=employee_name,
@@ -229,7 +310,7 @@ def _collect_anomalies_for_row(
             )
 
     for alerte in extraire_alertes_rh_depuis_bulletin(pdata):
-        out.append(
+        _append(
             AnomaliePayslipItem(
                 employee_id=employee_id,
                 employee_name=employee_name,
@@ -251,11 +332,16 @@ def _collect_anomalies_for_row(
 def build_payslips_anomalies_report(
     company_id: str, year: int, month: int
 ) -> PayslipsAnomaliesReport:
+    period_closed = payroll_analytics_repository.is_period_closed(
+        company_id, year, month
+    )
+    exits_by_employee = _fetch_archived_exits_by_employee(company_id)
+
     r = (
         supabase.table("payslips")
         .select(
             "id, employee_id, payslip_data, status, created_at, updated_at, "
-            "employees(first_name,last_name)"
+            "employees(first_name,last_name,employment_status)"
         )
         .eq("company_id", company_id)
         .eq("year", year)
@@ -265,21 +351,35 @@ def build_payslips_anomalies_report(
     rows: List[Dict[str, Any]] = list(r.data or [])
     anomalies: List[AnomaliePayslipItem] = []
     payslips_touchés: Set[str] = set()
+    included_payslip_count = 0
 
     for row in rows:
         if not isinstance(row, dict):
             continue
-        row_an = _collect_anomalies_for_row(row)
+        employee_ctx = _employee_context_from_row(row, exits_by_employee)
+        if not should_include_payslip_in_anomalies_report(
+            employee_ctx, year=year, month=month
+        ):
+            continue
+        included_payslip_count += 1
+        row_an = _collect_anomalies_for_row(
+            row,
+            year=year,
+            month=month,
+            period_closed=period_closed,
+            employee_ctx=employee_ctx,
+        )
         if row_an:
             payslips_touchés.add(str(row.get("id") or ""))
         anomalies.extend(row_an)
 
+    anomalies = _dedupe_system_config_anomalies(anomalies)
     anomalies.sort(key=lambda a: (0 if a.severite == "bloquant" else 1, a.employee_name))
 
     return PayslipsAnomaliesReport(
         year=year,
         month=month,
-        total_bulletins=len(rows),
+        total_bulletins=included_payslip_count,
         bulletins_avec_anomalies=len(payslips_touchés),
         anomalies=anomalies,
     )

@@ -25,6 +25,7 @@ REPRISE_ABSENCE_TYPES = [
 ]
 REPRISE_MIN_DAYS_AT_MP = 30
 REPRISE_MIN_DAYS_MALADIE = 60
+ACTIVE_OBLIGATION_STATUSES = frozenset({"a_faire", "planifiee"})
 
 
 def _parse_date(d: Any) -> Optional[date]:
@@ -166,6 +167,73 @@ def _dedupe_key(
     return (visit_type, trigger_type, due_date.isoformat())
 
 
+def _obligation_dedupe_key_from_row(o: Dict[str, Any]) -> Optional[tuple]:
+    visit_type = (o.get("visit_type") or "").strip()
+    trigger_type = (o.get("trigger_type") or "").strip()
+    due = _parse_date(o.get("due_date"))
+    if not visit_type or not trigger_type or due is None:
+        return None
+    return _dedupe_key(
+        visit_type,
+        trigger_type,
+        due,
+        _parse_date(o.get("request_date")),
+    )
+
+
+def _has_active_obligation(
+    existing: List[Dict[str, Any]],
+    visit_type: str,
+    trigger_type: Optional[str] = None,
+) -> bool:
+    for o in existing:
+        if o.get("status") not in ACTIVE_OBLIGATION_STATUSES:
+            continue
+        if o.get("visit_type") != visit_type:
+            continue
+        if trigger_type is not None and o.get("trigger_type") != trigger_type:
+            continue
+        return True
+    return False
+
+
+def _cancel_duplicate_obligations(
+    supabase: Any, existing: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """Annule les doublons actifs (même type, déclencheur, échéance) en gardant la plus ancienne."""
+    groups: Dict[tuple, List[Dict[str, Any]]] = {}
+    for o in existing:
+        if o.get("status") not in ACTIVE_OBLIGATION_STATUSES:
+            continue
+        key = _obligation_dedupe_key_from_row(o)
+        if key is None:
+            continue
+        groups.setdefault(key, []).append(o)
+
+    cancelled_ids: set[str] = set()
+    for rows in groups.values():
+        if len(rows) <= 1:
+            continue
+        rows.sort(key=lambda row: (row.get("created_at") or "", row.get("id") or ""))
+        for duplicate in rows[1:]:
+            ob_id = duplicate.get("id")
+            if not ob_id or ob_id in cancelled_ids:
+                continue
+            supabase.table("medical_follow_up_obligations").update(
+                {"status": "annulee", "justification": "Doublon supprimé automatiquement"}
+            ).eq("id", ob_id).execute()
+            cancelled_ids.add(ob_id)
+
+    if not cancelled_ids:
+        return existing
+
+    return [
+        o
+        for o in existing
+        if o.get("id") not in cancelled_ids
+    ]
+
+
 def compute_obligations_for_employee(
     company_id: str, employee_id: str
 ) -> List[Dict[str, Any]]:
@@ -202,21 +270,26 @@ def compute_obligations_for_employee(
     idcc = _get_employee_collective_agreement_idcc(supabase, employee_id)
     rule_source = "convention" if idcc else "legal"
 
-    existing = _existing_obligations(supabase, company_id, employee_id)
+    existing = _cancel_duplicate_obligations(
+        supabase, _existing_obligations(supabase, company_id, employee_id)
+    )
     existing_keys = {
-        _dedupe_key(
-            o.get("visit_type"),
-            o.get("trigger_type"),
-            _parse_date(o.get("due_date")) or today,
-            _parse_date(o.get("request_date")),
-        )
+        key
         for o in existing
+        for key in [_obligation_dedupe_key_from_row(o)]
+        if key is not None
     }
 
     to_insert: List[Dict[str, Any]] = []
     to_update: List[tuple] = []
 
-    if is_poste_sir and hire_date:
+    if (
+        is_poste_sir
+        and hire_date
+        and not _has_active_obligation(
+            existing, "aptitude_sir_avant_affectation", "poste_sir"
+        )
+    ):
         due = hire_date
         key = _dedupe_key("aptitude_sir_avant_affectation", "poste_sir", due)
         if key not in existing_keys:
@@ -241,7 +314,13 @@ def compute_obligations_for_employee(
                     break
 
     is_mineur = birth_date and (today - birth_date).days < 18 * 365
-    if (is_mineur or is_travail_nuit) and hire_date:
+    if (
+        (is_mineur or is_travail_nuit)
+        and hire_date
+        and not _has_active_obligation(
+            existing, "vip_avant_affectation_mineur_nuit", "nuit_mineur"
+        )
+    ):
         due = hire_date
         key = _dedupe_key("vip_avant_affectation_mineur_nuit", "nuit_mineur", due)
         if key not in existing_keys:
@@ -281,7 +360,9 @@ def compute_obligations_for_employee(
 
     if birth_date:
         birth_45 = date(birth_date.year + 45, birth_date.month, birth_date.day)
-        if today >= birth_45:
+        if today >= birth_45 and not _has_active_obligation(
+            existing, "mi_carriere_45", "age_45"
+        ):
             due = birth_45
             key = _dedupe_key("mi_carriere_45", "age_45", due)
             if key not in existing_keys:
@@ -313,7 +394,7 @@ def compute_obligations_for_employee(
     )
     if last_vip.data and last_vip.data[0].get("completed_date"):
         last_d = _parse_date(last_vip.data[0]["completed_date"])
-        if last_d:
+        if last_d and not _has_active_obligation(existing, "vip"):
             next_due = last_d.replace(year=last_d.year + vip_years)
             key = _dedupe_key("vip", "periodicite_vip", next_due)
             if key not in existing_keys:
@@ -331,10 +412,10 @@ def compute_obligations_for_employee(
                     }
                 )
                 existing_keys.add(key)
-    elif hire_date:
+    elif hire_date and not _has_active_obligation(existing, "vip"):
         next_due = hire_date.replace(year=hire_date.year + vip_years)
         if next_due > today:
-            key = _dedupe_key("vip", "periodicite_vip", next_due)
+            key = _dedupe_key("vip", "embauche", next_due)
             if key not in existing_keys:
                 to_insert.append(
                     {
@@ -364,7 +445,7 @@ def compute_obligations_for_employee(
     )
     if last_sir.data and last_sir.data[0].get("completed_date"):
         last_d = _parse_date(last_sir.data[0]["completed_date"])
-        if last_d:
+        if last_d and not _has_active_obligation(existing, "sir"):
             next_due = last_d.replace(year=last_d.year + sir_years)
             key = _dedupe_key("sir", "periodicite_sir", next_due)
             if key not in existing_keys:
@@ -382,7 +463,7 @@ def compute_obligations_for_employee(
                     }
                 )
                 existing_keys.add(key)
-    elif is_poste_sir and hire_date:
+    elif is_poste_sir and hire_date and not _has_active_obligation(existing, "sir"):
         next_due = hire_date.replace(year=hire_date.year + SIR_INTERMEDIATE_YEARS)
         if next_due > today:
             key = _dedupe_key("sir", "poste_sir", next_due)
