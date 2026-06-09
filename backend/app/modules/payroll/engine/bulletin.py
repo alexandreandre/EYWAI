@@ -275,24 +275,24 @@ def creer_bulletin_final(
             "subrogation_active", False
         )
 
-    alertes_baremes = getattr(contexte, "alertes_baremes", []) or []
+    if not isinstance(getattr(contexte, "alertes_baremes", None), list):
+        contexte.alertes_baremes = []
     from app.modules.payroll.engine.controles_convention import (
         controle_convention_collective,
         controle_net_superieur_brut,
     )
 
     for alerte_cc in controle_convention_collective(contexte, salaire_brut):
-        if isinstance(contexte.alertes_baremes, list):
-            contexte.alertes_baremes.append(alerte_cc)
+        contexte.alertes_baremes.append(alerte_cc)
 
     net_a_payer_val = resultats_nets.get("net_a_payer")
-    if net_a_payer_val is not None and isinstance(contexte.alertes_baremes, list):
+    if net_a_payer_val is not None:
         for alerte_net in controle_net_superieur_brut(
             salaire_brut, float(net_a_payer_val)
         ):
             contexte.alertes_baremes.append(alerte_net)
 
-    alertes_baremes = getattr(contexte, "alertes_baremes", []) or []
+    alertes_baremes = contexte.alertes_baremes
     donnees_non_officielles = any(
         a.get("donnee_non_officielle") for a in alertes_baremes
     )
