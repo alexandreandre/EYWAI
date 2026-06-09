@@ -91,6 +91,8 @@ class AdvanceAvailableAmount(BaseModel):
     available_amount: Decimal
     max_advance_days: int = 10
     reference_net_salary: Decimal = Decimal("0")
+    reference_payslip_year: Optional[int] = None
+    reference_payslip_month: Optional[int] = None
     max_advance_from_net: Decimal = Decimal("0")
     max_advance_net_ratio: Decimal = Decimal("0.5")
 

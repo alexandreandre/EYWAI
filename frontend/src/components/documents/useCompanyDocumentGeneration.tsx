@@ -11,6 +11,7 @@ import {
   type DocumentCategory,
 } from '@/api/documents';
 import { DOCUMENT_TYPE_LABELS, getTemplates, type DocumentTemplate } from '@/api/documentLibrary';
+import { rhCanViewEmployeeDocuments } from '@/lib/employeeExitDocumentsAccess';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -60,6 +61,8 @@ interface SimpleEmployee {
   id: string;
   first_name: string;
   last_name: string;
+  employment_status?: string | null;
+  exit_last_working_day?: string | null;
 }
 
 type GenMode = 'contrat' | 'avenant' | 'attestation' | null;
@@ -80,13 +83,23 @@ export function useCompanyDocumentGeneration() {
     kind: 'view' | 'download';
   } | null>(null);
 
-  const { data: employees = [] } = useQuery({
+  const { data: employeesRaw = [] } = useQuery({
     queryKey: ['employees', 'company-documents-gen'],
     queryFn: async () => {
       const r = await apiClient.get<SimpleEmployee[]>('/api/employees', { params: { limit: 500 } });
       return r.data ?? [];
     },
   });
+
+  const employees = useMemo(
+    () =>
+      employeesRaw.filter((employee) => {
+        const status = (employee.employment_status || 'actif').toLowerCase();
+        if (status === 'parti') return false;
+        return rhCanViewEmployeeDocuments(employee);
+      }),
+    [employeesRaw],
+  );
 
   const selectedEmployee = useMemo(
     () => employees.find((e) => e.id === genEmployeeId),

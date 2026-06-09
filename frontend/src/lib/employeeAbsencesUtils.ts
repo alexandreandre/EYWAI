@@ -110,14 +110,63 @@ export function absencesOnCalendarDay(
   return absences.filter((a) => a.selected_days?.includes(iso));
 }
 
+/** Types d'absence enregistrés par l'employeur (pas de demande salarié). */
+export const RH_ONLY_ABSENCE_TYPES = [
+  'arret_maladie',
+  'arret_at',
+  'arret_paternite',
+  'arret_maternite',
+  'arret_maladie_pro',
+] as const;
+
+export const EMPLOYEE_REQUESTABLE_ABSENCE_TYPES = [
+  'conge_paye',
+  'rtt',
+  'repos_compensateur',
+  'evenement_familial',
+] as const;
+
+export type EmployeeRequestableAbsenceType =
+  (typeof EMPLOYEE_REQUESTABLE_ABSENCE_TYPES)[number];
+
+/** Message affiché aux salariés : arrêts, maternité/paternité, maladie pro = saisie employeur. */
+export const EMPLOYER_REGISTERED_ABSENCE_HINT =
+  'Les arrêts maladie, accidents du travail, congés maternité et paternité (délais selon la convention collective) et maladies professionnelles ne se déclarent pas ici. Contactez votre employeur ou remettez vos justificatifs (certificat médical, etc.) : c’est lui qui enregistre l’absence.';
+
 export function requiresSalaryCertificate(type: string): boolean {
-  return [
-    'arret_maladie',
-    'arret_at',
-    'arret_paternite',
-    'arret_maternite',
-    'arret_maladie_pro',
-  ].includes(type);
+  return (RH_ONLY_ABSENCE_TYPES as readonly string[]).includes(type);
+}
+
+export const INSUFFICIENT_CP_BALANCE_MESSAGE =
+  'Solde de congés payés insuffisant. Rapprochez-vous de votre direction pour toute demande hors droits acquis.';
+
+export function getAvailableCongePayeDays(
+  balances: AbsenceBalance[],
+  pendingRequests: AbsenceRequest[] = [],
+): number {
+  const row = balances.find((b) => b.type === 'Congés Payés');
+  const remaining = typeof row?.remaining === 'number' ? row.remaining : 0;
+  const pendingDays = pendingRequests
+    .filter((r) => r.type === 'conge_paye' && r.status === 'pending')
+    .reduce((sum, r) => sum + (r.selected_days?.length ?? 0), 0);
+  return Math.max(0, remaining - pendingDays);
+}
+
+export function formatCongePayeInsufficientMessage(
+  available: number,
+  requested: number,
+): string {
+  if (available <= 0) {
+    return INSUFFICIENT_CP_BALANCE_MESSAGE;
+  }
+  const availLabel = Number.isInteger(available)
+    ? String(available)
+    : available.toFixed(1);
+  return (
+    `Solde de congés payés insuffisant : il vous reste ${availLabel} jour(s) ` +
+    `disponible(s) pour ${requested} jour(s) demandé(s). ` +
+    'Rapprochez-vous de votre direction pour une demande hors solde.'
+  );
 }
 
 export function formatBalanceRemaining(

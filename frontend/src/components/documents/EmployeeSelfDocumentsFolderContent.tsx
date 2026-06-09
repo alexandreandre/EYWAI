@@ -13,7 +13,7 @@ import {
   type DocumentFolderId,
   type PayslipItem,
 } from '@/components/employee-detail/employeeDetailDocumentsFolders';
-import { DocumentFileRow, DownloadLinkButton, ViewLinkButton } from '@/components/employee-detail/DocumentFileRow';
+import { DocumentFileRow, DocumentPreviewDownloadActions, DownloadLinkButton, ViewLinkButton } from '@/components/employee-detail/DocumentFileRow';
 import { GeneratedDocMeta } from '@/components/employee-detail/EmployeeDetailDocumentsRhSection';
 import { RefreshCw } from 'lucide-react';
 
@@ -77,8 +77,11 @@ export function EmployeeSelfDocumentsFolderContent({
   const {
     profile,
     contractUrl,
+    contractPreviewUrl,
     identityUrl,
+    identityPreviewUrl,
     credentialsPdfUrl,
+    credentialsPdfPreviewUrl,
     payslips,
     generatedByFolder,
     exitDocuments,
@@ -156,9 +159,10 @@ export function EmployeeSelfDocumentsFolderContent({
           name="Contrat de travail (fichier signé)"
           subtitle="Document importé à l’embauche"
           actions={
-            <DownloadLinkButton
-              href={contractUrl}
-              download={`Contrat_${firstName}_${lastName}.pdf`}
+            <DocumentPreviewDownloadActions
+              previewUrl={contractPreviewUrl}
+              downloadUrl={contractUrl}
+              downloadName={`Contrat_${firstName}_${lastName}.pdf`}
             />
           }
         />
@@ -226,9 +230,10 @@ export function EmployeeSelfDocumentsFolderContent({
           name={identityLabel}
           subtitle={subtitleParts.length > 0 ? subtitleParts.join(' — ') : undefined}
           actions={
-            <DownloadLinkButton
-              href={identityUrl}
-              download={`${profile?.is_subject_to_residence_permit ? 'Titre_sejour' : 'Piece_identite'}_${firstName}_${lastName}`}
+            <DocumentPreviewDownloadActions
+              previewUrl={identityPreviewUrl}
+              downloadUrl={identityUrl}
+              downloadName={`${profile?.is_subject_to_residence_permit ? 'Titre_sejour' : 'Piece_identite'}_${firstName}_${lastName}`}
             />
           }
         />
@@ -324,9 +329,10 @@ export function EmployeeSelfDocumentsFolderContent({
           name="Identifiants de connexion"
           subtitle="Identifiants de première connexion — modifiez votre mot de passe dès la première connexion"
           actions={
-            <DownloadLinkButton
-              href={credentialsPdfUrl}
-              download={`Compte_${firstName}_${lastName}.pdf`}
+            <DocumentPreviewDownloadActions
+              previewUrl={credentialsPdfPreviewUrl}
+              downloadUrl={credentialsPdfUrl}
+              downloadName={`Compte_${firstName}_${lastName}.pdf`}
             />
           }
         />
@@ -346,7 +352,13 @@ export function EmployeeSelfDocumentsFolderContent({
           subtitle={
             doc.date ? `Publié le ${new Date(doc.date).toLocaleDateString('fr-FR')}` : 'Document de sortie'
           }
-          actions={<DownloadLinkButton href={doc.url} download={doc.name} />}
+          actions={
+            <DocumentPreviewDownloadActions
+              previewUrl={doc.previewUrl}
+              downloadUrl={doc.url}
+              downloadName={doc.name}
+            />
+          }
         />
       );
     }

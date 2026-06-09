@@ -22,7 +22,7 @@ import {
   sortPayslipsDesc,
   type PayslipItem,
 } from '@/components/employee-detail/employeeDetailDocumentsFolders';
-import { DocumentFileRow, DownloadLinkButton, ViewLinkButton } from '@/components/employee-detail/DocumentFileRow';
+import { DocumentFileRow, DocumentPreviewDownloadActions, DownloadLinkButton, ViewLinkButton } from '@/components/employee-detail/DocumentFileRow';
 import {
   GeneratedDocActions,
   GeneratedDocMeta,
@@ -57,6 +57,7 @@ function toPayslipItems(rows: ExplorerPayslipItem[]): PayslipItem[] {
     id: p.id,
     name: p.name,
     url: p.url,
+    preview_url: p.preview_url,
     month: p.month,
     year: p.year,
   }));
@@ -213,7 +214,13 @@ export function CompanyDocumentsExplorer({
         key={`${item.kind}-${item.employee_id}`}
         name={item.label}
         subtitle={subtitle}
-        actions={<DownloadLinkButton href={item.url} download={downloadName} />}
+        actions={
+          <DocumentPreviewDownloadActions
+            previewUrl={item.preview_url}
+            downloadUrl={item.url}
+            downloadName={downloadName}
+          />
+        }
       />
     );
   };

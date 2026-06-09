@@ -1,22 +1,4 @@
-import type { ActualHoursData, PlannedEventData } from '@/api/calendar';
-import { computeMonthStats, isSignificantEcart } from '@/lib/calendarStats';
-
-export function dayHasSignificantEcart(
-  heuresPrevues: number | null | undefined,
-  heuresFaites: number | null | undefined,
-  isForfaitJour: boolean
-): boolean {
-  if (isForfaitJour) {
-    const p = heuresPrevues === 1 ? 1 : 0;
-    const a = heuresFaites === 1 ? 1 : 0;
-    if (heuresPrevues == null && heuresFaites == null) return false;
-    return p !== a;
-  }
-  const p = heuresPrevues ?? 0;
-  const a = heuresFaites ?? 0;
-  if (heuresPrevues == null && heuresFaites == null) return false;
-  return isSignificantEcart(p, a);
-}
+import type { PlannedEventData } from '@/api/calendar';
 
 /** Tous les jours ouvrés du mois sans heures prévues renseignées. */
 export function isMonthUnfilledByRh(
@@ -40,14 +22,4 @@ export function isMonthUnfilledByRh(
   }
 
   return weekdayCount > 0 && unfilledCount === weekdayCount;
-}
-
-export function monthHasSignificantEcart(
-  planned: PlannedEventData[],
-  actual: ActualHoursData[],
-  isForfaitJour: boolean
-): boolean {
-  const stats = computeMonthStats(planned, actual, isForfaitJour);
-  if (isForfaitJour) return stats.ecartJours !== 0;
-  return isSignificantEcart(stats.heuresPrevues, stats.heuresFaites);
 }

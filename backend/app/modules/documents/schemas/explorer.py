@@ -15,6 +15,7 @@ class ExplorerPayslipItem(BaseModel):
     employee_name: str
     name: str
     url: str
+    preview_url: str = ""
     month: int
     year: int
 
@@ -24,6 +25,7 @@ class ExplorerStorageItem(BaseModel):
     employee_name: str
     kind: Literal["contract", "identity", "credentials"]
     url: str
+    preview_url: str = ""
     label: str
 
 

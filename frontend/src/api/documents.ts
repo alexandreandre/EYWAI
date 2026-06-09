@@ -1,4 +1,5 @@
 import apiClient from '@/api/apiClient';
+import { openSignedUrlPreview } from '@/lib/openSignedUrlPreview';
 
 export type DocumentStatus = 'brouillon' | 'envoye' | 'signe' | 'archive';
 
@@ -62,6 +63,7 @@ export interface ExplorerPayslipItem {
   employee_name: string;
   name: string;
   url: string;
+  preview_url?: string;
   month: number;
   year: number;
 }
@@ -71,6 +73,7 @@ export interface ExplorerStorageItem {
   employee_name: string;
   kind: 'contract' | 'identity' | 'credentials';
   url: string;
+  preview_url?: string;
   label: string;
 }
 
@@ -131,6 +134,11 @@ export async function downloadDocument(id: string): Promise<DocumentDownloadResu
   return response.data;
 }
 
+export async function previewDocument(id: string): Promise<DocumentDownloadResult> {
+  const response = await apiClient.get<DocumentDownloadResult>(`/api/documents/${id}/preview`);
+  return response.data;
+}
+
 /**
  * Déclenche le téléchargement / ouverture du PDF à partir de l’URL signée (évite window.open seul).
  */
@@ -151,8 +159,8 @@ export function triggerSignedDocumentDownload(
   document.body.removeChild(a);
 }
 
-/** Ouvre le PDF dans un nouvel onglet (aperçu navigateur). */
+/** Ouvre le PDF dans un nouvel onglet (aperçu inline, sans forcer le téléchargement). */
 export async function openDocumentPreview(id: string): Promise<void> {
-  const res = await downloadDocument(id);
-  window.open(res.signed_url, '_blank', 'noopener,noreferrer');
+  const res = await previewDocument(id);
+  openSignedUrlPreview(res.signed_url);
 }

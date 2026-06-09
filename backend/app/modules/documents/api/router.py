@@ -173,7 +173,7 @@ def download_document_route(
     document_id: str,
     current_user: User = Depends(get_current_user),
 ) -> DownloadUrlResponse:
-    """Retourne une URL signée (téléchargement côté client)."""
+    """Retourne une URL signée pour téléchargement."""
     cid = _company_id(current_user)
     _require_company_access(current_user, cid)
     try:
@@ -192,6 +192,36 @@ def download_document_route(
         if str(row.get("employee_id") or "") != str(my_emp):
             raise HTTPException(status_code=403, detail="Accès non autorisé.")
         url = queries.get_download_url(document_id, cid)
+        return DownloadUrlResponse(signed_url=url)
+    except Exception as e:
+        traceback.print_exc()
+        _handle_application_errors(e)
+
+
+@router.get("/{document_id}/preview", response_model=DownloadUrlResponse)
+def preview_document_route(
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+) -> DownloadUrlResponse:
+    """Retourne une URL signée pour aperçu inline (sans forcer le téléchargement)."""
+    cid = _company_id(current_user)
+    _require_company_access(current_user, cid)
+    try:
+        if current_user.has_rh_access_in_company(cid):
+            url = queries.get_preview_url(document_id, cid)
+            return DownloadUrlResponse(signed_url=url)
+        my_emp = _employee_scope_id(current_user, cid)
+        if not my_emp:
+            raise HTTPException(
+                status_code=403,
+                detail="Aucun profil collaborateur lié à votre compte pour cette entreprise.",
+            )
+        row = queries.get_document(document_id, cid)
+        if not row:
+            raise HTTPException(status_code=404, detail="Document introuvable")
+        if str(row.get("employee_id") or "") != str(my_emp):
+            raise HTTPException(status_code=403, detail="Accès non autorisé.")
+        url = queries.get_preview_url(document_id, cid)
         return DownloadUrlResponse(signed_url=url)
     except Exception as e:
         traceback.print_exc()

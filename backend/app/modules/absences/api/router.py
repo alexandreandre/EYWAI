@@ -21,6 +21,7 @@ from app.modules.webhooks.application.service import trigger_webhook_event
 from app.modules.users.schemas.responses import User
 
 from app.modules.absences.application import commands, notifications as absence_notif, queries
+from app.modules.absences.domain.enums import SALARY_CERTIFICATE_ABSENCE_TYPES
 from app.modules.absences.schemas.requests import (
     AbsenceRequestCreate,
     AbsenceRequestStatusUpdate,
@@ -212,12 +213,36 @@ async def create_absence_request(
 ):
     """Crée une nouvelle demande d'absence à partir d'une liste de jours."""
     try:
+        company_id = current_user.active_company_id
+        is_rh = current_user.is_platform_admin or (
+            company_id is not None
+            and current_user.has_rh_access_in_company(str(company_id))
+        )
+        if (
+            not is_rh
+            and request_data.type in SALARY_CERTIFICATE_ABSENCE_TYPES
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Les arrêts maladie, accidents du travail, congés maternité et "
+                    "paternité (délais selon la convention collective) et maladies "
+                    "professionnelles ne se déclarent pas par le salarié. Contactez "
+                    "votre employeur ou remettez vos justificatifs : c'est lui qui "
+                    "enregistre l'absence."
+                ),
+            )
+
         employee_id = _resolve_create_absence_employee_id(
             current_user, request_data.employee_id
         )
         if employee_id != request_data.employee_id:
             request_data = request_data.model_copy(
                 update={"employee_id": employee_id}
+            )
+        if not is_rh and request_data.type == "conge_paye":
+            queries.assert_employee_conge_paye_request_allowed(
+                employee_id, request_data.selected_days
             )
         data = commands.create_absence_request(request_data)
         rid = str(data["id"])

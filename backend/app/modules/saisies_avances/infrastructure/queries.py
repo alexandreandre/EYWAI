@@ -207,7 +207,7 @@ def get_advances_to_repay(
     return result
 
 
-def get_reference_net_salary_for_employee(employee_id: str) -> Decimal:
+def get_reference_net_salary_context(employee_id: str) -> Dict[str, Any]:
     """Salaire net de référence : net_a_payer du dernier bulletin ou salaire_de_base."""
     r = (
         supabase.table("payslips")
@@ -219,8 +219,13 @@ def get_reference_net_salary_for_employee(employee_id: str) -> Decimal:
         .execute()
     )
     if r.data:
-        payslip_data = r.data[0].get("payslip_data", {})
-        return Decimal(str(payslip_data.get("net_a_payer", 0)))
+        row = r.data[0]
+        payslip_data = row.get("payslip_data", {})
+        return {
+            "reference_net_salary": Decimal(str(payslip_data.get("net_a_payer", 0))),
+            "reference_payslip_year": row.get("year"),
+            "reference_payslip_month": row.get("month"),
+        }
     emp_r = (
         supabase.table("employees")
         .select("salaire_de_base")
@@ -231,9 +236,23 @@ def get_reference_net_salary_for_employee(employee_id: str) -> Decimal:
     if emp_r.data:
         sb = emp_r.data.get("salaire_de_base", {})
         if isinstance(sb, dict):
-            return Decimal(str(sb.get("valeur", 0)))
-        return Decimal(str(sb))
-    return Decimal("0")
+            net = Decimal(str(sb.get("valeur", 0)))
+        else:
+            net = Decimal(str(sb))
+        return {
+            "reference_net_salary": net,
+            "reference_payslip_year": None,
+            "reference_payslip_month": None,
+        }
+    return {
+        "reference_net_salary": Decimal("0"),
+        "reference_payslip_year": None,
+        "reference_payslip_month": None,
+    }
+
+
+def get_reference_net_salary_for_employee(employee_id: str) -> Decimal:
+    return get_reference_net_salary_context(employee_id)["reference_net_salary"]
 
 
 def get_daily_salary_for_employee(employee_id: str) -> Decimal:
@@ -267,7 +286,8 @@ def build_advance_available(employee_id: str, year: int, month: int) -> Dict[str
     Construit le montant disponible pour une avance (données + règle pure).
     Retourne un dict avec daily_salary, days_worked, outstanding_advances, available_amount, max_advance_days.
     """
-    reference_net_salary = get_reference_net_salary_for_employee(employee_id)
+    ref = get_reference_net_salary_context(employee_id)
+    reference_net_salary = ref["reference_net_salary"]
     daily_salary = reference_net_salary / Decimal("30")
     days_worked = get_days_worked_for_month(year, month)
     total_outstanding = get_outstanding_advances_sum(employee_id)
@@ -286,6 +306,8 @@ def build_advance_available(employee_id: str, year: int, month: int) -> Dict[str
         "available_amount": available_amount,
         "max_advance_days": MAX_ADVANCE_DAYS,
         "reference_net_salary": reference_net_salary,
+        "reference_payslip_year": ref.get("reference_payslip_year"),
+        "reference_payslip_month": ref.get("reference_payslip_month"),
         "max_advance_from_net": max_advance_from_net,
         "max_advance_net_ratio": MAX_ADVANCE_NET_RATIO,
     }

@@ -17,6 +17,50 @@ function sumHours(values: (number | null | undefined)[]): number {
   return values.reduce((acc, v) => acc + (typeof v === 'number' && !Number.isNaN(v) ? v : 0), 0);
 }
 
+const ABSENCE_HOUR_TYPES = new Set(['arret_maladie', 'absence']);
+
+export interface EmployeeCalendarSummary {
+  heuresFaites: number;
+  heuresSupplementaires: number;
+  congesPris: number;
+  heuresAbsence: number;
+  isForfaitJour: boolean;
+}
+
+/** Synthèse mensuelle simplifiée pour la page calendrier employé. */
+export function computeEmployeeCalendarSummary(
+  planned: PlannedEventData[],
+  actual: ActualHoursData[],
+  isForfaitJour: boolean
+): EmployeeCalendarSummary {
+  const base = computeMonthStats(planned, actual, isForfaitJour);
+  const actualByDay = new Map(actual.map((a) => [a.jour, a]));
+
+  let heuresSupplementaires = 0;
+  let heuresAbsence = 0;
+
+  for (const p of planned) {
+    if (ABSENCE_HOUR_TYPES.has(p.type)) {
+      heuresAbsence += p.heures_prevues ?? (isForfaitJour ? 1 : 0);
+    }
+    if (p.type === 'travail' && !isForfaitJour) {
+      const faites = actualByDay.get(p.jour)?.heures_faites ?? 0;
+      const prevues = p.heures_prevues ?? 0;
+      if (faites > prevues) {
+        heuresSupplementaires += faites - prevues;
+      }
+    }
+  }
+
+  return {
+    heuresFaites: isForfaitJour ? base.joursTravaillesForfait : base.heuresFaites,
+    heuresSupplementaires,
+    congesPris: base.conges,
+    heuresAbsence,
+    isForfaitJour,
+  };
+}
+
 export function computeMonthStats(
   planned: PlannedEventData[],
   actual: ActualHoursData[],

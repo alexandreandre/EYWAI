@@ -22,6 +22,12 @@ import { ShiftBlock } from '@/components/planning/ShiftBlock';
 import { WeekHeader } from '@/components/planning/WeekHeader';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
+import { useEmployeeWeekPayrollCalendar } from '@/hooks/useEmployeeWeekPayrollCalendar';
+import {
+  CALENDAR_TYPE_BAR_COLORS,
+  formatCalendarValue,
+  getCalendarTypeLabel,
+} from '@/lib/calendarTypes';
 import {
   dayNumberFromIso,
   normShiftDay,
@@ -100,6 +106,8 @@ function formatWeekRange(weekStart: string, weekEnd: string): string {
 export interface EmployeePlanningWeekViewProps {
   weekStart: string;
   onWeekStartChange: (iso: string) => void;
+  employeeId?: string;
+  employeeStatut?: string;
   onDayClick?: (payload: {
     iso: string;
     day: number;
@@ -114,6 +122,8 @@ export interface EmployeePlanningWeekViewProps {
 export function EmployeePlanningWeekView({
   weekStart,
   onWeekStartChange,
+  employeeId,
+  employeeStatut,
   onDayClick,
   onPlanningStatusChange,
   showToolbar = true,
@@ -129,6 +139,13 @@ export function EmployeePlanningWeekView({
     queryFn: () => getMyPlanning(weekStart),
     enabled: Boolean(weekStart),
   });
+
+  const payrollQuery = useEmployeeWeekPayrollCalendar(
+    employeeId,
+    weekStart,
+    employeeStatut,
+    Boolean(employeeId)
+  );
 
   const planning = query.data;
   const myEmployeeId = planning?.employee_id ?? user?.id ?? '';
@@ -238,6 +255,8 @@ export function EmployeePlanningWeekView({
 
   const badge = planning ? statusBadge(planning.status) : null;
   const isDraft = planning?.status === 'draft';
+  const showPayrollWeekFallback =
+    isDraft && payrollQuery.hasPayrollData && !payrollQuery.isLoading;
   const canExportPdf =
     Boolean(planning) && !isDraft && !query.isLoading && !query.isError;
 
@@ -328,9 +347,19 @@ export function EmployeePlanningWeekView({
           <div className="flex gap-2 rounded-md border border-border/60 bg-background/80 px-3 py-2.5 text-xs text-muted-foreground">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/80" aria-hidden />
             <p>
-              Calendrier paie : consultez l&apos;onglet{' '}
-              <span className="font-medium text-foreground">Mois</span> pour le prévu / réalisé
-              mensuel.
+              {showPayrollWeekFallback ? (
+                <>
+                  Le planning RH n&apos;est pas encore publié : affichage du{' '}
+                  <span className="font-medium text-foreground">calendrier paie</span> (prévu /
+                  réalisé). Les créneaux horaires apparaîtront après publication.
+                </>
+              ) : (
+                <>
+                  Calendrier paie : consultez l&apos;onglet{' '}
+                  <span className="font-medium text-foreground">Mois</span> pour le prévu / réalisé
+                  mensuel.
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -346,6 +375,80 @@ export function EmployeePlanningWeekView({
           <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-10 text-center text-sm text-destructive">
             {planningLoadError}
           </p>
+        ) : isDraft && payrollQuery.isLoading ? (
+          <div className="space-y-3 rounded-lg border p-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-48 w-full" />
+          </div>
+        ) : showPayrollWeekFallback ? (
+          <div className="w-full overflow-x-auto rounded-lg border">
+            <div className="grid min-w-[720px] grid-cols-7 gap-0 divide-x">
+              {payrollQuery.weekPayrollDays.map((day) => {
+                const dayType = day.planned?.type ?? 'weekend';
+                const barColor =
+                  CALENDAR_TYPE_BAR_COLORS[dayType] ?? CALENDAR_TYPE_BAR_COLORS.weekend;
+                return (
+                  <div key={day.iso} className="flex min-w-0 flex-col bg-background">
+                    <button
+                      type="button"
+                      className="border-b bg-muted/40 px-2 py-2 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => handleDayOpen(day.iso)}
+                      disabled={!onDayClick}
+                    >
+                      <p className="text-sm font-medium">{dayLabel(day.iso)}</p>
+                      <p className="text-[11px] text-muted-foreground tabular-nums">
+                        {getCalendarTypeLabel(dayType)}
+                      </p>
+                    </button>
+                    <div
+                      className={cn(
+                        'flex min-h-[200px] flex-col gap-2 p-2',
+                        onDayClick && 'cursor-pointer'
+                      )}
+                      role={onDayClick ? 'button' : undefined}
+                      tabIndex={onDayClick ? 0 : undefined}
+                      onClick={onDayClick ? () => handleDayOpen(day.iso) : undefined}
+                      onKeyDown={
+                        onDayClick
+                          ? (e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                handleDayOpen(day.iso);
+                              }
+                            }
+                          : undefined
+                      }
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={cn('h-8 w-1 shrink-0 rounded-full', barColor)} aria-hidden />
+                        <span className="text-xs font-medium">{getCalendarTypeLabel(dayType)}</span>
+                      </div>
+                      <dl className="space-y-1.5 text-xs">
+                        <div>
+                          <dt className="text-muted-foreground">Prévu</dt>
+                          <dd className="font-semibold tabular-nums">
+                            {formatCalendarValue(
+                              day.planned?.heures_prevues,
+                              payrollQuery.isForfaitJour
+                            )}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">Réalisé</dt>
+                          <dd className="font-semibold tabular-nums">
+                            {formatCalendarValue(
+                              day.actual?.heures_faites,
+                              payrollQuery.isForfaitJour
+                            )}
+                          </dd>
+                        </div>
+                      </dl>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         ) : isDraft ? (
           <div className="flex min-h-[200px] flex-col items-center justify-center rounded-lg border border-dashed bg-muted/30 px-6 py-12 text-center">
             <p className="text-sm font-medium text-foreground">

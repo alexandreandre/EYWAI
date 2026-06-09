@@ -290,14 +290,26 @@ export interface MaintenancePreview {
     nb_jours_maintien: number;
     conflit_convention: boolean;
     motif_non_maintien?: string;
+    carence_employeur_jours?: number;
+    duree_par_taux_jours?: number;
+    duree_maintien_legale_jours?: number;
   };
   prevoyance: {
     prevoyance_declenchee: boolean;
-    seuil_jours?: number;
+    seuil_jours?: number | null;
+    eligible?: boolean;
+    taux_cible?: number | null;
+    franchise_jours?: number | null;
+    montant?: number;
+    nb_jours?: number;
+    motif?: string | null;
   };
   alertes: string[];
   subrogation_active: boolean;
   type_arret: string;
+  anciennete_mois?: number;
+  statut?: string;
+  est_cadre?: boolean;
   /** Renseigné par l’API pour l’UI (paramétrage entreprise). */
   subrogation_mode?: MaintenanceSubrogationMode;
 }

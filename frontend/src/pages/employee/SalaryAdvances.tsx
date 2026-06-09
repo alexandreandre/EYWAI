@@ -3,31 +3,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  AlertCircle,
-  ChevronDown,
-  Clock,
-  Info,
-  Plus,
-  Wallet,
-} from 'lucide-react';
-import type { AdvanceAvailableAmount, SalaryAdvance } from '@/api/saisiesAvances';
+import { AlertCircle, Clock, Plus } from 'lucide-react';
+import type { SalaryAdvance } from '@/api/saisiesAvances';
 import {
   EmployeePageHeader,
   EmployeePageShell,
 } from '@/components/employee/EmployeePageHeader';
 import { EmployeeSalaryAdvanceStatusBadge } from '@/components/employee-salary-advances/EmployeeSalaryAdvanceStatusBadge';
+import { AdvanceAvailableSummary } from '@/components/saisies-avances/AdvanceAvailableSummary';
 import { SalaryAdvanceDetail } from '@/components/saisies-avances/SalaryAdvanceDetail';
 import { SalaryAdvanceRequestForm } from '@/components/saisies-avances/SalaryAdvanceRequestForm';
 import { EmployeeSalaryAdvancesSkeleton } from '@/components/skeletons/EmployeeSalaryAdvancesSkeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
 import {
   Table,
   TableBody,
@@ -49,10 +38,6 @@ import { useEmployeeSalaryAdvancesQuery } from '@/hooks/queries/useEmployeeSalar
 import { queryKeys } from '@/lib/queryKeys';
 import { formatCurrency } from '@/lib/employeeDashboardUtils';
 import {
-  computeGrossAvailableBeforeCap,
-  computeMaxCapAmount,
-  computeMaxNetCapAmount,
-  formatAdvanceNetRatio,
   filterAdvancesByStatus,
   formatAdvanceDate,
   hasApprovedAmountDiff,
@@ -60,7 +45,6 @@ import {
   type SalaryAdvanceStatusFilter,
   VALID_STATUS_FILTERS,
 } from '@/lib/employeeSalaryAdvancesUtils';
-import { cn } from '@/lib/utils';
 
 const STATUS_FILTER_LABELS: Record<SalaryAdvanceStatusFilter, string> = {
   all: 'Toutes',
@@ -76,116 +60,6 @@ function todayIsoDate(): string {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
-}
-
-function AdvanceAvailableCard({
-  data,
-}: {
-  data: AdvanceAvailableAmount;
-}) {
-  const available = Number(data.available_amount || 0);
-  const daysWorked = Number(data.days_worked || 0);
-  const outstanding = Number(data.outstanding_advances || 0);
-  const dailySalary = Number(data.daily_salary || 0);
-  const maxDays = Number(data.max_advance_days || 0);
-  const grossBeforeCap = computeGrossAvailableBeforeCap(data);
-  const maxCap = computeMaxCapAmount(data);
-  const maxNetCap = computeMaxNetCapAmount(data);
-  const referenceNet = Number(data.reference_net_salary || 0);
-  const isZero = available <= 0;
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Wallet className="h-5 w-5" />
-          Montant disponible
-        </CardTitle>
-        <CardDescription>
-          Plafond calculé sur les jours travaillés depuis la dernière paie
-          {maxDays > 0 && dailySalary > 0
-            ? ` (max. ${maxDays} jours de salaire journalier)`
-            : ''}
-          {referenceNet > 0 && ` — plafond ${formatAdvanceNetRatio(data)} du net`}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div
-          className={cn(
-            'text-3xl font-bold',
-            isZero ? 'text-muted-foreground' : 'text-primary'
-          )}
-        >
-          {formatCurrency(available)}
-        </div>
-        {isZero && (
-          <p className="text-sm text-muted-foreground">
-            Aucun montant disponible pour le moment. Vous pourrez faire une
-            nouvelle demande lorsque des jours travaillés seront pris en compte.
-          </p>
-        )}
-        <p className="text-sm text-muted-foreground">
-          Basé sur {daysWorked} jour{daysWorked > 1 ? 's' : ''} travaillé
-          {daysWorked > 1 ? 's' : ''} depuis la dernière paie
-        </p>
-        {outstanding > 0 && (
-          <p className="text-sm text-muted-foreground">
-            Avances en cours à rembourser : {formatCurrency(outstanding)}
-          </p>
-        )}
-        {dailySalary > 0 && (
-          <p className="text-sm text-muted-foreground">
-            Salaire journalier de référence : {formatCurrency(dailySalary)}
-          </p>
-        )}
-        {referenceNet > 0 && (
-          <p className="text-sm text-muted-foreground">
-            Net de référence : {formatCurrency(referenceNet)} (plafond avance :{' '}
-            {formatCurrency(Number(data.max_advance_from_net || 0))})
-          </p>
-        )}
-
-        <Collapsible>
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 gap-1 px-0 text-muted-foreground">
-              <Info className="h-4 w-4" />
-              Comment est calculé ce montant ?
-              <ChevronDown className="h-4 w-4" />
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="mt-2 rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
-            <ol className="list-decimal space-y-1 pl-4">
-              <li>
-                Estimation : {formatCurrency(dailySalary)} × {daysWorked} jour
-                {daysWorked > 1 ? 's' : ''} = {formatCurrency(dailySalary * daysWorked)}
-              </li>
-              {outstanding > 0 && (
-                <li>Déduction des avances en cours : − {formatCurrency(outstanding)}</li>
-              )}
-              <li>
-                Sous-total : {formatCurrency(grossBeforeCap)}
-              </li>
-              {maxCap > 0 && (
-                <li>
-                  Plafond ({maxDays} jours max.) : {formatCurrency(maxCap)}
-                </li>
-              )}
-              {referenceNet > 0 && (
-                <li>
-                  Plafond {formatAdvanceNetRatio(data)} du net
-                  {outstanding > 0 ? ' (après avances en cours)' : ''} :{' '}
-                  {formatCurrency(maxNetCap)}
-                </li>
-              )}
-              <li className="font-medium text-foreground">
-                Montant disponible : {formatCurrency(available)}
-              </li>
-            </ol>
-          </CollapsibleContent>
-        </Collapsible>
-      </CardContent>
-    </Card>
-  );
 }
 
 function AdvanceRowActions({
@@ -352,7 +226,7 @@ export default function SalaryAdvances() {
       <EmployeePageShell>
         <EmployeePageHeader
           title="Avances sur salaire"
-          description="Plafond calculé sur les jours travaillés depuis la dernière paie — suivi de vos demandes"
+          description="50 % du net du dernier bulletin — suivi de vos demandes"
           actions={
             canRequest ? (
               requestButton
@@ -402,7 +276,7 @@ export default function SalaryAdvances() {
           </Alert>
         )}
 
-        {availableAmount && <AdvanceAvailableCard data={availableAmount} />}
+        {availableAmount && <AdvanceAvailableSummary data={availableAmount} />}
 
         <div ref={requestsListRef}>
         <Card>

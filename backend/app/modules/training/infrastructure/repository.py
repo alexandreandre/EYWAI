@@ -670,5 +670,36 @@ class SupabaseTrainingRepository(AbstractTrainingRepository):
         out.sort(key=lambda x: -int(x["nb_evaluations"]))
         return out
 
+    def get_catalog_rows_for_cc_matching(
+        self, company_id: str
+    ) -> List[Dict[str, Any]]:
+        r = (
+            supabase.table("training_catalog")
+            .select("id, title, source_cc_recommendation_id, status")
+            .eq("company_id", company_id)
+            .neq("status", "archived")
+            .execute()
+        )
+        return [dict(x) for x in list(r.data or []) if r]
+
+    def get_training_by_source_cc_recommendation(
+        self, company_id: str, recommendation_id: str
+    ) -> Optional[Dict[str, Any]]:
+        r = (
+            supabase.table("training_catalog")
+            .select("*")
+            .eq("company_id", company_id)
+            .eq("source_cc_recommendation_id", recommendation_id)
+            .neq("status", "archived")
+            .limit(1)
+            .execute()
+        )
+        rows = list(r.data or []) if r else []
+        if not rows:
+            return None
+        row = dict(rows[0])
+        row["categories"] = _categories_from_db(row.get("categories"))
+        return row
+
 
 training_repository: AbstractTrainingRepository = SupabaseTrainingRepository()

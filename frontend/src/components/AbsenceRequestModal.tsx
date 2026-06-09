@@ -1,9 +1,10 @@
 // Fichier : src/components/AbsenceRequestModal.tsx
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
+import axios from "axios";
 import { cn } from "@/lib/utils";
 
 // Composants UI
@@ -23,6 +24,12 @@ import { useEmployeeProfileQuery } from "@/hooks/queries/useEmployeeDashboardQue
 import { useToast } from "@/components/ui/use-toast";
 import * as absencesApi from "@/api/absences";
 import { getEmployeesLite, type EmployeeLite } from "@/api/employees";
+import {
+  EMPLOYEE_REQUESTABLE_ABSENCE_TYPES,
+  formatCongePayeInsufficientMessage,
+  getAvailableCongePayeDays,
+  type EmployeeRequestableAbsenceType,
+} from "@/lib/employeeAbsencesUtils";
 
 /** Types d’absence pour lesquels la qualification d’arrêt est obligatoire. */
 const ARRET_PRINCIPAL_TYPES = [
@@ -42,9 +49,11 @@ function isArretPrincipalType(
 function BalanceHint({
   absenceType,
   balances,
+  pendingAbsences = [],
 }: {
   absenceType: string;
   balances: absencesApi.AbsenceBalance[];
+  pendingAbsences?: absencesApi.AbsenceRequest[];
 }) {
   const labelByType: Record<string, string> = {
     conge_paye: 'Congés Payés',
@@ -62,6 +71,23 @@ function BalanceHint({
       : absenceType === 'rtt'
         ? 'RTT'
         : 'repos compensateur';
+
+  if (absenceType === 'conge_paye') {
+    const available = getAvailableCongePayeDays(balances, pendingAbsences);
+    const pendingDays = Math.max(0, rest - available);
+    return (
+      <div className="space-y-1 text-xs text-muted-foreground">
+        <p>Solde {typeLabel} restant : {rest.toFixed(1)} j</p>
+        {pendingDays > 0 && (
+          <p>{pendingDays.toFixed(1)} j déjà réservé(s) par des demandes en attente.</p>
+        )}
+        <p className="font-medium text-foreground">
+          Disponible pour une nouvelle demande : {available.toFixed(1)} j
+        </p>
+      </div>
+    );
+  }
+
   return (
     <p className="text-xs text-muted-foreground">
       Solde {typeLabel} restant : {rest.toFixed(1)} j
@@ -75,8 +101,18 @@ interface AbsenceRequestModalProps {
   onSuccess: () => void;
   /** Soldes de l'employé (pour vérifier CP restant sur conge_paye). */
   balances?: absencesApi.AbsenceBalance[];
+  /** Demandes en attente (pour réserver le solde CP côté salarié). */
+  pendingAbsences?: absencesApi.AbsenceRequest[];
   /** Vue RH : liste des employés de l'entreprise active et choix du bénéficiaire. */
   showEmployeeSelector?: boolean;
+}
+
+function getApiErrorMessage(err: unknown): string | null {
+  if (axios.isAxiosError(err)) {
+    const detail = err.response?.data?.detail;
+    if (typeof detail === 'string') return detail;
+  }
+  return null;
 }
 
 export function AbsenceRequestModal({
@@ -84,13 +120,14 @@ export function AbsenceRequestModal({
   onClose,
   onSuccess,
   balances = [],
+  pendingAbsences = [],
   showEmployeeSelector = false,
 }: AbsenceRequestModalProps) {
   const { user } = useAuth();
   const { data: myEmployeeProfile } = useEmployeeProfileQuery(user?.id);
   const { toast } = useToast();
 
-  type AbsenceTypeValue = 'conge_paye' | 'rtt' | 'repos_compensateur' | 'evenement_familial' | 'arret_maladie' | 'arret_at' | 'arret_paternite' | 'arret_maternite' | 'arret_maladie_pro';
+  type AbsenceTypeValue = EmployeeRequestableAbsenceType | absencesApi.AbsenceCreationPayload['type'];
   const [absenceType, setAbsenceType] = useState<AbsenceTypeValue | ''>('');
   const [eventSubtype, setEventSubtype] = useState<string>('');
   const [evenementFamilialEvents, setEvenementFamilialEvents] = useState<absencesApi.EvenementFamilialEvent[]>([]);
@@ -152,6 +189,18 @@ export function AbsenceRequestModal({
     }
   }, [isOpen, absenceType]);
 
+  const selectedDaysCount = selectedDays?.length ?? 0;
+
+  const availableCongePayeDays = useMemo(
+    () => getAvailableCongePayeDays(balances, pendingAbsences),
+    [balances, pendingAbsences],
+  );
+
+  const cpBalanceExceeded =
+    !showEmployeeSelector &&
+    absenceType === 'conge_paye' &&
+    selectedDaysCount > availableCongePayeDays;
+
   const doSubmit = async () => {
     if (!selectedDays || selectedDays.length === 0) return;
     setError("");
@@ -204,7 +253,15 @@ export function AbsenceRequestModal({
       onClose();
       setConfirmSansSoldeOpen(false);
     } catch (err) {
-      toast({ title: "Erreur", description: "Impossible de soumettre la demande.", variant: "destructive" });
+      const apiMessage = getApiErrorMessage(err);
+      if (apiMessage) {
+        setError(apiMessage);
+      }
+      toast({
+        title: "Erreur",
+        description: apiMessage ?? "Impossible de soumettre la demande.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -232,14 +289,21 @@ export function AbsenceRequestModal({
       return;
     }
 
-    // Congés payés : alerte si la demande dépasse le solde
+    // Congés payés : blocage salarié si solde insuffisant ; RH peut confirmer du sans solde
     if (absenceType === 'conge_paye') {
-      const cpBalance = balances.find((b) => b.type === "Congés Payés");
-      const cpRestant = typeof cpBalance?.remaining === "number" ? cpBalance.remaining : 0;
       const nbJours = selectedDays.length;
-      if (nbJours > cpRestant) {
-        setConfirmSansSoldeOpen(true);
-        return;
+      if (!showEmployeeSelector) {
+        if (nbJours > availableCongePayeDays) {
+          setError(formatCongePayeInsufficientMessage(availableCongePayeDays, nbJours));
+          return;
+        }
+      } else {
+        const cpBalance = balances.find((b) => b.type === "Congés Payés");
+        const cpRestant = typeof cpBalance?.remaining === "number" ? cpBalance.remaining : 0;
+        if (nbJours > cpRestant) {
+          setConfirmSansSoldeOpen(true);
+          return;
+        }
       }
     }
 
@@ -247,7 +311,29 @@ export function AbsenceRequestModal({
     doSubmit();
   };
 
-  const selectedDaysCount = selectedDays?.length ?? 0;
+  const employeeAbsenceTypeLabels: Record<EmployeeRequestableAbsenceType, string> = {
+    conge_paye: 'Congé Payé',
+    rtt: 'RTT',
+    repos_compensateur: 'Repos Compensateur',
+    evenement_familial: 'Événement Familial',
+  };
+
+  const absenceTypeOptions: { value: AbsenceTypeValue; label: string }[] = showEmployeeSelector
+    ? [
+        { value: 'conge_paye', label: 'Congé Payé' },
+        { value: 'rtt', label: 'RTT' },
+        { value: 'repos_compensateur', label: 'Repos Compensateur' },
+        { value: 'evenement_familial', label: 'Événement Familial' },
+        { value: 'arret_maladie', label: 'Arrêt Maladie' },
+        { value: 'arret_at', label: 'Accident du Travail' },
+        { value: 'arret_paternite', label: 'Congé Paternité' },
+        { value: 'arret_maternite', label: 'Congé Maternité' },
+        { value: 'arret_maladie_pro', label: 'Maladie Professionnelle' },
+      ]
+    : EMPLOYEE_REQUESTABLE_ABSENCE_TYPES.map((value) => ({
+        value,
+        label: employeeAbsenceTypeLabels[value],
+      }));
 
   const cpBalance = balances.find((b) => b.type === "Congés Payés");
   const cpRestant = typeof cpBalance?.remaining === "number" ? cpBalance.remaining : 0;
@@ -297,19 +383,19 @@ export function AbsenceRequestModal({
             <Select value={absenceType} onValueChange={(value: AbsenceTypeValue) => setAbsenceType(value)}>
               <SelectTrigger id="absence-type"><SelectValue placeholder="Sélectionner un type..." /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="conge_paye">Congé Payé</SelectItem>
-                <SelectItem value="rtt">RTT</SelectItem>
-                <SelectItem value="repos_compensateur">Repos Compensateur</SelectItem>
-                <SelectItem value="evenement_familial">Événement Familial</SelectItem>
-                <SelectItem value="arret_maladie">Arrêt Maladie</SelectItem>
-                <SelectItem value="arret_at">Accident du Travail</SelectItem>
-                <SelectItem value="arret_paternite">Congé Paternité</SelectItem>
-                <SelectItem value="arret_maternite">Congé Maternité</SelectItem>
-                <SelectItem value="arret_maladie_pro">Maladie Professionnelle</SelectItem>
+                {absenceTypeOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             {!showEmployeeSelector && balances.length > 0 && absenceType && (
-              <BalanceHint absenceType={absenceType} balances={balances} />
+              <BalanceHint
+                absenceType={absenceType}
+                balances={balances}
+                pendingAbsences={pendingAbsences}
+              />
             )}
           </div>
 
@@ -389,7 +475,7 @@ export function AbsenceRequestModal({
                   mode="multiple"
                   selected={selectedDays}
                   onSelect={(dates) => {
-                    if (!dates) { setSelectedDays([]); return; }
+                    if (!dates) { setSelectedDays([]); setError(""); return; }
                     if (absenceType === 'evenement_familial' && eventSubtype) {
                       const ev = evenementFamilialEvents.find(e => e.code === eventSubtype);
                       if (ev && dates.length > ev.solde_restant) {
@@ -398,6 +484,23 @@ export function AbsenceRequestModal({
                         return;
                       }
                     }
+                    if (
+                      !showEmployeeSelector &&
+                      absenceType === 'conge_paye' &&
+                      dates.length > availableCongePayeDays
+                    ) {
+                      const sorted = [...dates].sort((a, b) => a.getTime() - b.getTime());
+                      const capped = sorted.slice(0, Math.max(0, Math.floor(availableCongePayeDays)));
+                      setSelectedDays(capped);
+                      setError(
+                        formatCongePayeInsufficientMessage(
+                          availableCongePayeDays,
+                          dates.length,
+                        ),
+                      );
+                      return;
+                    }
+                    setError("");
                     setSelectedDays(dates);
                   }}
                   initialFocus
@@ -429,7 +532,7 @@ export function AbsenceRequestModal({
 
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>Annuler</Button>
-          <Button onClick={handleSave} disabled={isLoading}>
+          <Button onClick={handleSave} disabled={isLoading || cpBalanceExceeded}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Soumettre la demande
           </Button>

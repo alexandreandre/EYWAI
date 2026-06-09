@@ -23,6 +23,8 @@ import {
   cancelEnrollment,
   createEnrollment,
   createTraining,
+  getCcTrainingSuggestions,
+  addTrainingFromCcRecommendation,
   getEnrollments,
   getPendingRHApproval,
   getTotalConsumed,
@@ -32,6 +34,7 @@ import {
   updateTraining,
   type TrainingCatalog,
   type TrainingCatalogCreate,
+  type CcTrainingSuggestion,
   type TrainingEnrollment,
   type TrainingType,
 } from "@/api/training";
@@ -284,6 +287,13 @@ export default function CatalogueTab({
     queryFn: () => getTrainings(fetchArchived),
   });
 
+  const ccSuggestionsQuery = useQuery({
+    queryKey: ["training", "cc-suggestions"],
+    queryFn: () => getCcTrainingSuggestions(),
+    enabled:
+      showRhActions && (mainTab === "catalogue" || forcedMainTab === "catalogue"),
+  });
+
   const consumedQuery = useQuery({
     queryKey: ["training", "consumed", defaultYear],
     queryFn: () => getTotalConsumed(defaultYear),
@@ -343,6 +353,21 @@ export default function CatalogueTab({
   const invalidate = useCallback(() => {
     void qc.invalidateQueries({ queryKey: ["training"] });
   }, [qc]);
+
+  const addFromCcMutation = useMutation({
+    mutationFn: (recommendationId: string) => addTrainingFromCcRecommendation(recommendationId),
+    onSuccess: () => {
+      toast({ title: "Formation ajoutée au catalogue" });
+      invalidate();
+    },
+    onError: (e: unknown) => {
+      const msg =
+        typeof e === "object" && e && "response" in e
+          ? String((e as { response?: { data?: { detail?: string } } }).response?.data?.detail)
+          : "";
+      toast({ variant: "destructive", title: "Erreur", description: msg || "Ajout impossible." });
+    },
+  });
 
   const saveTrainingMutation = useMutation({
     mutationFn: async () => {
@@ -613,6 +638,84 @@ export default function CatalogueTab({
         ) : null}
 
         <TabsContent value="catalogue" className="space-y-4 pt-4">
+          {showRhActions ? (
+            <Card className="border-primary/20">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">
+                  Propositions selon votre convention collective
+                </CardTitle>
+                {ccSuggestionsQuery.data?.[0]?.agreement_name ? (
+                  <p className="text-sm text-muted-foreground">
+                    {ccSuggestionsQuery.data[0].agreement_name} (IDCC{" "}
+                    {ccSuggestionsQuery.data[0].idcc})
+                  </p>
+                ) : null}
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {ccSuggestionsQuery.isLoading ? (
+                  <Skeleton className="h-20 w-full" />
+                ) : ccSuggestionsQuery.isError ? (
+                  <p className="text-sm text-muted-foreground">
+                    Impossible de charger les propositions conventionnelles.
+                  </p>
+                ) : (ccSuggestionsQuery.data ?? []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Aucune proposition extraite pour votre convention. Contactez l&apos;administrateur
+                    EYWAI pour lancer l&apos;extraction depuis le catalogue des conventions.
+                  </p>
+                ) : (
+                  (ccSuggestionsQuery.data ?? []).map((s: CcTrainingSuggestion) => (
+                    <div
+                      key={s.id}
+                      className="flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-start sm:justify-between"
+                    >
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium">{s.title}</span>
+                          <Badge
+                            variant={s.obligation_level === "obligatoire" ? "destructive" : "secondary"}
+                          >
+                            {s.obligation_level === "obligatoire" ? "Obligatoire" : "Recommandée"}
+                          </Badge>
+                        </div>
+                        {s.legal_reference ? (
+                          <p className="text-xs text-muted-foreground">{s.legal_reference}</p>
+                        ) : null}
+                        {s.pedagogical_objective ? (
+                          <p className="text-sm text-muted-foreground">{s.pedagogical_objective}</p>
+                        ) : null}
+                      </div>
+                      {s.already_in_catalog ? (
+                        <Badge variant="outline" className="shrink-0">
+                          Déjà au catalogue
+                        </Badge>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0"
+                          disabled={
+                            addFromCcMutation.isPending &&
+                            addFromCcMutation.variables === s.id
+                          }
+                          onClick={() => addFromCcMutation.mutate(s.id)}
+                        >
+                          {addFromCcMutation.isPending &&
+                          addFromCcMutation.variables === s.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            "Ajouter au catalogue"
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          ) : null}
+
           <div className="flex flex-wrap items-end gap-3">
             <div className="grid gap-1.5 min-w-0">
               <Label>Type</Label>

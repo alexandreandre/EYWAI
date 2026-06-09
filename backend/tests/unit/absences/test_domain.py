@@ -8,7 +8,7 @@ Aucune dépendance DB ni HTTP. Couvre :
 - Enums / types (AbsenceType, AbsenceStatus, SALARY_CERTIFICATE_ABSENCE_TYPES)
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import pytest
 
@@ -321,3 +321,40 @@ class TestComputeCpBalancesForBulletin:
         assert result["periode_precedente"]["acquis"] == 30.0
         assert result["periode_precedente"]["pris"] == 0.0
         assert result["periode_precedente"]["solde"] == 30.0
+
+
+class TestCongePayeAvailability:
+    def test_pending_requests_reduce_available_balance(self):
+        hire_date = date(2020, 1, 1)
+        ref = date(2026, 3, 1)
+        requests = [
+            {
+                "type": "conge_paye",
+                "status": "pending",
+                "selected_days": ["2026-03-10", "2026-03-11"],
+            },
+        ]
+        from app.modules.absences.domain.rules import (
+            calculate_acquired_cp,
+            get_available_conge_paye_days,
+            validate_conge_paye_request_days,
+        )
+
+        acquis = calculate_acquired_cp(hire_date, ref)
+        available = get_available_conge_paye_days(hire_date, requests, ref)
+        assert available == acquis - 2
+
+        validate_conge_paye_request_days(
+            hire_date, requests, [date(2026, 3, 12)], ref_date=ref
+        )
+
+        remaining = int(acquis - 2)
+        start = date(2026, 3, 12)
+        too_many_days = [start + timedelta(days=i) for i in range(remaining + 1)]
+        with pytest.raises(ValueError, match="insuffisant"):
+            validate_conge_paye_request_days(
+                hire_date,
+                requests,
+                too_many_days,
+                ref_date=ref,
+            )

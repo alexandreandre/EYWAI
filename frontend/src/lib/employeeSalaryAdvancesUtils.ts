@@ -66,27 +66,34 @@ export function getStatusBadgeConfig(status: SalaryAdvanceStatus): StatusBadgeCo
   }
 }
 
-/** Calcule le brut théorique avant plafond et déduction des avances en cours. */
-export function computeGrossAvailableBeforeCap(data: AdvanceAvailableAmount): number {
-  const daily = Number(data.daily_salary || 0);
-  const days = Number(data.days_worked || 0);
-  const outstanding = Number(data.outstanding_advances || 0);
-  return Math.max(0, daily * days - outstanding);
-}
-
-export function computeMaxCapAmount(data: AdvanceAvailableAmount): number {
-  const daily = Number(data.daily_salary || 0);
-  const maxDays = Number(data.max_advance_days || 0);
-  return daily * maxDays;
-}
-
-export function computeMaxNetCapAmount(data: AdvanceAvailableAmount): number {
-  const maxFromNet = Number(data.max_advance_from_net || 0);
-  const outstanding = Number(data.outstanding_advances || 0);
-  return Math.max(0, maxFromNet - outstanding);
-}
-
 export function formatAdvanceNetRatio(data: AdvanceAvailableAmount): string {
   const ratio = Number(data.max_advance_net_ratio || 0.5);
   return `${Math.round(ratio * 100)} %`;
+}
+
+export function formatReferencePayslipMonth(
+  year?: number | null,
+  month?: number | null
+): string | null {
+  if (!year || !month) return null;
+  return new Date(year, month - 1, 1).toLocaleDateString('fr-FR', {
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+/** Ligne courte : plafond 50 % du net du dernier bulletin (mois cité). */
+export function formatAdvancePlafondSummary(data: AdvanceAvailableAmount): string {
+  const ratio = formatAdvanceNetRatio(data);
+  const net = Number(data.reference_net_salary || 0);
+  const cap = Number(data.max_advance_from_net || 0);
+  const monthLabel = formatReferencePayslipMonth(
+    data.reference_payslip_year,
+    data.reference_payslip_month
+  );
+
+  if (monthLabel) {
+    return `${ratio} du net de ${monthLabel}`;
+  }
+  return `${ratio} du salaire net de référence`;
 }

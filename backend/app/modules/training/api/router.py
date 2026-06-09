@@ -21,6 +21,7 @@ from app.modules.training.schemas.requests import (
 )
 from app.modules.training.schemas.responses import (
     CertificateUploadResponse,
+    CcTrainingSuggestion,
     TotalConsumedResponse,
     TrainingCatalog,
     TrainingEnrollment,
@@ -112,6 +113,39 @@ def route_list_catalog(
 ):
     try:
         return queries.get_trainings(_company_id(current_user), include_archived=include_archived)
+    except HTTPException:
+        raise
+    except Exception as e:
+        _handle_application_errors(e)
+
+
+@router.get("/cc-suggestions", response_model=List[CcTrainingSuggestion])
+def route_cc_suggestions(current_user: User = Depends(get_current_user)):
+    if not _is_rh(current_user):
+        raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
+    try:
+        return queries.get_cc_training_suggestions(_company_id(current_user))
+    except HTTPException:
+        raise
+    except Exception as e:
+        _handle_application_errors(e)
+
+
+@router.post(
+    "/catalog/from-recommendation/{recommendation_id}",
+    response_model=TrainingCatalog,
+    status_code=201,
+)
+def route_create_from_recommendation(
+    recommendation_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    if not _is_rh(current_user):
+        raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
+    try:
+        return commands.create_training_from_cc_recommendation(
+            _company_id(current_user), recommendation_id
+        )
     except HTTPException:
         raise
     except Exception as e:

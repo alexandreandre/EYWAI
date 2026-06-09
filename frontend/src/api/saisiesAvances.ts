@@ -127,6 +127,8 @@ export interface AdvanceAvailableAmount {
   available_amount: number;
   max_advance_days: number;
   reference_net_salary: number;
+  reference_payslip_year?: number | null;
+  reference_payslip_month?: number | null;
   max_advance_from_net: number;
   max_advance_net_ratio: number;
 }

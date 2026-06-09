@@ -9,6 +9,7 @@ export interface ExitDocumentItem {
   id: string;
   name: string;
   url: string;
+  previewUrl?: string;
   date?: string;
 }
 

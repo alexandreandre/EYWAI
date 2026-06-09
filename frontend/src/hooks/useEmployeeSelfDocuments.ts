@@ -23,12 +23,14 @@ export const QK_EMPLOYEE_SELF_DOCUMENTS = ['employee', 'self-documents'] as cons
 
 interface ContractUrlResponse {
   url: string | null;
+  preview_url?: string | null;
 }
 
 interface PublishedExitDoc {
   id: string;
   name: string;
   url: string;
+  preview_url?: string;
   date?: string;
 }
 
@@ -49,7 +51,10 @@ export function useEmployeeSelfDocuments() {
     queryKey: [...QK_EMPLOYEE_SELF_DOCUMENTS, 'contract'],
     queryFn: async () => {
       const res = await apiClient.get<ContractUrlResponse>('/api/employees/me/contract');
-      return res.data.url ?? null;
+      return {
+        downloadUrl: res.data.url ?? null,
+        previewUrl: res.data.preview_url ?? res.data.url ?? null,
+      };
     },
     enabled: Boolean(employee?.id),
   });
@@ -58,7 +63,10 @@ export function useEmployeeSelfDocuments() {
     queryKey: [...QK_EMPLOYEE_SELF_DOCUMENTS, 'identity'],
     queryFn: async () => {
       const res = await apiClient.get<ContractUrlResponse>('/api/employees/me/identity-document');
-      return res.data.url ?? null;
+      return {
+        downloadUrl: res.data.url ?? null,
+        previewUrl: res.data.preview_url ?? res.data.url ?? null,
+      };
     },
     enabled: Boolean(employee?.id),
   });
@@ -67,7 +75,10 @@ export function useEmployeeSelfDocuments() {
     queryKey: [...QK_EMPLOYEE_SELF_DOCUMENTS, 'credentials-pdf'],
     queryFn: async () => {
       const res = await apiClient.get<ContractUrlResponse>('/api/employees/me/credentials-pdf');
-      return res.data.url ?? null;
+      return {
+        downloadUrl: res.data.url ?? null,
+        previewUrl: res.data.preview_url ?? res.data.url ?? null,
+      };
     },
     enabled: Boolean(employee?.id),
     retry: false,
@@ -100,6 +111,7 @@ export function useEmployeeSelfDocuments() {
           id: doc.id,
           name: doc.name,
           url: doc.url,
+          previewUrl: doc.preview_url ?? doc.url,
           date: doc.date,
         })
       );
@@ -138,9 +150,12 @@ export function useEmployeeSelfDocuments() {
   );
 
   const payslips = payslipsQuery.data ?? [];
-  const contractUrl = contractQuery.data ?? null;
-  const identityUrl = identityQuery.data ?? null;
-  const credentialsPdfUrl = credentialsPdfQuery.data ?? null;
+  const contractUrl = contractQuery.data?.downloadUrl ?? null;
+  const contractPreviewUrl = contractQuery.data?.previewUrl ?? null;
+  const identityUrl = identityQuery.data?.downloadUrl ?? null;
+  const identityPreviewUrl = identityQuery.data?.previewUrl ?? null;
+  const credentialsPdfUrl = credentialsPdfQuery.data?.downloadUrl ?? null;
+  const credentialsPdfPreviewUrl = credentialsPdfQuery.data?.previewUrl ?? null;
   const exitDocuments = exitDocsQuery.data ?? [];
   const expenseReceipts = expensesQuery.data ?? [];
 
@@ -159,9 +174,12 @@ export function useEmployeeSelfDocuments() {
     ) as Record<DocumentFolderId, number>;
   }, [
     contractUrl,
+    contractPreviewUrl,
     identityUrl,
-    payslips,
+    identityPreviewUrl,
     credentialsPdfUrl,
+    credentialsPdfPreviewUrl,
+    payslips,
     generatedByFolder,
     exitDocuments,
     expenseReceipts,
@@ -195,8 +213,11 @@ export function useEmployeeSelfDocuments() {
     notConfigured,
     isLoading,
     contractUrl,
+    contractPreviewUrl,
     identityUrl,
+    identityPreviewUrl,
     credentialsPdfUrl,
+    credentialsPdfPreviewUrl,
     payslips,
     generatedByFolder,
     visibleGenerated,

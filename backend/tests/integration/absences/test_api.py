@@ -177,6 +177,88 @@ class TestCreateAbsenceRequest:
             "jour" in data["detail"].lower() or "sélectionner" in data["detail"].lower()
         )
 
+    def test_create_absence_request_arret_maladie_returns_403_for_non_rh(
+        self, client: TestClient
+    ):
+        """Un collaborateur ne peut pas déclarer un arrêt maladie lui-même."""
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
+        try:
+            with patch(
+                "app.modules.absences.api.router.absence_router.resolve_employee_id_for_user",
+                return_value="emp-resolved",
+            ):
+                response = client.post(
+                    "/api/absences/requests",
+                    json={
+                        "employee_id": "user-non-rh-absences-test",
+                        "type": "arret_maladie",
+                        "selected_days": ["2025-06-10"],
+                        "arret_type": "maladie_simple",
+                    },
+                )
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 403
+        assert "employeur" in response.json()["detail"].lower()
+
+    def test_create_absence_request_arret_maternite_returns_403_for_non_rh(
+        self, client: TestClient
+    ):
+        """Un collaborateur ne peut pas déclarer un congé maternité lui-même."""
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
+        try:
+            with patch(
+                "app.modules.absences.api.router.absence_router.resolve_employee_id_for_user",
+                return_value="emp-resolved",
+            ):
+                response = client.post(
+                    "/api/absences/requests",
+                    json={
+                        "employee_id": "user-non-rh-absences-test",
+                        "type": "arret_maternite",
+                        "selected_days": ["2025-06-10"],
+                        "arret_type": "maladie_simple",
+                    },
+                )
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 403
+
+    def test_create_absence_request_conge_paye_insufficient_balance_returns_400(
+        self, client: TestClient
+    ):
+        """Un collaborateur ne peut pas demander plus de CP que son solde disponible."""
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
+        try:
+            with patch(
+                "app.modules.absences.api.router.absence_router.resolve_employee_id_for_user",
+                return_value="emp-resolved",
+            ), patch(
+                "app.modules.absences.api.router.queries.assert_employee_conge_paye_request_allowed",
+                side_effect=ValueError(
+                    "Solde de congés payés insuffisant. Rapprochez-vous de votre direction "
+                    "pour toute demande hors droits acquis."
+                ),
+            ):
+                response = client.post(
+                    "/api/absences/requests",
+                    json={
+                        "employee_id": "user-non-rh-absences-test",
+                        "type": "conge_paye",
+                        "selected_days": ["2026-06-10", "2026-06-11", "2026-06-12"],
+                    },
+                )
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 400
+        assert "insuffisant" in response.json()["detail"].lower()
+
     def test_create_absence_request_valid_schema_calls_app(self, client: TestClient):
         """Body valide (schema) → 201 si employé/DB OK, 404 si employé inconnu, 500 si erreur."""
         from app.core.security import get_current_user

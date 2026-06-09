@@ -6,7 +6,6 @@ import {
   formatCalendarValue,
   getCalendarTypeLabel,
 } from '@/lib/calendarTypes';
-import { dayHasSignificantEcart } from '@/lib/employeeCalendarUtils';
 import { formatShiftPastille, isPayrollRestDay } from '@/lib/employeeCalendarPlanning';
 
 export interface EmployeeCalendarDayCellProps {
@@ -99,11 +98,6 @@ export function EmployeeCalendarDayCell({
   const actualData = actualHours.find((d) => d.jour === day);
   const dayType = dayData?.type ?? 'weekend';
   const barColor = CALENDAR_TYPE_BAR_COLORS[dayType] ?? CALENDAR_TYPE_BAR_COLORS.weekend;
-  const hasEcart = dayHasSignificantEcart(
-    dayData?.heures_prevues,
-    actualData?.heures_faites,
-    isForfaitJour
-  );
   const shiftPastille = formatShiftPastille(dayShifts);
   const shiftMismatch =
     shiftPastille != null && isPayrollRestDay(dayType) && dayShifts.length > 0;
@@ -149,9 +143,7 @@ export function EmployeeCalendarDayCell({
   const className = cn(
     'relative flex h-full min-h-[5.5rem] w-full flex-col rounded-xl border bg-card text-left transition-colors',
     'hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-    isToday && 'ring-2 ring-primary',
-    hasEcart && !isToday && 'ring-2 ring-amber-400',
-    hasEcart && isToday && 'ring-2 ring-primary ring-offset-1 ring-offset-amber-300'
+    isToday && 'ring-2 ring-primary'
   );
 
   if (onDayClick) {

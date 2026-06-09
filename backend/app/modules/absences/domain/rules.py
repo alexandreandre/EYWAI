@@ -230,3 +230,76 @@ def compute_absence_balances(
         "rtt": _balance(rtt_acquis, rtt_pris),
         "repos_compensateur": _balance(repos_acquis, repos_pris),
     }
+
+
+def count_conge_paye_days_committed(
+    requests: list[dict],
+    ref_date: date,
+) -> float:
+    """Jours CP déjà validés + réservés par des demandes en attente (période en cours)."""
+    current_start, current_end = get_cp_reference_period(ref_date)
+    validated = [
+        r
+        for r in requests
+        if r.get("type") == "conge_paye" and r.get("status") == "validated"
+    ]
+    pending = [
+        r
+        for r in requests
+        if r.get("type") == "conge_paye" and r.get("status") == "pending"
+    ]
+    # On borne sur la fin de période (et non sur ref_date) : un congé déjà
+    # validé ou en attente pour une date future réserve quand même le solde.
+    taken = count_absence_days_taken(
+        validated,
+        "conge_paye",
+        current_end,
+        period_start=current_start,
+        period_end=current_end,
+    )
+    reserved = count_absence_days_taken(
+        pending,
+        "conge_paye",
+        current_end,
+        period_start=current_start,
+        period_end=current_end,
+    )
+    return taken + reserved
+
+
+def get_available_conge_paye_days(
+    hire_date: date,
+    requests: list[dict],
+    ref_date: date,
+) -> float:
+    """Solde CP réellement disponible pour une nouvelle demande salarié."""
+    acquis = calculate_acquired_cp(hire_date, ref_date)
+    committed = count_conge_paye_days_committed(requests, ref_date)
+    return max(0.0, round(acquis - committed, 2))
+
+
+def validate_conge_paye_request_days(
+    hire_date: date,
+    requests: list[dict],
+    selected_days: list[date],
+    ref_date: date | None = None,
+) -> None:
+    """Lève ValueError si la demande dépasse le solde CP disponible."""
+    ref = ref_date or date.today()
+    available = get_available_conge_paye_days(hire_date, requests, ref)
+    requested = len(selected_days)
+    if requested <= available:
+        return
+    if available <= 0:
+        raise ValueError(
+            "Solde de congés payés insuffisant. Rapprochez-vous de votre direction "
+            "pour toute demande hors droits acquis."
+        )
+    avail_label = (
+        str(int(available)) if available == int(available) else f"{available:.1f}"
+    )
+    raise ValueError(
+        f"Solde de congés payés insuffisant : il vous reste {avail_label} jour(s) "
+        f"disponible(s) pour {requested} jour(s) demandé(s). "
+        "Rapprochez-vous de votre direction pour une demande hors solde."
+    )

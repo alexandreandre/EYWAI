@@ -35,11 +35,26 @@ def get_employee_id_for_user_scope(user_id: str, company_id: str) -> Optional[st
     return certification_repository.get_employee_id_for_user(user_id, company_id)
 
 
+def _signed_url_for_document_row(
+    row: dict, *, download: bool
+) -> str:
+    path = row.get("file_url") or ""
+    if not path or str(path).lower().startswith("http"):
+        raise ValueError("Aucun fichier PDF associé à ce document.")
+    if download:
+        return documents_repository.create_signed_download_url(str(path))
+    return documents_repository.create_signed_preview_url(str(path))
+
+
 def get_download_url(document_id: str, company_id: str) -> str:
     row = documents_repository.get_by_id(document_id, company_id)
     if not row:
         raise LookupError("Document introuvable")
-    path = row.get("file_url") or ""
-    if not path or str(path).lower().startswith("http"):
-        raise ValueError("Aucun fichier PDF associé à ce document.")
-    return documents_repository.create_signed_download_url(str(path))
+    return _signed_url_for_document_row(row, download=True)
+
+
+def get_preview_url(document_id: str, company_id: str) -> str:
+    row = documents_repository.get_by_id(document_id, company_id)
+    if not row:
+        raise LookupError("Document introuvable")
+    return _signed_url_for_document_row(row, download=False)

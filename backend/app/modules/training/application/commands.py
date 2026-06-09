@@ -107,3 +107,41 @@ def update_enrollment(
 
 def cancel_enrollment(enrollment_id: str, company_id: str) -> None:
     training_repository.cancel_enrollment(enrollment_id, company_id)
+
+
+def create_training_from_cc_recommendation(
+    company_id: str, recommendation_id: str
+) -> TrainingCatalog:
+    from app.modules.collective_agreements.training_reco.service import (
+        get_cc_training_recommendations_service,
+    )
+    from app.modules.training.infrastructure.cc_resolution import company_has_idcc
+
+    svc = get_cc_training_recommendations_service()
+    reco = svc.get_recommendation(recommendation_id)
+    if not reco.get("is_active"):
+        raise ValueError("Cette proposition n'est pas active.")
+    reco_idcc = str(reco.get("idcc") or "")
+    if not company_has_idcc(company_id, reco_idcc):
+        raise PermissionError(
+            "Cette proposition ne correspond pas à la convention collective de votre entreprise."
+        )
+
+    existing = training_repository.get_training_by_source_cc_recommendation(
+        company_id, recommendation_id
+    )
+    if existing:
+        return queries.training_catalog_from_row(existing)
+
+    categories = ["Convention collective"]
+    payload = {
+        "title": str(reco.get("title") or "").strip(),
+        "training_type": "presentiel",
+        "pedagogical_objective": reco.get("pedagogical_objective"),
+        "categories": categories,
+        "source_cc_recommendation_id": recommendation_id,
+    }
+    if not payload["title"]:
+        raise ValueError("Titre de formation invalide.")
+    row = training_repository.create_training(company_id, payload)
+    return queries.training_catalog_from_row(row)

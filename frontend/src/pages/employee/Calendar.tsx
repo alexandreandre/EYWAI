@@ -18,8 +18,7 @@ import {
   EmployeePageHeader,
   EmployeePageShell,
 } from '@/components/employee/EmployeePageHeader';
-import { CalendarKpiBand } from '@/components/employee-detail/CalendarKpiBand';
-import { CalendarAbsencesHint } from '@/components/employee-detail/CalendarAbsencesHint';
+import { EmployeeCalendarMonthSummary } from '@/components/employee-calendar/EmployeeCalendarMonthSummary';
 import { YearCalendarView } from '@/components/schedules/YearCalendarView';
 import { EmployeeCalendarDayCell } from '@/components/EmployeeCalendarDayCell';
 import { EmployeeCalendarLegend } from '@/components/employee-calendar/EmployeeCalendarLegend';
@@ -34,10 +33,9 @@ import {
   Grid3x3,
   Plane,
   ScanLine,
-  AlertCircle,
   CalendarClock,
 } from 'lucide-react';
-import { isMonthUnfilledByRh, monthHasSignificantEcart } from '@/lib/employeeCalendarUtils';
+import { isMonthUnfilledByRh } from '@/lib/employeeCalendarUtils';
 import {
   type CalendarHubView,
   parseCalendarHubView,
@@ -58,7 +56,6 @@ export default function EmployeeCalendarPage() {
   const [weekStart, setWeekStart] = useState(() => weekFromUrl?.slice(0, 10) || defaultWeekStartIso());
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [sheetShifts, setSheetShifts] = useState<Shift[]>([]);
 
   const {
     data: profile,
@@ -84,6 +81,7 @@ export default function EmployeeCalendarPage() {
     refetch,
     monthCompletionStatus,
     isForfaitJour,
+    isMonthDataReady,
   } = useCalendar(resolvedEmployeeId, employeeStatut);
 
   const setHubView = useCallback(
@@ -158,20 +156,14 @@ export default function EmployeeCalendarPage() {
     isLoading: isMonthShiftsLoading,
   } = useEmployeeMonthShifts(year, selectedDate.month, hubView === 'month');
 
+  const showMonthContent = isMonthDataReady && !isCalendarLoading;
+
   const showMonthUnfilled = useMemo(
     () =>
-      !isCalendarLoading &&
+      showMonthContent &&
       !loadError &&
       isMonthUnfilledByRh(plannedCalendar, year, selectedDate.month),
-    [isCalendarLoading, loadError, plannedCalendar, year, selectedDate.month]
-  );
-
-  const showMonthEcart = useMemo(
-    () =>
-      !isCalendarLoading &&
-      !loadError &&
-      monthHasSignificantEcart(plannedCalendar, actualHours, isForfaitJour),
-    [isCalendarLoading, loadError, plannedCalendar, actualHours, isForfaitJour]
+    [showMonthContent, loadError, plannedCalendar, year, selectedDate.month]
   );
 
   const handlePrevious = () => {
@@ -198,17 +190,13 @@ export default function EmployeeCalendarPage() {
     setHubView('month');
   };
 
-  const openDaySheet = useCallback(
-    (day: number, shifts: Shift[] = []) => {
-      setSelectedDay(day);
-      setSheetShifts(shifts);
-      setSheetOpen(true);
-    },
-    []
-  );
+  const openDaySheet = useCallback((day: number) => {
+    setSelectedDay(day);
+    setSheetOpen(true);
+  }, []);
 
   const handleDayClick = (day: number) => {
-    openDaySheet(day, monthShiftsByDay[day] ?? []);
+    openDaySheet(day);
   };
 
   const handleWeekDayClick = useCallback(
@@ -225,17 +213,9 @@ export default function EmployeeCalendarPage() {
       ) {
         setSelectedDate({ year: payload.year, month: payload.month });
       }
-      openDaySheet(payload.day, payload.shifts);
+      openDaySheet(payload.day);
     },
     [selectedDate.year, selectedDate.month, setSelectedDate, openDaySheet]
-  );
-
-  const handleViewWeekFromSheet = useCallback(
-    (iso: string) => {
-      setWeekStart(iso);
-      setHubView('week');
-    },
-    [setHubView]
   );
 
   useEffect(() => {
@@ -259,15 +239,8 @@ export default function EmployeeCalendarPage() {
     ? actualHours.find((d) => d.jour === selectedDay)
     : undefined;
 
-  const resolvedSheetShifts =
-    sheetShifts.length > 0
-      ? sheetShifts
-      : selectedDay
-        ? monthShiftsByDay[selectedDay] ?? []
-        : [];
-
   const headerStatusBadge = useMemo(() => {
-    if (hubView === 'month' && !isCalendarLoading && !loadError) {
+    if (hubView === 'month' && showMonthContent && !loadError) {
       return (
         <Badge
           variant={monthCompletionStatus === 'saisi' ? 'secondary' : 'outline'}
@@ -278,7 +251,7 @@ export default function EmployeeCalendarPage() {
       );
     }
     return null;
-  }, [hubView, isCalendarLoading, loadError, monthCompletionStatus]);
+  }, [hubView, showMonthContent, loadError, monthCompletionStatus]);
 
   const showPeriodNav = hubView === 'month' || hubView === 'year';
 
@@ -350,6 +323,8 @@ export default function EmployeeCalendarPage() {
             <EmployeePlanningWeekView
               weekStart={weekStart}
               onWeekStartChange={handleWeekStartChange}
+              employeeId={resolvedEmployeeId}
+              employeeStatut={employeeStatut}
               onDayClick={handleWeekDayClick}
             />
           </CardContent>
@@ -400,21 +375,6 @@ export default function EmployeeCalendarPage() {
           </CardHeader>
 
           <CardContent className="space-y-3 p-4 md:p-6">
-            {hubView === 'month' && resolvedEmployeeId && (
-              <CalendarAbsencesHint
-                employeeId={resolvedEmployeeId}
-                year={selectedDate.year}
-                month={selectedDate.month}
-              />
-            )}
-
-            {hubView === 'month' && showMonthEcart && (
-              <div className="flex items-start gap-2 rounded-md border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                <p>Écart notable entre le total prévu et le total réalisé sur ce mois.</p>
-              </div>
-            )}
-
             {profileUnavailable ? (
               <div className="rounded-md border border-amber-200/80 bg-amber-50/90 px-4 py-8 text-center text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
                 <p className="font-medium">Fiche salarié introuvable</p>
@@ -440,7 +400,7 @@ export default function EmployeeCalendarPage() {
                   Réessayer
                 </Button>
               </div>
-            ) : hubView === 'month' && isCalendarLoading ? (
+            ) : hubView === 'month' && (isCalendarLoading || !isMonthDataReady) ? (
               <EmployeeCalendarGridSkeleton />
             ) : hubView === 'year' && resolvedEmployeeId ? (
               <YearCalendarView
@@ -454,12 +414,11 @@ export default function EmployeeCalendarPage() {
                 }}
               />
             ) : hubView === 'month' ? (
-              <>
-                <CalendarKpiBand
+              <div key={`${year}-${selectedDate.month}`}>
+                <EmployeeCalendarMonthSummary
                   plannedCalendar={plannedCalendar}
                   actualHours={actualHours}
                   isForfaitJour={isForfaitJour}
-                  className="px-0"
                 />
 
                 {showMonthUnfilled && (
@@ -513,8 +472,8 @@ export default function EmployeeCalendarPage() {
                   </div>
                 </div>
 
-                <EmployeeCalendarLegend showPlanningPastille />
-              </>
+                <EmployeeCalendarLegend />
+              </div>
             ) : null}
           </CardContent>
         </Card>
@@ -529,10 +488,7 @@ export default function EmployeeCalendarPage() {
         planned={selectedPlanned}
         actual={selectedActual}
         isForfaitJour={isForfaitJour}
-        dayShifts={resolvedSheetShifts}
         isPayrollLoading={isCalendarLoading && sheetOpen}
-        isShiftsLoading={isMonthShiftsLoading && sheetOpen}
-        onViewWeek={handleViewWeekFromSheet}
       />
     </EmployeePageShell>
   );

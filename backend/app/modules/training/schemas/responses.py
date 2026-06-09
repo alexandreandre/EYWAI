@@ -79,3 +79,17 @@ class TrainingEvaluationSummaryItem(BaseModel):
 class TotalConsumedResponse(BaseModel):
     year: int
     total_ht: float = Field(ge=0)
+
+
+class CcTrainingSuggestion(BaseModel):
+    id: str
+    idcc: str
+    agreement_name: Optional[str] = None
+    title: str
+    obligation_level: str
+    pedagogical_objective: Optional[str] = None
+    legal_reference: Optional[str] = None
+    target_roles: List[str] = Field(default_factory=list)
+    periodicity: Optional[str] = None
+    already_in_catalog: bool = False
+    catalog_training_id: Optional[str] = None

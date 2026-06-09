@@ -15,6 +15,7 @@ import { createSalaryAdvance, getEmployeeAdvanceAvailable, getMyAdvanceAvailable
 import type { AdvanceAvailableAmount, SalaryAdvanceCreate } from '@/api/saisiesAvances';
 import { useAuth } from '@/contexts/AuthContext';
 import apiClient from '@/api/apiClient';
+import { AdvanceAvailableSummary } from '@/components/saisies-avances/AdvanceAvailableSummary';
 import { formatCurrency } from '@/lib/employeeDashboardUtils';
 
 interface Employee {
@@ -208,18 +209,11 @@ export function SalaryAdvanceRequestForm({
             </div>
           )}
 
-          {availableAmount !== null && (
+          {availableAmount !== null && availableDetails && (
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription>
-                <strong>Montant disponible :</strong> {formatCurrency(availableAmount)}
-                {availableDetails && Number(availableDetails.reference_net_salary || 0) > 0 && (
-                  <>
-                    {' '}
-                    (plafond {Math.round(Number(availableDetails.max_advance_net_ratio || 0.5) * 100)} % du
-                    net : {formatCurrency(Number(availableDetails.max_advance_from_net || 0))})
-                  </>
-                )}
+                <AdvanceAvailableSummary data={availableDetails} variant="inline" />
               </AlertDescription>
             </Alert>
           )}

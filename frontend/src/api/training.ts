@@ -95,6 +95,20 @@ export type TrainingEnrollmentUpdate = {
 
 export type TotalConsumedResponse = { year: number; total_ht: number };
 
+export type CcTrainingSuggestion = {
+  id: string;
+  idcc: string;
+  agreement_name?: string | null;
+  title: string;
+  obligation_level: "obligatoire" | "recommandee" | string;
+  pedagogical_objective?: string | null;
+  legal_reference?: string | null;
+  target_roles: string[];
+  periodicity?: string | null;
+  already_in_catalog: boolean;
+  catalog_training_id?: string | null;
+};
+
 export type EnrollmentRequestBySalarie = {
   training_id: string;
   preferred_date?: string;
@@ -112,6 +126,20 @@ export async function getTrainings(includeArchived?: boolean): Promise<TrainingC
   const q = includeArchived ? "?include_archived=true" : "";
   const res = await apiClient.get<TrainingCatalog[]>(`/api/training/catalog${q}`);
   return res.data ?? [];
+}
+
+export async function getCcTrainingSuggestions(): Promise<CcTrainingSuggestion[]> {
+  const res = await apiClient.get<CcTrainingSuggestion[]>("/api/training/cc-suggestions");
+  return res.data ?? [];
+}
+
+export async function addTrainingFromCcRecommendation(
+  recommendationId: string,
+): Promise<TrainingCatalog> {
+  const res = await apiClient.post<TrainingCatalog>(
+    `/api/training/catalog/from-recommendation/${recommendationId}`,
+  );
+  return res.data;
 }
 
 export async function getTraining(id: string): Promise<TrainingCatalog> {

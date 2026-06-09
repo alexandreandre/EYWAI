@@ -154,3 +154,56 @@ def get_total_consumed(company_id: str, year: int) -> float:
 
 def get_employee_id_for_user_scope(user_id: str, company_id: str) -> Optional[str]:
     return training_repository.get_employee_id_for_user(user_id, company_id)
+
+
+def get_cc_training_suggestions(company_id: str) -> List["CcTrainingSuggestion"]:
+    from app.modules.collective_agreements.training_reco.repository import (
+        CcTrainingRecommendationsRepository,
+    )
+    from app.modules.training.domain.cc_suggestions import (
+        build_catalog_match_maps,
+        match_recommendation_to_catalog,
+    )
+    from app.modules.training.infrastructure.cc_resolution import (
+        resolve_company_collective_agreement,
+    )
+    from app.modules.training.schemas.responses import CcTrainingSuggestion
+
+    idcc, _, agreement_name = resolve_company_collective_agreement(company_id)
+    if not idcc:
+        return []
+
+    recos = CcTrainingRecommendationsRepository().list_by_idcc(idcc, active_only=True)
+    catalog_rows = training_repository.get_catalog_rows_for_cc_matching(company_id)
+    by_reco, by_title = build_catalog_match_maps(catalog_rows)
+
+    out: List[CcTrainingSuggestion] = []
+    for reco in recos:
+        already, catalog_id = match_recommendation_to_catalog(
+            reco, by_reco=by_reco, by_title=by_title
+        )
+        roles = reco.get("target_roles") or []
+        if not isinstance(roles, list):
+            roles = []
+        out.append(
+            CcTrainingSuggestion(
+                id=str(reco["id"]),
+                idcc=idcc,
+                agreement_name=agreement_name,
+                title=str(reco.get("title") or ""),
+                obligation_level=str(reco.get("obligation_level") or "recommandee"),
+                pedagogical_objective=reco.get("pedagogical_objective"),
+                legal_reference=reco.get("legal_reference"),
+                target_roles=[str(x) for x in roles],
+                periodicity=reco.get("periodicity"),
+                already_in_catalog=already,
+                catalog_training_id=catalog_id,
+            )
+        )
+    out.sort(
+        key=lambda x: (
+            0 if x.obligation_level == "obligatoire" else 1,
+            x.title.lower(),
+        )
+    )
+    return out

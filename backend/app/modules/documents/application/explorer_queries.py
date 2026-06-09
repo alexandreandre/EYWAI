@@ -6,6 +6,10 @@ from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
 from app.modules.documents.infrastructure.repository import documents_repository
+from app.modules.employee_exits.domain.document_access import (
+    rh_should_list_in_documents_explorer,
+)
+from app.modules.employees.application.service import enrich_employee_with_exit_context
 from app.modules.payslips.infrastructure.storage_urls import create_payslip_url_maps
 from app.modules.employees.infrastructure.providers import get_storage_provider
 
@@ -87,10 +91,45 @@ def _identity_label(emp: Dict[str, Any]) -> str:
     return "Carte d'identité / Passeport"
 
 
+def _build_employees_index(
+    emp_rows: List[Dict[str, Any]],
+) -> tuple[Dict[str, Dict[str, Any]], set[str]]:
+    employees: Dict[str, Dict[str, Any]] = {}
+    visible_employee_ids: set[str] = set()
+
+    for row in emp_rows:
+        if not row.get("id"):
+            continue
+        enriched = enrich_employee_with_exit_context(dict(row))
+        employee_id = str(enriched["id"])
+        employees[employee_id] = enriched
+        user_id = enriched.get("user_id")
+        if user_id:
+            employees.setdefault(str(user_id), enriched)
+        if rh_should_list_in_documents_explorer(enriched):
+            visible_employee_ids.add(employee_id)
+
+    return employees, visible_employee_ids
+
+
+def _filter_rows_for_visible_employees(
+    rows: List[Dict[str, Any]],
+    visible_employee_ids: set[str],
+    *,
+    employee_id_key: str = "employee_id",
+) -> List[Dict[str, Any]]:
+    return [
+        row
+        for row in rows
+        if str(row.get(employee_id_key) or "") in visible_employee_ids
+    ]
+
+
 def _scan_storage_bucket(
     bucket: str,
     company_id: str,
     employees: Dict[str, Dict[str, Any]],
+    visible_employee_ids: set[str],
     *,
     kind: str,
     file_resolver,
@@ -102,6 +141,8 @@ def _scan_storage_bucket(
         emp_id = str(folder.get("name") or "")
         if not emp_id:
             continue
+        if emp_id not in visible_employee_ids:
+            continue
         emp = employees.get(emp_id)
         if not emp:
             continue
@@ -110,13 +151,20 @@ def _scan_storage_bucket(
         if not resolved:
             continue
         file_name, label = resolved
+        storage_path = f"{company_id}/{emp_id}/{file_name}"
         url = storage.create_signed_url(
             bucket,
-            f"{company_id}/{emp_id}/{file_name}",
+            storage_path,
             expiry_seconds=3600,
             download=True,
         )
-        if not url:
+        preview_url = storage.create_signed_url(
+            bucket,
+            storage_path,
+            expiry_seconds=3600,
+            download=False,
+        )
+        if not url or not preview_url:
             continue
         items.append(
             {
@@ -124,6 +172,7 @@ def _scan_storage_bucket(
                 "employee_name": _employee_display_name(emp),
                 "kind": kind,
                 "url": url,
+                "preview_url": preview_url,
                 "label": label,
             }
         )
@@ -132,20 +181,19 @@ def _scan_storage_bucket(
 
 def get_documents_explorer(company_id: str) -> Dict[str, Any]:
     """Liste agrégée pour l'explorateur documents RH (générés, bulletins, fichiers stockage)."""
-    generated = documents_repository.get_all(company_id)
-    payslips = _fetch_company_payslips(company_id)
-
     from app.modules.employees.infrastructure.repository import EmployeeRepository
 
     emp_rows = EmployeeRepository().get_by_company(company_id)
-    employees: Dict[str, Dict[str, Any]] = {}
-    for row in emp_rows:
-        if not row.get("id"):
-            continue
-        employees[str(row["id"])] = row
-        user_id = row.get("user_id")
-        if user_id:
-            employees.setdefault(str(user_id), row)
+    employees, visible_employee_ids = _build_employees_index(emp_rows)
+
+    generated = _filter_rows_for_visible_employees(
+        documents_repository.get_all(company_id),
+        visible_employee_ids,
+    )
+    payslips = _filter_rows_for_visible_employees(
+        _fetch_company_payslips(company_id),
+        visible_employee_ids,
+    )
 
     storage: List[Dict[str, Any]] = []
 
@@ -159,6 +207,7 @@ def get_documents_explorer(company_id: str) -> Dict[str, Any]:
             "contracts",
             company_id,
             employees,
+            visible_employee_ids,
             kind="contract",
             file_resolver=contract_resolver,
         )
@@ -176,6 +225,7 @@ def get_documents_explorer(company_id: str) -> Dict[str, Any]:
             "piece_identite",
             company_id,
             employees,
+            visible_employee_ids,
             kind="identity",
             file_resolver=identity_resolver,
         )
@@ -191,6 +241,7 @@ def get_documents_explorer(company_id: str) -> Dict[str, Any]:
             "creation_compte",
             company_id,
             employees,
+            visible_employee_ids,
             kind="credentials",
             file_resolver=credentials_resolver,
         )

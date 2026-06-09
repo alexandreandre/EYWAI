@@ -6,7 +6,6 @@ import {
   formatCalendarValue,
   getCalendarTypeLabel,
 } from '@/lib/calendarTypes';
-import { dayHasSignificantEcart } from '@/lib/employeeCalendarUtils';
 import { formatShiftPastille, isPayrollRestDay } from '@/lib/employeeCalendarPlanning';
 
 interface EmployeeCalendarMonthListProps {
@@ -42,11 +41,6 @@ export function EmployeeCalendarMonthList({
         const actual = actualHours.find((d) => d.jour === day);
         const dayType = planned?.type ?? 'weekend';
         const barColor = CALENDAR_TYPE_BAR_COLORS[dayType] ?? CALENDAR_TYPE_BAR_COLORS.weekend;
-        const hasEcart = dayHasSignificantEcart(
-          planned?.heures_prevues,
-          actual?.heures_faites,
-          isForfaitJour
-        );
         const weekday = date.toLocaleDateString('fr-FR', { weekday: 'short' });
         const dayShifts = shiftsByDay[day] ?? [];
         const shiftPastille = formatShiftPastille(dayShifts);
@@ -61,8 +55,7 @@ export function EmployeeCalendarMonthList({
               className={cn(
                 'flex w-full items-stretch gap-3 rounded-lg border bg-card p-3 text-left transition-colors',
                 'hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                isToday && 'ring-2 ring-primary',
-                hasEcart && 'ring-2 ring-amber-400'
+                isToday && 'ring-2 ring-primary'
               )}
             >
               <span className={cn('w-1 shrink-0 rounded-full', barColor)} aria-hidden />

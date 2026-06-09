@@ -1,25 +1,19 @@
 import { Link } from 'react-router-dom';
-import { format, startOfWeek } from 'date-fns';
+import { useQuery } from '@tanstack/react-query';
+import { format } from 'date-fns';
 import type { ActualHoursData, PlannedEventData } from '@/api/calendar';
-import type { Shift } from '@/api/planning';
+import { getMyBadgeuseStatusToday } from '@/api/badgeuse';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  formatCalendarValue,
-  getCalendarTypeLabel,
-  CALENDAR_TYPE_BAR_COLORS,
-} from '@/lib/calendarTypes';
-import { dayHasSignificantEcart } from '@/lib/employeeCalendarUtils';
-import { cn } from '@/lib/utils';
+import { formatCalendarValue, getCalendarTypeLabel } from '@/lib/calendarTypes';
+import { formatSecondsToHoursMinutes, formatTimeFr } from '@/lib/badgeuseFormat';
 import { Plane } from 'lucide-react';
-import { CompactShiftRow } from '@/components/employee-calendar/employeeShiftDisplay';
 
 interface EmployeeCalendarDaySheetProps {
   open: boolean;
@@ -30,10 +24,66 @@ interface EmployeeCalendarDaySheetProps {
   planned?: PlannedEventData;
   actual?: ActualHoursData;
   isForfaitJour: boolean;
-  dayShifts?: Shift[];
   isPayrollLoading?: boolean;
-  isShiftsLoading?: boolean;
-  onViewWeek?: (weekStartIso: string) => void;
+}
+
+function DoneSlotsList({
+  sequences,
+  isLoading,
+  isEligible,
+}: {
+  sequences: { start: string; end: string; duration_seconds: number }[];
+  isLoading: boolean;
+  isEligible: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        <Skeleton className="h-11 w-full" />
+        <Skeleton className="h-11 w-full" />
+      </div>
+    );
+  }
+
+  if (!isEligible) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Aucun pointage badgeuse pour cette journée.
+      </p>
+    );
+  }
+
+  if (sequences.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Aucun créneau pointé ce jour.
+      </p>
+    );
+  }
+
+  return (
+    <ul className="flex flex-col gap-2">
+      {sequences.map((seq) => (
+        <li
+          key={`${seq.start}-${seq.end}`}
+          className="flex items-center gap-3 rounded-lg border bg-muted/25 px-3 py-2.5"
+        >
+          <span
+            className="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500"
+            aria-hidden
+          />
+          <div className="flex min-w-0 flex-1 items-baseline justify-between gap-3">
+            <span className="text-sm font-semibold tabular-nums">
+              {formatTimeFr(seq.start)} – {formatTimeFr(seq.end)}
+            </span>
+            <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+              {formatSecondsToHoursMinutes(seq.duration_seconds)}
+            </span>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export function EmployeeCalendarDaySheet({
@@ -45,11 +95,18 @@ export function EmployeeCalendarDaySheet({
   planned,
   actual,
   isForfaitJour,
-  dayShifts = [],
   isPayrollLoading = false,
-  isShiftsLoading = false,
-  onViewWeek,
 }: EmployeeCalendarDaySheetProps) {
+  const dayIso =
+    day !== null ? format(new Date(year, month - 1, day), 'yyyy-MM-dd') : '';
+
+  const badgeuseQuery = useQuery({
+    queryKey: ['badgeuse', 'calendar-day', dayIso],
+    queryFn: () => getMyBadgeuseStatusToday(dayIso),
+    enabled: open && day !== null,
+    staleTime: 30_000,
+  });
+
   if (day === null) return null;
 
   const date = new Date(year, month - 1, day);
@@ -60,119 +117,72 @@ export function EmployeeCalendarDaySheet({
     year: 'numeric',
   });
   const dayType = planned?.type ?? 'weekend';
-  const barColor = CALENDAR_TYPE_BAR_COLORS[dayType] ?? CALENDAR_TYPE_BAR_COLORS.weekend;
-  const hasEcart = dayHasSignificantEcart(
-    planned?.heures_prevues,
-    actual?.heures_faites,
-    isForfaitJour
-  );
   const showAbsenceLink = dayType === 'conge' || dayType === 'arret_maladie';
-
-  const weekStartForDay = format(
-    startOfWeek(date, { weekStartsOn: 1 }),
-    'yyyy-MM-dd'
-  );
+  const sequences = badgeuseQuery.data?.sequences ?? [];
+  const isBadgeuseEligible = badgeuseQuery.data?.is_eligible_for_badgeuse ?? false;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto sm:max-w-md sm:mx-auto sm:rounded-t-xl">
-        <SheetHeader>
-          <SheetTitle className="capitalize">{dateLabel}</SheetTitle>
-          <SheetDescription>
-            Calendrier paie et créneaux publiés (lecture seule).
-          </SheetDescription>
+      <SheetContent
+        side="bottom"
+        className="max-h-[85vh] overflow-y-auto sm:max-w-md sm:mx-auto sm:rounded-t-xl"
+      >
+        <SheetHeader className="text-left">
+          <SheetTitle className="capitalize text-xl">{dateLabel}</SheetTitle>
         </SheetHeader>
 
-        <div className="mt-4 space-y-4">
-          <section aria-labelledby="payroll-day-heading">
-            <h3 id="payroll-day-heading" className="text-sm font-medium text-muted-foreground mb-2">
-              Calendrier paie
-            </h3>
-            {isPayrollLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-16 w-full" />
+        <div className="mt-4 space-y-5">
+          {isPayrollLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-5 w-full" />
+              <Skeleton className="h-5 w-full" />
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">
+                Type de journée :{' '}
+                <span className="text-foreground">{getCalendarTypeLabel(dayType)}</span>
+              </p>
+
+              <div className="space-y-1 text-sm">
+                <p>
+                  <span className="text-muted-foreground">Heures faites : </span>
+                  <span className="font-semibold tabular-nums">
+                    {formatCalendarValue(actual?.heures_faites, isForfaitJour)}
+                  </span>
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Heures prévues : </span>
+                  <span className="font-semibold tabular-nums">
+                    {formatCalendarValue(planned?.heures_prevues, isForfaitJour)}
+                  </span>
+                </p>
               </div>
-            ) : (
-              <>
-                <div className="flex items-center gap-3">
-                  <span className={cn('h-10 w-1 rounded-full shrink-0', barColor)} aria-hidden />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Type de journée</p>
-                    <p className="text-lg font-semibold">{getCalendarTypeLabel(dayType)}</p>
-                  </div>
-                </div>
+            </>
+          )}
 
-                <dl className="mt-3 grid grid-cols-2 gap-3 rounded-lg border bg-muted/30 p-3 text-sm">
-                  <div>
-                    <dt className="text-muted-foreground">{isForfaitJour ? 'Prévu' : 'Heures prévues'}</dt>
-                    <dd className="font-semibold tabular-nums">
-                      {formatCalendarValue(planned?.heures_prevues, isForfaitJour)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">{isForfaitJour ? 'Réalisé' : 'Heures réalisées'}</dt>
-                    <dd className="font-semibold tabular-nums">
-                      {formatCalendarValue(actual?.heures_faites, isForfaitJour)}
-                    </dd>
-                  </div>
-                </dl>
-
-                {hasEcart && (
-                  <p className="mt-3 rounded-md border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-                    Écart notable entre le prévu et le réalisé sur cette journée.
-                  </p>
-                )}
-              </>
-            )}
+          <section aria-labelledby="done-slots-heading">
+            <h3 id="done-slots-heading" className="mb-2 text-sm font-medium">
+              Créneaux faits
+            </h3>
+            <DoneSlotsList
+              sequences={sequences}
+              isLoading={badgeuseQuery.isLoading}
+              isEligible={isBadgeuseEligible}
+            />
           </section>
 
-          <section aria-labelledby="shifts-day-heading" className="border-t pt-4">
-            <h3 id="shifts-day-heading" className="text-sm font-medium mb-2">
-              Créneaux publiés
-            </h3>
-            {isShiftsLoading ? (
-              <div className="space-y-1.5">
-                <Skeleton className="h-9 w-full" />
-                <Skeleton className="h-9 w-full" />
-              </div>
-            ) : dayShifts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucun créneau publié ce jour.</p>
-            ) : (
-              <ul className="flex flex-col gap-1.5">
-                {dayShifts.map((shift) => (
-                  <li key={shift.id}>
-                    <CompactShiftRow shift={shift} />
-                  </li>
-                ))}
-              </ul>
-            )}
-            {onViewWeek && (
-              <Button
-                type="button"
-                variant="link"
-                size="sm"
-                className="mt-2 h-auto p-0"
-                onClick={() => {
-                  onOpenChange(false);
-                  onViewWeek(weekStartForDay);
-                }}
-              >
-                Voir la semaine
-              </Button>
-            )}
-          </section>
-
-          <div className="flex flex-col gap-2 border-t pt-2">
-            {showAbsenceLink && (
-              <Button variant="outline" className="justify-start" asChild>
+          {showAbsenceLink && (
+            <div className="border-t pt-3">
+              <Button variant="outline" className="w-full justify-start" asChild>
                 <Link to="/absences" onClick={() => onOpenChange(false)}>
                   <Plane className="mr-2 h-4 w-4" />
                   Voir mes demandes d&apos;absence
                 </Link>
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>

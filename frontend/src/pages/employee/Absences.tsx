@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { fr } from 'date-fns/locale';
-import { AlertCircle, Clock, PlusCircle } from 'lucide-react';
+import { AlertCircle, Clock, Info, PlusCircle } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import type { AbsenceBalance, AbsenceRequest, SalaryCertificate } from '@/api/absences';
 import {
@@ -20,9 +20,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useAuth } from '@/contexts/AuthContext';
 import { useEmployeeAbsencesPageQuery } from '@/hooks/queries/useEmployeeDashboardQueries';
 import {
-  type AbsenceStatusFilter,
   absencesOnCalendarDay,
+  EMPLOYER_REGISTERED_ABSENCE_HINT,
   filterAbsencesByStatus,
+  type AbsenceStatusFilter,
 } from '@/lib/employeeAbsencesUtils';
 import {
   ABSENCE_CALENDAR_MODIFIERS_CLASS_NAMES,
@@ -190,6 +191,13 @@ export default function AbsencesPage() {
         }
       />
 
+      <Alert className="border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30">
+        <Info className="h-4 w-4 text-blue-700" />
+        <AlertDescription className="text-blue-950 dark:text-blue-100">
+          {EMPLOYER_REGISTERED_ABSENCE_HINT}
+        </AlertDescription>
+      </Alert>
+
       {pendingCount > 0 && (
         <Alert className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30">
           <Clock className="h-4 w-4 text-amber-700" />
@@ -351,6 +359,7 @@ export default function AbsencesPage() {
         onClose={closeRequestModal}
         onSuccess={refreshPageData}
         balances={balances}
+        pendingAbsences={myAbsences.filter((a) => a.status === 'pending')}
       />
 
       <EmployeeAbsenceDaySheet

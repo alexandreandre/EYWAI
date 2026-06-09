@@ -23,6 +23,7 @@ from app.modules.absences.domain.rules import (
     compute_cp_balances_for_bulletin,
     count_absence_days_taken,
     requires_salary_certificate,
+    validate_conge_paye_request_days,
 )
 from app.modules.absences.infrastructure.providers import (
     evenement_familial_provider,
@@ -236,6 +237,26 @@ def _parse_hire_date(employee_id: str) -> date | None:
         if isinstance(hire_date_raw, str)
         else hire_date_raw
     )
+
+
+def assert_employee_conge_paye_request_allowed(
+    employee_id: str, selected_days: list
+) -> None:
+    """
+    Vérifie qu'une demande CP salarié ne dépasse pas le solde disponible
+    (validés + pending). Lève ValueError ou LookupError.
+    """
+    hire_date = _parse_hire_date(employee_id)
+    if not hire_date:
+        raise LookupError("Date d'embauche non trouvée pour l'employé.")
+    parsed_days: list[date] = []
+    for day in selected_days:
+        if isinstance(day, date):
+            parsed_days.append(day)
+        elif isinstance(day, str):
+            parsed_days.append(date.fromisoformat(day[:10]))
+    employee_requests = absence_repository.list_by_employee_id(employee_id)
+    validate_conge_paye_request_days(hire_date, employee_requests, parsed_days)
 
 
 def get_absence_balances_at_date(

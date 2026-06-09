@@ -135,8 +135,15 @@ class SupabaseDocumentsRepository:
         ).execute()
 
     def create_signed_download_url(self, storage_path: str, expires: int = 3600) -> str:
+        return self._create_signed_url(storage_path, expires, download=True)
+
+    def create_signed_preview_url(self, storage_path: str, expires: int = 3600) -> str:
+        return self._create_signed_url(storage_path, expires, download=False)
+
+    @staticmethod
+    def _create_signed_url(storage_path: str, expires: int, *, download: bool) -> str:
         sur = supabase.storage.from_(BUCKET).create_signed_url(
-            storage_path, expires, options={"download": True}
+            storage_path, expires, options={"download": download}
         )
         if isinstance(sur, dict):
             u = sur.get("signedURL") or sur.get("signedUrl")

@@ -79,41 +79,33 @@ export function useCalendar(
   const [isSavingAfterApply, setIsSavingAfterApply] = useState(false);
   const [isCopyingPrevMonth, setIsCopyingPrevMonth] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [loadedMonthKey, setLoadedMonthKey] = useState<string | null>(null);
+
+  const selectedMonthKey = `${selectedDate.year}-${selectedDate.month}`;
+  const isMonthDataReady =
+    loadedMonthKey === selectedMonthKey && plannedCalendar.length > 0;
 
   const monthCompletionStatus = useMemo(() => {
-    if (isLoading || plannedCalendar.length === 0) return 'a_saisir' as const;
+    if (isLoading || !isMonthDataReady) return 'a_saisir' as const;
     return computeMonthCompletionStatus(
       plannedCalendar,
       selectedDate.year,
       selectedDate.month
     );
-  }, [plannedCalendar, selectedDate.year, selectedDate.month, isLoading]);
+  }, [plannedCalendar, selectedDate.year, selectedDate.month, isLoading, isMonthDataReady]);
 
-  const fetchAllCalendarData = useCallback(async () => {
-    if (!employeeId || !fetchEnabled) {
-      setIsLoading(false);
-      setLoadError(false);
-      setPlannedCalendar([]);
-      setActualHours([]);
-      return;
-    }
-    setIsLoading(true);
-    setIsDirty(false);
-    setLoadError(false);
-    try {
-      const [plannedRes, actualRes] = await Promise.all([
-        calendarApi.getPlannedCalendar(employeeId, selectedDate.year, selectedDate.month),
-        calendarApi.getActualHours(employeeId, selectedDate.year, selectedDate.month),
-      ]);
-
-      const plannedDataFromApi = plannedRes.data.calendrier_prevu ?? [];
-      const actualDataFromApi = actualRes.data.calendrier_reel ?? [];
-
-      const daysInMonth = new Date(selectedDate.year, selectedDate.month, 0).getDate();
+  const buildMonthCalendar = useCallback(
+    (
+      year: number,
+      month: number,
+      plannedDataFromApi: PlannedEventData[],
+      actualDataFromApi: ActualHoursData[]
+    ) => {
+      const daysInMonth = new Date(year, month, 0).getDate();
 
       const baseCalendar: PlannedEventData[] = [];
       for (let i = 1; i <= daysInMonth; i++) {
-        const date = new Date(selectedDate.year, selectedDate.month - 1, i);
+        const date = new Date(year, month - 1, i);
         const isWeekend = date.getDay() === 0 || date.getDay() === 6;
         const defaultHeuresPrevues = isForfaitJourMode ? (isWeekend ? 0 : 1) : null;
 
@@ -127,8 +119,8 @@ export function useCalendar(
       const finalPlannedCalendar = applyHolidayHints(
         baseCalendar,
         plannedDataFromApi,
-        selectedDate.year,
-        selectedDate.month
+        year,
+        month
       );
 
       const finalActualHours = finalPlannedCalendar.map((plannedDay) => {
@@ -140,10 +132,52 @@ export function useCalendar(
         };
       });
 
+      return { finalPlannedCalendar, finalActualHours };
+    },
+    [isForfaitJourMode]
+  );
+
+  const fetchAllCalendarData = useCallback(async () => {
+    if (!employeeId || !fetchEnabled) {
+      setIsLoading(false);
+      setLoadError(false);
+      setLoadedMonthKey(null);
+      setPlannedCalendar([]);
+      setActualHours([]);
+      return;
+    }
+
+    const year = selectedDate.year;
+    const month = selectedDate.month;
+    const monthKey = `${year}-${month}`;
+
+    setIsLoading(true);
+    setIsDirty(false);
+    setLoadError(false);
+    setLoadedMonthKey(null);
+    setPlannedCalendar([]);
+    setActualHours([]);
+
+    try {
+      const [plannedRes, actualRes] = await Promise.all([
+        calendarApi.getPlannedCalendar(employeeId, year, month),
+        calendarApi.getActualHours(employeeId, year, month),
+      ]);
+
+      const plannedDataFromApi = plannedRes.data.calendrier_prevu ?? [];
+      const actualDataFromApi = actualRes.data.calendrier_reel ?? [];
+      const { finalPlannedCalendar, finalActualHours } = buildMonthCalendar(
+        year,
+        month,
+        plannedDataFromApi,
+        actualDataFromApi
+      );
+
       setPlannedCalendar(finalPlannedCalendar);
       setActualHours(finalActualHours);
       setOriginalPlanned(finalPlannedCalendar);
       setOriginalActual(finalActualHours);
+      setLoadedMonthKey(monthKey);
       setLoadError(false);
     } catch (error) {
       log.error(error);
@@ -156,11 +190,72 @@ export function useCalendar(
     } finally {
       setIsLoading(false);
     }
-  }, [employeeId, selectedDate, isForfaitJourMode, toast, fetchEnabled]);
+  }, [employeeId, selectedDate.year, selectedDate.month, buildMonthCalendar, toast, fetchEnabled]);
 
   useEffect(() => {
-    fetchAllCalendarData();
-  }, [fetchAllCalendarData]);
+    let cancelled = false;
+
+    if (!employeeId || !fetchEnabled) {
+      setIsLoading(false);
+      setLoadError(false);
+      setLoadedMonthKey(null);
+      setPlannedCalendar([]);
+      setActualHours([]);
+      return;
+    }
+
+    const year = selectedDate.year;
+    const month = selectedDate.month;
+    const monthKey = `${year}-${month}`;
+
+    setIsLoading(true);
+    setIsDirty(false);
+    setLoadError(false);
+    setLoadedMonthKey(null);
+    setPlannedCalendar([]);
+    setActualHours([]);
+
+    void (async () => {
+      try {
+        const [plannedRes, actualRes] = await Promise.all([
+          calendarApi.getPlannedCalendar(employeeId, year, month),
+          calendarApi.getActualHours(employeeId, year, month),
+        ]);
+        if (cancelled) return;
+
+        const plannedDataFromApi = plannedRes.data.calendrier_prevu ?? [];
+        const actualDataFromApi = actualRes.data.calendrier_reel ?? [];
+        const { finalPlannedCalendar, finalActualHours } = buildMonthCalendar(
+          year,
+          month,
+          plannedDataFromApi,
+          actualDataFromApi
+        );
+
+        setPlannedCalendar(finalPlannedCalendar);
+        setActualHours(finalActualHours);
+        setOriginalPlanned(finalPlannedCalendar);
+        setOriginalActual(finalActualHours);
+        setLoadedMonthKey(monthKey);
+        setLoadError(false);
+      } catch (error) {
+        if (cancelled) return;
+        log.error(error);
+        setLoadError(true);
+        toast({
+          title: 'Erreur',
+          description: 'Impossible de charger les données du calendrier.',
+          variant: 'destructive',
+        });
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [employeeId, selectedDate.year, selectedDate.month, buildMonthCalendar, toast, fetchEnabled]);
 
   useEffect(() => {
     setWeekTemplate(getInitialWeekTemplate(isForfaitJourMode));
@@ -459,6 +554,7 @@ export function useCalendar(
     copyPlannedToActualForDays,
     bulkCopyPlannedToActual,
     loadError,
+    isMonthDataReady,
     refetch: fetchAllCalendarData,
   };
 }
