@@ -1,6 +1,6 @@
 // src/App.tsx
 
-import { Suspense, type ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CompanyProvider, useCompany } from './contexts/CompanyContext';
@@ -26,6 +26,12 @@ import * as Pages from '@/app/lazyPages';
 import { employeeCollaboratorRoutes } from '@/app/employeeRoutes';
 import { isEmployeeOnlyPath } from '@/lib/routeAccess';
 import { BADGEUSE_RH_TERMINAL_PATH } from '@/lib/badgeuseRoutes';
+
+const BadgeuseTerminalGate = lazy(
+  () => import('@/components/badgeuse/rh/BadgeuseTerminalGate').then((m) => ({
+    default: m.BadgeuseTerminalGate,
+  }))
+);
 
 function EmployeeLayout() {
   const { accessibleCompanies, activeCompany } = useCompany();
@@ -111,28 +117,6 @@ function ProtectedRoutes() {
       <Routes>
         <Route element={<EmployeeLayout />}>{employeeCollaboratorRoutes}</Route>
       </Routes>
-    );
-  }
-
-  const isRhBadgeuseTerminal =
-    !isCollaborateurRhView &&
-    (location.pathname === BADGEUSE_RH_TERMINAL_PATH ||
-      location.pathname === '/badgeuse-rh/scan');
-
-  if (location.pathname === '/badgeuse-rh/scan') {
-    return <Navigate to={BADGEUSE_RH_TERMINAL_PATH} replace />;
-  }
-
-  if (isRhBadgeuseTerminal) {
-    return (
-      <div className="min-h-screen bg-background">
-        <main className="mx-auto w-full max-w-6xl p-4 sm:p-6 lg:p-8">
-          <BackgroundDataIndicator />
-          <Routes>
-            <Route path={BADGEUSE_RH_TERMINAL_PATH} element={<Pages.BadgeuseRhScanPage />} />
-          </Routes>
-        </main>
-      </div>
     );
   }
 
@@ -287,17 +271,29 @@ export default function App() {
       <Toaster />
       <BootProvider>
         <AuthProvider>
-          <CompanyProvider>
-            <BrowserRouter
-              future={{
-                v7_startTransition: true,
-                v7_relativeSplatPath: true,
-              }}
-            >
+          <BrowserRouter
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true,
+            }}
+          >
+            <CompanyProvider>
               <BootGate>
                 <Suspense fallback={<RouteSkeleton />}>
                   <Routes>
                     <Route path="/login" element={<Pages.LoginPage />} />
+                    <Route
+                      path={BADGEUSE_RH_TERMINAL_PATH}
+                      element={
+                        <Suspense fallback={null}>
+                          <BadgeuseTerminalGate />
+                        </Suspense>
+                      }
+                    />
+                    <Route
+                      path="/badgeuse-rh/scan"
+                      element={<Navigate to={BADGEUSE_RH_TERMINAL_PATH} replace />}
+                    />
                     <Route path="/forgot-password" element={<Pages.ForgotPasswordPage />} />
                     <Route path="/reset-password" element={<Pages.ResetPasswordPage />} />
                     <Route
@@ -334,8 +330,8 @@ export default function App() {
                   </Routes>
                 </Suspense>
               </BootGate>
-            </BrowserRouter>
-          </CompanyProvider>
+            </CompanyProvider>
+          </BrowserRouter>
         </AuthProvider>
       </BootProvider>
     </TooltipProvider>

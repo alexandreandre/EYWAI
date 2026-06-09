@@ -6,13 +6,13 @@ import { refreshAccessToken } from '@/api/authRefresh';
 import {
   clearAuthSession,
   getAccessToken,
-  getExpiresAt,
   hasRefreshToken,
   persistAuthSession,
-  REFRESH_MARGIN_MS,
   shouldRefreshAccessToken,
   type AuthSessionPayload,
 } from '@/lib/authSession';
+import { startSessionKeepAlive, isBadgeuseTerminalPath } from '@/lib/sessionKeepAlive';
+import { hasTerminalToken } from '@/lib/badgeuseTerminalAuth';
 import { CompanyAccess } from "./CompanyContext";
 import { useBootOptional } from '@/contexts/BootContext';
 import { isPlatformAdmin } from '@/lib/platformAdmin';
@@ -72,28 +72,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const boot = useBootOptional();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopKeepAliveRef = useRef<(() => void) | null>(null);
 
-  const scheduleSilentRefresh = () => {
-    if (refreshTimerRef.current) {
-      clearTimeout(refreshTimerRef.current);
-      refreshTimerRef.current = null;
-    }
-    if (!hasRefreshToken()) return;
+  const startKeepAlive = () => {
+    stopKeepAliveRef.current?.();
+    stopKeepAliveRef.current = startSessionKeepAlive({
+      onRefreshed: applyAccessToken,
+    });
+  };
 
-    const expiresAt = getExpiresAt();
-    if (!expiresAt) return;
-
-    const delay = expiresAt * 1000 - Date.now() - REFRESH_MARGIN_MS;
-    const waitMs = delay > 0 ? delay : 0;
-
-    refreshTimerRef.current = setTimeout(async () => {
-      const newToken = await refreshAccessToken();
-      if (newToken) {
-        applyAccessToken(newToken);
-        scheduleSilentRefresh();
-      }
-    }, waitMs);
+  const stopKeepAlive = () => {
+    stopKeepAliveRef.current?.();
+    stopKeepAliveRef.current = null;
   };
 
   useEffect(() => {
@@ -101,12 +91,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const restoreSession = async () => {
       const token = getAccessToken();
+      const terminalKiosk = isBadgeuseTerminalPath() && hasTerminalToken();
+
       if (!token) {
         setIsLoading(false);
         return;
       }
 
       applyAccessToken(token);
+
+      if (terminalKiosk) {
+        setIsLoading(false);
+        void (async () => {
+          try {
+            if (shouldRefreshAccessToken() && hasRefreshToken()) {
+              const renewed = await refreshAccessToken();
+              if (renewed) {
+                applyAccessToken(renewed);
+              }
+            }
+            const me = await fetchCurrentUser();
+            if (!cancelled) {
+              setUser(me);
+              startKeepAlive();
+            }
+          } catch {
+            /* La badgeuse kiosque fonctionne sans session RH. */
+          }
+        })();
+        return;
+      }
 
       try {
         if (shouldRefreshAccessToken() && hasRefreshToken()) {
@@ -119,7 +133,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const me = await fetchCurrentUser();
         if (!cancelled) {
           setUser(me);
-          scheduleSilentRefresh();
+          startKeepAlive();
         }
       } catch {
         if (hasRefreshToken()) {
@@ -130,7 +144,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               const me = await fetchCurrentUser();
               if (!cancelled) {
                 setUser(me);
-                scheduleSilentRefresh();
+                startKeepAlive();
                 return;
               }
             } catch {
@@ -153,9 +167,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     return () => {
       cancelled = true;
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current);
-      }
+      stopKeepAlive();
     };
   }, []);
 
@@ -167,7 +179,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const me = await fetchCurrentUser();
       setUser(me);
-      scheduleSilentRefresh();
+      startKeepAlive();
       return me;
     } catch (error) {
       await logout();
@@ -177,10 +189,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     boot?.resetBoot();
-    if (refreshTimerRef.current) {
-      clearTimeout(refreshTimerRef.current);
-      refreshTimerRef.current = null;
-    }
+    stopKeepAlive();
 
     try {
       await apiClient.post('/api/auth/logout');

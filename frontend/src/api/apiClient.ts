@@ -14,6 +14,12 @@ import {
   getAccessToken,
   shouldRefreshAccessToken,
 } from '@/lib/authSession';
+import { isBadgeuseTerminalPath } from '@/lib/sessionKeepAlive';
+import {
+  BADGEUSE_TERMINAL_TOKEN_HEADER,
+  getTerminalToken,
+  isTerminalApiRequest,
+} from '@/lib/badgeuseTerminalAuth';
 
 export { getApiBaseUrl } from './apiConfig';
 
@@ -43,6 +49,9 @@ function isAuthRoute(url: string | undefined): boolean {
 function redirectToLoginExpired(): void {
   clearAuthSession();
   delete apiClient.defaults.headers.common['Authorization'];
+  if (isBadgeuseTerminalPath()) {
+    return;
+  }
   if (!window.location.pathname.startsWith('/login')) {
     window.location.href = '/login?session=expired';
   }
@@ -63,8 +72,15 @@ apiClient.interceptors.request.use(
 
     const authConfig = config as AuthAxiosConfig;
     const requestUrl = authConfig.url ?? '';
+    const terminalRequest = isTerminalApiRequest(requestUrl);
+    const terminalToken = getTerminalToken();
+
+    if (terminalRequest && terminalToken) {
+      config.headers[BADGEUSE_TERMINAL_TOKEN_HEADER] = terminalToken;
+    }
 
     if (
+      !terminalRequest &&
       !isAuthRoute(requestUrl) &&
       shouldRefreshAccessToken() &&
       !authConfig._authRefreshAttempted
@@ -77,7 +93,7 @@ apiClient.interceptors.request.use(
     }
 
     const token = getAccessToken();
-    if (token && !config.headers.Authorization) {
+    if (!terminalRequest && token && !config.headers.Authorization) {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
@@ -124,7 +140,8 @@ apiClient.interceptors.response.use(
       status === 401 &&
       authConfig &&
       !authConfig._authRetry &&
-      !isAuthRoute(requestUrl)
+      !isAuthRoute(requestUrl) &&
+      !isTerminalApiRequest(requestUrl)
     ) {
       authConfig._authRetry = true;
       const newToken = await refreshAccessToken();

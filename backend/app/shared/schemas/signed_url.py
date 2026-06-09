@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 
 class ContractResponse(BaseModel):
-    """Réponse avec URL signée de téléchargement (ou None si absent)."""
+    """Réponse avec URLs signées (téléchargement et aperçu inline)."""
 
     url: str | None = None
+    preview_url: str | None = None

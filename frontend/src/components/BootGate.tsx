@@ -1,11 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { useIsRestoring, useQueryClient } from '@tanstack/react-query';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompanyOptional } from '@/contexts/CompanyContext';
 import { useBoot } from '@/contexts/BootContext';
 import { AppBootScreen } from '@/components/AppBootScreen';
 import { prefetchInBackground, runBootPrefetch } from '@/lib/prefetchByRole';
 import { isPlatformAdmin } from '@/lib/platformAdmin';
+import { isBadgeuseTerminalPath } from '@/lib/sessionKeepAlive';
 
 /** Durée minimale du splash pour éviter un flash trop court */
 const BOOT_MIN_MS = 250;
@@ -21,6 +23,8 @@ type BootGateProps = {
  * des données des écrans principaux avant d’afficher l’application.
  */
 export function BootGate({ children }: BootGateProps) {
+  const location = useLocation();
+  const isTerminalKiosk = isBadgeuseTerminalPath(location.pathname);
   const { user, isLoading: authLoading } = useAuth();
   const companyCtx = useCompanyOptional();
   const { markStep, finishBoot, isBooting } = useBoot();
@@ -44,6 +48,10 @@ export function BootGate({ children }: BootGateProps) {
 
   useEffect(() => {
     if (!isBooting) return;
+    if (isTerminalKiosk) {
+      finishBoot();
+      return;
+    }
     if (bootStartedAt.current === null) {
       bootStartedAt.current = Date.now();
     }
@@ -51,7 +59,7 @@ export function BootGate({ children }: BootGateProps) {
       finishBoot();
     }, BOOT_MAX_MS);
     return () => clearTimeout(safetyTimer);
-  }, [isBooting, finishBoot]);
+  }, [isBooting, finishBoot, isTerminalKiosk]);
 
   const completeBoot = () => {
     const started = bootStartedAt.current ?? Date.now();
@@ -74,7 +82,7 @@ export function BootGate({ children }: BootGateProps) {
   };
 
   useEffect(() => {
-    if (!isBooting) return;
+    if (!isBooting || isTerminalKiosk) return;
 
     if (isRestoring) {
       markStep('Restauration de vos données en cache…', 12);
@@ -122,7 +130,12 @@ export function BootGate({ children }: BootGateProps) {
     queryClient,
     user,
     activeCompany,
+    isTerminalKiosk,
   ]);
+
+  if (isTerminalKiosk) {
+    return <>{children}</>;
+  }
 
   if (!isBooting) {
     return <>{children}</>;

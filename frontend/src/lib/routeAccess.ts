@@ -26,7 +26,15 @@ export function safeReturnPath(pathname: string | undefined): string {
   return pathname;
 }
 
+/** Édition bulletin côté RH : /payslips/:id/edit (hors espace collaborateur). */
+function isRhPayslipEditPath(pathname: string): boolean {
+  return /^\/payslips\/[^/]+\/edit\/?$/.test(pathname);
+}
+
 export function isEmployeeOnlyPath(pathname: string): boolean {
+  if (isRhPayslipEditPath(pathname)) {
+    return false;
+  }
   return EMPLOYEE_ONLY_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );

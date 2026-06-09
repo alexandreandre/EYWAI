@@ -79,7 +79,10 @@ Table 'expense_reports': Stocke les notes de frais soumises par les employés.
   - id (uuid, primary key): Identifiant de la note de frais.
   - employee_id (uuid, foreign key to employees.id): ID de l'employé.
   - date (date): Date de la dépense.
-  - amount (numeric): Montant de la dépense en euros.
+  - amount (numeric): Montant TTC de la dépense en euros.
+  - vat_rate (numeric): Taux de TVA en pourcentage (ex. 20, 10, 5.5).
+  - amount_ht (numeric): Montant HT calculé.
+  - vat_amount (numeric): Montant de TVA en euros.
   - type (text): Type de dépense (Valeurs: 'Transport', 'Restaurant', 'Hôtel', 'Autre').
   - status (text): Statut (Valeurs: 'pending', 'validated', 'rejected').
 

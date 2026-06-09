@@ -287,7 +287,7 @@ function getConsolidatedGroupNavClassName(
 ): string {
   const baseClasses = collapsed
     ? "flex items-center justify-center rounded-lg h-8 w-8 p-0 transition-all duration-200 hover:bg-primary/10"
-    : "flex min-h-7 items-center gap-2 rounded-lg px-2.5 py-1 transition-all duration-200 hover:bg-primary/10";
+    : "flex min-h-9 items-center gap-2 rounded-lg px-2.5 py-1.5 transition-all duration-200 hover:bg-primary/10";
   return isActive(path)
     ? `${baseClasses} bg-primary text-primary-foreground shadow-sm`
     : `${baseClasses} text-muted-foreground hover:text-foreground`;
@@ -296,22 +296,15 @@ function getConsolidatedGroupNavClassName(
 function ConsolidatedGroupLinkLabel({
   groupName,
   companyCount,
-  active,
 }: {
   groupName: string;
   companyCount: number;
-  active: boolean;
 }) {
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-px leading-none">
+    <div className="flex min-w-0 flex-1 flex-col justify-center leading-tight">
       <span className="truncate text-sm font-medium leading-tight">{groupName}</span>
-      <span
-        className={cn(
-          "truncate text-[11px] leading-tight",
-          active ? "text-primary-foreground/80" : "text-muted-foreground",
-        )}
-      >
-        {companyCount} entreprises
+      <span className="truncate text-[11px] leading-tight opacity-70">
+        {companyCount > 1 ? `${companyCount} entreprises` : `${companyCount} entreprise`}
       </span>
     </div>
   );
@@ -1130,7 +1123,7 @@ export function AppSidebar() {
                     <SidebarMenuItem key={group.groupId}>
                       <SidebarMenuButton
                         asChild
-                        size="sm"
+                        className={collapsed ? undefined : "!h-auto"}
                         tooltip={collapsed ? groupName : undefined}
                       >
                         <NavLink
@@ -1146,7 +1139,6 @@ export function AppSidebar() {
                             <ConsolidatedGroupLinkLabel
                               groupName={groupName}
                               companyCount={group.groupCompanies.length}
-                              active={isActive(groupUrl)}
                             />
                           )}
                         </NavLink>
@@ -1161,11 +1153,17 @@ export function AppSidebar() {
                   >
                     <NavLink
                       to={monEntrepriseNav.url}
-                      className={getNavClassName(monEntrepriseNav.url)}
+                      className={getConsolidatedGroupNavClassName(
+                        monEntrepriseNav.url,
+                        collapsed,
+                        isActive,
+                      )}
                     >
-                      <monEntrepriseNav.icon className="h-5 w-5 flex-shrink-0" />
+                      <monEntrepriseNav.icon className={SIDEBAR_NAV.iconPrimary} />
                       {!collapsed && (
-                        <span className="font-medium truncate">{monEntrepriseNav.title}</span>
+                        <span className="truncate text-sm font-medium leading-tight">
+                          {monEntrepriseNav.title}
+                        </span>
                       )}
                     </NavLink>
                   </SidebarMenuButton>
@@ -1178,7 +1176,7 @@ export function AppSidebar() {
                     <SidebarMenuItem key={group.groupId}>
                       <SidebarMenuButton
                         asChild
-                        size="sm"
+                        className={collapsed ? undefined : "!h-auto"}
                         tooltip={collapsed ? groupName : undefined}
                       >
                         <NavLink
@@ -1194,7 +1192,6 @@ export function AppSidebar() {
                             <ConsolidatedGroupLinkLabel
                               groupName={groupName}
                               companyCount={group.groupCompanies.length}
-                              active={isActive(groupUrl)}
                             />
                           )}
                         </NavLink>

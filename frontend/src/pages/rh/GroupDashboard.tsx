@@ -86,7 +86,7 @@ import {
   percentDelta,
   totalsEmployerCost,
 } from "@/lib/groupConsolidatedKpis";
-import { downloadBlob, openBlobInNewTab } from '@/lib/downloadBlob';
+import { exportGroupDashboardXlsx } from "@/lib/exportGroupDashboardXlsx";
 import {
   applyPreset,
   buildYearOptions,
@@ -175,6 +175,7 @@ export function GroupDashboard() {
   const [distributionBase, setDistributionBase] = useState<"employees" | "gross" | "cost">(
     "employees",
   );
+  const [isExporting, setIsExporting] = useState(false);
 
   const periodBounds = useMemo(() => getPeriodBounds(period), [period]);
   const isPlatformAdminUser = isPlatformAdmin(user);
@@ -404,58 +405,6 @@ export function GroupDashboard() {
     navigate("/dashboard");
   };
 
-  const exportToCSV = () => {
-    if (!stats) return;
-
-    const headers = [
-      "Entreprise",
-      "SIRET",
-      "Employés (hors-RH)",
-      "RH",
-      "Total Employés",
-      "Bulletins",
-      "Masse Sal. Brute",
-      "Masse Sal. Nette",
-      "Charges Patronales",
-      "Coût employeur total",
-      "Taux de Charges (%)",
-      "Taux Rétention Net (%)",
-      "Coût/Employé",
-      "Masse Sal./Employé",
-      "Charges/Employé",
-      "Ratio RH (%)",
-      "Coût/Bulletin",
-    ];
-
-    const rows = filteredAndSortedCompanies.map((company) => {
-      const k = computeCompanyKpis(company);
-      return [
-        company.company_name,
-        company.siret ?? "",
-        company.employee_count,
-        company.rh_count,
-        company.total_employee_count,
-        company.payslip_count,
-        company.gross_salary,
-        company.net_salary,
-        company.employer_charges,
-        k.totalEmployerCost,
-        k.chargeRate.toFixed(1),
-        k.netRetentionRate.toFixed(1),
-        k.totalCostPerEmployee.toFixed(0),
-        k.grossPerEmployee.toFixed(0),
-        k.chargesPerEmployee.toFixed(0),
-        k.rhRatio.toFixed(1),
-        k.costPerPayslip.toFixed(0),
-      ];
-    });
-
-    const csvContent = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    downloadBlob(blob, `groupe_${groupDetails?.group_name ?? groupId}_${periodBounds.endYear}_${periodBounds.endMonth}.csv`);
-  };
-
   const copyShareLink = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
@@ -565,6 +514,50 @@ export function GroupDashboard() {
   const distRh = computeDistribution(rhRatios);
   const distSalary = computeDistribution(salariesPerEmployee);
 
+  const handleExportExcel = async () => {
+    if (!stats) return;
+    setIsExporting(true);
+    try {
+      const periodExportKey =
+        periodBounds.startYear === periodBounds.endYear &&
+        periodBounds.startMonth === periodBounds.endMonth
+          ? `${periodBounds.endYear}-${String(periodBounds.endMonth).padStart(2, "0")}`
+          : `${periodBounds.startYear}${String(periodBounds.startMonth).padStart(2, "0")}-${periodBounds.endYear}${String(periodBounds.endMonth).padStart(2, "0")}`;
+
+      await exportGroupDashboardXlsx({
+        groupName: groupDetails?.group_name ?? "Groupe",
+        siren: groupDetails?.siren,
+        periodLabel: periodBounds.label,
+        periodExportKey,
+        compareTo,
+        companies: filteredAndSortedCompanies,
+        totals: filteredTotals,
+        chargeRate,
+        avgGrossPerEmployee,
+        totalEmployerCostValue,
+        kpiRows,
+        kpiDeltas,
+        comparison: stats.comparison,
+        distributions: {
+          charge: distCharge,
+          cost: distCost,
+          rh: distRh,
+          salary: distSalary,
+        },
+        evolution: evolutionData.filter(
+          (point) =>
+            selectedCompanyIds.size === 0 || selectedCompanyIds.has(point.company_id),
+        ),
+        generatedAt: stats.metadata.generated_at,
+      });
+      toast.success("Export Excel téléchargé");
+    } catch {
+      toast.error("Impossible de générer l'export Excel");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleBack = () => {
     if (isPlatformAdminUser && groupId) {
       navigate(`/super-admin/groups/${groupId}`);
@@ -619,9 +612,13 @@ export function GroupDashboard() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={exportToCSV} variant="outline" disabled={!stats || isLoading}>
+          <Button
+            onClick={() => void handleExportExcel()}
+            variant="outline"
+            disabled={!stats || isLoading || isExporting || noCompaniesSelected}
+          >
             <Download className="h-4 w-4 mr-2" />
-            Export CSV
+            {isExporting ? "Export en cours…" : "Exporter Excel"}
           </Button>
           <Button variant="outline" size="icon" onClick={copyShareLink} title="Copier le lien">
             <Link2 className="h-4 w-4" />

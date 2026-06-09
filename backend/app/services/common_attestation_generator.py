@@ -14,7 +14,7 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from app.shared.infrastructure.pdf.helpers import (
     build_branding_header_reportlab,
@@ -123,6 +123,37 @@ def _temps_travail_label(e: Dict[str, Any]) -> str:
         return "plein"
 
 
+def _temps_travail_detail(e: Dict[str, Any]) -> str:
+    h = e.get("duree_hebdomadaire") or e.get("weekly_hours")
+    try:
+        fh = float(h) if h is not None else 35.0
+    except (TypeError, ValueError):
+        return "Temps plein"
+    if fh >= 35:
+        return f"Temps plein ({fh:g} h par semaine)"
+    return f"Temps partiel ({fh:g} h par semaine)"
+
+
+def _contract_type_label(e: Dict[str, Any]) -> str:
+    ct = _s(e.get("contract_type") or e.get("type_contrat"))
+    if not ct:
+        return "—"
+    libelles = {
+        "cdi": "CDI (contrat à durée indéterminée)",
+        "cdd": "CDD (contrat à durée déterminée)",
+        "alternance": "Contrat d'alternance",
+        "apprentissage": "Contrat d'apprentissage",
+        "professionnalisation": "Contrat de professionnalisation",
+        "stage": "Convention de stage",
+    }
+    return libelles.get(ct.lower(), ct)
+
+
+def _employee_birth_date(e: Dict[str, Any]) -> str:
+    raw = e.get("date_naissance") or e.get("birth_date") or e.get("birthdate")
+    return _fmt_date_fr(raw)
+
+
 def _anciennete_annees(e: Dict[str, Any]) -> str:
     hd = e.get("hire_date") or e.get("date_debut_contrat")
     d0 = None
@@ -183,6 +214,8 @@ class CommonAttestationGenerator:
         if attestation_type not in self._types_set:
             raise ValueError(f"Type d'attestation non pris en charge : {attestation_type}")
         ctx = context or {}
+        if attestation_type == "attestation_emploi":
+            return self._build_attestation_emploi_pdf(employee, company, ctx)
         body = self._corps(attestation_type, employee, company, ctx)
         return self._build_pdf(employee, company, attestation_type, body)
 
@@ -198,7 +231,6 @@ class CommonAttestationGenerator:
         nom = _s(e.get("last_name") or e.get("nom"))
         poste = _s(e.get("job_title") or e.get("poste")) or "—"
         deb = _fmt_date_fr(e.get("hire_date") or e.get("date_debut_contrat"))
-        type_ct = _s(e.get("contract_type") or e.get("type_contrat")) or "—"
         date_gen = _fmt_date_fr(ctx.get("date_generation")) or date.today().strftime("%d/%m/%Y")
         sal_m = _salaire_mensuel_str(e)
         sal_a = _salaire_annuel_str(e)
@@ -211,13 +243,6 @@ class CommonAttestationGenerator:
             f"Nous soussignés, <b>{entreprise}</b>, attestons que {civ} "
             f"<b>{prenom} {nom}</b>, "
         )
-
-        if attestation_type == "attestation_emploi":
-            return (
-                intro
-                + f"est employé(e) en qualité de <b>{poste}</b> depuis le <b>{deb}</b> "
-                f"en contrat <b>{type_ct}</b>."
-            )
 
         if attestation_type == "attestation_presence":
             return (
@@ -272,6 +297,139 @@ class CommonAttestationGenerator:
             )
 
         return intro + "."
+
+    def _build_attestation_emploi_pdf(
+        self,
+        employee: Dict[str, Any],
+        company: Dict[str, Any],
+        ctx: Dict[str, Any],
+    ) -> bytes:
+        """Attestation d'emploi au format courant (identité employeur + tableau salarié)."""
+        buf = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buf,
+            pagesize=A4,
+            leftMargin=2 * cm,
+            rightMargin=2 * cm,
+            topMargin=2 * cm,
+            bottomMargin=2 * cm,
+        )
+        styles = setup_custom_styles(getSampleStyleSheet())
+        title_style = ParagraphStyle(
+            name="AttEmploiTitle",
+            parent=styles["Heading1"],
+            fontSize=14,
+            alignment=TA_CENTER,
+            spaceAfter=16,
+            textColor=colors.HexColor("#1e293b"),
+        )
+        body_style = ParagraphStyle(
+            name="AttEmploiBody",
+            parent=styles["Normal"],
+            fontSize=11,
+            leading=16,
+            alignment=TA_LEFT,
+            textColor=colors.HexColor("#334155"),
+        )
+        small_style = ParagraphStyle(
+            name="AttEmploiSmall",
+            parent=styles["Normal"],
+            fontSize=10,
+            leading=14,
+            textColor=colors.HexColor("#64748b"),
+        )
+
+        civ = _employee_civilite(employee)
+        prenom = _s(employee.get("first_name") or employee.get("prenom"))
+        nom = _s(employee.get("last_name") or employee.get("nom"))
+        poste = _s(employee.get("job_title") or employee.get("poste")) or "—"
+        deb = _fmt_date_fr(employee.get("hire_date") or employee.get("date_debut_contrat"))
+        type_ct = _contract_type_label(employee)
+        temps = _temps_travail_detail(employee)
+        date_naissance = _employee_birth_date(employee)
+        date_gen = _fmt_date_fr(ctx.get("date_generation")) or date.today().strftime("%d/%m/%Y")
+
+        entreprise = _company_name(company)
+        adresse = _company_address(company) or "…………………"
+        siret = _s(company.get("siret")) or "…………………"
+        signatory, signatory_title = get_company_signatory(company)
+        signatory_intro = signatory
+        if signatory_title:
+            signatory_intro += f", {signatory_title}"
+
+        story: List[Any] = []
+        build_branding_header_reportlab(story, styles, company)
+        story.append(Paragraph("Attestation d'emploi", title_style))
+        story.append(Spacer(1, 0.4 * cm))
+        story.append(
+            Paragraph(
+                f"Je soussigné(e), <b>{signatory_intro}</b>, agissant pour le compte de "
+                f"la société <b>{entreprise}</b>, immatriculée sous le numéro SIRET "
+                f"<b>{siret}</b>, dont le siège est situé <b>{adresse}</b>,",
+                body_style,
+            )
+        )
+        story.append(Spacer(1, 0.4 * cm))
+        story.append(Paragraph("<b>Atteste que :</b>", body_style))
+        story.append(Spacer(1, 0.3 * cm))
+
+        data_salarie = [
+            ["Nom et prénom :", f"{civ} {prenom} {nom}".strip()],
+            ["Né(e) le :", date_naissance or "Non renseigné"],
+            ["Emploi occupé :", poste],
+            ["Nature du contrat :", type_ct],
+            ["Date d'entrée :", deb or "Non renseigné"],
+            ["Temps de travail :", temps],
+        ]
+        table = Table(data_salarie, colWidths=[5 * cm, 10.5 * cm])
+        table.setStyle(
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 11),
+                    ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#334155")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ]
+            )
+        )
+        story.append(table)
+        story.append(Spacer(1, 0.6 * cm))
+        story.append(
+            Paragraph(
+                f"L'intéressé(e) est toujours présent(e) dans nos effectifs à la date "
+                f"du <b>{date_gen}</b>.",
+                body_style,
+            )
+        )
+        story.append(Spacer(1, 0.8 * cm))
+        story.append(
+            Paragraph(
+                "La présente attestation est délivrée à la demande de l'intéressé(e) "
+                "pour servir et valoir ce que de droit.",
+                body_style,
+            )
+        )
+        story.append(Spacer(1, 0.8 * cm))
+        lieu = get_company_city(company) or "…………………"
+        story.append(
+            Paragraph(
+                f"Fait à {lieu}, le {date.today().strftime('%d/%m/%Y')}.",
+                small_style,
+            )
+        )
+        story.append(Spacer(1, 1.5 * cm))
+        sig_line = f"<b>{signatory}</b>" + (
+            f"<br/><i>{signatory_title}</i>" if signatory_title else ""
+        )
+        story.append(Paragraph(sig_line, body_style))
+        story.append(Spacer(1, 0.3 * cm))
+        story.append(Paragraph("<i>Signature et cachet de l'employeur</i>", small_style))
+        doc.build(story)
+        return buf.getvalue()
 
     def _generate_attestation_retraite_corps(
         self,

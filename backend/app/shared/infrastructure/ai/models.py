@@ -17,6 +17,7 @@ MODEL_RECRUITMENT_SCORING = GPT_4O_MINI
 MODEL_COMPETENCIES_MOBILITY = GPT_4O_MINI
 MODEL_CSE_RECORDING = GPT_4O_MINI
 MODEL_CC_RULES_EXTRACTION = "google/gemini-2.5-flash"
+MODEL_CC_TRAINING_EXTRACTION = "google/gemini-2.5-flash"
 
 # Saisie assistée du calendrier (page Calendriers RH)
 # - Instruction en langage naturel -> heures par jour (Gemini Flash : rapide + JSON fiable)

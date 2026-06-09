@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { isAxiosError } from 'axios';
 import {
   clearAuthSession,
   getRefreshToken,
@@ -9,10 +9,24 @@ import { getApiBaseUrl } from './apiConfig';
 
 let refreshInFlight: Promise<string | null> | null = null;
 
+export interface RefreshAccessTokenOptions {
+  /** Efface la session locale uniquement en cas d'échec définitif (401). */
+  clearOnFailure?: boolean;
+}
+
+function isDefinitiveRefreshFailure(error: unknown): boolean {
+  if (!isAxiosError(error)) return false;
+  const status = error.response?.status;
+  return status === 401 || status === 403;
+}
+
 /**
  * Renouvelle le JWT via POST /api/auth/refresh (appel axios nu pour éviter les boucles d'intercepteurs).
  */
-export async function refreshAccessToken(): Promise<string | null> {
+export async function refreshAccessToken(
+  options: RefreshAccessTokenOptions = {},
+): Promise<string | null> {
+  const { clearOnFailure = true } = options;
   const refreshToken = getRefreshToken();
   if (!refreshToken) return null;
 
@@ -31,8 +45,10 @@ export async function refreshAccessToken(): Promise<string | null> {
       persistAuthSession(data);
       return data.access_token;
     })
-    .catch(() => {
-      clearAuthSession();
+    .catch((error) => {
+      if (clearOnFailure && isDefinitiveRefreshFailure(error)) {
+        clearAuthSession();
+      }
       return null;
     })
     .finally(() => {

@@ -6,8 +6,16 @@ describe('routeAccess', () => {
     expect(isEmployeeOnlyPath('/calendar')).toBe(true);
     expect(isEmployeeOnlyPath('/absences')).toBe(true);
     expect(isEmployeeOnlyPath('/employee/documents')).toBe(true);
+    expect(isEmployeeOnlyPath('/payslips')).toBe(true);
     expect(isEmployeeOnlyPath('/employees')).toBe(false);
     expect(isEmployeeOnlyPath('/expenses')).toBe(false);
+  });
+
+  it('autorise l’édition RH des bulletins hors espace collaborateur', () => {
+    expect(isEmployeeOnlyPath('/payslips/abc-123/edit')).toBe(false);
+    expect(
+      resolvePostLoginPath('/payslips/abc-123/edit', { role: 'rh' }),
+    ).toBe('/payslips/abc-123/edit');
   });
 
   it('renvoie vers l’accueil RH si la route cible est espace employé', () => {
