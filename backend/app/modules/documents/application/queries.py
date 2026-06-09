@@ -61,3 +61,8 @@ def get_preview_url(document_id: str, company_id: str) -> str:
     if not row:
         raise LookupError("Document introuvable")
     return _signed_url_for_document_row(row, download=False)
+
+
+def employee_can_access_document_status(status: str) -> bool:
+    """True si le statut permet la consultation par le salarié."""
+    return documents_repository.employee_can_access_status(status)

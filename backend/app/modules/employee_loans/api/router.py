@@ -7,12 +7,8 @@ from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.security import get_current_user
-from app.modules.employee_loans.application import access, commands, queries
-from app.modules.employee_loans.documents.loan_contract_generator import (
-    generate_loan_contract_pdf,
-    store_loan_contract,
-)
-from app.modules.employee_loans.infrastructure.providers import employee_loan_storage
+from app.modules.employee_loans.api import access
+from app.modules.employee_loans.application import commands, queries
 from app.modules.employee_loans.schemas.requests import (
     AmortizationPreviewRequest,
     EarlyRepaymentRequest,
@@ -193,31 +189,12 @@ def generate_contract_route(
     current_user: User = Depends(get_current_user),
 ):
     company_id = access.require_rh_or_admin(current_user)
-    from app.core.database import supabase
-
-    loan = queries.get_loan(loan_id)
-    if loan.company_id != company_id:
-        raise HTTPException(status_code=403, detail="Accès refusé.")
-
-    company_res = (
-        supabase.table("companies").select("*").eq("id", company_id).maybe_single().execute()
-    )
-    employee_res = (
-        supabase.table("employees")
-        .select("*")
-        .eq("id", loan.employee_id)
-        .maybe_single()
-        .execute()
-    )
-    if not company_res.data or not employee_res.data:
-        raise HTTPException(status_code=404, detail="Données entreprise ou employé introuvables.")
-
     try:
-        pdf_bytes = generate_loan_contract_pdf(
-            loan_id, company_res.data, employee_res.data
-        )
-        path = store_loan_contract(loan_id, company_id, pdf_bytes)
-        return {"path": path, "message": "Contrat généré."}
+        return commands.generate_loan_contract(loan_id, company_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -227,8 +204,9 @@ def get_contract_url_route(
     loan_id: str,
     current_user: User = Depends(get_current_user),
 ):
-    loan = access.require_loan_access(current_user, loan_id)
-    if not loan.contract_file_path:
-        raise HTTPException(status_code=404, detail="Contrat non généré.")
-    url = employee_loan_storage.create_signed_download_url(loan.contract_file_path)
+    access.require_loan_access(current_user, loan_id)
+    try:
+        url = queries.get_contract_signed_url(loan_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"url": url}

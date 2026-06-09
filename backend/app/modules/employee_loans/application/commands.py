@@ -193,3 +193,41 @@ def delete_loan(loan_id: str) -> None:
     if loan.get("status") not in ("draft", "cancelled"):
         raise ValueError("Seuls les prêts brouillon ou annulés peuvent être supprimés.")
     employee_loans_repository.delete(loan_id)
+
+
+def _fetch_contract_parties(company_id: str, employee_id: str) -> tuple[dict, dict]:
+    from app.core.database import supabase
+
+    company_res = (
+        supabase.table("companies").select("*").eq("id", company_id).maybe_single().execute()
+    )
+    employee_res = (
+        supabase.table("employees")
+        .select("*")
+        .eq("id", employee_id)
+        .maybe_single()
+        .execute()
+    )
+    if not company_res.data or not employee_res.data:
+        raise LookupError("Données entreprise ou employé introuvables.")
+    return company_res.data, employee_res.data
+
+
+def generate_loan_contract(loan_id: str, company_id: str) -> dict:
+    from app.modules.employee_loans.documents.loan_contract_generator import (
+        generate_loan_contract_pdf,
+        store_loan_contract,
+    )
+
+    loan = employee_loans_repository.get_by_id(loan_id)
+    if not loan:
+        raise ValueError("Prêt non trouvé.")
+    if str(loan.get("company_id")) != str(company_id):
+        raise PermissionError("Accès refusé.")
+
+    company_data, employee_data = _fetch_contract_parties(
+        company_id, str(loan["employee_id"])
+    )
+    pdf_bytes = generate_loan_contract_pdf(loan_id, company_data, employee_data)
+    path = store_loan_contract(loan_id, company_id, pdf_bytes)
+    return {"path": path, "message": "Contrat généré."}

@@ -14,7 +14,6 @@ from app.modules.documents.schemas.requests import (
     UpdateDocumentStatusRequest,
 )
 from app.modules.documents.application.explorer_queries import get_documents_explorer
-from app.modules.documents.infrastructure.repository import documents_repository
 from app.modules.documents.schemas.explorer import DocumentsExplorerResponse
 from app.modules.documents.schemas.responses import DownloadUrlResponse, GeneratedDocument
 from app.modules.users.schemas.responses import User
@@ -65,7 +64,7 @@ def _employee_scope_id(user: User, company_id: str) -> Optional[str]:
 
 
 def _assert_employee_can_access_document(row: dict) -> None:
-    if not documents_repository.employee_can_access_status(str(row.get("status") or "")):
+    if not queries.employee_can_access_document_status(str(row.get("status") or "")):
         raise HTTPException(
             status_code=403,
             detail="Ce document n'est pas accessible.",

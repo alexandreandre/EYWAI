@@ -19,6 +19,11 @@ from typing import Any, Dict, Optional
 from fastapi import HTTPException
 
 from app.modules.employees.application.dto import EmployeeCreateValidationError
+from app.modules.employees.domain.rules import (
+    build_employee_folder_name,
+    default_company_data_fallback,
+    derive_collaborator_username,
+)
 from app.modules.employees.domain.trial_period import TRIAL_JSON_STATUT_CONFIRMED
 from app.modules.onboarding.domain.profile import (
     enrich_employee_profile_completeness,

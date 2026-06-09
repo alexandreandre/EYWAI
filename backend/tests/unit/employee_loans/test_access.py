@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
-from app.modules.employee_loans.application import access
+from app.modules.employee_loans.api import access
 from app.modules.employee_loans.schemas.responses import EmployeeLoan
 
 
@@ -44,7 +44,7 @@ def test_rh_can_access_loan():
     assert access.user_can_access_loan(user, loan) is True
 
 
-@patch("app.modules.employee_loans.application.access.resolve_my_employee_id")
+@patch("app.modules.employee_loans.api.access.resolve_my_employee_id")
 def test_employee_can_access_own_loan(mock_resolve):
     mock_resolve.return_value = "emp-1"
     user = MagicMock()
@@ -54,7 +54,7 @@ def test_employee_can_access_own_loan(mock_resolve):
     assert access.user_can_access_loan(user, _loan()) is True
 
 
-@patch("app.modules.employee_loans.application.access.resolve_my_employee_id")
+@patch("app.modules.employee_loans.api.access.resolve_my_employee_id")
 def test_employee_cannot_access_other_loan(mock_resolve):
     mock_resolve.return_value = "emp-other"
     user = MagicMock()
@@ -64,7 +64,7 @@ def test_employee_cannot_access_other_loan(mock_resolve):
     assert access.user_can_access_loan(user, _loan()) is False
 
 
-@patch("app.modules.employee_loans.application.access.queries.get_loan")
+@patch("app.modules.employee_loans.api.access.queries.get_loan")
 def test_require_loan_access_raises_for_other_employee(mock_get):
     mock_get.return_value = _loan()
     user = MagicMock()
@@ -72,7 +72,7 @@ def test_require_loan_access_raises_for_other_employee(mock_get):
     user.active_company_id = "company-1"
     user.has_rh_access_in_company.return_value = False
     with patch(
-        "app.modules.employee_loans.application.access.resolve_my_employee_id",
+        "app.modules.employee_loans.api.access.resolve_my_employee_id",
         return_value="emp-other",
     ):
         with pytest.raises(HTTPException) as exc:

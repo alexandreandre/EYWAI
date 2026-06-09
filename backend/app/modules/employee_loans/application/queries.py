@@ -82,3 +82,12 @@ def preview_amortization(payload: Any) -> AmortizationPreview:
 
 def get_legal_rate() -> float:
     return float(get_legal_interest_rate())
+
+
+def get_contract_signed_url(loan_id: str) -> str:
+    from app.modules.employee_loans.infrastructure.providers import employee_loan_storage
+
+    loan = employee_loans_repository.get_by_id(loan_id)
+    if not loan or not loan.get("contract_file_path"):
+        raise ValueError("Contrat non généré.")
+    return employee_loan_storage.create_signed_download_url(str(loan["contract_file_path"]))

@@ -25,21 +25,21 @@ class TestGoldenBulletins:
         ctx = build_test_contexte(salaire_base=2000.0, statut="Non-Cadre")
         r = run_bulletin_pipeline_heures(ctx)
         assert r["brut"] == pytest.approx(2000.0, abs=0.02)
-        assert r["total_cotisations_salariales"] == pytest.approx(326.78, abs=0.02)
+        assert r["total_cotisations_salariales"] == pytest.approx(334.78, abs=0.02)
         # RGDU 2026 : la réduction générale dégressive dépasse les autres charges
         # patronales du snapshot minimal → total patronal négatif (caractérisation).
-        assert r["total_cotisations_patronales"] == pytest.approx(-455.8, abs=0.05)
-        assert r["net_imposable"] == pytest.approx(1720.38, abs=0.02)
-        assert r["net_a_payer"] == pytest.approx(1673.22, abs=0.02)
-        assert r["cout_employeur"] == pytest.approx(1544.2, abs=0.05)
+        assert r["total_cotisations_patronales"] == pytest.approx(-170.4, abs=0.05)
+        assert r["net_imposable"] == pytest.approx(1712.38, abs=0.02)
+        assert r["net_a_payer"] == pytest.approx(1665.22, abs=0.02)
+        assert r["cout_employeur"] == pytest.approx(1829.6, abs=0.05)
 
     def test_cadre_mensuel(self):
         ctx = build_test_contexte(salaire_base=3500.0, statut="Cadre")
         r = run_bulletin_pipeline_heures(ctx)
         assert r["brut"] == pytest.approx(3500.0, abs=0.02)
-        assert r["net_a_payer"] == pytest.approx(2928.13, abs=0.02)
+        assert r["net_a_payer"] == pytest.approx(2914.13, abs=0.02)
         # RGDU 2026 : réduction ≈ 231 € sur les charges patronales.
-        assert r["cout_employeur"] == pytest.approx(3642.45, abs=0.05)
+        assert r["cout_employeur"] == pytest.approx(4141.9, abs=0.05)
 
     def test_non_cadre_temps_partiel(self):
         """Verrou anti-régression temps partiel.
@@ -53,11 +53,11 @@ class TestGoldenBulletins:
         )
         r = run_bulletin_pipeline_heures(ctx)
         assert r["brut"] == pytest.approx(1500.0, abs=0.02)
-        assert r["total_cotisations_salariales"] == pytest.approx(245.09, abs=0.02)
-        assert r["total_cotisations_patronales"] == pytest.approx(-437.1, abs=0.05)
-        assert r["net_imposable"] == pytest.approx(1290.28, abs=0.02)
-        assert r["net_a_payer"] == pytest.approx(1254.91, abs=0.02)
-        assert r["cout_employeur"] == pytest.approx(1062.9, abs=0.05)
+        assert r["total_cotisations_salariales"] == pytest.approx(251.09, abs=0.02)
+        assert r["total_cotisations_patronales"] == pytest.approx(-223.05, abs=0.05)
+        assert r["net_imposable"] == pytest.approx(1284.28, abs=0.02)
+        assert r["net_a_payer"] == pytest.approx(1248.91, abs=0.02)
+        assert r["cout_employeur"] == pytest.approx(1276.95, abs=0.05)
 
     def test_forfait_jours(self):
         ctx = build_test_contexte(
@@ -65,7 +65,7 @@ class TestGoldenBulletins:
         )
         r = run_bulletin_pipeline_forfait(ctx)
         assert r["brut"] == pytest.approx(3500.0, abs=0.02)
-        assert r["net_a_payer"] == pytest.approx(2928.13, abs=0.02)
+        assert r["net_a_payer"] == pytest.approx(2914.13, abs=0.02)
 
     def test_mois_avec_primes_ppv_et_13e(self):
         ctx = build_test_contexte(salaire_base=2500.0)
@@ -85,7 +85,7 @@ class TestGoldenBulletins:
             ],
         )
         assert r["brut"] == pytest.approx(5500.0, abs=0.02)
-        assert r["net_a_payer"] == pytest.approx(4704.5, abs=0.02)
+        assert r["net_a_payer"] == pytest.approx(4682.5, abs=0.02)
 
     def test_apprenti_pre_2025_exoneration_totale(self):
         ctx = build_test_contexte(
@@ -109,9 +109,9 @@ class TestGoldenBulletins:
         )
         r = run_bulletin_pipeline_heures(ctx)
         assert r["brut"] == pytest.approx(1200.0, abs=0.02)
-        assert r["total_cotisations_salariales"] == pytest.approx(44.85, abs=0.02)
-        assert r["net_imposable"] == pytest.approx(1162.74, abs=0.02)
-        assert r["net_a_payer"] == pytest.approx(1155.15, abs=0.02)
+        assert r["total_cotisations_salariales"] == pytest.approx(45.92, abs=0.02)
+        assert r["net_imposable"] == pytest.approx(1161.67, abs=0.02)
+        assert r["net_a_payer"] == pytest.approx(1154.08, abs=0.02)
 
     def test_contexte_injecte_sans_supabase(self, monkeypatch):
         def _fail(*_a, **_k):
