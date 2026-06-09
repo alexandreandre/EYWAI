@@ -38,6 +38,13 @@ def _company_payload_for_contexte(company_row: Dict[str, Any]) -> Dict[str, Any]
     }
 
 
+def _hire_date_pour_anciennete(reference: date, mois: int) -> date:
+    """Date d'embauche synthétique donnant ``mois`` mois d'ancienneté à ``reference``."""
+    total_mois = reference.year * 12 + (reference.month - 1) - max(0, mois)
+    annee, mois_idx = divmod(total_mois, 12)
+    return date(annee, mois_idx + 1, 1)
+
+
 def _employee_payload_for_contexte(emp: Dict[str, Any]) -> Dict[str, Any]:
     sdb = emp.get("salaire_de_base") or {}
     if isinstance(sdb, dict):
@@ -141,6 +148,17 @@ def run_simulation_arret_maladie(
     }
 
     employee_map = _employee_payload_for_contexte(employee_row)
+
+    # Overrides « what-if » : n'altèrent que la simulation (pas la fiche salarié).
+    if body.salaire_base_override is not None:
+        employee_map["salaire_base"] = float(body.salaire_base_override)
+    if body.statut_override is not None:
+        employee_map["statut"] = body.statut_override
+    if body.anciennete_mois_override is not None:
+        employee_map["date_entree"] = _hire_date_pour_anciennete(
+            body.date_debut, int(body.anciennete_mois_override)
+        ).isoformat()
+
     company_map = _company_payload_for_contexte(company_row)
     contexte = ChargerContexte(employee_map, company_map, {})
 
@@ -161,9 +179,15 @@ def run_simulation_arret_maladie(
         resultats_maintien.get("maintien", {}).get("complement_employeur") or 0.0
     )
 
+    prevoyance = resultats_maintien.get("prevoyance", {}) or {}
+    prevoyance_montant = float(prevoyance.get("montant") or 0.0)
+    maintien_info = resultats_maintien.get("maintien", {}) or {}
+
     impact_net_salarie = maintien_verse - salaire_mensuel
     charges_patronales_estimees = complement * 0.42
     cout_employeur_total = complement + charges_patronales_estimees
+
+    anciennete_mois = int(resultats_maintien.get("anciennete_mois") or 0)
 
     return {
         "scenario": "arret_maladie",
@@ -173,6 +197,22 @@ def run_simulation_arret_maladie(
             "subrogation_active": body.subrogation_active,
             "date_debut": body.date_debut.isoformat(),
             "nombre_enfants": body.nombre_enfants,
+            "salaire_base_override": body.salaire_base_override,
+            "statut_override": body.statut_override,
+            "anciennete_mois_override": body.anciennete_mois_override,
+        },
+        "profil": {
+            "statut": resultats_maintien.get("statut") or "",
+            "est_cadre": bool(resultats_maintien.get("est_cadre")),
+            "anciennete_mois": anciennete_mois,
+            "anciennete_annees": round(anciennete_mois / 12, 1),
+            "duree_maintien_legale_jours": int(
+                maintien_info.get("duree_maintien_legale_jours") or 0
+            ),
+            "duree_par_taux_jours": int(maintien_info.get("duree_par_taux_jours") or 0),
+            "carence_employeur_jours": int(
+                maintien_info.get("carence_employeur_jours") or 0
+            ),
         },
         "resultats_maintien": resultats_maintien,
         "synthese": {
@@ -183,6 +223,7 @@ def run_simulation_arret_maladie(
             "cout_employeur_total": round(cout_employeur_total, 2),
             "ijss_theorique": round(ijss, 2),
             "maintien_verse": round(maintien_verse, 2),
+            "prevoyance_montant": round(prevoyance_montant, 2),
         },
         "alertes": list(resultats_maintien.get("alertes") or []),
     }

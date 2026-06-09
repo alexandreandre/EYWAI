@@ -21,6 +21,9 @@ from typing import Any, Dict
 from fastapi import HTTPException
 
 from app.core.database import supabase
+from app.modules.collective_agreements.application.idcc_resolution import (
+    build_convention_collective_payload,
+)
 from app.core.paths import (
     payroll_engine_root,
     payroll_engine_employee_folder,
@@ -181,6 +184,12 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
                     "soumise_a_cotisations": False,
                     "soumise_a_impot": False,
                 }
+                if expense.get("vat_rate") is not None:
+                    expense_entry["vat_rate"] = expense["vat_rate"]
+                if expense.get("amount_ht") is not None:
+                    expense_entry["amount_ht"] = expense["amount_ht"]
+                if expense.get("vat_amount") is not None:
+                    expense_entry["vat_amount"] = expense["vat_amount"]
                 saisies_data["primes"].append(expense_entry)
 
         try:
@@ -269,6 +278,9 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
                 "salaire_de_base": {"valeur": salaire_base_valeur},
                 "classification_conventionnelle": employee_data.get(
                     "classification_conventionnelle", {}
+                ),
+                "convention_collective": build_convention_collective_payload(
+                    employee_data, company_data
                 ),
                 "avantages_en_nature": employee_data.get("avantages_en_nature", {}),
             },

@@ -31,15 +31,28 @@ export interface CongeScenario {
   date_fin?: string;
 }
 
+export interface ClassificationConventionnelle {
+  groupe_emploi: string;
+  classe_emploi: number;
+  coefficient: number;
+}
+
 export interface ManualParams {
   statut?: 'Cadre' | 'Non-cadre';
   taux_prelevement_source?: number;
   salaire_base?: number;
   duree_hebdomadaire?: number;
+  idcc?: string;
+  collective_agreement_id?: string;
+  convention_libelle?: string;
+  classification_conventionnelle?: ClassificationConventionnelle;
+  date_entree?: string;
+  hire_date?: string;
 }
 
 export interface ScenarioParams {
   salaire_base_override?: number;
+  apply_cc_minimum?: boolean;
   heures_travaillees?: number;
   heures_sup_25?: number;
   heures_sup_50?: number;
@@ -69,7 +82,7 @@ export interface ReverseCalculationResponse {
 }
 
 export interface SimulationCreateRequest {
-  employee_id: string;
+  employee_id: string | null;
   month: number;
   year: number;
   scenario_name?: string;
@@ -152,6 +165,8 @@ export const SIMULATION_ARRET_MALADIE_TYPES = [
 
 export type SimulationArretMaladieArretType = (typeof SIMULATION_ARRET_MALADIE_TYPES)[number];
 
+export type SimulationStatut = 'Cadre' | 'Non-Cadre';
+
 export interface SimulationArretMaladieParams {
   employee_id: string;
   duree_jours: number;
@@ -160,6 +175,10 @@ export interface SimulationArretMaladieParams {
   /** Date ISO (YYYY-MM-DD) */
   date_debut: string;
   nombre_enfants: number;
+  /** Overrides « what-if » optionnels (n'altèrent pas la fiche salarié). */
+  salaire_base_override?: number | null;
+  statut_override?: SimulationStatut | null;
+  anciennete_mois_override?: number | null;
 }
 
 export interface SimulationArretMaladieSynthese {
@@ -170,6 +189,17 @@ export interface SimulationArretMaladieSynthese {
   cout_employeur_total: number;
   ijss_theorique: number;
   maintien_verse: number;
+  prevoyance_montant: number;
+}
+
+export interface SimulationArretMaladieProfil {
+  statut: string;
+  est_cadre: boolean;
+  anciennete_mois: number;
+  anciennete_annees: number;
+  duree_maintien_legale_jours: number;
+  duree_par_taux_jours: number;
+  carence_employeur_jours: number;
 }
 
 export interface SimulationArretMaladieResult {
@@ -180,7 +210,11 @@ export interface SimulationArretMaladieResult {
     subrogation_active: boolean;
     date_debut: string;
     nombre_enfants: number;
+    salaire_base_override?: number | null;
+    statut_override?: SimulationStatut | null;
+    anciennete_mois_override?: number | null;
   };
+  profil: SimulationArretMaladieProfil;
   resultats_maintien: MaintenancePreview;
   synthese: SimulationArretMaladieSynthese;
   alertes: string[];

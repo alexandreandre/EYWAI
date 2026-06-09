@@ -113,6 +113,50 @@ export function MaintenanceDetailModal({
             )}
           </section>
 
+          {maintien.prevoyance &&
+          (maintien.prevoyance.prevoyance_declenchee ||
+            (maintien.prevoyance.montant ?? 0) > 0 ||
+            maintien.prevoyance.seuil_jours != null) ? (
+            <section className="space-y-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Prévoyance
+              </h3>
+              {maintien.prevoyance.seuil_jours != null ? (
+                <p>
+                  Seuil de déclenchement : {maintien.prevoyance.seuil_jours} jour(s)
+                  d&apos;arrêt
+                </p>
+              ) : null}
+              {maintien.prevoyance.franchise_jours != null ? (
+                <p>Franchise : {maintien.prevoyance.franchise_jours} jour(s)</p>
+              ) : null}
+              {maintien.prevoyance.taux_cible != null ? (
+                <p>Taux garanti : {pct(maintien.prevoyance.taux_cible)}</p>
+              ) : null}
+              {(maintien.prevoyance.montant ?? 0) > 0 ? (
+                <>
+                  <p>Jours pris en charge : {maintien.prevoyance.nb_jours ?? 0}</p>
+                  <p>
+                    Complément prévoyance estimé :{' '}
+                    {eur(maintien.prevoyance.montant)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Versé par l&apos;organisme assureur, hors paie employeur.
+                  </p>
+                </>
+              ) : maintien.prevoyance.prevoyance_declenchee ? (
+                <Badge className="bg-orange-500 hover:bg-orange-500">
+                  Prévoyance relais à déclencher
+                </Badge>
+              ) : null}
+              {maintien.prevoyance.motif ? (
+                <p className="text-xs text-muted-foreground">
+                  {maintien.prevoyance.motif}
+                </p>
+              ) : null}
+            </section>
+          ) : null}
+
           {maintien.alertes?.length ? (
             <section className="space-y-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

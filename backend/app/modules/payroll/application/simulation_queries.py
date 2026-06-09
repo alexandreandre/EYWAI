@@ -7,6 +7,12 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List, Optional
 
+from app.modules.collective_agreements.application.idcc_resolution import (
+    build_convention_collective_payload,
+    company_code_postal,
+    get_idcc_for_agreement,
+    resolve_minimum_salary_value,
+)
 from app.modules.payroll.application import simulation_commands
 from app.modules.payroll.engine.baremes_loader import assembler_baremes, ensure_dict
 from app.modules.payroll.infrastructure import simulation_repository
@@ -58,14 +64,53 @@ def load_simulation(simulation_id: str, company_id: str) -> Dict[str, Any]:
     return row
 
 
-def employee_to_payroll_payload(employee: Dict[str, Any]) -> Dict[str, Any]:
+def _apply_cc_minimum_override(
+    scenario_data: Dict[str, Any],
+    *,
+    company: Dict[str, Any],
+    employee: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    if not scenario_data.get("apply_cc_minimum"):
+        return scenario_data
+    agreement_id: Optional[str] = None
+    classification: Dict[str, Any] = {}
+    if employee:
+        agreement_id = employee.get("collective_agreement_id")
+        classification = parse_json_dict(employee.get("classification_conventionnelle"))
+    manual_params = scenario_data.get("manual_params")
+    if isinstance(manual_params, dict):
+        agreement_id = agreement_id or manual_params.get("collective_agreement_id")
+        if not classification:
+            raw = manual_params.get("classification_conventionnelle")
+            classification = (
+                raw if isinstance(raw, dict) else parse_json_dict(raw)
+            )
+    if not agreement_id:
+        return scenario_data
+    minimum = resolve_minimum_salary_value(
+        str(agreement_id),
+        classification,
+        code_postal=company_code_postal(company),
+    )
+    if minimum is None:
+        return scenario_data
+    updated = dict(scenario_data)
+    updated["salaire_base_override"] = minimum
+    return updated
+
+
+def employee_to_payroll_payload(
+    employee: Dict[str, Any],
+    company: Dict[str, Any],
+) -> Dict[str, Any]:
     salaire_de_base = employee.get("salaire_de_base")
     salaire_base = 0.0
     if isinstance(salaire_de_base, dict):
         salaire_base = float(salaire_de_base.get("valeur") or 0)
     specificites = employee.get("specificites_paie")
     if not isinstance(specificites, dict):
-        specificites = {}
+        specificites = parse_json_dict(specificites)
+    hire_date = employee.get("hire_date") or ""
     return {
         "id": employee.get("id"),
         "first_name": employee.get("first_name") or "",
@@ -75,21 +120,63 @@ def employee_to_payroll_payload(employee: Dict[str, Any]) -> Dict[str, Any]:
         "salaire_base": salaire_base,
         "taux_prelevement_source": float(employee.get("taux_prelevement_source") or 0),
         "job_title": employee.get("job_title") or "",
-        "hire_date": employee.get("hire_date") or "",
+        "emploi": employee.get("job_title") or "",
+        "hire_date": hire_date,
+        "date_entree": hire_date,
         "type_contrat": employee.get("contract_type") or "",
         "date_conclusion_contrat": employee.get("date_conclusion_contrat") or "",
         "date_debut_execution": employee.get("date_debut_execution") or "",
         "date_naissance": employee.get("date_naissance") or "",
+        "classification_conventionnelle": parse_json_dict(
+            employee.get("classification_conventionnelle")
+        ),
+        "convention_collective": build_convention_collective_payload(
+            employee, company
+        ),
+        "collective_agreement_id": employee.get("collective_agreement_id"),
         "maintien_regime_apprenti": bool(
             specificites.get("maintien_regime_apprenti", False)
         ),
     }
 
 
-def manual_employee_payload(options: Dict[str, Any]) -> Dict[str, Any]:
+def manual_employee_payload(
+    options: Dict[str, Any],
+    company: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     manual_params = options.get("manual_params") if isinstance(options, dict) else {}
     if not isinstance(manual_params, dict):
         manual_params = {}
+    classification = manual_params.get("classification_conventionnelle")
+    if isinstance(classification, dict):
+        classification_dict = classification
+    else:
+        classification_dict = parse_json_dict(classification)
+
+    agreement_id = manual_params.get("collective_agreement_id")
+    idcc = manual_params.get("idcc")
+    if not idcc and agreement_id:
+        idcc = get_idcc_for_agreement(str(agreement_id))
+
+    convention_collective: Dict[str, Any] = {}
+    if idcc:
+        libelle = manual_params.get("convention_libelle") or ""
+        if not libelle and company:
+            libelle = (
+                company.get("collective_agreement")
+                or company.get("collective_agreement_name")
+                or ""
+            )
+        convention_collective = {"idcc": str(idcc), "libelle": str(libelle).strip()}
+    elif company:
+        convention_collective = build_convention_collective_payload({}, company)
+
+    hire_date = (
+        manual_params.get("date_entree")
+        or manual_params.get("hire_date")
+        or ""
+    )
+
     return {
         "id": "manual",
         "first_name": "Simulation",
@@ -110,6 +197,11 @@ def manual_employee_payload(options: Dict[str, Any]) -> Dict[str, Any]:
         "date_conclusion_contrat": manual_params.get("date_conclusion_contrat") or "",
         "date_debut_execution": manual_params.get("date_debut_execution") or "",
         "date_naissance": manual_params.get("date_naissance") or "",
+        "date_entree": hire_date,
+        "hire_date": hire_date,
+        "classification_conventionnelle": classification_dict,
+        "convention_collective": convention_collective,
+        "collective_agreement_id": agreement_id,
         "maintien_regime_apprenti": bool(
             manual_params.get("maintien_regime_apprenti", False)
         ),
@@ -117,14 +209,27 @@ def manual_employee_payload(options: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def company_to_payroll_payload(company: Dict[str, Any]) -> Dict[str, Any]:
+    cp = company_code_postal(company) or ""
+    ville = company.get("adresse_ville") or ""
+    if not ville:
+        address = company.get("address") or company.get("headquarters_address")
+        if isinstance(address, dict):
+            ville = address.get("ville") or ""
     return {
         "identification": {
             "raison_sociale": company.get("name") or company.get("legal_name") or "",
             "siret": str(company.get("siret") or ""),
-            "adresse": company.get("address") or company.get("headquarters_address") or "",
+            "adresse": {
+                "code_postal": cp,
+                "ville": ville,
+            },
         },
+        "adresse_code_postal": cp,
         "parametres_paie": {
-            "effectif": int(company.get("employee_count") or company.get("effectif") or 0),
+            "effectif": int(
+                company.get("employee_count") or company.get("effectif") or 0
+            ),
+            "idcc": company.get("idcc") or "",
             "taux_specifiques": company.get("taux_specifiques") or {},
         },
     }
@@ -135,9 +240,11 @@ def resolve_employee_payload(
     employee_id: Optional[str],
     options_or_scenario: Dict[str, Any],
 ) -> Dict[str, Any]:
+    company = load_company(company_id)
     if employee_id:
-        return employee_to_payroll_payload(load_employee(employee_id, company_id))
-    return manual_employee_payload(options_or_scenario)
+        employee = load_employee(employee_id, company_id)
+        return employee_to_payroll_payload(employee, company)
+    return manual_employee_payload(options_or_scenario, company)
 
 
 def run_reverse_calculation_for_company(
@@ -149,6 +256,11 @@ def run_reverse_calculation_for_company(
 ) -> Dict[str, Any]:
     company = load_company(company_id)
     baremes = load_baremes()
+    options = _apply_cc_minimum_override(
+        options or {},
+        company=company,
+        employee=load_employee(employee_id, company_id) if employee_id else None,
+    )
     employee_payload = resolve_employee_payload(company_id, employee_id, options or {})
     return simulation_commands.run_reverse_calculation(
         employee_data=employee_payload,
@@ -173,9 +285,17 @@ def create_payslip_simulation_record(
     prefill_from_real: bool,
 ) -> Dict[str, Any]:
     company = load_company(company_id)
+    employee = load_employee(employee_id, company_id) if employee_id else None
+    scenario_data = _apply_cc_minimum_override(
+        scenario_data or {},
+        company=company,
+        employee=employee,
+    )
     baremes = load_baremes()
-    employee_payload = resolve_employee_payload(
-        company_id, employee_id, scenario_data or {}
+    employee_payload = (
+        employee_to_payroll_payload(employee, company)
+        if employee
+        else manual_employee_payload(scenario_data or {}, company)
     )
     simulation = simulation_commands.creer_simulation_bulletin(
         employee_data=employee_payload,
@@ -273,9 +393,10 @@ def delete_simulation(simulation_id: str, company_id: str) -> Dict[str, bool]:
 
 
 def get_predefined_scenarios(company_id: str, employee_id: str) -> Dict[str, Any]:
+    company = load_company(company_id)
     employee = load_employee(employee_id, company_id)
     scenarios = simulation_commands.generer_scenarios_predefinis(
-        employee_to_payroll_payload(employee)
+        employee_to_payroll_payload(employee, company)
     )
     return {"scenarios": scenarios}
 

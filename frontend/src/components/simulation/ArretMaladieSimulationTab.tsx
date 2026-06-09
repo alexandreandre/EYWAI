@@ -93,6 +93,10 @@ export function ArretMaladieSimulationTab({ employees }: ArretMaladieSimulationT
   const [dateDebut, setDateDebut] = useState(todayIso);
   const [subrogationActive, setSubrogationActive] = useState(true);
   const [nombreEnfants, setNombreEnfants] = useState(0);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [statutOverride, setStatutOverride] = useState<'auto' | 'Cadre' | 'Non-Cadre'>('auto');
+  const [salaireOverride, setSalaireOverride] = useState('');
+  const [ancienneteOverride, setAncienneteOverride] = useState('');
   const [result, setResult] = useState<SimulationArretMaladieResult | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -116,10 +120,13 @@ export function ArretMaladieSimulationTab({ employees }: ArretMaladieSimulationT
       setFormError('Veuillez sélectionner un employé.');
       return;
     }
-    if (dureeJours < 1 || dureeJours > 90) {
-      setFormError('La durée doit être entre 1 et 90 jours.');
+    if (dureeJours < 1 || dureeJours > 365) {
+      setFormError('La durée doit être entre 1 et 365 jours.');
       return;
     }
+    const salaireNum = salaireOverride.trim() === '' ? null : Number(salaireOverride);
+    const ancienneteNum =
+      ancienneteOverride.trim() === '' ? null : Number(ancienneteOverride);
     mutation.mutate({
       employee_id: employeeId,
       duree_jours: dureeJours,
@@ -127,6 +134,15 @@ export function ArretMaladieSimulationTab({ employees }: ArretMaladieSimulationT
       subrogation_active: subrogationActive,
       date_debut: dateDebut,
       nombre_enfants: nombreEnfants,
+      salaire_base_override:
+        salaireNum != null && Number.isFinite(salaireNum) && salaireNum > 0
+          ? salaireNum
+          : null,
+      statut_override: statutOverride === 'auto' ? null : statutOverride,
+      anciennete_mois_override:
+        ancienneteNum != null && Number.isFinite(ancienneteNum) && ancienneteNum >= 0
+          ? Math.round(ancienneteNum)
+          : null,
     });
   };
 
@@ -163,9 +179,9 @@ export function ArretMaladieSimulationTab({ employees }: ArretMaladieSimulationT
             id="duree-arret"
             type="number"
             min={1}
-            max={90}
+            max={365}
             value={dureeJours}
-            onChange={(ev) => setDureeJours(Math.min(90, Math.max(1, Number(ev.target.value) || 1)))}
+            onChange={(ev) => setDureeJours(Math.min(365, Math.max(1, Number(ev.target.value) || 1)))}
           />
         </div>
 
@@ -225,6 +241,64 @@ export function ArretMaladieSimulationTab({ employees }: ArretMaladieSimulationT
         </div>
       </div>
 
+      <div className="rounded-md border">
+        <button
+          type="button"
+          onClick={() => setShowAdvanced((v) => !v)}
+          className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium"
+        >
+          <span>Paramètres what-if (statut, ancienneté, salaire)</span>
+          <span className="text-xs text-muted-foreground">
+            {showAdvanced ? 'Masquer' : 'Afficher'}
+          </span>
+        </button>
+        {showAdvanced ? (
+          <div className="grid gap-4 border-t p-3 sm:grid-cols-3">
+            <div className="space-y-2">
+              <Label>Statut</Label>
+              <Select
+                value={statutOverride}
+                onValueChange={(v) =>
+                  setStatutOverride(v as 'auto' | 'Cadre' | 'Non-Cadre')
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Fiche salarié</SelectItem>
+                  <SelectItem value="Cadre">Cadre</SelectItem>
+                  <SelectItem value="Non-Cadre">Non-Cadre</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="anciennete-override">Ancienneté (mois)</Label>
+              <Input
+                id="anciennete-override"
+                type="number"
+                min={0}
+                max={600}
+                placeholder="Fiche salarié"
+                value={ancienneteOverride}
+                onChange={(ev) => setAncienneteOverride(ev.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="salaire-override">Salaire brut mensuel (€)</Label>
+              <Input
+                id="salaire-override"
+                type="number"
+                min={0}
+                placeholder="Fiche salarié"
+                value={salaireOverride}
+                onChange={(ev) => setSalaireOverride(ev.target.value)}
+              />
+            </div>
+          </div>
+        ) : null}
+      </div>
+
       <div className="flex flex-wrap gap-2">
         <Button type="button" onClick={handleSimuler} disabled={mutation.isPending}>
           {mutation.isPending ? (
@@ -259,6 +333,28 @@ export function ArretMaladieSimulationTab({ employees }: ArretMaladieSimulationT
 
       {result && syn ? (
         <div className="space-y-6 border-t pt-6">
+          {result.profil ? (
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="rounded-full bg-muted px-2.5 py-1">
+                Statut : <span className="font-medium">{result.profil.statut || '—'}</span>
+                {result.profil.est_cadre ? ' (cadre)' : ''}
+              </span>
+              <span className="rounded-full bg-muted px-2.5 py-1">
+                Ancienneté : <span className="font-medium">{result.profil.anciennete_annees} an(s)</span>
+              </span>
+              <span className="rounded-full bg-muted px-2.5 py-1">
+                Maintien légal :{' '}
+                <span className="font-medium">
+                  {result.profil.duree_maintien_legale_jours} j
+                </span>{' '}
+                ({result.profil.duree_par_taux_jours} j à 90 % + {result.profil.duree_par_taux_jours} j à 66,66 %)
+              </span>
+              <span className="rounded-full bg-muted px-2.5 py-1">
+                Carence employeur : <span className="font-medium">{result.profil.carence_employeur_jours} j</span>
+              </span>
+            </div>
+          ) : null}
+
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="pb-2">
@@ -321,6 +417,19 @@ export function ArretMaladieSimulationTab({ employees }: ArretMaladieSimulationT
                     <TableCell>Maintien versé</TableCell>
                     <TableCell className="text-right tabular-nums">{eur(syn.maintien_verse)}</TableCell>
                   </TableRow>
+                  {syn.prevoyance_montant > 0 ? (
+                    <TableRow>
+                      <TableCell>
+                        Complément prévoyance
+                        <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                          (versé par l&apos;organisme assureur, hors coût employeur direct)
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums align-top">
+                        {eur(syn.prevoyance_montant)}
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
                   <TableRow>
                     <TableCell>Complément employeur</TableCell>
                     <TableCell className="text-right tabular-nums">{eur(syn.cout_employeur_complement)}</TableCell>

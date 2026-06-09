@@ -188,7 +188,12 @@ def _calculer_carence(
     else:
         motif_ss = f"Carence SS légale : {carence_ss} jour(s)."
 
-    if settings.get("remove_employer_waiting"):
+    # Le délai de carence employeur (7 j) est supprimé de plein droit en cas
+    # d'accident du travail / maladie professionnelle (art. L1226-1 et D1226-3).
+    if qualification.get("est_at_mp"):
+        carence_emp = 0
+        motif_emp = "AT/MP : pas de carence employeur (supprimée de plein droit)."
+    elif settings.get("remove_employer_waiting"):
         carence_emp = 0
         motif_emp = "Carence employeur supprimée (paramétrage entreprise)."
     elif settings.get("annual_unique_waiting") and _carence_employeur_deja_prise_cette_annee(
@@ -213,10 +218,16 @@ def _calculer_carence(
 
 def _taux_ijss_pour_jour_arret(
     arret_type: str,
-    jour_index_1based: int,
+    jour_arret_calendaire: int,
     nombre_enfants: int,
 ) -> float:
-    """jour_index_1based : 1 = premier jour indemnisable de l'arrêt."""
+    """
+    jour_arret_calendaire : jour calendaire de l'arrêt (1 = 1er jour de l'arrêt).
+
+    - AT/MP : 60 % jusqu'au 28e jour, 80 % à partir du 29e jour d'arrêt.
+    - Maladie + 3 enfants à charge : majoration de 50 % à 66,66 % uniquement
+      à partir du 31e jour d'arrêt continu (art. R323-5 CSS).
+    """
     t = arret_type or "maladie_simple"
     at_mp = t in {
         "accident_travail",
@@ -227,11 +238,11 @@ def _taux_ijss_pour_jour_arret(
     if at_mp:
         return (
             lc.TAUX_IJSS_AT_MP_J29
-            if jour_index_1based >= 29
+            if jour_arret_calendaire >= 29
             else lc.TAUX_IJSS_AT_MP_J1_28
         )
     if t in ("maladie_simple", "ald", "arret_exceptionnel"):
-        if nombre_enfants >= 3:
+        if nombre_enfants >= 3 and jour_arret_calendaire >= 31:
             return lc.TAUX_IJSS_MALADIE_3_ENFANTS
         return lc.TAUX_IJSS_MALADIE
     if t == "mi_temps_therapeutique":
@@ -343,13 +354,15 @@ def _calculer_ijss(
         offset = (d - date_debut_arret).days
         if inter_d <= d <= inter_f:
             if offset >= carence_ss:
-                jour_arret_1based = offset - carence_ss + 1
+                # Jour calendaire de l'arrêt (1 = 1er jour) : sert aux seuils
+                # AT/MP (J29) et majoration maladie 3 enfants (J31).
+                jour_arret_calendaire = offset + 1
                 taux_j = _taux_ijss_pour_jour_arret(
-                    arret_type, jour_arret_1based, nombre_enfants
+                    arret_type, jour_arret_calendaire, nombre_enfants
                 )
                 ijss_j = base_plafonnee * taux_j
                 plafond_j = plafond_ij_pour(
-                    arret_type, jour_arret_1based, ij_plafonds
+                    arret_type, jour_arret_calendaire, ij_plafonds
                 )
                 if plafond_j is not None:
                     ijss_j = min(ijss_j, plafond_j)
@@ -378,35 +391,65 @@ def _calculer_ijss(
 # --- Bloc 4 : maintien employeur ---
 
 
+def duree_maintien_par_taux(anciennete_mois: int) -> int:
+    """
+    Durée (en jours) de CHAQUE tranche du maintien légal (90 % puis 66,66 %)
+    selon l'ancienneté, conformément au barème de l'article D1226-1 du Code du
+    travail :
+
+    - 1 à 5 ans      → 30 jours par tranche (30 j à 90 % + 30 j à 66,66 %)
+    - + 10 jours par période entière de 5 ans d'ancienneté au-delà de la 1re année
+    - plafonné à 90 jours par tranche (soit 180 jours au total à partir de 31 ans).
+
+    | Ancienneté | par tranche | total |
+    |-----------|-------------|-------|
+    | 1-5 ans   | 30 j        | 60 j  |
+    | 6-10 ans  | 40 j        | 80 j  |
+    | 11-15 ans | 50 j        | 100 j |
+    | 16-20 ans | 60 j        | 120 j |
+    | 21-25 ans | 70 j        | 140 j |
+    | 26-30 ans | 80 j        | 160 j |
+    | 31 ans +  | 90 j        | 180 j |
+    """
+    tranches_5_ans = max(0, (anciennete_mois - 12) // 60)
+    return min(90, 30 + 10 * tranches_5_ans)
+
+
 def _taux_legal_pour_jour_maintien(
-    jour_index_1based: int,
-    extension_extra_days: int,
+    jour_maintien_1based: int,
+    duree_par_taux: int,
 ) -> float:
     """
-    jour_index_1based : jour depuis le début de l'arrêt (calendaire) pour le maintien légal.
-    Tranches : 1-30 → 90 %, 31-60 → 66,66 %, puis extension à 90 % si droit ouvert.
+    jour_maintien_1based : rang du jour indemnisé au titre du maintien
+    (1 = premier jour maintenu, après le délai de carence employeur).
+
+    Tranche 1 (90 %) puis tranche 2 (66,66 %), chacune d'une durée
+    ``duree_par_taux`` fonction de l'ancienneté.
     """
-    ext = max(0, extension_extra_days)
-    limite_avec_extension = min(90, 60 + ext)
-    if jour_index_1based > limite_avec_extension:
+    if jour_maintien_1based < 1:
         return 0.0
-    if jour_index_1based <= 30:
+    if jour_maintien_1based <= duree_par_taux:
         return lc.TRANCHE_MAINTIEN_90
-    if jour_index_1based <= 60:
+    if jour_maintien_1based <= 2 * duree_par_taux:
         return lc.TRANCHE_MAINTIEN_66
-    if ext > 0:
-        return lc.TRANCHE_MAINTIEN_90
     return 0.0
 
 
-def _extension_jours_seniorite(
-    anciennete_mois: int, min_seniority_months: int, enabled: bool
-) -> int:
-    if not enabled or anciennete_mois < min_seniority_months:
-        return 0
-    mois_au_dela = anciennete_mois - min_seniority_months
-    annees_5 = mois_au_dela // 60
-    return min(30, annees_5 * 10)
+def _taux_conventionnel(settings: Dict[str, Any], est_at_mp: bool) -> Optional[float]:
+    """
+    Taux de maintien conventionnel/entreprise applicable (None = règle légale seule).
+
+    Priorité : taux explicite > 100 % global > 100 % AT/MP différencié.
+    """
+    explicite = settings.get("taux_maintien_conventionnel")
+    if isinstance(explicite, (int, float)):
+        return float(explicite)
+    if settings.get("maintain_100_percent"):
+        return 1.0
+    if settings.get("differentiated_at_illness") and est_at_mp:
+        return 1.0
+    # maintain_by_category : V1 ignoré
+    return None
 
 
 def _calculer_maintien_employeur(
@@ -461,47 +504,54 @@ def _calculer_maintien_employeur(
         salaire_mensuel / lc.DIVISEUR_JOURS_CALENDAIRES if salaire_mensuel else 0.0
     )
 
-    extension = 0
-    if settings.get("apply_legal_maintenance"):
-        extension = _extension_jours_seniorite(
-            anciennete_mois, min_senior, bool(settings.get("seniority_extension_enabled"))
-        )
+    apply_legal = bool(settings.get("apply_legal_maintenance"))
 
-    jours_intersection = _compter_jours_calendaires(inter_d, inter_f)
-    cap_absolu = 90
+    # Durée légale du maintien selon l'ancienneté (barème D1226-1).
+    duree_par_taux = duree_maintien_par_taux(anciennete_mois) if apply_legal else 0
+    duree_legale_totale = 2 * duree_par_taux
+
+    # Délai de carence employeur : les premiers jours de l'arrêt ne sont pas
+    # maintenus (sauf AT/MP ou suppression conventionnelle → carence = 0).
+    carence_emp = int(carence.get("carence_employeur_jours") or 0)
+
+    # Durée conventionnelle : durée custom si paramétrée, sinon durée légale.
     custom_d = int(settings.get("custom_duration_days") or 0)
-    if custom_d > 0:
-        cap_absolu = min(cap_absolu, custom_d)
-    nb_jours_maintien = min(jours_intersection, cap_absolu)
+    cap_conv = custom_d if custom_d > 0 else duree_legale_totale
 
     est_at_mp = bool(qualification.get("est_at_mp"))
-    taux_conv = None
-    if settings.get("maintain_100_percent"):
-        taux_conv = 1.0
-    elif settings.get("differentiated_at_illness") and est_at_mp:
-        taux_conv = 1.0
-    # maintain_by_category : V1 ignoré
+    taux_conv = _taux_conventionnel(settings, est_at_mp)
 
-    explicite = settings.get("taux_maintien_conventionnel")
-    if isinstance(explicite, (int, float)):
-        taux_conv = float(explicite)
+    jours_intersection = _compter_jours_calendaires(inter_d, inter_f)
+    offset = (inter_d - date_debut_arret).days
 
     maintien_total_legal = 0.0
-    offset = (inter_d - date_debut_arret).days
-    for k in range(nb_jours_maintien):
-        jour_idx = offset + k + 1
-        if settings.get("apply_legal_maintenance"):
-            t_leg = _taux_legal_pour_jour_maintien(jour_idx, extension)
+    maintien_total_conv = 0.0
+    nb_jours_maintien = 0
+    for k in range(jours_intersection):
+        jour_arret = offset + k + 1  # rang calendaire dans l'arrêt
+        jour_maintien = jour_arret - carence_emp  # rang après carence employeur
+        if jour_maintien < 1:
+            continue  # jour couvert par la carence employeur : pas de maintien
+
+        t_leg = (
+            _taux_legal_pour_jour_maintien(jour_maintien, duree_par_taux)
+            if apply_legal
+            else 0.0
+        )
+        m_leg_jour = brut_journalier * t_leg
+
+        if taux_conv is not None and jour_maintien <= cap_conv:
+            m_conv_jour = brut_journalier * float(taux_conv)
         else:
-            t_leg = 0.0
-        maintien_total_legal += brut_journalier * t_leg
+            m_conv_jour = 0.0
 
-    if taux_conv is not None:
-        maintien_total_conv = nb_jours_maintien * brut_journalier * float(taux_conv)
-    else:
-        maintien_total_conv = maintien_total_legal
+        maintien_total_legal += m_leg_jour
+        maintien_total_conv += m_conv_jour
 
-    if taux_conv is not None and settings.get("apply_legal_maintenance"):
+        if m_leg_jour > 0 or m_conv_jour > 0:
+            nb_jours_maintien += 1
+
+    if taux_conv is not None and apply_legal:
         if maintien_total_conv < maintien_total_legal - 1e-6:
             conflit_convention = True
             maintien_cible = maintien_total_legal
@@ -544,10 +594,23 @@ def _calculer_maintien_employeur(
         "conflit_convention": conflit_convention,
         "motif_non_maintien": motif_non_maintien,
         "proratisation_temps_partiel": prorat_tp,
+        "carence_employeur_jours": carence_emp,
+        "duree_par_taux_jours": duree_par_taux,
+        "duree_maintien_legale_jours": duree_legale_totale,
     }
 
 
 # --- Bloc 5 : prévoyance ---
+
+
+def _statut_est_cadre(statut: Optional[str]) -> bool:
+    """Vrai si le statut correspond à un cadre / assimilé cadre (et non « Non-Cadre »)."""
+    s = (statut or "").strip().lower()
+    if not s:
+        return False
+    if "non cadre" in s or "non-cadre" in s:
+        return False
+    return "cadre" in s
 
 
 def _verifier_prevoyance_relais(
@@ -564,6 +627,143 @@ def _verifier_prevoyance_relais(
         return {"prevoyance_declenchee": False, "seuil_jours": seuil_int}
     decl = nb_jours_arret_total >= seuil_int
     return {"prevoyance_declenchee": decl, "seuil_jours": seuil_int}
+
+
+def _calculer_prevoyance_complement(
+    arret: Dict[str, Any],
+    qualification: Dict[str, Any],
+    settings: Dict[str, Any],
+    *,
+    est_cadre: bool,
+    anciennete_mois: int,
+    brut_journalier: float,
+    base_plafonnee: float,
+    ij_plafonds: Optional[Dict[str, Any]],
+    carence_ss: int,
+    carence_emp: int,
+    duree_par_taux: int,
+    cap_conv: int,
+    taux_conv: Optional[float],
+    apply_legal: bool,
+    nb_jours_arret_total: int,
+    date_debut_arret: date,
+    date_fin_arret: date,
+    date_debut_periode: date,
+    date_fin_periode: date,
+) -> Dict[str, Any]:
+    """
+    Complément de prévoyance (relais), paramétré par l'entreprise via les settings :
+
+    - ``provident_maintenance_rate`` : taux net de remplacement garanti (% du brut),
+      par exemple 0,80 pour 80 %.
+    - ``provident_relay_days`` : franchise — jour de l'arrêt à partir duquel la
+      prévoyance intervient (par défaut, fin du maintien employeur légal).
+    - ``provident_cadre_only`` : la garantie ne concerne que les cadres (défaut : True,
+      conformément à l'obligation de prévoyance cadre — ANI 2017 / CCN 1947).
+
+    La prévoyance ne fait que combler l'écart par rapport au taux cible, déduction
+    faite des IJSS et du maintien employeur déjà versés (pas de double indemnisation).
+    Montant informatif : il est versé par l'organisme assureur, pas directement par
+    l'employeur.
+    """
+    base = {
+        "prevoyance_declenchee": False,
+        "seuil_jours": settings.get("provident_relay_days"),
+        "eligible": False,
+        "taux_cible": None,
+        "franchise_jours": None,
+        "montant": 0.0,
+        "nb_jours": 0,
+        "motif": None,
+    }
+
+    relais_flag = _verifier_prevoyance_relais(nb_jours_arret_total, settings)
+    base["prevoyance_declenchee"] = relais_flag["prevoyance_declenchee"]
+    base["seuil_jours"] = relais_flag["seuil_jours"]
+
+    rate = settings.get("provident_maintenance_rate")
+    if not isinstance(rate, (int, float)) or rate <= 0:
+        base["motif"] = "Aucun taux de prévoyance paramétré."
+        return base
+
+    cadre_only = settings.get("provident_cadre_only")
+    cadre_only = True if cadre_only is None else bool(cadre_only)
+    if cadre_only and not est_cadre:
+        base["motif"] = "Garantie prévoyance réservée aux cadres (non applicable)."
+        return base
+
+    taux_cible = float(rate)
+    base["eligible"] = True
+    base["taux_cible"] = round(taux_cible, 4)
+
+    franchise = settings.get("provident_relay_days")
+    if franchise is None:
+        franchise = (2 * duree_par_taux) if apply_legal else 0
+    else:
+        try:
+            franchise = int(franchise)
+        except (TypeError, ValueError):
+            franchise = 0
+    base["franchise_jours"] = franchise
+
+    inter_d, inter_f = _intersection_dates(
+        date_debut_arret, date_fin_arret, date_debut_periode, date_fin_periode
+    )
+    if inter_d is None or inter_f is None:
+        return base
+
+    montant = 0.0
+    nb_jours = 0
+    d = date_debut_arret
+    while d <= date_fin_arret:
+        offset = (d - date_debut_arret).days
+        if inter_d <= d <= inter_f:
+            jour_arret = offset + 1
+            if jour_arret >= max(1, franchise):
+                # IJSS du jour
+                if offset >= carence_ss:
+                    taux_ij = _taux_ijss_pour_jour_arret(
+                        str(arret.get("arret_type") or "maladie_simple"),
+                        jour_arret,
+                        int(arret.get("nombre_enfants") or 0),
+                    )
+                    ijss_jour = base_plafonnee * taux_ij
+                    plafond_j = plafond_ij_pour(
+                        str(arret.get("arret_type") or "maladie_simple"),
+                        jour_arret,
+                        ij_plafonds,
+                    )
+                    if plafond_j is not None:
+                        ijss_jour = min(ijss_jour, plafond_j)
+                else:
+                    ijss_jour = 0.0
+
+                # Maintien employeur du jour (le plus favorable légal / conventionnel)
+                jour_maintien = jour_arret - carence_emp
+                m_leg = (
+                    brut_journalier
+                    * _taux_legal_pour_jour_maintien(jour_maintien, duree_par_taux)
+                    if apply_legal
+                    else 0.0
+                )
+                m_conv = (
+                    brut_journalier * float(taux_conv)
+                    if (taux_conv is not None and 1 <= jour_maintien <= cap_conv)
+                    else 0.0
+                )
+                maintien_jour = max(m_leg, m_conv)
+
+                complement = taux_cible * brut_journalier - ijss_jour - maintien_jour
+                if complement > 0:
+                    montant += complement
+                    nb_jours += 1
+        d += timedelta(days=1)
+
+    base["montant"] = round(montant, 2)
+    base["nb_jours"] = nb_jours
+    if montant > 0:
+        base["prevoyance_declenchee"] = True
+    return base
 
 
 # --- Point d'entrée ---
@@ -632,16 +832,57 @@ def calculer_maintien(
     nb_jours_arret_total = _compter_jours_calendaires(
         date_debut_arret, date_fin_arret or date_debut_arret
     )
-    prevoyance = _verifier_prevoyance_relais(nb_jours_arret_total, settings)
+
+    statut = ""
+    try:
+        statut = str(contexte.statut_salarie or "")
+    except Exception:
+        statut = ""
+    est_cadre = _statut_est_cadre(statut)
+
+    prevoyance = _calculer_prevoyance_complement(
+        arret,
+        qualification,
+        settings,
+        est_cadre=est_cadre,
+        anciennete_mois=anciennete_mois,
+        brut_journalier=(
+            float(contexte.salaire_base_mensuel or 0.0) / lc.DIVISEUR_JOURS_CALENDAIRES
+            if contexte.salaire_base_mensuel
+            else 0.0
+        ),
+        base_plafonnee=float(ijss.get("base_plafonnee") or 0.0),
+        ij_plafonds=(
+            contexte.get_bareme_value("ij_plafonds")
+            if hasattr(contexte, "get_bareme_value")
+            else contexte.baremes.get("ij_plafonds")
+        ),
+        carence_ss=int(carence.get("carence_ss_jours") or 0),
+        carence_emp=int(maintien.get("carence_employeur_jours") or 0),
+        duree_par_taux=int(maintien.get("duree_par_taux_jours") or 0),
+        cap_conv=(
+            int(settings.get("custom_duration_days") or 0)
+            or int(maintien.get("duree_maintien_legale_jours") or 0)
+        ),
+        taux_conv=_taux_conventionnel(settings, bool(qualification.get("est_at_mp"))),
+        apply_legal=bool(settings.get("apply_legal_maintenance")),
+        nb_jours_arret_total=nb_jours_arret_total,
+        date_debut_arret=date_debut_arret,
+        date_fin_arret=date_fin_arret or date_debut_arret,
+        date_debut_periode=date_debut_periode,
+        date_fin_periode=date_fin_periode,
+    )
 
     alertes: List[str] = []
     if not maintien.get("maintien_applicable", True):
         alertes.append(
             "Ancienneté insuffisante pour le maintien légal"
         )
-    if maintien.get("nb_jours_maintien", 0) >= 90:
+    duree_legale = int(maintien.get("duree_maintien_legale_jours") or 0)
+    if duree_legale and nb_jours_arret_total > duree_legale:
         alertes.append(
-            "Plafond maintien 90 jours atteint. Vérifier l'activation de la prévoyance relais."
+            f"Durée maximale du maintien employeur atteinte ({duree_legale} jours "
+            f"selon l'ancienneté). Vérifier l'activation de la prévoyance relais."
         )
     if maintien.get("conflit_convention"):
         alertes.append(
@@ -653,7 +894,13 @@ def calculer_maintien(
         alertes.append(
             "IJSS non calculables, vérifier le salaire journalier de base"
         )
-    if prevoyance.get("prevoyance_declenchee"):
+    if prevoyance.get("montant", 0) > 0:
+        alertes.append(
+            f"Complément prévoyance estimé : {prevoyance['montant']:.2f} € "
+            f"(garantie {int(round((prevoyance.get('taux_cible') or 0) * 100))} % "
+            f"du brut, versé par l'organisme assureur)"
+        )
+    elif prevoyance.get("prevoyance_declenchee"):
         alertes.append("Prévoyance relais à déclencher")
 
     if qualification.get("est_ald"):
@@ -671,6 +918,9 @@ def calculer_maintien(
         "subrogation_active": bool(arret.get("subrogation_active")),
         "type_arret": arret_type,
         "nb_jours_arret_total": nb_jours_arret_total,
+        "anciennete_mois": anciennete_mois,
+        "statut": statut,
+        "est_cadre": est_cadre,
     }
 
     if ijss.get("is_mi_temps_therapeutique"):

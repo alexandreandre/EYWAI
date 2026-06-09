@@ -123,23 +123,27 @@ def creer_simulation_bulletin(
 
     # Vérifier si on est en mode manuel (sans modèle d'employé réel)
     is_manual_mode = employee_data.get("id") == "manual"
+    has_cc_context = bool(
+        (employee_data.get("convention_collective") or {}).get("idcc")
+        or (scenario_params.get("manual_params") or {}).get("idcc")
+    )
 
-    if is_manual_mode:
+    if is_manual_mode and not has_cc_context:
         # Mode simplifié : utiliser les taux réels de la base de données
         bulletin = _creer_bulletin_simplifie(
             employee_data, company_data, scenario_params, month, year, baremes
         )
+        metadata_mode = "manual"
     else:
-        # Mode complet avec moteur de paie
-        # Pré-remplissage si demandé
-        if prefill_from_real:
+        # Mode complet avec moteur de paie (employé réel ou simulation CC)
+        metadata_mode = "complet" if not is_manual_mode else "manual_cc"
+        if prefill_from_real and not is_manual_mode:
             donnees_base = preremplir_donnees_simulation(
                 employee_data, month, year, calendrier_reel, saisies_reelles
             )
             calendrier = donnees_base["calendrier"]
             saisies = donnees_base["saisies"]
         else:
-            # Données vierges
             duree_hebdo = employee_data.get("duree_hebdomadaire", 35.0)
             heures_theoriques = (duree_hebdo * 52) / 12
 
@@ -152,29 +156,27 @@ def creer_simulation_bulletin(
             }
             saisies = {"primes": [], "absences": [], "conges": []}
 
-        # Appliquer les paramètres du scénario
         calendrier_simule, saisies_simulees = _appliquer_scenario(
             calendrier, saisies, scenario_params
         )
 
-        # Gérer l'override du salaire de base si spécifié
         employee_data_simule = employee_data.copy()
         if "salaire_base_override" in scenario_params:
             employee_data_simule["salaire_base"] = scenario_params[
                 "salaire_base_override"
             ]
 
-        # Imports du moteur de paie (uniquement en mode complet)
         from .contexte import ChargerContexte
-        from .bulletin import creer_bulletin_final
+        from .simulation_pipeline import run_simulation_bulletin_pipeline
 
-        # Charger le contexte
         contexte = ChargerContexte(employee_data_simule, company_data, baremes)
 
-        # Calculer le bulletin
         try:
-            bulletin = creer_bulletin_final(
-                contexte, calendrier_simule, saisies_simulees
+            bulletin = run_simulation_bulletin_pipeline(
+                contexte,
+                month=month,
+                year=year,
+                saisies=saisies_simulees,
             )
         except Exception as e:
             logger.error(f"Erreur lors du calcul du bulletin simulé: {str(e)}")
@@ -187,7 +189,7 @@ def creer_simulation_bulletin(
         "year": year,
         "prefilled_from_real": prefill_from_real if not is_manual_mode else False,
         "scenario_applied": scenario_params,
-        "mode": "manual" if is_manual_mode else "complet",
+        "mode": metadata_mode,
     }
 
     return {

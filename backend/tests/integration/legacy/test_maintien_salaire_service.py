@@ -156,7 +156,8 @@ class TestCalculerMaintienScenarios:
         assert r["maintien"]["maintien_applicable"] is False
         assert any("Ancienneté insuffisante" in a for a in r["alertes"])
 
-    def test_plafond_90_jours_alerte(self):
+    def test_duree_maintien_legale_selon_anciennete(self):
+        # Ancienneté 4 ans (2021-01 → 2025-01) → tranche 1-5 ans : 30 j + 30 j = 60 j.
         p_debut, p_fin = date(2025, 1, 1), date(2025, 12, 31)
         arret = {
             "arret_type": "maladie_simple",
@@ -167,8 +168,29 @@ class TestCalculerMaintienScenarios:
             "salaire_periode_reelle": 0.0,
         }
         r = calculer_maintien(arret, _ctx(), _settings_base(), p_debut, p_fin)
-        assert r["maintien"]["nb_jours_maintien"] >= 90
-        assert any("Plafond maintien 90 jours" in a for a in r["alertes"])
+        # 30 j à 90 % + 30 j à 66,66 % = 60 jours maintenus, après 7 j de carence.
+        assert r["maintien"]["duree_maintien_legale_jours"] == 60
+        assert r["maintien"]["nb_jours_maintien"] == 60
+        assert any(
+            "Durée maximale du maintien employeur atteinte" in a for a in r["alertes"]
+        )
+
+    def test_duree_maintien_legale_anciennete_elevee_180j(self):
+        # Ancienneté > 31 ans → 90 j + 90 j = 180 jours, plafond maximal.
+        p_debut, p_fin = date(2025, 1, 1), date(2025, 12, 31)
+        arret = {
+            "arret_type": "maladie_simple",
+            "date_debut": "2025-01-01",
+            "date_fin": "2025-12-31",
+            "subrogation_active": True,
+            "nombre_enfants": 0,
+            "salaire_periode_reelle": 0.0,
+        }
+        ctx = _ctx(date_entree="1985-01-01")
+        r = calculer_maintien(arret, ctx, _settings_base(), p_debut, p_fin)
+        assert r["maintien"]["duree_par_taux_jours"] == 90
+        assert r["maintien"]["duree_maintien_legale_jours"] == 180
+        assert r["maintien"]["nb_jours_maintien"] == 180
 
     def test_convention_moins_favorable_que_legal(self):
         p_debut, p_fin = date(2025, 6, 1), date(2025, 6, 30)
