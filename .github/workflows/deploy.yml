@@ -146,6 +146,8 @@ jobs:
           service: ${{ env.BACKEND_SERVICE_NAME }}
           region: ${{ env.GCP_REGION }}
           image: ${{ needs.build.outputs.backend_image }}
+          # Génération bulletins (WeasyPrint) : 512Mi provoque des OOM → coupure sans CORS côté navigateur
+          flags: '--memory=2Gi --timeout=900'
           env_vars: |-
             SUPABASE_URL=${{ secrets.SUPABASE_URL }}
             SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
@@ -196,6 +198,7 @@ jobs:
           service: ${{ env.BACKEND_SERVICE_NAME }}
           region: ${{ env.GCP_REGION }}
           image: ${{ needs.build.outputs.backend_image }}
+          flags: '--memory=2Gi --timeout=900'
           env_vars: |-
             SUPABASE_URL=${{ secrets.SUPABASE_URL }}
             SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}

@@ -118,6 +118,9 @@ function extractDetail(error: unknown): string | null {
 export const PAYROLL_GENERATION_FALLBACK =
   'Impossible de générer le bulletin. Vérifiez la fiche du collaborateur (contrat, planning du mois, saisies variables).';
 
+export const PAYROLL_GENERATION_NETWORK_MESSAGE =
+  'La génération a été interrompue (délai dépassé ou surcharge serveur). Réessayez dans quelques instants.';
+
 /**
  * Message d'échec de génération de paie : privilégie le détail métier renvoyé par
  * l'API (même en 500 si le texte est lisible), puis retombe sur getUserErrorMessage.
@@ -125,6 +128,9 @@ export const PAYROLL_GENERATION_FALLBACK =
 export function getPayrollGenerationErrorMessage(error: unknown): string {
   const detail = sanitizeBackendMessage(extractDetail(error));
   if (detail) return detail;
+  if (axios.isAxiosError(error) && !error.response) {
+    return PAYROLL_GENERATION_NETWORK_MESSAGE;
+  }
   return getUserErrorMessage(error, PAYROLL_GENERATION_FALLBACK);
 }
 
