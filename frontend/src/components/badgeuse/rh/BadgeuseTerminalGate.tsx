@@ -5,7 +5,11 @@ import { BadgeuseTerminalSessionLost } from '@/components/badgeuse/rh/BadgeuseTe
 import { BadgeuseTerminalSkeleton } from '@/components/skeletons/BadgeuseTerminalSkeleton';
 import { hasTerminalToken } from '@/lib/badgeuseTerminalAuth';
 
-const BadgeuseRhScanPage = lazy(() => import('@/pages/rh/BadgeuseRhScan'));
+const BadgeuseRhScanView = lazy(() =>
+  import('@/components/badgeuse/rh/BadgeuseRhScanView').then((m) => ({
+    default: m.BadgeuseRhScanView,
+  }))
+);
 
 export function BadgeuseTerminalGate() {
   const { user, isLoading: authLoading } = useAuth();
@@ -27,7 +31,7 @@ export function BadgeuseTerminalGate() {
     <div className="min-h-screen bg-background">
       <main className="mx-auto w-full max-w-6xl p-4 sm:p-6 lg:p-8">
         <Suspense fallback={<BadgeuseTerminalSkeleton />}>
-          <BadgeuseRhScanPage
+          <BadgeuseRhScanView
             authMode={terminalAuth.mode === 'terminal' ? 'terminal' : 'rh'}
             terminalSession={terminalAuth.session}
           />
