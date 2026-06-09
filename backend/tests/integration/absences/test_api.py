@@ -240,7 +240,7 @@ class TestCreateAbsenceRequest:
                 "app.modules.absences.api.router.absence_router.resolve_employee_id_for_user",
                 return_value="emp-resolved",
             ), patch(
-                "app.modules.absences.api.router.queries.assert_employee_conge_paye_request_allowed",
+                "app.modules.absences.application.queries.assert_employee_conge_paye_request_allowed",
                 side_effect=ValueError(
                     "Solde de congés payés insuffisant. Rapprochez-vous de votre direction "
                     "pour toute demande hors droits acquis."

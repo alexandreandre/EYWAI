@@ -78,7 +78,9 @@ def _trace_attestation_salaire_ijss_after_generation(
         logger.exception("Exception")
 
 
-def create_absence_request(request_data: Any) -> dict:
+def create_absence_request(
+    request_data: Any, *, enforce_conge_paye_balance: bool = False
+) -> dict:
     """
     Crée une demande d'absence.
     Raises: ValueError (validation métier), LookupError (employé non trouvé).
@@ -90,6 +92,13 @@ def create_absence_request(request_data: Any) -> dict:
     absence_type = getattr(request_data, "type", None)
     employee_id = getattr(request_data, "employee_id", None)
     event_subtype = getattr(request_data, "event_subtype", None)
+
+    if enforce_conge_paye_balance and absence_type == "conge_paye":
+        from app.modules.absences.application.queries import (
+            assert_employee_conge_paye_request_allowed,
+        )
+
+        assert_employee_conge_paye_request_allowed(employee_id, selected_days)
 
     if absence_type == "evenement_familial":
         if not event_subtype:

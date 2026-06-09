@@ -240,11 +240,10 @@ async def create_absence_request(
             request_data = request_data.model_copy(
                 update={"employee_id": employee_id}
             )
-        if not is_rh and request_data.type == "conge_paye":
-            queries.assert_employee_conge_paye_request_allowed(
-                employee_id, request_data.selected_days
-            )
-        data = commands.create_absence_request(request_data)
+        data = commands.create_absence_request(
+            request_data,
+            enforce_conge_paye_balance=not is_rh,
+        )
         rid = str(data["id"])
         eid = str(data["employee_id"])
         mgr = absence_router.get_team_manager_employee_id(eid)
@@ -273,6 +272,8 @@ async def create_absence_request(
             _log.exception("[absences] notifications création ignorées")
         r = _enrich_single_absence_row(dict(data))
         return r
+    except HTTPException:
+        raise
     except (ValueError, LookupError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
