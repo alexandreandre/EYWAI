@@ -41,6 +41,7 @@ import { EmployeeExpensesKpiBand } from '@/components/expenses/EmployeeExpensesK
 import { EmployeeExpenseReceiptActions } from '@/components/expenses/EmployeeExpenseReceiptActions';
 import { ExpenseStatusBadge } from '@/components/expenses/ExpenseStatusBadge';
 import type { Expense, ExpenseStatus } from '@/api/expenses';
+import { formatExpenseVatSummary } from '@/lib/expenseVat';
 import { downloadBlob, openBlobInNewTab } from '@/lib/downloadBlob';
 
 const VALID_STATUS_FILTERS: ExpenseStatus[] = ['pending', 'validated', 'rejected'];
@@ -84,7 +85,13 @@ function ExpenseMobileCard({
         </div>
         <ExpenseStatusBadge status={expense.status} />
       </div>
-      <p className="text-lg font-semibold tabular-nums">{formatCurrency(expense.amount)}</p>
+      <p className="text-lg font-semibold tabular-nums">{formatCurrency(expense.amount)} TTC</p>
+      {(() => {
+        const vatLine = formatExpenseVatSummary(expense, { includeTtc: false });
+        return vatLine ? (
+          <p className="text-xs text-muted-foreground tabular-nums">{vatLine}</p>
+        ) : null;
+      })()}
       {expense.description?.trim() && (
         <p className="text-sm text-muted-foreground">{expense.description}</p>
       )}
@@ -310,7 +317,7 @@ export default function ExpensesPage() {
                     <TableHead>Soumis le</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Description</TableHead>
-                    <TableHead>Montant</TableHead>
+                    <TableHead>Montant TTC</TableHead>
                     <TableHead>Justificatif</TableHead>
                     <TableHead className="text-right">Statut</TableHead>
                   </TableRow>
@@ -359,7 +366,17 @@ export default function ExpensesPage() {
                           )}
                         </TableCell>
                         <TableCell className="tabular-nums whitespace-nowrap">
-                          {formatCurrency(e.amount)}
+                          <div>{formatCurrency(e.amount)}</div>
+                          {(() => {
+                            const vatSummary = formatExpenseVatSummary(e, {
+                              includeTtc: false,
+                            });
+                            return vatSummary ? (
+                              <div className="text-xs text-muted-foreground font-normal">
+                                {vatSummary}
+                              </div>
+                            ) : null;
+                          })()}
                         </TableCell>
                         <TableCell>
                           <EmployeeExpenseReceiptActions

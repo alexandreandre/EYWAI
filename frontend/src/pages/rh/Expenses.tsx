@@ -13,7 +13,8 @@ import { Check, X, Clock, Download, Eye } from "lucide-react";
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 import apiClient from '@/api/apiClient'; // <-- AJOUTER
 import { downloadBlob } from '@/lib/downloadBlob';
-import type * as expensesApi from '@/api/expenses'; // <-- CHANGER en 'import type'
+import type * as expensesApi from '@/api/expenses';
+import { formatExpenseVatSummary } from '@/lib/expenseVat';
 
 type ExpenseRequest = expensesApi.ExpenseWithEmployee;
 
@@ -48,7 +49,7 @@ export default function ExpensesPage() {
   const handleUpdateStatus = async (id: string, status: 'validated' | 'rejected') => {
     try {
       // On utilise apiClient.patch pour mettre à jour la ressource
-      await apiClient.patch(`/api/expenses/${id}`, { status: status });
+      await apiClient.patch(`/api/expenses/${id}/status`, { status: status });
       toast({ title: "Succès", description: "La note de frais a été mise à jour." });
       fetchData();
     } catch (error) {
@@ -127,7 +128,7 @@ export default function ExpensesPage() {
     <Table>
       <TableHeader><TableRow>
         <TableHead>Employé</TableHead><TableHead>Date</TableHead><TableHead>Type</TableHead>
-        <TableHead>Montant</TableHead><TableHead>Justificatif</TableHead><TableHead className="text-right">Actions</TableHead>
+        <TableHead>Montant TTC</TableHead><TableHead>TVA</TableHead><TableHead>Justificatif</TableHead><TableHead className="text-right">Actions</TableHead>
       </TableRow></TableHeader>
       <TableBody>
         {requests.map(req => (
@@ -135,7 +136,10 @@ export default function ExpensesPage() {
             <TableCell className="font-medium">{req.employee.first_name} {req.employee.last_name}</TableCell>
             <TableCell>{new Date(req.date).toLocaleDateString('fr-FR')}</TableCell>
             <TableCell>{req.type}</TableCell>
-            <TableCell>{req.amount.toFixed(2)} €</TableCell>
+            <TableCell className="tabular-nums whitespace-nowrap">{req.amount.toFixed(2)} €</TableCell>
+            <TableCell className="text-xs text-muted-foreground tabular-nums max-w-[12rem]">
+              {formatExpenseVatSummary(req, { includeTtc: false }) ?? '—'}
+            </TableCell>
             <TableCell>
               {req.receipt_url && (
                 <div className="flex gap-2">

@@ -90,6 +90,7 @@ async def create_expense_report(
             employee_id=employee_id,
             date=expense_data.date,
             amount=expense_data.amount,
+            vat_rate=expense_data.vat_rate,
             type=expense_data.type,
             description=expense_data.description,
             receipt_url=expense_data.receipt_url,
@@ -99,7 +100,7 @@ async def create_expense_report(
     except HTTPException:
         raise
     except ValueError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

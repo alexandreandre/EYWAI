@@ -10,12 +10,14 @@ from typing import Any, Dict
 
 from app.modules.expenses.domain.entities import ExpenseReportEntity
 from app.modules.expenses.domain.rules import get_initial_expense_status
+from app.modules.expenses.domain.vat import compute_vat_breakdown
 
 
 def build_create_payload(
     employee_id: str,
     date_value: date,
     amount: float,
+    vat_rate: float,
     type_value: str,
     description: str | None = None,
     receipt_url: str | None = None,
@@ -26,10 +28,14 @@ def build_create_payload(
     Comportement identique à create_expense_report du router legacy :
     - date en isoformat, status depuis la règle domaine, filename présent.
     """
+    amount_ht, vat_amount = compute_vat_breakdown(amount, vat_rate)
     payload = {
         "employee_id": employee_id,
         "date": date_value.isoformat() if isinstance(date_value, date) else date_value,
         "amount": amount,
+        "vat_rate": vat_rate,
+        "amount_ht": amount_ht,
+        "vat_amount": vat_amount,
         "type": type_value,
         "description": description,
         "receipt_url": receipt_url,
@@ -61,6 +67,9 @@ def row_to_entity(row: Dict[str, Any]) -> ExpenseReportEntity:
         amount=float(row.get("amount", 0)),
         type=row.get("type", ""),
         status=row.get("status", "pending"),
+        vat_rate=float(row["vat_rate"]) if row.get("vat_rate") is not None else None,
+        amount_ht=float(row["amount_ht"]) if row.get("amount_ht") is not None else None,
+        vat_amount=float(row["vat_amount"]) if row.get("vat_amount") is not None else None,
         company_id=row.get("company_id"),
         description=row.get("description"),
         receipt_url=row.get("receipt_url"),
@@ -79,6 +88,9 @@ def entity_to_row(entity: ExpenseReportEntity) -> Dict[str, Any]:
         if isinstance(entity.date, date)
         else entity.date,
         "amount": entity.amount,
+        "vat_rate": entity.vat_rate,
+        "amount_ht": entity.amount_ht,
+        "vat_amount": entity.vat_amount,
         "type": entity.type,
         "description": entity.description,
         "receipt_url": entity.receipt_url,

@@ -24,6 +24,9 @@ class ExpenseReportEntity:
     amount: float
     type: str  # ExpenseType
     status: str  # ExpenseStatus
+    vat_rate: Optional[float] = None
+    amount_ht: Optional[float] = None
+    vat_amount: Optional[float] = None
     company_id: Optional[str] = None
     description: Optional[str] = None
     receipt_url: Optional[str] = None

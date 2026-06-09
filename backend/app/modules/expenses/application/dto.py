@@ -16,6 +16,7 @@ class CreateExpenseInput:
     employee_id: str
     date: date
     amount: float
+    vat_rate: float
     type: str
     description: Optional[str] = None
     receipt_url: Optional[str] = None

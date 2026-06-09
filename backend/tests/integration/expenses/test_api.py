@@ -72,6 +72,7 @@ class TestExpensesUnauthenticated:
             json={
                 "date": "2025-03-15",
                 "amount": 50.0,
+                "vat_rate": 20.0,
                 "type": "Restaurant",
                 "description": "Déjeuner",
             },
@@ -157,6 +158,7 @@ class TestCreateExpenseReport:
             "employee_id": TEST_EMPLOYEE_ID,
             "date": "2025-03-15",
             "amount": 75.50,
+            "vat_rate": 20.0,
             "type": "Restaurant",
             "status": "pending",
             "description": "Déjeuner client",
@@ -177,6 +179,7 @@ class TestCreateExpenseReport:
                     json={
                         "date": "2025-03-15",
                         "amount": 75.50,
+                        "vat_rate": 20.0,
                         "type": "Restaurant",
                         "description": "Déjeuner client",
                     },
@@ -194,6 +197,7 @@ class TestCreateExpenseReport:
         call_input = mock_svc.create_expense.call_args[0][0]
         assert call_input.employee_id == TEST_EMPLOYEE_ID
         assert call_input.amount == 75.50
+        assert call_input.vat_rate == 20.0
         assert call_input.type == "Restaurant"
 
     def test_create_expense_returns_404_without_employee_profile(
@@ -215,6 +219,7 @@ class TestCreateExpenseReport:
                     json={
                         "date": "2025-03-15",
                         "amount": 50.0,
+                        "vat_rate": 20.0,
                         "type": "Restaurant",
                     },
                 )
@@ -233,6 +238,7 @@ class TestCreateExpenseReport:
                 json={
                     "date": "2025-03-15",
                     "amount": 50.0,
+                    "vat_rate": 20.0,
                     "type": "InvalidType",
                 },
             )
@@ -256,6 +262,7 @@ class TestGetMyExpenses:
                 "employee_id": TEST_EMPLOYEE_ID,
                 "date": "2025-03-10",
                 "amount": 30.0,
+                "vat_rate": 20.0,
                 "type": "Transport",
                 "status": "pending",
             },
@@ -315,6 +322,7 @@ class TestGetAllExpenses:
                 "employee_id": "emp-1",
                 "date": "2025-03-15",
                 "amount": 50.0,
+                "vat_rate": 20.0,
                 "type": "Restaurant",
                 "status": "pending",
                 "employee": {
@@ -375,6 +383,7 @@ class TestUpdateExpenseStatus:
             "employee_id": "emp-1",
             "date": "2025-03-15",
             "amount": 50.0,
+            "vat_rate": 20.0,
             "type": "Restaurant",
             "status": "validated",
         }
@@ -412,6 +421,7 @@ class TestUpdateExpenseStatus:
             "employee_id": "emp-1",
             "date": "2025-03-16",
             "amount": 42.0,
+            "vat_rate": 20.0,
             "type": "Autre",
             "status": "rejected",
         }

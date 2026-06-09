@@ -14,7 +14,11 @@ export interface Expense {
   created_at: string;
   employee_id: string;
   date: string; // "YYYY-MM-DD"
+  /** Montant TTC en euros */
   amount: number;
+  vat_rate?: number | null;
+  amount_ht?: number | null;
+  vat_amount?: number | null;
   type: ExpenseType;
   description: string | null;
   receipt_url: string | null;
@@ -31,6 +35,7 @@ export interface ExpenseCreatePayload {
   employee_id?: string;
   date: string;
   amount: number;
+  vat_rate: number;
   type: ExpenseType;
   description?: string | null;
   receipt_url?: string | null;

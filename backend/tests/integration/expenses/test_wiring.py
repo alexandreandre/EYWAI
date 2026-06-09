@@ -103,6 +103,7 @@ class TestExpensesWiringCreateExpense:
             "employee_id": TEST_EMPLOYEE_ID,
             "date": "2025-03-15",
             "amount": 80.0,
+            "vat_rate": 20.0,
             "type": "Restaurant",
             "status": "pending",
             "description": "Déjeuner wiring",
@@ -123,6 +124,7 @@ class TestExpensesWiringCreateExpense:
                     json={
                         "date": "2025-03-15",
                         "amount": 80.0,
+                        "vat_rate": 20.0,
                         "type": "Restaurant",
                         "description": "Déjeuner wiring",
                     },
@@ -157,6 +159,7 @@ class TestExpensesWiringGetMyExpenses:
                 "employee_id": TEST_EMPLOYEE_ID,
                 "date": "2025-03-15",
                 "amount": 25.0,
+                "vat_rate": 20.0,
                 "type": "Transport",
                 "status": "pending",
             },
@@ -197,6 +200,7 @@ class TestExpensesWiringGetAllExpenses:
                 "employee_id": TEST_USER_ID,
                 "date": "2025-03-15",
                 "amount": 25.0,
+                "vat_rate": 20.0,
                 "type": "Transport",
                 "status": "pending",
                 "employee": {
@@ -241,6 +245,7 @@ class TestExpensesWiringUpdateExpenseStatus:
             "employee_id": TEST_USER_ID,
             "date": "2025-03-15",
             "amount": 25.0,
+            "vat_rate": 20.0,
             "type": "Transport",
             "status": "validated",
         }
@@ -279,6 +284,7 @@ class TestExpensesWiringEndToEndWithApplicationLayer:
             "employee_id": TEST_USER_ID,
             "date": "2025-03-15",
             "amount": 99.0,
+            "vat_rate": 20.0,
             "type": "Transport",
             "status": "pending",
             "created_at": datetime.now().isoformat(),
@@ -315,6 +321,7 @@ class TestExpensesWiringEndToEndWithApplicationLayer:
                         json={
                             "date": "2025-03-15",
                             "amount": 99.0,
+                            "vat_rate": 20.0,
                             "type": "Transport",
                         },
                     )

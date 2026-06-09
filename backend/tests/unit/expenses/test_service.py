@@ -24,6 +24,7 @@ class TestExpenseApplicationServiceCreateExpense:
             employee_id="emp-001",
             date=date(2025, 3, 15),
             amount=100.0,
+            vat_rate=10.0,
             type="Restaurant",
             description="Repas",
         )

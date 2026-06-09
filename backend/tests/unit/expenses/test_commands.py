@@ -27,6 +27,7 @@ class TestCreateExpense:
             employee_id="emp-001",
             date=date(2025, 3, 15),
             amount=55.00,
+            vat_rate=10.0,
             type="Restaurant",
             description="Déjeuner client",
             receipt_url="emp-001/2025-03-15-ticket.pdf",
@@ -57,6 +58,9 @@ class TestCreateExpense:
         assert call_payload["employee_id"] == "emp-001"
         assert call_payload["date"] == "2025-03-15"
         assert call_payload["amount"] == 55.0
+        assert call_payload["vat_rate"] == 10.0
+        assert call_payload["amount_ht"] == 50.0
+        assert call_payload["vat_amount"] == 5.0
         assert call_payload["type"] == "Restaurant"
         assert call_payload["status"] == "pending"
         assert call_payload["description"] == "Déjeuner client"
@@ -70,6 +74,7 @@ class TestCreateExpense:
             employee_id="emp-002",
             date=date(2025, 3, 10),
             amount=30.0,
+            vat_rate=20.0,
             type="Transport",
         )
         created_row = {
@@ -103,6 +108,7 @@ class TestCreateExpense:
             employee_id="emp-003",
             date=date(2025, 3, 1),
             amount=10.0,
+            vat_rate=20.0,
             type="Fournitures",
         )
         mock_repo = MagicMock()

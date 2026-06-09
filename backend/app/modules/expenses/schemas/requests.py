@@ -7,7 +7,7 @@ Migrés depuis schemas/expense.py — comportement identique.
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # Literals identiques au legacy (schemas/expense.py)
 ExpenseStatus = Literal["pending", "validated", "rejected"]
@@ -19,7 +19,13 @@ class ExpenseBase(BaseModel):
     """Schéma de base pour une note de frais (création côté client, sans employee_id)."""
 
     date: date
-    amount: float
+    amount: float = Field(..., gt=0, description="Montant TTC en euros")
+    vat_rate: float = Field(
+        ...,
+        ge=0,
+        le=100,
+        description="Taux de TVA applicable en pourcentage (ex. 20, 10, 5.5)",
+    )
     type: ExpenseType
     description: str | None = None
     receipt_url: str | None = None

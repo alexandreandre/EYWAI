@@ -27,6 +27,9 @@ class Expense(BaseModel):
     employee_id: str
     date: date
     amount: float
+    vat_rate: float | None = None
+    amount_ht: float | None = None
+    vat_amount: float | None = None
     type: ExpenseTypeLiteral
     description: str | None = None
     receipt_url: str | None = None
