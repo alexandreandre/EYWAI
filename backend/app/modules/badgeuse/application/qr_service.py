@@ -61,6 +61,7 @@ def punch_from_qr(
     company_id: str,
     actor_user_id: str,
     source: TimeEntrySource = TimeEntrySource.QR_SCAN,
+    terminal_device_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     if not deps.get_badgeuse_settings(company_id).get("scan_mode_enabled", True):
         raise PermissionError("Le mode scan est désactivé pour cette entreprise")
@@ -111,6 +112,7 @@ def punch_from_qr(
         source=source,
         created_by=actor_user_id,
         now=now,
+        terminal_device_id=terminal_device_id,
     )
 
     return deps._build_punch_response(
@@ -127,6 +129,7 @@ def punch_by_username(
     username: str,
     company_id: str,
     actor_user_id: str,
+    terminal_device_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Fallback scan : identification par nom d'utilisateur (matricule)."""
     from app.core.database import supabase
@@ -148,6 +151,7 @@ def punch_by_username(
         company_id=company_id,
         actor_user_id=actor_user_id,
         source=TimeEntrySource.RH,
+        terminal_device_id=terminal_device_id,
     )
 
 

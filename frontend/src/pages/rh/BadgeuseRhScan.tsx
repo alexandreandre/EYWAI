@@ -4,8 +4,14 @@ import { isAxiosError } from "axios";
 import { AlertTriangle, RefreshCw, ScanLine, UserX, Users } from "lucide-react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { getBadgeuseDashboardToday } from "@/api/badgeuse";
+import {
+  getTerminalDashboardToday,
+} from "@/api/badgeuseTerminal";
 import { QrScannerPanel } from "@/components/badgeuse/rh/QrScannerPanel";
 import { BadgeuseFallbackPanel } from "@/components/badgeuse/rh/BadgeuseFallbackPanel";
+import { BadgeuseTerminalConnectionBadge } from "@/components/badgeuse/rh/BadgeuseTerminalConnectionBadge";
+import type { BadgeuseTerminalAuthMode } from "@/hooks/useBadgeuseTerminalAuth";
+import type { BadgeuseTerminalSession } from "@/lib/badgeuseTerminalAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { formatTimeFr, eventTypeLabel } from "@/lib/badgeuseFormat";
@@ -23,16 +29,37 @@ function apiErrorDetail(error: unknown, fallback: string): string {
   return fallback;
 }
 
-export default function BadgeuseRhScanPage() {
+type Props = {
+  authMode?: BadgeuseTerminalAuthMode;
+  terminalSession?: BadgeuseTerminalSession | null;
+};
+
+export default function BadgeuseRhScanPage({
+  authMode = 'rh',
+  terminalSession = null,
+}: Props) {
   const { activeCompany } = useCompany();
   const queryClient = useQueryClient();
-  const companyId = activeCompany?.company_id;
-  const headerLogo = activeCompany?.logo_url ? (
+  const isTerminal = authMode === 'terminal';
+  const companyId = isTerminal
+    ? terminalSession?.companyId
+    : activeCompany?.company_id;
+  const companyName = isTerminal
+    ? terminalSession?.companyName
+    : activeCompany?.company_name;
+  const terminalLogoUrl = isTerminal ? terminalSession?.companyLogoUrl : null;
+  const headerLogo = !isTerminal && activeCompany?.logo_url ? (
     <img
       src={activeCompany.logo_url}
       alt={`Logo ${activeCompany.company_name}`}
       className="h-9 w-auto max-w-[160px] object-contain"
       style={{ transform: `scale(${activeCompany.logo_scale || 1})` }}
+    />
+  ) : terminalLogoUrl ? (
+    <img
+      src={terminalLogoUrl}
+      alt={companyName ? `Logo ${companyName}` : 'Logo'}
+      className="h-9 w-auto max-w-[160px] object-contain"
     />
   ) : (
     <img src="/Colorplast.png" alt="Logo" className="h-9 w-auto" />
@@ -45,10 +72,14 @@ export default function BadgeuseRhScanPage() {
     refetch: refetchDashboard,
     isLoading: dashboardLoading,
   } = useQuery({
-    queryKey: ["badgeuse", "dashboard-today", companyId],
-    queryFn: () => getBadgeuseDashboardToday(companyId as string),
+    queryKey: ["badgeuse", "dashboard-today", companyId, authMode],
+    queryFn: () =>
+      isTerminal
+        ? getTerminalDashboardToday()
+        : getBadgeuseDashboardToday(companyId as string),
     enabled: !!companyId,
     refetchInterval: 30_000,
+    staleTime: 15_000,
   });
 
   const dashboardErrorMessage = apiErrorDetail(
@@ -68,13 +99,19 @@ export default function BadgeuseRhScanPage() {
 
   return (
     <div className="space-y-4">
-      <header className="flex items-center justify-between gap-4 border-b pb-4">
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b pb-4">
         <div className="min-w-0">{headerLogo}</div>
-        {activeCompany?.company_name ? (
-          <p className="truncate text-sm font-medium text-muted-foreground">
-            {activeCompany.company_name}
-          </p>
-        ) : null}
+        <div className="flex flex-col items-end gap-2">
+          {companyName ? (
+            <p className="truncate text-sm font-medium text-muted-foreground">
+              {companyName}
+            </p>
+          ) : null}
+          <BadgeuseTerminalConnectionBadge
+            mode={authMode}
+            label={terminalSession?.label}
+          />
+        </div>
       </header>
 
       <RhPageHeader
@@ -86,10 +123,18 @@ export default function BadgeuseRhScanPage() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4 flex-1">
         <Card className="overflow-hidden">
           <div className="p-4 pb-0">
-            <QrScannerPanel companyId={companyId} onScanSuccess={invalidate} />
+            <QrScannerPanel
+              companyId={companyId}
+              authMode={authMode}
+              onScanSuccess={invalidate}
+            />
           </div>
           <div className="border-t bg-muted/15 p-4">
-            <BadgeuseFallbackPanel companyId={companyId} onSuccess={invalidate} />
+            <BadgeuseFallbackPanel
+              companyId={companyId}
+              authMode={authMode}
+              onSuccess={invalidate}
+            />
           </div>
         </Card>
 

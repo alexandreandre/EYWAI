@@ -182,6 +182,7 @@ def _insert_toggle_entry(
     source: TimeEntrySource,
     created_by: str,
     now: Optional[datetime] = None,
+    terminal_device_id: Optional[str] = None,
 ) -> TimeEntryType:
     # Use local runtime clock to stay consistent with date.today() windows.
     now = now or datetime.now()
@@ -194,6 +195,7 @@ def _insert_toggle_entry(
         event_type=event_type,
         source=source,
         created_by=created_by,
+        terminal_device_id=terminal_device_id,
     )
     return event_type
 

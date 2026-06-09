@@ -16,7 +16,9 @@ from fastapi.responses import StreamingResponse
 
 from app.core.security import get_current_user
 from app.modules.access_control.application.service import access_control_service
+from app.modules.badgeuse.api.terminal_router import router_terminal
 from app.modules.badgeuse.application import service as badgeuse_service
+from app.modules.badgeuse.application import terminal_service
 from app.modules.badgeuse.domain.time_tracking import TimeEntryType, TimeEntrySource
 from app.modules.users.schemas.responses import User
 
@@ -444,6 +446,65 @@ def get_employee_badge_qr(
         raise HTTPException(status_code=403, detail=str(e)) from e
 
 
+@router_rh.get("/terminal-devices")
+def list_badgeuse_terminal_devices(
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    current_user: User = Depends(get_current_user),
+) -> List[Dict[str, Any]]:
+    _require_badgeuse_rh_access(company_id, current_user)
+    return terminal_service.list_terminal_devices(company_id=company_id)
+
+
+@router_rh.post("/terminal-devices/activate-here")
+def activate_badgeuse_terminal_here(
+    payload: Dict[str, Any],
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Active la badgeuse sur l'appareil courant (tablette, iPad…)."""
+    _require_badgeuse_rh_access(company_id, current_user)
+    try:
+        label = payload.get("label")
+        return terminal_service.activate_terminal_device_here(
+            company_id=company_id,
+            created_by=str(current_user.id),
+            label=str(label) if label else None,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router_rh.post("/terminal-devices")
+def create_badgeuse_terminal_device(
+    payload: Dict[str, Any],
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    _require_badgeuse_rh_access(company_id, current_user)
+    try:
+        return terminal_service.create_terminal_device(
+            company_id=company_id,
+            label=str(payload.get("label") or ""),
+            created_by=str(current_user.id),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router_rh.delete("/terminal-devices/{device_id}", status_code=204)
+def revoke_badgeuse_terminal_device(
+    device_id: str,
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    current_user: User = Depends(get_current_user),
+):
+    _require_badgeuse_rh_access(company_id, current_user)
+    terminal_service.revoke_terminal_device(
+        device_id=device_id,
+        company_id=company_id,
+    )
+    return {}
+
+
 @router_rh.get("/export")
 def export_badgeuse_csv(
     company_id: str = Query(..., description="ID de l'entreprise"),
@@ -477,4 +538,4 @@ def export_badgeuse_csv(
     )
 
 
-__all__ = ["router_me", "router_rh"]
+__all__ = ["router_me", "router_rh", "router_terminal"]

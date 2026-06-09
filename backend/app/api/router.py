@@ -69,6 +69,7 @@ from app.modules.rib_alerts.api.router import router as rib_alerts_router
 from app.modules.badgeuse.api.router import (
     router_me as badgeuse_router_me,
     router_rh as badgeuse_router_rh,
+    router_terminal as badgeuse_router_terminal,
 )
 from app.modules.schedules.api.router import (
     router as schedules_router,
@@ -142,6 +143,7 @@ router.include_router(users_router)
 router.include_router(uploads_router)
 router.include_router(badgeuse_router_me)
 router.include_router(badgeuse_router_rh)
+router.include_router(badgeuse_router_terminal)
 
 
 @router.post("/webhooks/yousign")

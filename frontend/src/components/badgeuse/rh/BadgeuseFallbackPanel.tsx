@@ -7,6 +7,11 @@ import {
   type PunchCandidate,
   type ScanPunchResult,
 } from "@/api/badgeuse";
+import {
+  getTerminalPunchCandidates,
+  scanBadgeQrTerminal,
+} from "@/api/badgeuseTerminal";
+import type { BadgeuseTerminalAuthMode } from "@/hooks/useBadgeuseTerminalAuth";
 import { eventTypeLabel } from "@/lib/badgeuseFormat";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -15,6 +20,7 @@ import { Label } from "@/components/ui/label";
 
 type Props = {
   companyId: string;
+  authMode?: BadgeuseTerminalAuthMode;
   onSuccess?: () => void;
 };
 
@@ -74,7 +80,11 @@ function CandidateRow({
   );
 }
 
-export function BadgeuseFallbackPanel({ companyId, onSuccess }: Props) {
+export function BadgeuseFallbackPanel({
+  companyId,
+  authMode = "rh",
+  onSuccess,
+}: Props) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [identifier, setIdentifier] = useState("");
@@ -84,22 +94,28 @@ export function BadgeuseFallbackPanel({ companyId, onSuccess }: Props) {
   const showSearchResults = debouncedSearch.length >= 2;
 
   const { data: searchResults = [], isFetching: searchLoading } = useQuery({
-    queryKey: ["badgeuse", "punch-candidates", companyId, debouncedSearch],
+    queryKey: ["badgeuse", "punch-candidates", companyId, debouncedSearch, authMode],
     queryFn: () =>
-      getBadgeusePunchCandidates(companyId, { q: debouncedSearch, limit: 12 }),
+      authMode === "terminal"
+        ? getTerminalPunchCandidates({ q: debouncedSearch, limit: 12 })
+        : getBadgeusePunchCandidates(companyId, { q: debouncedSearch, limit: 12 }),
     enabled: showSearchResults,
   });
 
   const { data: notBadgedToday = [], isFetching: notBadgedLoading } = useQuery({
-    queryKey: ["badgeuse", "punch-candidates", companyId, "not-badged"],
+    queryKey: ["badgeuse", "punch-candidates", companyId, "not-badged", authMode],
     queryFn: () =>
-      getBadgeusePunchCandidates(companyId, { onlyNotBadged: true, limit: 16 }),
+      authMode === "terminal"
+        ? getTerminalPunchCandidates({ onlyNotBadged: true, limit: 16 })
+        : getBadgeusePunchCandidates(companyId, { onlyNotBadged: true, limit: 16 }),
     enabled: !showSearchResults,
   });
 
   const punchMutation = useMutation({
     mutationFn: (payload: { employee_id?: string; username?: string }) =>
-      scanBadgeQr(companyId, payload),
+      authMode === "terminal"
+        ? scanBadgeQrTerminal(payload)
+        : scanBadgeQr(companyId, payload),
     onSuccess: (result) => {
       setFeedback({ kind: "success", result });
       setSearch("");

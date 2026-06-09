@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Html5Qrcode } from "html5-qrcode";
 import { Maximize2, Minimize2, RefreshCw } from "lucide-react";
 import { scanBadgeQr, type ScanPunchResult } from "@/api/badgeuse";
+import { scanBadgeQrTerminal } from "@/api/badgeuseTerminal";
+import type { BadgeuseTerminalAuthMode } from "@/hooks/useBadgeuseTerminalAuth";
 import { formatSecondsToHoursMinutes, formatTimeFr } from "@/lib/badgeuseFormat";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -10,18 +11,52 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 const SCANNER_ID = "badgeuse-qr-reader";
 const DEBOUNCE_MS = 4000;
 
+type Html5QrcodeInstance = {
+  isScanning: boolean;
+  start: (
+    cameraIdOrConfig: string | { facingMode: string },
+    config: { fps: number; qrbox: { width: number; height: number } },
+    onDecoded: (text: string) => void,
+    onError: () => void
+  ) => Promise<void>;
+  stop: () => Promise<void>;
+  clear: () => void;
+};
+
+type Html5QrcodeConstructor = {
+  new (elementId: string): Html5QrcodeInstance;
+  getCameras: () => Promise<Array<{ id: string }>>;
+};
+
 type Feedback =
   | { kind: "success"; result: ScanPunchResult }
   | { kind: "error"; message: string };
 
 type QrScannerPanelProps = {
   companyId: string;
+  authMode?: BadgeuseTerminalAuthMode;
   onScanSuccess?: () => void;
   className?: string;
 };
 
+async function safeStopScanner(scanner: Html5QrcodeInstance): Promise<void> {
+  try {
+    if (scanner.isScanning) {
+      await scanner.stop();
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    scanner.clear();
+  } catch {
+    /* ignore */
+  }
+}
+
 async function startScannerWithBestCamera(
-  scanner: Html5Qrcode,
+  Html5Qrcode: Html5QrcodeConstructor,
+  scanner: Html5QrcodeInstance,
   onDecoded: (text: string) => void
 ): Promise<void> {
   const config = { fps: 10, qrbox: { width: 280, height: 280 } };
@@ -61,23 +96,9 @@ async function startScannerWithBestCamera(
   throw lastErr;
 }
 
-async function safeStopScanner(scanner: Html5Qrcode): Promise<void> {
-  try {
-    if (scanner.isScanning) {
-      await scanner.stop();
-    }
-  } catch {
-    /* ignore */
-  }
-  try {
-    scanner.clear();
-  } catch {
-    /* ignore */
-  }
-}
-
 export function QrScannerPanel({
   companyId,
+  authMode = "rh",
   onScanSuccess,
   className,
 }: QrScannerPanelProps) {
@@ -88,7 +109,7 @@ export function QrScannerPanel({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const lastPayloadRef = useRef<{ payload: string; at: number } | null>(null);
   const busyRef = useRef(false);
-  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scannerRef = useRef<Html5QrcodeInstance | null>(null);
   const cameraContainerRef = useRef<HTMLDivElement | null>(null);
   const isUnmountingRef = useRef(false);
 
@@ -149,7 +170,10 @@ export function QrScannerPanel({
       lastPayloadRef.current = { payload: decodedText, at: now };
 
       try {
-        const result = await scanBadgeQr(companyId, { qr_payload: decodedText });
+        const result =
+          authMode === "terminal"
+            ? await scanBadgeQrTerminal({ qr_payload: decodedText })
+            : await scanBadgeQr(companyId, { qr_payload: decodedText });
         setFeedback({ kind: "success", result });
         playBeep(true);
         onScanSuccess?.();
@@ -166,11 +190,11 @@ export function QrScannerPanel({
         window.setTimeout(() => setFeedback(null), 2200);
       }
     },
-    [companyId, onScanSuccess, playBeep]
+    [authMode, companyId, onScanSuccess, playBeep]
   );
 
   useEffect(() => {
-    let scanner: Html5Qrcode | null = null;
+    let scanner: Html5QrcodeInstance | null = null;
     let cancelled = false;
     isUnmountingRef.current = false;
 
@@ -178,9 +202,11 @@ export function QrScannerPanel({
       setCameraError(null);
       setScanning(false);
       try {
+        const { Html5Qrcode } = await import("html5-qrcode");
+        if (cancelled) return;
         scanner = new Html5Qrcode(SCANNER_ID);
         scannerRef.current = scanner;
-        await startScannerWithBestCamera(scanner, (text) => {
+        await startScannerWithBestCamera(Html5Qrcode, scanner, (text) => {
           if (!cancelled) void handleDecoded(text);
         });
         if (!cancelled) setScanning(true);
@@ -220,7 +246,6 @@ export function QrScannerPanel({
         document.fullscreenElement === cameraContainerRef.current;
       setIsFullscreen(fullscreenNow);
       if (isUnmountingRef.current) return;
-      // Restart scanner to let html5-qrcode recompute internal canvas/video sizes.
       setCameraRetryKey((k) => k + 1);
     };
     document.addEventListener("fullscreenchange", onFullscreenChange);

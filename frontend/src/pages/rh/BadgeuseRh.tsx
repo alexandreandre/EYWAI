@@ -2,8 +2,7 @@ import { RhPageHeader } from '@/components/layout';
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Download, ExternalLink, RefreshCw, Trash2, UserX, Users } from "lucide-react";
-import { BADGEUSE_RH_TERMINAL_PATH } from "@/lib/badgeuseRoutes";
+import { AlertTriangle, Download, RefreshCw, Trash2, UserX, Users } from "lucide-react";
 import { useCompany } from "@/contexts/CompanyContext";
 import {
   getCompanyBadgeuseSummary,
@@ -31,6 +30,8 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { QrScannerPanel } from "@/components/badgeuse/rh/QrScannerPanel";
 import { BadgeuseFallbackPanel } from "@/components/badgeuse/rh/BadgeuseFallbackPanel";
+import { BadgeuseTerminalDevicesPanel } from "@/components/badgeuse/rh/BadgeuseTerminalDevicesPanel";
+import { BadgeuseOpenOnDeviceButton } from "@/components/badgeuse/rh/BadgeuseOpenOnDeviceButton";
 
 function secondsToHoursLabel(totalSeconds: number): string {
   return formatSecondsToHoursMinutes(totalSeconds);
@@ -224,16 +225,7 @@ export default function BadgeuseRhPage() {
         title="Badgeuse"
         description="Scan, secours sans QR et pilotage des pointages"
         actions={
-          <Button variant="outline" size="sm" asChild>
-            <a
-              href={BADGEUSE_RH_TERMINAL_PATH}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <ExternalLink className="mr-2 h-4 w-4" aria-hidden />
-              Ouvrir dans un nouvel onglet
-            </a>
-          </Button>
+          companyId ? <BadgeuseOpenOnDeviceButton companyId={companyId} /> : null
         }
       />
 
@@ -670,7 +662,8 @@ export default function BadgeuseRhPage() {
       </div>
         </TabsContent>
 
-        <TabsContent value="settings" className="mt-4">
+        <TabsContent value="settings" className="mt-4 space-y-4">
+          {companyId ? <BadgeuseTerminalDevicesPanel companyId={companyId} /> : null}
           <Card className="p-6 space-y-6 max-w-lg">
             <h2 className="text-lg font-semibold">Paramètres badgeuse</h2>
             <div className="flex items-center justify-between gap-4">

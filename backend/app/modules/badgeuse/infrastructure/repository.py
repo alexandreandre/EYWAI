@@ -68,6 +68,7 @@ class TimeEntryRepository:
         event_type: TimeEntryType,
         source: TimeEntrySource,
         created_by: Optional[str],
+        terminal_device_id: Optional[str] = None,
     ) -> TimeEntry:
         payload: Dict[str, Any] = {
             "employee_id": employee_id,
@@ -78,6 +79,8 @@ class TimeEntryRepository:
         }
         if created_by:
             payload["created_by"] = created_by
+        if terminal_device_id:
+            payload["terminal_device_id"] = terminal_device_id
         result = execute_supabase(
             lambda: supabase.table(self.table_name).insert(payload).execute()
         )
