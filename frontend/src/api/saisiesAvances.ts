@@ -12,6 +12,7 @@ export type SalarySeizureType = 'saisie_arret' | 'pension_alimentaire' | 'atd' |
 export type SalarySeizureStatus = 'active' | 'suspended' | 'closed';
 export type CalculationMode = 'fixe' | 'pourcentage' | 'barème_legal';
 export type SalaryAdvanceStatus = 'pending' | 'approved' | 'rejected' | 'paid';
+export type AdvanceType = 'avance_salaire' | 'acompte_salaire' | 'acompte_prime';
 export type RepaymentMode = 'single' | 'multiple';
 export type PaymentMethod = 'virement' | 'cheque' | 'especes';
 
@@ -72,7 +73,9 @@ export interface SalaryAdvance {
   id: string;
   company_id: string;
   employee_id: string;
-  employee_name?: string; // Nom complet de l'employé (prénom + nom)
+  employee_name?: string;
+  advance_type?: AdvanceType;
+  accounting_account?: string;
   requested_amount: number;
   approved_amount?: number;
   requested_date: string;
@@ -82,9 +85,15 @@ export interface SalaryAdvance {
   repayment_mode: RepaymentMode;
   repayment_months: number;
   remaining_amount: number;
-  remaining_to_pay?: number; // Montant restant à verser (basé sur les paiements réels)
+  remaining_to_pay?: number;
   request_comment?: string;
   rejection_reason?: string;
+  prime_label?: string;
+  prime_id?: string;
+  prime_expected_amount?: number;
+  prime_final_amount?: number;
+  prime_reconciled_at?: string;
+  prime_reconciled_payslip_id?: string;
   created_at: string;
   updated_at: string;
   approved_by?: string;
@@ -92,13 +101,22 @@ export interface SalaryAdvance {
 }
 
 export interface SalaryAdvanceCreate {
-  /** Ignoré pour le collaborateur : résolu côté API depuis le compte connecté. */
   employee_id?: string;
   requested_amount: number;
   requested_date: string;
+  advance_type?: AdvanceType;
   repayment_mode?: RepaymentMode;
   repayment_months?: number;
   request_comment?: string;
+  prime_label?: string;
+  prime_id?: string;
+  prime_expected_amount?: number;
+}
+
+export interface AcomptePrimeReconcile {
+  prime_final_amount: number;
+  year: number;
+  month: number;
 }
 
 export interface SalaryAdvanceApprove {
@@ -121,6 +139,7 @@ export interface SeizableAmountCalculation {
 }
 
 export interface AdvanceAvailableAmount {
+  advance_type?: AdvanceType;
   daily_salary: number;
   days_worked: number;
   outstanding_advances: number;
@@ -131,6 +150,7 @@ export interface AdvanceAvailableAmount {
   reference_payslip_month?: number | null;
   max_advance_from_net: number;
   max_advance_net_ratio: number;
+  is_employee_right?: boolean;
 }
 
 export interface SalarySeizureDeduction {
@@ -226,6 +246,7 @@ async function getEmployeesLite(): Promise<EmployeeLite[]> {
 export async function getSalaryAdvances(params?: {
   employee_id?: string;
   status?: SalaryAdvanceStatus;
+  advance_type?: AdvanceType;
 }): Promise<SalaryAdvance[]> {
   const [advancesRes, employees] = await Promise.all([
     apiClient.get('/api/saisies-avances/salary-advances', { params }),
@@ -274,18 +295,33 @@ export async function getMySalaryAdvances(): Promise<SalaryAdvance[]> {
   return response.data;
 }
 
-export async function getMyAdvanceAvailable(): Promise<AdvanceAvailableAmount> {
-  const response = await apiClient.get('/api/saisies-avances/employees/me/advance-available');
+export async function getMyAdvanceAvailable(
+  advanceType: AdvanceType = 'avance_salaire'
+): Promise<AdvanceAvailableAmount> {
+  const response = await apiClient.get('/api/saisies-avances/employees/me/advance-available', {
+    params: { advance_type: advanceType },
+  });
   return response.data;
 }
 
 export async function getEmployeeAdvanceAvailable(
   employeeId: string,
-  params?: { year?: number; month?: number },
+  params?: { year?: number; month?: number; advance_type?: AdvanceType },
 ): Promise<AdvanceAvailableAmount> {
   const response = await apiClient.get(
     `/api/saisies-avances/employees/${employeeId}/advance-available`,
     { params },
+  );
+  return response.data;
+}
+
+export async function reconcileAcomptePrime(
+  id: string,
+  data: AcomptePrimeReconcile
+): Promise<SalaryAdvance> {
+  const response = await apiClient.patch(
+    `/api/saisies-avances/salary-advances/${id}/reconcile-prime`,
+    data
   );
   return response.data;
 }

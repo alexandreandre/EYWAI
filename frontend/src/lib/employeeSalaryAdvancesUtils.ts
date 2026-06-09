@@ -1,6 +1,38 @@
 import { CheckCircle, CircleX, Clock, CreditCard } from 'lucide-react';
-import type { SalaryAdvance, SalaryAdvanceStatus } from '@/api/saisiesAvances';
+import type { AdvanceType, SalaryAdvance, SalaryAdvanceStatus } from '@/api/saisiesAvances';
 import type { AdvanceAvailableAmount } from '@/api/saisiesAvances';
+
+export const ADVANCE_TYPE_LABELS: Record<AdvanceType, string> = {
+  avance_salaire: 'Avance sur salaire',
+  acompte_salaire: 'Acompte sur salaire',
+  acompte_prime: 'Acompte sur prime',
+};
+
+export const ADVANCE_TYPE_DESCRIPTIONS: Record<AdvanceType, string> = {
+  avance_salaire:
+    'Versement avant que le travail soit effectué. L’employeur peut refuser (sauf accord).',
+  acompte_salaire:
+    'Versement du salaire déjà gagné. C’est un droit pour le salarié mensualisé.',
+  acompte_prime:
+    'Versement anticipé d’une prime. Soldé au calcul définitif de la prime.',
+};
+
+export function getAdvanceTypeLabel(
+  advanceType?: AdvanceType,
+  primeLabel?: string
+): string {
+  const type = advanceType ?? 'avance_salaire';
+  const base = ADVANCE_TYPE_LABELS[type] ?? 'Avance';
+  if (type === 'acompte_prime' && primeLabel) {
+    return `${base} (${primeLabel})`;
+  }
+  return base;
+}
+
+export function formatAccountingAccount(account?: string): string | null {
+  if (!account) return null;
+  return `Compte ${account}`;
+}
 
 export const STATUS_LABELS: Record<SalaryAdvanceStatus, string> = {
   pending: 'En attente',
@@ -82,18 +114,29 @@ export function formatReferencePayslipMonth(
   });
 }
 
-/** Ligne courte : plafond 50 % du net du dernier bulletin (mois cité). */
+/** Ligne courte : plafond selon la nature de la demande. */
 export function formatAdvancePlafondSummary(data: AdvanceAvailableAmount): string {
+  const advanceType = data.advance_type ?? 'avance_salaire';
   const ratio = formatAdvanceNetRatio(data);
-  const net = Number(data.reference_net_salary || 0);
-  const cap = Number(data.max_advance_from_net || 0);
   const monthLabel = formatReferencePayslipMonth(
     data.reference_payslip_year,
     data.reference_payslip_month
   );
 
-  if (monthLabel) {
-    return `${ratio} du net de ${monthLabel}`;
+  if (advanceType === 'acompte_salaire') {
+    const days = Number(data.days_worked || 0);
+    const base = monthLabel
+      ? `Salaire gagné au ${days}e jour (${monthLabel})`
+      : `Salaire gagné (${days} jours travaillés)`;
+    return `${base} — plafond ${ratio} du net`;
   }
-  return `${ratio} du salaire net de référence`;
+
+  if (advanceType === 'avance_salaire') {
+    if (monthLabel) {
+      return `${ratio} du net de ${monthLabel}`;
+    }
+    return `${ratio} du salaire net de référence`;
+  }
+
+  return 'Montant libre (pas de plafond automatique)';
 }

@@ -38,6 +38,7 @@ import { useEmployeeSalaryAdvancesQuery } from '@/hooks/queries/useEmployeeSalar
 import { queryKeys } from '@/lib/queryKeys';
 import { formatCurrency } from '@/lib/employeeDashboardUtils';
 import {
+  getAdvanceTypeLabel,
   filterAdvancesByStatus,
   formatAdvanceDate,
   hasApprovedAmountDiff,
@@ -89,6 +90,9 @@ function AdvanceMobileCard({
     >
       <div className="flex items-start justify-between gap-2">
         <div>
+          <p className="text-xs text-muted-foreground">
+            {getAdvanceTypeLabel(advance.advance_type, advance.prime_label)}
+          </p>
           <p className="text-lg font-semibold">
             {formatCurrency(advance.requested_amount)}
           </p>
@@ -217,7 +221,7 @@ export default function SalaryAdvances() {
   const requestButton = (
     <Button onClick={openRequestForm} disabled={!canRequest}>
       <Plus className="mr-2 h-4 w-4" />
-      Demander une avance
+      Demander une avance ou un acompte
     </Button>
   );
 
@@ -225,8 +229,8 @@ export default function SalaryAdvances() {
     <TooltipProvider>
       <EmployeePageShell>
         <EmployeePageHeader
-          title="Avances sur salaire"
-          description="50 % du net du dernier bulletin — suivi de vos demandes"
+          title="Avances & acomptes"
+          description="Avance sur salaire ou acompte sur salaire déjà gagné — suivi de vos demandes"
           actions={
             canRequest ? (
               requestButton
@@ -281,7 +285,7 @@ export default function SalaryAdvances() {
         <div ref={requestsListRef}>
         <Card>
           <CardHeader className="space-y-3">
-            <CardTitle>Mes demandes d&apos;avance</CardTitle>
+            <CardTitle>Mes demandes</CardTitle>
             <div className="flex flex-wrap gap-2">
               {(Object.keys(STATUS_FILTER_LABELS) as SalaryAdvanceStatusFilter[]).map(
                 (key) => (
@@ -329,6 +333,7 @@ export default function SalaryAdvances() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead>Nature</TableHead>
                         <TableHead>Montant demandé</TableHead>
                         {anyShowsApprovedColumn && (
                           <TableHead>Montant approuvé</TableHead>
@@ -349,6 +354,9 @@ export default function SalaryAdvances() {
                           className="cursor-pointer"
                           onClick={() => setSelectedAdvance(advance)}
                         >
+                          <TableCell className="text-sm">
+                            {getAdvanceTypeLabel(advance.advance_type, advance.prime_label)}
+                          </TableCell>
                           <TableCell className="font-medium">
                             {formatCurrency(advance.requested_amount)}
                           </TableCell>

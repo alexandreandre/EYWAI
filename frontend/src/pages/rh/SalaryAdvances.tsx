@@ -12,12 +12,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { Plus, Loader2, Check, X, Eye, Wallet, Clock, CheckCircle, XCircle, CreditCard } from "lucide-react";
+import { Plus, Loader2, Check, X, Eye, Wallet, Clock, CheckCircle, XCircle, CreditCard, Scale } from "lucide-react";
 import { getSalaryAdvances, approveSalaryAdvance, rejectSalaryAdvance } from '@/api/saisiesAvances';
-import type { SalaryAdvance, SalaryAdvanceStatus } from '@/api/saisiesAvances';
+import type { AdvanceType, SalaryAdvance, SalaryAdvanceStatus } from '@/api/saisiesAvances';
 import { SalaryAdvanceRequestForm } from '@/components/saisies-avances/SalaryAdvanceRequestForm';
 import { SalaryAdvanceDetail } from '@/components/saisies-avances/SalaryAdvanceDetail';
 import { AdvancePaymentModal } from '@/components/saisies-avances/AdvancePaymentModal';
+import { AcomptePrimeReconcileModal } from '@/components/saisies-avances/AcomptePrimeReconcileModal';
+import { getAdvanceTypeLabel } from '@/lib/employeeSalaryAdvancesUtils';
 
 const STATUS_LABELS: Record<SalaryAdvanceStatus, string> = {
   'pending': 'En attente',
@@ -47,7 +49,9 @@ export default function SalaryAdvances() {
   const [showForm, setShowForm] = useState(false);
   const [selectedAdvance, setSelectedAdvance] = useState<SalaryAdvance | null>(null);
   const [paymentAdvance, setPaymentAdvance] = useState<SalaryAdvance | null>(null);
+  const [reconcileAdvance, setReconcileAdvance] = useState<SalaryAdvance | null>(null);
   const [filterStatus, setFilterStatus] = useState<SalaryAdvanceStatus | 'all'>('all');
+  const [filterType, setFilterType] = useState<AdvanceType | 'all'>('all');
 
   const fetchAdvances = async () => {
     await queryClient.invalidateQueries({ queryKey: queryKeys.salaryAdvances(companyId) });
@@ -90,9 +94,11 @@ export default function SalaryAdvances() {
     }
   };
 
-  const filteredAdvances = filterStatus === 'all'
-    ? advances
-    : advances.filter(a => a.status === filterStatus);
+  const filteredAdvances = advances.filter((a) => {
+    if (filterStatus !== 'all' && a.status !== filterStatus) return false;
+    if (filterType !== 'all' && (a.advance_type ?? 'avance_salaire') !== filterType) return false;
+    return true;
+  });
 
   const stats = {
     total: advances.length,
@@ -114,9 +120,9 @@ export default function SalaryAdvances() {
     <div className="space-y-6">
       <PageFetchIndicator isFetching={advancesQuery.isFetching} />
       <RhPageHeader
-        title="Avances sur salaire"
+        title="Avances & acomptes"
         icon={<Wallet />}
-        description="Gestion des demandes d'avance sur salaire et suivi des remboursements"
+        description="Avances sur salaire, acomptes sur salaire et acomptes sur prime"
       />
 
       {/* Statistiques */}
@@ -209,27 +215,57 @@ export default function SalaryAdvances() {
             Versées ({stats.paid})
           </Button>
         </div>
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            variant={filterType === 'all' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilterType('all')}
+          >
+            Toutes natures
+          </Button>
+          <Button
+            variant={filterType === 'avance_salaire' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilterType('avance_salaire')}
+          >
+            Avances
+          </Button>
+          <Button
+            variant={filterType === 'acompte_salaire' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilterType('acompte_salaire')}
+          >
+            Acomptes salaire
+          </Button>
+          <Button
+            variant={filterType === 'acompte_prime' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilterType('acompte_prime')}
+          >
+            Acomptes prime
+          </Button>
+        </div>
         <Button onClick={() => setShowForm(true)}>
           <Plus className="h-4 w-4 mr-2" />
-          Nouvelle avance
+          Nouvelle demande
         </Button>
       </div>
 
-      {/* Tableau */}
       <Card>
         <CardHeader>
-          <CardTitle>Liste des avances</CardTitle>
+          <CardTitle>Liste des avances et acomptes</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="py-4">
-              <TableSkeleton rows={6} columns={5} />
+              <TableSkeleton rows={6} columns={6} />
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                       <TableHead>Employé</TableHead>
+                      <TableHead>Nature</TableHead>
                       <TableHead>Montant demandé</TableHead>
                       <TableHead>Montant restant à verser</TableHead>
                       <TableHead>Date demande</TableHead>
@@ -240,8 +276,8 @@ export default function SalaryAdvances() {
               <TableBody>
                 {filteredAdvances.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                      Aucune avance trouvée
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      Aucune demande trouvée
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -249,6 +285,14 @@ export default function SalaryAdvances() {
                     <TableRow key={advance.id}>
                       <TableCell className="font-medium">
                         {advance.employee_name || advance.employee_id || 'Employé inconnu'}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {getAdvanceTypeLabel(advance.advance_type, advance.prime_label)}
+                        {advance.accounting_account && (
+                          <span className="block text-xs text-muted-foreground">
+                            Cpt {advance.accounting_account}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <span className="font-semibold">{Number(advance.requested_amount || 0).toFixed(2)}€</span>
@@ -330,6 +374,19 @@ export default function SalaryAdvances() {
                               <CreditCard className="h-4 w-4" />
                             </Button>
                           )}
+                          {advance.advance_type === 'acompte_prime' &&
+                            advance.status === 'paid' &&
+                            !advance.prime_reconciled_at && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setReconcileAdvance(advance)}
+                                title="Solder la prime"
+                                className="text-purple-600 hover:text-purple-700"
+                              >
+                                <Scale className="h-4 w-4" />
+                              </Button>
+                            )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -367,6 +424,17 @@ export default function SalaryAdvances() {
           onClose={() => setPaymentAdvance(null)}
           onSuccess={() => {
             setPaymentAdvance(null);
+            fetchAdvances();
+          }}
+        />
+      )}
+
+      {reconcileAdvance && (
+        <AcomptePrimeReconcileModal
+          advance={reconcileAdvance}
+          onClose={() => setReconcileAdvance(null)}
+          onSuccess={() => {
+            setReconcileAdvance(null);
             fetchAdvances();
           }}
         />

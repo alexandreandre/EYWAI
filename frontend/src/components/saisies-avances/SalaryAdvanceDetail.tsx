@@ -18,6 +18,8 @@ import { formatCurrency } from '@/lib/employeeDashboardUtils';
 import {
   formatAdvanceDate,
   formatAdvanceDateTime,
+  formatAccountingAccount,
+  getAdvanceTypeLabel,
   showRemainingRepayment,
 } from '@/lib/employeeSalaryAdvancesUtils';
 
@@ -99,7 +101,14 @@ export function SalaryAdvanceDetail({ advance, onClose, onUpdate }: SalaryAdvanc
 
   const dialogTitle = isEmployee
     ? `Ma demande du ${formatAdvanceDate(advance.created_at)}`
-    : "Détails de l'avance";
+    : getAdvanceTypeLabel(advance.advance_type, advance.prime_label);
+
+  const acompteVerse = totalPaid > 0 ? totalPaid : approvedAmount;
+  const primeFinal = Number(advance.prime_final_amount || 0);
+  const primeSolde =
+    advance.advance_type === 'acompte_prime' && primeFinal > 0
+      ? Math.max(0, primeFinal - acompteVerse)
+      : null;
 
   const paymentMethodLabel =
     advance.payment_method === 'virement'
@@ -128,6 +137,17 @@ export function SalaryAdvanceDetail({ advance, onClose, onUpdate }: SalaryAdvanc
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
+                <p className="text-sm font-medium text-muted-foreground">Nature</p>
+                <p className="font-medium">
+                  {getAdvanceTypeLabel(advance.advance_type, advance.prime_label)}
+                </p>
+                {advance.accounting_account && (
+                  <p className="text-xs text-muted-foreground">
+                    {formatAccountingAccount(advance.accounting_account)}
+                  </p>
+                )}
+              </div>
+              <div>
                 <p className="text-sm font-medium text-muted-foreground">Statut</p>
                 <div className="mt-1">
                   <EmployeeSalaryAdvanceStatusBadge status={advance.status} />
@@ -138,6 +158,45 @@ export function SalaryAdvanceDetail({ advance, onClose, onUpdate }: SalaryAdvanc
                 <p className="text-lg font-semibold">{formatCurrency(requestedAmount)}</p>
               </div>
             </div>
+
+            {advance.advance_type === 'acompte_prime' && (
+              <div className="rounded-md border bg-muted/40 p-3 text-sm space-y-1">
+                {advance.prime_label && (
+                  <p>
+                    <span className="text-muted-foreground">Prime :</span>{' '}
+                    <strong>{advance.prime_label}</strong>
+                  </p>
+                )}
+                {advance.prime_expected_amount != null && (
+                  <p>
+                    <span className="text-muted-foreground">Montant estimé :</span>{' '}
+                    {formatCurrency(advance.prime_expected_amount)}
+                  </p>
+                )}
+                {primeFinal > 0 && (
+                  <>
+                    <p>
+                      <span className="text-muted-foreground">Montant définitif :</span>{' '}
+                      {formatCurrency(primeFinal)}
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">Acompte versé :</span>{' '}
+                      - {formatCurrency(acompteVerse)}
+                    </p>
+                    {primeSolde != null && (
+                      <p className="font-semibold">
+                        Solde à payer : {formatCurrency(primeSolde)}
+                      </p>
+                    )}
+                    {advance.prime_reconciled_at && (
+                      <p className="text-muted-foreground">
+                        Réconcilié le {formatAdvanceDateTime(advance.prime_reconciled_at)}
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
 
             {approvedAmount > 0 && (
               <div className="grid grid-cols-1 gap-4 rounded-md border bg-muted/40 p-3 sm:grid-cols-3">
