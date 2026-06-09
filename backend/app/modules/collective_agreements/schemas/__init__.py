@@ -1,6 +1,7 @@
 # Schemas for collective_agreements (migrés depuis schemas/collective_agreement.py).
 from .requests import (
     AssignAgreementBody,
+    CcTrainingRecommendationUpdate,
     CollectiveAgreementCatalogCreate,
     CollectiveAgreementCatalogUpdate,
     CompanyCollectiveAgreementCreate,
@@ -13,12 +14,14 @@ from .requests import (
     QuestionRequest,
 )
 from .responses import (
+    CcTrainingRecommendation,
     CollectiveAgreementCatalog,
     CollectiveAgreementCatalogBase,
     CompanyCollectiveAgreement,
     CompanyCollectiveAgreementWithDetails,
     ExtractRulesBatchResponse,
     ExtractRulesResponse,
+    ExtractTrainingsResponse,
     KaliImportBatchResponse,
     KaliImportCancelResponse,
     KaliImportResponse,
@@ -30,6 +33,8 @@ from .responses import (
 
 __all__ = [
     "AssignAgreementBody",
+    "CcTrainingRecommendation",
+    "CcTrainingRecommendationUpdate",
     "CollectiveAgreementCatalog",
     "CollectiveAgreementCatalogBase",
     "CollectiveAgreementCatalogCreate",
@@ -40,6 +45,7 @@ __all__ = [
     "ExtractRulesBatchRequest",
     "ExtractRulesBatchResponse",
     "ExtractRulesResponse",
+    "ExtractTrainingsResponse",
     "GetUploadUrlBody",
     "KaliImportBatchRequest",
     "KaliImportBatchResponse",

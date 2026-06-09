@@ -300,3 +300,112 @@ def rollback_rules(
             "message": "Rollback impossible (log introuvable ou sans version précédente)",
         }
     return {"success": True, "rules": row.get("rules"), "message": "Rollback effectué"}
+
+
+def _training_reco_row_to_dict(row: dict) -> dict:
+    roles = row.get("target_roles") or []
+    if not isinstance(roles, list):
+        roles = []
+    return {
+        "id": str(row["id"]),
+        "idcc": str(row.get("idcc") or ""),
+        "agreement_id": str(row["agreement_id"]) if row.get("agreement_id") else None,
+        "title": str(row.get("title") or ""),
+        "obligation_level": str(row.get("obligation_level") or "recommandee"),
+        "pedagogical_objective": row.get("pedagogical_objective"),
+        "legal_reference": row.get("legal_reference"),
+        "target_roles": [str(x) for x in roles],
+        "periodicity": row.get("periodicity"),
+        "is_active": bool(row.get("is_active", True)),
+        "source": str(row.get("source") or "ai"),
+        "confidence": row.get("confidence"),
+        "extracted_at": row.get("extracted_at"),
+        "extraction_model": row.get("extraction_model"),
+    }
+
+
+def extract_trainings(
+    agreement_id: str,
+    is_platform_admin: bool,
+    *,
+    dry_run: bool = False,
+) -> dict:
+    """Extrait et persiste les propositions formation CC (super admin)."""
+    if not is_platform_admin:
+        raise _to_http(ForbiddenError("Accès réservé au super administrateur"))
+    from app.modules.collective_agreements.training_reco.service import (
+        get_cc_training_recommendations_service,
+    )
+
+    try:
+        outcome = get_cc_training_recommendations_service().extract_and_persist_by_agreement_id(
+            agreement_id, dry_run=dry_run
+        )
+    except (NotFoundError, ForbiddenError, ValidationError) as exc:
+        raise _to_http(exc)
+    recos = [
+        _training_reco_row_to_dict(r) for r in (outcome.recommendations or [])
+    ]
+    return {
+        "success": outcome.success,
+        "idcc": outcome.idcc,
+        "agreement_id": outcome.agreement_id,
+        "count": outcome.count,
+        "recommendations": recos,
+        "error": outcome.error,
+        "tokens_used": outcome.tokens_used,
+    }
+
+
+def list_training_recommendations(
+    agreement_id: str,
+    is_platform_admin: bool,
+) -> list[dict]:
+    """Liste les propositions formation CC pour une convention (super admin)."""
+    if not is_platform_admin:
+        raise _to_http(ForbiddenError("Accès réservé au super administrateur"))
+    from app.modules.collective_agreements.training_reco.service import (
+        get_cc_training_recommendations_service,
+    )
+
+    try:
+        rows = get_cc_training_recommendations_service().list_by_agreement_id(
+            agreement_id
+        )
+    except (NotFoundError, ForbiddenError, ValidationError) as exc:
+        raise _to_http(exc)
+    return [_training_reco_row_to_dict(r) for r in rows]
+
+
+def update_training_recommendation(
+    recommendation_id: str,
+    is_platform_admin: bool,
+    patch: dict,
+) -> dict:
+    """Met à jour une proposition formation CC (super admin)."""
+    if not is_platform_admin:
+        raise _to_http(ForbiddenError("Accès réservé au super administrateur"))
+    from app.modules.collective_agreements.training_reco.service import (
+        get_cc_training_recommendations_service,
+    )
+
+    allowed = {
+        k: v
+        for k, v in patch.items()
+        if k
+        in (
+            "title",
+            "is_active",
+            "obligation_level",
+            "pedagogical_objective",
+            "legal_reference",
+        )
+        and v is not None
+    }
+    try:
+        row = get_cc_training_recommendations_service().update_recommendation(
+            recommendation_id, allowed
+        )
+    except NotFoundError as exc:
+        raise _to_http(exc)
+    return _training_reco_row_to_dict(row)

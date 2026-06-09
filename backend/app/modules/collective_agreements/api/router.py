@@ -36,11 +36,14 @@ from app.modules.collective_agreements.schemas import (
     ExtractRulesBatchRequest,
     ExtractRulesBatchResponse,
     ExtractRulesResponse,
+    ExtractTrainingsResponse,
     GetUploadUrlBody,
     QuestionRequest,
     QuestionResponse,
     RollbackRulesResponse,
     RulesStatusResponse,
+    CcTrainingRecommendation,
+    CcTrainingRecommendationUpdate,
 )
 
 # --- Router principal (catalogue + assignations) ---
@@ -110,6 +113,22 @@ async def get_agreement_classifications(
     """Grille de classification conventionnelle pour une convention."""
     try:
         return queries.get_classifications_query(agreement_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/catalog/{agreement_id}/salary-minima")
+async def get_agreement_salary_minima(
+    agreement_id: str,
+    code_postal: str | None = Query(None, description="Code postal établissement"),
+    current_user: CollectiveAgreementUserContext = Depends(get_current_user),
+):
+    """Grille des minima salariaux CC (coefficient → € mensuel)."""
+    try:
+        return queries.get_salary_minima_query(agreement_id, code_postal=code_postal)
     except HTTPException:
         raise
     except Exception as e:
@@ -518,6 +537,76 @@ async def extract_rules_batch(
             all_catalog=body.all_catalog,
             priority_only=body.priority_only,
             dry_run=body.dry_run,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Formations CC — extraction IA (super admin) ---
+
+
+@router.post(
+    "/catalog/{agreement_id}/extract-trainings",
+    response_model=ExtractTrainingsResponse,
+)
+async def extract_trainings(
+    agreement_id: str,
+    dry_run: bool = Query(False, description="Simuler sans appel IA"),
+    current_user: CollectiveAgreementUserContext = Depends(get_current_user),
+):
+    """Extrait les propositions formation depuis le texte CC (super admin)."""
+    try:
+        return commands.extract_trainings(
+            agreement_id,
+            is_platform_admin=current_user.is_platform_admin,
+            dry_run=dry_run,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/catalog/{agreement_id}/training-recommendations",
+    response_model=List[CcTrainingRecommendation],
+)
+async def list_training_recommendations(
+    agreement_id: str,
+    current_user: CollectiveAgreementUserContext = Depends(get_current_user),
+):
+    """Liste les propositions formation CC pour une convention (super admin)."""
+    try:
+        return commands.list_training_recommendations(
+            agreement_id,
+            is_platform_admin=current_user.is_platform_admin,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch(
+    "/training-recommendations/{recommendation_id}",
+    response_model=CcTrainingRecommendation,
+)
+async def patch_training_recommendation(
+    recommendation_id: str,
+    body: CcTrainingRecommendationUpdate,
+    current_user: CollectiveAgreementUserContext = Depends(get_current_user),
+):
+    """Active/désactive ou édite une proposition formation CC (super admin)."""
+    try:
+        return commands.update_training_recommendation(
+            recommendation_id,
+            is_platform_admin=current_user.is_platform_admin,
+            patch=body.model_dump(exclude_unset=True),
         )
     except HTTPException:
         raise

@@ -71,6 +71,7 @@ export type CollectiveAgreementRowProps = {
   isCancellingSync?: boolean;
   onAssignToCompany?: () => void;
   onViewTechnical?: () => void;
+  onManageTrainings?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
   onUnassign?: () => void;
@@ -221,6 +222,7 @@ export function CollectiveAgreementRow({
   isCancellingSync = false,
   onAssignToCompany,
   onViewTechnical,
+  onManageTrainings,
   onEdit,
   onDelete,
   onUnassign,
@@ -423,6 +425,12 @@ export function CollectiveAgreementRow({
                       <Eye className="mr-2 h-4 w-4" />
                       Détail technique
                     </DropdownMenuItem>
+                    {onManageTrainings && (
+                      <DropdownMenuItem onClick={onManageTrainings}>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Formations CC
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={onEdit}>
                       <Edit className="mr-2 h-4 w-4" />

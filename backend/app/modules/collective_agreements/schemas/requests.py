@@ -131,3 +131,13 @@ class ExtractRulesBatchRequest(BaseModel):
         False, description="Traiter uniquement les IDCC prioritaires (lot 1)"
     )
     dry_run: bool = Field(False, description="Simuler sans appel IA")
+
+
+class CcTrainingRecommendationUpdate(BaseModel):
+    """Corps PATCH training-recommendations/{id}."""
+
+    title: Optional[str] = None
+    is_active: Optional[bool] = None
+    obligation_level: Optional[str] = None
+    pedagogical_objective: Optional[str] = None
+    legal_reference: Optional[str] = None

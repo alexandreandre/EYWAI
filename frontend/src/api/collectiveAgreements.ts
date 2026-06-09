@@ -64,11 +64,27 @@ export interface ClassificationConventionnelle {
   coefficient: number;
 }
 
+export interface SalaryMinimumRow {
+  coefficient: number;
+  valeur: number;
+  libelle?: string | null;
+}
+
 /**
  * Récupère la grille de classification pour une convention collective
  */
 export const getClassifications = (agreementId: string) => {
   return apiClient.get<ClassificationConventionnelle[]>(`/api/collective-agreements/catalog/${agreementId}/classifications`);
+};
+
+/**
+ * Récupère les minima salariaux CC (coefficient → € mensuel).
+ */
+export const getSalaryMinima = (agreementId: string, codePostal?: string) => {
+  return apiClient.get<SalaryMinimumRow[]>(
+    `/api/collective-agreements/catalog/${agreementId}/salary-minima`,
+    { params: codePostal ? { code_postal: codePostal } : undefined }
+  );
 };
 
 // =====================================================================
@@ -426,5 +442,56 @@ export const extractRulesBatch = (data: {
 export const getRulesStatus = (agreementId: string) => {
   return apiClient.get<RulesStatusResponse>(
     `/api/collective-agreements/catalog/${agreementId}/rules-status`
+  );
+};
+
+export interface CcTrainingRecommendation {
+  id: string;
+  idcc: string;
+  agreement_id?: string | null;
+  title: string;
+  obligation_level: string;
+  pedagogical_objective?: string | null;
+  legal_reference?: string | null;
+  target_roles: string[];
+  periodicity?: string | null;
+  is_active: boolean;
+  source: string;
+  confidence?: string | null;
+  extracted_at?: string | null;
+  extraction_model?: string | null;
+}
+
+export interface ExtractTrainingsResponse {
+  success: boolean;
+  idcc: string;
+  agreement_id?: string | null;
+  count: number;
+  recommendations?: CcTrainingRecommendation[];
+  error?: string | null;
+  tokens_used: number;
+}
+
+export const extractTrainings = (agreementId: string, dryRun = false) => {
+  return apiClient.post<ExtractTrainingsResponse>(
+    `/api/collective-agreements/catalog/${agreementId}/extract-trainings`,
+    null,
+    { params: { dry_run: dryRun } }
+  );
+};
+
+export const listTrainingRecommendations = (agreementId: string) => {
+  return apiClient.get<CcTrainingRecommendation[]>(
+    `/api/collective-agreements/catalog/${agreementId}/training-recommendations`
+  );
+};
+
+export const patchTrainingRecommendation = (
+  recommendationId: string,
+  body: Partial<Pick<CcTrainingRecommendation, 'title' | 'is_active' | 'obligation_level' | 'pedagogical_objective' | 'legal_reference'>>
+) => {
+  return apiClient.patch<CcTrainingRecommendation>(
+    `/api/collective-agreements/training-recommendations/${recommendationId}`,
+    body
   );
 };

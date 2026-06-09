@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # --- Catalogue (conventions collectives françaises) ---
@@ -180,3 +180,34 @@ class RollbackRulesResponse(BaseModel):
     success: bool
     rules: Optional[dict[str, Any]] = None
     message: Optional[str] = None
+
+
+class CcTrainingRecommendation(BaseModel):
+    """Proposition de formation issue d'une convention collective."""
+
+    id: str
+    idcc: str
+    agreement_id: Optional[str] = None
+    title: str
+    obligation_level: str
+    pedagogical_objective: Optional[str] = None
+    legal_reference: Optional[str] = None
+    target_roles: List[str] = Field(default_factory=list)
+    periodicity: Optional[str] = None
+    is_active: bool = True
+    source: str = "ai"
+    confidence: Optional[str] = None
+    extracted_at: Optional[str] = None
+    extraction_model: Optional[str] = None
+
+
+class ExtractTrainingsResponse(BaseModel):
+    """Réponse POST extract-trainings."""
+
+    success: bool
+    idcc: str
+    agreement_id: Optional[str] = None
+    count: int = 0
+    recommendations: Optional[List[CcTrainingRecommendation]] = None
+    error: Optional[str] = None
+    tokens_used: int = 0

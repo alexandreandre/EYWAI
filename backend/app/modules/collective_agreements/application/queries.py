@@ -12,6 +12,11 @@ from app.modules.collective_agreements.application.dto import (
     QuestionOutput,
     UploadUrlOutput,
 )
+from app.modules.collective_agreements.application.idcc_resolution import (
+    get_idcc_for_agreement as _get_idcc_for_agreement,
+    get_salary_minima_for_agreement as _get_salary_minima_for_agreement,
+    resolve_employee_idcc as _resolve_employee_idcc,
+)
 from app.modules.collective_agreements.application.service import (
     CollectiveAgreementsService,
     get_collective_agreements_service,
@@ -51,6 +56,27 @@ def get_classifications_query(
     """Grille de classification conventionnelle pour une convention (idcc)."""
     svc = service or get_collective_agreements_service()
     return svc.get_classifications(agreement_id)
+
+
+def get_idcc_for_agreement(agreement_id: str) -> Optional[str]:
+    """IDCC catalogue pour une convention assignée."""
+    return _get_idcc_for_agreement(agreement_id)
+
+
+def resolve_employee_idcc(
+    employee_row: dict,
+    company_row: dict,
+) -> Optional[str]:
+    """IDCC applicable à un salarié (fiche → entreprise)."""
+    return _resolve_employee_idcc(employee_row, company_row)
+
+
+def get_salary_minima_query(
+    agreement_id: str,
+    code_postal: Optional[str] = None,
+) -> List[dict]:
+    """Minima salariaux CC applicables (coefficient → € mensuel)."""
+    return _get_salary_minima_for_agreement(agreement_id, code_postal=code_postal)
 
 
 def get_upload_url_query(

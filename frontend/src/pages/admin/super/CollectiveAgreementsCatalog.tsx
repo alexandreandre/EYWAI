@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import {
   FileText,
   Loader2,
@@ -114,6 +115,13 @@ export default function CollectiveAgreementsCatalog() {
   const [rulesModalTitle, setRulesModalTitle] = useState('');
   const [rulesModalIdcc, setRulesModalIdcc] = useState('');
   const [rulesModalAgreementName, setRulesModalAgreementName] = useState('');
+  const [trainingModalAgreement, setTrainingModalAgreement] =
+    useState<collectiveAgreementsApi.CollectiveAgreementCatalog | null>(null);
+  const [trainingRecos, setTrainingRecos] = useState<
+    collectiveAgreementsApi.CcTrainingRecommendation[]
+  >([]);
+  const [trainingRecosLoading, setTrainingRecosLoading] = useState(false);
+  const [extractingTrainingsId, setExtractingTrainingsId] = useState<string | null>(null);
   const [docLoading, setDocLoading] = useState<{
     id: string;
     kind: DocumentLoadingKind;
@@ -233,6 +241,82 @@ export default function CollectiveAgreementsCatalog() {
     setRulesModalAgreementName(formatCatalogConventionName(agreement.name));
     setRulesModalContent(status?.rules ?? null);
     setRulesModalOpen(true);
+  };
+
+  const loadTrainingRecommendations = async (
+    agreement: collectiveAgreementsApi.CollectiveAgreementCatalog
+  ) => {
+    setTrainingRecosLoading(true);
+    try {
+      const res = await collectiveAgreementsApi.listTrainingRecommendations(agreement.id);
+      setTrainingRecos(res.data ?? []);
+    } catch (err: unknown) {
+      toast({
+        title: 'Erreur',
+        description: await parseApiErrorDetail(err, 'Impossible de charger les propositions formation.'),
+        variant: 'destructive',
+      });
+      setTrainingRecos([]);
+    } finally {
+      setTrainingRecosLoading(false);
+    }
+  };
+
+  const handleOpenTrainingModal = (
+    agreement: collectiveAgreementsApi.CollectiveAgreementCatalog
+  ) => {
+    setTrainingModalAgreement(agreement);
+    void loadTrainingRecommendations(agreement);
+  };
+
+  const handleExtractTrainings = async () => {
+    if (!trainingModalAgreement) return;
+    setExtractingTrainingsId(trainingModalAgreement.id);
+    try {
+      const res = await collectiveAgreementsApi.extractTrainings(trainingModalAgreement.id);
+      const data = res.data;
+      if (data.success) {
+        toast({
+          title: 'Extraction terminée',
+          description: `${data.count} proposition(s) enregistrée(s) pour l'IDCC ${data.idcc}.`,
+        });
+        setTrainingRecos(data.recommendations ?? []);
+      } else {
+        toast({
+          title: 'Extraction échouée',
+          description: data.error ?? 'Erreur inconnue',
+          variant: 'destructive',
+        });
+      }
+    } catch (err: unknown) {
+      toast({
+        title: 'Erreur',
+        description: await parseApiErrorDetail(err, "Impossible d'extraire les formations."),
+        variant: 'destructive',
+      });
+    } finally {
+      setExtractingTrainingsId(null);
+    }
+  };
+
+  const handleToggleTrainingReco = async (
+    reco: collectiveAgreementsApi.CcTrainingRecommendation,
+    isActive: boolean
+  ) => {
+    try {
+      const res = await collectiveAgreementsApi.patchTrainingRecommendation(reco.id, {
+        is_active: isActive,
+      });
+      setTrainingRecos((prev) =>
+        prev.map((r) => (r.id === reco.id ? { ...r, ...res.data } : r))
+      );
+    } catch (err: unknown) {
+      toast({
+        title: 'Erreur',
+        description: await parseApiErrorDetail(err, 'Mise à jour impossible.'),
+        variant: 'destructive',
+      });
+    }
   };
 
   const parseApiErrorDetail = async (err: any, fallback: string): Promise<string> => {
@@ -1101,6 +1185,7 @@ export default function CollectiveAgreementsCatalog() {
                       setAssignDialogAgreement(agreement);
                     }}
                     onViewTechnical={() => handleViewRules(agreement)}
+                    onManageTrainings={() => handleOpenTrainingModal(agreement)}
                     onEdit={() => handleOpenEditModal(agreement)}
                     onDelete={() => handleDeleteClick(agreement)}
                   />
@@ -1330,6 +1415,98 @@ export default function CollectiveAgreementsCatalog() {
               Exporter PDF règles paie
             </Button>
             <Button variant="ghost" onClick={() => setRulesModalOpen(false)}>
+              Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(trainingModalAgreement)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setTrainingModalAgreement(null);
+            setTrainingRecos([]);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Formations CC — IDCC {trainingModalAgreement?.idcc}
+            </DialogTitle>
+            <DialogDescription>
+              Propositions extraites par IA depuis le texte de la convention. Activez ou
+              désactivez avant publication aux entreprises assignées.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              onClick={() => void handleExtractTrainings()}
+              disabled={
+                !trainingModalAgreement ||
+                extractingTrainingsId === trainingModalAgreement.id
+              }
+            >
+              {extractingTrainingsId === trainingModalAgreement?.id ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Extraire les formations
+            </Button>
+          </div>
+          {trainingRecosLoading ? (
+            <div className="py-8 flex justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : trainingRecos.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">
+              Aucune proposition. Lancez l&apos;extraction après import du texte Légifrance.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {trainingRecos.map((reco) => (
+                <div
+                  key={reco.id}
+                  className="flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-start sm:justify-between"
+                >
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{reco.title}</span>
+                      <Badge variant={reco.obligation_level === 'obligatoire' ? 'destructive' : 'secondary'}>
+                        {reco.obligation_level === 'obligatoire' ? 'Obligatoire' : 'Recommandée'}
+                      </Badge>
+                      {!reco.is_active && (
+                        <Badge variant="outline">Inactive</Badge>
+                      )}
+                    </div>
+                    {reco.legal_reference ? (
+                      <p className="text-xs text-muted-foreground">{reco.legal_reference}</p>
+                    ) : null}
+                    {reco.pedagogical_objective ? (
+                      <p className="text-sm text-muted-foreground">{reco.pedagogical_objective}</p>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Label htmlFor={`reco-active-${reco.id}`} className="text-xs">
+                      Active
+                    </Label>
+                    <Switch
+                      id={`reco-active-${reco.id}`}
+                      checked={reco.is_active}
+                      onCheckedChange={(checked) =>
+                        void handleToggleTrainingReco(reco, Boolean(checked))
+                      }
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setTrainingModalAgreement(null)}>
               Fermer
             </Button>
           </DialogFooter>
