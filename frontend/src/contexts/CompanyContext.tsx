@@ -10,10 +10,13 @@
 
 import { log } from '@/lib/logger';
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
 import apiClient from '../api/apiClient';
 import { queryKeys } from '@/lib/queryKeys';
+import { isBadgeuseTerminalPath } from '@/lib/sessionKeepAlive';
+import { hasTerminalToken } from '@/lib/badgeuseTerminalAuth';
 
 // ===== Types =====
 
@@ -53,14 +56,17 @@ async function fetchMyCompanies(): Promise<CompanyAccess[]> {
 
 export const CompanyProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
+  const location = useLocation();
   const queryClient = useQueryClient();
+  const skipCompaniesForTerminalKiosk =
+    isBadgeuseTerminalPath(location.pathname) && hasTerminalToken();
   const [activeCompany, setActiveCompanyState] = useState<CompanyAccess | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const companiesQuery = useQuery({
     queryKey: queryKeys.myCompanies(),
     queryFn: fetchMyCompanies,
-    enabled: Boolean(user),
+    enabled: Boolean(user) && !skipCompaniesForTerminalKiosk,
     staleTime: 10 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
   });

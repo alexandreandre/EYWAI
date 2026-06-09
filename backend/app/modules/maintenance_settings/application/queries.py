@@ -25,6 +25,8 @@ def _defaults(company_id: str) -> MaintenanceSettings:
         custom_duration_days=None,
         subrogation_mode="automatic",
         provident_relay_days=None,
+        provident_maintenance_rate=None,
+        provident_cadre_only=True,
         created_at=None,
         updated_at=None,
     )

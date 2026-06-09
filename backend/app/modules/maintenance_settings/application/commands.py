@@ -26,6 +26,8 @@ _DB_WRITABLE_KEYS = frozenset(
         "custom_duration_days",
         "subrogation_mode",
         "provident_relay_days",
+        "provident_maintenance_rate",
+        "provident_cadre_only",
     }
 )
 

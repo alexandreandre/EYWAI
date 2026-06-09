@@ -14,9 +14,10 @@ def fetch_overview_raw(company_id: str) -> Dict[str, Any]:
     employees_res = (
         supabase.table("employees")
         .select(
-            "id, contract_type, hire_date, job_title, statut, date_naissance, "
-            "birth_date, contract_end_date, weekly_hours, duree_hebdomadaire, "
-            "employment_status, status, sexe, gender, genre"
+            "id, first_name, last_name, contract_type, hire_date, job_title, statut, "
+            "date_naissance, birth_date, contract_end_date, weekly_hours, "
+            "duree_hebdomadaire, employment_status, status, sexe, gender, genre, "
+            "collective_agreement_id"
         )
         .eq("company_id", company_id)
         .execute()
@@ -54,9 +55,25 @@ def fetch_overview_raw(company_id: str) -> Dict[str, Any]:
     except Exception:
         pass
 
+    company_cc_ids: Set[str] = set()
+    try:
+        cc_res = (
+            supabase.table("company_collective_agreements")
+            .select("collective_agreement_id")
+            .eq("company_id", company_id)
+            .execute()
+        )
+        for row in cc_res.data or []:
+            cc_id = row.get("collective_agreement_id")
+            if cc_id:
+                company_cc_ids.add(str(cc_id))
+    except Exception:
+        pass
+
     return {
         "employees": employees,
         "exits": exits,
         "absences": absences,
         "mutuelle_employee_ids": mutuelle_ids,
+        "company_cc_ids": company_cc_ids,
     }

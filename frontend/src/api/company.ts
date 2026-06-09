@@ -64,6 +64,24 @@ export interface CompanyDetailsPayload {
   kpis: CompanyKPIs;
 }
 
+export interface CompanyOverviewAlertEmployee {
+  id: string;
+  first_name: string;
+  last_name: string;
+}
+
+export type CompanyOverviewAlertAction = "company_payroll_cc" | "employee_list";
+
+export interface CompanyOverviewAlert {
+  code: string;
+  severity: string;
+  label: string;
+  count?: number;
+  action?: CompanyOverviewAlertAction;
+  employee_ids?: string[];
+  employees?: CompanyOverviewAlertEmployee[];
+}
+
 export interface CompanyOverview {
   demographics: {
     total_headcount: number;
@@ -88,7 +106,7 @@ export interface CompanyOverview {
     absence_days_last_30: number;
     top_absence_types: { type: string; count: number }[];
   };
-  alerts: { code: string; severity: string; label: string; count?: number }[];
+  alerts: CompanyOverviewAlert[];
   compliance: {
     at_mp_configured: boolean;
     vm_configured: boolean;

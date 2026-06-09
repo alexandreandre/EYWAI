@@ -229,6 +229,8 @@ export default function MutuelleManagementTab() {
               Formules de Mutuelle
             </CardTitle>
             <CardDescription>
+              Formules et affectation par salarié — utilisées à l&apos;embauche et en paie.
+              {" "}
               {mutuelleStats.formulas} formule{mutuelleStats.formulas > 1 ? "s" : ""} ·{" "}
               {mutuelleStats.covered} employé{mutuelleStats.covered > 1 ? "s" : ""} couvert
               {mutuelleStats.covered > 0 ? "" : "s"}

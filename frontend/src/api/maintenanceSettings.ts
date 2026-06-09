@@ -18,6 +18,8 @@ export interface MaintenanceSettings {
   custom_duration_days: number | null;
   subrogation_mode: SubrogationMode;
   provident_relay_days: number | null;
+  provident_maintenance_rate: number | null;
+  provident_cadre_only: boolean;
   created_at: string | null;
   updated_at: string | null;
 }

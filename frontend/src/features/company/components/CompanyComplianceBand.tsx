@@ -1,46 +1,69 @@
 import { AlertTriangle, CheckCircle2, FileText, Percent, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import type { CompanyOverview } from "@/api/company";
+import type { CompanyDetails, CompanyOverview } from "@/api/company";
+import { formatCollectiveAgreementLabel } from "@/features/company/lib/companyPageTabs";
 import { cn } from "@/lib/utils";
+
+type ComplianceAnchor =
+  | "convention-collective"
+  | "taux-at-mp"
+  | "taux-vm"
+  | "cse";
 
 type Item = {
   key: string;
   label: string;
   ok: boolean;
   icon: typeof CheckCircle2;
+  anchor?: ComplianceAnchor;
 };
 
 export function CompanyComplianceBand({
   compliance,
-  onGoToPayrollTab,
+  company,
+  onGoToPayrollSection,
 }: {
   compliance: CompanyOverview["compliance"];
-  onGoToPayrollTab: () => void;
+  company: CompanyDetails;
+  onGoToPayrollSection: (anchor?: ComplianceAnchor) => void;
 }): JSX.Element {
+  const cc = formatCollectiveAgreementLabel(company.collective_agreement, company.idcc);
+  const ccLabel = compliance.collective_agreement_configured
+    ? cc.idcc
+      ? `Convention · IDCC ${cc.idcc}`
+      : cc.label.length > 32
+        ? `${cc.label.slice(0, 32)}…`
+        : cc.label
+    : "Convention collective";
+
   const items: Item[] = [
     {
       key: "at_mp",
       label: "Taux AT/MP",
       ok: compliance.at_mp_configured,
       icon: Percent,
+      anchor: "taux-at-mp",
     },
     {
       key: "vm",
       label: "Versement mobilité",
       ok: compliance.vm_configured,
       icon: Percent,
+      anchor: "taux-vm",
     },
     {
       key: "cc",
-      label: "Convention collective",
+      label: ccLabel,
       ok: compliance.collective_agreement_configured,
       icon: FileText,
+      anchor: "convention-collective",
     },
     {
       key: "cse",
       label: compliance.cse_obligation ? "Obligations CSE (≥11)" : "CSE non requis",
       ok: !compliance.cse_obligation,
       icon: Users,
+      anchor: "cse",
     },
   ];
 
@@ -63,29 +86,37 @@ export function CompanyComplianceBand({
       </div>
       <div className="flex flex-wrap gap-2">
         {items.map((item) => (
-          <Badge
+          <button
             key={item.key}
-            variant={item.ok ? "secondary" : "outline"}
-            className={cn(
-              "cursor-default gap-1",
-              !item.ok && "border-amber-400 text-amber-900 bg-amber-100/60",
-            )}
+            type="button"
+            onClick={() => onGoToPayrollSection(item.anchor)}
+            className="inline-flex"
           >
-            <item.icon className="h-3 w-3" aria-hidden />
-            {item.label}
-            {item.ok ? " ✓" : " —"}
-          </Badge>
+            <Badge
+              variant={item.ok ? "secondary" : "outline"}
+              className={cn(
+                "cursor-pointer gap-1 hover:opacity-90",
+                !item.ok && "border-amber-400 text-amber-900 bg-amber-100/60",
+              )}
+            >
+              <item.icon className="h-3 w-3" aria-hidden />
+              {item.label}
+              {item.ok ? " ✓" : " —"}
+            </Badge>
+          </button>
         ))}
         {hasWarning ? (
           <button
             type="button"
-            onClick={onGoToPayrollTab}
-            className="text-xs text-primary underline-offset-2 hover:underline ml-1"
+            onClick={() => onGoToPayrollSection("convention-collective")}
+            className="text-xs text-primary underline-offset-2 hover:underline ml-1 self-center"
           >
-            Compléter dans Paie
+            Compléter dans Paramètres paie
           </button>
         ) : null}
       </div>
     </div>
   );
 }
+
+export type { ComplianceAnchor };

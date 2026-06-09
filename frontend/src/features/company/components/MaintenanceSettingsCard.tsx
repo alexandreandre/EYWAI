@@ -45,6 +45,8 @@ function toUpdatePayload(form: MaintenanceSettings): MaintenanceSettingsUpdate {
     custom_duration_days: form.custom_duration_days,
     subrogation_mode: form.subrogation_mode,
     provident_relay_days: form.provident_relay_days,
+    provident_maintenance_rate: form.provident_maintenance_rate,
+    provident_cadre_only: form.provident_cadre_only,
   };
 }
 
@@ -317,7 +319,56 @@ export default function MaintenanceSettingsCard() {
                 value={form.provident_relay_days ?? ''}
                 onChange={(e) => setNum('provident_relay_days', e.target.value, true)}
                 disabled={readOnly}
-                placeholder="—"
+                placeholder="— (défaut : fin du maintien légal)"
+              />
+            </div>
+            <div className="grid gap-2 max-w-xs">
+              <Label htmlFor="provident_maintenance_rate">
+                Taux garanti par la prévoyance (% du brut)
+              </Label>
+              <Input
+                id="provident_maintenance_rate"
+                type="number"
+                min={0}
+                max={100}
+                step={1}
+                value={
+                  form.provident_maintenance_rate == null
+                    ? ''
+                    : Math.round(form.provident_maintenance_rate * 100)
+                }
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  setForm((p) => {
+                    if (!p) return p;
+                    if (raw === '') return { ...p, provident_maintenance_rate: null };
+                    const pct = Number(raw);
+                    if (!Number.isFinite(pct)) return p;
+                    const clamped = Math.min(100, Math.max(0, pct));
+                    return { ...p, provident_maintenance_rate: clamped / 100 };
+                  });
+                }}
+                disabled={readOnly}
+                placeholder="— (ex. 80)"
+              />
+              <p className="text-xs text-muted-foreground">
+                Niveau de remplacement assuré (IJSS + maintien + prévoyance), selon le contrat.
+              </p>
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-lg border p-4 max-w-md">
+              <div>
+                <Label htmlFor="provident_cadre_only">Réservée aux cadres</Label>
+                <p className="text-sm text-muted-foreground">
+                  Prévoyance obligatoire cadres (ANI 2017 / CCN 1947).
+                </p>
+              </div>
+              <Switch
+                id="provident_cadre_only"
+                checked={form.provident_cadre_only}
+                onCheckedChange={(v) =>
+                  setForm((p) => (p ? { ...p, provident_cadre_only: v } : p))
+                }
+                disabled={readOnly}
               />
             </div>
           </TabsContent>

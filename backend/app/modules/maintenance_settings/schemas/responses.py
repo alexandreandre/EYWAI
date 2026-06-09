@@ -29,5 +29,7 @@ class MaintenanceSettings(BaseModel):
     custom_duration_days: Optional[int] = None
     subrogation_mode: SubrogationMode = "automatic"
     provident_relay_days: Optional[int] = None
+    provident_maintenance_rate: Optional[float] = Field(default=None, ge=0, le=1)
+    provident_cadre_only: bool = True
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

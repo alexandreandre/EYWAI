@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import type { CompanyDetails, CompanyDetailsUpdate } from "@/api/company";
+import { formatCollectiveAgreementLabel } from "@/features/company/lib/companyPageTabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -31,6 +33,7 @@ type CompanyIdentityTabProps = {
   onDraftChange: (d: CompanyDetailsUpdate) => void;
   onSave: () => void;
   saving?: boolean;
+  onGoToPayrollTab: () => void;
 };
 
 export function CompanyIdentityTab({
@@ -42,8 +45,10 @@ export function CompanyIdentityTab({
   onDraftChange,
   onSave,
   saving,
+  onGoToPayrollTab,
 }: CompanyIdentityTabProps): JSX.Element {
   const raison = company.raison_sociale || company.company_name;
+  const cc = formatCollectiveAgreementLabel(company.collective_agreement, company.idcc);
 
   return (
     <>
@@ -71,6 +76,39 @@ export function CompanyIdentityTab({
                 value={company.naf_ape || company.code_naf}
               />
               <DlRow label="N° URSSAF" value={company.urssaf_number} />
+              <DlRow
+                label="Convention collective"
+                value={
+                  cc.configured ? (
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      <span>{cc.label}</span>
+                      {cc.idcc ? (
+                        <Badge variant="outline" className="font-mono text-xs">
+                          IDCC {cc.idcc}
+                        </Badge>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={onGoToPayrollTab}
+                        className="text-xs text-primary underline-offset-2 hover:underline"
+                      >
+                        Détail et grilles →
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      <span className="text-muted-foreground">Non renseignée</span>
+                      <button
+                        type="button"
+                        onClick={onGoToPayrollTab}
+                        className="text-xs text-primary underline-offset-2 hover:underline"
+                      >
+                        Configurer →
+                      </button>
+                    </span>
+                  )
+                }
+              />
             </dl>
             <dl>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">

@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { ArrowRight } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -15,7 +17,9 @@ import {
   YAxis,
 } from "recharts";
 import type { CompanyKPIs } from "@/api/company";
+import { AnalyticsPeriodControls } from "@/components/analytics/AnalyticsPeriodControls";
 import { KpiCard } from "@/components/analytics/KpiCard";
+import { Button } from "@/components/ui/button";
 import { EmptyChartState } from "@/components/analytics/EmptyChartState";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -45,11 +49,15 @@ function formatMonthLabel(monthStr: string): string {
 type CompanyPilotageSectionProps = {
   kpis: CompanyKPIs;
   period: PeriodSelection;
+  onPeriodChange: (p: PeriodSelection) => void;
+  periodLabel: string;
 };
 
 export function CompanyPilotageSection({
   kpis,
   period,
+  onPeriodChange,
+  periodLabel,
 }: CompanyPilotageSectionProps): JSX.Element {
   const [evolutionMonths, setEvolutionMonths] = useState<6 | 12 | 24>(12);
   const [jobMetric, setJobMetric] = useState<"count" | "share">("count");
@@ -98,6 +106,21 @@ export function CompanyPilotageSection({
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <AnalyticsPeriodControls
+          value={period}
+          onChange={onPeriodChange}
+          periodLabel={periodLabel}
+          hint="Les indicateurs paie suivent la période sélectionnée."
+        />
+        <Button variant="ghost" size="sm" className="shrink-0 self-start" asChild>
+          <Link to="/analytics">
+            Voir Analytics Team
+            <ArrowRight className="ml-1.5 h-4 w-4" />
+          </Link>
+        </Button>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           label="Effectif actif"
@@ -130,7 +153,7 @@ export function CompanyPilotageSection({
       <Tabs defaultValue="paie" className="space-y-4">
         <TabsList>
           <TabsTrigger value="effectifs">Effectifs</TabsTrigger>
-          <TabsTrigger value="paie">Paie</TabsTrigger>
+          <TabsTrigger value="paie">Évolution paie</TabsTrigger>
         </TabsList>
 
         <TabsContent value="effectifs" className="space-y-4">

@@ -25,6 +25,17 @@ class MaintenanceSettingsUpdate(BaseModel):
     custom_duration_days: Optional[int] = None
     subrogation_mode: Optional[SubrogationModeLiteral] = None
     provident_relay_days: Optional[int] = None
+    provident_maintenance_rate: Optional[float] = None
+    provident_cadre_only: Optional[bool] = None
+
+    @field_validator("provident_maintenance_rate")
+    @classmethod
+    def _provident_rate_bounds(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return v
+        if v < 0 or v > 1:
+            raise ValueError("provident_maintenance_rate doit être entre 0 et 1")
+        return v
 
     @field_validator("employer_waiting_days")
     @classmethod

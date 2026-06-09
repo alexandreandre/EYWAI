@@ -192,10 +192,16 @@ def compute_absenteeism(
     }
 
 
+def has_company_cc_assigned(company_cc_ids: Set[str]) -> bool:
+    """True si au moins une convention collective est assignée à l'entreprise."""
+    return bool(company_cc_ids)
+
+
 def compute_alerts(
     company_data: Dict[str, Any],
     employees: List[Dict[str, Any]],
     mutuelle_employee_ids: Set[str],
+    company_cc_ids: Set[str] | None = None,
     *,
     cdd_horizon_days: int = 30,
 ) -> List[Dict[str, Any]]:
@@ -221,14 +227,45 @@ def compute_alerts(
                 "label": "Taux versement mobilité non renseigné",
             }
         )
-    if not (company_data.get("collective_agreement") or company_data.get("idcc")):
+    cc_ids = company_cc_ids or set()
+    if not has_company_cc_assigned(cc_ids):
         alerts.append(
             {
-                "code": "missing_collective_agreement",
+                "code": "missing_company_collective_agreement",
                 "severity": "warning",
-                "label": "Convention collective non renseignée",
+                "label": "Convention collective non assignée à l'entreprise",
+                "action": "company_payroll_cc",
             }
         )
+    else:
+        without_cc: List[Dict[str, Any]] = []
+        for emp in active:
+            if not emp.get("collective_agreement_id"):
+                without_cc.append(emp)
+        if without_cc:
+            count = len(without_cc)
+            preview = without_cc[:5]
+            alerts.append(
+                {
+                    "code": "employees_without_collective_agreement",
+                    "severity": "warning",
+                    "label": (
+                        f"{count} salarié(s) sans convention collective sur la fiche"
+                    ),
+                    "count": count,
+                    "action": "employee_list",
+                    "employee_ids": [str(e["id"]) for e in without_cc if e.get("id")],
+                    "employees": [
+                        {
+                            "id": str(e["id"]),
+                            "first_name": str(e.get("first_name") or ""),
+                            "last_name": str(e.get("last_name") or ""),
+                        }
+                        for e in preview
+                        if e.get("id")
+                    ],
+                }
+            )
 
     headcount = len(active)
     if headcount >= 11:
@@ -275,32 +312,22 @@ def compute_alerts(
     return alerts
 
 
-def compute_compliance_flags(company_data: Dict[str, Any], headcount: int) -> Dict[str, bool]:
+def compute_compliance_flags(
+    company_data: Dict[str, Any],
+    headcount: int,
+    company_cc_ids: Set[str] | None = None,
+) -> Dict[str, bool]:
     """Drapeaux pour le bandeau conformité."""
     return {
         "at_mp_configured": company_data.get("taux_at_mp") is not None,
         "vm_configured": company_data.get("taux_vm") is not None,
-        "collective_agreement_configured": bool(
-            company_data.get("collective_agreement") or company_data.get("idcc")
-        ),
+        "collective_agreement_configured": has_company_cc_assigned(company_cc_ids or set()),
         "cse_obligation": headcount >= 11,
     }
 
 
-def check_vm_rate_coherence(
-    company_data: Dict[str, Any],
-    taux_vmrr_baremes: Any,
-    *,
-    commune: Optional[str] = None,
-) -> Optional[Dict[str, Any]]:
-    """Contrôle cohérence taux VM entreprise vs barème scrapé (alerte uniquement)."""
-    from app.modules.payroll.engine.baremes_loader import comparer_taux_vm_entreprise
-
-    taux_vm = company_data.get("taux_vm")
-    if taux_vm is None:
-        taux_vm = (
-            (company_data.get("taux_specifiques") or {}).get("taux_versement_mobilite")
-        )
-    return comparer_taux_vm_entreprise(
-        taux_vm, taux_vmrr_baremes, commune=commune
-    )
+# NB : la cohérence du taux de versement mobilité (taux entreprise vs barème
+# national scrapé) est contrôlée au moment de la génération du bulletin via
+# app.modules.payroll.engine.baremes_loader.comparer_taux_vm_entreprise
+# (cf. payslip_run_heures / payslip_run_forfait), là où la commune et les
+# barèmes sont déjà chargés. Pas de duplication dans l'overview entreprise.

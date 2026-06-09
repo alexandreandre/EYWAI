@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle } from "lucide-react";
+import {
+  AlertTriangle,
+  BarChart2,
+  BookOpen,
+  Building2,
+  Calculator,
+  HeartHandshake,
+} from "lucide-react";
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 
 import {
@@ -15,12 +22,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useActiveCompanyId } from "@/hooks/queries/useCompanyId";
 import { useCompanyPlan } from "@/hooks/useCompanyPlan";
 import { useToast } from "@/hooks/use-toast";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   CompanyPageHeader,
   CompanyComplianceBand,
+  CompanyOverviewAlerts,
   CompanyRhStatsBand,
   CompanyPilotageSection,
   CompanyIdentityTab,
@@ -31,31 +38,69 @@ import {
   useCompanyPeriod,
   computePeriodPayroll,
 } from "@/features/company";
+import type { ComplianceAnchor } from "@/features/company/components/CompanyComplianceBand";
+import {
+  DEFAULT_COMPANY_PAGE_TAB,
+  tabFromHash,
+  tabFromSearchParam,
+  type CompanyPageTab,
+} from "@/features/company/lib/companyPageTabs";
 
 export default function CompanyPage() {
   const { user } = useAuth();
   const companyId = useActiveCompanyId();
   const { toast } = useToast();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { period, setPeriod, periodBounds } = useCompanyPeriod();
   const { isPremium } = useCompanyPlan();
 
-  const [activeTab, setActiveTab] = useState("pilotage");
+  const [activeTab, setActiveTab] = useState<CompanyPageTab>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return (
+      tabFromSearchParam(params.get("tab")) ??
+      tabFromHash(window.location.hash) ??
+      DEFAULT_COMPANY_PAGE_TAB
+    );
+  });
   const [editOpen, setEditOpen] = useState(false);
   const [draft, setDraft] = useState<CompanyDetailsUpdate>({});
   const [exporting, setExporting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [payrollScrollAnchor, setPayrollScrollAnchor] = useState<ComplianceAnchor | null>(null);
 
   useEffect(() => {
-    const h = (location.hash || "").replace(/^#/, "");
-    if (h === "bibliotheque") setActiveTab("bibliotheque");
-    if (h === "paie" || h === "parametres") setActiveTab("paie");
-    if (h === "mutuelle") setActiveTab("mutuelle");
-    if (h === "identite" || h === "informations" || h === "coordonnees") {
-      setActiveTab("identite");
+    const fromQuery = tabFromSearchParam(searchParams.get("tab"));
+    const fromHash = tabFromHash(location.hash);
+    const next = fromQuery ?? fromHash;
+    if (next && next !== activeTab) {
+      setActiveTab(next);
     }
-  }, [location.hash]);
+  }, [location.hash, searchParams, activeTab]);
+
+  const handleTabChange = useCallback(
+    (value: string) => {
+      const tab = value as CompanyPageTab;
+      setActiveTab(tab);
+      setPayrollScrollAnchor(null);
+      const params = new URLSearchParams(searchParams);
+      params.set("tab", tab);
+      setSearchParams(params, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
+
+  const goToPayrollTab = useCallback(
+    (anchor?: ComplianceAnchor) => {
+      setActiveTab("paie");
+      if (anchor) setPayrollScrollAnchor(anchor);
+      const params = new URLSearchParams(searchParams);
+      params.set("tab", "paie");
+      setSearchParams(params, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
 
   const detailsQuery = useQuery({
     queryKey: ["company-details", companyId],
@@ -83,7 +128,7 @@ export default function CompanyPage() {
     [kpis, period],
   );
 
-  const openEdit = useCallback(() => {
+  const populateDraft = useCallback(() => {
     if (!company) return;
     setDraft({
       company_name: company.company_name,
@@ -100,8 +145,15 @@ export default function CompanyPage() {
       nom_signataire_rh: company.nom_signataire_rh ?? undefined,
       qualite_signataire_rh: company.qualite_signataire_rh ?? undefined,
     });
-    setEditOpen(true);
   }, [company]);
+
+  const handleEditOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) populateDraft();
+      setEditOpen(open);
+    },
+    [populateDraft],
+  );
 
   const handleSaveIdentity = async () => {
     try {
@@ -172,40 +224,65 @@ export default function CompanyPage() {
       ? payrollPeriod.totalCost / kpis.total_employees
       : 0;
 
+  const showComplianceBand =
+    overview && (activeTab === "indicateurs" || activeTab === "paie");
+
   return (
     <div className="space-y-6 animate-fade-in pb-8">
       <CompanyPageHeader
         company={company}
-        period={period}
-        onPeriodChange={setPeriod}
-        periodLabel={periodBounds.label}
         isPremium={isPremium}
-        canEdit={canEdit}
-        onEdit={openEdit}
         onExport={handleExport}
         exporting={exporting}
+        onGoToPayrollTab={() => goToPayrollTab("convention-collective")}
       />
 
-      {overview ? (
-        <CompanyComplianceBand
-          compliance={overview.compliance}
-          onGoToPayrollTab={() => setActiveTab("paie")}
-        />
-      ) : null}
-
-      <CompanyGroupPositionBand />
-
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="flex w-full max-w-3xl flex-wrap h-auto gap-1 p-1">
-          <TabsTrigger value="pilotage">Pilotage</TabsTrigger>
-          <TabsTrigger value="identite">Identité</TabsTrigger>
-          <TabsTrigger value="paie">Paie</TabsTrigger>
-          <TabsTrigger value="mutuelle">Mutuelle</TabsTrigger>
-          <TabsTrigger value="bibliotheque">Bibliothèque</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-3 lg:grid-cols-5">
+          <TabsTrigger value="indicateurs" className="flex items-center gap-2 text-xs sm:text-sm">
+            <BarChart2 className="h-4 w-4 shrink-0" />
+            <span className="hidden sm:inline">Indicateurs</span>
+            <span className="sm:hidden">Indic.</span>
+          </TabsTrigger>
+          <TabsTrigger value="fiche" className="flex items-center gap-2 text-xs sm:text-sm">
+            <Building2 className="h-4 w-4 shrink-0" />
+            <span className="hidden sm:inline">Fiche entreprise</span>
+            <span className="sm:hidden">Fiche</span>
+          </TabsTrigger>
+          <TabsTrigger value="paie" className="flex items-center gap-2 text-xs sm:text-sm">
+            <Calculator className="h-4 w-4 shrink-0" />
+            <span className="hidden sm:inline">Paramètres paie</span>
+            <span className="sm:hidden">Paie</span>
+          </TabsTrigger>
+          <TabsTrigger value="mutuelle" className="flex items-center gap-2 text-xs sm:text-sm">
+            <HeartHandshake className="h-4 w-4 shrink-0" />
+            Mutuelle
+          </TabsTrigger>
+          <TabsTrigger
+            value="modeles"
+            className="col-span-2 flex items-center gap-2 text-xs sm:col-span-1 sm:text-sm"
+          >
+            <BookOpen className="h-4 w-4 shrink-0" />
+            <span className="hidden sm:inline">Modèles documents</span>
+            <span className="sm:hidden">Modèles</span>
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="pilotage" className="space-y-4 mt-0">
-          <CompanyPilotageSection kpis={kpis} period={period} />
+        {showComplianceBand ? (
+          <CompanyComplianceBand
+            compliance={overview.compliance}
+            company={company}
+            onGoToPayrollSection={(anchor) => goToPayrollTab(anchor)}
+          />
+        ) : null}
+
+        <TabsContent value="indicateurs" className="space-y-4 mt-0">
+          <CompanyPilotageSection
+            kpis={kpis}
+            period={period}
+            onPeriodChange={setPeriod}
+            periodLabel={periodBounds.label}
+          />
           {overview && payrollPeriod ? (
             <CompanyRhStatsBand
               overview={overview}
@@ -219,42 +296,42 @@ export default function CompanyPage() {
           ) : overviewQuery.isLoading ? (
             <div className="h-16 rounded-lg border bg-muted/30 animate-pulse" />
           ) : null}
+          <CompanyGroupPositionBand />
           {overview?.alerts?.length ? (
-            <Alert>
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                <ul className="list-disc pl-4 space-y-1">
-                  {overview.alerts.map((a) => (
-                    <li key={a.code}>{a.label}</li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
+            <CompanyOverviewAlerts
+              alerts={overview.alerts}
+              onGoToPayrollSection={(anchor) => goToPayrollTab(anchor)}
+            />
           ) : null}
         </TabsContent>
 
-        <TabsContent value="identite" className="mt-0">
+        <TabsContent value="fiche" className="mt-0">
           <CompanyIdentityTab
             company={company}
             canEdit={canEdit}
             editOpen={editOpen}
-            onEditOpenChange={setEditOpen}
+            onEditOpenChange={handleEditOpenChange}
             draft={draft}
             onDraftChange={setDraft}
             onSave={handleSaveIdentity}
             saving={saving}
+            onGoToPayrollTab={() => goToPayrollTab("convention-collective")}
           />
         </TabsContent>
 
         <TabsContent value="paie" className="mt-0">
-          <CompanyPayrollTab company={company} />
+          <CompanyPayrollTab
+            company={company}
+            scrollAnchor={payrollScrollAnchor}
+            cseObligation={overview?.compliance.cse_obligation}
+          />
         </TabsContent>
 
         <TabsContent value="mutuelle" className="mt-0">
           <MutuelleManagementTab />
         </TabsContent>
 
-        <TabsContent value="bibliotheque" className="mt-0">
+        <TabsContent value="modeles" className="mt-0">
           <DocumentLibraryTab />
         </TabsContent>
       </Tabs>

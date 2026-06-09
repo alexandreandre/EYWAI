@@ -1,5 +1,6 @@
 export { CompanyPageHeader } from './components/CompanyPageHeader';
 export { CompanyComplianceBand } from './components/CompanyComplianceBand';
+export { CompanyOverviewAlerts, CC_EMPLOYEES_CODE } from './components/CompanyOverviewAlerts';
 export { CompanyRhStatsBand } from './components/CompanyRhStatsBand';
 export { CompanyPilotageSection } from './components/CompanyPilotageSection';
 export { CompanyIdentityTab } from './components/CompanyIdentityTab';
@@ -12,3 +13,11 @@ export {
   computePeriodPayroll,
   type PeriodPayrollSnapshot,
 } from './lib/companyPeriodKpis';
+export {
+  COMPANY_PAGE_TABS,
+  DEFAULT_COMPANY_PAGE_TAB,
+  type CompanyPageTab,
+  tabFromHash,
+  tabFromSearchParam,
+  formatCollectiveAgreementLabel,
+} from './lib/companyPageTabs';
