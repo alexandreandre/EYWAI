@@ -28,6 +28,7 @@ def regenerate_pdf_from_data(
     pdf_notes: Optional[str] = None,
     manually_edited: bool = False,
     edited_at: Optional[datetime] = None,
+    pdf_name_suffix: str = "",
 ) -> Path:
     """
     Régénère un PDF de bulletin à partir de données JSON modifiées.
@@ -87,7 +88,7 @@ def regenerate_pdf_from_data(
         employee_path = payroll_engine_employee_bulletins(employee_folder_name)
         employee_path.mkdir(parents=True, exist_ok=True)
 
-        pdf_name = f"Bulletin_{employee_folder_name}_{month:02d}-{year}.pdf"
+        pdf_name = f"Bulletin_{employee_folder_name}_{month:02d}-{year}{pdf_name_suffix}.pdf"
         pdf_path = employee_path / pdf_name
 
         HTML(string=html_content).write_pdf(pdf_path)

@@ -155,6 +155,81 @@ class TestGeneratePayslipCommand:
         mock_provider.generate_forfait.assert_not_called()
         assert result.status == "ok"
 
+    def test_notifies_employee_when_generation_succeeds(self):
+        cmd = GeneratePayslipInput(employee_id="emp-1", year=2024, month=3)
+        mock_result = {
+            "status": "success",
+            "message": "Bulletin généré avec succès.",
+            "download_url": "https://example.com/doc.pdf",
+            "payslip_id": "ps-1",
+        }
+
+        with (
+            patch(
+                "app.modules.payslips.application.commands.employee_statut_reader"
+            ) as mock_reader,
+            patch(
+                "app.modules.payslips.application.commands.payslip_generator_provider"
+            ) as mock_provider,
+            patch(
+                "app.modules.payslips.application.commands._employee_repository"
+            ) as mock_repo,
+            patch(
+                "app.modules.payslips.application.commands.notify_employee_new_document"
+            ) as mock_notify,
+        ):
+            mock_repo.get_by_id_only.return_value = {
+                **_COMPLETE_EMPLOYEE,
+                "id": "emp-1",
+                "company_id": "co-1",
+            }
+            mock_reader.get_employee_statut.return_value = "Cadre au forfait heures"
+            mock_provider.generate_heures.return_value = mock_result
+
+            generate_payslip(cmd)
+
+        mock_notify.assert_called_once_with(
+            "emp-1",
+            "co-1",
+            "Bulletin de paie — mars 2024",
+            page_path="payslips",
+            notification_type="nouveau_bulletin",
+        )
+
+    def test_skips_notification_when_generation_fails(self):
+        cmd = GeneratePayslipInput(employee_id="emp-1", year=2024, month=3)
+        mock_result = {
+            "status": "error",
+            "message": "Échec",
+            "download_url": "",
+        }
+
+        with (
+            patch(
+                "app.modules.payslips.application.commands.employee_statut_reader"
+            ) as mock_reader,
+            patch(
+                "app.modules.payslips.application.commands.payslip_generator_provider"
+            ) as mock_provider,
+            patch(
+                "app.modules.payslips.application.commands._employee_repository"
+            ) as mock_repo,
+            patch(
+                "app.modules.payslips.application.commands.notify_employee_new_document"
+            ) as mock_notify,
+        ):
+            mock_repo.get_by_id_only.return_value = {
+                **_COMPLETE_EMPLOYEE,
+                "id": "emp-1",
+                "company_id": "co-1",
+            }
+            mock_reader.get_employee_statut.return_value = "Cadre au forfait heures"
+            mock_provider.generate_heures.return_value = mock_result
+
+            generate_payslip(cmd)
+
+        mock_notify.assert_not_called()
+
 
 class TestDeletePayslipCommand:
     """Tests de la commande delete_payslip."""

@@ -154,8 +154,7 @@ class TestControleNetSuperieurBrut:
         messages = extraire_messages_alertes_rh(
             {"salaire_brut": 1000.0, "net_a_payer": 1100.0}
         )
-        assert len(messages) == 1
-        assert "supérieur" in messages[0].lower()
+        assert messages == ["Net > Brut"]
 
     def test_minimum_prorata_temps_partiel(self):
         from types import SimpleNamespace

@@ -9,6 +9,10 @@ from . import legal_constants as lc
 from datetime import datetime, date
 from typing import Dict, Any, List, Optional
 from .calcul_conges import calculer_indemnite_conges
+from .salary_evolution_brut import (
+    lignes_rappel_salaire,
+    salaire_contractuel_avec_evolution,
+)
 
 
 def _heures_journalieres_contrat(duree_hebdo: float) -> float:
@@ -444,7 +448,9 @@ def calculer_salaire_brut(
     lignes_composants_brut = []
     duree_legale_hebdo = lc.DUREE_LEGALE_HEBDO
     duree_contrat_hebdo = contexte.duree_hebdo_contrat
-    salaire_contractuel = contexte.salaire_base_mensuel
+    salaire_contractuel = salaire_contractuel_avec_evolution(
+        contexte, contexte.salaire_base_mensuel
+    )
     facteur_prorata = _facteur_prorata_entree_sortie(
         contexte, date_debut_periode, date_fin_periode
     )
@@ -761,6 +767,8 @@ def calculer_salaire_brut(
     ligne_aen = _construire_ligne_avantages_en_nature(contexte)
     if ligne_aen:
         lignes_composants_brut.append(ligne_aen)
+    for ligne_rappel in lignes_rappel_salaire(contexte):
+        lignes_composants_brut.append(ligne_rappel)
 
     # Prime de précarité CDD (dernier mois) — calculée avant le total brut.
     total_gains_inter = sum(

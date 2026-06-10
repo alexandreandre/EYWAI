@@ -20,6 +20,10 @@ from app.modules.collective_agreements.rules.resolver import (
 from datetime import datetime, date
 from typing import Dict, Any, List
 from .calcul_conges import calculer_indemnite_conges
+from .salary_evolution_brut import (
+    lignes_rappel_salaire,
+    salaire_contractuel_avec_evolution,
+)
 
 
 def _construire_ligne_avantages_en_nature(
@@ -171,7 +175,9 @@ def calculer_salaire_brut_forfait(
         Dictionnaire avec le salaire brut total et les détails
     """
     lignes_composants_brut = []
-    salaire_contractuel = contexte.salaire_base_mensuel
+    salaire_contractuel = salaire_contractuel_avec_evolution(
+        contexte, contexte.salaire_base_mensuel
+    )
 
     # Calcul du salaire journalier pour les déductions d'absence
     # En forfait jour, on utilise généralement le nombre de jours ouvrés moyens par mois
@@ -322,6 +328,8 @@ def calculer_salaire_brut_forfait(
     ligne_aen = _construire_ligne_avantages_en_nature(contexte)
     if ligne_aen:
         lignes_composants_brut.append(ligne_aen)
+    for ligne_rappel in lignes_rappel_salaire(contexte):
+        lignes_composants_brut.append(ligne_rappel)
 
     # Calcul du brut total
     total_gains = sum(

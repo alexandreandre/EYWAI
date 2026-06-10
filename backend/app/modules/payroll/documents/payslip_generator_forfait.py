@@ -289,6 +289,33 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
             "saisie_du_mois": saisies_data,
         }
 
+        try:
+            from app.modules.payroll.application.salary_evolution_payroll import (
+                prepare_salary_evolution_for_payslip,
+            )
+
+            salary_evo = prepare_salary_evolution_for_payslip(
+                employee_id, str(company_id), year, month
+            )
+            if salary_evo:
+                remuneration = contrat_json_content.setdefault("remuneration", {})
+                if salary_evo.get("salaire_de_base"):
+                    remuneration["salaire_de_base"] = salary_evo["salaire_de_base"]
+                if salary_evo.get("evolution_salaire_mois"):
+                    remuneration["evolution_salaire_mois"] = salary_evo[
+                        "evolution_salaire_mois"
+                    ]
+        except Exception as evo_err:
+            logger.warning(f"Erreur résolution évolution salaire (forfait): {evo_err}")
+
+        from app.modules.employee_loans.application.payroll_integration import (
+            inject_loan_benefit_in_kind,
+        )
+
+        contrat_json_content = inject_loan_benefit_in_kind(
+            contrat_json_content, employee_id, year, month
+        )
+
         write_temp_json(employee_path / "contrat.json", contrat_json_content)
 
         # Isolation par génération : écrit dans le dossier de l'employé plutôt que
@@ -429,8 +456,31 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
         ).execute()
 
         payslip_id = None
+        final_payslip_data = payslip_json_data
         if upsert_result.data:
             payslip_id = upsert_result.data[0].get("id")
+
+            from app.modules.employee_loans.application.payroll_integration import (
+                PdfRegenConfig,
+                enrich_payslip_after_upsert,
+            )
+
+            final_payslip_data = enrich_payslip_after_upsert(
+                payslip_json_data,
+                employee_id,
+                year,
+                month,
+                payslip_id,
+                pdf_regen=PdfRegenConfig(
+                    employee_id=employee_id,
+                    employee_folder_name=employee_folder_name,
+                    company_id=str(company_id),
+                    month=month,
+                    year=year,
+                    storage_path=storage_path,
+                    pdf_name_suffix="_FORFAIT",
+                ),
+            )
 
         supabase.table("employee_schedules").update({"cumuls": new_cumuls_json}).match(
             {"employee_id": employee_id, "year": year, "month": month}
@@ -440,7 +490,7 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
             extraire_messages_alertes_rh,
         )
 
-        rh_warnings = extraire_messages_alertes_rh(payslip_json_data)
+        rh_warnings = extraire_messages_alertes_rh(final_payslip_data)
 
         return {
             "status": "success",

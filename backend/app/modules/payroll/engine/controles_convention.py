@@ -13,6 +13,8 @@ from app.modules.collective_agreements.rules.resolver import (
     resolve_salaires_minima,
 )
 
+NET_SUPERIEUR_BRUT_MESSAGE = "Net > Brut"
+
 
 def _is_smh_national_idcc(idcc: str) -> bool:
     normalized = idcc.strip()
@@ -207,12 +209,16 @@ def controle_net_superieur_brut(
         _alert(
             code="net_superieur_brut",
             critique=False,
-            message=(
-                f"Net à payer ({net:.2f} €) supérieur au salaire brut ({brut:.2f} €). "
-                "Cas possible (remboursements, acomptes…) — vérifiez le bulletin."
-            ),
+            message=NET_SUPERIEUR_BRUT_MESSAGE,
         )
     ]
+
+
+def _rh_alert_message(raw: Dict[str, Any]) -> str:
+    code = str(raw.get("code") or "").strip()
+    if code == "net_superieur_brut":
+        return NET_SUPERIEUR_BRUT_MESSAGE
+    return str(raw.get("message") or "").strip()
 
 
 def _codes_alertes_baremes(payslip_data: Dict[str, Any]) -> set[str]:
@@ -227,7 +233,17 @@ def extraire_messages_alertes_rh(payslip_data: Dict[str, Any]) -> List[str]:
     """Messages d'alerte RH pour listes / génération (persistés + détection legacy)."""
     messages: List[str] = []
     seen: set[str] = set()
+    for raw in payslip_data.get("alertes_baremes") or []:
+        if not isinstance(raw, dict):
+            continue
+        msg = _rh_alert_message(raw)
+        if msg and msg not in seen:
+            messages.append(msg)
+            seen.add(msg)
+
     for raw in extraire_alertes_rh_depuis_bulletin(payslip_data):
+        if str(raw.get("code") or "") == "net_superieur_brut":
+            continue
         msg = str(raw.get("message") or "").strip()
         if msg and msg not in seen:
             messages.append(msg)
@@ -259,7 +275,7 @@ def extraire_alertes_rh_depuis_bulletin(
     for raw in payslip_data.get("alertes_baremes") or []:
         if not isinstance(raw, dict):
             continue
-        msg = str(raw.get("message") or "").strip()
+        msg = _rh_alert_message(raw)
         if not msg:
             continue
         out.append(

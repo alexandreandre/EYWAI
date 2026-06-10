@@ -33,6 +33,7 @@ class SalaryHistoryEntry(BaseModel):
     motif: str | None
     effective_date: date
     created_at: datetime
+    planifiee: bool = False
 
 
 class SalaryUpdateResponse(BaseModel):
@@ -76,6 +77,7 @@ class SimulationResultat(BaseModel):
     ancien_part_hs: float
     nouveau_base_35h: float
     nouveau_part_hs: float
+    planifiee: bool = False
 
 
 class FiltresCollectifs(BaseModel):

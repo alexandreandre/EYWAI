@@ -81,8 +81,14 @@ class TestEmployeeUpdaterApplyPromotionChanges:
 
         assert mock_table.update.call_args[0][0] == {"job_title": "Responsable RH"}
 
+    @patch(
+        "app.modules.employees.application.commands.apply_salary_update",
+        return_value={"id": "hist-1"},
+    )
     @patch("app.modules.promotions.infrastructure.providers.supabase")
-    def test_salaire_updates_salaire_de_base(self, mock_supabase):
+    def test_salaire_updates_salaire_de_base(
+        self, mock_supabase, mock_apply_salary_update
+    ):
         new_salary = {"valeur": 4200, "devise": "EUR"}
         mock_table = MagicMock()
         mock_supabase.table.return_value = mock_table
@@ -96,7 +102,12 @@ class TestEmployeeUpdaterApplyPromotionChanges:
             COMPANY_ID,
         )
 
-        assert mock_table.update.call_args[0][0] == {"salaire_de_base": new_salary}
+        mock_apply_salary_update.assert_called_once()
+        call_kw = mock_apply_salary_update.call_args.kwargs
+        assert call_kw["employee_id"] == EMPLOYEE_ID
+        assert call_kw["company_id"] == COMPANY_ID
+        assert call_kw["nouveau_salaire"] == new_salary
+        mock_table.update.assert_not_called()
 
     @patch("app.modules.promotions.infrastructure.providers.supabase")
     def test_classification_updates_classification_conventionnelle(self, mock_supabase):
@@ -117,8 +128,15 @@ class TestEmployeeUpdaterApplyPromotionChanges:
             "classification_conventionnelle": new_classif
         }
 
+    @patch(
+        "app.modules.employees.application.commands.apply_salary_update",
+        return_value={"id": "hist-1"},
+    )
     @patch("app.modules.promotions.infrastructure.providers.supabase")
-    def test_mixte_updates_all_provided_fields(self, mock_supabase):
+    def test_mixte_updates_all_provided_fields(
+        self, mock_supabase, mock_apply_salary_update
+    ):
+        new_salary = {"valeur": 5500, "devise": "EUR"}
         mock_table = MagicMock()
         mock_supabase.table.return_value = mock_table
         mock_table.update.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(
@@ -129,7 +147,7 @@ class TestEmployeeUpdaterApplyPromotionChanges:
         updater.apply_promotion_changes(
             _promotion_mock(
                 new_job_title="Directeur",
-                new_salary={"valeur": 5500, "devise": "EUR"},
+                new_salary=new_salary,
                 new_statut="Cadre",
                 new_classification={"coefficient": 300},
             ),
@@ -138,9 +156,11 @@ class TestEmployeeUpdaterApplyPromotionChanges:
 
         update_data = mock_table.update.call_args[0][0]
         assert update_data["job_title"] == "Directeur"
-        assert update_data["salaire_de_base"]["valeur"] == 5500
+        assert "salaire_de_base" not in update_data
         assert update_data["statut"] == "Cadre"
         assert update_data["classification_conventionnelle"]["coefficient"] == 300
+        mock_apply_salary_update.assert_called_once()
+        assert mock_apply_salary_update.call_args.kwargs["nouveau_salaire"] == new_salary
 
     @patch("app.modules.promotions.infrastructure.providers.supabase")
     def test_raises_500_when_employee_update_returns_empty(self, mock_supabase):

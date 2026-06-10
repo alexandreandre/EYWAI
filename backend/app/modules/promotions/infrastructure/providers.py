@@ -7,6 +7,7 @@ Providers (services externes) du module promotions.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Dict, Optional
 
 from fastapi import HTTPException
@@ -78,7 +79,32 @@ class EmployeeUpdater(IEmployeeUpdater):
             if promotion.new_job_title:
                 update_data["job_title"] = promotion.new_job_title
             if promotion.new_salary:
-                update_data["salaire_de_base"] = promotion.new_salary
+                from app.modules.employees.application.commands import (
+                    apply_salary_update,
+                )
+
+                eff = getattr(promotion, "effective_date", None)
+                if isinstance(eff, date):
+                    eff_str = eff.isoformat()
+                elif isinstance(eff, str) and len(eff) >= 10:
+                    eff_str = eff[:10]
+                else:
+                    eff_str = date.today().isoformat()
+                ancien = getattr(promotion, "previous_salary", None) or {"valeur": 0}
+                created_by = str(
+                    getattr(promotion, "approved_by", None)
+                    or getattr(promotion, "requested_by", None)
+                    or ""
+                )
+                apply_salary_update(
+                    employee_id=promotion.employee_id,
+                    company_id=company_id,
+                    ancien_salaire=ancien if isinstance(ancien, dict) else {"valeur": 0},
+                    nouveau_salaire=promotion.new_salary,
+                    motif=getattr(promotion, "reason", None) or "Promotion",
+                    effective_date=eff_str,
+                    created_by=created_by,
+                )
             if promotion.new_statut:
                 update_data["statut"] = promotion.new_statut
             if promotion.new_classification:

@@ -7,6 +7,7 @@ Logique applicative : décision forfait jour vs heures, délégation aux provide
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from app.modules.employees.infrastructure.repository import EmployeeRepository
@@ -25,8 +26,58 @@ from app.modules.payslips.infrastructure.providers import (
     payslip_generator_provider,
 )
 from app.modules.payslips.infrastructure.readers import employee_statut_reader
+from app.modules.notifications.application.employee_document_alerts import (
+    NOTIFICATION_TYPE_PAYSLIP,
+    notify_employee_new_document,
+)
 
 _employee_repository = EmployeeRepository()
+logger = logging.getLogger(__name__)
+
+_PAYSLIP_MONTH_LABELS = (
+    "janvier",
+    "février",
+    "mars",
+    "avril",
+    "mai",
+    "juin",
+    "juillet",
+    "août",
+    "septembre",
+    "octobre",
+    "novembre",
+    "décembre",
+)
+
+
+def _payslip_notification_label(year: int, month: int) -> str:
+    if 1 <= month <= 12:
+        return f"Bulletin de paie — {_PAYSLIP_MONTH_LABELS[month - 1]} {year}"
+    return f"Bulletin de paie — {month:02d}/{year}"
+
+
+def _notify_payslip_available(
+    employee_id: str,
+    company_id: str,
+    year: int,
+    month: int,
+) -> None:
+    try:
+        notify_employee_new_document(
+            employee_id,
+            company_id,
+            _payslip_notification_label(year, month),
+            page_path="payslips",
+            notification_type=NOTIFICATION_TYPE_PAYSLIP,
+        )
+    except Exception as exc:
+        logger.info(
+            "[doc_notif] Bulletin non notifié pour %s (%02d/%d): %s",
+            employee_id,
+            month,
+            year,
+            exc,
+        )
 
 
 def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
@@ -55,6 +106,12 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
             year=cmd.year,
             month=cmd.month,
         )
+
+    if str(result.get("status") or "") == "success":
+        company_id = str(employee.get("company_id") or "").strip()
+        if company_id:
+            _notify_payslip_available(cmd.employee_id, company_id, cmd.year, cmd.month)
+
     return GeneratePayslipResult(
         status=result["status"],
         message=result["message"],

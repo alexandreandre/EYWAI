@@ -9,6 +9,7 @@ from datetime import date
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
+from app.modules.employees.domain.salary_timeline import salaire_actif_a_date
 
 
 def _subtract_months(today: date, months: int) -> date:
@@ -249,7 +250,7 @@ class EmployeeRepository(IEmployeeRepository):
         supabase.table("employees").delete().eq("id", employee_id).execute()
         return True
 
-    def update_salary(
+    def insert_salary_history(
         self,
         employee_id: str,
         company_id: str,
@@ -259,23 +260,7 @@ class EmployeeRepository(IEmployeeRepository):
         effective_date: str,
         created_by: str,
     ) -> Dict[str, Any]:
-        """
-        1. UPDATE employees SET salaire_de_base = nouveau_salaire
-           WHERE id = employee_id AND company_id = company_id
-        2. INSERT INTO salary_history (...)
-        3. Retourner la ligne salary_history insérée
-        """
-        upd = (
-            supabase.table("employees")
-            .update({"salaire_de_base": nouveau_salaire})
-            .eq("id", employee_id)
-            .eq("company_id", company_id)
-            .execute()
-        )
-        if not upd.data:
-            raise RuntimeError(
-                "Mise à jour du salaire impossible (employé introuvable ou sans effet)."
-            )
+        """INSERT salary_history uniquement (sans toucher employees)."""
         ins = (
             supabase.table("salary_history")
             .insert(
@@ -295,6 +280,59 @@ class EmployeeRepository(IEmployeeRepository):
             raise RuntimeError("Insertion salary_history sans retour.")
         row = ins.data[0] if isinstance(ins.data, list) else ins.data
         return dict(row)
+
+    def sync_salaire_actif(
+        self,
+        employee_id: str,
+        company_id: str,
+        as_of: date,
+    ) -> Optional[Dict[str, Any]]:
+        """Aligne employees.salaire_de_base sur le salaire actif à as_of (timeline)."""
+        emp = self.get_by_id(employee_id, company_id)
+        if emp is None:
+            return None
+        timeline = self.get_salary_history(employee_id, company_id)
+        fallback = _valeur_salaire_row(emp)
+        valeur = salaire_actif_a_date(timeline, as_of, fallback)
+        sb = emp.get("salaire_de_base")
+        if isinstance(sb, dict):
+            new_sb = dict(sb)
+            new_sb["valeur"] = valeur
+        else:
+            new_sb = {"valeur": valeur}
+        return self.update(employee_id, {"salaire_de_base": new_sb})
+
+    def update_salary(
+        self,
+        employee_id: str,
+        company_id: str,
+        ancien_salaire: Dict,
+        nouveau_salaire: Dict,
+        motif: str | None,
+        effective_date: str,
+        created_by: str,
+    ) -> Dict[str, Any]:
+        """
+        INSERT salary_history + sync salaire actif (délègue à insert + sync).
+        Conservé pour compatibilité ; préférer apply_salary_update en application.
+        """
+        row = self.insert_salary_history(
+            employee_id=employee_id,
+            company_id=company_id,
+            ancien_salaire=ancien_salaire,
+            nouveau_salaire=nouveau_salaire,
+            motif=motif,
+            effective_date=effective_date,
+            created_by=created_by,
+        )
+        eff = date.fromisoformat(str(effective_date)[:10])
+        if eff <= date.today():
+            synced = self.sync_salaire_actif(employee_id, company_id, date.today())
+            if synced is None:
+                raise RuntimeError(
+                    "Mise à jour du salaire impossible (employé introuvable ou sans effet)."
+                )
+        return row
 
     def get_salary_history(
         self,

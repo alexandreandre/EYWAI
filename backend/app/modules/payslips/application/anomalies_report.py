@@ -23,6 +23,7 @@ from app.modules.payslips.domain.anomaly_visibility import (
 )
 from app.modules.payslips.domain.comparison_engine import _sum_travail_base_hours, _to_float
 from app.modules.payroll.engine.controles_convention import (
+    NET_SUPERIEUR_BRUT_MESSAGE,
     extraire_alertes_rh_depuis_bulletin,
 )
 from app.modules.payslips.schemas.anomalies import (
@@ -235,7 +236,7 @@ def _collect_anomalies_for_row(
                 payslip_id=payslip_id,
                 type="NET_SUPERIEUR_BRUT",
                 severite="avertissement",
-                message="Net à payer supérieur au salaire brut.",
+                message=NET_SUPERIEUR_BRUT_MESSAGE,
                 valeur_detectee=f"net={net:.2f} €, brut={brut:.2f} €",
                 suggestion_correction="Contrôler cotisations, PAS, acomptes et net dans payslip_data.",
             )

@@ -25,6 +25,9 @@ from app.modules.jei_settings.application.queries import get_jei_settings_raw
 from app.modules.payroll.application.analyzer import (
     analyser_horaires_du_mois as payroll_analyzer_analyser,
 )
+from app.modules.payroll.application.salary_evolution_payroll import (
+    prepare_salary_evolution_for_payslip,
+)
 
 logger = get_logger("modules.payroll.documents.payslip_generator")
 
@@ -400,25 +403,28 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
             logger.warning(f'DEBUG [Generator]: ERREUR LORS DU DEBUG PRINT: {e}')
         log_payroll_debug(logger, '=' * 80 + '\n')
 
-        try:
-            from app.modules.employee_loans.infrastructure.payroll_queries import (
-                compute_total_loan_benefit_in_kind,
-            )
+        from app.modules.employee_loans.application.payroll_integration import (
+            inject_loan_benefit_in_kind,
+        )
 
-            loan_an = compute_total_loan_benefit_in_kind(employee_id, year, month)
-            if loan_an > 0:
+        contrat_json_content = inject_loan_benefit_in_kind(
+            contrat_json_content, employee_id, year, month
+        )
+
+        try:
+            salary_evo = prepare_salary_evolution_for_payslip(
+                employee_id, str(company_id), year, month
+            )
+            if salary_evo:
                 remuneration = contrat_json_content.setdefault("remuneration", {})
-                aen = remuneration.get("avantages_en_nature")
-                if not isinstance(aen, dict):
-                    aen = {}
-                aen["pret_employeur"] = {"montant_mensuel": loan_an}
-                remuneration["avantages_en_nature"] = aen
-                log_payroll_debug(
-                    logger,
-                    f"[DEBUG GENERATOR] Avantage en nature prêt employeur: {loan_an}€",
-                )
-        except Exception as loan_an_err:
-            logger.warning(f"Erreur calcul AN prêt employeur: {loan_an_err}")
+                if salary_evo.get("salaire_de_base"):
+                    remuneration["salaire_de_base"] = salary_evo["salaire_de_base"]
+                if salary_evo.get("evolution_salaire_mois"):
+                    remuneration["evolution_salaire_mois"] = salary_evo[
+                        "evolution_salaire_mois"
+                    ]
+        except Exception as evo_err:
+            logger.warning(f"Erreur résolution évolution salaire: {evo_err}")
 
         write_temp_json(employee_path / "contrat.json", contrat_json_content)
 
@@ -551,74 +557,26 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
         if payslip_upsert_result.data:
             payslip_id = payslip_upsert_result.data[0].get("id")
 
-            try:
-                from app.modules.saisies_avances.application.service import (
-                    enrich_payslip,
-                )
+            from app.modules.employee_loans.application.payroll_integration import (
+                PdfRegenConfig,
+                enrich_payslip_after_upsert,
+            )
 
-                enriched_data = enrich_payslip(
-                    payslip_json_data.copy(),
-                    employee_id,
-                    year,
-                    month,
-                    payslip_id=payslip_id,
-                )
-                try:
-                    from app.modules.employee_loans.application.enrichment import (
-                        enrich_payslip_loans,
-                    )
-
-                    enriched_data = enrich_payslip_loans(
-                        enriched_data,
-                        employee_id,
-                        year,
-                        month,
-                        payslip_id=payslip_id,
-                    )
-                except Exception as loan_enrich_err:
-                    logger.warning(
-                        f"Erreur enrichissement prêts employeur: {loan_enrich_err}"
-                    )
-                final_payslip_data = enriched_data
-
-                supabase.table("payslips").update({"payslip_data": enriched_data}).eq(
-                    "id", payslip_id
-                ).execute()
-
-                try:
-                    from app.modules.payroll.documents.payslip_editor import (
-                        regenerate_pdf_from_data,
-                    )
-
-                    enriched_pdf_path = regenerate_pdf_from_data(
-                        enriched_data,
-                        employee_id,
-                        employee_folder_name,
-                        company_id,
-                        month,
-                        year,
-                    )
-
-                    with open(enriched_pdf_path, "rb") as f:
-                        supabase.storage.from_("payslips").upload(
-                            path=storage_path,
-                            file=f.read(),
-                            file_options={"x-upsert": "true"},
-                        )
-
-                    logger.info(f"[INFO] PDF régénéré avec remboursements d'avances: {enriched_pdf_path}")
-                except Exception as pdf_err:
-                    logging.warning(
-                        f"Erreur lors de la régénération du PDF avec données enrichies: {pdf_err}"
-                    )
-                    logger.warning(f'[WARNING] Régénération PDF échouée: {pdf_err}')
-
-            except Exception as enrich_err:
-                logging.warning(
-                    f"Erreur lors de l'enrichissement avec saisies/avances: {enrich_err}"
-                )
-                logger.warning(f'[WARNING] Enrichissement saisies/avances échoué: {enrich_err}')
-                logger.exception("Exception")
+            final_payslip_data = enrich_payslip_after_upsert(
+                payslip_json_data,
+                employee_id,
+                year,
+                month,
+                payslip_id,
+                pdf_regen=PdfRegenConfig(
+                    employee_id=employee_id,
+                    employee_folder_name=employee_folder_name,
+                    company_id=str(company_id),
+                    month=month,
+                    year=year,
+                    storage_path=storage_path,
+                ),
+            )
 
         supabase.table("employee_schedules").update(
             {"cumuls": new_cumuls_json, "payroll_events": payroll_events_json}

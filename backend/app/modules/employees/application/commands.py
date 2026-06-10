@@ -24,6 +24,7 @@ from app.modules.employees.domain.rules import (
     default_company_data_fallback,
     derive_collaborator_username,
 )
+from app.modules.employees.domain.salary_timeline import est_augmentation_planifiee
 from app.modules.employees.domain.trial_period import TRIAL_JSON_STATUT_CONFIRMED
 from app.modules.onboarding.domain.profile import (
     enrich_employee_profile_completeness,
@@ -467,10 +468,11 @@ def apply_salary_update(
     created_by: str,
 ) -> Dict[str, Any]:
     """
-    Met à jour salaire_de_base et insère une ligne salary_history.
+    Insère salary_history. Met à jour salaire_de_base seulement si effective_date <= aujourd'hui.
     Retourne la ligne d'historique insérée.
     """
-    row = _employee_repository.update_salary(
+    eff = _date.fromisoformat(str(effective_date)[:10])
+    row = _employee_repository.insert_salary_history(
         employee_id=employee_id,
         company_id=company_id,
         ancien_salaire=ancien_salaire,
@@ -479,8 +481,28 @@ def apply_salary_update(
         effective_date=effective_date,
         created_by=created_by,
     )
+    if not est_augmentation_planifiee(eff, _date.today()):
+        synced = _employee_repository.sync_salaire_actif(
+            employee_id, company_id, _date.today()
+        )
+        if synced is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Employé introuvable lors de la synchronisation du salaire.",
+            )
     _maybe_activate_after_onboarding(employee_id)
     return row
+
+
+def sync_employee_salaire_actif(
+    employee_id: str,
+    company_id: str,
+    as_of: _date | None = None,
+) -> Optional[Dict[str, Any]]:
+    """Synchronise employees.salaire_de_base depuis salary_history."""
+    return _employee_repository.sync_salaire_actif(
+        employee_id, company_id, as_of or _date.today()
+    )
 
 
 def upload_employee_contract(

@@ -41,10 +41,13 @@ from app.modules.employees.schemas.salary import (
     SimulationResultat,
     UpdateSalaryRequest,
 )
+from datetime import date as date_type
+
 from app.modules.employees.domain.salary_augmentation import (
     calculer_nouveau_salaire_brut,
     enrichir_salaire_avec_augmentation,
 )
+from app.modules.employees.domain.salary_timeline import est_augmentation_planifiee
 from app.modules.employees.schemas.responses import (
     ContractResponse,
     EmployeeRhAccess,
@@ -805,7 +808,17 @@ def get_employee_salary_history(
         company_id = require_rh_access(current_user.active_company_id, current_user)
         rows = queries.get_salary_history_rows(employee_id, company_id)
         out: List[SalaryHistoryEntry] = []
+        today = date_type.today()
         for row in rows:
+            eff = row["effective_date"]
+            if hasattr(eff, "isoformat"):
+                eff_date = (
+                    date_type.fromisoformat(eff.isoformat()[:10])
+                    if not isinstance(eff, date_type)
+                    else eff
+                )
+            else:
+                eff_date = date_type.fromisoformat(str(eff)[:10])
             out.append(
                 SalaryHistoryEntry(
                     id=str(row["id"]),
@@ -816,8 +829,9 @@ def get_employee_salary_history(
                     if isinstance(row.get("nouveau_salaire"), dict)
                     else {},
                     motif=row.get("motif"),
-                    effective_date=row["effective_date"],
+                    effective_date=eff_date,
                     created_at=row["created_at"],
+                    planifiee=est_augmentation_planifiee(eff_date, today),
                 )
             )
         return out
@@ -874,6 +888,7 @@ def simulate_augmentation(
             ancien_part_hs=calc["ancien_part_hs"],
             nouveau_base_35h=calc["nouveau_base_35h"],
             nouveau_part_hs=calc["nouveau_part_hs"],
+            planifiee=est_augmentation_planifiee(body.effective_date, date_type.today()),
         )
     except HTTPException:
         raise
