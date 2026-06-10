@@ -182,9 +182,7 @@ async def update_company(
 ):
     """Met à jour une entreprise."""
     try:
-        update_data = {
-            k: v for k, v in company_update.model_dump().items() if v is not None
-        }
+        update_data = company_update.model_dump(exclude_unset=True)
         return commands.update_company(company_id, update_data, super_admin)
     except Exception as e:
         raise _map_exceptions(e)

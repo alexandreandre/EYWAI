@@ -9,9 +9,10 @@ Définitions canoniques pour les routes super_admin.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Dict, Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 __all__ = [
     "CompanyCreate",
@@ -37,6 +38,9 @@ class CompanyCreate(BaseModel):
     address: Optional[Dict[str, str]] = None
     logo_url: Optional[str] = None
     logo_scale: Optional[float] = 1.0
+    jei_enabled: Optional[bool] = False
+    date_creation_etablissement: Optional[date] = None
+    taux_exoneration: Optional[float] = Field(default=1.0, ge=0, le=1)
 
 
 class CompanyCreateWithAdmin(BaseModel):
@@ -52,6 +56,9 @@ class CompanyCreateWithAdmin(BaseModel):
     admin_password: Optional[str] = None
     admin_first_name: Optional[str] = None
     admin_last_name: Optional[str] = None
+    jei_enabled: Optional[bool] = False
+    date_creation_etablissement: Optional[date] = None
+    taux_exoneration: Optional[float] = Field(default=1.0, ge=0, le=1)
 
 
 class CompanyUpdate(BaseModel):
@@ -66,6 +73,9 @@ class CompanyUpdate(BaseModel):
     logo_url: Optional[str] = None
     logo_scale: Optional[float] = None
     is_active: Optional[bool] = None
+    jei_enabled: Optional[bool] = None
+    date_creation_etablissement: Optional[date] = None
+    taux_exoneration: Optional[float] = Field(default=None, ge=0, le=1)
 
 
 # ----- Schémas spécifiques super_admin -----

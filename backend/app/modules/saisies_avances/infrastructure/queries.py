@@ -9,6 +9,7 @@ from app.core.logging import get_logger, log_app_debug
 logger = get_logger("modules.saisies_avances.infrastructure.queries")
 
 from datetime import date
+from calendar import monthrange
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
@@ -403,3 +404,161 @@ def get_proof_file_path(payment_id: str) -> Optional[str]:
         .execute()
     )
     return r.data.get("proof_file_path") if r.data else None
+
+
+def _load_company_advances_map(company_id: str) -> Dict[str, Dict[str, Any]]:
+    """Index des avances/acomptes par id pour une société."""
+    r = (
+        supabase.table("salary_advances")
+        .select("*")
+        .eq("company_id", company_id)
+        .execute()
+    )
+    return {str(a["id"]): a for a in (r.data or []) if a.get("id")}
+
+
+def _load_employees_map(employee_ids: List[str]) -> Dict[str, str]:
+    """Map employee_id -> nom complet."""
+    if not employee_ids:
+        return {}
+    employees_map: Dict[str, str] = {}
+    try:
+        ids_norm = [str(eid) for eid in employee_ids]
+        emp_res = (
+            supabase.table("employees")
+            .select("id, first_name, last_name")
+            .in_("id", ids_norm)
+            .execute()
+        )
+        for emp in emp_res.data or []:
+            eid = emp.get("id")
+            fn, ln = emp.get("first_name", ""), emp.get("last_name", "")
+            full = f"{fn} {ln}".strip()
+            if full and eid:
+                employees_map[str(eid)] = full
+    except Exception as e:
+        logger.warning("Erreur récupération noms employés (export acomptes): %s", e)
+    return employees_map
+
+
+def _enrich_advance_event(
+    event: Dict[str, Any],
+    advance: Dict[str, Any],
+    employees_map: Dict[str, str],
+) -> Dict[str, Any]:
+    """Enrichit une ligne versement ou remboursement pour export."""
+    from app.modules.saisies_avances.domain.rules import advance_type_label
+
+    employee_id = advance.get("employee_id")
+    advance_type = advance.get("advance_type", "avance_salaire")
+    prime_label = advance.get("prime_label")
+    accounting_account = advance.get("accounting_account")
+    if not accounting_account:
+        accounting_account = get_accounting_account(
+            advance.get("company_id"), advance_type
+        )
+
+    event["employee_id"] = employee_id
+    event["employee_name"] = employees_map.get(str(employee_id), "")
+    event["advance_type"] = advance_type
+    event["advance_type_label"] = advance_type_label(advance_type, prime_label)
+    event["accounting_account"] = accounting_account
+    event["prime_label"] = prime_label
+    event["advance_status"] = advance.get("status")
+    return event
+
+
+def list_advance_payments_by_period(
+    company_id: str, period: str
+) -> List[Dict[str, Any]]:
+    """Versements d'avances/acomptes dont la date de paiement est dans la période."""
+    year, month = map(int, period.split("-"))
+    last_day = monthrange(year, month)[1]
+    period_start = f"{year}-{month:02d}-01"
+    period_end = f"{year}-{month:02d}-{last_day:02d}"
+
+    advances_map = _load_company_advances_map(company_id)
+    if not advances_map:
+        return []
+
+    pay_r = (
+        supabase.table("salary_advance_payments")
+        .select("*")
+        .in_("advance_id", list(advances_map.keys()))
+        .gte("payment_date", period_start)
+        .lte("payment_date", period_end)
+        .order("payment_date")
+        .execute()
+    )
+    payments = pay_r.data or []
+    employee_ids = list(
+        {
+            str(advances_map[str(p["advance_id"])]["employee_id"])
+            for p in payments
+            if p.get("advance_id")
+            and str(p["advance_id"]) in advances_map
+            and advances_map[str(p["advance_id"])].get("employee_id")
+        }
+    )
+    employees_map = _load_employees_map(employee_ids)
+
+    result: List[Dict[str, Any]] = []
+    for payment in payments:
+        advance_id = str(payment.get("advance_id", ""))
+        advance = advances_map.get(advance_id)
+        if not advance:
+            continue
+        row = dict(payment)
+        row["event_type"] = "versement"
+        row["amount_paid"] = float(payment.get("payment_amount", 0) or 0)
+        row["amount_repaid"] = 0.0
+        row["event_date"] = payment.get("payment_date")
+        _enrich_advance_event(row, advance, employees_map)
+        result.append(row)
+    return result
+
+
+def list_advance_repayments_by_period(
+    company_id: str, period: str
+) -> List[Dict[str, Any]]:
+    """Remboursements d'avances/acomptes appliqués sur les bulletins de la période."""
+    year, month = map(int, period.split("-"))
+
+    advances_map = _load_company_advances_map(company_id)
+    if not advances_map:
+        return []
+
+    rep_r = (
+        supabase.table("salary_advance_repayments")
+        .select("*")
+        .in_("advance_id", list(advances_map.keys()))
+        .eq("year", year)
+        .eq("month", month)
+        .execute()
+    )
+    repayments = rep_r.data or []
+    employee_ids = list(
+        {
+            str(advances_map[str(r["advance_id"])]["employee_id"])
+            for r in repayments
+            if r.get("advance_id")
+            and str(r["advance_id"]) in advances_map
+            and advances_map[str(r["advance_id"])].get("employee_id")
+        }
+    )
+    employees_map = _load_employees_map(employee_ids)
+
+    result: List[Dict[str, Any]] = []
+    for repayment in repayments:
+        advance_id = str(repayment.get("advance_id", ""))
+        advance = advances_map.get(advance_id)
+        if not advance:
+            continue
+        row = dict(repayment)
+        row["event_type"] = "remboursement"
+        row["amount_paid"] = 0.0
+        row["amount_repaid"] = float(repayment.get("repayment_amount", 0) or 0)
+        row["event_date"] = f"{year}-{month:02d}-01"
+        _enrich_advance_event(row, advance, employees_map)
+        result.append(row)
+    return result

@@ -12,12 +12,52 @@ from typing import Any, Dict, Optional
 
 from app.core.database import get_supabase_client
 
+from app.modules.company_groups.infrastructure.queries import fetch_max_group_display_order
 from app.modules.super_admin.infrastructure import providers
 
 _log = logging.getLogger(__name__)
 
 # Groupe plateforme unique — toute nouvelle entreprise y est rattachée automatiquement.
 DEFAULT_PLATFORM_GROUP_NAME = "MAJI"
+
+_JEI_SETTING_KEYS = frozenset(
+    {"jei_enabled", "date_creation_etablissement", "taux_exoneration"}
+)
+
+
+def _split_jei_fields(data: Dict[str, Any]) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    """Sépare les champs JEI des champs table companies."""
+    company_data = dict(data)
+    jei: Dict[str, Any] = {}
+    for key in _JEI_SETTING_KEYS:
+        if key in company_data:
+            jei[key] = company_data.pop(key)
+    return company_data, jei
+
+
+def _apply_jei_settings(
+    company_id: str,
+    jei: Dict[str, Any],
+    *,
+    on_create: bool = False,
+) -> None:
+    """Upsert company_jei_settings si des champs JEI sont fournis."""
+    if not jei:
+        return
+    if on_create:
+        if not jei.get("jei_enabled"):
+            return
+    elif not _JEI_SETTING_KEYS.intersection(jei.keys()):
+        return
+    from app.modules.jei_settings.application.commands import save_jei_settings
+    from app.modules.jei_settings.schemas.requests import JeiSettingsUpdate
+
+    payload = JeiSettingsUpdate(
+        jei_enabled=bool(jei.get("jei_enabled")),
+        date_creation_etablissement=jei.get("date_creation_etablissement"),
+        taux_exoneration=jei.get("taux_exoneration"),
+    )
+    save_jei_settings(str(company_id), payload)
 
 
 def _resolve_default_group_id(supabase: Any) -> Optional[str]:
@@ -49,7 +89,12 @@ def _attach_company_to_default_group(supabase: Any, company_id: str) -> Optional
         return None
     updated = (
         supabase.table("companies")
-        .update({"group_id": group_id})
+        .update(
+            {
+                "group_id": group_id,
+                "group_display_order": fetch_max_group_display_order(group_id) + 1,
+            }
+        )
         .eq("id", company_id)
         .execute()
     )
@@ -64,6 +109,7 @@ def create_company_with_admin(
 ) -> Dict[str, Any]:
     """Crée une entreprise et optionnellement un admin (Auth + profile + user_company_accesses)."""
     supabase = get_supabase_client()
+    company_data, jei_payload = _split_jei_fields(company_data)
     create_admin = bool(
         company_data.get("admin_email") and company_data.get("admin_password")
     )
@@ -79,6 +125,7 @@ def create_company_with_admin(
     if not new_company.data:
         raise RuntimeError("Erreur lors de la création de l'entreprise")
     company_id = new_company.data[0]["id"]
+    _apply_jei_settings(str(company_id), jei_payload, on_create=True)
     group_id = _attach_company_to_default_group(supabase, company_id)
     company_row = dict(new_company.data[0])
     if group_id:
@@ -132,8 +179,21 @@ def update_company(company_id: str, update_data: Dict[str, Any]) -> Dict[str, An
     supabase = get_supabase_client()
     if not update_data:
         raise ValueError("Aucune donnée à mettre à jour")
+    company_fields, jei_payload = _split_jei_fields(update_data)
+    if jei_payload:
+        _apply_jei_settings(company_id, jei_payload, on_create=False)
+    if not company_fields:
+        existing = (
+            supabase.table("companies").select("*").eq("id", company_id).execute()
+        )
+        if not existing.data:
+            raise LookupError("Entreprise non trouvée")
+        return {"success": True, "company": existing.data[0]}
     result = (
-        supabase.table("companies").update(update_data).eq("id", company_id).execute()
+        supabase.table("companies")
+        .update(company_fields)
+        .eq("id", company_id)
+        .execute()
     )
     if not result.data:
         raise LookupError("Entreprise non trouvée")

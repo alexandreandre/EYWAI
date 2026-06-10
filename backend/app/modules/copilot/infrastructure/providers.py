@@ -155,7 +155,11 @@ Exemples:
 - "Où trouver les identifiants de connexion d'un employé ?" → requires_app_help: true
 - "Comment récupérer le mot de passe d'un collaborateur ?" → requires_app_help: true
 - "Où est le PDF de création de compte ?" → requires_app_help: true
+- "Comment gérer les prêts employeur ?" → requires_app_help: true
+- "Où valider les avances et acomptes ?" → requires_app_help: true
 - "Combien gagne Jean" → requires_employee_search: true, requires_data_retrieval: true
+- "Prêts employeur en cours" → requires_data_retrieval: true
+- "Acomptes sur prime en attente" → requires_data_retrieval: true
 - "Nombre d'employés" → needs_clarification: true (tous? CDI seulement? cadres?)
 - "Combien de jours de congés payés par an ?" → requires_collective_agreement: true
 - "Quelle est la durée de la période d'essai ?" → requires_collective_agreement: true

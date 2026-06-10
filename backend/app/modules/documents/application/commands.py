@@ -263,7 +263,9 @@ def _apply_salary_from_avenant(
     motif_raw = context.get("motif") or context.get("motif_avenant")
     motif = str(motif_raw).strip() if motif_raw else "Avenant signé"
 
-    _employees_repo_avenants.update_salary(
+    from app.modules.employees.application.commands import apply_salary_update
+
+    apply_salary_update(
         employee_id=employee_id,
         company_id=company_id,
         ancien_salaire=ancien if isinstance(ancien, dict) else {"valeur": 0.0},

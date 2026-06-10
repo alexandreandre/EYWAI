@@ -230,6 +230,29 @@ def get_company_details(company_id: str) -> Dict[str, Any]:
         "users_count": len(user_accesses.data),
         "users_by_role": roles_count,
     }
+    try:
+        jei_res = (
+            supabase.table("company_jei_settings")
+            .select("jei_enabled, date_creation_etablissement, taux_exoneration")
+            .eq("company_id", company_id)
+            .maybe_single()
+            .execute()
+        )
+        jei_row = jei_res.data if jei_res else None
+        if jei_row:
+            company_data["jei_enabled"] = bool(jei_row.get("jei_enabled"))
+            company_data["date_creation_etablissement"] = jei_row.get(
+                "date_creation_etablissement"
+            )
+            company_data["taux_exoneration"] = jei_row.get("taux_exoneration")
+        else:
+            company_data["jei_enabled"] = False
+            company_data["date_creation_etablissement"] = None
+            company_data["taux_exoneration"] = 1.0
+    except Exception:
+        company_data["jei_enabled"] = False
+        company_data["date_creation_etablissement"] = None
+        company_data["taux_exoneration"] = 1.0
     return company_data
 
 

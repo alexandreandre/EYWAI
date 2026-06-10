@@ -43,6 +43,39 @@ class TestNotifyEmployeeNewDocument:
         assert "Attestation d'emploi" in payload["message"]
         sender.send_multipart_email.assert_called_once()
         assert sender.send_multipart_email.call_args.kwargs["to_email"] == "alice@example.com"
+        assert "employee/documents" in sender.send_multipart_email.call_args.kwargs["html_content"]
+
+    def test_custom_page_path_in_email(self, mock_supabase):
+        sb, table = mock_supabase
+        select_chain = MagicMock()
+        select_chain.eq.return_value.maybe_single.return_value.execute.return_value = MagicMock(
+            data={"email": "alice@example.com", "first_name": "Alice"}
+        )
+        table.select.return_value = select_chain
+        table.insert.return_value.execute.return_value = MagicMock(data=[{"id": "n1"}])
+
+        with patch.object(mod, "get_resolved_email_config") as cfg, patch.object(
+            mod, "get_smtp_mail_sender"
+        ) as sender_factory:
+            cfg.return_value = MagicMock(frontend_url="http://localhost:8080")
+            sender = MagicMock()
+            sender.send_multipart_email.return_value = (True, None)
+            sender_factory.return_value = sender
+
+            mod.notify_employee_new_document(
+                "emp-1",
+                "co-1",
+                "Bulletin de paie — mars 2026",
+                page_path="payslips",
+                notification_type=mod.NOTIFICATION_TYPE_PAYSLIP,
+            )
+
+        html = sender.send_multipart_email.call_args.kwargs["html_content"]
+        assert "http://localhost:8080/payslips" in html
+        assert "Voir mes bulletins" in html
+        assert sender.send_multipart_email.call_args.kwargs["subject"] == (
+            "Nouveau bulletin de paie disponible"
+        )
 
     def test_skips_email_when_no_address(self, mock_supabase):
         sb, table = mock_supabase

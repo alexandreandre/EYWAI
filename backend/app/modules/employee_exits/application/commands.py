@@ -929,6 +929,18 @@ def publish_exit_documents(
                 employee_doc_id = existing["id"]
                 status = "updated"
                 total_updated += 1
+                try:
+                    notify_employee_new_document(
+                        str(employee_id),
+                        company_id,
+                        document_name,
+                    )
+                except Exception as notif_err:
+                    logger.info(
+                        "[doc_notif] Mise à jour sortie %s non notifiée: %s",
+                        doc.get("id"),
+                        notif_err,
+                    )
             else:
                 insert_data = {
                     "employee_id": str(employee_id),

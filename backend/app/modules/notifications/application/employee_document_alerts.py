@@ -13,6 +13,7 @@ from app.shared.infrastructure.email.smtp_sender import get_smtp_mail_sender
 logger = logging.getLogger(__name__)
 
 NOTIFICATION_TYPE = "nouveau_document"
+NOTIFICATION_TYPE_PAYSLIP = "nouveau_bulletin"
 
 
 def _load_employee_contact(employee_id: str) -> Tuple[Optional[str], Optional[str]]:
@@ -35,13 +36,18 @@ def _load_employee_contact(employee_id: str) -> Tuple[Optional[str], Optional[st
         return None, None
 
 
-def _insert_notification(employee_id: str, company_id: str, message: str) -> bool:
+def _insert_notification(
+    employee_id: str,
+    company_id: str,
+    message: str,
+    notification_type: str = NOTIFICATION_TYPE,
+) -> bool:
     try:
         supabase.table("notifications").insert(
             {
                 "employee_id": employee_id,
                 "company_id": company_id,
-                "type": NOTIFICATION_TYPE,
+                "type": notification_type,
                 "message": message,
                 "is_read": False,
             }
@@ -52,19 +58,44 @@ def _insert_notification(employee_id: str, company_id: str, message: str) -> boo
         return False
 
 
-def _send_email(to_email: str, first_name: Optional[str], document_label: str) -> bool:
-    sender = get_smtp_mail_sender()
-    config = get_resolved_email_config()
-    documents_url = f"{config.frontend_url.rstrip('/')}/employee/documents"
-    greeting = f"Bonjour {first_name}," if first_name else "Bonjour,"
+def _build_page_url(frontend_url: str, page_path: str) -> str:
+    base = frontend_url.rstrip("/")
+    path = page_path.strip().lstrip("/")
+    return f"{base}/{path}" if path else base
+
+
+def _email_content_for_type(
+    notification_type: str,
+    document_label: str,
+    page_url: str,
+    greeting: str,
+) -> tuple[str, str, str, str]:
+    """Retourne (sujet, intro texte, CTA texte, titre HTML)."""
     esc_label = html.escape(document_label)
+    esc_greeting = html.escape(greeting)
+    esc_url = html.escape(page_url)
+
+    if notification_type == NOTIFICATION_TYPE_PAYSLIP:
+        subject = "Nouveau bulletin de paie disponible"
+        title = "Nouveau bulletin de paie"
+        intro = "Votre bulletin de paie est disponible dans votre espace personnel :"
+        cta = "Voir mes bulletins"
+        text_intro = f"Votre bulletin de paie est disponible : {document_label}."
+        text_cta_line = "Consultez-le depuis vos bulletins :"
+    else:
+        subject = "Nouveau document disponible dans votre espace"
+        title = "Nouveau document disponible"
+        intro = "Un nouveau document est disponible dans votre espace personnel :"
+        cta = "Voir mes documents"
+        text_intro = f"Un nouveau document est disponible : {document_label}."
+        text_cta_line = "Consultez-le depuis votre espace documents :"
 
     text_content = f"""{greeting}
 
-Un nouveau document est disponible dans votre espace personnel : {document_label}.
+{text_intro}
 
-Consultez-le depuis votre espace documents :
-{documents_url}
+{text_cta_line}
+{page_url}
 
 Cordialement,
 L'équipe EYWAI
@@ -76,16 +107,16 @@ L'équipe EYWAI
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
   <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="background-color: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
-      <h1 style="margin: 0; font-size: 20px;">Nouveau document disponible</h1>
+      <h1 style="margin: 0; font-size: 20px;">{html.escape(title)}</h1>
     </div>
     <div style="background-color: #f9fafb; padding: 30px; border: 1px solid #e5e7eb;">
-      <p>{html.escape(greeting)}</p>
-      <p>Un nouveau document est disponible dans votre espace personnel&nbsp;:</p>
+      <p>{esc_greeting}</p>
+      <p>{html.escape(intro)}</p>
       <p style="font-weight: bold;">{esc_label}</p>
       <p style="text-align: center; margin: 24px 0;">
-        <a href="{html.escape(documents_url)}"
+        <a href="{esc_url}"
            style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 5px;">
-          Voir mes documents
+          {html.escape(cta)}
         </a>
       </p>
     </div>
@@ -94,10 +125,32 @@ L'équipe EYWAI
 </body>
 </html>"""
 
+    return subject, text_content.strip(), html_content, cta
+
+
+def _send_email(
+    to_email: str,
+    first_name: Optional[str],
+    document_label: str,
+    page_path: str = "employee/documents",
+    notification_type: str = NOTIFICATION_TYPE,
+) -> bool:
+    sender = get_smtp_mail_sender()
+    config = get_resolved_email_config()
+    page_url = _build_page_url(config.frontend_url, page_path)
+    greeting = f"Bonjour {first_name}," if first_name else "Bonjour,"
+
+    subject, text_content, html_content, _cta = _email_content_for_type(
+        notification_type,
+        document_label,
+        page_url,
+        greeting,
+    )
+
     ok, err = sender.send_multipart_email(
         to_email=to_email,
-        subject="Nouveau document disponible dans votre espace",
-        text_content=text_content.strip(),
+        subject=subject,
+        text_content=text_content,
         html_content=html_content,
         require_delivery=False,
     )
@@ -110,15 +163,27 @@ def notify_employee_new_document(
     employee_id: str,
     company_id: str,
     document_label: str,
+    *,
+    page_path: str = "employee/documents",
+    notification_type: str = NOTIFICATION_TYPE,
 ) -> None:
     """
     Alerte in-app + e-mail (best effort) lorsqu'un document apparaît sur l'espace salarié.
     Ne lève jamais d'exception.
     """
     label = (document_label or "Document").strip() or "Document"
-    message = f'Un nouveau document est disponible : « {label} ».'
-    _insert_notification(employee_id, company_id, message)
+    if notification_type == NOTIFICATION_TYPE_PAYSLIP:
+        message = f'Votre bulletin de paie est disponible : « {label} ».'
+    else:
+        message = f'Un nouveau document est disponible : « {label} ».'
+    _insert_notification(employee_id, company_id, message, notification_type)
 
     email, first_name = _load_employee_contact(employee_id)
     if email:
-        _send_email(email, first_name, label)
+        _send_email(
+            email,
+            first_name,
+            label,
+            page_path=page_path,
+            notification_type=notification_type,
+        )

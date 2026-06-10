@@ -35,9 +35,10 @@ ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
 
 — Collaborateurs (« Collaborateurs ») : liste de tous les salariés, recherche,
   création d'un collaborateur. En cliquant sur un collaborateur on ouvre sa
-  fiche, avec les onglets : Documents, Augmentations et Promotions, Primes,
-  Entretiens, Suivi médical, Calendrier, Badgeuse. C'est aussi là qu'on affecte
-  la convention collective d'un salarié. Les identifiants de connexion d'un
+  fiche, avec les onglets : Documents, Augmentations et Promotions,
+  Primes et autres (primes mensuelles, médailles du travail, prêts employeur,
+  taux de PAS), Entretiens, Suivi médical, Calendrier, Badgeuse. C'est aussi là
+  qu'on affecte la convention collective d'un salarié. Les identifiants de connexion d'un
   salarié (nom d'utilisateur + mot de passe temporaire) se trouvent dans
   l'onglet Documents → dossier « Autres » → fichier « Identifiants de connexion »
   (PDF téléchargeable). Si le PDF n'existe pas encore, il est généré automatiquement
@@ -104,19 +105,31 @@ ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
   (onglet Documents) ou lors de la création / embauche, pas via ce module.
 
 — Mon Entreprise (« Mon Entreprise ») : paramétrage de l'entreprise (onglets
-  Pilotage, Identité, Paie, Mutuelle, Bibliothèque).
+  Pilotage, Identité, Paie, Mutuelle, Bibliothèque). L'onglet Paie permet de
+  configurer les médailles du travail (activation, paliers, scan des éligibles)
+  et de valider les dossiers en attente RH.
 
 --- Section « EYWAI Paie » (parcours de production de la paie) ---
 
 Le parcours est numéroté et doit être suivi dans l'ordre avant de lancer la paie :
-  ① Validation des calendriers / heures → page « Calendriers ».
+  ① Calendrier → valider les heures / calendriers du mois (même écran que
+    « Calendriers » en EYWAI Gestion, mais accessible ici dans le workflow paie).
   ② Congés & Absences → valider / refuser les demandes de congés et absences.
   ③ Notes de frais → valider les notes de frais.
   ④ Primes → saisir les primes, la participation et l'intéressement.
   ⑤ Saisies sur salaire → saisies-arrêts, pensions alimentaires, ATD.
-  ⑥ Avances sur salaire → valider et verser les avances.
+  ⑥ Avances & acomptes → valider et verser avances sur salaire, acomptes sur
+    salaire et acomptes sur prime (réconciliation possible au moment de la paie).
+  ⑦ Prêts employeur → gérer les prêts en cours, échéanciers et remboursements
+    sur bulletin.
 Une fois les étapes à jour, le bouton « Lancer la paie » génère les bulletins du
 mois.
+
+— Prêts employeur (« Prêts employeur », étape ⑦ du workflow) : création et suivi
+  des prêts accordés aux salariés (montant, taux, échéancier, remboursements
+  déduits en paie). Le collaborateur peut consulter ses prêts dans son espace
+  (« Prêts employeur »). La fiche collaborateur (onglet « Primes et autres »)
+  permet aussi de voir les prêts d'un salarié.
 
 Autres outils de la section paie :
 — Analytics Paie (« Analytics Paie ») : indicateurs de paie.
@@ -150,7 +163,10 @@ ESPACE COLLABORATEUR (barre latérale du salarié)
 — Congés & absences (« Congés & absences ») : consulter ses soldes, faire une
   nouvelle demande, voir le calendrier du mois.
 — Notes de frais (« Notes de frais ») : déclarer et suivre ses notes de frais.
-— Avances sur salaire (« Avances sur salaire ») : demander et suivre une avance.
+— Avances & acomptes (« Avances & acomptes ») : demander et suivre une avance
+  sur salaire, un acompte sur salaire (droit du salarié) ou un acompte sur prime.
+— Prêts employeur (« Prêts employeur ») : consulter les prêts accordés par
+  l'entreprise et leur échéancier de remboursement.
 — Mes documents (« Mes documents ») : consulter ses documents RH. Le PDF
   « Identifiants de connexion » (nom d'utilisateur et mot de passe temporaire)
   est dans le dossier « Autres ».
@@ -195,6 +211,24 @@ Côté collaborateur (salarié) : Menu latéral → Mes documents → dossier «
 
 Prérequis : le salarié doit avoir une adresse e-mail renseignée dans sa fiche.
 Sans e-mail, le compte ne peut pas être créé.
+
+================================================================================
+FAQ RH TRANSVERSES
+================================================================================
+
+— Lancer la paie : suivre le parcours numéroté ① à ⑦ dans EYWAI Paie, puis
+  cliquer sur « Lancer la paie » (disponible une fois les étapes à jour).
+— Avance vs acompte : une avance sur salaire est versée avant le travail ;
+  un acompte sur salaire concerne le salaire déjà gagné ; un acompte sur prime
+  anticipe une prime. Tout se gère dans « Avances & acomptes » (RH et collaborateur).
+— Prêts employeur : module dédié dans le workflow paie (étape ⑦) et espace
+  collaborateur ; paramétrage et validation des médailles du travail dans
+  Mon Entreprise → onglet Paie.
+— Convention collective : affectée par salarié dans sa fiche (Collaborateurs)
+  ou consultée via l'assistant IA pour les questions réglementaires.
+— Multi-entreprises : un gestionnaire RH peut basculer d'entreprise via le
+  sélecteur en haut de l'écran ; les données affichées concernent l'entreprise active.
+— Identifiants collaborateur : voir section dédiée ci-dessus (Documents → Autres).
 
 ================================================================================
 RÈGLES DE RÉPONSE POUR L'AIDE À L'UTILISATION

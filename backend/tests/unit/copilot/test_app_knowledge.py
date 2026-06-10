@@ -19,3 +19,28 @@ def test_guide_distinguishes_rh_users_from_collaborators():
     """Le guide distingue les comptes RH (Gestion des Utilisateurs) des salariés."""
     assert "Gestion des Utilisateurs" in APP_FEATURE_GUIDE
     assert "pas les comptes collaborateurs" in APP_FEATURE_GUIDE
+
+
+def test_guide_covers_employee_loans():
+    """Le guide documente le module Prêts employeur (workflow paie et espace collaborateur)."""
+    assert "Prêts employeur" in APP_FEATURE_GUIDE
+    assert "⑦ Prêts employeur" in APP_FEATURE_GUIDE
+
+
+def test_guide_covers_salary_advances_and_acomptes():
+    """Le guide utilise le libellé sidebar « Avances & acomptes » et distingue les types."""
+    assert "Avances & acomptes" in APP_FEATURE_GUIDE
+    assert "acompte_salaire" not in APP_FEATURE_GUIDE  # pas de détail technique BDD
+    assert "acompte sur prime" in APP_FEATURE_GUIDE.lower()
+
+
+def test_guide_workflow_paie_seven_steps():
+    """Le parcours paie couvre les 7 étapes numérotées avant Lancer la paie."""
+    for step in ("①", "②", "③", "④", "⑤", "⑥", "⑦"):
+        assert step in APP_FEATURE_GUIDE
+    assert "Lancer la paie" in APP_FEATURE_GUIDE
+
+
+def test_guide_covers_work_medals():
+    """Le guide mentionne les médailles du travail (Mon Entreprise et fiche salarié)."""
+    assert "médailles du travail" in APP_FEATURE_GUIDE.lower()
