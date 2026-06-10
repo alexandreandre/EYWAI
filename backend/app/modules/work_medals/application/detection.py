@@ -8,7 +8,6 @@ from typing import Any, Dict, List
 
 from app.core.database import supabase
 from app.modules.work_medals.application import queries
-from app.modules.work_medals.application.notifications import notify_employee_eligible
 from app.modules.work_medals.domain.rules import (
     compute_employee_seniority_months,
     detect_case_status,
@@ -60,7 +59,6 @@ def scan_company_work_medals(company_id: str) -> WorkMedalScanResult:
     tiers = parse_tiers([t.model_dump() for t in settings.tiers])
     created = 0
     updated = 0
-    notifications_sent = 0
     today = date.today()
 
     for emp in _list_active_employees(company_id):
@@ -100,23 +98,12 @@ def scan_company_work_medals(company_id: str) -> WorkMedalScanResult:
                 if current_status in ("approved", "paid", "dismissed"):
                     continue
                 patch: Dict[str, Any] = {"eligible_date": eligible.isoformat()}
-                if (
-                    current_status == "upcoming"
-                    and new_status == "awaiting_employee"
-                ):
-                    patch["status"] = "awaiting_employee"
-                    work_medal_cases_repository.update(str(existing["id"]), patch)
-                    updated += 1
-                    if notify_employee_eligible(
-                        employee_id,
-                        company_id,
-                        tier.level,
-                        eligible.isoformat(),
-                    ):
-                        notifications_sent += 1
-                elif current_status == "upcoming":
-                    work_medal_cases_repository.update(str(existing["id"]), patch)
-                    updated += 1
+                if current_status == "awaiting_employee":
+                    patch["status"] = "awaiting_rh"
+                elif current_status == "upcoming" and new_status == "awaiting_rh":
+                    patch["status"] = "awaiting_rh"
+                work_medal_cases_repository.update(str(existing["id"]), patch)
+                updated += 1
                 continue
 
             row = work_medal_cases_repository.insert(
@@ -130,13 +117,6 @@ def scan_company_work_medals(company_id: str) -> WorkMedalScanResult:
                 }
             )
             created += 1
-            if new_status == "awaiting_employee" and notify_employee_eligible(
-                employee_id,
-                company_id,
-                tier.level,
-                eligible.isoformat(),
-            ):
-                notifications_sent += 1
             logger.debug(
                 "[work_medals] dossier créé %s %s statut=%s",
                 employee_id,
@@ -147,5 +127,5 @@ def scan_company_work_medals(company_id: str) -> WorkMedalScanResult:
     return WorkMedalScanResult(
         created=created,
         updated=updated,
-        notifications_sent=notifications_sent,
+        notifications_sent=0,
     )

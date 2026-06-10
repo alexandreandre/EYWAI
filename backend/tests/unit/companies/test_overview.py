@@ -13,6 +13,7 @@ from app.modules.companies.domain.overview import (
     compute_demographics,
     compute_movements,
     has_company_cc_assigned,
+    is_jei_company_configured,
 )
 
 
@@ -131,6 +132,64 @@ class TestComputeComplianceFlags:
         flags = compute_compliance_flags({"idcc": "1486"}, 5, set())
         assert flags["collective_agreement_configured"] is False
 
+    def test_jei_configured_when_enabled_with_date(self):
+        flags = compute_compliance_flags(
+            {},
+            5,
+            set(),
+            {"jei_enabled": True, "date_creation_etablissement": "2024-01-01"},
+        )
+        assert flags["jei_configured"] is True
+
+    def test_jei_not_configured_when_enabled_without_date(self):
+        flags = compute_compliance_flags(
+            {},
+            5,
+            set(),
+            {"jei_enabled": True, "date_creation_etablissement": None},
+        )
+        assert flags["jei_configured"] is False
+
+
+class TestJeiAlerts:
+    def test_jei_enabled_no_rd_employees_alert(self):
+        company = {"taux_at_mp": 0.01, "taux_vm": 0.01}
+        employees = [
+            {
+                "id": "e1",
+                "employment_status": "actif",
+                "specificites_paie": {},
+            }
+        ]
+        jei = {"jei_enabled": True, "date_creation_etablissement": "2024-06-01"}
+        alerts = compute_alerts(company, employees, set(), {"cc-1"}, jei)
+        codes = [a["code"] for a in alerts]
+        assert "jei_enabled_no_rd_employees" in codes
+
+    def test_jei_rd_without_company_status_alert(self):
+        company = {"taux_at_mp": 0.01, "taux_vm": 0.01}
+        employees = [
+            {
+                "id": "e1",
+                "first_name": "Bob",
+                "last_name": "Durand",
+                "employment_status": "actif",
+                "specificites_paie": {"personnel_rd_eligible_jei": True},
+            }
+        ]
+        alerts = compute_alerts(company, employees, set(), {"cc-1"}, None)
+        codes = [a["code"] for a in alerts]
+        assert "jei_rd_without_company_status" in codes
+
+
+class TestIsJeiCompanyConfigured:
+    def test_requires_enabled_and_date(self):
+        assert is_jei_company_configured(None) is False
+        assert is_jei_company_configured({"jei_enabled": True}) is False
+        assert is_jei_company_configured(
+            {"jei_enabled": True, "date_creation_etablissement": "2020-01-01"}
+        ) is True
+
 
 class TestHasCompanyCcAssigned:
     def test_empty(self):
@@ -160,6 +219,7 @@ class TestGetCompanyOverview:
                     "absences": [],
                     "mutuelle_employee_ids": set(),
                     "company_cc_ids": set(),
+                    "jei_settings": None,
                 },
             ):
                 result = queries.get_company_overview("c1", MagicMock())

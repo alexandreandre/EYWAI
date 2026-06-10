@@ -18,8 +18,10 @@ from app.modules.company_groups.infrastructure.queries import (
     fetch_company_effectif_by_group_id,
     fetch_company_ids_by_group_id,
     fetch_group_by_id_with_companies,
+    fetch_group_companies_for_reorder,
     fetch_group_company_ids_for_permission_check,
     fetch_groups_with_companies,
+    fetch_max_group_display_order,
 )
 from app.modules.company_groups.infrastructure.user_lookup import user_lookup_provider
 
@@ -66,13 +68,32 @@ class CompanyGroupRepository(ICompanyGroupRepository):
 
     def set_company_group(self, company_id: str, group_id: Optional[str]) -> bool:
         """Associe ou dissocie une entreprise à un groupe (update companies.group_id)."""
+        payload: Dict[str, Any] = {"group_id": group_id}
+        if group_id is None:
+            payload["group_display_order"] = None
+        else:
+            payload["group_display_order"] = fetch_max_group_display_order(group_id) + 1
         res = (
             supabase.table("companies")
-            .update({"group_id": group_id})
+            .update(payload)
             .eq("id", company_id)
             .execute()
         )
         return bool(res.data)
+
+    def reorder_group_companies(
+        self, group_id: str, ordered_company_ids: List[str]
+    ) -> List[Dict[str, Any]]:
+        """Met à jour group_display_order pour chaque entreprise du groupe."""
+        for index, company_id in enumerate(ordered_company_ids):
+            supabase.table("companies").update(
+                {"group_display_order": index + 1}
+            ).eq("id", company_id).eq("group_id", group_id).execute()
+        return fetch_group_companies_for_reorder(group_id)
+
+    def get_group_company_ids_all(self, group_id: str) -> List[str]:
+        """IDs de toutes les entreprises du groupe (actives ou non)."""
+        return fetch_group_company_ids_for_permission_check(group_id)
 
     def set_company_group_with_current(
         self,
@@ -81,9 +102,14 @@ class CompanyGroupRepository(ICompanyGroupRepository):
         current_group_id: Optional[str],
     ) -> bool:
         """Met à jour group_id d'une entreprise en vérifiant qu'elle est dans current_group_id."""
+        payload: Dict[str, Any] = {"group_id": group_id}
+        if group_id is None:
+            payload["group_display_order"] = None
+        elif current_group_id is None:
+            payload["group_display_order"] = fetch_max_group_display_order(group_id) + 1
         q = (
             supabase.table("companies")
-            .update({"group_id": group_id})
+            .update(payload)
             .eq("id", company_id)
         )
         if current_group_id is not None:

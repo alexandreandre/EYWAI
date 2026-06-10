@@ -45,6 +45,7 @@ class SupabaseWorkMedalCasesRepository(AbstractWorkMedalCasesRepository):
         company_id: str,
         *,
         status: str | None = None,
+        statuses: List[str] | None = None,
         medal_level: str | None = None,
     ) -> List[Dict[str, Any]]:
         q = (
@@ -53,7 +54,9 @@ class SupabaseWorkMedalCasesRepository(AbstractWorkMedalCasesRepository):
             .eq("company_id", company_id)
             .order("eligible_date")
         )
-        if status:
+        if statuses:
+            q = q.in_("status", statuses)
+        elif status:
             q = q.eq("status", status)
         if medal_level:
             q = q.eq("medal_level", medal_level)
@@ -124,6 +127,16 @@ class SupabaseWorkMedalCasesRepository(AbstractWorkMedalCasesRepository):
             .execute()
         )
         return int(res.count or 0)
+
+    def migrate_legacy_employee_pending(self, company_id: str) -> int:
+        res = (
+            supabase.table("employee_work_medal_cases")
+            .update({"status": "awaiting_rh"})
+            .eq("company_id", company_id)
+            .eq("status", "awaiting_employee")
+            .execute()
+        )
+        return len(res.data or [])
 
     @staticmethod
     def _normalize_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

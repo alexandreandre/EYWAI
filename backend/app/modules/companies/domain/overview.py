@@ -197,11 +197,29 @@ def has_company_cc_assigned(company_cc_ids: Set[str]) -> bool:
     return bool(company_cc_ids)
 
 
+def is_jei_company_configured(jei_settings: Optional[Dict[str, Any]]) -> bool:
+    """True si le statut JEI est activé avec une date de création renseignée."""
+    if not jei_settings:
+        return False
+    return bool(jei_settings.get("jei_enabled")) and bool(
+        jei_settings.get("date_creation_etablissement")
+    )
+
+
+def is_employee_jei_rd_eligible(employee: Dict[str, Any]) -> bool:
+    """True si le salarié est marqué éligible au dispositif JEI (personnel R&D)."""
+    spec = employee.get("specificites_paie") or {}
+    if not isinstance(spec, dict):
+        return False
+    return bool(spec.get("personnel_rd_eligible_jei") or spec.get("mandataire_rd"))
+
+
 def compute_alerts(
     company_data: Dict[str, Any],
     employees: List[Dict[str, Any]],
     mutuelle_employee_ids: Set[str],
     company_cc_ids: Set[str] | None = None,
+    jei_settings: Optional[Dict[str, Any]] = None,
     *,
     cdd_horizon_days: int = 15,
 ) -> List[Dict[str, Any]]:
@@ -309,6 +327,46 @@ def compute_alerts(
             }
         )
 
+    jei_configured = is_jei_company_configured(jei_settings)
+    rd_eligible_employees = [e for e in active if is_employee_jei_rd_eligible(e)]
+
+    if jei_configured and not rd_eligible_employees:
+        alerts.append(
+            {
+                "code": "jei_enabled_no_rd_employees",
+                "severity": "warning",
+                "label": (
+                    "Statut JEI actif — aucun salarié marqué « personnel R&D éligible »"
+                ),
+                "action": "company_payroll_jei",
+            }
+        )
+
+    if rd_eligible_employees and not jei_configured:
+        count = len(rd_eligible_employees)
+        preview = rd_eligible_employees[:5]
+        alerts.append(
+            {
+                "code": "jei_rd_without_company_status",
+                "severity": "warning",
+                "label": (
+                    f"{count} salarié(s) marqué(s) JEI sans statut entreprise activé"
+                ),
+                "count": count,
+                "action": "company_payroll_jei",
+                "employee_ids": [str(e["id"]) for e in rd_eligible_employees if e.get("id")],
+                "employees": [
+                    {
+                        "id": str(e["id"]),
+                        "first_name": str(e.get("first_name") or ""),
+                        "last_name": str(e.get("last_name") or ""),
+                    }
+                    for e in preview
+                    if e.get("id")
+                ],
+            }
+        )
+
     return alerts
 
 
@@ -316,6 +374,7 @@ def compute_compliance_flags(
     company_data: Dict[str, Any],
     headcount: int,
     company_cc_ids: Set[str] | None = None,
+    jei_settings: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, bool]:
     """Drapeaux pour le bandeau conformité."""
     return {
@@ -323,6 +382,7 @@ def compute_compliance_flags(
         "vm_configured": company_data.get("taux_vm") is not None,
         "collective_agreement_configured": has_company_cc_assigned(company_cc_ids or set()),
         "cse_obligation": headcount >= 11,
+        "jei_configured": is_jei_company_configured(jei_settings),
     }
 
 

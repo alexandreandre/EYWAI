@@ -50,17 +50,14 @@ def test_detection_creates_case_once():
                 with patch(
                     "app.modules.work_medals.application.detection.work_medal_cases_repository.insert"
                 ) as insert:
-                    insert.return_value = {"id": "case-1", "status": "awaiting_employee"}
-                    with patch(
-                        "app.modules.work_medals.application.detection.notify_employee_eligible",
-                        return_value=True,
-                    ):
-                        result = scan_company_work_medals("company-1")
-                        assert result.created == 1
-                        insert.assert_called_once()
-                        payload = insert.call_args[0][0]
-                        assert payload["employee_id"] == "emp-1"
-                        assert payload["medal_level"] == "argent"
+                    insert.return_value = {"id": "case-1", "status": "awaiting_rh"}
+                    result = scan_company_work_medals("company-1")
+                    assert result.created == 1
+                    insert.assert_called_once()
+                    payload = insert.call_args[0][0]
+                    assert payload["employee_id"] == "emp-1"
+                    assert payload["medal_level"] == "argent"
+                    assert payload["status"] == "awaiting_rh"
 
 
 def test_detection_skips_when_disabled():

@@ -17,7 +17,7 @@ def fetch_overview_raw(company_id: str) -> Dict[str, Any]:
             "id, first_name, last_name, contract_type, hire_date, job_title, statut, "
             "date_naissance, birth_date, contract_end_date, weekly_hours, "
             "duree_hebdomadaire, employment_status, status, sexe, gender, genre, "
-            "collective_agreement_id"
+            "collective_agreement_id, specificites_paie"
         )
         .eq("company_id", company_id)
         .execute()
@@ -70,10 +70,24 @@ def fetch_overview_raw(company_id: str) -> Dict[str, Any]:
     except Exception:
         pass
 
+    jei_settings: Dict[str, Any] | None = None
+    try:
+        jei_res = (
+            supabase.table("company_jei_settings")
+            .select("jei_enabled, date_creation_etablissement")
+            .eq("company_id", company_id)
+            .maybe_single()
+            .execute()
+        )
+        jei_settings = jei_res.data if jei_res else None
+    except Exception:
+        jei_settings = None
+
     return {
         "employees": employees,
         "exits": exits,
         "absences": absences,
         "mutuelle_employee_ids": mutuelle_ids,
         "company_cc_ids": company_cc_ids,
+        "jei_settings": jei_settings,
     }

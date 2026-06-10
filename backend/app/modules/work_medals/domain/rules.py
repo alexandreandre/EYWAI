@@ -23,6 +23,8 @@ MEDAL_LEVEL_LABELS: dict[MedalLevel, str] = {
     "grand_or": "Grande médaille d'or",
 }
 
+RH_PENDING_STATUSES: list[CaseStatus] = ["awaiting_rh", "awaiting_employee"]
+
 DEFAULT_TIERS: list[dict[str, Any]] = [
     {
         "level": "argent",
@@ -55,9 +57,9 @@ DEFAULT_TIERS: list[dict[str, Any]] = [
 ]
 
 _ALLOWED_TRANSITIONS: dict[tuple[CaseStatus, CaseStatus], Literal["system", "employee", "rh"]] = {
-    ("upcoming", "awaiting_employee"): "system",
-    ("awaiting_employee", "awaiting_rh"): "employee",
+    ("upcoming", "awaiting_rh"): "system",
     ("awaiting_rh", "approved"): "rh",
+    ("awaiting_employee", "approved"): "rh",  # legacy — avant simplification workflow
     ("approved", "paid"): "system",
     ("upcoming", "dismissed"): "rh",
     ("awaiting_employee", "dismissed"): "rh",
@@ -115,7 +117,7 @@ def detect_case_status(
     threshold = milestone_years * 12
     reminder_start = max(0, threshold - reminder_months_before)
     if seniority_months >= threshold:
-        return "awaiting_employee"
+        return "awaiting_rh"
     if seniority_months >= reminder_start:
         return "upcoming"
     return None

@@ -26,6 +26,12 @@ class BulkAddCompaniesRequest(BaseModel):
     company_ids: List[str]
 
 
+class ReorderGroupCompaniesRequest(BaseModel):
+    """Body pour POST /{group_id}/companies/reorder."""
+
+    company_ids: List[str]
+
+
 class UserCompanyAccess(BaseModel):
     """Un accès utilisateur à une entreprise (pour manage-user-access)."""
 

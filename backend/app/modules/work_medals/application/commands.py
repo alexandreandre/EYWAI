@@ -44,7 +44,10 @@ _DB_WRITABLE_KEYS = frozenset(
 def save_work_medal_settings(
     company_id: str, data: WorkMedalSettingsUpdate
 ) -> WorkMedalSettings:
+    from app.modules.work_medals.application import detection
+
     current = queries.get_work_medal_settings(company_id)
+    was_enabled = current.enabled
     merged: Dict[str, Any] = current.model_dump(mode="json")
     patch = data.model_dump(exclude_unset=True)
     if "tiers" in patch and patch["tiers"] is not None:
@@ -58,7 +61,10 @@ def save_work_medal_settings(
 
     payload = {k: merged[k] for k in _DB_WRITABLE_KEYS if k in merged}
     row = work_medal_settings_repository.upsert(company_id, payload)
-    return queries._settings_from_row(company_id, row)
+    settings = queries._settings_from_row(company_id, row)
+    if not was_enabled and settings.enabled:
+        detection.scan_company_work_medals(company_id)
+    return settings
 
 
 def _get_employee_row(employee_id: str) -> Dict[str, Any]:
@@ -80,25 +86,6 @@ def _tier_for_case(settings: WorkMedalSettings, medal_level: str):
         if tier.level == medal_level:
             return tier
     raise ValueError(f"Palier {medal_level} non configuré")
-
-
-def employee_confirm_case(case_id: str, employee_id: str) -> WorkMedalCase:
-    case = queries.get_work_medal_case(case_id)
-    if not case:
-        raise ValueError("Dossier introuvable")
-    if case.employee_id != employee_id:
-        raise ValueError("Accès non autorisé à ce dossier")
-    if not can_transition(case.status, "awaiting_rh", "employee"):
-        raise ValueError(f"Transition impossible depuis le statut {case.status}")
-
-    row = work_medal_cases_repository.update(
-        case_id,
-        {
-            "status": "awaiting_rh",
-            "employee_confirmed_at": datetime.now(timezone.utc).isoformat(),
-        },
-    )
-    return WorkMedalCase.model_validate(row)
 
 
 def approve_work_medal_case(

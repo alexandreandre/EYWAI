@@ -62,15 +62,20 @@ def get_company_overview(company_id: str, current_user: Any) -> CompanyOverviewD
     movements = compute_movements(employees, raw["exits"])
     absenteeism = compute_absenteeism(raw["absences"], employee_ids)
     company_cc_ids = raw.get("company_cc_ids") or set()
+    jei_settings = raw.get("jei_settings")
     alerts = compute_alerts(
         company,
         employees,
         raw["mutuelle_employee_ids"],
         company_cc_ids,
+        jei_settings,
         cdd_horizon_days=15,
     )
     compliance = compute_compliance_flags(
-        company, demographics["total_headcount"], company_cc_ids
+        company,
+        demographics["total_headcount"],
+        company_cc_ids,
+        jei_settings,
     )
     cdd_ending = next(
         (a.get("count", 0) for a in alerts if a.get("code") == "cdd_ending_soon"),

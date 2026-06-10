@@ -20,7 +20,6 @@ from app.modules.work_medals.schemas.responses import (
     WorkMedalSettings,
     WorkMedalSummary,
 )
-from app.shared.employee_resolution import resolve_employee_id_for_user_account
 
 router = APIRouter(prefix="/api/work-medals", tags=["WorkMedals"])
 settings_router = APIRouter(prefix="/api/work-medal-settings", tags=["WorkMedals"])
@@ -94,21 +93,6 @@ def employee_cases_route(
     if cases and cases[0].company_id != cid:
         raise HTTPException(status_code=403, detail="Accès non autorisé")
     return cases
-
-
-@router.post("/{case_id}/employee-confirm", response_model=WorkMedalCase)
-def employee_confirm_route(
-    case_id: str,
-    current_user: User = Depends(get_current_user),
-) -> WorkMedalCase:
-    cid = _require_company(current_user)
-    employee_id = resolve_employee_id_for_user_account(str(current_user.id), cid)
-    if not employee_id:
-        raise HTTPException(status_code=403, detail="Profil employé introuvable")
-    try:
-        return commands.employee_confirm_case(case_id, employee_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/{case_id}/approve", response_model=WorkMedalCase)

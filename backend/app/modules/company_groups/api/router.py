@@ -23,6 +23,7 @@ from app.modules.company_groups.schemas.requests import (
     BulkAddCompaniesRequest,
     CompanyGroupCreate,
     ManageUserAccessRequest,
+    ReorderGroupCompaniesRequest,
 )
 from app.modules.company_groups.schemas.responses import (
     CompanyGroup,
@@ -367,6 +368,27 @@ def remove_company_from_group(
         }
     except Exception as e:
         _handle_application_errors(e, "Erreur lors du retrait du groupe")
+
+
+@router.post("/{group_id}/companies/reorder")
+def reorder_group_companies(
+    group_id: str,
+    request: ReorderGroupCompaniesRequest,
+    current_user: CurrentUserForCompanyGroups = Depends(get_current_user),
+):
+    """Réordonne les entreprises d'un groupe (Super Admin uniquement)."""
+    if not current_user.is_platform_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Accès réservé aux super administrateurs",
+        )
+    try:
+        companies = commands.reorder_group_companies(
+            group_id, request.company_ids, current_user
+        )
+        return {"companies": companies}
+    except Exception as e:
+        _handle_application_errors(e, "Erreur lors du réordonnancement")
 
 
 @router.post("/{group_id}/companies/bulk")

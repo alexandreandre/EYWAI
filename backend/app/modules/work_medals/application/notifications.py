@@ -32,20 +32,6 @@ def _insert_notification(
         return False
 
 
-def notify_employee_eligible(
-    employee_id: str,
-    company_id: str,
-    medal_level: str,
-    eligible_date: str,
-) -> bool:
-    label = MEDAL_LEVEL_LABELS.get(medal_level, medal_level)  # type: ignore[arg-type]
-    message = (
-        f"Vous êtes éligible à la {label} (atteinte le {eligible_date}). "
-        "Confirmez votre éligibilité pour déclencher la prime prévue par votre entreprise."
-    )
-    return _insert_notification(employee_id, company_id, "medaille_travail", message)
-
-
 def notify_employee_approved(
     employee_id: str,
     company_id: str,

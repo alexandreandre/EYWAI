@@ -23,6 +23,7 @@ class AbstractWorkMedalCasesRepository(ABC):
         company_id: str,
         *,
         status: str | None = None,
+        statuses: List[str] | None = None,
         medal_level: str | None = None,
     ) -> List[Dict[str, Any]]:
         ...

@@ -137,6 +137,26 @@ def bulk_add_companies_to_group(
     )
 
 
+def reorder_group_companies(
+    group_id: str, company_ids: List[str], current_user: Any
+) -> List[dict]:
+    """
+    Réordonne les entreprises d'un groupe (super admin).
+    La liste doit contenir exactement toutes les entreprises du groupe.
+    """
+    if not company_group_repository.exists(group_id):
+        raise LookupError("Groupe non trouvé")
+    expected_ids = set(company_group_repository.get_group_company_ids_all(group_id))
+    ordered = [str(cid) for cid in company_ids]
+    if not ordered:
+        raise ValueError("La liste des entreprises est vide")
+    if set(ordered) != expected_ids or len(ordered) != len(expected_ids):
+        raise ValueError(
+            "La liste d'entreprises ne correspond pas aux entreprises du groupe"
+        )
+    return company_group_repository.reorder_group_companies(group_id, ordered)
+
+
 def manage_user_access_in_group(
     group_id: str, request: Any, current_user: Any
 ) -> ManageUserAccessResultDto:

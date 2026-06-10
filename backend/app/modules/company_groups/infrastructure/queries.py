@@ -129,6 +129,34 @@ def fetch_group_company_ids_for_permission_check(group_id: str) -> List[str]:
     return [c["id"] for c in (res.data or [])]
 
 
+def fetch_max_group_display_order(group_id: str) -> int:
+    """Position maximale actuelle dans le groupe (0 si aucune entreprise)."""
+    res = (
+        supabase.table("companies")
+        .select("group_display_order")
+        .eq("group_id", group_id)
+        .order("group_display_order", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if not res.data:
+        return 0
+    return int(res.data[0].get("group_display_order") or 0)
+
+
+def fetch_group_companies_for_reorder(group_id: str) -> List[Dict[str, Any]]:
+    """Entreprises du groupe avec ordre d'affichage (toutes, actives ou non)."""
+    res = (
+        supabase.table("companies")
+        .select("id, company_name, group_display_order, is_active")
+        .eq("group_id", group_id)
+        .order("group_display_order")
+        .order("company_name")
+        .execute()
+    )
+    return res.data or []
+
+
 def fetch_company_effectif_by_group_id(group_id: str) -> List[Dict[str, Any]]:
     """Pour un groupe, retourne les lignes (id, effectif) des companies actives."""
     res = (

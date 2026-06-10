@@ -42,7 +42,7 @@ def test_seniority_company_only_ignores_prior():
 
 def test_detect_case_status_upcoming_vs_eligible():
     assert detect_case_status(234, 20, 6) == "upcoming"
-    assert detect_case_status(240, 20, 6) == "awaiting_employee"
+    assert detect_case_status(240, 20, 6) == "awaiting_rh"
     assert detect_case_status(100, 20, 6) is None
 
 
@@ -78,6 +78,6 @@ def test_compute_social_tax_flag(amount, base, year, expected):
 
 
 def test_can_transition_workflow():
-    assert can_transition("awaiting_employee", "awaiting_rh", "employee")
     assert can_transition("awaiting_rh", "approved", "rh")
+    assert can_transition("awaiting_employee", "approved", "rh")
     assert not can_transition("upcoming", "approved", "rh")

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from app.modules.work_medals.domain.rules import DEFAULT_TIERS, parse_tiers
+from app.modules.work_medals.domain.rules import DEFAULT_TIERS, RH_PENDING_STATUSES, parse_tiers
 from app.modules.work_medals.infrastructure.repository import (
     work_medal_cases_repository,
     work_medal_settings_repository,
@@ -55,14 +55,26 @@ def list_work_medal_cases(
     status: str | None = None,
     medal_level: str | None = None,
 ) -> List[WorkMedalCase]:
+    work_medal_cases_repository.migrate_legacy_employee_pending(company_id)
+    statuses: List[str] | None = None
+    status_filter = status
+    if status == "awaiting_rh":
+        statuses = list(RH_PENDING_STATUSES)
+        status_filter = None
     rows = work_medal_cases_repository.list_by_company(
-        company_id, status=status, medal_level=medal_level
+        company_id,
+        status=status_filter,
+        statuses=statuses,
+        medal_level=medal_level,
     )
     return [WorkMedalCase.model_validate(r) for r in rows]
 
 
 def list_employee_work_medal_cases(employee_id: str) -> List[WorkMedalCase]:
     rows = work_medal_cases_repository.list_by_employee(employee_id)
+    if rows:
+        work_medal_cases_repository.migrate_legacy_employee_pending(str(rows[0]["company_id"]))
+        rows = work_medal_cases_repository.list_by_employee(employee_id)
     return [WorkMedalCase.model_validate(r) for r in rows]
 
 
@@ -75,16 +87,14 @@ def get_work_medal_summary(company_id: str) -> WorkMedalSummary:
     settings = get_work_medal_settings(company_id)
     if not settings.enabled:
         return WorkMedalSummary()
+    work_medal_cases_repository.migrate_legacy_employee_pending(company_id)
     awaiting_rh = work_medal_cases_repository.count_by_status(
         company_id, ["awaiting_rh"]
-    )
-    awaiting_employee = work_medal_cases_repository.count_by_status(
-        company_id, ["awaiting_employee"]
     )
     upcoming = work_medal_cases_repository.count_by_status(company_id, ["upcoming"])
     return WorkMedalSummary(
         awaiting_rh=awaiting_rh,
-        awaiting_employee=awaiting_employee,
+        awaiting_employee=0,
         upcoming=upcoming,
-        total_actionable=awaiting_rh + awaiting_employee,
+        total_actionable=awaiting_rh,
     )

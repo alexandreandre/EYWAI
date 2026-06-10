@@ -334,6 +334,57 @@ class TestManageUserAccessInGroup:
         mock_repo.insert_user_company_access.assert_called()
 
 
+class TestReorderGroupCompanies:
+    """Commande reorder_group_companies."""
+
+    def test_reorder_raises_when_group_not_found(self):
+        mock_repo = MagicMock()
+        mock_repo.exists.return_value = False
+
+        with patch(f"{MODULE_COMMANDS}.company_group_repository", mock_repo):
+            with pytest.raises(LookupError, match="Groupe non trouvé"):
+                commands.reorder_group_companies(
+                    "g-1", ["c1"], current_user=MagicMock()
+                )
+
+    def test_reorder_raises_when_list_empty(self):
+        mock_repo = MagicMock()
+        mock_repo.exists.return_value = True
+        mock_repo.get_group_company_ids_all.return_value = ["c1"]
+
+        with patch(f"{MODULE_COMMANDS}.company_group_repository", mock_repo):
+            with pytest.raises(ValueError, match="liste des entreprises est vide"):
+                commands.reorder_group_companies("g-1", [], current_user=MagicMock())
+
+    def test_reorder_raises_when_ids_mismatch(self):
+        mock_repo = MagicMock()
+        mock_repo.exists.return_value = True
+        mock_repo.get_group_company_ids_all.return_value = ["c1", "c2"]
+
+        with patch(f"{MODULE_COMMANDS}.company_group_repository", mock_repo):
+            with pytest.raises(ValueError, match="ne correspond pas"):
+                commands.reorder_group_companies(
+                    "g-1", ["c1"], current_user=MagicMock()
+                )
+
+    def test_reorder_success(self):
+        mock_repo = MagicMock()
+        mock_repo.exists.return_value = True
+        mock_repo.get_group_company_ids_all.return_value = ["c2", "c1"]
+        mock_repo.reorder_group_companies.return_value = [
+            {"id": "c2", "group_display_order": 1},
+            {"id": "c1", "group_display_order": 2},
+        ]
+
+        with patch(f"{MODULE_COMMANDS}.company_group_repository", mock_repo):
+            result = commands.reorder_group_companies(
+                "g-1", ["c2", "c1"], current_user=MagicMock()
+            )
+
+        assert len(result) == 2
+        mock_repo.reorder_group_companies.assert_called_once_with("g-1", ["c2", "c1"])
+
+
 class TestRemoveUserFromGroup:
     """Commande remove_user_from_group."""
 
