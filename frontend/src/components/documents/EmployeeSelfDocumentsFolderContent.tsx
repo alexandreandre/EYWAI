@@ -125,7 +125,12 @@ export function EmployeeSelfDocumentsFolderContent({
       name={payslipLabel(p)}
       actions={
         <>
-          <ViewLinkButton href={p.preview_url ?? ''} title="Visualiser le bulletin" />
+          <ViewLinkButton
+            href={p.preview_url ?? p.url ?? ''}
+            title="Visualiser le bulletin"
+            downloadUrl={p.url}
+            downloadName={p.name}
+          />
           <DownloadLinkButton href={p.url} download={p.name} />
         </>
       }

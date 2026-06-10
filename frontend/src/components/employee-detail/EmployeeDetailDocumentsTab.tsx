@@ -398,7 +398,12 @@ export function EmployeeDetailDocumentsTab({
         }
         actions={
           <>
-            <ViewLinkButton href={p.preview_url ?? ''} title="Visualiser le bulletin" />
+            <ViewLinkButton
+              href={p.preview_url ?? p.url ?? ''}
+              title="Visualiser le bulletin"
+              downloadUrl={p.url}
+              downloadName={p.name}
+            />
             <Button variant="outline" size="sm" asChild>
               <Link to={`/payslips/${p.id}/edit`}>
                 <Edit className="mr-2 h-4 w-4" />

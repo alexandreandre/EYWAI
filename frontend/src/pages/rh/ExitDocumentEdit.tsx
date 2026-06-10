@@ -229,7 +229,11 @@ export default function ExitDocumentEdit() {
             <Button
               variant="outline"
               onClick={() =>
-                openSignedUrlPreview(document.preview_url ?? document.download_url)
+                openSignedUrlPreview(document.preview_url ?? document.download_url, {
+                  title: documentTypeLabels[document.document_type] ?? 'Document de sortie',
+                  downloadUrl: document.download_url,
+                  downloadName: document.filename,
+                })
               }
             >
               <Eye className="h-4 w-4 mr-2" />

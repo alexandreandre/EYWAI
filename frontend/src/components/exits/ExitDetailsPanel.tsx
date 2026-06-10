@@ -658,6 +658,8 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                               <ViewLinkButton
                                 href={doc.preview_url ?? doc.download_url}
                                 title="Voir le document"
+                                downloadUrl={doc.download_url}
+                                downloadName={doc.filename}
                               />
                               <Button
                                 variant="ghost"

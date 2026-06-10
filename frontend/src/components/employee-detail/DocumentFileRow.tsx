@@ -55,10 +55,15 @@ export function ViewLinkButton({
   href,
   title = 'Visualiser',
   disabled,
+  downloadUrl,
+  downloadName,
 }: {
   href: string;
   title?: string;
   disabled?: boolean;
+  /** URL de téléchargement (si différente de l’aperçu). */
+  downloadUrl?: string;
+  downloadName?: string;
 }) {
   const isDisabled = disabled || !href?.trim();
   return (
@@ -69,7 +74,13 @@ export function ViewLinkButton({
       className="h-8 w-8"
       disabled={isDisabled}
       title={title}
-      onClick={() => openSignedUrlPreview(href)}
+      onClick={() =>
+        openSignedUrlPreview(href, {
+          title,
+          downloadUrl: downloadUrl ?? href,
+          downloadName,
+        })
+      }
     >
       <Eye className="h-4 w-4" />
       <span className="sr-only">{title}</span>
@@ -92,7 +103,12 @@ export function DocumentPreviewDownloadActions({
 }) {
   return (
     <>
-      <ViewLinkButton href={previewUrl ?? downloadUrl} title={previewTitle} />
+      <ViewLinkButton
+        href={previewUrl ?? downloadUrl}
+        title={previewTitle}
+        downloadUrl={downloadUrl}
+        downloadName={downloadName}
+      />
       <DownloadLinkButton href={downloadUrl} download={downloadName} label={downloadLabel} />
     </>
   );

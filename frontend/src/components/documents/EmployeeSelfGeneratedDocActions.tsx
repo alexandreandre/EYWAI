@@ -21,7 +21,10 @@ export function EmployeeSelfGeneratedDocActions({
   const handleView = async () => {
     setLoading('view');
     try {
-      await openDocumentPreview(doc.id);
+      await openDocumentPreview(doc.id, {
+        title: doc.file_name || 'Document',
+        downloadName: doc.file_name || 'document.pdf',
+      });
     } catch {
       toast({
         title: 'Aperçu',

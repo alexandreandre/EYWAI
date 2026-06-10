@@ -1,5 +1,5 @@
 import apiClient from '@/api/apiClient';
-import { openSignedUrlPreview } from '@/lib/openSignedUrlPreview';
+import { openSignedUrlPreview, type SignedPdfPreviewOptions } from '@/lib/openSignedUrlPreview';
 
 export type DocumentStatus = 'brouillon' | 'envoye' | 'signe' | 'archive';
 
@@ -176,8 +176,16 @@ export function triggerSignedDocumentDownload(
   document.body.removeChild(a);
 }
 
-/** Ouvre le PDF dans un nouvel onglet (aperçu inline, sans forcer le téléchargement). */
-export async function openDocumentPreview(id: string): Promise<void> {
+/** Ouvre le PDF dans le dialogue d’aperçu intégré. */
+export async function openDocumentPreview(
+  id: string,
+  options?: SignedPdfPreviewOptions & { downloadName?: string }
+): Promise<void> {
   const res = await previewDocument(id);
-  openSignedUrlPreview(res.signed_url);
+  openSignedUrlPreview(res.signed_url, {
+    title: options?.title ?? 'Aperçu du document',
+    subtitle: options?.subtitle,
+    downloadName: options?.downloadName ?? res.file_name ?? 'document.pdf',
+    downloadUrl: res.signed_url,
+  });
 }

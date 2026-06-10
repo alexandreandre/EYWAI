@@ -1,5 +1,6 @@
 import { Download, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { openSignedUrlPreview } from '@/lib/openSignedUrlPreview';
 import type { Expense } from '@/api/expenses';
 
 interface EmployeeExpenseReceiptActionsProps {
@@ -20,16 +21,21 @@ export function EmployeeExpenseReceiptActions({
   return (
     <div className={compact ? 'flex gap-1' : 'flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2'}>
       <div className="flex gap-1">
-        <Button variant="outline" size="icon" className="h-8 w-8" asChild>
-          <a
-            href={expense.receipt_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Voir le justificatif"
-            title="Voir le justificatif"
-          >
-            <Eye className="h-4 w-4" />
-          </a>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() =>
+            openSignedUrlPreview(expense.receipt_url, {
+              title: 'Justificatif de note de frais',
+              downloadUrl: expense.receipt_url,
+              downloadName: expense.filename ?? 'justificatif',
+            })
+          }
+          aria-label="Voir le justificatif"
+          title="Voir le justificatif"
+        >
+          <Eye className="h-4 w-4" />
         </Button>
         <Button
           variant="outline"

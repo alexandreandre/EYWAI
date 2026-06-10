@@ -10,6 +10,7 @@ import { BootGate } from '@/components/BootGate';
 import { isPlatformAdmin } from '@/lib/platformAdmin';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { SignedPdfPreviewProvider } from '@/contexts/SignedPdfPreviewContext';
 import { AppSidebar } from '@/components/ui/app-sidebar';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Menu } from 'lucide-react';
@@ -269,8 +270,9 @@ function PlatformAdminRoute({ children }: { children: ReactNode }) {
 export default function App() {
   return (
     <TooltipProvider>
-      <Toaster />
-      <BootProvider>
+      <SignedPdfPreviewProvider>
+        <Toaster />
+        <BootProvider>
         <AuthProvider>
           <BrowserRouter
             future={{
@@ -335,6 +337,7 @@ export default function App() {
           </BrowserRouter>
         </AuthProvider>
       </BootProvider>
+      </SignedPdfPreviewProvider>
     </TooltipProvider>
   );
 }

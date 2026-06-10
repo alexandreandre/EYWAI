@@ -113,7 +113,7 @@ export function PayrollPayslipRow({
   } else if (state.status === 'success' && payslip) {
     actions = (
       <>
-        <ViewLinkButton href={payslip.preview_url ?? ''} title="Visualiser le bulletin" />
+        <ViewLinkButton href={payslip.preview_url ?? payslip.url ?? ''} title="Visualiser le bulletin" downloadUrl={payslip.url} downloadName={payslip.name} />
         <Button variant="outline" size="sm" asChild>
           <Link to={`/payslips/${payslip.id}/edit`}>
             <Edit className="mr-2 h-4 w-4" />
