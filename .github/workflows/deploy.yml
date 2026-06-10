@@ -152,6 +152,8 @@ jobs:
             SUPABASE_URL=${{ secrets.SUPABASE_URL }}
             SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
             OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
+            PISTE_CLIENT_ID=${{ secrets.PISTE_CLIENT_ID }}
+            PISTE_CLIENT_SECRET=${{ secrets.PISTE_CLIENT_SECRET }}
           env_vars_update_strategy: merge
 
       - uses: google-github-actions/deploy-cloudrun@v2
@@ -203,6 +205,8 @@ jobs:
             SUPABASE_URL=${{ secrets.SUPABASE_URL }}
             SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
             OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
+            PISTE_CLIENT_ID=${{ secrets.PISTE_CLIENT_ID }}
+            PISTE_CLIENT_SECRET=${{ secrets.PISTE_CLIENT_SECRET }}
           env_vars_update_strategy: merge
 
       - uses: google-github-actions/deploy-cloudrun@v2

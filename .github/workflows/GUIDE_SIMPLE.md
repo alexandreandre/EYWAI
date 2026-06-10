@@ -97,6 +97,7 @@ Deux comportements dans le même fichier :
 | Secret | `SUPABASE_URL`, `SUPABASE_KEY` | Variables passées à Cloud Run au déploiement. |
 | Secret | `SUPABASE_DB_URL` | *(Optionnel)* Chaîne Postgres Supabase pour `supabase db push` en CI. Si absent, le job migrations affiche un avertissement et le déploiement continue (schéma appliqué manuellement). |
 | Secret | `OPENROUTER_API_KEY` | Clé OpenRouter pour l'IA en prod (copilot, parsing PDF, etc.). Sans elle, l'app tourne mais l'IA renvoie une erreur de configuration. |
+| Secret | `PISTE_CLIENT_ID`, `PISTE_CLIENT_SECRET` | Identifiants API PISTE / Légifrance (mise à jour des conventions collectives depuis le super-admin). Sans eux, la sync KALI échoue en prod (`0 convention sur N`). Déjà utilisés par le workflow **CC KALI sync**. |
 | Variable | `GCP_PROJECT_ID` | Projet GCP cible. |
 | Variable | `VITE_API_URL` | URL HTTPS publique du backend (utilisée au build de l'image frontend). |
 | Variable (optionnel) | `GCP_REGION`, `BACKEND_SERVICE_NAME`, `FRONTEND_SERVICE_NAME` | Surcharge des valeurs par défaut. |
