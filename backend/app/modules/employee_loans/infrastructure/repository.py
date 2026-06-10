@@ -132,6 +132,16 @@ class SupabaseEmployeeLoanInstallmentsRepository(
             return None
         return res.data[0]
 
+    def skip_pending_for_loan(self, loan_id: str) -> None:
+        supabase.table(TABLE_EMPLOYEE_LOAN_INSTALLMENTS).update({"status": "skipped"}).eq(
+            "loan_id", loan_id
+        ).eq("status", "pending").execute()
+
+    def mark_pending_paid_for_loan(self, loan_id: str) -> None:
+        supabase.table(TABLE_EMPLOYEE_LOAN_INSTALLMENTS).update({"status": "paid"}).eq(
+            "loan_id", loan_id
+        ).eq("status", "pending").execute()
+
 
 class SupabaseEmployeeLoanRepaymentsRepository(
     AbstractEmployeeLoanRepaymentsRepository

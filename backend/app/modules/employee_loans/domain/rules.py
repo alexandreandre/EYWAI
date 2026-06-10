@@ -129,8 +129,39 @@ def compute_loan_repayment_cap(
 def compute_repayment_amount(
     due_capital: Decimal,
     remaining_seizable: Decimal,
+    remaining_capital: Decimal | None = None,
 ) -> Decimal:
-    """Montant effectivement prélevé ce mois."""
+    """Montant de capital effectivement prélevé ce mois."""
     if due_capital <= 0 or remaining_seizable <= 0:
         return Decimal("0.00")
-    return _money(min(due_capital, remaining_seizable))
+    amount = min(due_capital, remaining_seizable)
+    if remaining_capital is not None:
+        amount = min(amount, remaining_capital)
+    return _money(amount)
+
+
+def compute_interest_paid(
+    due_capital: Decimal,
+    due_interest: Decimal,
+    capital_paid: Decimal,
+) -> Decimal:
+    """Intérêts prélevés, proportionnels au capital remboursé si partiel."""
+    if capital_paid <= 0 or due_interest <= 0:
+        return Decimal("0.00")
+    if due_capital <= 0 or capital_paid >= due_capital:
+        return due_interest
+    ratio = capital_paid / due_capital
+    return _money(due_interest * ratio)
+
+
+def is_installment_fully_paid(
+    due_capital: Decimal,
+    due_interest: Decimal,
+    capital_paid: Decimal,
+    interest_paid: Decimal,
+    remaining_after: Decimal,
+) -> bool:
+    """True si l'échéance du mois est entièrement soldée."""
+    if remaining_after <= 0:
+        return True
+    return capital_paid >= due_capital and interest_paid >= due_interest

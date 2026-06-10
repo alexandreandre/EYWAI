@@ -8,9 +8,11 @@ import pytest
 from app.modules.employee_loans.domain.rules import (
     build_amortization_schedule,
     compute_interest_benefit_in_kind,
+    compute_interest_paid,
     compute_loan_repayment_cap,
     compute_monthly_payment,
     compute_repayment_amount,
+    is_installment_fully_paid,
     requires_2062,
 )
 
@@ -73,6 +75,34 @@ def test_compute_repayment_amount_respects_seizable_cap():
     due = Decimal("500")
     seizable = Decimal("200")
     assert compute_repayment_amount(due, seizable) == Decimal("200.00")
+
+
+def test_compute_repayment_amount_respects_remaining_capital():
+    due = Decimal("500")
+    seizable = Decimal("1000")
+    remaining = Decimal("150")
+    assert compute_repayment_amount(due, seizable, remaining) == Decimal("150.00")
+
+
+def test_compute_interest_paid_proportional():
+    assert compute_interest_paid(
+        Decimal("400"), Decimal("40"), Decimal("200")
+    ) == Decimal("20.00")
+    assert compute_interest_paid(
+        Decimal("400"), Decimal("40"), Decimal("400")
+    ) == Decimal("40.00")
+
+
+def test_is_installment_fully_paid():
+    assert is_installment_fully_paid(
+        Decimal("500"), Decimal("10"), Decimal("500"), Decimal("10"), Decimal("0")
+    )
+    assert not is_installment_fully_paid(
+        Decimal("500"), Decimal("10"), Decimal("200"), Decimal("4"), Decimal("300")
+    )
+    assert is_installment_fully_paid(
+        Decimal("500"), Decimal("10"), Decimal("150"), Decimal("0"), Decimal("0")
+    )
 
 
 def test_compute_loan_repayment_cap_uses_seizable_rules():

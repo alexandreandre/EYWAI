@@ -47,7 +47,9 @@
 
   <h2>Article 3 — Modalités de remboursement</h2>
   <p>Le remboursement s'effectue par retenue sur salaire, avec l'accord express du salarié,
-  dans la limite de la fraction saisissable du salaire net.</p>
+  dans la limite de la fraction saisissable du salaire net.
+  {% if loan.repayment_day %}Les échéances sont prélevées le {{ loan.repayment_day }} de chaque mois.{% endif %}
+  </p>
 
   <h2>Article 4 — Tableau d'amortissement</h2>
   <table>

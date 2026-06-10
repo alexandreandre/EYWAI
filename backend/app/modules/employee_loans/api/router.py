@@ -138,6 +138,30 @@ def cancel_loan_route(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.post("/{loan_id}/activate", response_model=EmployeeLoan)
+def activate_loan_route(
+    loan_id: str,
+    current_user: User = Depends(get_current_user),
+) -> EmployeeLoan:
+    access.require_rh_or_admin(current_user)
+    try:
+        return commands.activate_loan(loan_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/{loan_id}/default", response_model=EmployeeLoan)
+def mark_defaulted_route(
+    loan_id: str,
+    current_user: User = Depends(get_current_user),
+) -> EmployeeLoan:
+    access.require_rh_or_admin(current_user)
+    try:
+        return commands.mark_loan_defaulted(loan_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.post("/{loan_id}/early-repayment", response_model=EmployeeLoan)
 def early_repayment_route(
     loan_id: str,

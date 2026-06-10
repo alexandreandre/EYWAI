@@ -45,6 +45,35 @@ def get_active_loans_for_employee(employee_id: str) -> List[Dict[str, Any]]:
     return res.data or []
 
 
+def get_suspended_loans_with_pending_installment(
+    employee_id: str, year: int, month: int
+) -> List[Dict[str, Any]]:
+    """Prêts suspendus avec échéance pending sur la période (à passer en skipped)."""
+    res = (
+        supabase.table(TABLE_EMPLOYEE_LOANS)
+        .select("*")
+        .eq("employee_id", employee_id)
+        .eq("status", "suspended")
+        .execute()
+    )
+    loans = res.data or []
+    due: List[Dict[str, Any]] = []
+    for loan in loans:
+        inst = (
+            supabase.table(TABLE_EMPLOYEE_LOAN_INSTALLMENTS)
+            .select("*")
+            .eq("loan_id", loan["id"])
+            .eq("year", year)
+            .eq("month", month)
+            .maybe_single()
+            .execute()
+        )
+        installment = inst.data if inst and inst.data else None
+        if installment and installment.get("status") == "pending":
+            due.append({**loan, "installment": installment})
+    return due
+
+
 def get_loans_due_for_period(
     employee_id: str, year: int, month: int
 ) -> List[Dict[str, Any]]:
@@ -97,5 +126,6 @@ def get_employee_outstanding_loans(employee_id: str) -> Dict[str, Any]:
         "employee_id": employee_id,
         "total_remaining_capital": round(total, 2),
         "active_loans_count": len(loans),
+        "outstanding_loans_count": len(loans),
         "loans": loans,
     }

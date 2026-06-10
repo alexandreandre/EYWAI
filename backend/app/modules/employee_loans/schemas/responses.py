@@ -85,4 +85,5 @@ class EmployeeLoanOutstanding(BaseModel):
     employee_id: str
     total_remaining_capital: float
     active_loans_count: int
+    outstanding_loans_count: int = 0
     loans: List[EmployeeLoan] = Field(default_factory=list)

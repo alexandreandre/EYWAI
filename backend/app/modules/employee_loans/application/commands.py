@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from app.modules.employee_loans.domain.rules import (
     build_amortization_schedule,
@@ -12,6 +12,7 @@ from app.modules.employee_loans.domain.rules import (
 )
 from app.modules.employee_loans.infrastructure.repository import (
     employee_loan_installments_repository,
+    employee_loan_repayments_repository,
     employee_loans_repository,
 )
 from app.modules.employee_loans.schemas.responses import (
@@ -19,6 +20,15 @@ from app.modules.employee_loans.schemas.responses import (
     AmortizationPreviewLine,
     EmployeeLoan,
 )
+
+_ALLOWED_STATUS_TRANSITIONS: Dict[str, Set[str]] = {
+    "draft": {"active", "cancelled"},
+    "active": {"suspended", "repaid", "cancelled", "defaulted"},
+    "suspended": {"active", "defaulted", "cancelled"},
+    "repaid": set(),
+    "cancelled": set(),
+    "defaulted": set(),
+}
 
 
 def _get_employee_company_id(employee_id: str) -> str:
@@ -34,6 +44,16 @@ def _get_employee_company_id(employee_id: str) -> str:
     if not r or not r.data:
         raise ValueError("Employé non trouvé.")
     return str(r.data["company_id"])
+
+
+def _validate_status_transition(current: str, new: str) -> None:
+    if current == new:
+        return
+    allowed = _ALLOWED_STATUS_TRANSITIONS.get(current, set())
+    if new not in allowed:
+        raise ValueError(
+            f"Transition de statut invalide : {current} → {new}."
+        )
 
 
 def _build_preview(
@@ -131,10 +151,32 @@ def update_loan(loan_id: str, data: Any) -> EmployeeLoan:
     if not patch:
         return EmployeeLoan.model_validate(loan)
 
-    if patch.get("status") == "active" and loan.get("status") == "draft":
+    new_status = patch.get("status")
+    if new_status is not None:
+        _validate_status_transition(str(loan.get("status")), str(new_status))
+
+    if new_status == "active" and loan.get("status") == "draft":
         patch["remaining_capital"] = loan.get("principal_amount")
 
     row = employee_loans_repository.update(loan_id, patch)
+    if not row:
+        raise ValueError("Prêt non trouvé.")
+    return EmployeeLoan.model_validate(row)
+
+
+def activate_loan(loan_id: str) -> EmployeeLoan:
+    loan = employee_loans_repository.get_by_id(loan_id)
+    if not loan:
+        raise ValueError("Prêt non trouvé.")
+    if loan.get("status") != "draft":
+        raise ValueError("Seul un prêt brouillon peut être activé.")
+    row = employee_loans_repository.update(
+        loan_id,
+        {
+            "status": "active",
+            "remaining_capital": loan.get("principal_amount"),
+        },
+    )
     if not row:
         raise ValueError("Prêt non trouvé.")
     return EmployeeLoan.model_validate(row)
@@ -146,9 +188,23 @@ def cancel_loan(loan_id: str) -> EmployeeLoan:
         raise ValueError("Prêt non trouvé.")
     if loan.get("status") in ("repaid", "cancelled"):
         raise ValueError("Ce prêt ne peut plus être annulé.")
+    employee_loan_installments_repository.skip_pending_for_loan(loan_id)
     row = employee_loans_repository.update(
         loan_id, {"status": "cancelled", "remaining_capital": 0}
     )
+    return EmployeeLoan.model_validate(row)
+
+
+def mark_loan_defaulted(loan_id: str) -> EmployeeLoan:
+    loan = employee_loans_repository.get_by_id(loan_id)
+    if not loan:
+        raise ValueError("Prêt non trouvé.")
+    if loan.get("status") not in ("active", "suspended"):
+        raise ValueError("Seul un prêt actif ou suspendu peut être mis en défaut.")
+    employee_loan_installments_repository.skip_pending_for_loan(loan_id)
+    row = employee_loans_repository.update(loan_id, {"status": "defaulted"})
+    if not row:
+        raise ValueError("Prêt non trouvé.")
     return EmployeeLoan.model_validate(row)
 
 
@@ -166,15 +222,30 @@ def record_early_repayment(loan_id: str, amount: float, repayment_date: date) ->
 
     new_remaining = remaining - payment
     update: Dict[str, Any] = {
-        "remaining_capital": float(new_remaining),
+        "remaining_capital": float(max(Decimal("0"), new_remaining)),
         "notes": (loan.get("notes") or "")
         + f"\nRemboursement anticipé {payment}€ le {repayment_date.isoformat()}.",
     }
     if new_remaining <= 0:
         update["status"] = "repaid"
         update["remaining_capital"] = 0
+        employee_loan_installments_repository.mark_pending_paid_for_loan(loan_id)
 
     row = employee_loans_repository.update(loan_id, update)
+
+    employee_loan_repayments_repository.create(
+        {
+            "loan_id": loan_id,
+            "payslip_id": None,
+            "year": repayment_date.year,
+            "month": repayment_date.month,
+            "capital_amount": float(payment),
+            "interest_amount": 0,
+            "avantage_nature_amount": 0,
+            "remaining_after": float(max(Decimal("0"), new_remaining)),
+        }
+    )
+
     return EmployeeLoan.model_validate(row)
 
 

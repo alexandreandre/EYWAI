@@ -63,6 +63,9 @@ def get_outstanding_for_employee(employee_id: str) -> EmployeeLoanOutstanding:
         employee_id=employee_id,
         total_remaining_capital=data["total_remaining_capital"],
         active_loans_count=data["active_loans_count"],
+        outstanding_loans_count=data.get(
+            "outstanding_loans_count", data["active_loans_count"]
+        ),
         loans=loans,
     )
 
