@@ -9,17 +9,36 @@ import { AlertTriangle, Loader2, PartyPopper } from 'lucide-react';
 import { PayrollProgressBar } from '@/features/payroll/components/PayrollProgressBar';
 import { PayrollPreflightChecklist } from '@/features/payroll/components/PayrollPreflightChecklist';
 import { usePayrollGeneration } from '@/features/payroll/hooks/usePayrollGeneration';
-import type { SimpleEmployee } from '@/features/dashboard/types';
+import { PayrollEmployeeEmptyState } from '@/features/payroll/components/PayrollEmployeeEmptyState';
+import { PayrollEmployeeReadinessAlert } from '@/features/payroll/components/PayrollEmployeeReadinessAlert';
+import type { PayrollGenerateEmployee } from '@/features/payroll/types';
+import type { EmployeeListItem } from '@/hooks/queries/useEmployeesQuery';
+
+export type { PayrollGenerateEmployee } from '@/features/payroll/types';
 
 interface GeneratePayrollModalProps {
   isOpen: boolean;
   onClose: () => void;
-  employees: SimpleEmployee[];
+  employees: PayrollGenerateEmployee[];
+  allEmployees?: EmployeeListItem[];
+  employeesLoading?: boolean;
+  employeesError?: string | null;
+  onRetryEmployees?: () => void;
+  onNavigateTo?: (path: string) => void;
 }
 
 type Phase = 'select' | 'running' | 'done';
 
-export function GeneratePayrollModal({ isOpen, onClose, employees }: GeneratePayrollModalProps) {
+export function GeneratePayrollModal({
+  isOpen,
+  onClose,
+  employees,
+  allEmployees = [],
+  employeesLoading = false,
+  employeesError = null,
+  onRetryEmployees,
+  onNavigateTo,
+}: GeneratePayrollModalProps) {
   const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [uiPhase, setUiPhase] = useState<Phase>('select');
@@ -92,15 +111,22 @@ export function GeneratePayrollModal({ isOpen, onClose, employees }: GeneratePay
 
   useEffect(() => () => generation.dismiss(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const eligibleEmployees = employees.filter((e) => e.payroll_eligible !== false);
+  const ineligibleCount = employees.length - eligibleEmployees.length;
+  const selectableEmployees =
+    ineligibleCount > 0 ? eligibleEmployees : employees;
+
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedEmployees(new Set(employees.map((e) => e.id)));
+      setSelectedEmployees(new Set(eligibleEmployees.map((e) => e.id)));
     } else {
       setSelectedEmployees(new Set());
     }
   };
 
   const handleSelect = (id: string, checked: boolean) => {
+    const employee = employees.find((e) => e.id === id);
+    if (!employee || employee.payroll_eligible === false) return;
     const newSet = new Set(selectedEmployees);
     if (checked) {
       newSet.add(id);
@@ -138,7 +164,9 @@ export function GeneratePayrollModal({ isOpen, onClose, employees }: GeneratePay
     onClose();
   };
 
-  const isAllSelected = employees.length > 0 && selectedEmployees.size === employees.length;
+  const isAllSelected =
+    eligibleEmployees.length > 0 &&
+    selectedEmployees.size === eligibleEmployees.length;
   const successCount = generation.log.filter((l) => l.status === 'success').length;
   const warningCount = generation.log.filter((l) => l.status === 'warning').length;
   const generatedCount = successCount + warningCount;
@@ -184,47 +212,99 @@ export function GeneratePayrollModal({ isOpen, onClose, employees }: GeneratePay
               </Select>
             </div>
 
-            <Command className="p-2">
-              <CommandInput placeholder="Rechercher un employé..." />
-              <CommandList className="max-h-[300px] overflow-y-auto">
-                <CommandEmpty>Aucun employé trouvé.</CommandEmpty>
-                <CommandGroup>
-                  <CommandItem
-                    onSelect={() => handleSelectAll(!isAllSelected)}
-                    className="flex items-center gap-3"
-                  >
-                    <Checkbox checked={isAllSelected} onCheckedChange={handleSelectAll} />
-                    <label className="font-medium">Tout sélectionner</label>
-                  </CommandItem>
-                  {employees.map((emp) => (
-                    <CommandItem
-                      key={emp.id}
-                      value={`${emp.first_name} ${emp.last_name}`}
-                      onSelect={() => handleSelect(emp.id, !selectedEmployees.has(emp.id))}
-                      className="flex items-center gap-3"
-                    >
-                      <Checkbox
-                        checked={selectedEmployees.has(emp.id)}
-                        onCheckedChange={(checked) => handleSelect(emp.id, !!checked)}
-                      />
-                      <label>{emp.first_name} {emp.last_name}</label>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
+            {employees.length > 0 && (
+              <div className="px-6 pb-4">
+                <PayrollEmployeeReadinessAlert
+                  employees={employees}
+                  onNavigateTo={onNavigateTo}
+                />
+              </div>
+            )}
 
-            <div className="p-6 pt-2 flex justify-end gap-2">
-              <Button variant="ghost" onClick={handleClose}>
-                Annuler
-              </Button>
-              <Button
-                className="bg-cyan-500 hover:bg-cyan-600 text-white"
-                onClick={handleGenerate}
-                disabled={selectedEmployees.size === 0 || !selectedMonth}
-              >
-                Générer ({selectedEmployees.size})
-              </Button>
+            {employees.length === 0 ? (
+              <div className="px-6 pb-4">
+                <PayrollEmployeeEmptyState
+                  loading={employeesLoading}
+                  errorMessage={employeesError}
+                  onRetry={onRetryEmployees}
+                  allEmployees={allEmployees}
+                  onNavigateTo={onNavigateTo}
+                />
+              </div>
+            ) : eligibleEmployees.length === 0 ? null : (
+              <div className="px-2 pb-2">
+                {ineligibleCount > 0 && (
+                  <p className="px-4 pb-2 text-xs text-muted-foreground">
+                    {eligibleEmployees.length} collaborateur{eligibleEmployees.length > 1 ? 's' : ''}{' '}
+                    prêt{eligibleEmployees.length > 1 ? 's' : ''} — les autres sont listés dans le
+                    détail ci-dessus.
+                  </p>
+                )}
+                <Command className="rounded-lg border border-border/60">
+                  <CommandInput placeholder="Rechercher un employé..." className="h-10" />
+                  <CommandList className="max-h-[240px] overflow-y-auto">
+                    <CommandEmpty>Aucun employé trouvé.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        onSelect={() => handleSelectAll(!isAllSelected)}
+                        className="flex items-center gap-3"
+                      >
+                        <Checkbox checked={isAllSelected} onCheckedChange={handleSelectAll} />
+                        <span className="text-sm font-medium">Tout sélectionner</span>
+                      </CommandItem>
+                      {selectableEmployees.map((emp) => (
+                        <CommandItem
+                          key={emp.id}
+                          value={`${emp.first_name} ${emp.last_name}`}
+                          onSelect={() =>
+                            handleSelect(emp.id, !selectedEmployees.has(emp.id))
+                          }
+                          className="flex items-center gap-3"
+                        >
+                          <Checkbox
+                            checked={selectedEmployees.has(emp.id)}
+                            onCheckedChange={(checked) => handleSelect(emp.id, !!checked)}
+                          />
+                          <span className="text-sm">
+                            {emp.first_name} {emp.last_name}
+                          </span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </div>
+            )}
+
+            <div className="space-y-2 p-6 pt-2">
+              {employees.length === 0 && !employeesLoading && !employeesError && (
+                <p className="text-center text-xs text-muted-foreground">
+                  Le bouton Générer sera disponible dès qu&apos;au moins un collaborateur actif
+                  aura une fiche paie complète.
+                </p>
+              )}
+              {eligibleEmployees.length === 0 && employees.length > 0 && (
+                <p className="text-center text-xs text-muted-foreground">
+                  Le bouton Générer sera disponible une fois au moins une fiche complète.
+                </p>
+              )}
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" onClick={handleClose}>
+                  Annuler
+                </Button>
+                <Button
+                  className="bg-cyan-500 hover:bg-cyan-600 text-white"
+                  onClick={handleGenerate}
+                  disabled={selectedEmployees.size === 0 || !selectedMonth}
+                  title={
+                    selectedEmployees.size === 0 && employees.length > 0
+                      ? 'Sélectionnez au moins un collaborateur dont la fiche paie est complète'
+                      : undefined
+                  }
+                >
+                  Générer ({selectedEmployees.size})
+                </Button>
+              </div>
             </div>
           </>
         )}
