@@ -160,7 +160,10 @@ class TestCompanyGroupRepositorySetCompanyGroup:
     def test_set_company_group_calls_update_companies(self):
         with patch(
             "app.modules.company_groups.infrastructure.repository.supabase"
-        ) as supabase:
+        ) as supabase, patch(
+            "app.modules.company_groups.infrastructure.repository.fetch_max_group_display_order",
+            return_value=0,
+        ):
             table = MagicMock()
             chain = MagicMock()
             chain.eq.return_value.execute.return_value = MagicMock(
@@ -172,7 +175,9 @@ class TestCompanyGroupRepositorySetCompanyGroup:
             repo = CompanyGroupRepository()
             result = repo.set_company_group(TEST_COMPANY_ID, TEST_GROUP_ID)
 
-            table.update.assert_called_once_with({"group_id": TEST_GROUP_ID})
+            table.update.assert_called_once_with(
+                {"group_id": TEST_GROUP_ID, "group_display_order": 1}
+            )
             chain.eq.assert_called_once_with("id", TEST_COMPANY_ID)
             assert result is True
 
