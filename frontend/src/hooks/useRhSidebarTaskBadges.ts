@@ -1,5 +1,7 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "react-router-dom";
+import { invalidateRhSidebarBadges } from "@/lib/invalidateRhSidebarBadges";
 import apiClient from "@/api/apiClient";
 import { getMedicalSettings, getKPIs } from "@/api/medicalFollowUp";
 import { getRibAlerts } from "@/api/ribAlerts";
@@ -92,6 +94,18 @@ function buildCounts(
  * Pastilles agrégées côté UI : présence si count > 0 ; affichage du nombre sur les sous-liens.
  */
 export function useRhSidebarTaskBadges(enabled: boolean) {
+  const queryClient = useQueryClient();
+  const location = useLocation();
+
+  const prevPathRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    const prev = prevPathRef.current;
+    prevPathRef.current = location.pathname;
+    if (prev === null || prev === location.pathname) return;
+    void invalidateRhSidebarBadges(queryClient);
+  }, [enabled, location.pathname, queryClient]);
+
   const dashboardQuery = useQuery({
     queryKey: ["dashboard", "all", "sidebar-badges"],
     queryFn: async () => {
@@ -99,7 +113,7 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
       return res.data;
     },
     enabled,
-    staleTime: 60_000,
+    staleTime: 30_000,
   });
 
   const residenceQuery = useQuery({
@@ -111,21 +125,21 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
       return res.data;
     },
     enabled,
-    staleTime: 60_000,
+    staleTime: 30_000,
   });
 
   const medicalSettingsQuery = useQuery({
     queryKey: ["medical-follow-up", "settings", "sidebar-badges"],
     queryFn: getMedicalSettings,
     enabled,
-    staleTime: 120_000,
+    staleTime: 30_000,
   });
 
   const medicalKpisQuery = useQuery({
     queryKey: ["medical-follow-up", "kpis", "sidebar-badges"],
     queryFn: getKPIs,
     enabled: enabled && medicalSettingsQuery.data?.enabled === true,
-    staleTime: 60_000,
+    staleTime: 30_000,
   });
 
   const ribAlertsQuery = useQuery({
@@ -135,7 +149,7 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
       return typeof res.data.total === "number" ? res.data.total : (res.data.alerts?.length ?? 0);
     },
     enabled,
-    staleTime: 60_000,
+    staleTime: 30_000,
   });
 
   const annualReviewsQuery = useQuery({
@@ -145,21 +159,21 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
       return countUpcomingPlannedAnnualReviews(res.data ?? []);
     },
     enabled,
-    staleTime: 60_000,
+    staleTime: 30_000,
   });
 
   const recruitmentSettingsQuery = useQuery({
     queryKey: ["recruitment", "settings", "sidebar-badges"],
     queryFn: getRecruitmentSettings,
     enabled,
-    staleTime: 120_000,
+    staleTime: 30_000,
   });
 
   const recruitmentCandidatesQuery = useQuery({
     queryKey: ["recruitment", "candidates", "sidebar-badges"],
     queryFn: () => getCandidates(),
     enabled: enabled && recruitmentSettingsQuery.data?.enabled === true,
-    staleTime: 60_000,
+    staleTime: 30_000,
   });
 
   const now = new Date();
@@ -170,7 +184,7 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
     queryKey: ["work-medal-summary", "sidebar-badges"],
     queryFn: getWorkMedalSummary,
     enabled,
-    staleTime: 60_000,
+    staleTime: 30_000,
   });
 
   const schedulesBadgeQuery = useQuery({
@@ -183,7 +197,7 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
       return countSchedulesToEnter(rows);
     },
     enabled,
-    staleTime: 120_000,
+    staleTime: 30_000,
   });
 
   const counts = useMemo(() => {

@@ -14,6 +14,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  JeiSettingsFormFields,
+  defaultJeiFormValues,
+  type JeiFormValues,
+} from "@/features/company/components/JeiSettingsFormFields";
 import { Loader2 } from "lucide-react";
 import { DEFAULT_PLATFORM_GROUP_NAME } from "@/lib/adminGroup";
 import { log } from "@/lib/logger";
@@ -55,18 +60,38 @@ export function CreateCompanyDialog({
   const [creating, setCreating] = useState(false);
   const [createWithAdmin, setCreateWithAdmin] = useState(false);
   const [formData, setFormData] = useState(initialForm);
+  const [jeiForm, setJeiForm] = useState<JeiFormValues>(defaultJeiFormValues);
   const [logoFile, setLogoFile] = useState<File | null>(null);
 
   const reset = () => {
     setFormData(initialForm);
+    setJeiForm(defaultJeiFormValues);
     setLogoFile(null);
     setCreateWithAdmin(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (jeiForm.jei_enabled && !jeiForm.date_creation_etablissement) {
+      toast({
+        title: "Date JEI requise",
+        description:
+          "Renseignez la date de création de l'établissement pour activer le statut JEI.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setCreating(true);
+      const jeiPayload = {
+        jei_enabled: jeiForm.jei_enabled,
+        date_creation_etablissement: jeiForm.jei_enabled
+          ? jeiForm.date_creation_etablissement
+          : undefined,
+        taux_exoneration: jeiForm.taux_exoneration,
+      };
+
       const dataToSend = createWithAdmin
         ? {
             company_name: formData.company_name,
@@ -78,6 +103,7 @@ export function CreateCompanyDialog({
             admin_password: formData.admin_password,
             admin_first_name: formData.admin_first_name,
             admin_last_name: formData.admin_last_name,
+            ...jeiPayload,
           }
         : {
             company_name: formData.company_name,
@@ -85,6 +111,7 @@ export function CreateCompanyDialog({
             email: formData.email || undefined,
             phone: formData.phone || undefined,
             logo_scale: formData.logo_scale,
+            ...jeiPayload,
           };
 
       const response = await apiClient.post("/api/super-admin/companies", dataToSend);
@@ -208,6 +235,12 @@ export function CreateCompanyDialog({
               />
             </div>
           </div>
+
+          <JeiSettingsFormFields
+            values={jeiForm}
+            onChange={(patch) => setJeiForm((prev) => ({ ...prev, ...patch }))}
+            disabled={creating}
+          />
 
           <div className="space-y-4 border-t pt-4">
             <div className="flex items-center justify-between">

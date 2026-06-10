@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, Calculator, Database, History } from "lucide-react";
+import { FileText, Calculator, Database, History, Wallet } from "lucide-react";
 import { ExportCommonModel } from "./ExportCommonModel";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ExportHistoryModal } from "./ExportHistoryModal";
@@ -23,6 +23,7 @@ export function PaieComptabiliteTab() {
     export_cabinet_generique: "export_cabinet_generique",
     export_cabinet_quadra: "export_cabinet_quadra",
     export_cabinet_sage: "export_cabinet_sage",
+    acomptes: "acomptes",
   };
 
   const exports = [
@@ -73,6 +74,12 @@ export function PaieComptabiliteTab() {
       name: "Export format Sage",
       description: "Export au format Sage (structure standardisée)",
       icon: Database,
+    },
+    {
+      id: "acomptes",
+      name: "Acomptes & avances",
+      description: "Liste des versements et remboursements d'acomptes avec écritures comptables (425x)",
+      icon: Wallet,
     },
   ];
 

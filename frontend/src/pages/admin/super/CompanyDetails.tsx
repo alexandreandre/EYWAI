@@ -8,6 +8,11 @@ import { AdminPageHeader } from '@/features/admin/components/eywai/AdminPageHead
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { Button } from '@/components/ui/button';
 import NetEntreprisesConfigCard from '@/features/net-entreprises/components/NetEntreprisesConfigCard';
+import {
+  JeiSettingsFormFields,
+  defaultJeiFormValues,
+  type JeiFormValues,
+} from '@/features/company/components/JeiSettingsFormFields';
 
 import { log } from '@/lib/logger';
 import { showErrorToast } from '@/lib/errorMessages';
@@ -29,6 +34,9 @@ interface CompanyDetails {
     users_count: number;
     users_by_role: Record<string, number>;
   };
+  jei_enabled?: boolean;
+  date_creation_etablissement?: string | null;
+  taux_exoneration?: number | null;
 }
 
 interface User {
@@ -64,6 +72,8 @@ export default function CompanyDetails() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [jeiForm, setJeiForm] = useState<JeiFormValues>(defaultJeiFormValues);
+  const [savingJei, setSavingJei] = useState(false);
 
   useEffect(() => {
     loadCompanyDetails();
@@ -74,7 +84,14 @@ export default function CompanyDetails() {
     try {
       setLoading(true);
       const response = await apiClient.get(`/api/super-admin/companies/${companyId}`);
-      setCompany(response.data);
+      const data = response.data as CompanyDetails;
+      setCompany(data);
+      setJeiForm({
+        jei_enabled: Boolean(data.jei_enabled),
+        date_creation_etablissement: data.date_creation_etablissement?.slice(0, 10) ?? '',
+        taux_exoneration:
+          typeof data.taux_exoneration === 'number' ? data.taux_exoneration : 1,
+      });
     } catch (error) {
       log.error('Erreur:', error);
     } finally {
@@ -192,6 +209,38 @@ export default function CompanyDetails() {
       });
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const saveJeiSettings = async () => {
+    if (!companyId) return;
+    if (jeiForm.jei_enabled && !jeiForm.date_creation_etablissement) {
+      toast({
+        title: 'Date JEI requise',
+        description:
+          "Renseignez la date de création de l'établissement pour activer le statut JEI.",
+        variant: 'destructive',
+      });
+      return;
+    }
+    try {
+      setSavingJei(true);
+      await apiClient.patch(`/api/super-admin/companies/${companyId}`, {
+        jei_enabled: jeiForm.jei_enabled,
+        date_creation_etablissement: jeiForm.jei_enabled
+          ? jeiForm.date_creation_etablissement
+          : null,
+        taux_exoneration: jeiForm.taux_exoneration,
+      });
+      await loadCompanyDetails();
+      toast({ title: 'Paramètres JEI enregistrés' });
+    } catch (error: unknown) {
+      showErrorToast(error, {
+        title: 'Enregistrement impossible',
+        fallback: 'Les paramètres JEI n’ont pas pu être enregistrés.',
+      });
+    } finally {
+      setSavingJei(false);
     }
   };
 
@@ -335,6 +384,27 @@ export default function CompanyDetails() {
             <p className="text-lg text-gray-900">{JSON.stringify(company.address)}</p>
           </div>
         )}
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Statut JEI</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Paramétrage paie de l&apos;entreprise. Les RH peuvent aussi le modifier depuis Mon
+              Entreprise → Paramètres paie.
+            </p>
+          </div>
+          <Button onClick={saveJeiSettings} disabled={savingJei}>
+            {savingJei ? 'Enregistrement…' : 'Enregistrer le statut JEI'}
+          </Button>
+        </div>
+        <JeiSettingsFormFields
+          values={jeiForm}
+          onChange={(patch) => setJeiForm((prev) => ({ ...prev, ...patch }))}
+          disabled={savingJei}
+          compact
+        />
       </div>
 
       {/* Statistiques */}

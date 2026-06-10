@@ -8,6 +8,7 @@ import {
 } from '@/api/jeiSettings';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
+import { isPlatformAdmin } from '@/lib/platformAdmin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -40,9 +41,10 @@ export default function JeiSettingsCard() {
   const queryClient = useQueryClient();
 
   const canEdit = useMemo(() => {
-    const r = user?.role;
+    if (isPlatformAdmin(user)) return true;
+    const r = activeCompany?.role ?? user?.role;
     return r === 'admin' || r === 'rh';
-  }, [user?.role]);
+  }, [user, activeCompany?.role]);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['jei-settings', activeCompanyId],
@@ -62,6 +64,7 @@ export default function JeiSettingsCard() {
     mutationFn: saveJeiSettings,
     onSuccess: (saved) => {
       queryClient.setQueryData(['jei-settings', activeCompanyId], saved);
+      void queryClient.invalidateQueries({ queryKey: ['company-overview', activeCompanyId] });
       setForm(saved);
       toast({ title: 'Enregistré', description: 'Paramètres JEI mis à jour.' });
     },

@@ -4,6 +4,7 @@ import {
   Bell,
   CheckCircle,
   Clock,
+  Euro,
   FileCheck,
   FileText,
   Stethoscope,
@@ -26,9 +27,37 @@ export function resolveNotificationNavContext(
   return 'rh';
 }
 
+export const DOCUMENT_ALERT_NOTIFICATION_TYPES = ['nouveau_document', 'nouveau_bulletin'] as const;
+
+export type DocumentAlertNotificationType =
+  typeof DOCUMENT_ALERT_NOTIFICATION_TYPES[number];
+
+export function isPayslipAlertNotification(
+  notification: Pick<Notification, 'type' | 'message'>,
+): boolean {
+  return (
+    notification.type === 'nouveau_bulletin' ||
+    (notification.type === 'nouveau_document' &&
+      notification.message.includes('Bulletin de paie'))
+  );
+}
+
+export function isUnreadDocumentAlertNotification(
+  notification: Pick<Notification, 'type' | 'is_read' | 'message'>,
+): boolean {
+  return (
+    (DOCUMENT_ALERT_NOTIFICATION_TYPES.includes(
+      notification.type as DocumentAlertNotificationType,
+    ) ||
+      isPayslipAlertNotification(notification)) &&
+    !notification.is_read
+  );
+}
+
 const TYPE_LABELS: Record<string, string> = {
   avenant_signe: 'Document signé',
   nouveau_document: 'Nouveau document',
+  nouveau_bulletin: 'Nouveau bulletin',
   rappel_medical: 'Suivi médical',
   absence_soumise: 'Absence',
   absence_approuvee: 'Absence validée',
@@ -46,6 +75,8 @@ export function getNotificationIcon(type: string): LucideIcon {
       return FileCheck;
     case 'nouveau_document':
       return FileText;
+    case 'nouveau_bulletin':
+      return Euro;
     case 'rappel_medical':
       return Stethoscope;
     case 'absence_soumise':
@@ -65,6 +96,7 @@ export function getNotificationIconClass(type: string): string {
   switch (type) {
     case 'avenant_signe':
     case 'nouveau_document':
+    case 'nouveau_bulletin':
     case 'absence_approuvee':
       return 'text-emerald-600';
     case 'rappel_medical':
@@ -82,11 +114,21 @@ export function getNotificationIconClass(type: string): string {
 export function getNotificationHref(
   type: string,
   ctx: NotificationNavContext,
+  message?: string,
 ): string | null {
+  if (
+    type === 'nouveau_bulletin' ||
+    (type === 'nouveau_document' && message?.includes('Bulletin de paie'))
+  ) {
+    return ctx === 'employee' ? '/payslips' : '/payroll';
+  }
+
   switch (type) {
     case 'avenant_signe':
     case 'nouveau_document':
       return ctx === 'employee' ? '/employee/documents' : '/documents';
+    case 'nouveau_bulletin':
+      return ctx === 'employee' ? '/payslips' : '/payroll';
     case 'rappel_medical':
       return ctx === 'employee' ? '/medical-follow-up' : '/medical-follow-up';
     case 'absence_soumise':

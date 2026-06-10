@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { RefreshCw } from 'lucide-react';
 import { useEmployeesQuery } from '@/hooks/queries/useEmployeesQuery';
@@ -25,6 +25,7 @@ import type {
   SortKey,
   ViewMode,
 } from '@/components/schedules/types';
+import { invalidateRhSidebarBadges } from '@/lib/invalidateRhSidebarBadges';
 
 function employeesLoadErrorMessage(error: unknown): string {
   if (isAxiosError(error)) {
@@ -48,6 +49,7 @@ interface Employee extends SchedulesEmployeeInput {
 
 export default function Schedules() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
@@ -86,6 +88,11 @@ export default function Schedules() {
 
   const { rows, isLoading, loadErrors, globalKpis, refetch, applyAndPersistDayPatch } =
     useEmployeeCalendarOverview(employeeInputs, selectedYear, selectedMonth);
+
+  const refreshCalendars = useCallback(() => {
+    void refetch();
+    void invalidateRhSidebarBadges(queryClient);
+  }, [refetch, queryClient]);
 
   const isPageLoading =
     employeesLoading ||
@@ -324,7 +331,7 @@ export default function Schedules() {
         year={selectedYear}
         month={selectedMonth}
         onNavigate={setDrawerEmployeeId}
-        onSaved={() => void refetch()}
+        onSaved={refreshCalendars}
       />
 
       <CalendarBulkActionsBar
@@ -335,7 +342,7 @@ export default function Schedules() {
         overviewRows={rows}
         onClearSelection={() => setSelectedIds(new Set())}
         onOpenApplyModel={() => setApplyModelOpen(true)}
-        onActionComplete={() => void refetch()}
+        onActionComplete={refreshCalendars}
       />
 
       <ApplyModelDialog
@@ -346,7 +353,7 @@ export default function Schedules() {
         month={selectedMonth}
         onApplied={() => {
           setSelectedIds(new Set());
-          void refetch();
+          refreshCalendars();
         }}
       />
 
@@ -356,7 +363,7 @@ export default function Schedules() {
         year={selectedYear}
         month={selectedMonth}
         roster={assistedFillRoster}
-        onApplied={() => void refetch()}
+        onApplied={refreshCalendars}
       />
 
       <PointageImportDialog
@@ -365,7 +372,7 @@ export default function Schedules() {
         year={selectedYear}
         month={selectedMonth}
         roster={assistedFillRoster}
-        onApplied={() => void refetch()}
+        onApplied={refreshCalendars}
       />
     </div>
   );

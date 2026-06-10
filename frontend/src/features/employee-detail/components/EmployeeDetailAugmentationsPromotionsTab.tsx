@@ -13,6 +13,7 @@ import { getEmployeePromotions } from "@/api/promotions";
 import type { PromotionListItem } from "@/api/promotions";
 import { PromotionModal } from "@/components/PromotionModal";
 import { PromotionBadge } from "@/components/PromotionBadge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -175,9 +176,14 @@ export function EmployeeDetailAugmentationsPromotionsTab({
         valeur_augmentation: Number.isNaN(valeurNum) ? undefined : valeurNum,
         perimetre_augmentation: augPerimetre,
       });
+      const planifiee =
+        augSimResult.planifiee ??
+        augEffectiveDate > new Date().toISOString().slice(0, 10);
       toast({
-        title: "Augmentation enregistrée",
-        description: "Le salaire de base a été mis à jour.",
+        title: planifiee ? "Augmentation planifiée" : "Augmentation enregistrée",
+        description: planifiee
+          ? `Prise d'effet au ${formatDateFR(augEffectiveDate)}. Le salaire de base reste inchangé jusqu'à cette date.`
+          : "Le salaire de base a été mis à jour.",
       });
       setAugApplyDialogOpen(false);
       setAugApplyMotif("");
@@ -312,6 +318,13 @@ export function EmployeeDetailAugmentationsPromotionsTab({
 
               {augSimResult && (
                 <div className="space-y-4">
+                  {augSimResult.planifiee && (
+                    <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                      Application planifiée au {formatDateFR(augEffectiveDate)} — la fiche
+                      employé ne sera mise à jour qu&apos;à cette date (prorata sur le bulletin du
+                      mois concerné).
+                    </p>
+                  )}
                   <Card className="border-muted bg-muted/30">
                     <CardContent className="pt-6">
                       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3">
@@ -427,6 +440,7 @@ export function EmployeeDetailAugmentationsPromotionsTab({
                     <TableHeader>
                       <TableRow>
                         <TableHead>Date d&apos;effet</TableHead>
+                        <TableHead>Statut</TableHead>
                         <TableHead>Ancien salaire</TableHead>
                         <TableHead>Nouveau salaire</TableHead>
                         <TableHead>Motif</TableHead>
@@ -442,6 +456,15 @@ export function EmployeeDetailAugmentationsPromotionsTab({
                         return (
                           <TableRow key={row.id}>
                             <TableCell>{formatDateFR(row.effective_date)}</TableCell>
+                            <TableCell>
+                              {row.planifiee ? (
+                                <Badge variant="outline" className="text-amber-800 border-amber-300">
+                                  Planifiée
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary">Appliquée</Badge>
+                              )}
+                            </TableCell>
                             <TableCell>{formatEuroAmount(avant)}</TableCell>
                             <TableCell>{formatEuroAmount(apres)}</TableCell>
                             <TableCell className="max-w-[200px] truncate" title={row.motif ?? ""}>

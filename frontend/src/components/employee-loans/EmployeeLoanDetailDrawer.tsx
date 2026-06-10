@@ -41,6 +41,7 @@ import {
 import {
   LOAN_STATUS_COLORS,
   LOAN_STATUS_LABELS,
+  activateEmployeeLoan,
   cancelEmployeeLoan,
   deleteEmployeeLoan,
   generateLoanContract,
@@ -48,6 +49,7 @@ import {
   getLoanRepayments,
   getLoanSchedule,
   markLoanDeclared2062,
+  markLoanDefaulted,
   recordEarlyRepayment,
   updateEmployeeLoan,
   type EmployeeLoan,
@@ -188,6 +190,8 @@ export function EmployeeLoanDetailDrawer({
               <dd>{(loan.annual_interest_rate * 100).toFixed(2)} %</dd>
               <dt className="text-muted-foreground">Durée</dt>
               <dd>{loan.duration_months} mois</dd>
+              <dt className="text-muted-foreground">Jour de prélèvement</dt>
+              <dd>Le {loan.repayment_day} de chaque mois</dd>
               {loan.reason && (
                 <>
                   <dt className="text-muted-foreground">Motif</dt>
@@ -243,6 +247,17 @@ export function EmployeeLoanDetailDrawer({
                     size="sm"
                     variant="outline"
                     disabled={actionLoading}
+                    onClick={() =>
+                      runAction(() => markLoanDefaulted(loan.id), 'Prêt mis en défaut')
+                    }
+                  >
+                    <AlertTriangle className="mr-2 h-4 w-4" />
+                    Mettre en défaut
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={actionLoading}
                     onClick={() => {
                       setEarlyAmount(String(loan.remaining_capital));
                       setEarlyOpen(true);
@@ -266,19 +281,46 @@ export function EmployeeLoanDetailDrawer({
               )}
 
               {isRh && loan.status === 'suspended' && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={actionLoading}
+                    onClick={() =>
+                      runAction(
+                        () => updateEmployeeLoan(loan.id, { status: 'active' }),
+                        'Prêt réactivé',
+                      )
+                    }
+                  >
+                    <Play className="mr-2 h-4 w-4" />
+                    Réactiver
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={actionLoading}
+                    onClick={() =>
+                      runAction(() => markLoanDefaulted(loan.id), 'Prêt mis en défaut')
+                    }
+                  >
+                    <AlertTriangle className="mr-2 h-4 w-4" />
+                    Mettre en défaut
+                  </Button>
+                </>
+              )}
+
+              {isRh && loan.status === 'draft' && (
                 <Button
                   size="sm"
                   variant="outline"
                   disabled={actionLoading}
                   onClick={() =>
-                    runAction(
-                      () => updateEmployeeLoan(loan.id, { status: 'active' }),
-                      'Prêt réactivé',
-                    )
+                    runAction(() => activateEmployeeLoan(loan.id), 'Prêt activé')
                   }
                 >
                   <Play className="mr-2 h-4 w-4" />
-                  Réactiver
+                  Activer le prêt
                 </Button>
               )}
 

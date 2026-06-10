@@ -123,7 +123,6 @@ export default function CompanyGroupDetail() {
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-
   const [groupName, setGroupName] = useState('');
   const [groupDescription, setGroupDescription] = useState('');
   const [groupLogoUrl, setGroupLogoUrl] = useState<string | null>(null);

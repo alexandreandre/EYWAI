@@ -4,6 +4,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/api/apiClient';
 import { uploadEmployeeContract } from '@/api/employees';
 import { getGeneratedDocumentLabel } from '@/lib/generatedDocumentLabel';
+import {
+  hasNetSuperieurBrutWarning,
+  isNetSuperieurBrutWarning,
+  PayslipNetBrutInlineLabel,
+} from '@/lib/payslipNetBrutAlert';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -365,19 +370,27 @@ export function EmployeeDetailDocumentsTab({
   };
 
   const renderPayslipRow = (p: PayslipItem) => {
-    const warning = p.warnings?.[0];
+    const warnings = p.warnings ?? [];
+    const showNetBrut = hasNetSuperieurBrutWarning(warnings);
+    const otherWarnings = warnings.filter((w) => !isNetSuperieurBrutWarning(w));
+    const firstOtherWarning = otherWarnings[0];
     return (
       <DocumentFileRow
         key={p.id}
-        name={payslipLabel(p)}
+        name={
+          <>
+            {payslipLabel(p)}
+            {showNetBrut ? <PayslipNetBrutInlineLabel /> : null}
+          </>
+        }
         rowHref={`/payslips/${p.id}/edit`}
         subtitle={
-          warning ? (
-            <span className="text-amber-700 dark:text-amber-400">{warning}</span>
+          firstOtherWarning ? (
+            <span className="text-amber-700 dark:text-amber-400">{firstOtherWarning}</span>
           ) : undefined
         }
         meta={
-          warning ? (
+          firstOtherWarning ? (
             <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">
               Alerte
             </Badge>

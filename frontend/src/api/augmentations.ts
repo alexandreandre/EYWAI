@@ -31,6 +31,7 @@ export type SimulationResultat = {
   ancien_part_hs: number;
   nouveau_base_35h: number;
   nouveau_part_hs: number;
+  planifiee?: boolean;
 };
 
 export type UpdateSalaryRequest = {
@@ -49,6 +50,7 @@ export type SalaryHistoryEntry = {
   motif?: string | null;
   effective_date: string;
   created_at: string;
+  planifiee?: boolean;
 };
 
 export async function simulerAugmentation(

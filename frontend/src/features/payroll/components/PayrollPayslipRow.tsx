@@ -15,6 +15,12 @@ import {
 } from '@/components/ui/alert-dialog';
 import { DocumentFileRow, DownloadLinkButton, ViewLinkButton } from '@/components/employee-detail/DocumentFileRow';
 import type { PayslipInfo } from '@/api/payslips';
+import {
+  hasNetSuperieurBrutWarning,
+  isNetSuperieurBrutWarning,
+  normalizePayslipWarning,
+  PayslipNetBrutInlineLabel,
+} from '@/lib/payslipNetBrutAlert';
 import { Edit, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 
 export type PayslipRowStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -57,7 +63,11 @@ export function PayrollPayslipRow({
   const payslip = state.payslip;
   const netLabel = payslip ? formatNet(payslip.net_a_payer) : null;
   const warnings = state.warnings ?? payslip?.warnings ?? [];
-  const firstWarning = warnings[0];
+  const showNetBrut = hasNetSuperieurBrutWarning(warnings);
+  const otherWarnings = warnings
+    .filter((w) => !isNetSuperieurBrutWarning(w))
+    .map(normalizePayslipWarning);
+  const firstOtherWarning = otherWarnings[0];
 
   const statusBadge =
     state.status === 'success' ? (
@@ -156,13 +166,18 @@ export function PayrollPayslipRow({
 
   return (
     <DocumentFileRow
-      name={name}
+      name={
+        <>
+          {name}
+          {showNetBrut ? <PayslipNetBrutInlineLabel /> : null}
+        </>
+      }
       rowHref={state.status === 'success' && payslip ? `/payslips/${payslip.id}/edit` : undefined}
       subtitle={
         state.status === 'error' && state.errorMessage ? (
           <span className="text-destructive">{state.errorMessage}</span>
-        ) : firstWarning ? (
-          <span className="text-amber-700 dark:text-amber-400">{firstWarning}</span>
+        ) : firstOtherWarning ? (
+          <span className="text-amber-700 dark:text-amber-400">{firstOtherWarning}</span>
         ) : undefined
       }
       meta={meta}

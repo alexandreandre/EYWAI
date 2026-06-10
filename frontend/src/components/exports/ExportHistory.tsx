@@ -31,6 +31,7 @@ const exportTypeLabels: Record<string, string> = {
   charges_sociales: "Charges sociales par caisse",
   conges_absences: "Congés payés / Absences",
   notes_frais: "Notes de frais",
+  acomptes: "Acomptes & avances",
   // Anciens formats (pour compatibilité)
   ecritures_comptables: "Écritures comptables",
 };

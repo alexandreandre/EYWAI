@@ -58,6 +58,7 @@ export const employeeProfileEditSchema = z
       prevoyance: z.object({
         adhesion: z.boolean(),
       }),
+      personnel_rd_eligible_jei: z.boolean().optional(),
     }),
     is_subject_to_residence_permit: z.boolean(),
     residence_permit_expiry_date: z.string().optional(),

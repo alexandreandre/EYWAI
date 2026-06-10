@@ -140,7 +140,7 @@ export function NotificationBell({
   );
 
   const handleNotificationAction = (n: Notification) => {
-    const href = getNotificationHref(n.type, navContext);
+    const href = getNotificationHref(n.type, navContext, n.message);
 
     if (!n.is_read) {
       readMut.mutate({ id: n.id });
@@ -289,7 +289,7 @@ export function NotificationBell({
               <ul className="space-y-1" role="list">
                 {sortedList.map((n) => {
                   const Icon = getNotificationIcon(n.type);
-                  const href = getNotificationHref(n.type, navContext);
+                  const href = getNotificationHref(n.type, navContext, n.message);
                   const isActionable = Boolean(href) || !n.is_read;
 
                   return (

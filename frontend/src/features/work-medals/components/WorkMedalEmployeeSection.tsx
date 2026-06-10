@@ -52,7 +52,7 @@ function RhActions({ caseItem, onDone }: { caseItem: WorkMedalCase; onDone: () =
     onSuccess: () => onDone(),
   });
 
-  if (caseItem.status !== 'awaiting_rh') return null;
+  if (caseItem.status !== 'awaiting_rh' && caseItem.status !== 'awaiting_employee') return null;
 
   return (
     <div className="mt-2 flex flex-wrap items-end gap-2">

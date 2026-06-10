@@ -8,6 +8,7 @@ export type ExportType =
   | "charges_sociales"
   | "conges_absences"
   | "notes_frais"
+  | "acomptes"
   | "ecritures_comptables"
   | "od_salaires"
   | "od_charges_sociales"
@@ -176,6 +177,7 @@ export const SCHEDULABLE_EXPORT_TYPES: ExportType[] = [
   "export_cabinet_generique",
   "export_cabinet_quadra",
   "export_cabinet_sage",
+  "acomptes",
   "dsn_mensuelle",
 ];
 
@@ -189,6 +191,7 @@ export const SCHEDULED_EXPORT_TYPE_LABELS: Partial<Record<ExportType, string>> =
   export_cabinet_generique: "Export cabinet (générique)",
   export_cabinet_quadra: "Export cabinet Quadra",
   export_cabinet_sage: "Export cabinet Sage",
+  acomptes: "Acomptes & avances",
   dsn_mensuelle: "DSN mensuelle",
 };
 

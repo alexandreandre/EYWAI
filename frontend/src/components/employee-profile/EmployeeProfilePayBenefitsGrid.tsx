@@ -1,5 +1,6 @@
 import { FlaskConical, HeartHandshake, Percent, Umbrella } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import {
@@ -11,6 +12,7 @@ import {
 
 interface EmployeeProfilePayBenefitsGridProps {
   profile: EmployeeProfileData;
+  onEditProfile?: () => void;
 }
 
 function AffiliationBadge({ affiliated }: { affiliated: boolean }) {
@@ -21,7 +23,10 @@ function AffiliationBadge({ affiliated }: { affiliated: boolean }) {
   );
 }
 
-export function EmployeeProfilePayBenefitsGrid({ profile }: EmployeeProfilePayBenefitsGridProps) {
+export function EmployeeProfilePayBenefitsGrid({
+  profile,
+  onEditProfile,
+}: EmployeeProfilePayBenefitsGridProps) {
   const pasTaux = profile.specificites_paie?.prelevement_a_la_source?.taux;
   const mutuelleAdhesion = profile.specificites_paie?.mutuelle?.adhesion ?? false;
   const prevoyanceAdhesion = profile.specificites_paie?.prevoyance?.adhesion ?? false;
@@ -112,12 +117,17 @@ export function EmployeeProfilePayBenefitsGrid({ profile }: EmployeeProfilePayBe
           </CardTitle>
           <AffiliationBadge affiliated={jeiEligible} />
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-2">
           <p className="text-sm text-muted-foreground">
             {jeiEligible
               ? 'Personnel R&D éligible à l’exonération de cotisations patronales JEI.'
               : 'Non éligible au dispositif JEI (personnel non R&D).'}
           </p>
+          {onEditProfile ? (
+            <Button type="button" variant="outline" size="sm" onClick={onEditProfile}>
+              Modifier
+            </Button>
+          ) : null}
         </CardContent>
       </Card>
     </div>

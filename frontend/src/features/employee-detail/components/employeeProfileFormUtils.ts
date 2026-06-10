@@ -98,6 +98,7 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
       prevoyance: {
         adhesion: prevoyance?.adhesion ?? false,
       },
+      personnel_rd_eligible_jei: Boolean(spec.personnel_rd_eligible_jei),
     },
     is_subject_to_residence_permit: Boolean(employee.is_subject_to_residence_permit),
     residence_permit_expiry_date: employee.residence_permit_expiry_date?.slice(0, 10) ?? '',
@@ -172,6 +173,7 @@ export function buildUpdatePayload(
             ? ((existingSpec.prevoyance as { lignes_specifiques?: unknown[] })?.lignes_specifiques ?? [])
             : [],
       },
+      personnel_rd_eligible_jei: Boolean(values.specificites_paie.personnel_rd_eligible_jei),
     },
   };
 

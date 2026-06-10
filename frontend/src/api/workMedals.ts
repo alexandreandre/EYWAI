@@ -139,11 +139,6 @@ export async function listEmployeeWorkMedalCases(
   return res.data;
 }
 
-export async function confirmWorkMedalCase(caseId: string): Promise<WorkMedalCase> {
-  const res = await apiClient.post<WorkMedalCase>(`/api/work-medals/${caseId}/employee-confirm`);
-  return res.data;
-}
-
 export async function approveWorkMedalCase(
   caseId: string,
   payload: { payroll_year: number; payroll_month: number; amount_override?: number },
@@ -171,7 +166,7 @@ export const MEDAL_LEVEL_LABELS: Record<MedalLevel, string> = {
 
 export const CASE_STATUS_LABELS: Record<WorkMedalCaseStatus, string> = {
   upcoming: 'À venir',
-  awaiting_employee: 'En attente salarié',
+  awaiting_employee: 'À valider RH',
   awaiting_rh: 'À valider RH',
   approved: 'Validé',
   paid: 'Payé',

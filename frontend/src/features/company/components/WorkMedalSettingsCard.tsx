@@ -74,6 +74,8 @@ export default function WorkMedalSettingsCard() {
     onSuccess: (saved) => {
       queryClient.setQueryData(['work-medal-settings', activeCompanyId], saved);
       setForm({ ...saved, tiers: ensureTiers(saved.tiers) });
+      queryClient.invalidateQueries({ queryKey: ['work-medals'] });
+      queryClient.invalidateQueries({ queryKey: ['work-medal-summary'] });
       toast({ title: 'Enregistré', description: 'Paramètres médailles du travail mis à jour.' });
     },
     onError: (e: unknown) => {
@@ -152,8 +154,8 @@ export default function WorkMedalSettingsCard() {
           Médailles du travail
         </CardTitle>
         <CardDescription>
-          Primes aux paliers d&apos;ancienneté (20, 30, 35, 40 ans). Alertes RH, confirmation
-          salarié, versement en paie.
+          Primes aux paliers d&apos;ancienneté (20, 30, 35, 40 ans). Alertes RH et versement en
+          paie.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

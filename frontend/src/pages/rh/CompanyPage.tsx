@@ -38,7 +38,10 @@ import {
   useCompanyPeriod,
   computePeriodPayroll,
 } from "@/features/company";
-import type { ComplianceAnchor } from "@/features/company/components/CompanyComplianceBand";
+import {
+  isComplianceAnchor,
+  type ComplianceAnchor,
+} from "@/features/company/components/CompanyComplianceBand";
 import {
   DEFAULT_COMPANY_PAGE_TAB,
   tabFromHash,
@@ -79,6 +82,13 @@ export default function CompanyPage() {
     }
   }, [location.hash, searchParams, activeTab]);
 
+  useEffect(() => {
+    const section = searchParams.get("section");
+    if (!isComplianceAnchor(section)) return;
+    setActiveTab("paie");
+    setPayrollScrollAnchor(section);
+  }, [searchParams]);
+
   const handleTabChange = useCallback(
     (value: string) => {
       const tab = value as CompanyPageTab;
@@ -86,6 +96,9 @@ export default function CompanyPage() {
       setPayrollScrollAnchor(null);
       const params = new URLSearchParams(searchParams);
       params.set("tab", tab);
+      if (tab !== "paie") {
+        params.delete("section");
+      }
       setSearchParams(params, { replace: true });
     },
     [searchParams, setSearchParams],
@@ -97,6 +110,11 @@ export default function CompanyPage() {
       if (anchor) setPayrollScrollAnchor(anchor);
       const params = new URLSearchParams(searchParams);
       params.set("tab", "paie");
+      if (anchor) {
+        params.set("section", anchor);
+      } else {
+        params.delete("section");
+      }
       setSearchParams(params, { replace: true });
     },
     [searchParams, setSearchParams],

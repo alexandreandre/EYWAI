@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   fetchAllEmployeesOverview,
   computeGlobalKpis,
@@ -9,12 +10,14 @@ import {
   type GlobalOverviewKpis,
   type DayPatch,
 } from '@/lib/schedulesOverview';
+import { invalidateRhSidebarBadges } from '@/lib/invalidateRhSidebarBadges';
 
 export function useEmployeeCalendarOverview(
   employees: SchedulesEmployeeInput[],
   year: number,
   month: number
 ) {
+  const queryClient = useQueryClient();
   const [rows, setRows] = useState<EmployeeCalendarOverviewRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadErrors, setLoadErrors] = useState(0);
@@ -80,6 +83,7 @@ export function useEmployeeCalendarOverview(
           nextRow.planned,
           nextRow.actual
         );
+        void invalidateRhSidebarBadges(queryClient);
         return true;
       } catch (err) {
         setRows((prev) =>
@@ -88,7 +92,7 @@ export function useEmployeeCalendarOverview(
         throw err;
       }
     },
-    [year, month]
+    [year, month, queryClient]
   );
 
   return {

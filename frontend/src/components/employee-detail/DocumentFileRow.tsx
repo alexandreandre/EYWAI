@@ -6,7 +6,7 @@ import { Download, Eye, FileText, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface DocumentFileRowProps {
-  name: string;
+  name: ReactNode;
   subtitle?: ReactNode;
   meta?: ReactNode;
   actions: ReactNode;
@@ -20,7 +20,7 @@ export function DocumentFileRow({ name, subtitle, meta, actions, className, rowH
     <>
       <FileText className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
       <div className="min-w-0 flex-1">
-        <p className="font-medium leading-snug">{name}</p>
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-medium leading-snug">{name}</p>
         {subtitle && <div className="mt-1 text-sm text-muted-foreground">{subtitle}</div>}
         {meta && <div className="mt-1.5 flex flex-wrap items-center gap-2">{meta}</div>}
       </div>

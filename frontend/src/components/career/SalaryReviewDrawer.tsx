@@ -214,9 +214,12 @@ export function SalaryReviewDrawer({
         motif: applyMotif.trim() || undefined,
       });
 
+      const planifiee = filters.effectiveDate > new Date().toISOString().slice(0, 10);
       toast({
-        title: "Augmentations appliquées",
-        description: `${res.nb_appliques} augmentation(s) enregistrée(s).`,
+        title: planifiee ? "Augmentations planifiées" : "Augmentations appliquées",
+        description: planifiee
+          ? `${res.nb_appliques} augmentation(s) planifiée(s) (effet au ${formatDateFR(filters.effectiveDate)}).`
+          : `${res.nb_appliques} augmentation(s) enregistrée(s).`,
       });
       if (res.nb_erreurs > 0) {
         toast({

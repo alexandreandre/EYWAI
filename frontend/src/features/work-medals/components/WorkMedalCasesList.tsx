@@ -26,8 +26,7 @@ function employeeName(c: WorkMedalCase): string {
 function statusVariant(
   status: WorkMedalCase['status'],
 ): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (status === 'awaiting_rh') return 'default';
-  if (status === 'awaiting_employee') return 'secondary';
+  if (status === 'awaiting_rh' || status === 'awaiting_employee') return 'default';
   if (status === 'dismissed') return 'destructive';
   return 'outline';
 }
@@ -96,7 +95,7 @@ function ApproveRow({ caseItem, onDone }: ApproveRowProps) {
         </Badge>
       </div>
 
-      {caseItem.status === 'awaiting_rh' ? (
+      {(caseItem.status === 'awaiting_rh' || caseItem.status === 'awaiting_employee') ? (
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1">
             <Label className="text-xs">Mois de paie</Label>
@@ -151,6 +150,7 @@ function ApproveRow({ caseItem, onDone }: ApproveRowProps) {
 
 export function WorkMedalCasesList({ statusFilter }: { statusFilter?: string }) {
   const queryClient = useQueryClient();
+  const rhPendingOnly = statusFilter === 'awaiting_rh';
   const { data, isLoading } = useQuery({
     queryKey: ['work-medals', statusFilter ?? 'all'],
     queryFn: () => listWorkMedalCases(statusFilter ? { status: statusFilter } : undefined),
@@ -165,7 +165,11 @@ export function WorkMedalCasesList({ statusFilter }: { statusFilter?: string }) 
     return <Skeleton className="h-32 w-full" />;
   }
 
-  const cases = data ?? [];
+  const cases = (data ?? []).filter((c) =>
+    rhPendingOnly
+      ? c.status === 'awaiting_rh' || c.status === 'awaiting_employee'
+      : true,
+  );
   const actionable = cases.filter((c) =>
     ['awaiting_rh', 'awaiting_employee', 'upcoming'].includes(c.status),
   );

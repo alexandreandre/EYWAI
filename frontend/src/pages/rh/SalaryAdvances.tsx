@@ -12,14 +12,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { Plus, Loader2, Check, X, Eye, Wallet, Clock, CheckCircle, XCircle, CreditCard, Scale } from "lucide-react";
+import { Plus, Loader2, Check, X, Eye, Wallet, Clock, CheckCircle, XCircle, CreditCard, Scale, Download } from "lucide-react";
 import { getSalaryAdvances, approveSalaryAdvance, rejectSalaryAdvance } from '@/api/saisiesAvances';
 import type { AdvanceType, SalaryAdvance, SalaryAdvanceStatus } from '@/api/saisiesAvances';
+import { generateExport } from '@/api/exports';
 import { SalaryAdvanceRequestForm } from '@/components/saisies-avances/SalaryAdvanceRequestForm';
 import { SalaryAdvanceDetail } from '@/components/saisies-avances/SalaryAdvanceDetail';
 import { AdvancePaymentModal } from '@/components/saisies-avances/AdvancePaymentModal';
 import { AcomptePrimeReconcileModal } from '@/components/saisies-avances/AcomptePrimeReconcileModal';
 import { getAdvanceTypeLabel } from '@/lib/employeeSalaryAdvancesUtils';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
+function currentPeriod(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
 
 const STATUS_LABELS: Record<SalaryAdvanceStatus, string> = {
   'pending': 'En attente',
@@ -52,6 +60,8 @@ export default function SalaryAdvances() {
   const [reconcileAdvance, setReconcileAdvance] = useState<SalaryAdvance | null>(null);
   const [filterStatus, setFilterStatus] = useState<SalaryAdvanceStatus | 'all'>('all');
   const [filterType, setFilterType] = useState<AdvanceType | 'all'>('all');
+  const [exportPeriod, setExportPeriod] = useState(currentPeriod);
+  const [isExporting, setIsExporting] = useState(false);
 
   const fetchAdvances = async () => {
     await queryClient.invalidateQueries({ queryKey: queryKeys.salaryAdvances(companyId) });
@@ -115,6 +125,37 @@ export default function SalaryAdvances() {
   const totalOutstandingAmount = advances
     .filter(a => a.status === 'paid')
     .reduce((sum, a) => sum + Number(a.remaining_amount || 0), 0);
+
+  const handleExportAcomptes = async () => {
+    setIsExporting(true);
+    try {
+      const result = await generateExport({
+        export_type: 'acomptes',
+        period: exportPeriod,
+        format: 'xlsx',
+      });
+      Object.entries(result.download_urls).forEach(([filename, url]) => {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.click();
+      });
+      toast({
+        title: 'Export généré',
+        description: `Acomptes & avances — ${exportPeriod} (${result.files.length} fichier(s)).`,
+      });
+    } catch {
+      toast({
+        title: 'Erreur',
+        description: "Impossible de générer l'export acomptes.",
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -182,6 +223,39 @@ export default function SalaryAdvances() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardContent className="flex flex-col gap-4 py-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-2">
+            <Label htmlFor="export-period">Export comptable acomptes</Label>
+            <p className="text-sm text-muted-foreground">
+              Liste détaillée et écritures OD (comptes 425x) pour la période sélectionnée.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="export-period" className="text-xs text-muted-foreground">
+                Période
+              </Label>
+              <Input
+                id="export-period"
+                type="month"
+                value={exportPeriod}
+                onChange={(e) => setExportPeriod(e.target.value)}
+                className="w-[180px]"
+              />
+            </div>
+            <Button onClick={handleExportAcomptes} disabled={isExporting} variant="outline">
+              {isExporting ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              Exporter
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filtres et actions */}
       <div className="flex items-center justify-between">
@@ -266,6 +340,7 @@ export default function SalaryAdvances() {
                 <TableRow>
                       <TableHead>Employé</TableHead>
                       <TableHead>Nature</TableHead>
+                      <TableHead>Compte compta</TableHead>
                       <TableHead>Montant demandé</TableHead>
                       <TableHead>Montant restant à verser</TableHead>
                       <TableHead>Date demande</TableHead>
@@ -276,7 +351,7 @@ export default function SalaryAdvances() {
               <TableBody>
                 {filteredAdvances.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                       Aucune demande trouvée
                     </TableCell>
                   </TableRow>
@@ -288,10 +363,14 @@ export default function SalaryAdvances() {
                       </TableCell>
                       <TableCell className="text-sm">
                         {getAdvanceTypeLabel(advance.advance_type, advance.prime_label)}
-                        {advance.accounting_account && (
-                          <span className="block text-xs text-muted-foreground">
-                            Cpt {advance.accounting_account}
-                          </span>
+                      </TableCell>
+                      <TableCell>
+                        {advance.accounting_account ? (
+                          <Badge variant="outline" className="font-mono">
+                            {advance.accounting_account}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
                       <TableCell>

@@ -92,7 +92,9 @@ export default function EmployeeLoans() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">2062 en attente</CardTitle>
+            <CardTitle className="text-sm font-medium" title="Prêts ≥ 5 000 € non encore déclarés au formulaire 2062">
+              Déclarations 2062 à faire
+            </CardTitle>
           </CardHeader>
           <CardContent className="flex items-center gap-2">
             <p className="text-2xl font-bold">{stats.needs2062}</p>
@@ -102,7 +104,7 @@ export default function EmployeeLoans() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {(['all', 'active', 'draft', 'repaid', 'suspended', 'cancelled'] as const).map(
+        {(['all', 'active', 'draft', 'repaid', 'suspended', 'cancelled', 'defaulted'] as const).map(
           (status) => (
             <Button
               key={status}

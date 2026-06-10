@@ -1,6 +1,11 @@
 import { Loader2 } from 'lucide-react';
 import type { Control } from 'react-hook-form';
 import { useWatch } from 'react-hook-form';
+import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+
+import { getJeiSettings } from '@/api/jeiSettings';
+import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 
 import type { CompanyCollectiveAgreementWithDetails, ClassificationConventionnelle } from '@/api/collectiveAgreements';
 import type { MutuelleType } from '@/api/mutuelleTypes';
@@ -55,6 +60,13 @@ export function EmployeeProfileEditForm({
   const isResidencePermit = useWatch({ control, name: 'is_subject_to_residence_permit' });
   const isCadre = statut?.toLowerCase() === 'cadre';
   const showContractEnd = isCddOrStage(contractType);
+  const companyId = useActiveCompanyId();
+  const { data: jeiSettings } = useQuery({
+    queryKey: ['jei-settings', companyId],
+    queryFn: getJeiSettings,
+    enabled: Boolean(companyId),
+  });
+  const companyJeiActive = Boolean(jeiSettings?.jei_enabled);
 
   return (
     <div className="space-y-8">
@@ -508,6 +520,37 @@ export function EmployeeProfileEditForm({
               )}
             />
           )}
+
+          <FormField
+            control={control}
+            name="specificites_paie.personnel_rd_eligible_jei"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                <FormControl>
+                  <Checkbox checked={field.value ?? false} onCheckedChange={field.onChange} />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel>Personnel R&amp;D éligible à l&apos;exonération JEI</FormLabel>
+                  <p className="text-xs text-muted-foreground">
+                    Chercheurs, ingénieurs, techniciens R&amp;D, gestionnaires de projet R&amp;D, etc.
+                    {!companyJeiActive ? (
+                      <>
+                        {' '}
+                        L&apos;entreprise doit avoir le statut JEI activé dans{' '}
+                        <Link
+                          to="/company?tab=paie&section=jei"
+                          className="text-primary underline-offset-2 hover:underline"
+                        >
+                          Paramètres paie
+                        </Link>
+                        .
+                      </>
+                    ) : null}
+                  </p>
+                </div>
+              </FormItem>
+            )}
+          />
 
           <div className="grid gap-3 sm:grid-cols-2">
             <FormField

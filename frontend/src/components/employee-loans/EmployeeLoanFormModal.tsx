@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import apiClient from '@/api/apiClient';
 import {
@@ -70,6 +71,8 @@ export function EmployeeLoanFormModal({
   const [rate, setRate] = useState('0');
   const [duration, setDuration] = useState('12');
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [repaymentDay, setRepaymentDay] = useState('1');
+  const [saveAsDraft, setSaveAsDraft] = useState(false);
   const [reason, setReason] = useState('');
   const [preview, setPreview] = useState<AmortizationPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -133,8 +136,9 @@ export function EmployeeLoanFormModal({
       annual_interest_rate: Number(rate) / 100,
       start_date: startDate,
       duration_months: Number(duration),
+      repayment_day: Number(repaymentDay),
       reason: reason || undefined,
-      activate: true,
+      activate: !saveAsDraft,
     });
   };
 
@@ -208,6 +212,30 @@ export function EmployeeLoanFormModal({
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
             />
+            <p className="mt-1 text-xs text-muted-foreground">
+              La première échéance correspond au mois de cette date.
+            </p>
+          </div>
+          <div>
+            <Label htmlFor="repayment_day">Jour de prélèvement</Label>
+            <Input
+              id="repayment_day"
+              type="number"
+              min={1}
+              max={28}
+              value={repaymentDay}
+              onChange={(e) => setRepaymentDay(e.target.value)}
+            />
+          </div>
+          <div className="sm:col-span-2 flex items-center gap-2">
+            <Checkbox
+              id="save_draft"
+              checked={saveAsDraft}
+              onCheckedChange={(checked) => setSaveAsDraft(checked === true)}
+            />
+            <Label htmlFor="save_draft" className="font-normal">
+              Enregistrer en brouillon (activation manuelle ultérieure)
+            </Label>
           </div>
           <div className="sm:col-span-2">
             <Label htmlFor="reason">Motif</Label>

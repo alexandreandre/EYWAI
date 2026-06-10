@@ -6,7 +6,6 @@ import { EmployeePageShell } from '@/components/employee/EmployeePageHeader';
 import { EmployeeProfileHeader } from '@/components/employee-profile/EmployeeProfileHeader';
 import { EmployeeProfileIdentityBanner } from '@/components/employee-profile/EmployeeProfileIdentityBanner';
 import { EmployeeProfilePayBenefitsGrid } from '@/components/employee-profile/EmployeeProfilePayBenefitsGrid';
-import { WorkMedalEmployeeAction } from '@/features/work-medals/components/WorkMedalEmployeeAction';
 import { EmployeeProfilePageSkeleton } from '@/components/skeletons/EmployeeProfilePageSkeleton';
 import { useEmployeeProfilePageQuery } from '@/hooks/queries/useEmployeeDashboardQueries';
 import { isProfileNotFoundError } from '@/lib/employeeProfileUtils';
@@ -69,7 +68,6 @@ export default function ProfilePage() {
       <EmployeeProfileContractCard profile={profile} />
       <EmployeeProfileContactCard profile={profile} />
       <EmployeeProfilePayBenefitsGrid profile={profile} />
-      <WorkMedalEmployeeAction employeeId={profile.id} />
       <EmployeeProfileBankCard profile={profile} />
     </EmployeePageShell>
   );

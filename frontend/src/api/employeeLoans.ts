@@ -114,6 +114,20 @@ export async function getMyEmployeeLoans(): Promise<EmployeeLoan[]> {
   return data;
 }
 
+export async function activateEmployeeLoan(loanId: string): Promise<EmployeeLoan> {
+  const { data } = await apiClient.post<EmployeeLoan>(
+    `/api/employee-loans/${loanId}/activate`,
+  );
+  return data;
+}
+
+export async function markLoanDefaulted(loanId: string): Promise<EmployeeLoan> {
+  const { data } = await apiClient.post<EmployeeLoan>(
+    `/api/employee-loans/${loanId}/default`,
+  );
+  return data;
+}
+
 export async function recordEarlyRepayment(
   loanId: string,
   payload: { amount: number; repayment_date: string },
@@ -226,6 +240,7 @@ export async function getEmployeeOutstandingLoans(employeeId: string): Promise<{
   employee_id: string;
   total_remaining_capital: number;
   active_loans_count: number;
+  outstanding_loans_count: number;
   loans: EmployeeLoan[];
 }> {
   const { data } = await apiClient.get(

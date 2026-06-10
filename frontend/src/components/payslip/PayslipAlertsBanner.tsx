@@ -1,6 +1,7 @@
 import { AlertTriangle, Info } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { PayslipBulletinData } from '@/api/payslips';
+import { NET_SUPERIEUR_BRUT_LABEL } from '@/lib/payslipNetBrutAlert';
 
 type EngineAlert = {
   code?: string;
@@ -19,10 +20,14 @@ function collectAlerts(data: PayslipBulletinData | null | undefined): Array<{
   const out: Array<{ id: string; message: string; critical: boolean }> = [];
 
   for (const raw of (data.alertes_baremes as EngineAlert[] | undefined) ?? []) {
-    const message = String(raw.message ?? '').trim();
+    const code = String(raw.code ?? '').trim();
+    const message =
+      code === 'net_superieur_brut'
+        ? NET_SUPERIEUR_BRUT_LABEL
+        : String(raw.message ?? '').trim();
     if (!message) continue;
     out.push({
-      id: `bareme-${raw.code ?? out.length}`,
+      id: `bareme-${code || out.length}`,
       message,
       critical: Boolean(raw.critique),
     });

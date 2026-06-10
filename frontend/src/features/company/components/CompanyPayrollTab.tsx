@@ -106,6 +106,15 @@ export function CompanyPayrollTab({
         </div>
       </section>
 
+      <section
+        className="space-y-3"
+        id="jei"
+        ref={setAnchorRef("jei")}
+      >
+        <SectionHeading>Dispositifs d&apos;exonération</SectionHeading>
+        <JeiSettingsCard />
+      </section>
+
       <section className="space-y-3">
         <SectionHeading>Taux et période de paie</SectionHeading>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -210,11 +219,6 @@ export function CompanyPayrollTab({
         <SectionHeading>Primes et distinctions</SectionHeading>
         <WorkMedalSettingsCard />
         <WorkMedalCasesList statusFilter="awaiting_rh" />
-      </section>
-
-      <section className="space-y-3">
-        <SectionHeading>Dispositifs d’exonération</SectionHeading>
-        <JeiSettingsCard />
       </section>
 
       <section className="space-y-3">

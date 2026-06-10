@@ -2,7 +2,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import apiClient from "@/api/apiClient";
+import {
+  activeStatusToApiParam,
+  assignCompanyToGroup,
+  deleteAdminCompanyPermanent,
+  listAdminCompanies,
+  listCompanyGroups,
+  patchAdminCompanyStatus,
+  reorderGroupCompanies,
+} from "@/api/adminCompanies";
 import { queryKeys } from "@/lib/queryKeys";
 import { AdminPageHeader } from "@/features/admin/components/eywai/AdminPageHeader";
 import { AdminStatCard } from "@/features/admin/components/eywai/AdminStatCard";
@@ -13,8 +21,12 @@ import type {
   ActiveStatusFilter,
   AdminCompany,
   AttachmentFilter,
+  CompanySortMode,
 } from "@/pages/admin/eywai/companies/types";
-import { COMPANIES_LIST_LIMIT } from "@/pages/admin/eywai/companies/types";
+import {
+  COMPANIES_LIST_LIMIT,
+  sortAdminCompanies,
+} from "@/pages/admin/eywai/companies/types";
 import {
   DEFAULT_PLATFORM_GROUP_NAME,
   findDefaultGroupId,
@@ -44,6 +56,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Building2,
   Plus,
   Users,
@@ -51,25 +69,26 @@ import {
   AlertTriangle,
   Link2,
   Loader2,
+  GripVertical,
 } from "lucide-react";
 import { log } from "@/lib/logger";
 
-interface CompanyGroup {
-  id: string;
-  group_name: string;
-}
+const SEARCH_DEBOUNCE_MS = 300;
 
 export default function Companies() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [apiSearch, setApiSearch] = useState("");
-  const [localSearch, setLocalSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<ActiveStatusFilter>("all");
-  const [attachmentFilter, setAttachmentFilter] = useState<AttachmentFilter>("all");
+  const [attachmentFilter, setAttachmentFilter] = useState<AttachmentFilter>("in_group");
+  const [sortMode, setSortMode] = useState<CompanySortMode>("group_order");
+  const [reorderMode, setReorderMode] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
+  const [orderOverrides, setOrderOverrides] = useState<Record<string, number>>({});
 
-  const [groups, setGroups] = useState<CompanyGroup[]>([]);
   const [majiGroupId, setMajiGroupId] = useState<string | null>(null);
   const [assigningToGroup, setAssigningToGroup] = useState(false);
   const [bulkAssigning, setBulkAssigning] = useState(false);
@@ -79,36 +98,53 @@ export default function Companies() {
   const [deleting, setDeleting] = useState(false);
   const [companyToDeactivate, setCompanyToDeactivate] = useState<AdminCompany | null>(null);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
+  const groupsQuery = useQuery({
+    queryKey: ["admin", "company-groups"] as const,
+    queryFn: listCompanyGroups,
+  });
+
+  const groups = groupsQuery.data ?? [];
   const majiGroupName =
     groups.find((g) => g.id === majiGroupId)?.group_name ?? DEFAULT_PLATFORM_GROUP_NAME;
 
-  const loadGroups = useCallback(async () => {
-    try {
-      const response = await apiClient.get("/api/company-groups/");
-      const list: CompanyGroup[] = response.data ?? [];
-      setGroups(list);
-      setMajiGroupId(findDefaultGroupId(list));
-    } catch (error) {
-      log.error("Erreur chargement groupes:", error);
+  useEffect(() => {
+    if (groups.length > 0) {
+      setMajiGroupId(findDefaultGroupId(groups));
     }
-  }, []);
+  }, [groups]);
 
   const companiesQuery = useQuery({
-    queryKey: [...queryKeys.adminCompanies(), apiSearch, statusFilter] as const,
-    queryFn: async () => {
-      const params: Record<string, string | number | boolean> = {
+    queryKey: [
+      ...queryKeys.adminCompanies(),
+      debouncedSearch,
+      statusFilter,
+    ] as const,
+    queryFn: () =>
+      listAdminCompanies({
         limit: COMPANIES_LIST_LIMIT,
-      };
-      if (apiSearch.trim()) params.search = apiSearch.trim();
-      if (statusFilter === "active") params.is_active = true;
-      if (statusFilter === "inactive") params.is_active = false;
-      const response = await apiClient.get("/api/super-admin/companies", { params });
-      return (response.data.companies ?? []) as AdminCompany[];
-    },
+        search: debouncedSearch || undefined,
+        is_active: activeStatusToApiParam(statusFilter),
+      }),
     placeholderData: (previous) => previous,
   });
 
-  const companies = companiesQuery.data ?? [];
+  const companies = useMemo(() => {
+    const base = companiesQuery.data ?? [];
+    if (Object.keys(orderOverrides).length === 0) return base;
+    return base.map((company) =>
+      orderOverrides[company.id] != null
+        ? { ...company, group_display_order: orderOverrides[company.id] }
+        : company,
+    );
+  }, [companiesQuery.data, orderOverrides]);
+
   const loading = companiesQuery.isLoading && companies.length === 0;
   const loadError =
     companiesQuery.isError && companies.length === 0
@@ -118,10 +154,6 @@ export default function Companies() {
   const refreshCompanies = () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.adminCompanies() });
   };
-
-  useEffect(() => {
-    void loadGroups();
-  }, [loadGroups]);
 
   const groupCompanies = useMemo(
     () => (majiGroupId ? companies.filter((c) => c.group_id === majiGroupId) : []),
@@ -133,7 +165,7 @@ export default function Companies() {
     [companies],
   );
 
-  const displayedCompanies = useMemo(() => {
+  const filteredCompanies = useMemo(() => {
     let list = companies;
     if (majiGroupId) {
       if (attachmentFilter === "in_group") {
@@ -142,17 +174,35 @@ export default function Companies() {
         list = list.filter((c) => !c.group_id);
       }
     }
-    const q = localSearch.trim().toLowerCase();
-    if (q) {
-      list = list.filter(
-        (c) =>
-          c.company_name.toLowerCase().includes(q) ||
-          (c.siret?.toLowerCase().includes(q) ?? false) ||
-          (c.email?.toLowerCase().includes(q) ?? false),
-      );
-    }
     return list;
-  }, [companies, majiGroupId, attachmentFilter, localSearch]);
+  }, [companies, majiGroupId, attachmentFilter]);
+
+  const displayedCompanies = useMemo(
+    () => sortAdminCompanies(filteredCompanies, sortMode),
+    [filteredCompanies, sortMode],
+  );
+
+  const canReorder =
+    attachmentFilter === "in_group" &&
+    statusFilter === "all" &&
+    debouncedSearch === "" &&
+    Boolean(majiGroupId) &&
+    groupCompanies.length > 1;
+
+  useEffect(() => {
+    if (!canReorder && reorderMode) {
+      setReorderMode(false);
+    }
+  }, [canReorder, reorderMode]);
+
+  useEffect(() => {
+    if (attachmentFilter === "in_group" && sortMode !== "group_order" && !reorderMode) {
+      return;
+    }
+    if (attachmentFilter !== "in_group" && sortMode === "group_order") {
+      setSortMode("name");
+    }
+  }, [attachmentFilter, sortMode, reorderMode]);
 
   const assignCompanyToMajiGroup = async (companyId: string): Promise<boolean> => {
     if (!majiGroupId) {
@@ -165,7 +215,7 @@ export default function Companies() {
     }
     try {
       setAssigningToGroup(true);
-      await apiClient.post(`/api/company-groups/${majiGroupId}/companies/${companyId}`);
+      await assignCompanyToGroup(majiGroupId, companyId);
       toast({
         title: "Entreprise rattachée",
         description: `Ajoutée au groupe ${majiGroupName}.`,
@@ -199,7 +249,7 @@ export default function Companies() {
     let success = 0;
     for (const c of orphanCompanies) {
       try {
-        await apiClient.post(`/api/company-groups/${majiGroupId}/companies/${c.id}`);
+        await assignCompanyToGroup(majiGroupId, c.id);
         success += 1;
       } catch {
         /* continue */
@@ -213,11 +263,54 @@ export default function Companies() {
     refreshCompanies();
   };
 
+  const handleReorder = useCallback(
+    async (orderedIds: string[]) => {
+      if (!majiGroupId || !canReorder) return;
+
+      if (orderedIds.length !== groupCompanies.length) {
+        toast({
+          title: "Erreur",
+          description: "Impossible de mettre à jour l'ordre.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const previousOverrides = { ...orderOverrides };
+      const optimistic: Record<string, number> = {};
+      orderedIds.forEach((id, index) => {
+        optimistic[id] = index + 1;
+      });
+      setOrderOverrides(optimistic);
+      setSavingOrder(true);
+
+      try {
+        await reorderGroupCompanies(majiGroupId, orderedIds);
+        toast({ title: "Ordre enregistré" });
+        setOrderOverrides({});
+        refreshCompanies();
+      } catch (error: unknown) {
+        setOrderOverrides(previousOverrides);
+        const detail = (error as { response?: { data?: { detail?: string } } })?.response
+          ?.data?.detail;
+        toast({
+          title: "Erreur",
+          description:
+            typeof detail === "string"
+              ? detail
+              : "Enregistrement de l'ordre impossible.",
+          variant: "destructive",
+        });
+      } finally {
+        setSavingOrder(false);
+      }
+    },
+    [canReorder, groupCompanies.length, majiGroupId, orderOverrides, toast],
+  );
+
   const confirmToggleStatus = async (company: AdminCompany) => {
     try {
-      await apiClient.patch(`/api/super-admin/companies/${company.id}`, {
-        is_active: !company.is_active,
-      });
+      await patchAdminCompanyStatus(company.id, !company.is_active);
       toast({
         title: company.is_active ? "Entreprise désactivée" : "Entreprise activée",
       });
@@ -244,12 +337,10 @@ export default function Companies() {
     if (!companyToDelete) return;
     try {
       setDeleting(true);
-      const response = await apiClient.delete(
-        `/api/super-admin/companies/${companyToDelete.id}/permanent`,
-      );
+      const response = await deleteAdminCompanyPermanent(companyToDelete.id);
       toast({
         title: "Entreprise supprimée",
-        description: response.data.message ?? "Suppression définitive effectuée.",
+        description: response.message ?? "Suppression définitive effectuée.",
       });
       setCompanyToDelete(null);
       refreshCompanies();
@@ -273,6 +364,17 @@ export default function Companies() {
     }
     return base;
   }, [majiGroupName, orphanCompanies.length]);
+
+  const emptyMessage = useMemo(() => {
+    if (attachmentFilter === "orphan") return "Aucune entreprise à rattacher.";
+    if (debouncedSearch) return "Aucune entreprise ne correspond à la recherche.";
+    if (statusFilter === "active") return "Aucune entreprise active dans ce périmètre.";
+    if (statusFilter === "inactive") return "Aucune entreprise inactive dans ce périmètre.";
+    return `Aucune entreprise dans le groupe ${majiGroupName}.`;
+  }, [attachmentFilter, debouncedSearch, majiGroupName, statusFilter]);
+
+  const showOrderColumn =
+    sortMode === "group_order" && attachmentFilter === "in_group";
 
   if (loading && companies.length === 0) {
     return (
@@ -382,27 +484,34 @@ export default function Companies() {
       </div>
 
       <Card>
-        <CardContent className="grid gap-4 pt-6 lg:grid-cols-12">
-          <div className="space-y-2 lg:col-span-4">
-            <Label htmlFor="api-search">Recherche serveur</Label>
+        <CardContent className="grid gap-4 pt-6 md:grid-cols-2 xl:grid-cols-12">
+          <div className="space-y-2 xl:col-span-4">
+            <Label htmlFor="company-search">Rechercher une entreprise</Label>
             <Input
-              id="api-search"
+              id="company-search"
               placeholder="Nom, SIRET, e-mail…"
-              value={apiSearch}
-              onChange={(e) => setApiSearch(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && void companiesQuery.refetch()}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
             />
           </div>
-          <div className="space-y-2 lg:col-span-3">
-            <Label htmlFor="local-search">Filtrer la liste</Label>
-            <Input
-              id="local-search"
-              placeholder="Filtre instantané…"
-              value={localSearch}
-              onChange={(e) => setLocalSearch(e.target.value)}
-            />
+          <div className="space-y-2 xl:col-span-3">
+            <Label>Trier par</Label>
+            <Select
+              value={sortMode}
+              onValueChange={(v) => setSortMode(v as CompanySortMode)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="group_order">Ordre personnalisé</SelectItem>
+                <SelectItem value="name">Nom (A → Z)</SelectItem>
+                <SelectItem value="created_at">Plus récentes</SelectItem>
+                <SelectItem value="employees">Effectif</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <div className="space-y-2 lg:col-span-2">
+          <div className="space-y-2 xl:col-span-2">
             <Label>Statut</Label>
             <Select
               value={statusFilter}
@@ -418,7 +527,7 @@ export default function Companies() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2 lg:col-span-2">
+          <div className="space-y-2 xl:col-span-3">
             <Label>Rattachement</Label>
             <Select
               value={attachmentFilter}
@@ -434,26 +543,52 @@ export default function Companies() {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-end lg:col-span-1">
-            <Button className="w-full" onClick={() => void companiesQuery.refetch()}>
-              Actualiser
-            </Button>
-          </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardContent className="p-0">
-          <div className="border-b px-4 py-3">
-            <p className="text-sm font-medium">{majiGroupName}</p>
-            <p className="text-xs text-muted-foreground">
-              {displayedCompanies.length} ligne(s) affichée(s)
-              {companies.length >= COMPANIES_LIST_LIMIT
-                ? ` · limite ${COMPANIES_LIST_LIMIT} chargée(s)`
-                : ""}
-            </p>
+          <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium">{majiGroupName}</p>
+              <p className="text-xs text-muted-foreground">
+                {displayedCompanies.length} ligne(s) affichée(s)
+                {companies.length >= COMPANIES_LIST_LIMIT
+                  ? ` · limite ${COMPANIES_LIST_LIMIT} chargée(s)`
+                  : ""}
+              </p>
+            </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <Button
+                      variant={reorderMode ? "default" : "outline"}
+                      size="sm"
+                      disabled={!canReorder}
+                      onClick={() => {
+                        setReorderMode((v) => {
+                          const next = !v;
+                          if (next) setSortMode("group_order");
+                          return next;
+                        });
+                      }}
+                    >
+                      <GripVertical className="mr-2 h-4 w-4" />
+                      {reorderMode ? "Terminer" : "Réorganiser"}
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {!canReorder ? (
+                  <TooltipContent>
+                    Disponible avec le filtre « Dans le groupe », sans recherche ni filtre de
+                    statut.
+                  </TooltipContent>
+                ) : null}
+              </Tooltip>
+            </TooltipProvider>
           </div>
-          <div className="overflow-x-auto">
+          <div className="max-h-[min(70vh,900px)] overflow-x-auto overflow-y-auto">
             <CompaniesTable
               companies={displayedCompanies}
               majiGroupId={majiGroupId}
@@ -461,11 +596,11 @@ export default function Companies() {
               onAssignToGroup={(id) => void handleAssignFromTable(id)}
               onToggleStatus={handleToggleStatus}
               onDelete={setCompanyToDelete}
-              emptyMessage={
-                attachmentFilter === "orphan"
-                  ? "Aucune entreprise à rattacher."
-                  : `Aucune entreprise dans le groupe ${majiGroupName}.`
-              }
+              emptyMessage={emptyMessage}
+              reorderMode={reorderMode && canReorder}
+              showOrderColumn={showOrderColumn || (reorderMode && canReorder)}
+              savingOrder={savingOrder}
+              onReorder={(ids) => void handleReorder(ids)}
             />
           </div>
         </CardContent>

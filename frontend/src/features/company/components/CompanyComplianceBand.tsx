@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, FileText, Percent, Users } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileText, FlaskConical, Percent, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { CompanyDetails, CompanyOverview } from "@/api/company";
 import { formatCollectiveAgreementLabel } from "@/features/company/lib/companyPageTabs";
@@ -6,9 +6,22 @@ import { cn } from "@/lib/utils";
 
 type ComplianceAnchor =
   | "convention-collective"
+  | "jei"
   | "taux-at-mp"
   | "taux-vm"
   | "cse";
+
+const COMPLIANCE_ANCHORS: ComplianceAnchor[] = [
+  "convention-collective",
+  "jei",
+  "taux-at-mp",
+  "taux-vm",
+  "cse",
+];
+
+export function isComplianceAnchor(value: string | null | undefined): value is ComplianceAnchor {
+  return COMPLIANCE_ANCHORS.includes(value as ComplianceAnchor);
+}
 
 type Item = {
   key: string;
@@ -16,6 +29,8 @@ type Item = {
   ok: boolean;
   icon: typeof CheckCircle2;
   anchor?: ComplianceAnchor;
+  /** Non configuré = neutre (pas une alerte conformité). */
+  optional?: boolean;
 };
 
 export function CompanyComplianceBand({
@@ -59,6 +74,14 @@ export function CompanyComplianceBand({
       anchor: "convention-collective",
     },
     {
+      key: "jei",
+      label: "Statut JEI",
+      ok: compliance.jei_configured ?? false,
+      icon: FlaskConical,
+      anchor: "jei",
+      optional: true,
+    },
+    {
       key: "cse",
       label: compliance.cse_obligation ? "Obligations CSE (≥11)" : "CSE non requis",
       ok: !compliance.cse_obligation,
@@ -67,7 +90,7 @@ export function CompanyComplianceBand({
     },
   ];
 
-  const hasWarning = items.some((i) => !i.ok);
+  const hasWarning = items.some((i) => !i.ok && !i.optional);
 
   return (
     <div
@@ -96,7 +119,7 @@ export function CompanyComplianceBand({
               variant={item.ok ? "secondary" : "outline"}
               className={cn(
                 "cursor-pointer gap-1 hover:opacity-90",
-                !item.ok && "border-amber-400 text-amber-900 bg-amber-100/60",
+                !item.ok && !item.optional && "border-amber-400 text-amber-900 bg-amber-100/60",
               )}
             >
               <item.icon className="h-3 w-3" aria-hidden />

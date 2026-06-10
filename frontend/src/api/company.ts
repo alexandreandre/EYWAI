@@ -70,7 +70,10 @@ export interface CompanyOverviewAlertEmployee {
   last_name: string;
 }
 
-export type CompanyOverviewAlertAction = "company_payroll_cc" | "employee_list";
+export type CompanyOverviewAlertAction =
+  | "company_payroll_cc"
+  | "company_payroll_jei"
+  | "employee_list";
 
 export interface CompanyOverviewAlert {
   code: string;
@@ -112,6 +115,7 @@ export interface CompanyOverview {
     vm_configured: boolean;
     collective_agreement_configured: boolean;
     cse_obligation: boolean;
+    jei_configured: boolean;
   };
   cdd_ending_within_30_days: number;
 }

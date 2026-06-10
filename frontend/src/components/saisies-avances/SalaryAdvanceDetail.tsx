@@ -141,10 +141,15 @@ export function SalaryAdvanceDetail({ advance, onClose, onUpdate }: SalaryAdvanc
                 <p className="font-medium">
                   {getAdvanceTypeLabel(advance.advance_type, advance.prime_label)}
                 </p>
-                {advance.accounting_account && (
-                  <p className="text-xs text-muted-foreground">
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Compte comptable</p>
+                {advance.accounting_account ? (
+                  <Badge variant="outline" className="mt-1 font-mono text-sm">
                     {formatAccountingAccount(advance.accounting_account)}
-                  </p>
+                  </Badge>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Non renseigné</p>
                 )}
               </div>
               <div>

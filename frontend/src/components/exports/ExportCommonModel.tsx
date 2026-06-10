@@ -2,6 +2,7 @@
 // Modèle commun d'export - ÉTAPE 1 : Structure et UX uniquement
 
 import { useState, useEffect, useMemo } from "react";
+import { getEmptyExportAlertMessage, isEmptyDataMessage } from "@/lib/exportEmptyState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -29,6 +30,7 @@ import {
   Building,
   Users as UsersIcon,
   FileSpreadsheet,
+  Info,
 } from "lucide-react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { previewExport, generateExport, ExportPreviewResponse, ExportGenerateResponse, ExportType } from "@/api/exports";
@@ -55,6 +57,8 @@ const EXPORT_TYPE_MAP: Record<string, ExportType> = {
   "conges-absences": "conges_absences",
   notes_frais: "notes_frais",
   "notes-frais": "notes_frais",
+  acomptes: "acomptes",
+  "Acomptes & avances": "acomptes",
   "Journal de paie": "journal_paie",
   "Écritures comptables (OD)": "ecritures_comptables",
   "Charges sociales par caisse": "charges_sociales",
@@ -68,7 +72,9 @@ const EXPORT_TYPE_MAP: Record<string, ExportType> = {
 const FILE_FORMAT_EXPORT_TYPES = new Set<ExportType>([
   "journal_paie",
   "charges_sociales",
+  "conges_absences",
   "notes_frais",
+  "recapitulatif_montants",
   "od_salaires",
   "od_charges_sociales",
   "od_pas",
@@ -76,6 +82,7 @@ const FILE_FORMAT_EXPORT_TYPES = new Set<ExportType>([
   "export_cabinet_generique",
   "export_cabinet_quadra",
   "export_cabinet_sage",
+  "acomptes",
 ]);
 
 function resolveApiExportType(exportType: string): ExportType {
@@ -84,7 +91,13 @@ function resolveApiExportType(exportType: string): ExportType {
 
 function defaultExportFormat(exportType: string): ExportFileFormat {
   const apiType = resolveApiExportType(exportType);
-  if (apiType === "charges_sociales" || apiType === "notes_frais") {
+  if (
+    apiType === "charges_sociales" ||
+    apiType === "conges_absences" ||
+    apiType === "notes_frais" ||
+    apiType === "acomptes" ||
+    apiType === "recapitulatif_montants"
+  ) {
     return "xlsx";
   }
   return "csv";
@@ -101,6 +114,7 @@ const exportTypeLabels: Record<string, string> = {
   export_cabinet_generique: "Export format cabinet générique",
   export_cabinet_quadra: "Export format Quadra",
   export_cabinet_sage: "Export format Sage",
+  acomptes: "Acomptes & avances",
   // Déclarations
   dsn_mensuelle: "DSN mensuelle",
   // Paiements
@@ -176,6 +190,26 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
   };
 
   const monthOptions = generateMonthOptions();
+
+  const emptyExportMessage = useMemo(() => {
+    if (!previewData) return null;
+    return getEmptyExportAlertMessage(previewData, apiExportType, selectedPeriod);
+  }, [previewData, apiExportType, selectedPeriod]);
+
+  const blockingAnomalies = useMemo(() => {
+    if (!previewData) return [];
+    return previewData.anomalies.filter(
+      (a) => a.severity === "blocking" && !isEmptyDataMessage(a.message),
+    );
+  }, [previewData]);
+
+  const previewWarnings = useMemo(() => {
+    if (!previewData) return [];
+    if (emptyExportMessage) {
+      return previewData.warnings.filter((w) => !isEmptyDataMessage(w));
+    }
+    return previewData.warnings;
+  }, [previewData, emptyExportMessage]);
 
   // Initialiser avec le mois actuel
   useEffect(() => {
@@ -254,6 +288,7 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
   };
 
   const handleBack = () => {
+    setError(null);
     if (currentStep === "previsualisation") {
       setCurrentStep("parametrage");
     } else if (currentStep === "generation") {
@@ -458,14 +493,22 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
               </>
             )}
 
+            {error && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Erreur</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
             <div className="flex justify-end gap-3">
               {onClose && (
-                <Button variant="outline" onClick={onClose}>
+                <Button variant="outline" onClick={onClose} disabled={isLoading}>
                   Annuler
                 </Button>
               )}
-              <Button onClick={handlePreview} disabled={!selectedPeriod}>
-                Prévisualiser
+              <Button onClick={handlePreview} disabled={!selectedPeriod || isLoading}>
+                {isLoading ? "Prévisualisation..." : "Prévisualiser"}
               </Button>
             </div>
           </div>
@@ -474,6 +517,15 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
         {/* ÉTAPE 2 : Prévisualisation & Contrôles */}
         {currentStep === "previsualisation" && previewData && (
           <div className="space-y-6">
+            {emptyExportMessage ? (
+              <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/40">
+                <Info className="h-4 w-4 text-blue-600" />
+                <AlertDescription className="text-blue-800 dark:text-blue-200">
+                  {emptyExportMessage}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
             {/* Résumé du périmètre */}
             <Card>
               <CardHeader>
@@ -584,31 +636,29 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
               </Card>
             ) : null}
 
-            {/* Anomalies bloquantes */}
-            {previewData.anomalies.filter(a => a.severity === "blocking").length > 0 && (
+            {/* Anomalies bloquantes (hors export vide) */}
+            {blockingAnomalies.length > 0 && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Anomalies bloquantes</AlertTitle>
                 <AlertDescription>
                   <ul className="list-disc list-inside mt-2 space-y-1">
-                    {previewData.anomalies
-                      .filter(a => a.severity === "blocking")
-                      .map((anomaly, index) => (
-                        <li key={index}>{anomaly.message}</li>
-                      ))}
+                    {blockingAnomalies.map((anomaly, index) => (
+                      <li key={index}>{anomaly.message}</li>
+                    ))}
                   </ul>
                 </AlertDescription>
               </Alert>
             )}
 
             {/* Avertissements */}
-            {previewData.warnings.length > 0 && (
+            {previewWarnings.length > 0 && (
               <Alert>
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Avertissements</AlertTitle>
                 <AlertDescription>
                   <ul className="list-disc list-inside mt-2 space-y-1">
-                    {previewData.warnings.map((warning, index) => (
+                    {previewWarnings.map((warning, index) => (
                       <li key={index}>{warning}</li>
                     ))}
                   </ul>
