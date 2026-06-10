@@ -50,6 +50,9 @@ export interface ExportTotals {
   total_net_imposable?: number;
   total_net_a_payer?: number;
   total_amount?: number;
+  total_versements?: number;
+  total_remboursements?: number;
+  operations_count?: number;
 }
 
 export interface ExportPreviewResponse {

@@ -35,6 +35,9 @@ class ExportTotals(BaseModel):
     total_net_imposable: Optional[float] = None
     total_net_a_payer: Optional[float] = None
     total_amount: Optional[float] = None
+    total_versements: Optional[float] = None
+    total_remboursements: Optional[float] = None
+    operations_count: Optional[int] = None
 
 
 class ExportPreviewResponse(BaseModel):

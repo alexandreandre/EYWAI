@@ -89,6 +89,17 @@ function resolveApiExportType(exportType: string): ExportType {
   return EXPORT_TYPE_MAP[exportType] || (exportType as ExportType);
 }
 
+function formatEuro(amount: number): string {
+  return amount.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+}
+
+function hasCotisationsTotals(totals: ExportPreviewResponse["totals"]): boolean {
+  return (
+    totals.total_cotisations_salariales != null ||
+    totals.total_cotisations_patronales != null
+  );
+}
+
 function defaultExportFormat(exportType: string): ExportFileFormat {
   const apiType = resolveApiExportType(exportType);
   if (
@@ -565,25 +576,59 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 text-sm">
-                  {previewData.totals.total_brut !== undefined && previewData.totals.total_brut !== null && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Total brut :</span>
-                      <span className="font-medium">{previewData.totals.total_brut.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}</span>
-                    </div>
-                  )}
-                  {(previewData.totals.total_cotisations_salariales !== undefined || previewData.totals.total_cotisations_patronales !== undefined) && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Total cotisations :</span>
-                      <span className="font-medium">
-                        {((previewData.totals.total_cotisations_salariales ?? 0) + (previewData.totals.total_cotisations_patronales ?? 0)).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
-                      </span>
-                    </div>
-                  )}
-                  {previewData.totals.total_net_a_payer !== undefined && previewData.totals.total_net_a_payer !== null && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Total net :</span>
-                      <span className="font-medium">{previewData.totals.total_net_a_payer.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}</span>
-                    </div>
+                  {apiExportType === "acomptes" ? (
+                    <>
+                      {previewData.totals.total_versements != null && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Total versements :</span>
+                          <span className="font-medium">
+                            {formatEuro(previewData.totals.total_versements)}
+                          </span>
+                        </div>
+                      )}
+                      {previewData.totals.total_remboursements != null && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Total remboursements :</span>
+                          <span className="font-medium">
+                            {formatEuro(previewData.totals.total_remboursements)}
+                          </span>
+                        </div>
+                      )}
+                      {previewData.totals.operations_count != null && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Opérations :</span>
+                          <span className="font-medium">{previewData.totals.operations_count}</span>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {previewData.totals.total_brut != null && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Total brut :</span>
+                          <span className="font-medium">{formatEuro(previewData.totals.total_brut)}</span>
+                        </div>
+                      )}
+                      {hasCotisationsTotals(previewData.totals) && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Total cotisations :</span>
+                          <span className="font-medium">
+                            {formatEuro(
+                              (previewData.totals.total_cotisations_salariales ?? 0) +
+                                (previewData.totals.total_cotisations_patronales ?? 0),
+                            )}
+                          </span>
+                        </div>
+                      )}
+                      {previewData.totals.total_net_a_payer != null && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Total net :</span>
+                          <span className="font-medium">
+                            {formatEuro(previewData.totals.total_net_a_payer)}
+                          </span>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </CardContent>
