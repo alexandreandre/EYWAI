@@ -62,6 +62,10 @@ def _fetch_company_payslips(company_id: str) -> List[Dict[str, Any]]:
     if not paths:
         return []
 
+    from app.modules.payslips.infrastructure.storage_urls import (
+        preview_url_with_download_fallback,
+    )
+
     download_map, preview_map = create_payslip_url_maps(paths, 3600)
 
     result: List[Dict[str, Any]] = []
@@ -77,7 +81,9 @@ def _fetch_company_payslips(company_id: str) -> List[Dict[str, Any]]:
                 "employee_name": names.get(eid) or eid,
                 "name": storage_path.split("/")[-1],
                 "url": download_map[storage_path],
-                "preview_url": preview_map.get(storage_path, ""),
+                "preview_url": preview_url_with_download_fallback(
+                    preview_map, download_map, storage_path
+                ),
                 "month": int(p["month"]),
                 "year": int(p["year"]),
             }
@@ -164,7 +170,7 @@ def _scan_storage_bucket(
             expiry_seconds=3600,
             download=False,
         )
-        if not url or not preview_url:
+        if not url:
             continue
         items.append(
             {
@@ -172,7 +178,7 @@ def _scan_storage_bucket(
                 "employee_name": _employee_display_name(emp),
                 "kind": kind,
                 "url": url,
-                "preview_url": preview_url,
+                "preview_url": preview_url or url,
                 "label": label,
             }
         )

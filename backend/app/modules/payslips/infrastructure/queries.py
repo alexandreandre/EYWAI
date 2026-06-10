@@ -16,6 +16,7 @@ from app.modules.payslips.infrastructure.payslip_list_meta import payslip_list_m
 from app.modules.payslips.infrastructure.storage_urls import (
     create_payslip_signed_urls,
     create_payslip_url_maps,
+    preview_url_with_download_fallback,
 )
 
 
@@ -78,7 +79,9 @@ def get_my_payslips(employee_id: str) -> list[dict[str, Any]]:
                 "month": p["month"],
                 "year": p["year"],
                 "url": download_map[storage_path],
-                "preview_url": preview_map.get(storage_path, ""),
+                "preview_url": preview_url_with_download_fallback(
+                    preview_map, download_map, storage_path
+                ),
                 "net_a_payer": meta["net_a_payer"],
                 "warnings": meta["warnings"],
             }
@@ -122,7 +125,9 @@ def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
                 "month": p["month"],
                 "year": p["year"],
                 "url": download_map[storage_path],
-                "preview_url": preview_map.get(storage_path, ""),
+                "preview_url": preview_url_with_download_fallback(
+                    preview_map, download_map, storage_path
+                ),
                 "net_a_payer": meta["net_a_payer"],
                 "warnings": meta["warnings"],
                 "manually_edited": bool(p.get("manually_edited")),

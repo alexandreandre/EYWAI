@@ -36,3 +36,33 @@ def test_create_payslip_signed_urls_delegates_to_maps(mock_maps):
 
     assert download_url == "https://dl.example/a.pdf"
     assert preview_url == "https://preview.example/a.pdf"
+
+
+@patch("app.modules.payslips.infrastructure.storage_urls.create_payslip_url_maps")
+def test_create_payslip_signed_urls_falls_back_to_download_when_preview_missing(mock_maps):
+    mock_maps.return_value = (
+        {"path/a.pdf": "https://dl.example/a.pdf"},
+        {},
+    )
+
+    download_url, preview_url = create_payslip_signed_urls("path/a.pdf")
+
+    assert download_url == "https://dl.example/a.pdf"
+    assert preview_url == "https://dl.example/a.pdf"
+
+
+def test_preview_url_with_download_fallback():
+    from app.modules.payslips.infrastructure.storage_urls import preview_url_with_download_fallback
+
+    preview_map = {"x.pdf": "https://preview.example/x.pdf"}
+    download_map = {"x.pdf": "https://dl.example/x.pdf"}
+
+    assert (
+        preview_url_with_download_fallback(preview_map, download_map, "x.pdf")
+        == "https://preview.example/x.pdf"
+    )
+    assert (
+        preview_url_with_download_fallback({}, download_map, "x.pdf")
+        == "https://dl.example/x.pdf"
+    )
+    assert preview_url_with_download_fallback({}, {}, "missing.pdf") == ""

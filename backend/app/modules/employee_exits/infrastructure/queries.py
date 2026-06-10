@@ -8,6 +8,7 @@ Aucune dépendance FastAPI.
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
+from app.shared.infrastructure.storage_signed_url import extract_signed_url
 
 
 def enrich_exit_with_documents_and_checklist(
@@ -33,15 +34,9 @@ def enrich_exit_with_documents_and_checklist(
             preview_url = sb.storage.from_("exit_documents").create_signed_url(
                 doc["storage_path"], signed_url_expiry_seconds, options={"download": False}
             )
-            doc["download_url"] = (
-                download_url.get("signedURL")
-                if isinstance(download_url, dict)
-                else download_url
-            )
+            doc["download_url"] = extract_signed_url(download_url) or None
             doc["preview_url"] = (
-                preview_url.get("signedURL")
-                if isinstance(preview_url, dict)
-                else preview_url
+                extract_signed_url(preview_url) or doc["download_url"]
             )
         except Exception:
             doc["download_url"] = None
