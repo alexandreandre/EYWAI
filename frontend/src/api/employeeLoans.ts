@@ -40,7 +40,9 @@ export interface LoanInstallment {
   capital_part: number;
   interest_part: number;
   total_due: number;
-  status: 'pending' | 'paid' | 'skipped';
+  capital_paid?: number;
+  interest_paid?: number;
+  status: 'pending' | 'partial' | 'paid' | 'skipped';
   payslip_id?: string | null;
 }
 
@@ -48,6 +50,7 @@ export interface LoanRepayment {
   id: string;
   loan_id: string;
   payslip_id: string | null;
+  installment_id?: string | null;
   year: number;
   month: number;
   capital_amount: number;

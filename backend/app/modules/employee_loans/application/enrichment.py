@@ -1,5 +1,6 @@
 """
 Enrichissement bulletin : remboursements de prêts employeur sur le net à payer.
+Remboursement glissant : reprise de l'échéance non soldée mois après mois.
 """
 
 from __future__ import annotations
@@ -8,16 +9,17 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from app.modules.employee_loans.domain.rules import (
+    compute_installment_remaining,
     compute_interest_benefit_in_kind,
     compute_interest_paid,
     compute_loan_repayment_cap,
     compute_repayment_amount,
-    is_installment_fully_paid,
+    is_installment_settled,
 )
 from app.modules.employee_loans.infrastructure.payroll_queries import (
     get_legal_interest_rate,
-    get_loans_due_for_period,
     get_suspended_loans_with_pending_installment,
+    get_unsettled_installments_for_payroll,
 )
 from app.modules.employee_loans.infrastructure.repository import (
     employee_loan_installments_repository,
@@ -31,7 +33,7 @@ def process_suspended_loan_installments(
     year: int,
     month: int,
 ) -> None:
-    """Marque skipped les échéances pending des prêts suspendus pour ce mois."""
+    """Marque skipped les échéances pending/partial des prêts suspendus pour ce mois."""
     suspended = get_suspended_loans_with_pending_installment(employee_id, year, month)
     for item in suspended:
         installment = item.get("installment") or {}
@@ -54,14 +56,14 @@ def enrich_payslip_loans(
 ) -> Dict[str, Any]:
     """
     Applique les retenues de remboursement de prêt sur le net à payer.
-    Plafonnées à la fraction saisissable restante et au capital restant dû.
+    Reprend la plus ancienne échéance non soldée ; plafonné à la quotité saisissable.
     """
     process_suspended_loan_installments(employee_id, year, month)
 
     net_a_payer = Decimal(str(payslip_json_data.get("net_a_payer", 0)))
     seizable_remaining = compute_loan_repayment_cap(net_a_payer)
 
-    loans_due = get_loans_due_for_period(employee_id, year, month)
+    loans_due = get_unsettled_installments_for_payroll(employee_id, year, month)
     legal_rate = get_legal_interest_rate()
 
     total_capital = Decimal("0")
@@ -73,6 +75,7 @@ def enrich_payslip_loans(
         loan = item
         installment = item.get("installment") or {}
         loan_id = loan["id"]
+        inst_id = installment.get("id")
 
         if payslip_id:
             existing = employee_loan_repayments_repository.get_existing(
@@ -80,70 +83,117 @@ def enrich_payslip_loans(
             )
             if existing:
                 cap = Decimal(str(existing.get("capital_amount", 0)))
+                intr = Decimal(str(existing.get("interest_amount", 0)))
                 total_capital += cap
-                total_interest += Decimal(str(existing.get("interest_amount", 0)))
+                total_interest += intr
                 total_an += Decimal(
                     str(existing.get("avantage_nature_amount", 0))
                 )
                 remboursements.append(
-                    {
-                        "loan_id": loan_id,
-                        "montant_capital": float(cap),
-                        "montant_interets": float(existing.get("interest_amount", 0)),
-                        "reste_apres": float(existing.get("remaining_after", 0)),
-                        "motif": loan.get("reason"),
-                    }
+                    _build_remboursement_entry(
+                        loan, installment, cap, intr,
+                        Decimal(str(existing.get("remaining_after", 0))),
+                        existing.get("installment_id"),
+                    )
                 )
                 continue
 
-        due_capital = Decimal(str(installment.get("capital_part", 0)))
-        due_interest = Decimal(str(installment.get("interest_part", 0)))
+        if seizable_remaining <= 0:
+            break
+
+        capital_part = Decimal(str(installment.get("capital_part", 0)))
+        interest_part = Decimal(str(installment.get("interest_part", 0)))
+        capital_paid_so_far = Decimal(str(installment.get("capital_paid") or 0))
+        interest_paid_so_far = Decimal(str(installment.get("interest_paid") or 0))
         remaining_capital = Decimal(str(loan.get("remaining_capital", 0)))
 
-        capital_paid = compute_repayment_amount(
+        due_capital, due_interest = compute_installment_remaining(
+            capital_part,
+            interest_part,
+            capital_paid_so_far,
+            interest_paid_so_far,
+        )
+
+        if due_capital <= 0 and due_interest <= 0:
+            if inst_id:
+                try:
+                    employee_loan_installments_repository.update(
+                        inst_id, {"status": "paid", "payslip_id": payslip_id}
+                    )
+                except Exception:
+                    pass
+            continue
+
+        capital_paid_this = compute_repayment_amount(
             due_capital, seizable_remaining, remaining_capital
         )
-        interest_paid = compute_interest_paid(due_capital, due_interest, capital_paid)
+        interest_paid_this = compute_interest_paid(
+            due_capital, due_interest, capital_paid_this
+        )
 
         an_amount = compute_interest_benefit_in_kind(
             remaining_capital,
             legal_rate,
             Decimal(str(loan.get("annual_interest_rate", 0))),
         )
-        if capital_paid < due_capital and due_capital > 0:
-            an_amount = _money_proportional(an_amount, capital_paid, due_capital)
+        if capital_paid_this < due_capital and due_capital > 0:
+            an_amount = _money_proportional(an_amount, capital_paid_this, due_capital)
 
-        seizable_remaining -= capital_paid + interest_paid
-        total_capital += capital_paid
-        total_interest += interest_paid
+        seizable_remaining -= capital_paid_this + interest_paid_this
+        total_capital += capital_paid_this
+        total_interest += interest_paid_this
         total_an += an_amount
 
-        remaining_after = _money(max(Decimal("0"), remaining_capital - capital_paid))
+        remaining_after = _money(
+            max(Decimal("0"), remaining_capital - capital_paid_this)
+        )
+        new_capital_paid = capital_paid_so_far + capital_paid_this
+        new_interest_paid = interest_paid_so_far + interest_paid_this
+
+        reliquat_capital, reliquat_interest = compute_installment_remaining(
+            capital_part,
+            interest_part,
+            new_capital_paid,
+            new_interest_paid,
+        )
+        reliquat_apres = _money(reliquat_capital + reliquat_interest)
+
         remboursements.append(
-            {
-                "loan_id": loan_id,
-                "montant_capital": float(capital_paid),
-                "montant_interets": float(interest_paid),
-                "reste_apres": float(remaining_after),
-                "motif": loan.get("reason"),
-            }
+            _build_remboursement_entry(
+                loan,
+                installment,
+                capital_paid_this,
+                interest_paid_this,
+                remaining_after,
+                inst_id,
+                reliquat_apres=reliquat_apres,
+            )
         )
 
-        total_paid_this_month = capital_paid + interest_paid
+        total_paid_this_month = capital_paid_this + interest_paid_this
         if total_paid_this_month > 0 and payslip_id:
+            settled = is_installment_settled(
+                capital_part,
+                interest_part,
+                new_capital_paid,
+                new_interest_paid,
+            ) or remaining_after <= 0
+            inst_status = "paid" if settled else "partial"
+
             try:
-                employee_loan_repayments_repository.create(
-                    {
-                        "loan_id": loan_id,
-                        "payslip_id": payslip_id,
-                        "year": year,
-                        "month": month,
-                        "capital_amount": float(capital_paid),
-                        "interest_amount": float(interest_paid),
-                        "avantage_nature_amount": float(an_amount),
-                        "remaining_after": float(remaining_after),
-                    }
-                )
+                repayment_payload: Dict[str, Any] = {
+                    "loan_id": loan_id,
+                    "payslip_id": payslip_id,
+                    "year": year,
+                    "month": month,
+                    "capital_amount": float(capital_paid_this),
+                    "interest_amount": float(interest_paid_this),
+                    "avantage_nature_amount": float(an_amount),
+                    "remaining_after": float(remaining_after),
+                }
+                if inst_id:
+                    repayment_payload["installment_id"] = inst_id
+                employee_loan_repayments_repository.create(repayment_payload)
             except Exception:
                 pass
 
@@ -157,21 +207,17 @@ def enrich_payslip_loans(
             except Exception:
                 pass
 
-            try:
-                inst_id = installment.get("id")
-                if inst_id and is_installment_fully_paid(
-                    due_capital,
-                    due_interest,
-                    capital_paid,
-                    interest_paid,
-                    remaining_after,
-                ):
-                    employee_loan_installments_repository.update(
+            if inst_id:
+                try:
+                    employee_loan_installments_repository.increment_paid(
                         inst_id,
-                        {"status": "paid", "payslip_id": payslip_id},
+                        float(capital_paid_this),
+                        float(interest_paid_this),
+                        inst_status,
+                        payslip_id=payslip_id if settled else None,
                     )
-            except Exception:
-                pass
+                except Exception:
+                    pass
 
     total_rembourse = total_capital + total_interest
     payslip_json_data["remboursements_prets"] = {
@@ -189,6 +235,29 @@ def enrich_payslip_loans(
         )
 
     return payslip_json_data
+
+
+def _build_remboursement_entry(
+    loan: Dict[str, Any],
+    installment: Dict[str, Any],
+    capital: Decimal,
+    interest: Decimal,
+    remaining_after: Decimal,
+    installment_id: Optional[str],
+    reliquat_apres: Optional[Decimal] = None,
+) -> Dict[str, Any]:
+    entry: Dict[str, Any] = {
+        "loan_id": loan["id"],
+        "installment_id": installment_id,
+        "installment_number": installment.get("installment_number"),
+        "montant_capital": float(capital),
+        "montant_interets": float(interest),
+        "reste_apres": float(remaining_after),
+        "motif": loan.get("reason"),
+    }
+    if reliquat_apres is not None:
+        entry["reliquat_apres"] = float(reliquat_apres)
+    return entry
 
 
 def _money(value: Decimal) -> Decimal:

@@ -53,6 +53,21 @@ class AbstractEmployeeLoanInstallmentsRepository(ABC):
     def update(self, installment_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         ...
 
+    @abstractmethod
+    def get_oldest_unsettled(self, loan_id: str) -> Optional[Dict[str, Any]]:
+        ...
+
+    @abstractmethod
+    def increment_paid(
+        self,
+        installment_id: str,
+        capital_delta: float,
+        interest_delta: float,
+        status: str,
+        payslip_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        ...
+
 
 class AbstractEmployeeLoanRepaymentsRepository(ABC):
     @abstractmethod

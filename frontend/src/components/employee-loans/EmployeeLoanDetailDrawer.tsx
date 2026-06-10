@@ -69,9 +69,19 @@ const formatEuro = (value: number) =>
 
 const INSTALLMENT_STATUS_LABELS: Record<string, string> = {
   pending: 'À venir',
+  partial: 'Partielle',
   paid: 'Payée',
   skipped: 'Ignorée',
 };
+
+const installmentPaidTotal = (row: { capital_paid?: number; interest_paid?: number }) =>
+  (row.capital_paid ?? 0) + (row.interest_paid ?? 0);
+
+const installmentRemaining = (row: {
+  total_due: number;
+  capital_paid?: number;
+  interest_paid?: number;
+}) => Math.max(0, row.total_due - installmentPaidTotal(row));
 
 export function EmployeeLoanDetailDrawer({
   loan,
@@ -355,6 +365,8 @@ export function EmployeeLoanDetailDrawer({
                         <TableHead>Capital</TableHead>
                         <TableHead>Intérêts</TableHead>
                         <TableHead>Échéance</TableHead>
+                        <TableHead>Prélevé</TableHead>
+                        <TableHead>Reliquat</TableHead>
                         <TableHead>Statut</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -369,7 +381,35 @@ export function EmployeeLoanDetailDrawer({
                           <TableCell>{formatEuro(row.interest_part)}</TableCell>
                           <TableCell>{formatEuro(row.total_due)}</TableCell>
                           <TableCell>
-                            {INSTALLMENT_STATUS_LABELS[row.status] ?? row.status}
+                            {installmentPaidTotal(row) > 0
+                              ? formatEuro(installmentPaidTotal(row))
+                              : '—'}
+                          </TableCell>
+                          <TableCell>
+                            {row.status === 'partial' ||
+                            (row.status === 'pending' && installmentPaidTotal(row) > 0)
+                              ? formatEuro(installmentRemaining(row))
+                              : row.status === 'pending'
+                                ? '—'
+                                : '—'}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={
+                                row.status === 'partial'
+                                  ? 'outline'
+                                  : row.status === 'paid'
+                                    ? 'default'
+                                    : 'secondary'
+                              }
+                              className={
+                                row.status === 'partial'
+                                  ? 'border-amber-500 text-amber-700'
+                                  : undefined
+                              }
+                            >
+                              {INSTALLMENT_STATUS_LABELS[row.status] ?? row.status}
+                            </Badge>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -390,23 +430,30 @@ export function EmployeeLoanDetailDrawer({
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Période</TableHead>
+                        <TableHead>Période bulletin</TableHead>
+                        <TableHead>Éch. n°</TableHead>
                         <TableHead>Capital</TableHead>
                         <TableHead>Intérêts</TableHead>
-                        <TableHead>Reste dû</TableHead>
+                        <TableHead>Reste dû prêt</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(repaymentsQuery.data ?? []).map((row) => (
-                        <TableRow key={row.id}>
-                          <TableCell>
-                            {String(row.month).padStart(2, '0')}/{row.year}
-                          </TableCell>
-                          <TableCell>{formatEuro(row.capital_amount)}</TableCell>
-                          <TableCell>{formatEuro(row.interest_amount)}</TableCell>
-                          <TableCell>{formatEuro(row.remaining_after)}</TableCell>
-                        </TableRow>
-                      ))}
+                      {(repaymentsQuery.data ?? []).map((row) => {
+                        const instNum = scheduleQuery.data?.find(
+                          (i) => i.id === row.installment_id,
+                        )?.installment_number;
+                        return (
+                          <TableRow key={row.id}>
+                            <TableCell>
+                              {String(row.month).padStart(2, '0')}/{row.year}
+                            </TableCell>
+                            <TableCell>{instNum ?? '—'}</TableCell>
+                            <TableCell>{formatEuro(row.capital_amount)}</TableCell>
+                            <TableCell>{formatEuro(row.interest_amount)}</TableCell>
+                            <TableCell>{formatEuro(row.remaining_after)}</TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>

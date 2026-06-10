@@ -132,6 +132,48 @@ class SupabaseEmployeeLoanInstallmentsRepository(
             return None
         return res.data[0]
 
+    def get_oldest_unsettled(self, loan_id: str) -> Optional[Dict[str, Any]]:
+        res = (
+            supabase.table(TABLE_EMPLOYEE_LOAN_INSTALLMENTS)
+            .select("*")
+            .eq("loan_id", loan_id)
+            .in_("status", ["pending", "partial"])
+            .order("installment_number")
+            .limit(1)
+            .execute()
+        )
+        rows = res.data or []
+        return rows[0] if rows else None
+
+    def increment_paid(
+        self,
+        installment_id: str,
+        capital_delta: float,
+        interest_delta: float,
+        status: str,
+        payslip_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        current = (
+            supabase.table(TABLE_EMPLOYEE_LOAN_INSTALLMENTS)
+            .select("capital_paid, interest_paid")
+            .eq("id", installment_id)
+            .maybe_single()
+            .execute()
+        )
+        if not current or not current.data:
+            return None
+        row = current.data
+        new_capital_paid = float(row.get("capital_paid") or 0) + capital_delta
+        new_interest_paid = float(row.get("interest_paid") or 0) + interest_delta
+        payload: Dict[str, Any] = {
+            "capital_paid": round(new_capital_paid, 2),
+            "interest_paid": round(new_interest_paid, 2),
+            "status": status,
+        }
+        if payslip_id and status == "paid":
+            payload["payslip_id"] = payslip_id
+        return self.update(installment_id, payload)
+
     def skip_pending_for_loan(self, loan_id: str) -> None:
         supabase.table(TABLE_EMPLOYEE_LOAN_INSTALLMENTS).update({"status": "skipped"}).eq(
             "loan_id", loan_id

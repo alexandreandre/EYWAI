@@ -8,6 +8,6 @@ LOAN_STATUSES = frozenset(
     {"draft", "active", "suspended", "repaid", "cancelled", "defaulted"}
 )
 
-INSTALLMENT_STATUSES = frozenset({"pending", "paid", "skipped"})
+INSTALLMENT_STATUSES = frozenset({"pending", "partial", "paid", "skipped"})
 
 DEFAULT_LEGAL_INTEREST_RATE = Decimal("0.0352")

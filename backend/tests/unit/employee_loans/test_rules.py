@@ -7,12 +7,15 @@ import pytest
 
 from app.modules.employee_loans.domain.rules import (
     build_amortization_schedule,
+    compute_installment_remaining,
     compute_interest_benefit_in_kind,
     compute_interest_paid,
     compute_loan_repayment_cap,
     compute_monthly_payment,
     compute_repayment_amount,
+    is_installment_collectible,
     is_installment_fully_paid,
+    is_installment_settled,
     requires_2062,
 )
 
@@ -109,3 +112,38 @@ def test_compute_loan_repayment_cap_uses_seizable_rules():
     cap = compute_loan_repayment_cap(Decimal("2500"))
     assert cap > Decimal("0")
     assert cap < Decimal("2500")
+
+
+def test_compute_installment_remaining():
+    cap, intr = compute_installment_remaining(
+        Decimal("410.97"), Decimal("12.50"),
+        Decimal("175.50"), Decimal("5.34"),
+    )
+    assert cap == Decimal("235.47")
+    assert intr == Decimal("7.16")
+
+
+def test_compute_installment_remaining_settled():
+    cap, intr = compute_installment_remaining(
+        Decimal("400"), Decimal("10"),
+        Decimal("400"), Decimal("10"),
+    )
+    assert cap == Decimal("0.00")
+    assert intr == Decimal("0.00")
+
+
+def test_is_installment_collectible():
+    assert is_installment_collectible(2026, 6, 2026, 7) is True
+    assert is_installment_collectible(2026, 6, 2026, 6) is True
+    assert is_installment_collectible(2026, 7, 2026, 6) is False
+
+
+def test_is_installment_settled():
+    assert is_installment_settled(
+        Decimal("400"), Decimal("10"),
+        Decimal("400"), Decimal("10"),
+    )
+    assert not is_installment_settled(
+        Decimal("400"), Decimal("10"),
+        Decimal("200"), Decimal("5"),
+    )

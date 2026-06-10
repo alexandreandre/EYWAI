@@ -69,31 +69,52 @@ def get_suspended_loans_with_pending_installment(
             .execute()
         )
         installment = inst.data if inst and inst.data else None
-        if installment and installment.get("status") == "pending":
+        if installment and installment.get("status") in ("pending", "partial"):
             due.append({**loan, "installment": installment})
+    return due
+
+
+def get_unsettled_installments_for_payroll(
+    employee_id: str, payslip_year: int, payslip_month: int
+) -> List[Dict[str, Any]]:
+    """
+    Pour chaque prêt actif : plus ancienne échéance non soldée (pending/partial),
+    collectible si sa période <= période bulletin.
+    """
+    from app.modules.employee_loans.domain.rules import is_installment_collectible
+
+    loans = get_active_loans_for_employee(employee_id)
+    due: List[Dict[str, Any]] = []
+    for loan in loans:
+        inst_res = (
+            supabase.table(TABLE_EMPLOYEE_LOAN_INSTALLMENTS)
+            .select("*")
+            .eq("loan_id", loan["id"])
+            .in_("status", ["pending", "partial"])
+            .order("installment_number")
+            .limit(1)
+            .execute()
+        )
+        rows = inst_res.data or []
+        if not rows:
+            continue
+        installment = rows[0]
+        if not is_installment_collectible(
+            installment["year"],
+            installment["month"],
+            payslip_year,
+            payslip_month,
+        ):
+            continue
+        due.append({**loan, "installment": installment})
     return due
 
 
 def get_loans_due_for_period(
     employee_id: str, year: int, month: int
 ) -> List[Dict[str, Any]]:
-    """Prêts actifs avec échéance capital sur la période."""
-    loans = get_active_loans_for_employee(employee_id)
-    due: List[Dict[str, Any]] = []
-    for loan in loans:
-        inst = (
-            supabase.table(TABLE_EMPLOYEE_LOAN_INSTALLMENTS)
-            .select("*")
-            .eq("loan_id", loan["id"])
-            .eq("year", year)
-            .eq("month", month)
-            .maybe_single()
-            .execute()
-        )
-        installment = inst.data if inst and inst.data else None
-        if installment and installment.get("status") == "pending":
-            due.append({**loan, "installment": installment})
-    return due
+    """Deprecated: préférer get_unsettled_installments_for_payroll."""
+    return get_unsettled_installments_for_payroll(employee_id, year, month)
 
 
 def compute_total_loan_benefit_in_kind(

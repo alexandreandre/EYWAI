@@ -154,6 +154,40 @@ def compute_interest_paid(
     return _money(due_interest * ratio)
 
 
+def compute_installment_remaining(
+    capital_part: Decimal,
+    interest_part: Decimal,
+    capital_paid: Decimal,
+    interest_paid: Decimal,
+) -> tuple[Decimal, Decimal]:
+    """Reliquat capital et intérêts restants sur une échéance."""
+    remaining_capital = _money(max(Decimal("0"), capital_part - capital_paid))
+    remaining_interest = _money(max(Decimal("0"), interest_part - interest_paid))
+    return remaining_capital, remaining_interest
+
+
+def is_installment_collectible(
+    inst_year: int,
+    inst_month: int,
+    payslip_year: int,
+    payslip_month: int,
+) -> bool:
+    """True si la période bulletin permet de prélever cette échéance."""
+    return (inst_year, inst_month) <= (payslip_year, payslip_month)
+
+
+def is_installment_settled(
+    capital_part: Decimal,
+    interest_part: Decimal,
+    capital_paid_total: Decimal,
+    interest_paid_total: Decimal,
+) -> bool:
+    """True si l'échéance est entièrement soldée (cumuls)."""
+    return (
+        capital_paid_total >= capital_part and interest_paid_total >= interest_part
+    )
+
+
 def is_installment_fully_paid(
     due_capital: Decimal,
     due_interest: Decimal,
@@ -161,7 +195,7 @@ def is_installment_fully_paid(
     interest_paid: Decimal,
     remaining_after: Decimal,
 ) -> bool:
-    """True si l'échéance du mois est entièrement soldée."""
+    """True si l'échéance du mois est entièrement soldée (prélèvement unique)."""
     if remaining_after <= 0:
         return True
     return capital_paid >= due_capital and interest_paid >= due_interest

@@ -19,8 +19,16 @@ class LoanInstallment(BaseModel):
     capital_part: float
     interest_part: float
     total_due: float
-    status: Literal["pending", "paid", "skipped"] = "pending"
+    capital_paid: float = 0
+    interest_paid: float = 0
+    status: Literal["pending", "partial", "paid", "skipped"] = "pending"
     payslip_id: Optional[str] = None
+
+    @property
+    def remaining_due(self) -> float:
+        return round(
+            max(0.0, self.total_due - self.capital_paid - self.interest_paid), 2
+        )
 
 
 class LoanRepayment(BaseModel):
@@ -29,6 +37,7 @@ class LoanRepayment(BaseModel):
     id: str
     loan_id: str
     payslip_id: Optional[str] = None
+    installment_id: Optional[str] = None
     year: int
     month: int
     capital_amount: float
