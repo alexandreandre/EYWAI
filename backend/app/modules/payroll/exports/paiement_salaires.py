@@ -7,6 +7,7 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.database import supabase
+from app.modules.payroll.engine.controles_convention import NET_SUPERIEUR_BRUT_MESSAGE
 from app.shared.utils.export import format_period, generate_csv, generate_xlsx
 
 
@@ -189,10 +190,8 @@ def get_paiement_salaires_data(
         brut = float(payslip_data.get("salaire_brut", 0) or 0)
         if brut > 0:
             ratio = net_a_payer / brut
-            if ratio > 0.9:
-                employee_warnings.append(
-                    "Net exceptionnellement élevé par rapport au brut"
-                )
+            if net_a_payer > brut + 0.009:
+                employee_warnings.append(NET_SUPERIEUR_BRUT_MESSAGE)
                 if control_status == "OK":
                     control_status = "Alerte"
             elif ratio < 0.4:

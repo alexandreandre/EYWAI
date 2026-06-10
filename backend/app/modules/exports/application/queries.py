@@ -180,6 +180,57 @@ def preview_export(
             can_generate=preview["can_generate"],
             details=preview.get("details"),
         )
+    elif request.export_type == "acomptes":
+        preview = providers.preview_acomptes(company_id, request.period)
+        return ExportPreviewResponse(
+            export_type=request.export_type,
+            period=request.period,
+            employees_count=preview["employees_count"],
+            totals=ExportTotals(**preview["totals"]),
+            anomalies=[ExportAnomaly(**a) for a in preview["anomalies"]],
+            warnings=preview["warnings"],
+            can_generate=preview["can_generate"],
+            details=preview.get("details"),
+        )
+    elif request.export_type == "conges_absences":
+        absence_types = (
+            request.filters.get("absence_types") if request.filters else None
+        )
+        preview = providers.preview_conges_absences(
+            company_id,
+            request.period,
+            request.employee_ids,
+            absence_types,
+        )
+        return ExportPreviewResponse(
+            export_type=request.export_type,
+            period=request.period,
+            employees_count=preview["employees_count"],
+            totals=ExportTotals(**preview["totals"]),
+            anomalies=[ExportAnomaly(**a) for a in preview["anomalies"]],
+            warnings=preview["warnings"],
+            can_generate=preview["can_generate"],
+            details=preview.get("details"),
+        )
+    elif request.export_type == "recapitulatif_montants":
+        preview = providers.preview_recapitulatif_montants(
+            company_id,
+            request.period,
+            request.employee_ids,
+            request.excluded_employee_ids,
+            request.execution_date,
+            request.payment_label,
+        )
+        return ExportPreviewResponse(
+            export_type=request.export_type,
+            period=request.period,
+            employees_count=preview["employees_count"],
+            totals=ExportTotals(**preview["totals"]),
+            anomalies=[ExportAnomaly(**a) for a in preview["anomalies"]],
+            warnings=preview["warnings"],
+            can_generate=preview["can_generate"],
+            details=preview.get("details"),
+        )
     else:
         raise ValueError(f"Type d'export '{request.export_type}' non implémenté")
 

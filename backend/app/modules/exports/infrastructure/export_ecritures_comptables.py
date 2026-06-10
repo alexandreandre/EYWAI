@@ -445,6 +445,86 @@ def generate_od_pas(
     return ecritures, od_totals, mappings
 
 
+def _round2_od(value: float) -> float:
+    return round(value, 2)
+
+
+def generate_od_globale(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]] = None,
+    date_ecriture: Optional[str] = None,
+) -> Tuple[List[Dict[str, Any]], Dict[str, float], Dict[str, Any]]:
+    """OD complète : salaires + charges sociales + PAS + remboursements acomptes."""
+    ecritures_sal, _, mappings = generate_od_salaires(
+        company_id, period, employee_ids, date_ecriture
+    )
+    ecritures_chg, _, _ = generate_od_charges_sociales(
+        company_id, period, employee_ids, date_ecriture
+    )
+    ecritures_pas, _, _ = generate_od_pas(
+        company_id, period, employee_ids, date_ecriture
+    )
+    ecritures = ecritures_sal + ecritures_chg + ecritures_pas
+
+    if not date_ecriture:
+        year, month = map(int, period.split("-"))
+        last_day = monthrange(year, month)[1]
+        date_ecriture = f"{year}-{month:02d}-{last_day:02d}"
+
+    from app.modules.exports.infrastructure.export_acomptes import (
+        get_repayments_total_by_account,
+    )
+
+    repayments_by_account = get_repayments_total_by_account(company_id, period)
+    total_repayments = sum(repayments_by_account.values())
+
+    mapping_net = mappings.get("net_a_payer") or get_default_mapping("net_a_payer")
+    net_compte = (
+        mapping_net["compte_comptable"] if mapping_net else "425000"
+    )
+    net_journal = mapping_net.get("journal", "OD") if mapping_net else "OD"
+
+    if total_repayments > 0:
+        for ecriture in ecritures:
+            if (
+                ecriture.get("compte_comptable") == net_compte
+                and ecriture.get("credit", 0) > 0
+                and "Net à payer" in ecriture.get("libelle", "")
+            ):
+                ecriture["credit"] = _round2_od(
+                    float(ecriture["credit"]) + total_repayments
+                )
+                break
+
+        for compte, montant in repayments_by_account.items():
+            if montant <= 0:
+                continue
+            ecritures.append(
+                {
+                    "date_ecriture": date_ecriture,
+                    "journal": net_journal,
+                    "compte_comptable": compte,
+                    "libelle": f"Remboursement acomptes {format_period(period)}",
+                    "debit": 0.0,
+                    "credit": _round2_od(montant),
+                    "analytique": mapping_net.get("analytique") if mapping_net else None,
+                    "reference_export": f"OD_GLB_{period}",
+                    "periode_paie": period,
+                }
+            )
+
+    total_debit = sum(e["debit"] for e in ecritures)
+    total_credit = sum(e["credit"] for e in ecritures)
+    od_totals = {
+        "total_debit": total_debit,
+        "total_credit": total_credit,
+        "equilibre": abs(total_debit - total_credit) < 0.01,
+        "ecart": abs(total_debit - total_credit),
+    }
+    return ecritures, od_totals, mappings
+
+
 def preview_od(
     company_id: str,
     period: str,
@@ -468,7 +548,7 @@ def preview_od(
             company_id, period, employee_ids, date_ecriture
         )
     elif od_type == "od_globale":
-        ecritures, od_totals, mappings = generate_od_salaires(
+        ecritures, od_totals, mappings = generate_od_globale(
             company_id, period, employee_ids, date_ecriture
         )
     else:
@@ -553,7 +633,7 @@ def generate_od_export_file(
         "od_salaires": "OD Salaires",
         "od_charges_sociales": "OD Charges sociales",
         "od_pas": "OD PAS",
-        "od_globale": "OD Salaires",
+        "od_globale": "OD Globale de paie",
     }
     sheet_name = type_labels.get(od_type, "OD") + f" {format_period(period)}"
     if format == "xlsx":

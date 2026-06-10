@@ -110,8 +110,7 @@ def get_expense_reports_for_export(
                 id,
                 first_name,
                 last_name,
-                company_id,
-                employee_number
+                company_id
             )
             """
         )
@@ -146,7 +145,6 @@ def get_expense_reports_for_export(
                 "filename": row.get("filename"),
                 "employee_first_name": employee.get("first_name") or "",
                 "employee_last_name": employee.get("last_name") or "",
-                "employee_number": employee.get("employee_number") or "",
             }
         )
     return normalized

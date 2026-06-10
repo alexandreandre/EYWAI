@@ -9,6 +9,7 @@ ExportType = Literal[
     "charges_sociales",
     "conges_absences",
     "notes_frais",
+    "acomptes",
     "ecritures_comptables",
     "od_salaires",
     "od_charges_sociales",

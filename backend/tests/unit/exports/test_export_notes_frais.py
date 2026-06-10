@@ -22,7 +22,6 @@ SAMPLE_EXPENSE = {
     "filename": "ticket.pdf",
     "employee_first_name": "Jean",
     "employee_last_name": "Dupont",
-    "employee_number": "E001",
 }
 
 SAMPLE_EXPENSE_NO_VAT = {

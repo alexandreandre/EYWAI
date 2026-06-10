@@ -6,8 +6,11 @@ EXPORT_TYPES_PREVIEW = frozenset(
     {
         "journal_paie",
         "charges_sociales",
+        "conges_absences",
         "notes_frais",
+        "acomptes",
         "virement_salaires",
+        "recapitulatif_montants",
         "od_salaires",
         "od_charges_sociales",
         "od_pas",
@@ -24,8 +27,11 @@ EXPORT_TYPES_GENERATE = frozenset(
     {
         "journal_paie",
         "charges_sociales",
+        "conges_absences",
         "notes_frais",
+        "acomptes",
         "virement_salaires",
+        "recapitulatif_montants",
         "od_salaires",
         "od_charges_sociales",
         "od_pas",

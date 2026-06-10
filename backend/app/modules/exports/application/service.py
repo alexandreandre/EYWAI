@@ -89,6 +89,12 @@ def generate_export(
         return _generate_charges_sociales(company_id, user_id, user_name, request)
     elif request.export_type == "notes_frais":
         return _generate_notes_frais(company_id, user_id, user_name, request)
+    elif request.export_type == "acomptes":
+        return _generate_acomptes(company_id, user_id, user_name, request)
+    elif request.export_type == "conges_absences":
+        return _generate_conges_absences(company_id, user_id, user_name, request)
+    elif request.export_type == "recapitulatif_montants":
+        return _generate_recapitulatif_montants(company_id, user_id, user_name, request)
     else:
         raise ValueError(f"Type d'export '{request.export_type}' non implémenté")
 
@@ -343,6 +349,273 @@ def _generate_notes_frais(
     )
 
 
+def _generate_conges_absences(
+    company_id: str,
+    user_id: str,
+    user_name: str,
+    request: ExportGenerateRequest,
+) -> ExportGenerateResponse:
+    absence_types = (
+        request.filters.get("absence_types") if request.filters else None
+    )
+    preview = providers.preview_conges_absences(
+        company_id,
+        request.period,
+        request.employee_ids,
+        absence_types,
+    )
+    if not preview["can_generate"]:
+        raise ValueError("Impossible de générer l'export. Vérifiez les anomalies bloquantes.")
+
+    file_content = providers.generate_conges_absences_export(
+        company_id,
+        request.period,
+        request.employee_ids,
+        request.format,
+        absence_types,
+    )
+    period_formatted = request.period.replace("-", "_")
+    extension = request.format
+    filename = f"conges_absences_{period_formatted}.{extension}"
+    storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
+    final_storage_path = upload_export_file(
+        BUCKET, storage_path, file_content, _content_type(extension)
+    )
+    signed_url = create_signed_url(final_storage_path, 3600)
+
+    parameters = {
+        "employee_ids": request.employee_ids,
+        "filters": request.filters,
+        "absence_types": absence_types,
+    }
+    totals = preview["totals"]
+    export_record: ExportRecordForInsert = {
+        "company_id": company_id,
+        "export_type": request.export_type,
+        "period": request.period,
+        "parameters": parameters,
+        "file_paths": [final_storage_path],
+        "report": {
+            "employees_count": preview.get("employees_count", 0),
+            "totals": totals,
+            "anomalies": preview.get("anomalies", []),
+            "warnings": preview.get("warnings", []),
+        },
+        "status": "generated",
+        "generated_by": user_id,
+    }
+    export_id = commands.record_export_history(export_record)
+
+    return ExportGenerateResponse(
+        export_id=export_id,
+        export_type=request.export_type,
+        period=request.period,
+        status="generated",
+        files=[
+            ExportFileInfo(
+                filename=filename,
+                path=final_storage_path,
+                size=len(file_content),
+                format=request.format,
+            )
+        ],
+        report=ExportReport(
+            export_type=request.export_type,
+            period=request.period,
+            generated_at=datetime.now(),
+            generated_by=user_name,
+            employees_count=preview.get("employees_count", 0),
+            totals=ExportTotals(**totals),
+            anomalies=[ExportAnomaly(**a) for a in preview.get("anomalies", [])],
+            warnings=preview.get("warnings", []),
+            parameters=parameters,
+        ),
+        download_urls={filename: signed_url},
+    )
+
+
+def _generate_recapitulatif_montants(
+    company_id: str,
+    user_id: str,
+    user_name: str,
+    request: ExportGenerateRequest,
+) -> ExportGenerateResponse:
+    preview = providers.preview_recapitulatif_montants(
+        company_id,
+        request.period,
+        request.employee_ids,
+        request.excluded_employee_ids,
+        request.execution_date,
+        request.payment_label,
+    )
+    if not preview["can_generate"]:
+        raise ValueError("Impossible de générer l'export. Vérifiez les anomalies bloquantes.")
+
+    file_content = providers.generate_recapitulatif_montants_export(
+        company_id,
+        request.period,
+        request.employee_ids,
+        request.excluded_employee_ids,
+        request.execution_date,
+        request.payment_label,
+        request.format,
+    )
+    period_formatted = request.period.replace("-", "_")
+    extension = request.format
+    filename = f"recapitulatif_montants_{period_formatted}.{extension}"
+    storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
+    final_storage_path = upload_export_file(
+        BUCKET, storage_path, file_content, _content_type(extension)
+    )
+    signed_url = create_signed_url(final_storage_path, 3600)
+
+    parameters = {
+        "employee_ids": request.employee_ids,
+        "excluded_employee_ids": request.excluded_employee_ids,
+        "execution_date": request.execution_date,
+        "payment_label": request.payment_label,
+        "filters": request.filters,
+    }
+    totals = preview["totals"]
+    export_record: ExportRecordForInsert = {
+        "company_id": company_id,
+        "export_type": request.export_type,
+        "period": request.period,
+        "parameters": parameters,
+        "file_paths": [final_storage_path],
+        "report": {
+            "employees_count": preview.get("employees_count", 0),
+            "totals": totals,
+            "anomalies": preview.get("anomalies", []),
+            "warnings": preview.get("warnings", []),
+        },
+        "status": "generated",
+        "generated_by": user_id,
+    }
+    export_id = commands.record_export_history(export_record)
+
+    return ExportGenerateResponse(
+        export_id=export_id,
+        export_type=request.export_type,
+        period=request.period,
+        status="generated",
+        files=[
+            ExportFileInfo(
+                filename=filename,
+                path=final_storage_path,
+                size=len(file_content),
+                format=request.format,
+            )
+        ],
+        report=ExportReport(
+            export_type=request.export_type,
+            period=request.period,
+            generated_at=datetime.now(),
+            generated_by=user_name,
+            employees_count=preview.get("employees_count", 0),
+            totals=ExportTotals(**totals),
+            anomalies=[ExportAnomaly(**a) for a in preview.get("anomalies", [])],
+            warnings=preview.get("warnings", []),
+            parameters=parameters,
+        ),
+        download_urls={filename: signed_url},
+    )
+
+
+def _generate_acomptes(
+    company_id: str,
+    user_id: str,
+    user_name: str,
+    request: ExportGenerateRequest,
+) -> ExportGenerateResponse:
+    preview = providers.preview_acomptes(company_id, request.period)
+    if not preview["can_generate"]:
+        raise ValueError("Impossible de générer l'export. Vérifiez les anomalies bloquantes.")
+
+    list_content = providers.generate_acomptes_export(
+        company_id, request.period, request.format
+    )
+    ecritures_content = providers.generate_acomptes_ecritures_export(
+        company_id, request.period, request.format
+    )
+
+    period_formatted = request.period.replace("-", "_")
+    extension = request.format
+    list_filename = f"acomptes_liste_{period_formatted}.{extension}"
+    ecritures_filename = f"acomptes_ecritures_{period_formatted}.{extension}"
+    list_storage_path = f"exports/{company_id}/{request.export_type}/{list_filename}"
+    ecritures_storage_path = (
+        f"exports/{company_id}/{request.export_type}/{ecritures_filename}"
+    )
+
+    final_list_path = upload_export_file(
+        BUCKET, list_storage_path, list_content, _content_type(extension)
+    )
+    final_ecritures_path = upload_export_file(
+        BUCKET, ecritures_storage_path, ecritures_content, _content_type(extension)
+    )
+    list_signed_url = create_signed_url(final_list_path, 3600)
+    ecritures_signed_url = create_signed_url(final_ecritures_path, 3600)
+
+    parameters = {
+        "employee_ids": request.employee_ids,
+        "filters": request.filters,
+    }
+    totals = preview["totals"]
+    export_record: ExportRecordForInsert = {
+        "company_id": company_id,
+        "export_type": request.export_type,
+        "period": request.period,
+        "parameters": parameters,
+        "file_paths": [final_list_path, final_ecritures_path],
+        "report": {
+            "employees_count": preview.get("employees_count", 0),
+            "totals": totals,
+            "anomalies": preview.get("anomalies", []),
+            "warnings": preview.get("warnings", []),
+        },
+        "status": "generated",
+        "generated_by": user_id,
+    }
+    export_id = commands.record_export_history(export_record)
+
+    return ExportGenerateResponse(
+        export_id=export_id,
+        export_type=request.export_type,
+        period=request.period,
+        status="generated",
+        files=[
+            ExportFileInfo(
+                filename=list_filename,
+                path=final_list_path,
+                size=len(list_content),
+                format=request.format,
+            ),
+            ExportFileInfo(
+                filename=ecritures_filename,
+                path=final_ecritures_path,
+                size=len(ecritures_content),
+                format=request.format,
+            ),
+        ],
+        report=ExportReport(
+            export_type=request.export_type,
+            period=request.period,
+            generated_at=datetime.now(),
+            generated_by=user_name,
+            employees_count=preview.get("employees_count", 0),
+            totals=ExportTotals(**totals),
+            anomalies=[ExportAnomaly(**a) for a in preview.get("anomalies", [])],
+            warnings=preview.get("warnings", []),
+            parameters=parameters,
+        ),
+        download_urls={
+            list_filename: list_signed_url,
+            ecritures_filename: ecritures_signed_url,
+        },
+    )
+
+
 def _generate_od(
     company_id: str,
     user_id: str,
@@ -360,6 +633,10 @@ def _generate_od(
         )
     elif request.export_type == "od_pas":
         ecritures, od_totals, mappings = providers.generate_od_pas(
+            company_id, request.period, request.employee_ids, date_ecriture
+        )
+    elif request.export_type == "od_globale":
+        ecritures, od_totals, mappings = providers.generate_od_globale(
             company_id, request.period, request.employee_ids, date_ecriture
         )
     else:

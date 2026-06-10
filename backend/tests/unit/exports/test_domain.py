@@ -26,8 +26,11 @@ class TestExportValueObjects:
         expected = {
             "journal_paie",
             "charges_sociales",
+            "conges_absences",
             "notes_frais",
+            "acomptes",
             "virement_salaires",
+            "recapitulatif_montants",
             "od_salaires",
             "od_charges_sociales",
             "od_pas",
@@ -105,6 +108,12 @@ class TestRulesPreview:
 
     def test_generate_notes_frais_supported(self):
         assert rules.is_supported_export_type_for_generate("notes_frais") is True
+
+    def test_preview_acomptes_supported(self):
+        assert rules.is_supported_export_type_for_preview("acomptes") is True
+
+    def test_generate_acomptes_supported(self):
+        assert rules.is_supported_export_type_for_generate("acomptes") is True
 
     def test_preview_unknown_type_not_supported(self):
         assert rules.is_supported_export_type_for_preview("export_fictif") is False

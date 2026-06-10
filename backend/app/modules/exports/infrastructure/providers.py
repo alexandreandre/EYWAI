@@ -11,6 +11,7 @@ from .export_dsn import (
 from .export_ecritures_comptables import (
     generate_od_charges_sociales as _generate_od_charges_sociales,
     generate_od_export_file as _generate_od_export_file,
+    generate_od_globale as _generate_od_globale,
     generate_od_pas as _generate_od_pas,
     generate_od_salaires as _generate_od_salaires,
     get_payslip_data_for_od as _get_payslip_data_for_od,
@@ -34,6 +35,19 @@ from .export_charges_sociales import (
 from .export_notes_frais import (
     generate_notes_frais_export as _generate_notes_frais_export,
     preview_notes_frais as _preview_notes_frais,
+)
+from .export_acomptes import (
+    generate_acomptes_ecritures_export as _generate_acomptes_ecritures_export,
+    generate_acomptes_export as _generate_acomptes_export,
+    preview_acomptes as _preview_acomptes,
+)
+from .export_conges_absences import (
+    generate_conges_absences_export as _generate_conges_absences_export,
+    preview_conges_absences as _preview_conges_absences,
+)
+from .export_recapitulatif_montants import (
+    generate_recapitulatif_montants_export as _generate_recapitulatif_montants_export,
+    preview_recapitulatif_montants as _preview_recapitulatif_montants,
 )
 from .export_paiement_salaires import (
     generate_bank_file as _generate_bank_file,
@@ -208,6 +222,15 @@ def generate_od_pas(
     return _generate_od_pas(company_id, period, employee_ids, date_ecriture)
 
 
+def generate_od_globale(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]],
+    date_ecriture: Optional[str],
+):
+    return _generate_od_globale(company_id, period, employee_ids, date_ecriture)
+
+
 def generate_od_export_file(
     ecritures: List[Dict[str, Any]], export_type: str, period: str, format: str
 ) -> bytes:
@@ -274,6 +297,67 @@ def generate_notes_frais_export(
     )
 
 
+def preview_conges_absences(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]] = None,
+    absence_types: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    return _preview_conges_absences(
+        company_id, period, employee_ids, absence_types
+    )
+
+
+def generate_conges_absences_export(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]],
+    file_format: str,
+    absence_types: Optional[List[str]] = None,
+) -> bytes:
+    return _generate_conges_absences_export(
+        company_id, period, employee_ids, file_format, absence_types
+    )
+
+
+def preview_recapitulatif_montants(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]] = None,
+    excluded_employee_ids: Optional[List[str]] = None,
+    execution_date: Optional[str] = None,
+    payment_label: Optional[str] = None,
+) -> Dict[str, Any]:
+    return _preview_recapitulatif_montants(
+        company_id,
+        period,
+        employee_ids,
+        excluded_employee_ids,
+        execution_date,
+        payment_label,
+    )
+
+
+def generate_recapitulatif_montants_export(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]],
+    excluded_employee_ids: Optional[List[str]],
+    execution_date: Optional[str],
+    payment_label: Optional[str],
+    file_format: str,
+) -> bytes:
+    return _generate_recapitulatif_montants_export(
+        company_id,
+        period,
+        employee_ids,
+        excluded_employee_ids,
+        execution_date,
+        payment_label,
+        file_format,
+    )
+
+
 def preview_dsn(
     company_id: str,
     period: str,
@@ -304,3 +388,19 @@ def get_dsn_employees_data(
 
 def get_company_data(company_id: str) -> Dict[str, Any]:
     return _get_company_data(company_id)
+
+
+def preview_acomptes(company_id: str, period: str) -> Dict[str, Any]:
+    return _preview_acomptes(company_id, period)
+
+
+def generate_acomptes_export(
+    company_id: str, period: str, file_format: str
+) -> bytes:
+    return _generate_acomptes_export(company_id, period, file_format)
+
+
+def generate_acomptes_ecritures_export(
+    company_id: str, period: str, file_format: str
+) -> bytes:
+    return _generate_acomptes_ecritures_export(company_id, period, file_format)

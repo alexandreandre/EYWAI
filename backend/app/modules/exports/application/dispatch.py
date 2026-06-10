@@ -265,7 +265,7 @@ def dispatch_compta(
         export_ids=export_ids,
         files=files,
         downloads=downloads,
-        message=f"Export comptable généré pour {body.period} (OD globale + journal de paie).",
+        message=f"Export comptable généré pour {body.period} (OD globale complète + journal de paie).",
     )
 
 
