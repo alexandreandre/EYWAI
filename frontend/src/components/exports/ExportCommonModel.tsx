@@ -4,6 +4,11 @@
 import { useState, useEffect, useMemo } from "react";
 import { getEmptyExportAlertMessage, isEmptyDataMessage } from "@/lib/exportEmptyState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -309,21 +314,20 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
 
   return (
     <div className="w-full space-y-4">
-      {/* Titre et description en dehors du Card */}
-      <div>
-        <h2 className="text-xl font-semibold">{displayName}</h2>
-        <p className="text-sm text-muted-foreground mt-1">{exportDescription}</p>
-        {(displayName === "Virement salaires" || displayName === "Récapitulatif des montants") && (
-          <Alert className="mt-3 border-orange-200 bg-orange-50 dark:bg-orange-950">
-            <AlertTriangle className="h-4 w-4 text-orange-600" />
-            <AlertTitle className="text-orange-800 dark:text-orange-200">Important</AlertTitle>
-            <AlertDescription className="text-orange-700 dark:text-orange-300">
-              Ce fichier ne déclenche aucun paiement automatiquement. 
-              Il doit être transmis manuellement à votre banque après validation.
-            </AlertDescription>
-          </Alert>
-        )}
-      </div>
+      <DialogHeader className="text-left">
+        <DialogTitle className="text-xl">{displayName}</DialogTitle>
+        <DialogDescription>{exportDescription}</DialogDescription>
+      </DialogHeader>
+      {(displayName === "Virement salaires" || displayName === "Récapitulatif des montants") && (
+        <Alert className="border-orange-200 bg-orange-50 dark:bg-orange-950">
+          <AlertTriangle className="h-4 w-4 text-orange-600" />
+          <AlertTitle className="text-orange-800 dark:text-orange-200">Important</AlertTitle>
+          <AlertDescription className="text-orange-700 dark:text-orange-300">
+            Ce fichier ne déclenche aucun paiement automatiquement.
+            Il doit être transmis manuellement à votre banque après validation.
+          </AlertDescription>
+        </Alert>
+      )}
       
       <Card className="w-full">
         <CardContent className="space-y-6 pt-6">

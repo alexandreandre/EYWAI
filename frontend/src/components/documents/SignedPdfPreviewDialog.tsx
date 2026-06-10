@@ -38,9 +38,9 @@ export function SignedPdfPreviewDialog({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 space-y-1">
               <DialogTitle>{title}</DialogTitle>
-              {subtitle ? (
-                <DialogDescription className="line-clamp-2">{subtitle}</DialogDescription>
-              ) : null}
+              <DialogDescription className={subtitle ? 'line-clamp-2' : 'sr-only'}>
+                {subtitle || 'Aperçu du document PDF.'}
+              </DialogDescription>
             </div>
             {canDownload && onDownload ? (
               <Button

@@ -437,6 +437,16 @@ export default function CollectiveAgreementsCatalog() {
       'code' in err &&
       (err as { code?: string }).code === 'ERR_CANCELED');
 
+  const formatKaliBatchFailureDetails = (
+    results: collectiveAgreementsApi.KaliImportResponse[],
+    limit = 2
+  ) =>
+    results
+      .filter((result) => !result.success && result.error)
+      .slice(0, limit)
+      .map((result) => `IDCC ${result.idcc} : ${result.error}`)
+      .join(' · ');
+
   const beginKaliImportRequest = () => {
     kaliImportAbortRef.current?.abort();
     const controller = new AbortController();
@@ -595,10 +605,16 @@ export default function CollectiveAgreementsCatalog() {
         return;
       }
       const failed = data.failed > 0;
+      const failureDetails = failed ? formatKaliBatchFailureDetails(data.results) : '';
       toast({
         title: failed ? 'Mise à jour partielle' : 'Mise à jour terminée',
         description: failed
-          ? `${data.succeeded} convention(s) sur ${data.total} mises à jour.`
+          ? [
+              `${data.succeeded} convention(s) sur ${data.total} mises à jour.`,
+              failureDetails,
+            ]
+              .filter(Boolean)
+              .join(' ')
           : `${data.total} convention(s) vérifiée(s)${(data.updated ?? 0) > 0 ? `, ${data.updated} modifiée(s).` : '.'}`,
         variant: failed ? 'destructive' : 'default',
       });
