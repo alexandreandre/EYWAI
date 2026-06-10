@@ -126,7 +126,11 @@ def get_employees_summary(
     status: Optional[str] = None,
     current_user: User = Depends(get_current_user),
 ):
-    """Liste allégée des salariés (grilles, planning) — sans enrichissement titre de séjour."""
+    """Liste allégée des salariés (grilles, planning).
+
+    ``status=payroll`` : collaborateurs actifs avec indicateurs d'éligibilité paie
+    (``payroll_eligible``, ``missing_payroll_fields``), sans filtrer les fiches incomplètes.
+    """
     try:
         company_id = current_user.active_company_id
         if not company_id:

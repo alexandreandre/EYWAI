@@ -80,6 +80,9 @@ class EmployeeSummary(BaseModel):
     employment_status: str | None = None
     current_exit_id: str | None = None
     duree_hebdomadaire: float | None = None
+    profile_complete: bool | None = None
+    missing_payroll_fields: List[str] | None = None
+    payroll_eligible: bool | None = None
 
     class Config:
         from_attributes = True

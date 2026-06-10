@@ -178,9 +178,24 @@ class EmployeeRepository(IEmployeeRepository):
         )
         rows = [dict(row) for row in (response.data or [])]
         if payroll_ready_only:
-            from app.modules.onboarding.domain.profile import is_payroll_eligible
+            from app.modules.onboarding.domain.profile import (
+                enrich_employee_profile_completeness,
+                is_payroll_eligible,
+            )
 
-            return [r for r in rows if is_payroll_eligible(r)]
+            payroll_launch_statuses = ("actif", "active", "en_onboarding")
+            active_rows = [
+                r
+                for r in rows
+                if (r.get("employment_status") or "actif").lower()
+                in payroll_launch_statuses
+            ]
+            enriched: List[Dict[str, Any]] = []
+            for row in active_rows:
+                item = enrich_employee_profile_completeness(dict(row))
+                item["payroll_eligible"] = is_payroll_eligible(row)
+                enriched.append(item)
+            return enriched
         if not active_only:
             return rows
         return [
