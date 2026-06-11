@@ -63,6 +63,7 @@ from app.modules.medical_follow_up.api.router import router as medical_follow_up
 from app.modules.mutuelle_types.api.router import router as mutuelle_types_router
 from app.modules.participation.api.router import router as participation_router
 from app.modules.payroll.api.analytics_router import router as payroll_analytics_router
+from app.modules.payroll.api.preflight_router import router as payroll_preflight_router
 from app.modules.payroll.api.router import router as payroll_simulation_router
 from app.modules.payslips.api.router import router as payslips_router
 from app.modules.promotions.api.router import router as promotions_router
@@ -141,6 +142,7 @@ router.include_router(participation_router)
 router.include_router(payslips_router)
 router.include_router(payroll_simulation_router)
 router.include_router(payroll_analytics_router)
+router.include_router(payroll_preflight_router)
 router.include_router(promotions_router)
 router.include_router(recruitment_router)
 router.include_router(onboarding_router)
