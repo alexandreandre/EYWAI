@@ -25,6 +25,12 @@ from app.modules.exports.schemas.scheduled_exports import (
     ScheduledExportRunNowResponse,
     ScheduledExportUpdate,
 )
+from app.modules.exports.application import accounting_mappings as accounting_mappings_service
+from app.modules.exports.schemas.accounting_mappings import (
+    AccountingMappingOut,
+    AccountingMappingUpsert,
+    AccountingMappingsListResponse,
+)
 from app.modules.exports.schemas.dispatch import (
     DispatchBanqueRequest,
     DispatchComptaRequest,
@@ -378,6 +384,50 @@ async def run_dispatch_schedule_now(
         )
     except ValueError as e:
         raise _value_error_to_http(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/accounting-mappings", response_model=AccountingMappingsListResponse)
+async def list_accounting_mappings(
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    _require_rh_exports(current_user, company_id)
+    try:
+        return accounting_mappings_service.list_accounting_mappings(company_id)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/accounting-mappings", response_model=AccountingMappingOut)
+async def upsert_accounting_mapping(
+    body: AccountingMappingUpsert,
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    _require_rh_exports(current_user, company_id)
+    try:
+        return accounting_mappings_service.upsert_company_mapping(company_id, body)
+    except ValueError as e:
+        raise _value_error_to_http(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/accounting-mappings/{rubrique_code}")
+async def delete_accounting_mapping(
+    rubrique_code: str,
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    _require_rh_exports(current_user, company_id)
+    try:
+        accounting_mappings_service.delete_company_mapping(company_id, rubrique_code)
+        return {"status": "deleted", "rubrique_code": rubrique_code}
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

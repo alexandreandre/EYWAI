@@ -64,12 +64,16 @@ def preview_export(
         "od_pas",
         "od_globale",
     ]:
+        regroupement = (
+            request.filters.get("regroupement", "global") if request.filters else "global"
+        )
         preview = providers.preview_od(
             company_id,
             request.period,
             request.export_type,
             request.employee_ids,
             request.filters.get("date_ecriture") if request.filters else None,
+            regroupement,
         )
         totals = ExportTotals(
             employees_count=0,
@@ -182,6 +186,70 @@ def preview_export(
         )
     elif request.export_type == "acomptes":
         preview = providers.preview_acomptes(company_id, request.period)
+        return ExportPreviewResponse(
+            export_type=request.export_type,
+            period=request.period,
+            employees_count=preview["employees_count"],
+            totals=ExportTotals(**preview["totals"]),
+            anomalies=[ExportAnomaly(**a) for a in preview["anomalies"]],
+            warnings=preview["warnings"],
+            can_generate=preview["can_generate"],
+            details=preview.get("details"),
+        )
+    elif request.export_type == "saisies":
+        preview = providers.preview_saisies(company_id, request.period)
+        return ExportPreviewResponse(
+            export_type=request.export_type,
+            period=request.period,
+            employees_count=preview["employees_count"],
+            totals=ExportTotals(**preview["totals"]),
+            anomalies=[ExportAnomaly(**a) for a in preview["anomalies"]],
+            warnings=preview["warnings"],
+            can_generate=preview["can_generate"],
+            details=preview.get("details"),
+        )
+    elif request.export_type == "fec":
+        preview = providers.preview_fec(company_id, request.period, request.employee_ids)
+        return ExportPreviewResponse(
+            export_type=request.export_type,
+            period=request.period,
+            employees_count=preview["employees_count"],
+            totals=ExportTotals(**preview["totals"]),
+            anomalies=[ExportAnomaly(**a) for a in preview["anomalies"]],
+            warnings=preview["warnings"],
+            can_generate=preview["can_generate"],
+            details=preview.get("details"),
+        )
+    elif request.export_type == "prets_employeur":
+        preview = providers.preview_prets_employeur(company_id, request.period)
+        return ExportPreviewResponse(
+            export_type=request.export_type,
+            period=request.period,
+            employees_count=preview["employees_count"],
+            totals=ExportTotals(**preview["totals"]),
+            anomalies=[ExportAnomaly(**a) for a in preview["anomalies"]],
+            warnings=preview["warnings"],
+            can_generate=preview["can_generate"],
+            details=preview.get("details"),
+        )
+    elif request.export_type == "paiement_organismes":
+        preview = providers.preview_paiement_organismes(
+            company_id, request.period, request.employee_ids
+        )
+        return ExportPreviewResponse(
+            export_type=request.export_type,
+            period=request.period,
+            employees_count=preview["employees_count"],
+            totals=ExportTotals(**preview["totals"]),
+            anomalies=[ExportAnomaly(**a) for a in preview["anomalies"]],
+            warnings=preview["warnings"],
+            can_generate=preview["can_generate"],
+            details=preview.get("details"),
+        )
+    elif request.export_type == "attestations_annexes":
+        preview = providers.preview_attestations(
+            company_id, request.period, request.employee_ids
+        )
         return ExportPreviewResponse(
             export_type=request.export_type,
             period=request.period,

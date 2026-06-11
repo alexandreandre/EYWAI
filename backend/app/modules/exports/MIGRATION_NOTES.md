@@ -14,13 +14,18 @@ Le module est **autonome** : il n'importe plus rien depuis `api/*`, `schemas/*`,
 
 - **DB** : `app.core.database.supabase`
 - **Export (CSV/XLSX, format période/devise)** : `app.shared.utils.export`
-- **Générateurs** : implémentations locales dans `infrastructure/export_journal_paie.py`, `export_paiement_salaires.py`, `export_ecritures_comptables.py`, `export_formats_cabinet.py`, `export_dsn.py`
+- **Générateurs** : implémentations locales dans `infrastructure/export_*.py`, moteur unifié `payroll_ledger.py`.
+- **Registre paie** : `build_payroll_ledger` produit des écritures équilibrées (brut, net, cotisations, charges, PAS, acomptes, saisies, prêts). L'OD globale consomme ce registre sans double comptabilisation.
+- **Formats natifs** : FEC (`export_fec.py`), SEPA pain.001 (`export_sepa.py`), Quadra/Sage natifs (`export_formats_cabinet.py`), DSN Neodes P24V01 (`export_dsn.py`).
+- **Mappings PCG** : table `accounting_mappings` + API `GET/PUT/DELETE /api/exports/accounting-mappings`.
+- **Dispatch compta** : OD globale + journal + FEC. **Dispatch banque** : virement CSV + SEPA XML par défaut.
 
 ## Fichiers legacy (toujours présents, non utilisés par ce module)
 
 - `api/routers/exports.py` : ancien router (peut rester pour compatibilité).
 - `schemas/export.py` : peut réexporter depuis `app.modules.exports.schemas` pour d'autres consommateurs.
 - `services/export_service.py`, `services/exports/*` : conservés ; d'autres parties de l'app (ex. `rib_alert_service`) peuvent encore les utiliser.
+- `app/modules/payroll/exports/` : réexporte désormais le module canonique `app/modules/exports/infrastructure/*`.
 
 ## Points inchangés
 

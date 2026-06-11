@@ -37,6 +37,7 @@ class ExportTotals(BaseModel):
     total_amount: Optional[float] = None
     total_versements: Optional[float] = None
     total_remboursements: Optional[float] = None
+    total_prelevements: Optional[float] = None
     operations_count: Optional[int] = None
 
 

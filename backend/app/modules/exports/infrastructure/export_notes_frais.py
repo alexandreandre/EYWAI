@@ -164,6 +164,21 @@ def _short_reference(expense_id: str) -> str:
     return f"NDF-{str(expense_id)[:8]}"
 
 
+def get_notes_frais_ecritures(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]] = None,
+    date_ecriture: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Écritures comptables NDF pour intégration au registre paie."""
+    expenses = get_expense_reports_for_export(company_id, period, employee_ids)
+    ecritures, _ = build_ecritures_from_expenses(expenses, period)
+    if date_ecriture:
+        for e in ecritures:
+            e["date_ecriture"] = date_ecriture
+    return ecritures
+
+
 def build_ecritures_from_expenses(
     expenses: List[Dict[str, Any]],
     period: str,

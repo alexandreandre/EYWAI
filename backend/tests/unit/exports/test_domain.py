@@ -29,6 +29,11 @@ class TestExportValueObjects:
             "conges_absences",
             "notes_frais",
             "acomptes",
+            "saisies",
+            "prets_employeur",
+            "paiement_organismes",
+            "attestations_annexes",
+            "fec",
             "virement_salaires",
             "recapitulatif_montants",
             "od_salaires",
@@ -114,6 +119,12 @@ class TestRulesPreview:
 
     def test_generate_acomptes_supported(self):
         assert rules.is_supported_export_type_for_generate("acomptes") is True
+
+    def test_preview_saisies_supported(self):
+        assert rules.is_supported_export_type_for_preview("saisies") is True
+
+    def test_generate_saisies_supported(self):
+        assert rules.is_supported_export_type_for_generate("saisies") is True
 
     def test_preview_unknown_type_not_supported(self):
         assert rules.is_supported_export_type_for_preview("export_fictif") is False

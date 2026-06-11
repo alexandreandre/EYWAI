@@ -10,7 +10,11 @@ ExportType = Literal[
     "conges_absences",
     "notes_frais",
     "acomptes",
-    "ecritures_comptables",
+    "saisies",
+    "prets_employeur",
+    "paiement_organismes",
+    "attestations_annexes",
+    "fec",
     "od_salaires",
     "od_charges_sociales",
     "od_pas",
@@ -54,7 +58,7 @@ class ExportGenerateRequest(BaseModel):
     company_id: Optional[str] = None
     employee_ids: Optional[List[str]] = None
     filters: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    format: Literal["csv", "xlsx"] = "csv"
+    format: Literal["csv", "xlsx", "xml"] = "csv"
     excluded_employee_ids: Optional[List[str]] = None
     execution_date: Optional[str] = None
     payment_label: Optional[str] = None

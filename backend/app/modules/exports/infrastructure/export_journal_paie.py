@@ -28,7 +28,8 @@ def get_journal_paie_data(
             last_name,
             contract_type,
             statut,
-            company_id
+            company_id,
+            companies(name, company_name)
         )
         """
         )
@@ -59,6 +60,15 @@ def get_journal_paie_data(
 
         if not isinstance(payslip_data, dict):
             continue
+
+        company_info = employee.get("companies") or {}
+        if isinstance(company_info, list) and company_info:
+            company_info = company_info[0]
+        establishment_label = (
+            company_info.get("company_name")
+            or company_info.get("name")
+            or ""
+        )
 
         brut = float(payslip_data.get("salaire_brut", 0) or 0)
         net_a_payer = float(payslip_data.get("net_a_payer", 0) or 0)
@@ -93,7 +103,7 @@ def get_journal_paie_data(
             "Prénom": employee.get("first_name", ""),
             "Type de contrat": employee.get("contract_type", ""),
             "Statut": employee.get("statut", ""),
-            "Établissement": "",
+            "Établissement": establishment_label,
             "Période": format_period(period),
             "Brut": brut,
             "Charges salariales": cotisations_salariales,

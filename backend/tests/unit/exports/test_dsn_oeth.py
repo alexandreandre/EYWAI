@@ -46,5 +46,5 @@ def test_generate_dsn_xml_includes_boeth(mock_oeth, mock_company, mock_employees
 
     xml = generate_dsn_xml("company-1", "2025-06", "dsn_mensuelle")
     content = xml.decode("utf-8")
-    assert "StatutBOETH" in content
+    assert "S21.G00.40.072" in content
     assert ">01<" in content

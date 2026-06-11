@@ -46,6 +46,12 @@ EXPORT_TYPE_LABELS: Dict[str, str] = {
     "export_cabinet_generique": "Export cabinet (générique)",
     "export_cabinet_quadra": "Export cabinet Quadra",
     "export_cabinet_sage": "Export cabinet Sage",
+    "acomptes": "Acomptes & avances",
+    "saisies": "Saisies sur salaire",
+    "prets_employeur": "Prêts employeur",
+    "paiement_organismes": "Paiement organismes",
+    "attestations_annexes": "Attestations & annexes",
+    "fec": "FEC",
     "dsn_mensuelle": "DSN mensuelle",
 }
 

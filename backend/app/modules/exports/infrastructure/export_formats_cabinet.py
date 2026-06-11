@@ -1,16 +1,24 @@
-# Implémentation locale des formats cabinet (ex-services.exports.formats_cabinet).
+# Formats cabinet comptable (générique, Quadra natif, Sage natif).
+from __future__ import annotations
+
 import csv
 import io
 from typing import Any, Dict, List, Optional
 
 from app.shared.utils.export import format_period, generate_csv, generate_xlsx
 
-from .export_ecritures_comptables import (
-    generate_od_charges_sociales,
-    generate_od_pas,
-    generate_od_salaires,
-    get_payslip_data_for_od,
-)
+from .payroll_ledger import build_payroll_ledger, ledger_to_od_export_rows
+
+
+def _ledger_ecritures(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
+    ecritures, _, _ = build_payroll_ledger(
+        company_id, period, employee_ids, scope="full"
+    )
+    return ledger_to_od_export_rows(ecritures)
 
 
 def generate_cabinet_generic_export(
@@ -19,13 +27,7 @@ def generate_cabinet_generic_export(
     employee_ids: Optional[List[str]] = None,
     format: str = "csv",
 ) -> bytes:
-    ecritures_salaires, _, _ = generate_od_salaires(company_id, period, employee_ids)
-    ecritures_charges, _, _ = generate_od_charges_sociales(
-        company_id, period, employee_ids
-    )
-    ecritures_pas, _, _ = generate_od_pas(company_id, period, employee_ids)
-    all_ecritures = ecritures_salaires + ecritures_charges + ecritures_pas
-
+    all_ecritures = _ledger_ecritures(company_id, period, employee_ids)
     headers = [
         "Date",
         "Journal",
@@ -57,49 +59,44 @@ def generate_cabinet_generic_export(
     return generate_csv(data, headers)
 
 
+def _format_quadra_line(ecriture: Dict[str, Any]) -> str:
+    """Format ASCII Quadra/Cegid — enregistrement M (mouvement)."""
+    date_str = str(ecriture["date_ecriture"]).replace("-", "")
+    journal = str(ecriture.get("journal", "OD"))[:3].ljust(3)
+    compte = str(ecriture.get("compte_comptable", ""))[:8].ljust(8)
+    libelle = str(ecriture.get("libelle", ""))[:30].ljust(30)
+    debit = f"{float(ecriture.get('debit', 0) or 0):015.2f}"
+    credit = f"{float(ecriture.get('credit', 0) or 0):015.2f}"
+    analytique = str(ecriture.get("analytique") or "")[:6].ljust(6)
+    return f"M{journal}{date_str}{compte}{libelle}{debit}{credit}{analytique}"
+
+
 def generate_cabinet_quadra_export(
     company_id: str,
     period: str,
     employee_ids: Optional[List[str]] = None,
     format: str = "csv",
 ) -> bytes:
-    ecritures_salaires, _, _ = generate_od_salaires(company_id, period, employee_ids)
-    ecritures_charges, _, _ = generate_od_charges_sociales(
-        company_id, period, employee_ids
-    )
-    ecritures_pas, _, _ = generate_od_pas(company_id, period, employee_ids)
-    all_ecritures = ecritures_salaires + ecritures_charges + ecritures_pas
+    all_ecritures = _ledger_ecritures(company_id, period, employee_ids)
+    lines = [_format_quadra_line(e) for e in all_ecritures]
+    content = "\r\n".join(lines) + "\r\n"
+    return content.encode("latin-1", errors="replace")
 
-    headers = [
-        "Journal",
-        "Date",
-        "Compte",
-        "Libellé",
-        "Débit",
-        "Crédit",
-        "Analytique",
+
+def _format_sage_line(ecriture: Dict[str, Any]) -> str:
+    """Format import Sage 100 — journal pipe-delimited."""
+    date_str = str(ecriture["date_ecriture"]).replace("-", "")
+    fields = [
+        date_str,
+        str(ecriture.get("journal", "OD")),
+        str(ecriture.get("compte_comptable", "")),
+        str(ecriture.get("libelle", ""))[:35],
+        f"{float(ecriture.get('debit', 0) or 0):.2f}",
+        f"{float(ecriture.get('credit', 0) or 0):.2f}",
+        str(ecriture.get("analytique") or ""),
+        str(ecriture.get("reference_export", "")),
     ]
-    data = [
-        {
-            "Journal": e["journal"],
-            "Date": e["date_ecriture"].replace("-", "/"),
-            "Compte": e["compte_comptable"],
-            "Libellé": e["libelle"],
-            "Débit": e["debit"],
-            "Crédit": e["credit"],
-            "Analytique": e.get("analytique", ""),
-        }
-        for e in all_ecritures
-    ]
-    sheet_name = f"Quadra {format_period(period)}"
-    if format == "xlsx":
-        return generate_xlsx(data, headers, sheet_name)
-    output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=headers, delimiter=";")
-    writer.writeheader()
-    for row in data:
-        writer.writerow(row)
-    return output.getvalue().encode("utf-8")
+    return "|".join(fields)
 
 
 def generate_cabinet_sage_export(
@@ -108,40 +105,11 @@ def generate_cabinet_sage_export(
     employee_ids: Optional[List[str]] = None,
     format: str = "csv",
 ) -> bytes:
-    ecritures_salaires, _, _ = generate_od_salaires(company_id, period, employee_ids)
-    ecritures_charges, _, _ = generate_od_charges_sociales(
-        company_id, period, employee_ids
-    )
-    ecritures_pas, _, _ = generate_od_pas(company_id, period, employee_ids)
-    all_ecritures = ecritures_salaires + ecritures_charges + ecritures_pas
-
-    headers = [
-        "Date",
-        "Journal",
-        "Compte",
-        "Libellé",
-        "Débit",
-        "Crédit",
-        "Analytique",
-        "Référence",
-    ]
-    data = [
-        {
-            "Date": e["date_ecriture"],
-            "Journal": e["journal"],
-            "Compte": e["compte_comptable"],
-            "Libellé": e["libelle"],
-            "Débit": e["debit"],
-            "Crédit": e["credit"],
-            "Analytique": e.get("analytique", ""),
-            "Référence": e.get("reference_export", ""),
-        }
-        for e in all_ecritures
-    ]
-    sheet_name = f"Sage {format_period(period)}"
-    if format == "xlsx":
-        return generate_xlsx(data, headers, sheet_name)
-    return generate_csv(data, headers)
+    all_ecritures = _ledger_ecritures(company_id, period, employee_ids)
+    lines = [_format_sage_line(e) for e in all_ecritures]
+    header = "Date|Journal|Compte|Libelle|Debit|Credit|Analytique|Reference"
+    content = header + "\r\n" + "\r\n".join(lines) + "\r\n"
+    return content.encode("utf-8-sig")
 
 
 def preview_cabinet_export(
@@ -150,22 +118,23 @@ def preview_cabinet_export(
     export_type: str,
     employee_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    anomalies = []
-    warnings = []
-    payslip_list, totals = get_payslip_data_for_od(company_id, period, employee_ids)
-    if totals["employees_count"] == 0:
-        anomalies.append(
+    ecritures = _ledger_ecritures(company_id, period, employee_ids)
+    total_debit = sum(e["debit"] for e in ecritures)
+    total_credit = sum(e["credit"] for e in ecritures)
+    equilibre = abs(total_debit - total_credit) < 0.01
+    return {
+        "nombre_lignes": len(ecritures),
+        "total_debit": round(total_debit, 2),
+        "total_credit": round(total_credit, 2),
+        "equilibre": equilibre,
+        "ecart": round(abs(total_debit - total_credit), 2),
+        "anomalies": [] if equilibre and ecritures else [
             {
                 "type": "error",
-                "message": "Aucun bulletin trouvé pour cette période",
+                "message": "OD non équilibrée ou vide",
                 "severity": "blocking",
             }
-        )
-    return {
-        "employees_count": totals["employees_count"],
-        "totals": totals,
-        "anomalies": anomalies,
-        "warnings": warnings,
-        "can_generate": len([a for a in anomalies if a.get("severity") == "blocking"])
-        == 0,
+        ],
+        "warnings": [],
+        "can_generate": equilibre and len(ecritures) > 0,
     }

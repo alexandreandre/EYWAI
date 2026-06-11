@@ -273,4 +273,8 @@ def generate_charges_sociales_export(
         return _generate_xlsx_workbook(
             detail_rows, summary_rows, period, include_consolidated
         )
+    if include_consolidated and summary_rows:
+        summary_csv = generate_csv(summary_rows, SUMMARY_HEADERS)
+        detail_csv = generate_csv(detail_rows, DETAIL_HEADERS)
+        return summary_csv + b"\n\n" + detail_csv
     return generate_csv(detail_rows, DETAIL_HEADERS)

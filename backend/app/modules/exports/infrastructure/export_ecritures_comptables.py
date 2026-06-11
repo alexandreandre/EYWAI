@@ -54,14 +54,26 @@ DEFAULT_MAPPINGS = {
 
 def get_accounting_mappings(company_id: str) -> Dict[str, Dict[str, Any]]:
     try:
-        response = (
+        global_response = (
+            supabase.table("accounting_mappings")
+            .select("*")
+            .is_("company_id", "null")
+            .eq("is_active", True)
+            .execute()
+        )
+        company_response = (
             supabase.table("accounting_mappings")
             .select("*")
             .eq("company_id", company_id)
             .eq("is_active", True)
             .execute()
         )
-        return {m["rubrique_code"]: m for m in (response.data or [])}
+        by_code: Dict[str, Dict[str, Any]] = {
+            m["rubrique_code"]: m for m in (global_response.data or [])
+        }
+        for m in company_response.data or []:
+            by_code[m["rubrique_code"]] = m
+        return by_code
     except Exception as e:
         logger.warning(f'Erreur lors de la récupération des mappings: {e}')
         return {}
@@ -92,7 +104,8 @@ def get_payslip_data_for_od(
             id,
             first_name,
             last_name,
-            company_id
+            company_id,
+            companies(name, company_name)
         )
         """
         )
@@ -148,11 +161,21 @@ def get_payslip_data_for_od(
                 cotisations_salariales += float(coti.get("montant_salarial", 0) or 0)
                 cotisations_patronales += float(coti.get("montant_patronal", 0) or 0)
 
+        company_info = employee.get("companies") or {}
+        if isinstance(company_info, list) and company_info:
+            company_info = company_info[0]
+        establishment_label = (
+            company_info.get("company_name")
+            or company_info.get("name")
+            or "Principal"
+        )
+
         payslip_list.append(
             {
                 "payslip_id": payslip["id"],
                 "employee_id": employee.get("id"),
                 "employee_name": f"{employee.get('first_name', '')} {employee.get('last_name', '')}".strip(),
+                "establishment_label": establishment_label,
                 "brut": brut,
                 "net_a_payer": net_a_payer,
                 "cotisations_salariales": cotisations_salariales,
@@ -178,111 +201,20 @@ def generate_od_salaires(
     date_ecriture: Optional[str] = None,
     regroupement: str = "global",
 ) -> Tuple[List[Dict[str, Any]], Dict[str, float], Dict[str, Any]]:
-    payslip_list, totals = get_payslip_data_for_od(
-        company_id, period, employee_ids, "od_salaires"
+    from app.modules.exports.infrastructure.payroll_ledger import (
+        build_payroll_ledger,
+        ledger_to_od_export_rows,
     )
-    mappings = get_accounting_mappings(company_id)
 
-    if not date_ecriture:
-        year, month = map(int, period.split("-"))
-        last_day = monthrange(year, month)[1]
-        date_ecriture = f"{year}-{month:02d}-{last_day:02d}"
-
-    ecritures = []
-
-    mapping_brut = mappings.get("salaire_brut") or get_default_mapping("salaire_brut")
-    if mapping_brut:
-        ecritures.append(
-            {
-                "date_ecriture": date_ecriture,
-                "journal": mapping_brut.get("journal", "OD"),
-                "compte_comptable": mapping_brut["compte_comptable"],
-                "libelle": f"Salaires {format_period(period)}",
-                "debit": totals["total_brut"],
-                "credit": 0.0,
-                "analytique": mapping_brut.get("analytique"),
-                "reference_export": f"OD_SAL_{period}",
-                "periode_paie": period,
-            }
-        )
-
-    mapping_net = mappings.get("net_a_payer") or get_default_mapping("net_a_payer")
-    if mapping_net:
-        ecritures.append(
-            {
-                "date_ecriture": date_ecriture,
-                "journal": mapping_net.get("journal", "OD"),
-                "compte_comptable": mapping_net["compte_comptable"],
-                "libelle": f"Net à payer {format_period(period)}",
-                "debit": 0.0,
-                "credit": totals["total_net_a_payer"],
-                "analytique": mapping_net.get("analytique"),
-                "reference_export": f"OD_SAL_{period}",
-                "periode_paie": period,
-            }
-        )
-
-    mapping_cot_sal = mappings.get("cotisation_salariale") or get_default_mapping(
-        "cotisation_salariale"
+    ecritures, od_totals, mappings = build_payroll_ledger(
+        company_id,
+        period,
+        employee_ids,
+        date_ecriture,
+        regroupement=regroupement,  # type: ignore[arg-type]
+        scope="salaires",
     )
-    if mapping_cot_sal and totals["total_cotisations_salariales"] > 0:
-        ecritures.append(
-            {
-                "date_ecriture": date_ecriture,
-                "journal": mapping_cot_sal.get("journal", "OD"),
-                "compte_comptable": mapping_cot_sal["compte_comptable"],
-                "libelle": f"Cotisations salariales {format_period(period)}",
-                "debit": 0.0,
-                "credit": totals["total_cotisations_salariales"],
-                "analytique": mapping_cot_sal.get("analytique"),
-                "reference_export": f"OD_SAL_{period}",
-                "periode_paie": period,
-            }
-        )
-
-    mapping_cot_pat = mappings.get("cotisation_patronale") or get_default_mapping(
-        "cotisation_patronale"
-    )
-    if mapping_cot_pat and totals["total_cotisations_patronales"] > 0:
-        ecritures.append(
-            {
-                "date_ecriture": date_ecriture,
-                "journal": mapping_cot_pat.get("journal", "OD"),
-                "compte_comptable": mapping_cot_pat["compte_comptable"],
-                "libelle": f"Charges sociales patronales {format_period(period)}",
-                "debit": totals["total_cotisations_patronales"],
-                "credit": 0.0,
-                "analytique": mapping_cot_pat.get("analytique"),
-                "reference_export": f"OD_SAL_{period}",
-                "periode_paie": period,
-            }
-        )
-
-    mapping_pas = mappings.get("pas") or get_default_mapping("pas")
-    if mapping_pas and totals["total_pas"] > 0:
-        ecritures.append(
-            {
-                "date_ecriture": date_ecriture,
-                "journal": mapping_pas.get("journal", "OD"),
-                "compte_comptable": mapping_pas["compte_comptable"],
-                "libelle": f"Prélèvement à la source {format_period(period)}",
-                "debit": 0.0,
-                "credit": totals["total_pas"],
-                "analytique": mapping_pas.get("analytique"),
-                "reference_export": f"OD_SAL_{period}",
-                "periode_paie": period,
-            }
-        )
-
-    total_debit = sum(e["debit"] for e in ecritures)
-    total_credit = sum(e["credit"] for e in ecritures)
-    od_totals = {
-        "total_debit": total_debit,
-        "total_credit": total_credit,
-        "equilibre": abs(total_debit - total_credit) < 0.01,
-        "ecart": abs(total_debit - total_credit),
-    }
-    return ecritures, od_totals, mappings
+    return ledger_to_od_export_rows(ecritures), od_totals, mappings
 
 
 def generate_od_charges_sociales(
@@ -290,97 +222,22 @@ def generate_od_charges_sociales(
     period: str,
     employee_ids: Optional[List[str]] = None,
     date_ecriture: Optional[str] = None,
+    regroupement: str = "global",
 ) -> Tuple[List[Dict[str, Any]], Dict[str, float], Dict[str, Any]]:
-    payslip_list, totals = get_payslip_data_for_od(
-        company_id, period, employee_ids, "od_charges_sociales"
+    from app.modules.exports.infrastructure.payroll_ledger import (
+        build_payroll_ledger,
+        ledger_to_od_export_rows,
     )
-    mappings = get_accounting_mappings(company_id)
 
-    if not date_ecriture:
-        year, month = map(int, period.split("-"))
-        last_day = monthrange(year, month)[1]
-        date_ecriture = f"{year}-{month:02d}-{last_day:02d}"
-
-    ecritures = []
-    charges_par_caisse = {}
-
-    for payslip in payslip_list:
-        for coti in payslip.get("cotisations_detail", []):
-            if not isinstance(coti, dict):
-                continue
-            libelle_cotisation = coti.get("libelle", "Cotisation")
-            organisme = "AUTRE"
-            if "URSSAF" in libelle_cotisation.upper():
-                organisme = "URSSAF"
-            elif (
-                "RETRAITE" in libelle_cotisation.upper()
-                or "AGIRC" in libelle_cotisation.upper()
-                or "ARRCO" in libelle_cotisation.upper()
-            ):
-                organisme = "RETRAITE"
-            elif "PREVOYANCE" in libelle_cotisation.upper():
-                organisme = "PREVOYANCE"
-            elif "MUTUELLE" in libelle_cotisation.upper():
-                organisme = "MUTUELLE"
-            montant_patronal = float(coti.get("montant_patronal", 0) or 0)
-            if montant_patronal > 0:
-                key = f"{organisme}_{libelle_cotisation}"
-                if key not in charges_par_caisse:
-                    charges_par_caisse[key] = {
-                        "organisme": organisme,
-                        "libelle": libelle_cotisation,
-                        "montant": 0.0,
-                    }
-                charges_par_caisse[key]["montant"] += montant_patronal
-
-    mapping_cot_pat = mappings.get("cotisation_patronale") or get_default_mapping(
-        "cotisation_patronale"
+    ecritures, od_totals, mappings = build_payroll_ledger(
+        company_id,
+        period,
+        employee_ids,
+        date_ecriture,
+        regroupement=regroupement,  # type: ignore[arg-type]
+        scope="charges_sociales",
     )
-    for key, charge in charges_par_caisse.items():
-        if mapping_cot_pat:
-            ecritures.append(
-                {
-                    "date_ecriture": date_ecriture,
-                    "journal": mapping_cot_pat.get("journal", "OD"),
-                    "compte_comptable": mapping_cot_pat["compte_comptable"],
-                    "libelle": f"Charges {charge['libelle']} - {charge['organisme']} {format_period(period)}",
-                    "debit": charge["montant"],
-                    "credit": 0.0,
-                    "analytique": mapping_cot_pat.get("analytique"),
-                    "reference_export": f"OD_CHG_{period}",
-                    "periode_paie": period,
-                }
-            )
-
-    mapping_dette = mappings.get("dette_organisme") or {
-        "compte_comptable": "431000",
-        "journal": "OD",
-    }
-    total_charges = sum(c["montant"] for c in charges_par_caisse.values())
-    if total_charges > 0:
-        ecritures.append(
-            {
-                "date_ecriture": date_ecriture,
-                "journal": mapping_dette.get("journal", "OD"),
-                "compte_comptable": mapping_dette["compte_comptable"],
-                "libelle": f"Dettes organismes sociaux {format_period(period)}",
-                "debit": 0.0,
-                "credit": total_charges,
-                "analytique": mapping_dette.get("analytique"),
-                "reference_export": f"OD_CHG_{period}",
-                "periode_paie": period,
-            }
-        )
-
-    total_debit = sum(e["debit"] for e in ecritures)
-    total_credit = sum(e["credit"] for e in ecritures)
-    od_totals = {
-        "total_debit": total_debit,
-        "total_credit": total_credit,
-        "equilibre": abs(total_debit - total_credit) < 0.01,
-        "ecart": abs(total_debit - total_credit),
-    }
-    return ecritures, od_totals, mappings
+    return ledger_to_od_export_rows(ecritures), od_totals, mappings
 
 
 def generate_od_pas(
@@ -388,65 +245,22 @@ def generate_od_pas(
     period: str,
     employee_ids: Optional[List[str]] = None,
     date_ecriture: Optional[str] = None,
+    regroupement: str = "global",
 ) -> Tuple[List[Dict[str, Any]], Dict[str, float], Dict[str, Any]]:
-    payslip_list, totals = get_payslip_data_for_od(
-        company_id, period, employee_ids, "od_pas"
+    from app.modules.exports.infrastructure.payroll_ledger import (
+        build_payroll_ledger,
+        ledger_to_od_export_rows,
     )
-    mappings = get_accounting_mappings(company_id)
 
-    if not date_ecriture:
-        year, month = map(int, period.split("-"))
-        last_day = monthrange(year, month)[1]
-        date_ecriture = f"{year}-{month:02d}-{last_day:02d}"
-
-    ecritures = []
-    mapping_pas = mappings.get("pas") or get_default_mapping("pas")
-
-    if totals["total_pas"] > 0:
-        ecritures.append(
-            {
-                "date_ecriture": date_ecriture,
-                "journal": mapping_pas.get("journal", "OD"),
-                "compte_comptable": mapping_pas["compte_comptable"],
-                "libelle": f"PAS {format_period(period)}",
-                "debit": totals["total_pas"],
-                "credit": 0.0,
-                "analytique": mapping_pas.get("analytique"),
-                "reference_export": f"OD_PAS_{period}",
-                "periode_paie": period,
-            }
-        )
-        mapping_dette = mappings.get("net_a_payer") or get_default_mapping(
-            "net_a_payer"
-        )
-        if mapping_dette:
-            ecritures.append(
-                {
-                    "date_ecriture": date_ecriture,
-                    "journal": mapping_dette.get("journal", "OD"),
-                    "compte_comptable": mapping_dette["compte_comptable"],
-                    "libelle": f"PAS déduit du net {format_period(period)}",
-                    "debit": 0.0,
-                    "credit": totals["total_pas"],
-                    "analytique": mapping_dette.get("analytique"),
-                    "reference_export": f"OD_PAS_{period}",
-                    "periode_paie": period,
-                }
-            )
-
-    total_debit = sum(e["debit"] for e in ecritures)
-    total_credit = sum(e["credit"] for e in ecritures)
-    od_totals = {
-        "total_debit": total_debit,
-        "total_credit": total_credit,
-        "equilibre": abs(total_debit - total_credit) < 0.01,
-        "ecart": abs(total_debit - total_credit),
-    }
-    return ecritures, od_totals, mappings
-
-
-def _round2_od(value: float) -> float:
-    return round(value, 2)
+    ecritures, od_totals, mappings = build_payroll_ledger(
+        company_id,
+        period,
+        employee_ids,
+        date_ecriture,
+        regroupement=regroupement,  # type: ignore[arg-type]
+        scope="pas",
+    )
+    return ledger_to_od_export_rows(ecritures), od_totals, mappings
 
 
 def generate_od_globale(
@@ -454,75 +268,23 @@ def generate_od_globale(
     period: str,
     employee_ids: Optional[List[str]] = None,
     date_ecriture: Optional[str] = None,
+    regroupement: str = "global",
 ) -> Tuple[List[Dict[str, Any]], Dict[str, float], Dict[str, Any]]:
-    """OD complète : salaires + charges sociales + PAS + remboursements acomptes."""
-    ecritures_sal, _, mappings = generate_od_salaires(
-        company_id, period, employee_ids, date_ecriture
-    )
-    ecritures_chg, _, _ = generate_od_charges_sociales(
-        company_id, period, employee_ids, date_ecriture
-    )
-    ecritures_pas, _, _ = generate_od_pas(
-        company_id, period, employee_ids, date_ecriture
-    )
-    ecritures = ecritures_sal + ecritures_chg + ecritures_pas
-
-    if not date_ecriture:
-        year, month = map(int, period.split("-"))
-        last_day = monthrange(year, month)[1]
-        date_ecriture = f"{year}-{month:02d}-{last_day:02d}"
-
-    from app.modules.exports.infrastructure.export_acomptes import (
-        get_repayments_total_by_account,
+    """OD complète unifiée via le registre paie (sans double comptabilisation)."""
+    from app.modules.exports.infrastructure.payroll_ledger import (
+        build_payroll_ledger,
+        ledger_to_od_export_rows,
     )
 
-    repayments_by_account = get_repayments_total_by_account(company_id, period)
-    total_repayments = sum(repayments_by_account.values())
-
-    mapping_net = mappings.get("net_a_payer") or get_default_mapping("net_a_payer")
-    net_compte = (
-        mapping_net["compte_comptable"] if mapping_net else "425000"
+    ecritures, od_totals, mappings = build_payroll_ledger(
+        company_id,
+        period,
+        employee_ids,
+        date_ecriture,
+        regroupement=regroupement,  # type: ignore[arg-type]
+        scope="full",
     )
-    net_journal = mapping_net.get("journal", "OD") if mapping_net else "OD"
-
-    if total_repayments > 0:
-        for ecriture in ecritures:
-            if (
-                ecriture.get("compte_comptable") == net_compte
-                and ecriture.get("credit", 0) > 0
-                and "Net à payer" in ecriture.get("libelle", "")
-            ):
-                ecriture["credit"] = _round2_od(
-                    float(ecriture["credit"]) + total_repayments
-                )
-                break
-
-        for compte, montant in repayments_by_account.items():
-            if montant <= 0:
-                continue
-            ecritures.append(
-                {
-                    "date_ecriture": date_ecriture,
-                    "journal": net_journal,
-                    "compte_comptable": compte,
-                    "libelle": f"Remboursement acomptes {format_period(period)}",
-                    "debit": 0.0,
-                    "credit": _round2_od(montant),
-                    "analytique": mapping_net.get("analytique") if mapping_net else None,
-                    "reference_export": f"OD_GLB_{period}",
-                    "periode_paie": period,
-                }
-            )
-
-    total_debit = sum(e["debit"] for e in ecritures)
-    total_credit = sum(e["credit"] for e in ecritures)
-    od_totals = {
-        "total_debit": total_debit,
-        "total_credit": total_credit,
-        "equilibre": abs(total_debit - total_credit) < 0.01,
-        "ecart": abs(total_debit - total_credit),
-    }
-    return ecritures, od_totals, mappings
+    return ledger_to_od_export_rows(ecritures), od_totals, mappings
 
 
 def preview_od(
@@ -531,25 +293,26 @@ def preview_od(
     od_type: str,
     employee_ids: Optional[List[str]] = None,
     date_ecriture: Optional[str] = None,
+    regroupement: str = "global",
 ) -> Dict[str, Any]:
     anomalies = []
     warnings = []
 
     if od_type == "od_salaires":
         ecritures, od_totals, mappings = generate_od_salaires(
-            company_id, period, employee_ids, date_ecriture
+            company_id, period, employee_ids, date_ecriture, regroupement
         )
     elif od_type == "od_charges_sociales":
         ecritures, od_totals, mappings = generate_od_charges_sociales(
-            company_id, period, employee_ids, date_ecriture
+            company_id, period, employee_ids, date_ecriture, regroupement
         )
     elif od_type == "od_pas":
         ecritures, od_totals, mappings = generate_od_pas(
-            company_id, period, employee_ids, date_ecriture
+            company_id, period, employee_ids, date_ecriture, regroupement
         )
     elif od_type == "od_globale":
         ecritures, od_totals, mappings = generate_od_globale(
-            company_id, period, employee_ids, date_ecriture
+            company_id, period, employee_ids, date_ecriture, regroupement
         )
     else:
         return {

@@ -41,6 +41,25 @@ from .export_acomptes import (
     generate_acomptes_export as _generate_acomptes_export,
     preview_acomptes as _preview_acomptes,
 )
+from .export_saisies import (
+    generate_saisies_ecritures_export as _generate_saisies_ecritures_export,
+    generate_saisies_export as _generate_saisies_export,
+    preview_saisies as _preview_saisies,
+)
+from .export_fec import generate_fec_export as _generate_fec_export, preview_fec as _preview_fec
+from .export_sepa import generate_sepa_pain001 as _generate_sepa_pain001
+from .export_paiement_organismes import (
+    generate_paiement_organismes_export as _generate_paiement_organismes_export,
+    preview_paiement_organismes as _preview_paiement_organismes,
+)
+from .export_prets_employeur import (
+    generate_prets_employeur_export as _generate_prets_employeur_export,
+    preview_prets_employeur as _preview_prets_employeur,
+)
+from .export_attestations import (
+    generate_attestations_export as _generate_attestations_export,
+    preview_attestations as _preview_attestations,
+)
 from .export_conges_absences import (
     generate_conges_absences_export as _generate_conges_absences_export,
     preview_conges_absences as _preview_conges_absences,
@@ -189,8 +208,11 @@ def preview_od(
     export_type: str,
     employee_ids: Optional[List[str]],
     date_ecriture: Optional[str],
+    regroupement: str = "global",
 ) -> Dict[str, Any]:
-    return _preview_od(company_id, period, export_type, employee_ids, date_ecriture)
+    return _preview_od(
+        company_id, period, export_type, employee_ids, date_ecriture, regroupement
+    )
 
 
 def generate_od_salaires(
@@ -198,8 +220,11 @@ def generate_od_salaires(
     period: str,
     employee_ids: Optional[List[str]],
     date_ecriture: Optional[str],
+    regroupement: str = "global",
 ):
-    return _generate_od_salaires(company_id, period, employee_ids, date_ecriture)
+    return _generate_od_salaires(
+        company_id, period, employee_ids, date_ecriture, regroupement
+    )
 
 
 def generate_od_charges_sociales(
@@ -207,9 +232,10 @@ def generate_od_charges_sociales(
     period: str,
     employee_ids: Optional[List[str]],
     date_ecriture: Optional[str],
+    regroupement: str = "global",
 ):
     return _generate_od_charges_sociales(
-        company_id, period, employee_ids, date_ecriture
+        company_id, period, employee_ids, date_ecriture, regroupement
     )
 
 
@@ -218,8 +244,11 @@ def generate_od_pas(
     period: str,
     employee_ids: Optional[List[str]],
     date_ecriture: Optional[str],
+    regroupement: str = "global",
 ):
-    return _generate_od_pas(company_id, period, employee_ids, date_ecriture)
+    return _generate_od_pas(
+        company_id, period, employee_ids, date_ecriture, regroupement
+    )
 
 
 def generate_od_globale(
@@ -227,8 +256,11 @@ def generate_od_globale(
     period: str,
     employee_ids: Optional[List[str]],
     date_ecriture: Optional[str],
+    regroupement: str = "global",
 ):
-    return _generate_od_globale(company_id, period, employee_ids, date_ecriture)
+    return _generate_od_globale(
+        company_id, period, employee_ids, date_ecriture, regroupement
+    )
 
 
 def generate_od_export_file(
@@ -404,3 +436,77 @@ def generate_acomptes_ecritures_export(
     company_id: str, period: str, file_format: str
 ) -> bytes:
     return _generate_acomptes_ecritures_export(company_id, period, file_format)
+
+
+def preview_saisies(company_id: str, period: str) -> Dict[str, Any]:
+    return _preview_saisies(company_id, period)
+
+
+def generate_saisies_export(
+    company_id: str, period: str, file_format: str
+) -> bytes:
+    return _generate_saisies_export(company_id, period, file_format)
+
+
+def generate_saisies_ecritures_export(
+    company_id: str, period: str, file_format: str
+) -> bytes:
+    return _generate_saisies_ecritures_export(company_id, period, file_format)
+
+
+def preview_fec(company_id: str, period: str, employee_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+    return _preview_fec(company_id, period, employee_ids)
+
+
+def generate_fec_export(
+    company_id: str, period: str, employee_ids: Optional[List[str]] = None
+) -> bytes:
+    return _generate_fec_export(company_id, period, employee_ids)
+
+
+def generate_sepa_bank_file(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]] = None,
+    excluded_employee_ids: Optional[List[str]] = None,
+    execution_date: Optional[str] = None,
+    payment_label: Optional[str] = None,
+) -> bytes:
+    return _generate_sepa_pain001(
+        company_id, period, employee_ids, excluded_employee_ids,
+        execution_date, payment_label,
+    )
+
+
+def preview_paiement_organismes(
+    company_id: str, period: str, employee_ids: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    return _preview_paiement_organismes(company_id, period, employee_ids)
+
+
+def generate_paiement_organismes_export(
+    company_id: str, period: str, employee_ids: Optional[List[str]], file_format: str,
+) -> bytes:
+    return _generate_paiement_organismes_export(company_id, period, employee_ids, file_format)
+
+
+def preview_prets_employeur(company_id: str, period: str) -> Dict[str, Any]:
+    return _preview_prets_employeur(company_id, period)
+
+
+def generate_prets_employeur_export(
+    company_id: str, period: str, file_format: str,
+) -> bytes:
+    return _generate_prets_employeur_export(company_id, period, file_format)
+
+
+def preview_attestations(
+    company_id: str, period: str, employee_ids: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    return _preview_attestations(company_id, period, employee_ids)
+
+
+def generate_attestations_export(
+    company_id: str, period: str, employee_ids: Optional[List[str]], file_format: str,
+) -> bytes:
+    return _generate_attestations_export(company_id, period, employee_ids, file_format)

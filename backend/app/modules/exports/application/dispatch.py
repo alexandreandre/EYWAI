@@ -33,7 +33,7 @@ CHANNEL_PREVIEW_TYPE: Dict[str, str] = {
 }
 
 CHANNEL_GENERATE_TYPES: Dict[str, List[str]] = {
-    "compta": ["od_globale", "journal_paie"],
+    "compta": ["od_globale", "journal_paie", "fec"],
     "banque": ["virement_salaires"],
 }
 
@@ -213,11 +213,14 @@ def _generate_for_channel(
     extra_params = extra_params or {}
 
     for export_type in CHANNEL_GENERATE_TYPES[channel]:
+        req_format: str = fmt
+        if export_type == "fec":
+            req_format = "csv"
         req = ExportGenerateRequest(
             export_type=cast(Any, export_type),
             period=period,
             company_id=company_id,
-            format=cast(Any, fmt),
+            format=cast(Any, req_format),
             filters={},
         )
         if channel == "banque":
@@ -265,7 +268,7 @@ def dispatch_compta(
         export_ids=export_ids,
         files=files,
         downloads=downloads,
-        message=f"Export comptable généré pour {body.period} (OD globale complète + journal de paie).",
+        message=f"Export comptable généré pour {body.period} (OD globale + journal + FEC).",
     )
 
 

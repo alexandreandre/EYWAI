@@ -437,6 +437,14 @@ def preview_dsn(
     }
 
 
+def _neodes_norme_version() -> str:
+    return "P24V01"
+
+
+def _neodes_mode(dsn_type: str) -> str:
+    return "reel" if "reel" in dsn_type.lower() else "test"
+
+
 def generate_dsn_xml(
     company_id: str,
     period: str,
@@ -447,76 +455,86 @@ def generate_dsn_xml(
     company_data = get_company_data(company_id)
     employees_data, totals = get_dsn_employees_data(company_id, period, employee_ids)
     year, month = map(int, period.split("-"))
+    norme = _neodes_norme_version()
+    mode = _neodes_mode(dsn_type)
 
     root = ET.Element("DSN")
-    root.set("xmlns", "http://www.dsn.fr/dsn")
-    root.set("version", "01.00")
+    root.set("xmlns", "http://www.neodes.fr/dsn")
+    root.set("norme", norme)
+    root.set("mode", mode)
 
-    header = ET.SubElement(root, "EnTeteDSN")
-    ET.SubElement(header, "TypeDSN").text = "01"
-    ET.SubElement(header, "DateEnvoi").text = datetime.now().strftime("%Y-%m-%d")
-    ET.SubElement(header, "PeriodeDeclaree").text = period
+    # Bloc S10 — Envoi
+    s10 = ET.SubElement(root, "S10")
+    ET.SubElement(s10, "S10.G00.00.001").text = "01"
+    ET.SubElement(s10, "S10.G00.00.002").text = datetime.now().strftime("%d%m%Y")
+    ET.SubElement(s10, "S10.G00.00.005").text = period.replace("-", "")
+    ET.SubElement(s10, "S10.G00.00.006").text = norme
+    ET.SubElement(s10, "S10.G00.00.007").text = "01" if mode == "reel" else "02"
 
-    etablissement = ET.SubElement(root, "Etablissement")
-    ET.SubElement(etablissement, "SIRET").text = company_data.get("siret", "")
-    ET.SubElement(etablissement, "CodeNAF").text = company_data.get("code_naf", "")
+    # Bloc S20 — Établissement
+    s20 = ET.SubElement(root, "S20")
+    ET.SubElement(s20, "S20.G00.05.001").text = company_data.get("siret", "")[:14]
+    ET.SubElement(s20, "S20.G00.05.002").text = company_data.get("name", "")[:100]
+    ET.SubElement(s20, "S20.G00.05.003").text = company_data.get("code_naf", "")[:5]
     address = company_data.get("address", {})
     if isinstance(address, dict):
-        adresse_etab = ET.SubElement(etablissement, "Adresse")
-        ET.SubElement(adresse_etab, "Rue").text = address.get("rue", "")
-        ET.SubElement(adresse_etab, "CodePostal").text = address.get("code_postal", "")
-        ET.SubElement(adresse_etab, "Ville").text = address.get("ville", "")
+        ET.SubElement(s20, "S20.G00.05.004").text = address.get("rue", "")[:50]
+        ET.SubElement(s20, "S20.G00.05.005").text = address.get("code_postal", "")[:5]
+        ET.SubElement(s20, "S20.G00.05.006").text = address.get("ville", "")[:50]
 
-    salaries = ET.SubElement(root, "Salaries")
+    # Bloc S21 — Salariés (Neodes G00.xx)
+    s21 = ET.SubElement(root, "S21")
     for emp_data in employees_data:
         employee = emp_data["employee"]
-        emp_data["payslip"].get("payslip_data", {})
-
-        salarie = ET.SubElement(salaries, "Salarie")
-        identite = ET.SubElement(salarie, "Identite")
-        ET.SubElement(identite, "Nom").text = employee.get("last_name", "")
-        ET.SubElement(identite, "Prenom").text = employee.get("first_name", "")
-        ET.SubElement(identite, "NIR").text = employee.get("nir", "")
-        contrat = ET.SubElement(salarie, "Contrat")
-        ET.SubElement(contrat, "TypeContrat").text = employee.get("contract_type", "")
-        ET.SubElement(contrat, "DateEntree").text = employee.get("hire_date", "")
+        individu = ET.SubElement(s21, "Individu")
+        identite = ET.SubElement(individu, "Identite")
+        ET.SubElement(identite, "S21.G00.30.001").text = employee.get("last_name", "")[:80]
+        ET.SubElement(identite, "S21.G00.30.002").text = employee.get("first_name", "")[:80]
+        ET.SubElement(identite, "S21.G00.30.003").text = (employee.get("nir") or "")[:15]
+        contrat = ET.SubElement(individu, "Contrat")
+        ET.SubElement(contrat, "S21.G00.40.001").text = employee.get("contract_type", "")[:10]
+        ET.SubElement(contrat, "S21.G00.40.002").text = str(employee.get("hire_date", ""))[:10]
         boeth_code = oeth_queries.get_boeth_code_for_employee(
             employee.get("id", ""), period
         )
         if boeth_code:
-            ET.SubElement(contrat, "StatutBOETH").text = boeth_code
             ET.SubElement(contrat, "S21.G00.40.072").text = boeth_code
             previous = oeth_queries.get_previous_boeth_for_period(
                 employee.get("id", ""), period
             )
             if previous:
-                changement = ET.SubElement(salarie, "ChangementContrat")
-                ET.SubElement(changement, "AncienStatutBOETH").text = previous
+                changement = ET.SubElement(individu, "ChangementContrat")
                 ET.SubElement(changement, "S21.G00.41.048").text = previous
-        remuneration = ET.SubElement(salarie, "Remuneration")
-        ET.SubElement(remuneration, "Brut").text = str(emp_data.get("brut", 0))
-        ET.SubElement(remuneration, "NetImposable").text = str(
+        remuneration = ET.SubElement(individu, "Remuneration")
+        ET.SubElement(remuneration, "S21.G00.51.001").text = str(emp_data.get("brut", 0))
+        ET.SubElement(remuneration, "S21.G00.51.011").text = str(
             emp_data.get("net_imposable", 0)
         )
-        ET.SubElement(remuneration, "PAS").text = str(emp_data.get("pas", 0))
-        cotisations = ET.SubElement(salarie, "Cotisations")
+        ET.SubElement(remuneration, "S21.G00.51.013").text = str(emp_data.get("pas", 0))
+        cotisations = ET.SubElement(individu, "Cotisations")
         for coti in emp_data.get("cotisations_detail", []):
             if isinstance(coti, dict):
                 cotisation = ET.SubElement(cotisations, "Cotisation")
-                ET.SubElement(cotisation, "Libelle").text = coti.get("libelle", "")
-                ET.SubElement(cotisation, "Base").text = str(coti.get("base", 0))
-                ET.SubElement(cotisation, "TauxSalarial").text = str(
+                ET.SubElement(cotisation, "S21.G00.78.001").text = coti.get("libelle", "")[:100]
+                ET.SubElement(cotisation, "S21.G00.78.002").text = str(coti.get("base", 0))
+                ET.SubElement(cotisation, "S21.G00.78.003").text = str(
                     coti.get("taux_salarial", 0) or 0
                 )
-                ET.SubElement(cotisation, "TauxPatronal").text = str(
+                ET.SubElement(cotisation, "S21.G00.78.004").text = str(
                     coti.get("taux_patronal", 0) or 0
                 )
-                ET.SubElement(cotisation, "MontantSalarial").text = str(
+                ET.SubElement(cotisation, "S21.G00.78.005").text = str(
                     coti.get("montant_salarial", 0) or 0
                 )
-                ET.SubElement(cotisation, "MontantPatronal").text = str(
+                ET.SubElement(cotisation, "S21.G00.78.006").text = str(
                     coti.get("montant_patronal", 0) or 0
                 )
+
+    # Totaux établissement (S21.G00.86)
+    totaux = ET.SubElement(s21, "TotauxEtablissement")
+    ET.SubElement(totaux, "S21.G00.86.001").text = str(totals.get("masse_salariale_brute", 0))
+    ET.SubElement(totaux, "S21.G00.86.002").text = str(totals.get("total_charges", 0))
+    ET.SubElement(totaux, "S21.G00.86.003").text = str(totals.get("total_pas", 0))
 
     if month == 4:
         employment_year = year - 1
