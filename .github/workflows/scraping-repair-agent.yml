@@ -40,6 +40,8 @@ jobs:
     env:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
     steps:
       - uses: actions/checkout@v4
@@ -58,6 +60,17 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Vérifier secrets Supabase
+        run: |
+          if [ -z "${SUPABASE_URL:-}" ]; then
+            echo "::error::Secret SUPABASE_URL manquant (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+          if [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] && [ -z "${SUPABASE_SERVICE_KEY:-}" ] && [ -z "${SUPABASE_KEY:-}" ]; then
+            echo "::error::Aucune clé Supabase admin trouvée. Définir au moins un secret parmi SUPABASE_SERVICE_ROLE_KEY, SUPABASE_SERVICE_KEY ou SUPABASE_KEY."
+            exit 1
+          fi
 
       - name: Enqueue failures from dry-run (workflow_run)
         if: github.event_name == 'workflow_run'
