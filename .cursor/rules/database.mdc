@@ -1,0 +1,61 @@
+---
+description: Accès Supabase via MCP — migrations, lecture, garde-fous dev/prod
+globs: supabase/**,.cursor/mcp.json
+alwaysApply: true
+---
+
+# Base de données Supabase (MCP `supabase-eywai`)
+
+## Contexte projet
+
+- **Projet Supabase** : `slleauhyjnmiawosvlcg` — **dev et prod partagent la même instance**.
+- Toute écriture MCP (`apply_migration`, `execute_sql` DDL/DML) impacte **immédiatement les données réelles**.
+- Config MCP : `.cursor/mcp.json` — outils limités à `features=database` (pas d’Edge Functions, branches, etc.).
+
+## Sources de vérité (schéma)
+
+| Priorité | Source |
+|----------|--------|
+| 1 | `supabase/migrations/*.sql` — historique versionné, canonique |
+| 2 | MCP `list_tables` / `list_migrations` — état live de la DB |
+| 3 | `backend/app/modules/*/infrastructure/repository.py` — colonnes lues/écrites |
+| 4 | `.cursor/skills/update-copilot-rh/schema-tables-rh.md` — inventaire métier RH |
+
+## Workflow migration (obligatoire)
+
+1. **Créer d’abord** le fichier dans le repo :
+   `supabase/migrations/YYYYMMDDHHMMSS_nom_snake_case.sql`
+2. SQL **idempotent** quand possible (`IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`).
+3. **Nouvelle table** exposée au client → activer RLS + policies adaptées dans la même migration.
+4. **Appliquer ensuite** via MCP `apply_migration` avec le **même nom** et le **même SQL**.
+5. **Vérifier** avec `list_migrations` et un `execute_sql` de contrôle (ex. `\d` équivalent via `information_schema`).
+6. **Ne jamais** appliquer une migration MCP sans le fichier Git correspondant.
+
+## Interdits sans confirmation explicite de l’utilisateur
+
+- `DROP TABLE`, `DROP COLUMN`, `TRUNCATE`
+- `DELETE` ou `UPDATE` massifs sur tables métier (`employees`, `payslips`, `companies`, etc.)
+- Désactiver ou supprimer des policies RLS
+- Modifier des données de prod « pour tester »
+
+## Bonnes pratiques
+
+- Préférer **DDL additif** (nouvelles colonnes nullable, nouvelles tables) plutôt que destructif.
+- Migrations de données : petits lots, vérifiables, réversibles si possible.
+- Après migration : signaler à l’utilisateur ce qui a changé (table, colonne, policy).
+- Pour l’exploration : `execute_sql` en **SELECT** ; pas de DML sauf demande explicite.
+- Secrets : jamais de clés Supabase dans les fichiers versionnés.
+
+## Outils MCP disponibles
+
+| Outil | Usage |
+|-------|-------|
+| `list_tables` | Schéma live (verbose pour colonnes/FK) |
+| `list_migrations` | Migrations déjà appliquées côté Supabase |
+| `apply_migration` | Appliquer une migration DDL nommée |
+| `execute_sql` | Requêtes ad hoc (lecture ; écriture seulement si demandé) |
+| `list_extensions` | Extensions Postgres installées |
+
+## Rappel sécurité
+
+Le MCP opère sous les droits du compte développeur connecté. Ce n’est **pas** un environnement isolé : traiter chaque `apply_migration` comme un déploiement prod.
