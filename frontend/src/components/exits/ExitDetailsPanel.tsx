@@ -842,7 +842,9 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
           <DialogHeader>
             <DialogTitle>Publier les documents de départ</DialogTitle>
             <DialogDescription>
-              Les documents suivants seront envoyés dans l'espace Documents du collaborateur (section "Autres") :
+              Les documents suivants seront envoyés dans l'espace Documents du collaborateur (section « Autres »).
+              Le salarié peut déjà consulter les versions générées dès l'ouverture du départ ; la publication
+              formalise la remise et envoie une notification.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import apiClient from "@/api/apiClient";
+import { getEmployeesForFormationSelect } from "@/api/employees";
 import {
   getAllStatus,
   getEmployeeStatus,
@@ -47,13 +47,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useViewOptional } from "@/contexts/ViewContext";
 import { isPlatformAdmin } from '@/lib/platformAdmin';
-
-type EmpRow = {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email?: string | null;
-};
+import { invalidateFormationHub } from "@/features/formation/formationQueryInvalidation";
 
 function fmtDate(s?: string | null) {
   if (!s) return "—";
@@ -142,10 +136,7 @@ export default function ObligationsLegalesTab({ compactTable = false }: Obligati
 
   const employeesQuery = useQuery({
     queryKey: ["employees", "legal-resolve", companyKey],
-    queryFn: async () => {
-      const res = await apiClient.get<EmpRow[]>("/api/employees");
-      return res.data ?? [];
-    },
+    queryFn: getEmployeesForFormationSelect,
     enabled: Boolean(activeCompany) && !showRhActions,
   });
 
@@ -180,6 +171,7 @@ export default function ObligationsLegalesTab({ compactTable = false }: Obligati
     onSuccess: () => {
       toast({ title: "Critères enregistrés" });
       void qc.invalidateQueries({ queryKey: ["legal-obligations"] });
+      invalidateFormationHub(qc);
       setSheetOpen(false);
     },
     onError: () => {

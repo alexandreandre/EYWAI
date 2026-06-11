@@ -1,6 +1,7 @@
 import type { UpdateEmployeePayload } from '@/api/employees';
 import type { Employee } from '@/features/employee-detail/types';
 import type { EmployeeProfileEditFormValues } from '@/features/employee-detail/components/employeeProfileEditSchema';
+import { needsContractEndDate, normalizeContractType } from '@/constants/contracts';
 
 export function normalizeNir(value: string | null | undefined): string {
   return (value ?? '').replace(/\s/g, '').slice(0, 15);
@@ -31,13 +32,16 @@ export function isProfileIncomplete(employee: Employee): boolean {
 }
 
 export function isCddOrStage(contractType: string | null | undefined): boolean {
-  const t = (contractType ?? '').toLowerCase();
-  return t.includes('cdd') || t.includes('stage');
+  return needsContractEndDate(contractType);
 }
 
 export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormValues {
   const adresse = employee.adresse ?? {};
   const spec = employee.specificites_paie ?? {};
+  const extended = employee as Employee & {
+    date_debut_execution?: string | null;
+    date_conclusion_contrat?: string | null;
+  };
   const mutuelle = spec.mutuelle as { mutuelle_type_ids?: string[] } | undefined;
   const prevoyance = spec.prevoyance as { adhesion?: boolean } | undefined;
   const pas = spec.prelevement_a_la_source as { is_personnalise?: boolean; taux?: number } | undefined;
@@ -65,11 +69,13 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
     },
     hire_date: employee.hire_date?.slice(0, 10) ?? '',
     job_title: employee.job_title ?? employee.poste ?? '',
-    contract_type: employee.contract_type ?? 'CDI',
+    contract_type: normalizeContractType(employee.contract_type),
     statut: employee.statut ?? 'Non-Cadre',
     is_temps_partiel: Boolean((employee as Employee & { is_temps_partiel?: boolean }).is_temps_partiel),
     duree_hebdomadaire: readWeeklyHours(employee),
     contract_end_date: employee.contract_end_date?.slice(0, 10) ?? '',
+    date_debut_execution: extended.date_debut_execution?.slice(0, 10) ?? '',
+    date_conclusion_contrat: extended.date_conclusion_contrat?.slice(0, 10) ?? '',
     salaire_de_base: {
       valeur: readSalaryValue(employee) ?? ('' as unknown as number),
     },
@@ -98,6 +104,7 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
       prevoyance: {
         adhesion: prevoyance?.adhesion ?? false,
       },
+      maintien_regime_apprenti: Boolean(spec.maintien_regime_apprenti),
       personnel_rd_eligible_jei: Boolean(spec.personnel_rd_eligible_jei),
     },
     is_subject_to_residence_permit: Boolean(employee.is_subject_to_residence_permit),
@@ -135,13 +142,15 @@ export function buildUpdatePayload(
     },
     hire_date: values.hire_date,
     job_title: values.job_title.trim(),
-    contract_type: values.contract_type.trim(),
+    contract_type: normalizeContractType(values.contract_type),
     statut: values.statut.trim(),
     is_temps_partiel: values.is_temps_partiel,
     duree_hebdomadaire: values.duree_hebdomadaire,
-    contract_end_date: isCddOrStage(values.contract_type)
+    contract_end_date: needsContractEndDate(values.contract_type)
       ? values.contract_end_date?.trim() || null
       : null,
+    date_debut_execution: values.date_debut_execution?.trim() || null,
+    date_conclusion_contrat: values.date_conclusion_contrat?.trim() || null,
     salaire_de_base: { valeur: values.salaire_de_base.valeur },
     collective_agreement_id: values.collective_agreement_id,
     team_id: values.team_id?.trim() && values.team_id !== '__none__' ? values.team_id.trim() : null,
@@ -173,6 +182,7 @@ export function buildUpdatePayload(
             ? ((existingSpec.prevoyance as { lignes_specifiques?: unknown[] })?.lignes_specifiques ?? [])
             : [],
       },
+      maintien_regime_apprenti: Boolean(values.specificites_paie.maintien_regime_apprenti),
       personnel_rd_eligible_jei: Boolean(values.specificites_paie.personnel_rd_eligible_jei),
     },
   };

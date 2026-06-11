@@ -17,6 +17,7 @@ export function DeclarationsTab() {
   // Mapping entre les IDs des cartes et les types d'export de l'API
   const exportTypeMapping: Record<string, string> = {
     dsn_mensuelle: "dsn_mensuelle",
+    "attestations-annexes": "attestations_annexes",
   };
 
   const exports = [
@@ -29,9 +30,8 @@ export function DeclarationsTab() {
     {
       id: "attestations-annexes",
       name: "Attestations & annexes",
-      description: "Attestations de salaire, mutuelle, prévoyance, RQTH, etc.",
+      description: "Attestations de salaire par collaborateur (mutuelle, RQTH à venir)",
       icon: Shield,
-      disabled: true,
     },
   ];
 

@@ -23,7 +23,7 @@ import {
   uncompleteTask,
   type OnboardingTask,
 } from "@/api/onboarding";
-import apiClient from "@/api/apiClient";
+import { getEmployee } from "@/api/employees";
 import { pageTitleClassName } from '@/components/layout';
 import {
   EmployeePageHeader,
@@ -32,6 +32,9 @@ import {
 import { OnboardingHubPage } from "@/components/onboarding/OnboardingHubPage";
 import { OnboardingKpiBand } from "@/components/onboarding/OnboardingKpiBand";
 import { OnboardingTaskItem } from "@/components/onboarding/OnboardingTaskItem";
+import { EmployeeOnboardingCompletion } from "@/features/employee-detail/components/EmployeeOnboardingCompletion";
+import { EmployeeProfileEditDialog } from "@/features/employee-detail/components/EmployeeProfileEditDialog";
+import { isProfileIncomplete } from "@/features/employee-detail/components/employeeProfileFormUtils";
 import { OnboardingTimeline } from "@/components/onboarding/OnboardingTimeline";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -153,6 +156,7 @@ export default function OnboardingPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [taskFilter, setTaskFilter] = useState<TaskFilter>("all");
+  const [profileEditOpen, setProfileEditOpen] = useState(false);
 
   const isRh =
     user?.role === "rh" ||
@@ -177,14 +181,11 @@ export default function OnboardingPage() {
 
   const { data: employee } = useQuery({
     queryKey: ["employee-header", employeeId, companyId],
-    queryFn: async () => {
-      const res = await apiClient.get<OnboardingEmployeeHeader>(
-        `/api/employees/${employeeId}`,
-      );
-      return res.data;
-    },
+    queryFn: () => getEmployee(employeeId!),
     enabled: Boolean(employeeId && companyId && checklist),
   });
+
+  const profileIncomplete = employee ? isProfileIncomplete(employee) : false;
 
   const hireDate = employee?.hire_date ?? null;
 
@@ -338,6 +339,27 @@ export default function OnboardingPage() {
             </Link>
           </Button>
         </div>
+      ) : null}
+
+      {isRh && employeeId && employee ? (
+        <>
+          <EmployeeProfileEditDialog
+            open={profileEditOpen}
+            onOpenChange={setProfileEditOpen}
+            employeeId={employeeId}
+            employee={employee}
+            variant={profileIncomplete ? "onboarding" : "edit"}
+            onSuccess={(updated) => {
+              queryClient.setQueryData(["employee-header", employeeId, companyId], updated);
+              queryClient.invalidateQueries({ queryKey: ["onboarding", "hub", companyId] });
+            }}
+          />
+          <EmployeeOnboardingCompletion
+            employeeId={employeeId}
+            employee={employee}
+            onOpenEdit={() => setProfileEditOpen(true)}
+          />
+        </>
       ) : null}
 
       {isEmployeeView ? (

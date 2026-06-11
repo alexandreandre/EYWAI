@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Calendar,
@@ -12,10 +12,12 @@ import {
   Loader2,
   ChevronDown,
   ChevronRight,
+  ClipboardCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRhSidebarTaskBadges } from '@/hooks/useRhSidebarTaskBadges';
+import { usePreflightAnomaliesCount } from '@/features/payroll/hooks/usePreflightAnomaliesCount';
 
 interface PreflightStep {
   url: string;
@@ -53,6 +55,13 @@ const PREFLIGHT_STEPS: PreflightStep[] = [
     tracked: true,
   },
   {
+    url: '/payroll/review',
+    label: 'Revue des anomalies',
+    description: 'Écarts heures, pointage et conflits à traiter',
+    icon: ClipboardCheck,
+    tracked: true,
+  },
+  {
     url: '/saisies',
     label: 'Primes & éléments variables',
     description: 'Saisies du mois à vérifier',
@@ -77,29 +86,55 @@ const PREFLIGHT_STEPS: PreflightStep[] = [
 
 interface PayrollPreflightChecklistProps {
   className?: string;
-  /** Appelé quand l'utilisateur clique sur une étape (ex. fermer le modal). */
-  onNavigate?: () => void;
+  /** Navigation programmée (ex. depuis un modal) — évite le conflit Link + navigate(-1). */
+  onStepClick?: (url: string) => void;
+  /** Mois cible pour la revue des anomalies (YYYY-MM). Défaut : mois courant. */
+  payrollMonth?: string;
+}
+
+function parsePayrollMonth(value: string | undefined): { year: number; month: number } {
+  const now = new Date();
+  const fallback = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const [yearStr, monthStr] = (value ?? fallback).split('-');
+  return {
+    year: parseInt(yearStr, 10),
+    month: parseInt(monthStr, 10),
+  };
 }
 
 export function PayrollPreflightChecklist({
   className,
-  onNavigate,
+  onStepClick,
+  payrollMonth,
 }: PayrollPreflightChecklistProps) {
-  const { getCount, isLoading } = useRhSidebarTaskBadges(true);
+  const { getCount, isLoading: badgesLoading } = useRhSidebarTaskBadges(true);
   const [manualOpen, setManualOpen] = useState<boolean | null>(null);
 
-  const steps = PREFLIGHT_STEPS.map((step) => ({
-    ...step,
-    count: step.tracked ? getCount(step.url) : 0,
-  }));
+  const { year, month } = useMemo(() => parsePayrollMonth(payrollMonth), [payrollMonth]);
+  const {
+    openAnomaliesCount,
+    isLoading: preflightLoading,
+  } = usePreflightAnomaliesCount(year, month);
+
+  const isLoading = badgesLoading || preflightLoading;
+
+  const steps = PREFLIGHT_STEPS.map((step) => {
+    if (step.url === '/payroll/review') {
+      return { ...step, count: openAnomaliesCount };
+    }
+    return {
+      ...step,
+      count: step.tracked ? getCount(step.url) : 0,
+    };
+  });
 
   const pendingSteps = steps.filter((step) => step.count > 0);
   const totalPending = pendingSteps.reduce((acc, step) => acc + step.count, 0);
   const trackedSteps = steps.filter((step) => step.tracked);
-  const okTrackedCount = trackedSteps.length - pendingSteps.length;
+  const okTrackedCount = trackedSteps.filter((step) => step.count === 0).length;
   const allClear = !isLoading && pendingSteps.length === 0;
 
-  const open = manualOpen ?? (!isLoading && pendingSteps.length > 0);
+  const open = manualOpen ?? (!isLoading && (pendingSteps.length > 0 || allClear));
 
   return (
     <div
@@ -115,7 +150,10 @@ export function PayrollPreflightChecklist({
     >
       <button
         type="button"
-        onClick={() => setManualOpen(!open)}
+        onClick={(event) => {
+          event.stopPropagation();
+          setManualOpen(!open);
+        }}
         className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left"
       >
         <span className="shrink-0">
@@ -177,39 +215,48 @@ export function PayrollPreflightChecklist({
             {steps.map((step) => {
               const Icon = step.icon;
               const hasPending = step.count > 0;
+              const rowClassName = cn(
+                'flex w-full items-center gap-3 rounded-lg border bg-background px-3 py-2 text-left transition-colors hover:bg-muted/60',
+                hasPending ? 'border-amber-300/70' : 'border-border',
+              );
+              const rowContent = (
+                <>
+                  <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium leading-tight">{step.label}</p>
+                    <p className="truncate text-xs text-muted-foreground">{step.description}</p>
+                  </div>
+                  {hasPending ? (
+                    <span className="shrink-0 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                      {step.count} à traiter
+                    </span>
+                  ) : step.tracked ? (
+                    <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-success">
+                      <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+                      À jour
+                    </span>
+                  ) : (
+                    <span className="shrink-0 text-xs text-muted-foreground">À vérifier</span>
+                  )}
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                </>
+              );
+
               return (
                 <li key={step.url}>
-                  <Link
-                    to={step.url}
-                    onClick={onNavigate}
-                    className={cn(
-                      'flex items-center gap-3 rounded-lg border bg-background px-3 py-2 transition-colors hover:bg-muted/60',
-                      hasPending ? 'border-amber-300/70' : 'border-border',
-                    )}
-                  >
-                    <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium leading-tight">
-                        {step.label}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {step.description}
-                      </p>
-                    </div>
-                    {hasPending ? (
-                      <span className="shrink-0 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                        {step.count} à traiter
-                      </span>
-                    ) : step.tracked ? (
-                      <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-success">
-                        <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
-                        À jour
-                      </span>
-                    ) : (
-                      <span className="shrink-0 text-xs text-muted-foreground">À vérifier</span>
-                    )}
-                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                  </Link>
+                  {onStepClick ? (
+                    <button
+                      type="button"
+                      onClick={() => onStepClick(step.url)}
+                      className={rowClassName}
+                    >
+                      {rowContent}
+                    </button>
+                  ) : (
+                    <Link to={step.url} className={rowClassName}>
+                      {rowContent}
+                    </Link>
+                  )}
                 </li>
               );
             })}

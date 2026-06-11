@@ -31,6 +31,29 @@ import {
   unifiedStageKeyForCandidate,
   resolveStageIdForCandidate,
 } from "@/features/recruitment/components/recruitmentUtils";
+import {
+  EMPTY_EMPLOYEE_CONTRACT_CONFIG,
+  normalizeContractType,
+  type EmployeeContractConfigValues,
+} from "@/constants/contracts";
+
+type HireFormData = {
+  hire_date: string;
+  job_title: string;
+  site: string;
+  service_id: string;
+} & EmployeeContractConfigValues;
+
+function createInitialHireData(overrides?: Partial<HireFormData>): HireFormData {
+  return {
+    hire_date: "",
+    job_title: "",
+    site: "",
+    service_id: "",
+    ...EMPTY_EMPLOYEE_CONTRACT_CONFIG,
+    ...overrides,
+  };
+}
 
 export function useRecruitmentPageModel() {
   const { user } = useAuth();
@@ -95,13 +118,7 @@ export function useRecruitmentPageModel() {
     phone: "",
     source: "",
   });
-  const [hireData, setHireData] = useState({
-    hire_date: "",
-    job_title: "",
-    contract_type: "CDI",
-    site: "",
-    service_id: "",
-  });
+  const [hireData, setHireData] = useState<HireFormData>(() => createInitialHireData());
   const [rejectReason, setRejectReason] = useState("");
   const [rejectDetail, setRejectDetail] = useState("");
   const [interviewData, setInterviewData] = useState({
@@ -352,6 +369,11 @@ export function useRecruitmentPageModel() {
         hire_date: data.hire_date,
         job_title: data.job_title || undefined,
         contract_type: data.contract_type,
+        statut: data.statut,
+        contract_end_date: data.contract_end_date?.trim() || undefined,
+        date_debut_execution: data.date_debut_execution?.trim() || undefined,
+        date_conclusion_contrat: data.date_conclusion_contrat?.trim() || undefined,
+        maintien_regime_apprenti: Boolean(data.maintien_regime_apprenti),
         site: data.site || undefined,
         service: data.service_id.trim() || undefined,
         link_to_employee_id: linkToEmployeeId,
@@ -372,7 +394,7 @@ export function useRecruitmentPageModel() {
       queryClient.invalidateQueries({ queryKey: ["recruitment"] });
       setShowHireModal(false);
       setHireCandidateId(null);
-      setHireData({ hire_date: "", job_title: "", contract_type: "CDI", site: "", service_id: "" });
+      setHireData(createInitialHireData());
       toast({ title: "Embauche finalisée", description: res.message });
       if (res.employee_id) {
         setHireSuccessInfo({
@@ -512,11 +534,32 @@ export function useRecruitmentPageModel() {
     [selectedCandidate, stagesByJobId],
   );
 
-  const hireJobTitle = useMemo(() => {
+  const hireJobMeta = useMemo(() => {
     if (!hireCandidateId) return undefined;
     const cand = candidates.find((c) => c.id === hireCandidateId);
-    return cand ? jobs.find((j) => j.id === cand.job_id)?.title : undefined;
+    if (!cand) return undefined;
+    const job = jobs.find((j) => j.id === cand.job_id);
+    return job
+      ? {
+          title: job.title,
+          contract_type: normalizeContractType(job.contract_type),
+          location: job.location ?? "",
+        }
+      : undefined;
   }, [hireCandidateId, candidates, jobs]);
+
+  const hireJobTitle = hireJobMeta?.title;
+
+  useEffect(() => {
+    if (!hireCandidateId || !showHireModal) return;
+    setHireData(
+      createInitialHireData({
+        job_title: hireJobMeta?.title ?? "",
+        contract_type: hireJobMeta?.contract_type ?? EMPTY_EMPLOYEE_CONTRACT_CONFIG.contract_type,
+        site: hireJobMeta?.location ?? "",
+      }),
+    );
+  }, [hireCandidateId, showHireModal, hireJobMeta?.title, hireJobMeta?.contract_type, hireJobMeta?.location]);
 
   const canShowPipeline = jobs.length > 0 || candidates.length > 0;
 

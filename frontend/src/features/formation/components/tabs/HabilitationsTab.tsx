@@ -66,6 +66,7 @@ import {
 } from "@/api/certifications";
 import { cn } from "@/lib/utils";
 import { isPlatformAdmin } from '@/lib/platformAdmin';
+import { invalidateFormationHub } from "@/features/formation/formationQueryInvalidation";
 
 const CATEGORY_OPTIONS = [
   { value: "reglementaire", label: "Réglementaire" },
@@ -285,6 +286,7 @@ export default function HabilitationsTab({
 
   const invalidateAll = useCallback(() => {
     void qc.invalidateQueries({ queryKey: ["certifications"] });
+    invalidateFormationHub(qc);
   }, [qc]);
 
   const saveEmployeeMutation = useMutation({
@@ -327,6 +329,12 @@ export default function HabilitationsTab({
     onSuccess: () => {
       toast({ title: "Enregistré", description: "L’habilitation a été sauvegardée." });
       setEmpSheetOpen(false);
+      // Réafficher toutes les habilitations : le filtre « alertes » masque les entrées valides.
+      setAlertsOnly(false);
+      setFilterStatus("all");
+      if (formEmployeeId) {
+        setFilterEmployeeId(formEmployeeId);
+      }
       invalidateAll();
     },
     onError: (e: Error) => {
@@ -560,8 +568,17 @@ export default function HabilitationsTab({
           ) : errorCerts ? (
             <p className="text-sm text-destructive">Impossible de charger les habilitations.</p>
           ) : filteredEmployeeCerts.length === 0 ? (
-            <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-              Aucune habilitation pour ces critères.
+            <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground space-y-2">
+              <p>
+                {alertsOnly
+                  ? "Aucune habilitation expirée ou expirant bientôt pour ces critères."
+                  : "Aucune habilitation pour ces critères."}
+              </p>
+              {alertsOnly ? (
+                <Button type="button" variant="link" className="h-auto p-0" onClick={() => setAlertsOnly(false)}>
+                  Voir toutes les habilitations
+                </Button>
+              ) : null}
             </div>
           ) : (
             <div className="rounded-md border overflow-x-auto">

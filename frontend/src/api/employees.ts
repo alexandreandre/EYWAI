@@ -35,6 +35,8 @@ export type UpdateEmployeePayload = {
     montant?: number;
   };
   contract_end_date?: string | null;
+  date_debut_execution?: string | null;
+  date_conclusion_contrat?: string | null;
   prior_service_months?: number | null;
   periode_essai?: Record<string, unknown> | null;
   hire_date?: string;
@@ -135,3 +137,18 @@ export const getEmployeesLite = async (): Promise<EmployeeLite[]> => {
     last_name: e.last_name,
   }));
 };
+
+export type EmployeeFormationSelect = EmployeeLite & {
+  email?: string | null;
+};
+
+/** Sélecteurs Formation (email pour résolution collaborateur non-RH). */
+export async function getEmployeesForFormationSelect(): Promise<EmployeeFormationSelect[]> {
+  const rows = await fetchEmployees();
+  return rows.map((e) => ({
+    id: e.id,
+    first_name: e.first_name,
+    last_name: e.last_name,
+    email: e.email ?? null,
+  }));
+}

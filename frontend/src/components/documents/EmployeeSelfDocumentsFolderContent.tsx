@@ -4,6 +4,7 @@ import { getGeneratedDocumentLabel } from '@/lib/generatedDocumentLabel';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { matchesFileSemantic } from '@/components/documents/companyDocumentsExplorerUtils';
+import { exitDocumentSubtitle } from '@/components/documents/employeeDocumentsFolderCounts';
 import { EmployeeSelfGeneratedDocActions } from '@/components/documents/EmployeeSelfGeneratedDocActions';
 import type { EmployeeSelfDocumentsData } from '@/hooks/useEmployeeSelfDocuments';
 import {
@@ -354,9 +355,7 @@ export function EmployeeSelfDocumentsFolderContent({
         <DocumentFileRow
           key={`exit-${doc.id}`}
           name={doc.name}
-          subtitle={
-            doc.date ? `Publié le ${new Date(doc.date).toLocaleDateString('fr-FR')}` : 'Document de sortie'
-          }
+          subtitle={exitDocumentSubtitle(doc)}
           actions={
             <DocumentPreviewDownloadActions
               previewUrl={doc.previewUrl}

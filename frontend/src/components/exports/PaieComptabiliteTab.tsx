@@ -4,10 +4,11 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, Calculator, Database, History, Wallet } from "lucide-react";
+import { FileText, Calculator, Database, History, Wallet, Scale, FileSpreadsheet, Landmark } from "lucide-react";
 import { ExportCommonModel } from "./ExportCommonModel";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ExportHistoryModal } from "./ExportHistoryModal";
+import { AccountingMappingsPanel } from "./AccountingMappingsPanel";
 
 export function PaieComptabiliteTab() {
   const [selectedExport, setSelectedExport] = useState<string | null>(null);
@@ -24,6 +25,9 @@ export function PaieComptabiliteTab() {
     export_cabinet_quadra: "export_cabinet_quadra",
     export_cabinet_sage: "export_cabinet_sage",
     acomptes: "acomptes",
+    saisies: "saisies",
+    fec: "fec",
+    prets_employeur: "prets_employeur",
   };
 
   const exports = [
@@ -54,8 +58,14 @@ export function PaieComptabiliteTab() {
     {
       id: "od_globale",
       name: "OD Globale de paie",
-      description: "Écritures comptables complètes de paie (salaires + charges + PAS)",
+      description: "Écritures comptables unifiées (salaires, charges, PAS, acomptes, saisies, prêts) — sans double comptabilisation",
       icon: Calculator,
+    },
+    {
+      id: "fec",
+      name: "FEC",
+      description: "Fichier des Écritures Comptables (arrêté 2013) généré depuis le registre paie",
+      icon: FileSpreadsheet,
     },
     {
       id: "export_cabinet_generique",
@@ -78,8 +88,20 @@ export function PaieComptabiliteTab() {
     {
       id: "acomptes",
       name: "Acomptes & avances",
-      description: "Liste des versements et remboursements d'acomptes avec écritures comptables (425x)",
+      description: "Détail des versements et remboursements (425x) — déjà inclus dans l'OD globale",
       icon: Wallet,
+    },
+    {
+      id: "saisies",
+      name: "Saisies sur salaire",
+      description: "Détail des prélèvements (427x) — déjà inclus dans l'OD globale",
+      icon: Scale,
+    },
+    {
+      id: "prets_employeur",
+      name: "Prêts employeur",
+      description: "Remboursements sur bulletin et écritures 274x — inclus dans l'OD globale",
+      icon: Landmark,
     },
   ];
 
@@ -167,6 +189,8 @@ export function PaieComptabiliteTab() {
           exportName={historyModal.exportName}
         />
       )}
+
+      <AccountingMappingsPanel />
     </div>
   );
 }

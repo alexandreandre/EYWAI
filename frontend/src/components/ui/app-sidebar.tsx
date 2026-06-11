@@ -215,6 +215,7 @@ const RH_PAIE_GROUPS: SidebarLinkGroup[] = [
       { title: "Simulation Paie", url: "/simulation", icon: FlaskConical },
       { title: "Suivi des taux", url: "/rates", icon: TrendingUp },
       { title: "Exports", url: "/exports", icon: FileDown },
+      { title: "Revue anomalies", url: "/payroll/review", icon: ClipboardCheck },
       { title: "Paie", url: "/payroll", icon: Calculator },
     ],
   },

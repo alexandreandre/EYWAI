@@ -29,7 +29,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
-import apiClient from "@/api/apiClient";
+import { getEmployeesLite } from "@/api/employees";
 import {
   addCheckin,
   cancelObjective,
@@ -102,13 +102,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useViewOptional } from "@/contexts/ViewContext";
 import { cn } from "@/lib/utils";
 import { isPlatformAdmin } from '@/lib/platformAdmin';
-
-type EmployeeRow = {
-  id: string;
-  first_name: string;
-  last_name: string;
-  service_id?: string | null;
-};
+import { invalidateFormationHub } from "@/features/formation/formationQueryInvalidation";
 
 function statusBadge(status: string) {
   const cfg: Record<string, { label: string; className: string }> = {
@@ -219,10 +213,7 @@ export default function ObjectivesTab({
 
   const employeesQuery = useQuery({
     queryKey: ["objectives", "employees"],
-    queryFn: async () => {
-      const res = await apiClient.get<EmployeeRow[]>("/api/employees");
-      return res.data ?? [];
-    },
+    queryFn: getEmployeesLite,
     enabled: showRhActions,
   });
 
@@ -290,7 +281,31 @@ export default function ObjectivesTab({
 
   const invalidate = useCallback(() => {
     void qc.invalidateQueries({ queryKey: ["objectives"] });
+    invalidateFormationHub(qc);
   }, [qc]);
+
+  const hasActiveListFilters =
+    filterEmployee !== "all" ||
+    filterService !== "all" ||
+    filterStatus !== "all" ||
+    filterType !== "all";
+
+  const resetListFiltersForCreatedObjective = useCallback(() => {
+    setReportingMode(false);
+    setFilterStatus("all");
+    setFilterType("all");
+    setIncludeInactive(false);
+    if (scopeIndividual && formEmployee) {
+      setFilterEmployee(formEmployee);
+      setFilterService("all");
+    } else if (!scopeIndividual && formService) {
+      setFilterService(formService);
+      setFilterEmployee("all");
+    } else {
+      setFilterEmployee("all");
+      setFilterService("all");
+    }
+  }, [scopeIndividual, formEmployee, formService]);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -320,6 +335,7 @@ export default function ObjectivesTab({
     onSuccess: () => {
       toast({ title: "Objectif créé" });
       setCreateOpen(false);
+      resetListFiltersForCreatedObjective();
       resetCreateForm();
       invalidate();
     },
@@ -351,6 +367,16 @@ export default function ObjectivesTab({
     onSuccess: () => {
       toast({ title: "Mis à jour" });
       setEditOpen(false);
+      if (editing?.employee_id) {
+        setFilterEmployee(editing.employee_id);
+        setFilterService("all");
+      } else if (editing?.service_id) {
+        setFilterService(editing.service_id);
+        setFilterEmployee("all");
+      }
+      setFilterStatus("all");
+      setFilterType("all");
+      setReportingMode(false);
       setEditing(null);
       invalidate();
     },
@@ -381,6 +407,8 @@ export default function ObjectivesTab({
     onSuccess: () => {
       toast({ title: "Évaluation enregistrée" });
       setEvalOpen(false);
+      setFilterStatus("all");
+      setReportingMode(false);
       setEvalTarget(null);
       invalidate();
     },
@@ -432,6 +460,9 @@ export default function ObjectivesTab({
     onSuccess: () => {
       toast({ title: "Point de suivi ajouté" });
       invalidate();
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "Erreur", description: "Impossible d’ajouter le point de suivi." });
     },
   });
 
@@ -750,8 +781,30 @@ export default function ObjectivesTab({
           ) : null}
         </div>
       ) : filteredRows.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          Aucun objectif pour ces critères.
+        <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground space-y-2">
+          <p>
+            {reportingMode
+              ? "Aucune donnée pour la matrice avec ces filtres."
+              : hasActiveListFilters
+                ? "Aucun objectif ne correspond à ces filtres."
+                : "Aucun objectif pour ces critères."}
+          </p>
+          {hasActiveListFilters || reportingMode ? (
+            <Button
+              type="button"
+              variant="link"
+              className="h-auto p-0"
+              onClick={() => {
+                setReportingMode(false);
+                setFilterEmployee("all");
+                setFilterService("all");
+                setFilterStatus("all");
+                setFilterType("all");
+              }}
+            >
+              Réinitialiser les filtres
+            </Button>
+          ) : null}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-md border">

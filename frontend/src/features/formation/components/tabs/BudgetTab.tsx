@@ -30,6 +30,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useViewOptional } from "@/contexts/ViewContext";
 import { cn } from "@/lib/utils";
 import { isPlatformAdmin } from '@/lib/platformAdmin';
+import { invalidateFormationHub } from "@/features/formation/formationQueryInvalidation";
 
 function eur(n: number) {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n);
@@ -124,6 +125,7 @@ export default function BudgetTab() {
     onSuccess: () => {
       toast({ title: "Budget enregistré" });
       void qc.invalidateQueries({ queryKey: ["training-budget"] });
+      invalidateFormationHub(qc);
     },
     onError: (e: unknown) => {
       const msg = e instanceof Error ? e.message : "Erreur";

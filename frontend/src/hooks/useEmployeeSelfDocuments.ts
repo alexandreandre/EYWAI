@@ -32,6 +32,7 @@ interface PublishedExitDoc {
   url: string;
   preview_url?: string;
   date?: string;
+  is_published?: boolean;
 }
 
 interface ExpenseRow {
@@ -113,6 +114,7 @@ export function useEmployeeSelfDocuments() {
           url: doc.url,
           previewUrl: doc.preview_url ?? doc.url,
           date: doc.date,
+          isPublished: doc.is_published ?? true,
         })
       );
     },

@@ -1,7 +1,7 @@
 // Catalogue formations & inscriptions (Pack Talent)
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
@@ -16,7 +16,7 @@ import {
   X,
 } from "lucide-react";
 
-import apiClient from "@/api/apiClient";
+import { getEmployeesLite } from "@/api/employees";
 import { createEmployeeCertification, getCertificationRefs } from "@/api/certifications";
 import {
   archiveTraining,
@@ -93,8 +93,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useViewOptional } from "@/contexts/ViewContext";
 import { cn } from "@/lib/utils";
 import { isPlatformAdmin } from '@/lib/platformAdmin';
-
-type EmployeeRow = { id: string; first_name: string; last_name: string };
+import { invalidateFormationHub } from "@/features/formation/formationQueryInvalidation";
 
 const TYPE_LABELS: Record<string, string> = {
   presentiel: "Présentiel",
@@ -183,6 +182,7 @@ export default function CatalogueTab({
   catalogueTableView = false,
 }: CatalogueTabProps = {}) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -209,7 +209,7 @@ export default function CatalogueTab({
   }, [forcedMainTab]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(location.search);
     const tid = params.get("enrollTraining");
     if (!tid) return;
     setEnTrainId(tid);
@@ -221,7 +221,7 @@ export default function CatalogueTab({
       { pathname: "/formation", hash: "formations", search: qs ? `?sub=inscriptions&${qs}` : "?sub=inscriptions" },
       { replace: true },
     );
-  }, [navigate]);
+  }, [location.search, navigate]);
 
   const [catType, setCatType] = useState<string>("all");
   const [catStatus, setCatStatus] = useState<string>("active");
@@ -266,10 +266,7 @@ export default function CatalogueTab({
 
   const employeesQuery = useQuery({
     queryKey: ["training", "employees"],
-    queryFn: async () => {
-      const res = await apiClient.get<EmployeeRow[]>("/api/employees");
-      return res.data ?? [];
-    },
+    queryFn: getEmployeesLite,
     enabled: showRhActions,
   });
 
@@ -352,6 +349,7 @@ export default function CatalogueTab({
 
   const invalidate = useCallback(() => {
     void qc.invalidateQueries({ queryKey: ["training"] });
+    invalidateFormationHub(qc);
   }, [qc]);
 
   const addFromCcMutation = useMutation({
@@ -430,6 +428,9 @@ export default function CatalogueTab({
     onSuccess: (data) => {
       toast({ title: "Inscription créée" });
       setEnrollOpen(false);
+      setEnTrain(data.training_id);
+      setEnEmp(data.employee_id);
+      setEnStatus("all");
       setEnTrainId("");
       setEnEmpId("");
       setEnPlanned("");
@@ -483,6 +484,9 @@ export default function CatalogueTab({
     onSuccess: () => {
       toast({ title: "Inscription annulée" });
       invalidate();
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "Erreur", description: "Annulation impossible." });
     },
   });
 

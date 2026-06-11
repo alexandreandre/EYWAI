@@ -11,6 +11,15 @@ export interface ExitDocumentItem {
   url: string;
   previewUrl?: string;
   date?: string;
+  isPublished?: boolean;
+}
+
+export function exitDocumentSubtitle(doc: ExitDocumentItem): string {
+  if (!doc.date) {
+    return doc.isPublished ? 'Document de sortie transmis' : 'Document de sortie';
+  }
+  const formatted = new Date(doc.date).toLocaleDateString('fr-FR');
+  return doc.isPublished ? `Transmis le ${formatted}` : `Généré le ${formatted}`;
 }
 
 export interface ExpenseReceiptItem {

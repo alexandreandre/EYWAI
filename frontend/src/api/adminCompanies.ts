@@ -71,3 +71,84 @@ export function activeStatusToApiParam(
   if (filter === "inactive") return false;
   return undefined;
 }
+
+export interface AdminCompanyStats {
+  employees_count: number;
+  users_count: number;
+  users_by_role: Record<string, number>;
+}
+
+export interface AdminCompanyDetails {
+  id: string;
+  company_name: string;
+  raison_sociale?: string | null;
+  siret?: string | null;
+  siren?: string | null;
+  code_naf?: string | null;
+  naf_ape?: string | null;
+  legal_form?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  urssaf_number?: string | null;
+  adresse_rue?: string | null;
+  adresse_code_postal?: string | null;
+  adresse_ville?: string | null;
+  nom_signataire_rh?: string | null;
+  qualite_signataire_rh?: string | null;
+  address?: Record<string, string> | null;
+  logo_url?: string | null;
+  logo_scale?: number;
+  is_active: boolean;
+  created_at: string;
+  stats: AdminCompanyStats;
+  jei_enabled?: boolean;
+  date_creation_etablissement?: string | null;
+  taux_exoneration?: number | null;
+}
+
+export type AdminCompanyUpdate = Partial<
+  Pick<
+    AdminCompanyDetails,
+    | "company_name"
+    | "raison_sociale"
+    | "siret"
+    | "siren"
+    | "code_naf"
+    | "naf_ape"
+    | "legal_form"
+    | "email"
+    | "phone"
+    | "website"
+    | "urssaf_number"
+    | "adresse_rue"
+    | "adresse_code_postal"
+    | "adresse_ville"
+    | "nom_signataire_rh"
+    | "qualite_signataire_rh"
+    | "is_active"
+    | "jei_enabled"
+    | "date_creation_etablissement"
+    | "taux_exoneration"
+  >
+>;
+
+export async function fetchAdminCompanyDetails(
+  companyId: string,
+): Promise<AdminCompanyDetails> {
+  const { data } = await apiClient.get<AdminCompanyDetails>(
+    `/api/super-admin/companies/${companyId}`,
+  );
+  return data;
+}
+
+export async function patchAdminCompany(
+  companyId: string,
+  body: AdminCompanyUpdate,
+): Promise<AdminCompanyDetails> {
+  const { data } = await apiClient.patch<{ company: AdminCompanyDetails }>(
+    `/api/super-admin/companies/${companyId}`,
+    body,
+  );
+  return data.company;
+}

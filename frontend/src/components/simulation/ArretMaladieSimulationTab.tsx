@@ -41,6 +41,13 @@ interface Employee {
   first_name: string;
   last_name: string;
   statut?: string;
+  salaire_de_base?: { valeur?: number | string | null };
+}
+
+function parseSalaireBase(employee: Employee | undefined): number {
+  const raw = employee?.salaire_de_base?.valeur;
+  if (typeof raw === 'number') return raw;
+  return parseFloat(String(raw ?? 0)) || 0;
 }
 
 const ARRET_TYPE_LABELS: Record<SimulationArretMaladieArretType, string> = {
@@ -153,6 +160,9 @@ export function ArretMaladieSimulationTab({ employees }: ArretMaladieSimulationT
   };
 
   const syn = result?.synthese;
+  const selectedEmployee = employees.find((e) => e.id === employeeId);
+  const ficheSalaire = parseSalaireBase(selectedEmployee);
+  const salaireManquant = Boolean(employeeId) && ficheSalaire <= 0 && salaireOverride.trim() === '';
 
   return (
     <div className="space-y-6">
@@ -171,6 +181,21 @@ export function ArretMaladieSimulationTab({ employees }: ArretMaladieSimulationT
               ))}
             </SelectContent>
           </Select>
+          {selectedEmployee ? (
+            <p className="text-xs text-muted-foreground">
+              Salaire brut fiche :{' '}
+              <span className="font-medium tabular-nums">
+                {ficheSalaire > 0 ? eur(ficheSalaire) : 'non renseigné'}
+              </span>
+            </p>
+          ) : null}
+          {salaireManquant ? (
+            <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              Ce salarié n&apos;a pas de salaire de base sur sa fiche. Les IJSS ne pourront pas
+              être calculées tant qu&apos;un salaire n&apos;est pas renseigné (fiche salarié ou
+              paramètre what-if ci-dessous).
+            </p>
+          ) : null}
         </div>
 
         <div className="space-y-2">

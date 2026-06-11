@@ -80,4 +80,6 @@ export const queryKeys = {
     companyQueryKey(companyId, 'formation', 'dashboard', 'budget', year),
   formationDashboardAchievement: (companyId: string | undefined, year: number) =>
     companyQueryKey(companyId, 'formation', 'dashboard', 'achievement', year),
+  payrollPreflight: (companyId: string | undefined, year: number, month: number) =>
+    companyQueryKey(companyId, 'payroll', 'preflight-anomalies', year, month),
 } as const;

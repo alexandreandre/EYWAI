@@ -24,14 +24,17 @@ import {
   translateFieldName,
   type CreateEmployeeFormValues,
 } from "@/features/employees/components/createEmployeeFormSchema";
+import { EmployeeContractConfigFormFields } from "@/features/employees/components/EmployeeContractConfigFields";
+import { isAlternanceContract, isStageContract } from "@/constants/contracts";
+import {
+  resolveDefaultCollectiveAgreementId,
+  sortAffiliatedCompanyAgreements,
+} from "@/lib/companyCollectiveAgreementUtils";
 
 function defaultTrialSettings(contractType: string) {
   const ct = (contractType || "").toLowerCase();
   const excluded =
-    ct.includes("stage") ||
-    ct.includes("alternance") ||
-    ct.includes("apprentissage") ||
-    ct.includes("professionnalisation");
+    isStageContract(contractType) || isAlternanceContract(contractType);
   if (excluded) {
     return { enabled: false, duree: 2, unite: "mois" as const, renouvellement: true };
   }
@@ -169,10 +172,19 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
   useEffect(() => {
     if (isDialogOpen) {
       collectiveAgreementsApi.getMyCompanyAgreements()
-        .then((res) => setCompanyAgreements(res.data || []))
+        .then((res) => {
+          const allAgreements = res.data || [];
+          const affiliated = sortAffiliatedCompanyAgreements(allAgreements);
+          setCompanyAgreements(affiliated);
+          const current = form.getValues("collective_agreement_id");
+          const resolved = resolveDefaultCollectiveAgreementId(allAgreements, current);
+          if (resolved !== current) {
+            form.setValue("collective_agreement_id", resolved);
+          }
+        })
         .catch(() => setCompanyAgreements([]));
     }
-  }, [isDialogOpen]);
+  }, [isDialogOpen, form]);
 
   // Charger les classifications quand une convention collective est sélectionnée
   const selectedCcId = form.watch("collective_agreement_id");
@@ -1169,52 +1181,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                       <div className="space-y-4">
                         <FormField control={form.control} name="hire_date" render={({ field }) => (<FormItem><FormLabel>Date d'entrée</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="job_title" render={({ field }) => (<FormItem><FormLabel>Intitulé du poste</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                          <FormField control={form.control} name="contract_type" render={({ field }) => (<FormItem><FormLabel>Type de contrat</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                          <FormField control={form.control} name="statut" render={({ field }) => (<FormItem><FormLabel>Statut</FormLabel><FormControl><Input placeholder="Non-Cadre" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        </div>
-                        {(() => {
-                          const ct = (form.watch("contract_type") || "").toLowerCase();
-                          const estDuree = (ct.includes("cdd") && !ct.includes("cdi")) || ct.includes("stage");
-                          if (!estDuree) return null;
-                          return (
-                            <FormField control={form.control} name="contract_end_date" render={({ field }) => (<FormItem><FormLabel>Date de fin de contrat (CDD / stage)</FormLabel><FormControl><Input type="date" {...field} value={field.value ?? ""} /></FormControl><p className="text-xs text-muted-foreground">Déclenche la prime de précarité CDD et le prorata de sortie au dernier mois.</p><FormMessage /></FormItem>)} />
-                          );
-                        })()}
-                        {(() => {
-                          const ct = (form.watch("contract_type") || "").toLowerCase();
-                          const estAlternance = ct.includes("apprentissage") || ct.includes("professionnalisation");
-                          const estApprenti = ct.includes("apprentissage");
-                          if (!estAlternance) return null;
-                          return (
-                            <div className="space-y-4 rounded-md border border-dashed p-4">
-                              <p className="text-sm font-medium text-muted-foreground">
-                                Alternance — les dates ci-dessous déterminent le régime d'exonération.
-                              </p>
-                              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                <FormField control={form.control} name="date_debut_execution" render={({ field }) => (<FormItem><FormLabel>1er jour d'exécution</FormLabel><FormControl><Input type="date" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
-                                <FormField control={form.control} name="date_conclusion_contrat" render={({ field }) => (<FormItem><FormLabel>Date de conclusion (signature)</FormLabel><FormControl><Input type="date" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
-                              </div>
-                              {estApprenti && (
-                                <FormField
-                                  control={form.control}
-                                  name="specificites_paie.maintien_regime_apprenti"
-                                  render={({ field }) => (
-                                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                                      <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                                      <div className="space-y-1 leading-none">
-                                        <FormLabel>Maintien de l'ancien régime (exonération 79 % SMIC)</FormLabel>
-                                        <p className="text-xs text-muted-foreground">
-                                          Contrat conclu avant le 01/03/2025 mais débutant après cette date.
-                                        </p>
-                                      </div>
-                                    </FormItem>
-                                  )}
-                                />
-                              )}
-                            </div>
-                          );
-                        })()}
+                        <EmployeeContractConfigFormFields control={form.control} />
                         <div className="space-y-4 rounded-md border border-dashed p-4">
                           <FormField
                             control={form.control}

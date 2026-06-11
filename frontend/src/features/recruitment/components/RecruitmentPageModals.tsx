@@ -10,6 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, AlertTriangle, UserPlus } from "lucide-react";
 import type { Job } from "@/api/recruitment";
 import type { RecruitmentPageModel } from "@/features/recruitment/hooks/useRecruitmentPageModel";
+import { EmployeeContractConfigFields } from "@/features/employees/components/EmployeeContractConfigFields";
+import { RECRUITMENT_JOB_CONTRACT_TYPES, validateEmployeeContractConfig } from "@/constants/contracts";
+import { useToast } from "@/components/ui/use-toast";
 
 type Props = Pick<
   RecruitmentPageModel,
@@ -127,6 +130,7 @@ export function RecruitmentPageModals({
   loadingInterviewCompanyUsers,
   createInterviewMutation,
 }: Props) {
+  const { toast } = useToast();
   return (
     <>
       <Dialog open={showCreateJob} onOpenChange={setShowCreateJob}>
@@ -170,13 +174,11 @@ export function RecruitmentPageModals({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {["CDI", "CDD", "Alternance", "Stage", "Intérim", "Freelance", "Autre"].map(
-                      (t) => (
-                        <SelectItem key={t} value={t}>
-                          {t}
-                        </SelectItem>
-                      ),
-                    )}
+                    {RECRUITMENT_JOB_CONTRACT_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -235,13 +237,11 @@ export function RecruitmentPageModals({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {["CDI", "CDD", "Alternance", "Stage", "Intérim", "Freelance", "Autre"].map(
-                      (t) => (
-                        <SelectItem key={t} value={t}>
-                          {t}
-                        </SelectItem>
-                      ),
-                    )}
+                    {RECRUITMENT_JOB_CONTRACT_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -431,7 +431,7 @@ export function RecruitmentPageModals({
       </Dialog>
 
       <Dialog open={showHireModal} onOpenChange={setShowHireModal}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="h-5 w-5 text-green-600" />
@@ -455,25 +455,12 @@ export function RecruitmentPageModals({
                 placeholder={hireJobTitle}
               />
             </div>
+            <EmployeeContractConfigFields
+              values={hireData}
+              onChange={(patch) => setHireData({ ...hireData, ...patch })}
+              idPrefix="hire"
+            />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <Label>Type de contrat</Label>
-                <Select
-                  value={hireData.contract_type}
-                  onValueChange={(v) => setHireData({ ...hireData, contract_type: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {["CDI", "CDD", "Alternance", "Stage", "Intérim"].map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               <div>
                 <Label>Établissement / Site</Label>
                 <Input
@@ -482,28 +469,28 @@ export function RecruitmentPageModals({
                   placeholder="Siège, Paris..."
                 />
               </div>
-            </div>
-            <div>
-              <Label>Service / Département</Label>
-              <Select
-                value={hireData.service_id ? hireData.service_id : "__none__"}
-                onValueChange={(v) =>
-                  setHireData({ ...hireData, service_id: v === "__none__" ? "" : v })
-                }
-                disabled={servicesQuery.isLoading}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Aucun service" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Aucun service</SelectItem>
-                  {(servicesQuery.data ?? []).map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div>
+                <Label>Service / Département</Label>
+                <Select
+                  value={hireData.service_id ? hireData.service_id : "__none__"}
+                  onValueChange={(v) =>
+                    setHireData({ ...hireData, service_id: v === "__none__" ? "" : v })
+                  }
+                  disabled={servicesQuery.isLoading}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Aucun service" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Aucun service</SelectItem>
+                    {(servicesQuery.data ?? []).map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <DialogFooter>
@@ -520,6 +507,15 @@ export function RecruitmentPageModals({
               className="bg-green-600 hover:bg-green-700"
               disabled={!hireData.hire_date || hireMutation.isPending}
               onClick={() => {
+                const contractError = validateEmployeeContractConfig(hireData);
+                if (contractError) {
+                  toast({
+                    title: "Informations contrat incomplètes",
+                    description: contractError,
+                    variant: "destructive",
+                  });
+                  return;
+                }
                 if (hireCandidateId) {
                   hireMutation.mutate({ candidateId: hireCandidateId, data: hireData });
                 }

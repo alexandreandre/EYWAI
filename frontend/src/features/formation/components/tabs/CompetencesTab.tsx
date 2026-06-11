@@ -11,7 +11,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
-import apiClient from "@/api/apiClient";
+import { getEmployeesForFormationSelect } from "@/api/employees";
 import {
   analyzeMobility,
   archiveCompetencyRef,
@@ -66,8 +66,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useViewOptional } from "@/contexts/ViewContext";
 import { cn } from "@/lib/utils";
 import { isPlatformAdmin } from '@/lib/platformAdmin';
-
-type EmpRow = { id: string; first_name: string; last_name: string; email?: string | null };
+import { invalidateFormationHub } from "@/features/formation/formationQueryInvalidation";
 
 const CATEGORIES: { value: string; label: string }[] = [
   { value: "technique", label: "Technique" },
@@ -182,10 +181,7 @@ export default function CompetencesTab({
 
   const employeesQuery = useQuery({
     queryKey: ["employees", "competencies", companyKey],
-    queryFn: async () => {
-      const res = await apiClient.get<EmpRow[]>("/api/employees");
-      return res.data ?? [];
-    },
+    queryFn: getEmployeesForFormationSelect,
     enabled: Boolean(activeCompany),
   });
 
@@ -234,6 +230,9 @@ export default function CompetencesTab({
     onSuccess: () => {
       toast({ title: "Évaluations enregistrées" });
       void qc.invalidateQueries({ queryKey: ["competencies"] });
+      invalidateFormationHub(qc);
+      setSvc("all");
+      setCat("all");
       setEvalSheet(false);
     },
     onError: (e: unknown) => {

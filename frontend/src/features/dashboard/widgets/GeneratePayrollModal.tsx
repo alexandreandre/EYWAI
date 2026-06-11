@@ -8,9 +8,12 @@ import { Label } from '@/components/ui/label';
 import { AlertTriangle, Loader2, PartyPopper } from 'lucide-react';
 import { PayrollProgressBar } from '@/features/payroll/components/PayrollProgressBar';
 import { PayrollPreflightChecklist } from '@/features/payroll/components/PayrollPreflightChecklist';
+import { PayrollPreflightAcknowledgeDialog } from '@/features/payroll/components/review/PayrollPreflightAcknowledgeDialog';
 import { usePayrollGeneration } from '@/features/payroll/hooks/usePayrollGeneration';
+import { usePreflightAnomaliesCount } from '@/features/payroll/hooks/usePreflightAnomaliesCount';
 import { PayrollEmployeeEmptyState } from '@/features/payroll/components/PayrollEmployeeEmptyState';
 import { PayrollEmployeeReadinessAlert } from '@/features/payroll/components/PayrollEmployeeReadinessAlert';
+import { acknowledgePreflight } from '@/api/payrollPreflight';
 import type { PayrollGenerateEmployee } from '@/features/payroll/types';
 import type { EmployeeListItem } from '@/hooks/queries/useEmployeesQuery';
 
@@ -42,9 +45,25 @@ export function GeneratePayrollModal({
   const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [uiPhase, setUiPhase] = useState<Phase>('select');
+  const [ackOpen, setAckOpen] = useState(false);
+  const [ackConfirmed, setAckConfirmed] = useState(false);
+  const [ackSubmitting, setAckSubmitting] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
 
   const generation = usePayrollGeneration();
+
+  const parsedMonth = selectedMonth
+    ? {
+        year: parseInt(selectedMonth.split('-')[0], 10),
+        month: parseInt(selectedMonth.split('-')[1], 10),
+      }
+    : { year: 0, month: 0 };
+
+  const {
+    data: preflightData,
+    openAnomaliesCount,
+    isLoading: preflightLoading,
+  } = usePreflightAnomaliesCount(parsedMonth.year, parsedMonth.month, !!selectedMonth);
 
   const generateMonthOptions = () => {
     const options = [];
@@ -137,6 +156,15 @@ export function GeneratePayrollModal({
   };
 
   const handleGenerate = () => {
+    if (openAnomaliesCount > 0) {
+      setAckConfirmed(false);
+      setAckOpen(true);
+      return;
+    }
+    startGeneration();
+  };
+
+  const startGeneration = () => {
     const ids = Array.from(selectedEmployees);
     const [yearStr, monthStr] = selectedMonth.split('-');
     const year = parseInt(yearStr, 10);
@@ -152,6 +180,29 @@ export function GeneratePayrollModal({
 
     setUiPhase('running');
     generation.generateJobs(jobs);
+  };
+
+  const handleAcknowledgeAndGenerate = async () => {
+    if (!selectedMonth || !preflightData) return;
+    setAckSubmitting(true);
+    try {
+      const summary = [
+        ...(preflightData.counts.ecart_heures > 0 ? ['ecart_heures'] : []),
+        ...(preflightData.counts.heures_non_saisies > 0 ? ['heures_non_saisies'] : []),
+        ...(preflightData.counts.pointage > 0 ? ['pointage'] : []),
+        ...(preflightData.counts.conflit_absence > 0 ? ['conflit_absence'] : []),
+      ];
+      await acknowledgePreflight({
+        year: parsedMonth.year,
+        month: parsedMonth.month,
+        open_anomalies_count: openAnomaliesCount,
+        anomaly_types_summary: summary,
+      });
+      setAckOpen(false);
+      startGeneration();
+    } finally {
+      setAckSubmitting(false);
+    }
   };
 
   const handleReset = () => {
@@ -173,6 +224,7 @@ export function GeneratePayrollModal({
   const errorCount = generation.log.filter((l) => l.status === 'error').length;
 
   return (
+    <>
     <Dialog
       open={isOpen}
       onOpenChange={(open) => {
@@ -191,8 +243,16 @@ export function GeneratePayrollModal({
         {uiPhase === 'select' && (
           <>
             <div className="px-6 pb-4">
-              <PayrollPreflightChecklist onNavigate={handleClose} />
+              <PayrollPreflightChecklist onStepClick={onNavigateTo} payrollMonth={selectedMonth} />
             </div>
+
+            {openAnomaliesCount > 0 && !preflightLoading && (
+              <div className="mx-6 mb-4 rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/20 dark:text-amber-100">
+                {openAnomaliesCount} anomalie{openAnomaliesCount > 1 ? 's' : ''} ouverte
+                {openAnomaliesCount > 1 ? 's' : ''} pour ce mois — un acquittement sera demandé avant
+                la génération.
+              </div>
+            )}
 
             <div className="px-6 pb-4">
               <Label htmlFor="month-select" className="text-sm font-medium mb-2 block">
@@ -404,5 +464,16 @@ export function GeneratePayrollModal({
         )}
       </DialogContent>
     </Dialog>
+
+      <PayrollPreflightAcknowledgeDialog
+        open={ackOpen}
+        onOpenChange={setAckOpen}
+        data={preflightData}
+        acknowledged={ackConfirmed}
+        onAcknowledgedChange={setAckConfirmed}
+        onConfirm={handleAcknowledgeAndGenerate}
+        isSubmitting={ackSubmitting}
+      />
+    </>
   );
 }

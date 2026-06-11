@@ -2,6 +2,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../../../api/apiClient';
+import {
+  fetchAdminCompanyDetails,
+  patchAdminCompany,
+  type AdminCompanyDetails,
+} from '@/api/adminCompanies';
 import CollectiveAgreementCard from '@/components/CollectiveAgreementCard';
 import { LogoUploader } from '../../../components/LogoUploader';
 import { AdminPageHeader } from '@/features/admin/components/eywai/AdminPageHeader';
@@ -13,30 +18,32 @@ import {
   defaultJeiFormValues,
   type JeiFormValues,
 } from '@/features/company/components/JeiSettingsFormFields';
+import { EditCompanyDialog } from '@/pages/admin/eywai/companies/EditCompanyDialog';
 
 import { log } from '@/lib/logger';
 import { showErrorToast } from '@/lib/errorMessages';
 import { toast } from '@/hooks/use-toast';
-interface CompanyDetails {
-  id: string;
-  company_name: string;
-  siret?: string;
-  siren?: string;
-  email?: string;
-  phone?: string;
-  address?: any;
-  logo_url?: string | null;
-  logo_scale?: number;
-  is_active: boolean;
-  created_at: string;
-  stats: {
-    employees_count: number;
-    users_count: number;
-    users_by_role: Record<string, number>;
-  };
-  jei_enabled?: boolean;
-  date_creation_etablissement?: string | null;
-  taux_exoneration?: number | null;
+import { Pencil } from 'lucide-react';
+
+function formatCompanyAddress(company: AdminCompanyDetails): string | null {
+  if (company.adresse_rue) {
+    const line = [company.adresse_code_postal, company.adresse_ville].filter(Boolean).join(' ');
+    return line ? `${company.adresse_rue}, ${line}` : company.adresse_rue;
+  }
+  if (company.address && typeof company.address === 'object') {
+    const values = Object.values(company.address).filter(Boolean);
+    return values.length > 0 ? values.join(', ') : null;
+  }
+  return null;
+}
+
+function InfoField({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div>
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm text-foreground">{value?.trim() || 'Non renseigné'}</p>
+    </div>
+  );
 }
 
 interface User {
@@ -51,7 +58,8 @@ interface User {
 export default function CompanyDetails() {
   const { companyId } = useParams<{ companyId: string }>();
   const navigate = useNavigate();
-  const [company, setCompany] = useState<CompanyDetails | null>(null);
+  const [company, setCompany] = useState<AdminCompanyDetails | null>(null);
+  const [showEditCompanyDialog, setShowEditCompanyDialog] = useState(false);
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<User[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -81,10 +89,10 @@ export default function CompanyDetails() {
   }, [companyId]);
 
   const loadCompanyDetails = async () => {
+    if (!companyId) return;
     try {
       setLoading(true);
-      const response = await apiClient.get(`/api/super-admin/companies/${companyId}`);
-      const data = response.data as CompanyDetails;
+      const data = await fetchAdminCompanyDetails(companyId);
       setCompany(data);
       setJeiForm({
         jei_enabled: Boolean(data.jei_enabled),
@@ -225,7 +233,7 @@ export default function CompanyDetails() {
     }
     try {
       setSavingJei(true);
-      await apiClient.patch(`/api/super-admin/companies/${companyId}`, {
+      await patchAdminCompany(companyId, {
         jei_enabled: jeiForm.jei_enabled,
         date_creation_etablissement: jeiForm.jei_enabled
           ? jeiForm.date_creation_etablissement
@@ -247,8 +255,8 @@ export default function CompanyDetails() {
   const toggleStatus = async () => {
     if (!company) return;
     try {
-      await apiClient.patch(`/api/super-admin/companies/${companyId}`, {
-        is_active: !company.is_active
+      await patchAdminCompany(companyId, {
+        is_active: !company.is_active,
       });
       loadCompanyDetails();
     } catch (error) {
@@ -344,47 +352,50 @@ export default function CompanyDetails() {
       </div>
 
       {/* Informations générales */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Informations générales</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="mb-6 rounded-xl border bg-card p-6 shadow-sm">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <label className="block text-sm font-medium text-gray-500 mb-1">Nom de l'entreprise</label>
-            <p className="text-lg text-gray-900">{company.company_name}</p>
+            <h2 className="text-xl font-bold text-foreground">Informations générales</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Identité légale, coordonnées et signataire des documents RH.
+            </p>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-500 mb-1">SIRET</label>
-            <p className="text-lg text-gray-900">{company.siret || 'Non renseigné'}</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-500 mb-1">SIREN</label>
-            <p className="text-lg text-gray-900">{company.siren || 'Non renseigné'}</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-500 mb-1">Email</label>
-            <p className="text-lg text-gray-900">{company.email || 'Non renseigné'}</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-500 mb-1">Téléphone</label>
-            <p className="text-lg text-gray-900">{company.phone || 'Non renseigné'}</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-500 mb-1">Date de création</label>
-            <p className="text-lg text-gray-900">{new Date(company.created_at).toLocaleDateString('fr-FR')}</p>
-          </div>
+          <Button variant="outline" size="sm" onClick={() => setShowEditCompanyDialog(true)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Modifier
+          </Button>
         </div>
 
-        {company.address && (
-          <div className="mt-6">
-            <label className="block text-sm font-medium text-gray-500 mb-1">Adresse</label>
-            <p className="text-lg text-gray-900">{JSON.stringify(company.address)}</p>
-          </div>
-        )}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <InfoField label="Nom affiché" value={company.company_name} />
+          <InfoField label="Raison sociale" value={company.raison_sociale} />
+          <InfoField label="Forme juridique" value={company.legal_form} />
+          <InfoField label="SIREN" value={company.siren} />
+          <InfoField label="SIRET" value={company.siret} />
+          <InfoField label="Code NAF/APE" value={company.code_naf ?? company.naf_ape} />
+          <InfoField label="E-mail" value={company.email} />
+          <InfoField label="Téléphone" value={company.phone} />
+          <InfoField label="Site web" value={company.website} />
+          <InfoField
+            label="Date de création"
+            value={new Date(company.created_at).toLocaleDateString('fr-FR')}
+          />
+          <InfoField label="Adresse" value={formatCompanyAddress(company)} />
+          <InfoField label="Signataire RH" value={company.nom_signataire_rh} />
+          <InfoField label="Qualité signataire" value={company.qualite_signataire_rh} />
+        </div>
       </div>
+
+      <EditCompanyDialog
+        open={showEditCompanyDialog}
+        onOpenChange={setShowEditCompanyDialog}
+        company={company}
+        onSaved={(updated) => {
+          setCompany(updated);
+          loadCompanyDetails();
+        }}
+        toast={toast}
+      />
 
       <div className="bg-white rounded-lg shadow p-6 mb-6">
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

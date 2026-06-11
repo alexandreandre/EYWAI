@@ -48,6 +48,10 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { SaisieModal } from "@/components/SaisieModal";
 import { cn } from "@/lib/utils";
+import {
+  resolveDefaultCollectiveAgreementId,
+  sortAffiliatedCompanyAgreements,
+} from '@/lib/companyCollectiveAgreementUtils';
 import { TAB_AUGMENTATIONS_PROMOTIONS, normalizeEmployeeDetailTab } from "@/features/employee-detail/utils/tabs";
 import type { Employee } from "@/features/employee-detail/types";
 import { EmployeeDetailSaisiesTab } from "@/features/employee-detail/components/EmployeeDetailSaisiesTab";
@@ -285,13 +289,20 @@ export default function EmployeeDetail() {
     enabled: Boolean(activeCompanyId && employeeReady),
     staleTime: 5 * 60_000,
   });
-  const companyAgreements = companyAgreementsQuery.data ?? [];
+  const companyAgreementsRaw = companyAgreementsQuery.data ?? [];
+  const companyAgreements = useMemo(
+    () => sortAffiliatedCompanyAgreements(companyAgreementsRaw),
+    [companyAgreementsRaw],
+  );
 
   useEffect(() => {
-    if (employee?.collective_agreement_id !== undefined) {
-      setCollectiveAgreementId(employee.collective_agreement_id || null);
-    }
-  }, [employee?.collective_agreement_id]);
+    if (employee?.collective_agreement_id === undefined) return;
+    const resolved = resolveDefaultCollectiveAgreementId(
+      companyAgreementsRaw,
+      employee.collective_agreement_id,
+    );
+    setCollectiveAgreementId(resolved);
+  }, [employee?.collective_agreement_id, companyAgreementsRaw]);
 
   const handleSaveCollectiveAgreement = async () => {
     if (!employeeId) return;

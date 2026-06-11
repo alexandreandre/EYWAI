@@ -2,6 +2,7 @@
 // Modèle commun d'export - ÉTAPE 1 : Structure et UX uniquement
 
 import { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { getEmptyExportAlertMessage, isEmptyDataMessage } from "@/lib/exportEmptyState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -39,10 +40,20 @@ import {
 } from "lucide-react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { previewExport, generateExport, ExportPreviewResponse, ExportGenerateResponse, ExportType } from "@/api/exports";
+import { fetchEmployeesSummary } from "@/api/employees";
 
 export type ExportStep = "parametrage" | "previsualisation" | "generation";
 export type ExportFileFormat = "csv" | "xlsx";
 export type NotesFraisCabinetFormat = "generique" | "quadra" | "sage";
+export type OdRegroupement = "global" | "par_etablissement" | "par_analytique";
+export type BankFileFormat = "sepa" | "csv";
+
+const OD_EXPORT_TYPES = new Set<ExportType>([
+  "od_salaires",
+  "od_charges_sociales",
+  "od_pas",
+  "od_globale",
+]);
 
 const EXPORT_TYPE_MAP: Record<string, ExportType> = {
   journal_paie: "journal_paie",
@@ -63,9 +74,16 @@ const EXPORT_TYPE_MAP: Record<string, ExportType> = {
   notes_frais: "notes_frais",
   "notes-frais": "notes_frais",
   acomptes: "acomptes",
+  saisies: "saisies",
+  fec: "fec",
+  prets_employeur: "prets_employeur",
+  "prets-employeur": "prets_employeur",
+  paiement_organismes: "paiement_organismes",
+  "paiement-organismes": "paiement_organismes",
+  attestations_annexes: "attestations_annexes",
+  "attestations-annexes": "attestations_annexes",
   "Acomptes & avances": "acomptes",
   "Journal de paie": "journal_paie",
-  "Écritures comptables (OD)": "ecritures_comptables",
   "Charges sociales par caisse": "charges_sociales",
   "Congés payés / Absences": "conges_absences",
   "Notes de frais": "notes_frais",
@@ -88,6 +106,10 @@ const FILE_FORMAT_EXPORT_TYPES = new Set<ExportType>([
   "export_cabinet_quadra",
   "export_cabinet_sage",
   "acomptes",
+  "saisies",
+  "prets_employeur",
+  "paiement_organismes",
+  "attestations_annexes",
 ]);
 
 function resolveApiExportType(exportType: string): ExportType {
@@ -112,6 +134,10 @@ function defaultExportFormat(exportType: string): ExportFileFormat {
     apiType === "conges_absences" ||
     apiType === "notes_frais" ||
     apiType === "acomptes" ||
+    apiType === "saisies" ||
+    apiType === "prets_employeur" ||
+    apiType === "paiement_organismes" ||
+    apiType === "attestations_annexes" ||
     apiType === "recapitulatif_montants"
   ) {
     return "xlsx";
@@ -171,23 +197,39 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
   // État pour le paramétrage
   const [selectedPeriod, setSelectedPeriod] = useState<string>("");
   const [selectedCompany, setSelectedCompany] = useState<string>(activeCompany?.company_id || "");
-  const [selectedScope, setSelectedScope] = useState<"all" | "filtered">("all");
+  const [selectedScope, setSelectedScope] = useState<"all" | "selection">("all");
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
+  const [odRegroupement, setOdRegroupement] = useState<OdRegroupement>("global");
+  const [bankFileFormat, setBankFileFormat] = useState<BankFileFormat>("sepa");
   
   // Paramètres spécifiques aux paiements
   const [executionDate, setExecutionDate] = useState<string>("");
   const [paymentLabel, setPaymentLabel] = useState<string>("");
   const [excludedEmployees, setExcludedEmployees] = useState<string[]>([]);
 
-  useEffect(() => {
-    setExportFormat(defaultExportFormat(exportType));
-    setCabinetFormat("generique");
-  }, [exportType]);
+  const { data: employeesSummary = [] } = useQuery({
+    queryKey: ["employees-summary-payroll", activeCompany?.company_id],
+    queryFn: () => fetchEmployeesSummary("payroll"),
+    enabled: Boolean(activeCompany?.company_id),
+  });
+
+  const resolvedEmployeeIds = useMemo(() => {
+    if (selectedScope === "all") return undefined;
+    return selectedEmployeeIds.length > 0 ? selectedEmployeeIds : undefined;
+  }, [selectedScope, selectedEmployeeIds]);
 
   const buildExportFilters = () => {
+    const filters: Record<string, unknown> = { include_consolidated: true };
     if (apiExportType === "notes_frais") {
-      return { cabinet_format: cabinetFormat };
+      filters.cabinet_format = cabinetFormat;
     }
-    return { include_consolidated: true };
+    if (OD_EXPORT_TYPES.has(apiExportType)) {
+      filters.regroupement = odRegroupement;
+    }
+    if (apiExportType === "virement_salaires") {
+      filters.bank_format = bankFileFormat;
+    }
+    return filters;
   };
 
   // Générer les options de mois
@@ -227,6 +269,15 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
     return previewData.warnings;
   }, [previewData, emptyExportMessage]);
 
+  useEffect(() => {
+    setExportFormat(defaultExportFormat(exportType));
+    setCabinetFormat("generique");
+    setOdRegroupement("global");
+    setBankFileFormat("sepa");
+    setSelectedScope("all");
+    setSelectedEmployeeIds([]);
+  }, [exportType]);
+
   // Initialiser avec le mois actuel
   useEffect(() => {
     const now = new Date();
@@ -239,6 +290,10 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
       setError("Veuillez sélectionner une période");
       return;
     }
+    if (selectedScope === "selection" && selectedEmployeeIds.length === 0) {
+      setError("Sélectionnez au moins un collaborateur");
+      return;
+    }
     
     setIsLoading(true);
     setError(null);
@@ -248,7 +303,7 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
         export_type: apiExportType,
         period: selectedPeriod,
         company_id: selectedCompany,
-        employee_ids: selectedScope === "all" ? undefined : [],
+        employee_ids: resolvedEmployeeIds,
         excluded_employee_ids: excludedEmployees.length > 0 ? excludedEmployees : undefined,
         execution_date: executionDate || undefined,
         payment_label: paymentLabel || undefined,
@@ -449,27 +504,79 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
                 <UsersIcon className="h-4 w-4" />
                 Périmètre collaborateur
               </Label>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="scope-all"
-                  checked={selectedScope === "all"}
-                  onCheckedChange={(checked) => checked && setSelectedScope("all")}
-                />
-                <Label htmlFor="scope-all" className="font-normal cursor-pointer">
-                  Tous les collaborateurs
-                </Label>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="scope-all"
+                    checked={selectedScope === "all"}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedScope("all");
+                        setSelectedEmployeeIds([]);
+                      }
+                    }}
+                  />
+                  <Label htmlFor="scope-all" className="font-normal cursor-pointer">
+                    Tous les collaborateurs
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="scope-selection"
+                    checked={selectedScope === "selection"}
+                    onCheckedChange={(checked) => checked && setSelectedScope("selection")}
+                  />
+                  <Label htmlFor="scope-selection" className="font-normal cursor-pointer">
+                    Sélection de collaborateurs
+                  </Label>
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="scope-filtered"
-                  checked={selectedScope === "filtered"}
-                  onCheckedChange={(checked) => checked && setSelectedScope("filtered")}
-                />
-                <Label htmlFor="scope-filtered" className="font-normal cursor-pointer">
-                  Filtrer par critères (à venir)
-                </Label>
-              </div>
+              {selectedScope === "selection" ? (
+                <div className="max-h-40 space-y-2 overflow-y-auto rounded-md border p-3">
+                  {employeesSummary.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">Aucun collaborateur éligible paie.</p>
+                  ) : (
+                    employeesSummary.map((emp) => (
+                      <div key={emp.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`emp-${emp.id}`}
+                          checked={selectedEmployeeIds.includes(emp.id)}
+                          onCheckedChange={(checked) => {
+                            setSelectedEmployeeIds((prev) =>
+                              checked
+                                ? [...prev, emp.id]
+                                : prev.filter((id) => id !== emp.id),
+                            );
+                          }}
+                        />
+                        <Label htmlFor={`emp-${emp.id}`} className="font-normal cursor-pointer">
+                          {emp.first_name} {emp.last_name}
+                        </Label>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : null}
             </div>
+
+            {OD_EXPORT_TYPES.has(apiExportType) ? (
+              <div className="space-y-2 max-w-xs">
+                <Label htmlFor="od-regroupement">Regroupement comptable</Label>
+                <Select
+                  value={odRegroupement}
+                  onValueChange={(v) => setOdRegroupement(v as OdRegroupement)}
+                >
+                  <SelectTrigger id="od-regroupement">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="global">Global</SelectItem>
+                    <SelectItem value="par_etablissement">Par établissement</SelectItem>
+                    <SelectItem value="par_analytique">Par analytique</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
 
             {/* Paramètres spécifiques aux paiements */}
             {(exportType === "virement-salaires" || exportType === "virement_salaires" || exportType === "recapitulatif-montants" || exportType === "recapitulatif_montants") && (
@@ -503,6 +610,21 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
                     <p className="text-xs text-muted-foreground">
                       Libellé qui apparaîtra sur les relevés bancaires des collaborateurs
                     </p>
+                  </div>
+                  <div className="space-y-2 max-w-xs">
+                    <Label htmlFor="bank-format">Format fichier bancaire</Label>
+                    <Select
+                      value={bankFileFormat}
+                      onValueChange={(v) => setBankFileFormat(v as BankFileFormat)}
+                    >
+                      <SelectTrigger id="bank-format">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sepa">SEPA pain.001 (XML)</SelectItem>
+                        <SelectItem value="csv">CSV bancaire</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </>
@@ -580,9 +702,9 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 text-sm">
-                  {apiExportType === "acomptes" ? (
+                  {apiExportType === "acomptes" || apiExportType === "saisies" ? (
                     <>
-                      {previewData.totals.total_versements != null && (
+                      {apiExportType === "acomptes" && previewData.totals.total_versements != null && (
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Total versements :</span>
                           <span className="font-medium">
@@ -590,11 +712,19 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
                           </span>
                         </div>
                       )}
-                      {previewData.totals.total_remboursements != null && (
+                      {apiExportType === "acomptes" && previewData.totals.total_remboursements != null && (
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Total remboursements :</span>
                           <span className="font-medium">
                             {formatEuro(previewData.totals.total_remboursements)}
+                          </span>
+                        </div>
+                      )}
+                      {apiExportType === "saisies" && previewData.totals.total_prelevements != null && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Total prélèvements :</span>
+                          <span className="font-medium">
+                            {formatEuro(previewData.totals.total_prelevements)}
                           </span>
                         </div>
                       )}

@@ -26,8 +26,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { isCddOrStage, normalizeNir } from '@/features/employee-detail/components/employeeProfileFormUtils';
+import { normalizeNir } from '@/features/employee-detail/components/employeeProfileFormUtils';
 import type { EmployeeProfileEditFormValues } from '@/features/employee-detail/components/employeeProfileEditSchema';
+import { EmployeeContractConfigFormFields } from '@/features/employees/components/EmployeeContractConfigFields';
 import { getCollectiveAgreementLabel } from '@/lib/employeeDisplayUtils';
 
 interface EmployeeProfileEditFormProps {
@@ -53,13 +54,11 @@ export function EmployeeProfileEditForm({
   availableMutuelles,
   loadingMutuelles,
 }: EmployeeProfileEditFormProps) {
-  const contractType = useWatch({ control, name: 'contract_type' });
   const statut = useWatch({ control, name: 'statut' });
   const selectedCcId = useWatch({ control, name: 'collective_agreement_id' });
   const isPasPerso = useWatch({ control, name: 'specificites_paie.prelevement_a_la_source.is_personnalise' });
   const isResidencePermit = useWatch({ control, name: 'is_subject_to_residence_permit' });
   const isCadre = statut?.toLowerCase() === 'cadre';
-  const showContractEnd = isCddOrStage(contractType);
   const companyId = useActiveCompanyId();
   const { data: jeiSettings } = useQuery({
     queryKey: ['jei-settings', companyId],
@@ -248,26 +247,6 @@ export function EmployeeProfileEditForm({
           />
           <FormField
             control={control}
-            name="contract_type"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Type de contrat</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {['CDI', 'CDD', 'Contrat d\'alternance', 'Convention de stage'].map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={control}
             name="job_title"
             render={({ field }) => (
               <FormItem className="sm:col-span-2">
@@ -277,25 +256,9 @@ export function EmployeeProfileEditForm({
               </FormItem>
             )}
           />
-          <FormField
-            control={control}
-            name="statut"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Statut</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="Non-Cadre">Non-Cadre</SelectItem>
-                    <SelectItem value="Cadre">Cadre</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        </div>
+        <EmployeeContractConfigFormFields control={control} />
+        <div className="grid gap-3 sm:grid-cols-2">
           <FormField
             control={control}
             name="duree_hebdomadaire"
@@ -327,19 +290,6 @@ export function EmployeeProfileEditForm({
               </FormItem>
             )}
           />
-          {showContractEnd && (
-            <FormField
-              control={control}
-              name="contract_end_date"
-              render={({ field }) => (
-                <FormItem className="sm:col-span-2">
-                  <FormLabel>Date de fin de contrat</FormLabel>
-                  <FormControl><Input {...field} type="date" /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          )}
         </div>
       </section>
 

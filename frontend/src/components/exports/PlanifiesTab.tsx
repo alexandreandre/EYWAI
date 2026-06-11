@@ -66,6 +66,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { ScheduledExportsPanel } from "@/components/exports/ScheduledExportsPanel";
 import {
   Tooltip,
   TooltipContent,
@@ -485,7 +486,7 @@ function DispatchWizardDialog({ open, channel, period, companyId, onClose, onDon
               </Alert>
             ) : (
               <p className="text-muted-foreground text-sm">
-                Génération de l&apos;OD globale et du journal de paie pour la comptabilité.
+                Génération de l&apos;OD globale, du journal de paie et du FEC pour la comptabilité.
               </p>
             )}
 
@@ -750,7 +751,7 @@ export function PlanifiesTab() {
         <DispatchChannelCard
           channel="compta"
           title="Comptabilité"
-          description="OD globale + journal de paie"
+          description="OD globale + journal de paie + FEC"
           icon={Calculator}
           status={statusData?.compta}
           isLoading={statusLoading}
@@ -778,6 +779,8 @@ export function PlanifiesTab() {
           />
         ))}
       </div>
+
+      <ScheduledExportsPanel />
 
       <DispatchHistoryTable
         rows={historyData?.dispatches ?? []}

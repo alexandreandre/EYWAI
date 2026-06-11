@@ -6,6 +6,11 @@ import React, { useState, useEffect, forwardRef, useImperativeHandle, useMemo } 
 import { cn } from '../../lib/utils';
 import * as collectiveAgreementsApi from '@/api/collectiveAgreements';
 import type { SimulationCreateRequest } from '@/api/simulation';
+import {
+  getDefaultCompanyCollectiveAgreementId,
+  resolveDefaultCollectiveAgreementId,
+  sortAffiliatedCompanyAgreements,
+} from '@/lib/companyCollectiveAgreementUtils';
 
 interface SimulationEmployee {
   id: string;
@@ -69,7 +74,18 @@ export const PayslipSimulationForm = forwardRef<PayslipSimulationFormRef, Paysli
 
   useEffect(() => {
     collectiveAgreementsApi.getMyCompanyAgreements()
-      .then((res) => setCompanyAgreements(res.data || []))
+      .then((res) => {
+        const allAgreements = res.data || [];
+        const affiliated = sortAffiliatedCompanyAgreements(allAgreements);
+        setCompanyAgreements(affiliated);
+        setFormData((prev) => {
+          const resolved = resolveDefaultCollectiveAgreementId(allAgreements, prev.collective_agreement_id || null);
+          return {
+            ...prev,
+            collective_agreement_id: resolved ?? '',
+          };
+        });
+      })
       .catch(() => setCompanyAgreements([]));
   }, []);
 
@@ -113,12 +129,22 @@ export const PayslipSimulationForm = forwardRef<PayslipSimulationFormRef, Paysli
 
   const handleEmployeeChange = (employeeId: string) => {
     if (!employeeId) {
-      setFormData((prev) => ({ ...prev, employee_id: '' }));
+      setFormData((prev) => ({
+        ...prev,
+        employee_id: '',
+        collective_agreement_id:
+          getDefaultCompanyCollectiveAgreementId(companyAgreements) ?? '',
+        classification: null,
+      }));
       return;
     }
     const employee = employees.find((e) => e.id === employeeId);
     if (!employee) return;
     const statut = (employee.statut === 'Cadre' ? 'Cadre' : 'Non-cadre') as 'Cadre' | 'Non-cadre';
+    const resolvedCcId = resolveDefaultCollectiveAgreementId(
+      companyAgreements,
+      employee.collective_agreement_id,
+    );
     setFormData((prev) => ({
       ...prev,
       employee_id: employeeId,
@@ -126,7 +152,7 @@ export const PayslipSimulationForm = forwardRef<PayslipSimulationFormRef, Paysli
       duree_hebdomadaire: employee.duree_hebdomadaire ?? prev.duree_hebdomadaire,
       salaire_brut: parseSalaireBase(employee) || prev.salaire_brut,
       date_entree: employee.hire_date || prev.date_entree,
-      collective_agreement_id: employee.collective_agreement_id || prev.collective_agreement_id,
+      collective_agreement_id: resolvedCcId ?? '',
       classification: employee.classification_conventionnelle || prev.classification,
     }));
   };

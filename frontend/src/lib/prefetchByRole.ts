@@ -290,6 +290,7 @@ export function prefetchRoute(queryClient: QueryClient, path: string, companyId?
       }
       return import('@/pages/rh/Payroll');
     },
+    '/payroll/review': () => import('@/pages/rh/PayrollReview'),
     '/payroll/generate': () => {
       if (companyId) {
         return queryClient.prefetchQuery({

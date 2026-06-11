@@ -176,6 +176,14 @@ function ProtectedRoutes() {
                   <Route path="/employee-loans" element={<Pages.EmployeeLoans />} />
                   <Route path="/rates" element={<Pages.Rates />} />
                   <Route
+                    path="/payroll/review"
+                    element={
+                      <Suspense fallback={<TableSkeleton rows={8} columns={5} />}>
+                        <Pages.PayrollReview />
+                      </Suspense>
+                    }
+                  />
+                  <Route
                     path="/payroll/generate"
                     element={
                       <Suspense fallback={<TableSkeleton rows={8} columns={5} />}>

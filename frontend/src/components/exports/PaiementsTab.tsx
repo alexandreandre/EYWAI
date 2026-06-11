@@ -17,6 +17,7 @@ export function PaiementsTab() {
   const exportTypeMapping: Record<string, string> = {
     "virement-salaires": "virement_salaires",
     "recapitulatif-montants": "recapitulatif_montants",
+    "paiement-organismes": "paiement_organismes",
   };
 
   const exports = [
@@ -35,9 +36,8 @@ export function PaiementsTab() {
     {
       id: "paiement-organismes",
       name: "Paiement organismes",
-      description: "Fichiers de paiement pour les organismes sociaux - À venir",
+      description: "Échéances URSSAF, retraite, mutuelle et prévoyance par organisme",
       icon: Building2,
-      disabled: true,
     },
   ];
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  exitDocumentSubtitle,
   filterVisibleGeneratedDocs,
   countEmployeeSelfFolderItems,
 } from '@/components/documents/employeeDocumentsFolderCounts';
@@ -25,6 +26,30 @@ function doc(status: string): GeneratedDocument {
     updated_at: '2025-01-01',
   };
 }
+
+describe('exitDocumentSubtitle', () => {
+  it('distingue généré et transmis', () => {
+    expect(
+      exitDocumentSubtitle({
+        id: '1',
+        name: 'Certificat',
+        url: 'http://x',
+        date: '2026-06-01T10:00:00Z',
+        isPublished: false,
+      })
+    ).toMatch(/^Généré le /);
+
+    expect(
+      exitDocumentSubtitle({
+        id: '2',
+        name: 'Certificat',
+        url: 'http://x',
+        date: '2026-06-10T10:00:00Z',
+        isPublished: true,
+      })
+    ).toMatch(/^Transmis le /);
+  });
+});
 
 describe('filterVisibleGeneratedDocs', () => {
   it('exclut les brouillons', () => {

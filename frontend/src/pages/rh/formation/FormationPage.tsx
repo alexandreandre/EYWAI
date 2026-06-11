@@ -2,7 +2,7 @@
 
 import { RhPageHeader } from '@/components/layout';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Settings } from "lucide-react";
 import { SharkFinLoader } from '@/components/SharkFinLoader';
@@ -54,6 +54,7 @@ function TabFallback() {
 
 export default function FormationPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [tab, setTab] = useState<FormationTabId>(() => parseFormationRoute().tab);
   const [legacySub, setLegacySub] = useState<FormationLegacySub | undefined>(
     () => parseFormationRoute().legacySub,
@@ -90,12 +91,7 @@ export default function FormationPage() {
 
   useEffect(() => {
     syncFromLocation();
-  }, [syncFromLocation]);
-
-  useEffect(() => {
-    window.addEventListener("hashchange", syncFromLocation);
-    return () => window.removeEventListener("hashchange", syncFromLocation);
-  }, [syncFromLocation]);
+  }, [location.pathname, location.hash, location.search, syncFromLocation]);
 
   const navigateToTab = (value: FormationTabId, sub?: string) => {
     const params = new URLSearchParams();

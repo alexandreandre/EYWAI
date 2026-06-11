@@ -31,6 +31,10 @@ import {
 import type { Employee } from '@/features/employee-detail/types';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { queryKeys } from '@/lib/queryKeys';
+import {
+  resolveDefaultCollectiveAgreementId,
+  sortAffiliatedCompanyAgreements,
+} from '@/lib/companyCollectiveAgreementUtils';
 
 export type EmployeeProfileEditVariant = 'onboarding' | 'edit';
 
@@ -82,7 +86,16 @@ export function EmployeeProfileEditDialog({
   useEffect(() => {
     if (!open) return;
     collectiveAgreementsApi.getMyCompanyAgreements()
-      .then((res) => setCompanyAgreements(res.data ?? []))
+      .then((res) => {
+        const allAgreements = res.data ?? [];
+        const affiliated = sortAffiliatedCompanyAgreements(allAgreements);
+        setCompanyAgreements(affiliated);
+        const current = form.getValues('collective_agreement_id');
+        const resolved = resolveDefaultCollectiveAgreementId(allAgreements, current);
+        if (resolved !== current) {
+          form.setValue('collective_agreement_id', resolved);
+        }
+      })
       .catch(() => setCompanyAgreements([]));
     getTeams(false)
       .then((res) => setActiveTeams(res.teams ?? []))

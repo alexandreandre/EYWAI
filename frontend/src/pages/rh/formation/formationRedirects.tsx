@@ -1,12 +1,22 @@
 import { Navigate, useLocation } from "react-router-dom";
 
-import { RH_LEGACY_PATH_TO_HASH } from "@/pages/rh/formation/formationTabRouting";
+/** Anciennes routes RH → /formation#<onglet> (+ sous-onglet si pertinent). */
+const RH_LEGACY_REDIRECTS: Record<string, { hash: string; search?: string }> = {
+  "/habilitations": { hash: "conformite", search: "?sub=habilitations" },
+  "/objectives": { hash: "developpement", search: "?sub=objectifs" },
+  "/catalogue-formations": { hash: "formations", search: "?sub=catalogue" },
+};
 
-/** Anciennes routes RH → /formation#<onglet> */
 export function RhFormationLegacyRedirect() {
   const { pathname, search } = useLocation();
-  const hash = RH_LEGACY_PATH_TO_HASH[pathname] ?? "pilotage";
-  return <Navigate to={{ pathname: "/formation", hash, search }} replace />;
+  const target = RH_LEGACY_REDIRECTS[pathname] ?? { hash: "pilotage" };
+  const mergedSearch = search || target.search || "";
+  return (
+    <Navigate
+      to={{ pathname: "/formation", hash: target.hash, search: mergedSearch }}
+      replace
+    />
+  );
 }
 
 const EMPLOYEE_LEGACY_HASH: Record<string, string> = {

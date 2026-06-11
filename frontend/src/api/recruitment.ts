@@ -298,6 +298,11 @@ export async function hireCandidate(
     service?: string;
     job_title?: string;
     contract_type?: string;
+    statut?: string;
+    contract_end_date?: string;
+    date_debut_execution?: string;
+    date_conclusion_contrat?: string;
+    maintien_regime_apprenti?: boolean;
     link_to_employee_id?: string;
     skip_duplicate_check?: boolean;
   }

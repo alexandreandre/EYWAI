@@ -9,7 +9,11 @@ export type ExportType =
   | "conges_absences"
   | "notes_frais"
   | "acomptes"
-  | "ecritures_comptables"
+  | "saisies"
+  | "prets_employeur"
+  | "paiement_organismes"
+  | "attestations_annexes"
+  | "fec"
   | "od_salaires"
   | "od_charges_sociales"
   | "od_pas"
@@ -52,6 +56,7 @@ export interface ExportTotals {
   total_amount?: number;
   total_versements?: number;
   total_remboursements?: number;
+  total_prelevements?: number;
   operations_count?: number;
 }
 
@@ -82,7 +87,7 @@ export interface ExportGenerateRequest {
   company_id?: string;
   employee_ids?: string[];
   filters?: Record<string, any>;
-  format: "csv" | "xlsx";
+  format: "csv" | "xlsx" | "xml";
   excluded_employee_ids?: string[]; // Pour exclure manuellement des collaborateurs
   execution_date?: string; // Date d'exécution souhaitée
   payment_label?: string; // Libellé de virement
@@ -173,28 +178,30 @@ export async function downloadExport(exportId: string): Promise<{ download_url: 
 export const SCHEDULABLE_EXPORT_TYPES: ExportType[] = [
   "journal_paie",
   "virement_salaires",
-  "od_salaires",
-  "od_charges_sociales",
-  "od_pas",
   "od_globale",
+  "fec",
   "export_cabinet_generique",
   "export_cabinet_quadra",
   "export_cabinet_sage",
   "acomptes",
+  "saisies",
+  "prets_employeur",
+  "paiement_organismes",
   "dsn_mensuelle",
 ];
 
 export const SCHEDULED_EXPORT_TYPE_LABELS: Partial<Record<ExportType, string>> = {
   journal_paie: "Journal de paie",
   virement_salaires: "Paiement des salaires (virement)",
-  od_salaires: "Écritures OD — Salaires",
-  od_charges_sociales: "Écritures OD — Charges sociales",
-  od_pas: "Écritures OD — PAS",
-  od_globale: "Écritures OD — Globale",
+  od_globale: "OD globale de paie",
+  fec: "FEC (fichier des écritures comptables)",
   export_cabinet_generique: "Export cabinet (générique)",
   export_cabinet_quadra: "Export cabinet Quadra",
   export_cabinet_sage: "Export cabinet Sage",
   acomptes: "Acomptes & avances",
+  saisies: "Saisies sur salaire",
+  prets_employeur: "Prêts employeur",
+  paiement_organismes: "Paiement organismes",
   dsn_mensuelle: "DSN mensuelle",
 };
 
@@ -301,6 +308,47 @@ export async function getScheduledExportHistory(
 ): Promise<ExportHistoryResponse> {
   const { data } = await apiClient.get<ExportHistoryResponse>(
     `/api/exports/scheduled/${scheduleId}/history`,
+    { headers: scheduledHeaders(companyId) },
+  );
+  return data;
+}
+
+export interface AccountingMapping {
+  id: string;
+  company_id?: string | null;
+  rubrique_code: string;
+  rubrique_libelle: string;
+  compte_comptable: string;
+  journal: string;
+  sens: "debit" | "credit";
+  type_rubrique: string;
+  analytique?: string | null;
+  is_active: boolean;
+  is_global_default: boolean;
+}
+
+export interface AccountingMappingsResponse {
+  mappings: AccountingMapping[];
+  company_overrides_count: number;
+}
+
+export async function getAccountingMappings(
+  companyId: string | null | undefined,
+): Promise<AccountingMappingsResponse> {
+  const { data } = await apiClient.get<AccountingMappingsResponse>(
+    "/api/exports/accounting-mappings",
+    { headers: scheduledHeaders(companyId) },
+  );
+  return data;
+}
+
+export async function upsertAccountingMapping(
+  companyId: string | null | undefined,
+  body: Omit<AccountingMapping, "id" | "company_id" | "is_global_default">,
+): Promise<AccountingMapping> {
+  const { data } = await apiClient.put<AccountingMapping>(
+    "/api/exports/accounting-mappings",
+    body,
     { headers: scheduledHeaders(companyId) },
   );
   return data;

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { needsContractEndDate } from '@/constants/contracts';
 
 export const employeeProfileEditSchema = z
   .object({
@@ -30,6 +31,8 @@ export const employeeProfileEditSchema = z
     is_temps_partiel: z.boolean(),
     duree_hebdomadaire: z.coerce.number().positive({ message: 'Durée hebdomadaire requise.' }),
     contract_end_date: z.string().optional(),
+    date_debut_execution: z.string().optional(),
+    date_conclusion_contrat: z.string().optional(),
     salaire_de_base: z.object({
       valeur: z.coerce.number().positive({ message: 'Le salaire doit être positif.' }),
     }),
@@ -58,6 +61,7 @@ export const employeeProfileEditSchema = z
       prevoyance: z.object({
         adhesion: z.boolean(),
       }),
+      maintien_regime_apprenti: z.boolean().optional(),
       personnel_rd_eligible_jei: z.boolean().optional(),
     }),
     is_subject_to_residence_permit: z.boolean(),
@@ -66,8 +70,7 @@ export const employeeProfileEditSchema = z
     residence_permit_number: z.string().optional(),
   })
   .superRefine((data, ctx) => {
-    const t = data.contract_type.toLowerCase();
-    if ((t.includes('cdd') || t.includes('stage')) && !data.contract_end_date?.trim()) {
+    if (needsContractEndDate(data.contract_type) && !data.contract_end_date?.trim()) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'Date de fin de contrat requise pour un CDD ou un stage.',
