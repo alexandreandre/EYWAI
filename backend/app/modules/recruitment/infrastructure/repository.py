@@ -445,6 +445,11 @@ class EmployeeCreator(IEmployeeCreator):
         service: Optional[str] = None,
         job_title: Optional[str] = None,
         contract_type: Optional[str] = None,
+        statut: Optional[str] = None,
+        contract_end_date: Optional[str] = None,
+        date_debut_execution: Optional[str] = None,
+        date_conclusion_contrat: Optional[str] = None,
+        maintien_regime_apprenti: bool = False,
         actor_id: Optional[str] = None,
         link_to_employee_id: Optional[str] = None,
         skip_duplicate_check: bool = False,
@@ -531,10 +536,21 @@ class EmployeeCreator(IEmployeeCreator):
             "hire_date": hire_date,
             "job_title": job_title or job.get("title"),
             "contract_type": contract_type or job.get("contract_type") or "CDI",
+            "statut": statut or "Non-Cadre",
             "employment_status": "en_onboarding",
             "employee_folder_name": folder_name,
             "username": username,
         }
+        if contract_end_date:
+            employee_data["contract_end_date"] = contract_end_date
+        if date_debut_execution:
+            employee_data["date_debut_execution"] = date_debut_execution
+        if date_conclusion_contrat:
+            employee_data["date_conclusion_contrat"] = date_conclusion_contrat
+        if maintien_regime_apprenti:
+            employee_data["specificites_paie"] = {
+                "maintien_regime_apprenti": True,
+            }
         svc_id = _optional_uuid_str(service)
         if svc_id:
             employee_data["service_id"] = svc_id

@@ -76,6 +76,8 @@ class UpdateEmployee(BaseModel):
     coordonnees_bancaires: Dict[str, Any] | None = None
     salaire_de_base: Dict[str, Any] | None = None
     contract_end_date: date | None = None
+    date_debut_execution: date | None = None
+    date_conclusion_contrat: date | None = None
     prior_service_months: int | None = None
     specificites_paie: Dict[str, Any] | None = None
     hire_date: date | None = None

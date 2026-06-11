@@ -518,6 +518,112 @@ def list_advance_payments_by_period(
     return result
 
 
+def get_seizure_accounting_account(
+    company_id: str | None, seizure_type: str
+) -> str:
+    """Résout le compte PCG opposition (427x) pour une saisie."""
+    from app.modules.saisies_avances.domain.enums import (
+        DEFAULT_SEIZURE_ACCOUNTING_ACCOUNTS,
+    )
+
+    config_data: dict | None = None
+    if company_id:
+        r = (
+            supabase.table("payroll_config")
+            .select("config_data")
+            .eq("config_key", "comptes_saisies")
+            .eq("company_id", company_id)
+            .eq("is_active", True)
+            .limit(1)
+            .execute()
+        )
+        if r.data:
+            config_data = r.data[0].get("config_data") or {}
+    if not config_data:
+        r = (
+            supabase.table("payroll_config")
+            .select("config_data")
+            .eq("config_key", "comptes_saisies")
+            .is_("company_id", "null")
+            .eq("is_active", True)
+            .limit(1)
+            .execute()
+        )
+        if r.data:
+            config_data = r.data[0].get("config_data") or {}
+    if config_data and seizure_type in config_data:
+        return str(config_data[seizure_type])
+    return DEFAULT_SEIZURE_ACCOUNTING_ACCOUNTS.get(seizure_type, "427000")
+
+
+def list_seizure_deductions_by_period(
+    company_id: str, period: str
+) -> List[Dict[str, Any]]:
+    """Prélèvements de saisies appliqués sur les bulletins de la période."""
+    from app.modules.saisies_avances.domain.rules import seizure_type_label
+
+    year, month = map(int, period.split("-"))
+
+    seizures_r = (
+        supabase.table("salary_seizures")
+        .select("*")
+        .eq("company_id", company_id)
+        .execute()
+    )
+    seizures_map = {
+        str(s["id"]): s for s in (seizures_r.data or []) if s.get("id")
+    }
+    if not seizures_map:
+        return []
+
+    deductions_r = (
+        supabase.table("salary_seizure_deductions")
+        .select("*")
+        .in_("seizure_id", list(seizures_map.keys()))
+        .eq("year", year)
+        .eq("month", month)
+        .order("created_at")
+        .execute()
+    )
+    deductions = deductions_r.data or []
+
+    employee_ids = list(
+        {
+            str(seizures_map[str(d["seizure_id"])]["employee_id"])
+            for d in deductions
+            if d.get("seizure_id")
+            and str(d["seizure_id"]) in seizures_map
+            and seizures_map[str(d["seizure_id"])].get("employee_id")
+        }
+    )
+    employees_map = _load_employees_map(employee_ids)
+
+    result: List[Dict[str, Any]] = []
+    for deduction in deductions:
+        seizure_id = str(deduction.get("seizure_id", ""))
+        seizure = seizures_map.get(seizure_id)
+        if not seizure:
+            continue
+        employee_id = seizure.get("employee_id")
+        seizure_type = seizure.get("type", "saisie_arret")
+        row = dict(deduction)
+        row["employee_id"] = employee_id
+        row["employee_name"] = employees_map.get(str(employee_id), "")
+        row["seizure_type"] = seizure_type
+        row["seizure_type_label"] = seizure_type_label(seizure_type)
+        row["creditor_name"] = seizure.get("creditor_name") or ""
+        row["seizure_status"] = seizure.get("status")
+        row["accounting_account"] = get_seizure_accounting_account(
+            company_id, seizure_type
+        )
+        row["deducted_amount"] = float(deduction.get("deducted_amount", 0) or 0)
+        row["seizable_amount"] = float(deduction.get("seizable_amount", 0) or 0)
+        row["net_salary"] = float(deduction.get("net_salary", 0) or 0)
+        row["period"] = period
+        result.append(row)
+    return result
+
+
 def list_advance_repayments_by_period(
     company_id: str, period: str
 ) -> List[Dict[str, Any]]:

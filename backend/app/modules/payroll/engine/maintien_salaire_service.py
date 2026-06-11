@@ -891,9 +891,22 @@ def calculer_maintien(
     if not arret.get("subrogation_active"):
         alertes.append("IJSS versées directement au salarié")
     if arret.get("subrogation_active") and float(ijss.get("ijss_theorique") or 0) == 0:
-        alertes.append(
-            "IJSS non calculables, vérifier le salaire journalier de base"
-        )
+        sjb = float(ijss.get("salaire_journalier_base") or 0)
+        bp = float(ijss.get("base_plafonnee") or 0)
+        if sjb <= 0:
+            alertes.append(
+                "IJSS non calculables : salaire de base absent ou à 0 € "
+                "(renseignez la fiche salarié ou le paramètre what-if « Salaire brut mensuel »)"
+            )
+        elif bp <= 0:
+            alertes.append(
+                "IJSS non calculables : plafond SS (PSS) indisponible "
+                "(vérifiez la configuration paie / barèmes actifs)"
+            )
+        else:
+            alertes.append(
+                "IJSS non calculables, vérifier le salaire journalier de base"
+            )
     if prevoyance.get("montant", 0) > 0:
         alertes.append(
             f"Complément prévoyance estimé : {prevoyance['montant']:.2f} € "

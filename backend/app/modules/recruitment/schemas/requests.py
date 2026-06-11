@@ -88,6 +88,11 @@ class HireCandidateBody(BaseModel):
     service: Optional[str] = None
     job_title: Optional[str] = None
     contract_type: Optional[str] = None
+    statut: Optional[str] = None
+    contract_end_date: Optional[str] = None
+    date_debut_execution: Optional[str] = None
+    date_conclusion_contrat: Optional[str] = None
+    maintien_regime_apprenti: bool = False
     link_to_employee_id: Optional[str] = None
     skip_duplicate_check: bool = False
 

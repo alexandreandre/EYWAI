@@ -152,6 +152,17 @@ def advance_type_label(advance_type: str, prime_label: str | None = None) -> str
     return base
 
 
+def seizure_type_label(seizure_type: str) -> str:
+    """Libellé affichage saisie sur salaire."""
+    labels = {
+        "saisie_arret": "Saisie sur salaire (arrêt)",
+        "pension_alimentaire": "Pension alimentaire",
+        "atd": "ATD (Avis à tiers détenteur)",
+        "satd": "SATD (Avis simplifié à tiers détenteur)",
+    }
+    return labels.get(seizure_type, "Saisie sur salaire")
+
+
 def compute_advance_available_from_figures(
     daily_salary: Decimal,
     days_worked: Decimal,

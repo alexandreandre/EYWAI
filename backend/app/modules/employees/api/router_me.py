@@ -91,7 +91,7 @@ def get_my_credentials_pdf(current_user: User = Depends(get_current_user)):
 def get_my_published_exit_documents(
     current_user: User = Depends(get_current_user),
 ):
-    """(Espace Employé) Liste des documents de sortie publiés pour l'employé connecté."""
+    """(Espace Employé) Documents de sortie : publiés par les RH ou générés dès l'ouverture du départ."""
     try:
         employee_id = resolve_my_employee_id(current_user)
         return queries.get_my_published_exit_documents(employee_id)

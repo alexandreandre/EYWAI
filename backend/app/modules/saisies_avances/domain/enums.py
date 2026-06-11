@@ -24,6 +24,13 @@ DEFAULT_ACCOUNTING_ACCOUNTS: dict[str, str] = {
     "acompte_prime": "4253",
 }
 
+DEFAULT_SEIZURE_ACCOUNTING_ACCOUNTS: dict[str, str] = {
+    "saisie_arret": "4271",
+    "pension_alimentaire": "4272",
+    "atd": "4273",
+    "satd": "4274",
+}
+
 # Constantes métier (à centraliser ici après migration)
 AUTO_APPROVAL_THRESHOLD_EUR = 100
 BUCKET_ADVANCE_PAYMENTS = "advance_payments"

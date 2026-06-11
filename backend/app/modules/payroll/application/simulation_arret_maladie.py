@@ -7,35 +7,20 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any, Dict
 
-from app.core.database import supabase
+from app.modules.employees.domain.salary_timeline import salaire_actif_a_date
+from app.modules.employees.infrastructure.repository import EmployeeRepository
 from app.modules.maintenance_settings.application.queries import get_maintenance_settings
+from app.modules.payroll.application.simulation_queries import (
+    company_to_payroll_payload,
+    employee_to_payroll_payload,
+    load_baremes,
+    load_company,
+    load_employee,
+)
 from app.modules.payroll.engine.contexte import ChargerContexte
 from app.modules.payroll.engine.maintien_salaire_service import calculer_maintien
 from app.modules.payroll.schemas.requests import SimulationArretMaladieRequest
 from app.modules.users.schemas.responses import User
-
-
-def _company_payload_for_contexte(company_row: Dict[str, Any]) -> Dict[str, Any]:
-    return {
-        "entreprise": {
-            "identification": {
-                "raison_sociale": company_row.get("name")
-                or company_row.get("legal_name")
-                or "",
-                "siret": str(company_row.get("siret") or ""),
-                "adresse": company_row.get("address")
-                or company_row.get("headquarters_address")
-                or "",
-            },
-            "parametres_paie": {
-                "effectif": int(
-                    company_row.get("effectif")
-                    or company_row.get("employee_count")
-                    or 0
-                ),
-            },
-        }
-    }
 
 
 def _hire_date_pour_anciennete(reference: date, mois: int) -> date:
@@ -45,33 +30,36 @@ def _hire_date_pour_anciennete(reference: date, mois: int) -> date:
     return date(annee, mois_idx + 1, 1)
 
 
-def _employee_payload_for_contexte(emp: Dict[str, Any]) -> Dict[str, Any]:
-    sdb = emp.get("salaire_de_base") or {}
-    if isinstance(sdb, dict):
-        salaire_base = float(sdb.get("valeur") or 0)
-    else:
-        salaire_base = float(emp.get("salaire_base_mensuel") or 0)
-    return {
-        "first_name": emp.get("first_name") or "",
-        "last_name": emp.get("last_name") or "",
-        "nir": emp.get("nir") or "",
-        "statut": emp.get("statut") or "Non-Cadre",
-        "emploi": emp.get("job_title") or "",
-        "duree_hebdomadaire": float(emp.get("duree_hebdomadaire") or 35),
-        "date_entree": emp.get("hire_date") or "",
-        "salaire_base": salaire_base,
-        "taux_prelevement_source": float(emp.get("taux_prelevement_source") or 0),
-        "prevoyance": emp.get("prevoyance") or "NON",
-        "is_temps_partiel": bool(emp.get("is_temps_partiel")),
-        "avantages_en_nature": emp.get("avantages_en_nature") or {},
-        "convention_collective": emp.get("convention_collective") or {},
-        "classification_conventionnelle": emp.get("classification_conventionnelle")
-        or {},
-        "mutuelle": emp.get("mutuelle") or {},
-        "titres_restaurant": emp.get("titres_restaurant") or {},
-        "transport": emp.get("transport") or {},
-        "is_alsace_moselle": bool(emp.get("is_alsace_moselle", False)),
-    }
+def _employee_payload_for_contexte(
+    emp: Dict[str, Any],
+    company: Dict[str, Any],
+    *,
+    salaire_a_date: date,
+) -> Dict[str, Any]:
+    """Aligné sur les autres simulations paie + champs requis par calculer_maintien."""
+    employee_map = employee_to_payroll_payload(emp, company)
+    timeline = EmployeeRepository().get_salary_history(
+        str(emp.get("id") or ""),
+        str(emp.get("company_id") or ""),
+    )
+    employee_map["salaire_base"] = salaire_actif_a_date(
+        timeline,
+        salaire_a_date,
+        float(employee_map.get("salaire_base") or 0.0),
+    )
+    employee_map.update(
+        {
+            "nir": emp.get("nir") or "",
+            "prevoyance": emp.get("prevoyance") or "NON",
+            "is_temps_partiel": bool(emp.get("is_temps_partiel")),
+            "avantages_en_nature": emp.get("avantages_en_nature") or {},
+            "mutuelle": emp.get("mutuelle") or {},
+            "titres_restaurant": emp.get("titres_restaurant") or {},
+            "transport": emp.get("transport") or {},
+            "is_alsace_moselle": bool(emp.get("is_alsace_moselle", False)),
+        }
+    )
+    return employee_map
 
 
 def run_simulation_arret_maladie(
@@ -94,29 +82,10 @@ def run_simulation_arret_maladie(
             "Accès refusé : droits RH requis pour la simulation arrêt maladie."
         )
 
-    emp_res = (
-        supabase.table("employees")
-        .select("*")
-        .eq("id", body.employee_id)
-        .maybe_single()
-        .execute()
-    )
-    if not emp_res.data:
-        raise LookupError("Employé introuvable.")
-
-    employee_row = emp_res.data
-    emp_company = str(employee_row.get("company_id") or "")
-    if emp_company != str(active_cid):
-        raise LookupError("Employé introuvable.")
-
-    co_res = (
-        supabase.table("companies")
-        .select("*")
-        .eq("id", emp_company)
-        .maybe_single()
-        .execute()
-    )
-    company_row = co_res.data or {}
+    emp_company = str(active_cid)
+    employee_row = load_employee(body.employee_id, emp_company)
+    company_row = load_company(emp_company)
+    baremes = load_baremes()
 
     settings_model = get_maintenance_settings(emp_company)
     settings_dict = settings_model.model_dump(mode="json")
@@ -147,7 +116,11 @@ def run_simulation_arret_maladie(
         "salaire_periode_reelle": 0.0,
     }
 
-    employee_map = _employee_payload_for_contexte(employee_row)
+    employee_map = _employee_payload_for_contexte(
+        employee_row,
+        company_row,
+        salaire_a_date=body.date_debut,
+    )
 
     # Overrides « what-if » : n'altèrent que la simulation (pas la fiche salarié).
     if body.salaire_base_override is not None:
@@ -159,8 +132,8 @@ def run_simulation_arret_maladie(
             body.date_debut, int(body.anciennete_mois_override)
         ).isoformat()
 
-    company_map = _company_payload_for_contexte(company_row)
-    contexte = ChargerContexte(employee_map, company_map, {})
+    company_map = company_to_payroll_payload(company_row)
+    contexte = ChargerContexte(employee_map, company_map, baremes)
 
     resultats_maintien = calculer_maintien(
         arret_data,

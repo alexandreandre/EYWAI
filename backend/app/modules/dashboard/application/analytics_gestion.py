@@ -6,10 +6,16 @@ from __future__ import annotations
 
 import calendar
 from collections import defaultdict
-from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Optional, Set, Tuple
+from datetime import date, timedelta
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.database import supabase
+from app.modules.schedules.domain.ecart_rules import (
+    compute_row_status,
+    detect_absence_conflicts,
+    is_forfait_jour,
+    validated_absence_days_in_month,
+)
 from app.modules.annual_reviews.infrastructure.repository import SupabaseAnnualReviewRepository
 from app.modules.certifications.application import queries as cert_queries
 from app.modules.cse.application import queries as cse_queries
@@ -38,22 +44,12 @@ from app.modules.training_budget.application.queries import get_budget
 ACTIONABLE_STATUSES = frozenset({"planifie", "en_attente_acceptation", "accepte"})
 CLOSED_STATUSES = frozenset({"realise", "cloture"})
 ANNUAL_REVIEW_PRIORITY_DAYS = 14
-ECART_THRESHOLD_HOURS = 2.0
-ECART_THRESHOLD_RATIO = 0.1
 
 
 def _parse_date(value: Any) -> Optional[date]:
-    if value is None:
-        return None
-    if isinstance(value, date) and not isinstance(value, datetime):
-        return value
-    if isinstance(value, datetime):
-        return value.date()
-    raw = str(value)[:10]
-    try:
-        return date.fromisoformat(raw)
-    except ValueError:
-        return None
+    from app.modules.schedules.domain.ecart_rules import parse_iso_date
+
+    return parse_iso_date(value)
 
 
 def _period_year(period_start: str, period_end: str) -> int:
@@ -65,106 +61,6 @@ def _calendar_month_for_overview(period_end: str) -> Tuple[int, int]:
     """Calendriers paie : mois contenant la fin de période (ou mois courant)."""
     end = _parse_date(period_end) or date.today()
     return end.year, end.month
-
-
-def _month_period_bounds(year: int, month: int) -> Tuple[date, date]:
-    last_day = calendar.monthrange(year, month)[1]
-    return date(year, month, 1), date(year, month, last_day)
-
-
-def _is_forfait_jour(statut: Optional[str]) -> bool:
-    if not statut:
-        return False
-    s = str(statut).lower().replace(" ", "_")
-    return "forfait" in s and "jour" in s
-
-
-def _sum_hours(values: List[Any]) -> float:
-    total = 0.0
-    for v in values:
-        if isinstance(v, (int, float)) and not isinstance(v, bool):
-            total += float(v)
-    return total
-
-
-def _compute_month_completion(planned_days: List[Dict[str, Any]], year: int, month: int) -> str:
-    days_in_month = calendar.monthrange(year, month)[1]
-    by_jour = {int(d.get("jour", 0)): d for d in planned_days if d.get("jour")}
-    for day in range(1, days_in_month + 1):
-        dt = date(year, month, day)
-        if dt.weekday() >= 5:
-            continue
-        row = by_jour.get(day)
-        if row is None:
-            return "a_saisir"
-        hp = row.get("heures_prevues")
-        if hp is None:
-            return "a_saisir"
-    return "saisi"
-
-
-def _compute_row_status(
-    planned_days: List[Dict[str, Any]],
-    actual_days: List[Dict[str, Any]],
-    year: int,
-    month: int,
-    forfait: bool,
-) -> str:
-    completion = _compute_month_completion(planned_days, year, month)
-    if completion == "a_saisir":
-        return "a_saisir"
-    heures_prevues = _sum_hours([d.get("heures_prevues") for d in planned_days])
-    heures_faites = _sum_hours([d.get("heures_faites") for d in actual_days])
-    if forfait:
-        jours_prevus = sum(
-            1
-            for d in planned_days
-            if d.get("type") == "travail" and d.get("heures_prevues") == 1
-        )
-        jours_faits = sum(
-            1 for d in actual_days if d.get("heures_faites") == 1
-        )
-        return "saisi_avec_ecart" if jours_faits != jours_prevus else "saisi"
-    ecart = abs(heures_faites - heures_prevues)
-    if ecart <= ECART_THRESHOLD_HOURS:
-        return "saisi"
-    if heures_prevues <= 0:
-        return "saisi_avec_ecart" if ecart > ECART_THRESHOLD_HOURS else "saisi"
-    if ecart / heures_prevues > ECART_THRESHOLD_RATIO:
-        return "saisi_avec_ecart"
-    return "saisi"
-
-
-def _validated_absence_days_in_month(
-    absences: List[Dict[str, Any]], year: int, month: int
-) -> Set[int]:
-    days: Set[int] = set()
-    start, end = _month_period_bounds(year, month)
-    for req in absences:
-        selected = req.get("selected_days")
-        if not isinstance(selected, list):
-            continue
-        for raw in selected:
-            d = _parse_date(raw)
-            if d and start <= d <= end:
-                days.add(d.day)
-    return days
-
-
-def _detect_absence_conflicts(
-    planned_days: List[Dict[str, Any]], validated_days: Set[int]
-) -> int:
-    conflicts = 0
-    by_jour = {int(d.get("jour", 0)): d for d in planned_days if d.get("jour")}
-    for day in validated_days:
-        row = by_jour.get(day)
-        if not row:
-            conflicts += 1
-            continue
-        t = str(row.get("type") or "")
-        if t not in ("arret_maladie", "conge"):
-            conflicts += 1
-    return conflicts
 
 
 def _build_entretiens_stats(company_id: str, year: int) -> EntretiensAnalytics:
@@ -254,7 +150,7 @@ def _build_calendriers_overview(
 
     for emp in employees:
         eid = str(emp["id"])
-        forfait = _is_forfait_jour(emp.get("statut"))
+        forfait = is_forfait_jour(emp.get("statut"))
         sched = schedule_by_emp.get(eid) or {}
         planned_raw = sched.get("planned_calendar") or {}
         actual_raw = sched.get("actual_hours") or {}
@@ -268,7 +164,7 @@ def _build_calendriers_overview(
             if isinstance(actual_raw, dict)
             else []
         )
-        row_status = _compute_row_status(
+        row_status = compute_row_status(
             planned_days, actual_days, year, month, forfait
         )
         if row_status == "a_saisir":
@@ -277,10 +173,10 @@ def _build_calendriers_overview(
             saisis += 1
         if row_status == "saisi_avec_ecart":
             avec_ecart += 1
-        validated_days = _validated_absence_days_in_month(
+        validated_days = validated_absence_days_in_month(
             absences_by_emp.get(eid, []), year, month
         )
-        if _detect_absence_conflicts(planned_days, validated_days) > 0:
+        if detect_absence_conflicts(planned_days, validated_days) > 0:
             conflits += 1
 
     progress = round((saisis / total) * 100) if total else 0

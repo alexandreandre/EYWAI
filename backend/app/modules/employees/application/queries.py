@@ -185,8 +185,7 @@ def get_my_published_exit_documents(
     employee_id: str,
 ) -> List[Dict[str, Any]]:
     """
-    Liste des documents de sortie publiés pour l'employé (espace employé).
-    Comportement identique à get_my_published_exit_documents (router legacy).
+    Documents de sortie visibles par l'employé (publiés ou générés dès l'ouverture du départ).
     """
     company_id = get_employee_company_id(employee_id)
     if not company_id:

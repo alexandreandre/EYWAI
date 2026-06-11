@@ -85,12 +85,91 @@ def _storage_signed_urls(
     )
 
 
+def _exit_document_display_name(doc: Dict[str, Any]) -> str:
+    from app.modules.employee_exits.infrastructure.mappers import DOCUMENT_NAME_MAP
+
+    doc_type = str(doc.get("document_type") or "")
+    return DOCUMENT_NAME_MAP.get(doc_type, doc.get("filename") or "Document")
+
+
+def _fetch_active_exit_procedure_documents(
+    employee_id: str,
+    company_id: str,
+    *,
+    exclude_exit_document_ids: set[str],
+) -> List[Dict[str, Any]]:
+    """
+    Documents générés dans la procédure de départ en cours, visibles dès son ouverture
+    (sans attendre une publication RH explicite).
+    """
+    emp_resp = (
+        supabase.table("employees")
+        .select("employment_status, current_exit_id")
+        .eq("id", employee_id)
+        .eq("company_id", company_id)
+        .maybe_single()
+        .execute()
+    )
+    emp = emp_resp.data if emp_resp else None
+    if not emp:
+        return []
+    if str(emp.get("employment_status") or "").lower() != "en_sortie":
+        return []
+    exit_id = emp.get("current_exit_id")
+    if not exit_id:
+        return []
+
+    exit_docs_resp = (
+        supabase.table("exit_documents")
+        .select("*")
+        .eq("exit_id", str(exit_id))
+        .eq("company_id", company_id)
+        .eq("document_category", "generated")
+        .order("generated_at", desc=True)
+        .execute()
+    )
+    documents: List[Dict[str, Any]] = []
+    for doc in exit_docs_resp.data or []:
+        doc_id = str(doc.get("id") or "")
+        if not doc_id or doc_id in exclude_exit_document_ids:
+            continue
+        storage_path = doc.get("storage_path")
+        if not storage_path:
+            continue
+        try:
+            download_url, preview_url = _storage_signed_urls(
+                "exit_documents", storage_path
+            )
+            if not download_url:
+                continue
+            documents.append(
+                {
+                    "id": doc_id,
+                    "name": _exit_document_display_name(doc),
+                    "url": download_url,
+                    "preview_url": preview_url or download_url,
+                    "date": doc.get("generated_at", doc.get("created_at")),
+                    "document_type": doc.get("document_type"),
+                    "document_category": "autres",
+                    "is_published": False,
+                }
+            )
+        except Exception as e:
+            logger.warning(
+                f"⚠ Erreur génération URL pour document de sortie {doc_id}: {e}"
+            )
+            continue
+    return documents
+
+
 def fetch_published_exit_documents(
     employee_id: str, company_id: str
 ) -> List[Dict[str, Any]]:
     """
-    Documents de sortie publiés (employee_documents, category 'autres')
-    avec URL signée pour chaque document. Comportement identique au router legacy.
+    Documents de sortie pour l'espace employé :
+    - publiés dans employee_documents ;
+    - plus, pendant une procédure en cours (statut en_sortie), les documents générés
+      dès l'ouverture du départ (sans attendre le dernier jour travaillé).
     """
     docs_response = (
         supabase.table("employee_documents")
@@ -101,10 +180,12 @@ def fetch_published_exit_documents(
         .order("published_at", desc=True)
         .execute()
     )
-    if not docs_response.data:
-        return []
-    documents = []
-    for doc in docs_response.data:
+    documents: List[Dict[str, Any]] = []
+    published_exit_document_ids: set[str] = set()
+    for doc in docs_response.data or []:
+        source_exit_doc_id = doc.get("source_exit_document_id")
+        if source_exit_doc_id:
+            published_exit_document_ids.add(str(source_exit_doc_id))
         try:
             download_url, preview_url = _storage_signed_urls(
                 "exit_documents", doc["storage_path"]
@@ -121,11 +202,19 @@ def fetch_published_exit_documents(
                         "date": doc.get("published_at", doc.get("created_at")),
                         "document_type": doc.get("document_type"),
                         "document_category": doc.get("document_category", "autres"),
+                        "is_published": True,
                     }
                 )
         except Exception as e:
             logger.warning(f"⚠ Erreur génération URL pour document {doc.get('id')}: {e}")
             continue
+
+    procedure_docs = _fetch_active_exit_procedure_documents(
+        employee_id,
+        company_id,
+        exclude_exit_document_ids=published_exit_document_ids,
+    )
+    documents.extend(procedure_docs)
     return documents
 
 

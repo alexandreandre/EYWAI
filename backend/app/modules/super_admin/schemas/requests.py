@@ -65,10 +65,21 @@ class CompanyUpdate(BaseModel):
     """Mise à jour partielle d'une entreprise."""
 
     company_name: Optional[str] = None
+    raison_sociale: Optional[str] = None
     siret: Optional[str] = None
     siren: Optional[str] = None
+    code_naf: Optional[str] = None
+    naf_ape: Optional[str] = None
+    legal_form: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
+    website: Optional[str] = None
+    urssaf_number: Optional[str] = None
+    adresse_rue: Optional[str] = None
+    adresse_code_postal: Optional[str] = None
+    adresse_ville: Optional[str] = None
+    nom_signataire_rh: Optional[str] = None
+    qualite_signataire_rh: Optional[str] = None
     address: Optional[Dict[str, str]] = None
     logo_url: Optional[str] = None
     logo_scale: Optional[float] = None

@@ -103,6 +103,8 @@ DOCUMENT_NAME_MAP = {
     "certificat_travail": "Certificat de travail",
     "attestation_pole_emploi": "Attestation employeur",
     "solde_tout_compte": "Solde de tout compte",
+    "attestation_portabilite_mutuelle": "Attestation de portabilité mutuelle",
+    "attestation_portabilite_prevoyance": "Attestation de portabilité prévoyance",
 }
 
 GENERATABLE_DOCUMENT_TYPES = [
