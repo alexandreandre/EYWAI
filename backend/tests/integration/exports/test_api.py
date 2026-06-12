@@ -271,7 +271,9 @@ class TestExportsWithRhUser:
             "app.modules.exports.application.service.get_export_download_url",
             return_value="https://signed.url/file.xlsx",
         ):
-            response = client_with_exports_auth.get("/api/exports/download/exp-123")
+            response = client_with_exports_auth.get(
+                "/api/exports/download/exp-123?file_index=0"
+            )
         assert response.status_code == 200
         data = response.json()
         assert data["download_url"] == "https://signed.url/file.xlsx"
@@ -284,7 +286,9 @@ class TestExportsWithRhUser:
             "app.modules.exports.application.service.get_export_download_url",
             side_effect=ValueError("Export non trouvé"),
         ):
-            response = client_with_exports_auth.get("/api/exports/download/unknown-id")
+            response = client_with_exports_auth.get(
+                "/api/exports/download/unknown-id?file_index=0"
+            )
         assert response.status_code == 404
 
 

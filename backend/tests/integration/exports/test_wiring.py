@@ -165,7 +165,9 @@ class TestExportsEndToEndFlow:
                 "app.modules.exports.application.service.get_export_download_url",
                 side_effect=ValueError("Export non trouvé"),
             ):
-                response = client.get("/api/exports/download/exp-123")
+                response = client.get(
+                    "/api/exports/download/exp-123?file_index=0"
+                )
                 assert response.status_code == 404
         finally:
             app.dependency_overrides.pop(get_current_user, None)
