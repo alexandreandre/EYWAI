@@ -96,6 +96,12 @@ class TestPreviewExport:
         req = ExportPreviewRequest(export_type="od_salaires", period="2025-01")
         mock_preview = {
             "total_debit": 15000.0,
+            "employees_count": 3,
+            "totals": {
+                "employees_count": 3,
+                "total_brut": 18000.0,
+                "total_net_a_payer": 12000.0,
+            },
             "anomalies": [],
             "warnings": [],
             "can_generate": True,
@@ -110,7 +116,8 @@ class TestPreviewExport:
             ):
                 result = queries.preview_export("company-1", req)
         assert result.totals.total_amount == 15000.0
-        assert result.employees_count == 0
+        assert result.employees_count == 3
+        assert result.totals.total_brut == 18000.0
 
     def test_dsn_mensuelle_preview_uses_filters(self):
         """Preview dsn_mensuelle utilise filters (dsn_type, establishment_id)."""

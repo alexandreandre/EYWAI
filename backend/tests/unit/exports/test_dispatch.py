@@ -114,7 +114,9 @@ class TestDispatchCompta:
             ),
         ) as mock_gen, patch.object(
             dispatch_service, "_upsert_dispatch", return_value="disp-1"
-        ) as mock_upsert:
+        ) as mock_upsert, patch.object(
+            dispatch_service, "_get_channel_schedule_row", return_value=None
+        ):
             result = dispatch_service.dispatch_compta(
                 "co-1", "user-1", DispatchComptaRequest(period="2025-05")
             )
@@ -122,6 +124,47 @@ class TestDispatchCompta:
             mock_upsert.assert_called_once()
             assert result.dispatch_id == "disp-1"
             assert len(result.export_ids) == 2
+
+
+class TestGenerateForChannelAtomic:
+    def test_partial_failure_records_failed_dispatch(self):
+        def _fail_on_fec(company_id, user_id, req):
+            if req.export_type == "fec":
+                raise ValueError("FEC impossible")
+            from app.modules.exports.schemas import ExportGenerateResponse, ExportFileInfo, ExportReport
+            from app.modules.exports.schemas import ExportTotals
+
+            now = datetime.now(timezone.utc)
+            return ExportGenerateResponse(
+                export_id=f"exp-{req.export_type}",
+                export_type=req.export_type,
+                period=req.period,
+                status="generated",
+                files=[ExportFileInfo(filename="f.csv", path="p/f.csv", size=1, format="csv")],
+                report=ExportReport(
+                    export_type=req.export_type,
+                    period=req.period,
+                    generated_at=now,
+                    generated_by="u",
+                    employees_count=0,
+                    totals=ExportTotals(employees_count=0),
+                    anomalies=[],
+                    warnings=[],
+                    parameters={},
+                ),
+                download_urls={},
+            )
+
+        with patch.object(
+            dispatch_service.export_service, "generate_export", side_effect=_fail_on_fec
+        ), patch.object(dispatch_service, "_upsert_dispatch", return_value="disp-fail") as mock_upsert:
+            with pytest.raises(ValueError, match="FEC impossible"):
+                dispatch_service._generate_for_channel(
+                    "co-1", "user-1", "compta", "2025-05", "csv"
+                )
+            mock_upsert.assert_called_once()
+            assert mock_upsert.call_args[0][5]["partial"] is True
+            assert mock_upsert.call_args[1]["status"] == "failed"
 
 
 class TestDispatchBanque:
@@ -136,6 +179,8 @@ class TestDispatchBanque:
             return_value=(["exp-v"], [], []),
         ) as mock_gen, patch.object(
             dispatch_service, "_upsert_dispatch", return_value="disp-b"
+        ), patch.object(
+            dispatch_service, "_get_channel_schedule_row", return_value=None
         ):
             result = dispatch_service.dispatch_banque(
                 "co-1",
@@ -222,6 +267,119 @@ class TestChannelSchedules:
             )
             assert out.channel == "compta"
             assert out.schedule_id == "sch-1"
+
+
+class TestPreviewChannel:
+    def test_compta_aggregates_blocking_from_all_types(self):
+        """Le canal compta valide OD globale + journal + FEC ; un FEC bloquant
+        doit rendre l'envoi impossible même si l'OD globale passe."""
+
+        def _fake_preview(company_id, request):
+            from app.modules.exports.schemas import ExportAnomaly
+
+            if request.export_type == "fec":
+                return ExportPreviewResponse(
+                    export_type="fec",
+                    period="2025-05",
+                    employees_count=3,
+                    totals=ExportTotals(employees_count=3),
+                    anomalies=[
+                        ExportAnomaly(
+                            type="error",
+                            message="Écritures non équilibrées",
+                            severity="blocking",
+                        )
+                    ],
+                    warnings=[],
+                    can_generate=False,
+                )
+            totals = (
+                ExportTotals(employees_count=3, total_brut=12000.0)
+                if request.export_type == "journal_paie"
+                else ExportTotals(employees_count=0, total_amount=12000.0)
+            )
+            return ExportPreviewResponse(
+                export_type=request.export_type,
+                period="2025-05",
+                employees_count=3,
+                totals=totals,
+                anomalies=[],
+                warnings=[],
+                can_generate=True,
+            )
+
+        with patch.object(
+            dispatch_service.export_service, "preview_export", side_effect=_fake_preview
+        ):
+            result = dispatch_service._preview_channel("co-1", "compta", "2025-05")
+            assert result["can_generate"] is False
+            assert result["blocking_anomalies_count"] == 1
+            # Les totaux affichés proviennent du journal de paie (total_brut).
+            assert result["totals"].total_brut == 12000.0
+
+    def test_compta_can_generate_when_all_pass(self):
+        def _ok_preview(company_id, request):
+            totals = (
+                ExportTotals(employees_count=3, total_brut=12000.0)
+                if request.export_type == "journal_paie"
+                else ExportTotals(employees_count=0)
+            )
+            return ExportPreviewResponse(
+                export_type=request.export_type,
+                period="2025-05",
+                employees_count=3,
+                totals=totals,
+                anomalies=[],
+                warnings=[],
+                can_generate=True,
+            )
+
+        with patch.object(
+            dispatch_service.export_service, "preview_export", side_effect=_ok_preview
+        ):
+            result = dispatch_service._preview_channel("co-1", "compta", "2025-05")
+            assert result["can_generate"] is True
+            assert result["blocking_anomalies_count"] == 0
+
+
+class TestRunScheduledNow:
+    def test_does_not_raise_typeerror_and_updates_next_run(self):
+        """Régression : compute_next_run_at était appelé avec un kwarg invalide
+        (now=) qui levait un TypeError après la génération de l'export."""
+        from app.modules.exports.application import scheduled_exports as sched
+
+        row = {
+            "id": "sch-1",
+            "company_id": "co-1",
+            "export_type": "journal_paie",
+            "frequency": "monthly",
+            "hour_utc": 6,
+            "day_of_month": 5,
+            "day_of_week": None,
+        }
+
+        gen_result = _generate_response("exp-99", "journal_paie")
+
+        preview_ok = MagicMock()
+        preview_ok.can_generate = True
+
+        with patch.object(sched, "get_scheduled", return_value=row), patch.object(
+            sched.export_service, "preview_export", return_value=preview_ok
+        ), patch.object(
+            sched.export_service, "generate_export", return_value=gen_result
+        ), patch.object(
+            sched, "notify_export_recipients", return_value=MagicMock(status="skipped_no_recipients", message="")
+        ), patch.object(sched.supabase, "table") as mock_table:
+            tbl = MagicMock()
+            mock_table.return_value = tbl
+            tbl.update.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock()
+
+            result = sched.run_scheduled_now("sch-1", "co-1", "user-1")
+            assert result.export_id == "exp-99"
+            tbl.update.assert_called_once()
+            patch_payload = tbl.update.call_args[0][0]
+            assert "next_run_at" in patch_payload
+            assert patch_payload["next_run_at"]
 
 
 class TestRunDueChannelSchedules:

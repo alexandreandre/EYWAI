@@ -17,6 +17,7 @@ class TestFecExport:
             lambda *a, **k: (
                 [{"JournalCode": "OD", **{c: "" for c in FEC_COLUMNS[1:]}}],
                 {"equilibre": True},
+                None,
             ),
         )
         content = generate_fec_export("co-1", "2026-06")
@@ -29,6 +30,7 @@ class TestFecExport:
             lambda *a, **k: (
                 [{"JournalCode": "OD", **{c: "" for c in FEC_COLUMNS[1:]}}],
                 {"equilibre": True},
+                None,
             ),
         )
         content = generate_fec_export("co-1", "2026-06")

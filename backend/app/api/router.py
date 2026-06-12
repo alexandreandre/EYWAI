@@ -43,6 +43,10 @@ from app.modules.net_entreprises.api.router import (
     router as net_entreprises_router,
     router_admin as net_entreprises_admin_router,
 )
+from app.modules.accounting_integration.api.router import (
+    router as accounting_integration_router,
+    router_admin as accounting_integration_admin_router,
+)
 from app.modules.platform_settings.api.router import (
     router as platform_email_settings_router,
 )
@@ -121,6 +125,8 @@ router.include_router(employee_loans_router)
 router.include_router(exports_router)
 router.include_router(net_entreprises_router)
 router.include_router(net_entreprises_admin_router)
+router.include_router(accounting_integration_router)
+router.include_router(accounting_integration_admin_router)
 router.include_router(platform_email_settings_router)
 router.include_router(webhooks_router)
 router.include_router(absences_router)

@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import smtplib
 import ssl
+from email import encoders
+from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Optional, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 from app.core.logging import get_logger, is_app_debug_enabled
 from app.modules.platform_settings.application.email_config import (
@@ -52,6 +54,68 @@ class SmtpMailSender:
         msg = "SMTP non configuré — impossible d'envoyer l'e-mail."
         logger.warning("%s (%s)", msg, context)
         return False, msg
+
+    def send_email_with_attachments(
+        self,
+        to_emails: Sequence[str],
+        subject: str,
+        text_content: str,
+        html_content: str,
+        attachments: Sequence[tuple[str, bytes, str]],
+        *,
+        require_delivery: bool = False,
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Envoie un e-mail HTML avec pièces jointes à une ou plusieurs adresses.
+        Retourne (succès global, message_erreur).
+        """
+        recipients = [e.strip() for e in to_emails if e and e.strip()]
+        if not recipients:
+            return True, None
+
+        config = self._load_config()
+        if not config.is_configured:
+            return self._handle_unconfigured(
+                require_delivery=require_delivery,
+                context=subject,
+            )
+
+        try:
+            msg = MIMEMultipart("mixed")
+            msg["Subject"] = subject
+            msg["From"] = config.from_header
+            msg["To"] = ", ".join(recipients)
+            if config.reply_to:
+                msg["Reply-To"] = config.reply_to
+
+            alt = MIMEMultipart("alternative")
+            alt.attach(MIMEText(text_content, "plain", "utf-8"))
+            alt.attach(MIMEText(html_content, "html", "utf-8"))
+            msg.attach(alt)
+
+            for filename, content, mime_type in attachments:
+                maintype, _, subtype = (mime_type or "application/octet-stream").partition(
+                    "/"
+                )
+                part = MIMEBase(maintype, subtype or "octet-stream")
+                part.set_payload(content)
+                encoders.encode_base64(part)
+                part.add_header(
+                    "Content-Disposition",
+                    "attachment",
+                    filename=filename,
+                )
+                msg.attach(part)
+
+            with self._connect(config) as server:
+                server.send_message(msg)
+
+            logger.info("Email avec pièces jointes envoyé à %d destinataire(s)", len(recipients))
+            return True, None
+        except Exception as e:
+            err = f"Échec envoi e-mail avec pièces jointes : {e}"
+            logger.error(err, exc_info=True)
+            return False, err
 
     def send_multipart_email(
         self,

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
+from app.shared.utils.iban import has_valid_iban
+
 # Champs essentiels pour finaliser la paie d'un salarié fraîchement embauché.
 # Tuple (clé colonne employees, libellé affiché côté RH).
 PAYROLL_REQUIRED_FIELDS: List[Tuple[str, str]] = [
@@ -37,12 +39,18 @@ def _is_blank(value: Any) -> bool:
     return False
 
 
+def _is_payroll_field_missing(key: str, employee: Dict[str, Any]) -> bool:
+    if key == "coordonnees_bancaires":
+        return not has_valid_iban(employee.get(key))
+    return _is_blank(employee.get(key))
+
+
 def missing_payroll_fields(employee: Dict[str, Any]) -> List[str]:
     """Libellés des champs paie manquants pour finaliser la fiche."""
     return [
         label
         for key, label in PAYROLL_REQUIRED_FIELDS
-        if _is_blank(employee.get(key))
+        if _is_payroll_field_missing(key, employee)
     ]
 
 

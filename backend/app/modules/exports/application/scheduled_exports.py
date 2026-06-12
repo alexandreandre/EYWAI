@@ -14,10 +14,12 @@ from app.modules.exports.application import service as export_service
 from app.modules.exports.domain.value_objects import EXPORT_TYPES_GENERATE
 from app.modules.exports.infrastructure import queries as export_infra_queries
 from app.modules.exports.infrastructure import mappers
+from app.modules.exports.application.notifications import notify_export_recipients
 from app.modules.exports.schemas import (
     ExportGenerateRequest,
     ExportHistoryEntry,
     ExportHistoryResponse,
+    ExportPreviewRequest,
     ExportTotals,
 )
 from app.modules.exports.schemas.requests import ExportType
@@ -194,6 +196,7 @@ def list_scheduled(company_id: str) -> List[ScheduledExportOut]:
         supabase.table("scheduled_exports")
         .select("*")
         .eq("company_id", company_id)
+        .is_("channel", "null")
         .order("created_at", desc=True)
         .execute()
     )
@@ -240,7 +243,7 @@ def get_scheduled(schedule_id: str, company_id: str) -> Optional[Dict[str, Any]]
         .maybe_single()
         .execute()
     )
-    return r.data if r.data else None
+    return r.data if r and r.data else None
 
 
 def update_scheduled(
@@ -326,8 +329,26 @@ def delete_scheduled(schedule_id: str, company_id: str) -> None:
     ).execute()
 
 
+def _default_format_for_type(export_type: str) -> str:
+    if export_type == "dsn_mensuelle":
+        return "xml"
+    if export_type in (
+        "fec",
+        "virement_salaires",
+        "od_salaires",
+        "od_charges_sociales",
+        "od_pas",
+        "od_globale",
+    ):
+        return "csv"
+    return "xlsx"
+
+
 def run_scheduled_now(
-    schedule_id: str, company_id: str, user_id: str
+    schedule_id: str,
+    company_id: str,
+    user_id: str,
+    period: Optional[str] = None,
 ) -> ScheduledExportRunNowResponse:
     row = get_scheduled(schedule_id, company_id)
     if not row:
@@ -336,12 +357,27 @@ def run_scheduled_now(
     if export_type not in EXPORT_TYPES_GENERATE:
         raise ValueError("Type d'export invalide pour ce planning.")
 
-    period = _previous_payroll_period()
+    pay_period = period or _previous_payroll_period()
+    fmt = _default_format_for_type(export_type)
+
+    preview_req = ExportPreviewRequest(
+        export_type=cast(ExportType, export_type),
+        period=pay_period,
+        company_id=company_id,
+        employee_ids=None,
+        filters={},
+    )
+    preview = export_service.preview_export(company_id, preview_req)
+    if not preview.can_generate:
+        raise ValueError(
+            "Génération impossible : anomalies bloquantes sur la période sélectionnée."
+        )
+
     req = ExportGenerateRequest(
         export_type=cast(ExportType, export_type),
-        period=period,
+        period=pay_period,
         company_id=company_id,
-        format="csv",
+        format=cast(Any, fmt),
         employee_ids=None,
         filters={},
     )
@@ -351,6 +387,17 @@ def run_scheduled_now(
     export_id = str(getattr(result, "export_id", "") or "")
     if not export_id:
         raise RuntimeError("Génération sans export_id")
+
+    recipients = row.get("recipients") or []
+    if not isinstance(recipients, list):
+        recipients = []
+    notify = notify_export_recipients(
+        company_id,
+        [str(x) for x in recipients if x],
+        [export_id],
+        export_type_label=EXPORT_TYPE_LABELS.get(export_type, export_type),
+        period=pay_period,
+    )
 
     now = _utc_now().isoformat()
     freq = str(row.get("frequency") or "daily")
@@ -362,16 +409,22 @@ def run_scheduled_now(
         hour_utc,
         int(dow) if dow is not None else None,
         int(dom) if dom is not None else None,
-        now=_utc_now(),
+        _utc_now(),
     ).isoformat()
 
     supabase.table("scheduled_exports").update(
         {"last_run_at": now, "next_run_at": next_at}
     ).eq("id", schedule_id).eq("company_id", company_id).execute()
 
+    msg = f"Export généré pour la période {pay_period}."
+    if notify.message:
+        msg = f"{msg} {notify.message}"
+
     return ScheduledExportRunNowResponse(
         export_id=export_id,
-        message=f"Export généré pour la période {period}.",
+        message=msg,
+        email_status=notify.status,
+        email_message=notify.message or None,
     )
 
 
@@ -408,7 +461,7 @@ def _get_channel_schedule_row(company_id: str, channel: str) -> Optional[Dict[st
         .maybe_single()
         .execute()
     )
-    return r.data if r.data else None
+    return r.data if r and r.data else None
 
 
 def _default_schedule_out(channel: str) -> DispatchScheduleOut:
@@ -623,6 +676,70 @@ def run_due_channel_schedules() -> List[Dict[str, Any]]:
                     "schedule_id": schedule_id,
                     "company_id": company_id,
                     "channel": channel,
+                    "success": False,
+                    "error": str(exc),
+                }
+            )
+
+    return results
+
+
+def get_due_rh_schedules() -> List[Dict[str, Any]]:
+    """Plannings RH génériques (sans canal) actifs et échus."""
+    now_iso = _utc_now().isoformat()
+    r = (
+        supabase.table("scheduled_exports")
+        .select("*")
+        .eq("is_active", True)
+        .is_("channel", "null")
+        .lte("next_run_at", now_iso)
+        .execute()
+    )
+    return [x for x in (r.data or []) if isinstance(x, dict)]
+
+
+def run_due_rh_schedules() -> List[Dict[str, Any]]:
+    """Exécute les exports RH planifiés par type dont l'échéance est dépassée."""
+    due = get_due_rh_schedules()
+    results: List[Dict[str, Any]] = []
+
+    for row in due:
+        schedule_id = str(row.get("id") or "")
+        company_id = str(row.get("company_id") or "")
+        user_id = str(row.get("created_by") or "")
+        export_type = str(row.get("export_type") or "")
+
+        if not company_id or not user_id:
+            results.append(
+                {
+                    "schedule_id": schedule_id,
+                    "company_id": company_id,
+                    "export_type": export_type,
+                    "success": False,
+                    "error": "Planning invalide (company_id ou created_by manquant).",
+                }
+            )
+            continue
+
+        try:
+            response = run_scheduled_now(schedule_id, company_id, user_id)
+            results.append(
+                {
+                    "schedule_id": schedule_id,
+                    "company_id": company_id,
+                    "export_type": export_type,
+                    "success": True,
+                    "export_id": response.export_id,
+                    "message": response.message,
+                    "email_status": response.email_status,
+                }
+            )
+        except Exception as exc:
+            results.append(
+                {
+                    "schedule_id": schedule_id,
+                    "company_id": company_id,
+                    "export_type": export_type,
                     "success": False,
                     "error": str(exc),
                 }

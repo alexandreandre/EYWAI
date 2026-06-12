@@ -13,6 +13,7 @@ from app.modules.exports.domain.value_objects import (
     EXPORT_TYPES_CABINET,
 )
 from app.modules.exports.domain import rules
+from app.modules.exports.schemas.responses import ExportTotals
 
 
 pytestmark = pytest.mark.unit
@@ -222,3 +223,14 @@ class TestValidateDsnCanGenerate:
             },
             accept_warnings=False,
         )
+
+
+class TestExportTotalsSchema:
+    def test_accepts_virements_count_alias(self):
+        totals = ExportTotals(
+            currency="EUR",
+            virements_count=5,
+            total_amount=12000.0,
+        )
+        assert totals.employees_count == 5
+        assert totals.total_amount == 12000.0

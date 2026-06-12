@@ -72,7 +72,7 @@ class TestServiceGetExportDownloadUrl:
             return_value="https://signed.url/file.xlsx",
         ) as mock_q:
             url = export_service.get_export_download_url("company-1", "exp-123")
-            mock_q.assert_called_once_with("company-1", "exp-123")
+            mock_q.assert_called_once_with("company-1", "exp-123", 0)
             assert url == "https://signed.url/file.xlsx"
 
 
@@ -104,42 +104,43 @@ class TestServiceGenerateExport:
             "is_supported_export_type_for_generate",
             return_value=True,
         ):
-            with patch.object(
-                export_service,
-                "get_user_display_name",
-                return_value="Jean Dupont",
-            ):
+            with patch.object(export_service, "_assert_can_generate"):
                 with patch.object(
-                    export_service.providers,
-                    "generate_journal_paie_export",
-                    return_value=file_content,
+                    export_service,
+                    "get_user_display_name",
+                    return_value="Jean Dupont",
                 ):
                     with patch.object(
                         export_service.providers,
-                        "get_journal_paie_data",
-                        return_value=(
-                            [],
-                            {"employees_count": 3, "total_brut": 10000.0},
-                        ),
+                        "generate_journal_paie_export",
+                        return_value=file_content,
                     ):
                         with patch.object(
-                            export_service,
-                            "upload_export_file",
-                            return_value="exports/company-1/journal_paie/file.xlsx",
+                            export_service.providers,
+                            "get_journal_paie_data",
+                            return_value=(
+                                [],
+                                {"employees_count": 3, "total_brut": 10000.0},
+                            ),
                         ):
                             with patch.object(
                                 export_service,
-                                "create_signed_url",
-                                return_value="https://signed.url/file.xlsx",
+                                "upload_export_file",
+                                return_value="exports/company-1/journal_paie/file.xlsx",
                             ):
                                 with patch.object(
-                                    export_service.commands,
-                                    "record_export_history",
-                                    return_value="export-uuid-xyz",
+                                    export_service,
+                                    "create_signed_url",
+                                    return_value="https://signed.url/file.xlsx",
                                 ):
-                                    result = export_service.generate_export(
-                                        "company-1", "user-1", req
-                                    )
+                                    with patch.object(
+                                        export_service.commands,
+                                        "record_export_history",
+                                        return_value="export-uuid-xyz",
+                                    ):
+                                        result = export_service.generate_export(
+                                            "company-1", "user-1", req
+                                        )
 
         assert result.export_id == "export-uuid-xyz"
         assert result.export_type == "journal_paie"
@@ -149,3 +150,29 @@ class TestServiceGenerateExport:
         assert result.files[0].format == "xlsx"
         assert result.report.generated_by == "Jean Dupont"
         assert result.report.employees_count == 3
+
+    def test_assert_can_generate_blocks_when_preview_fails(self):
+        req = ExportGenerateRequest(
+            export_type="od_globale",
+            period="2025-01",
+            format="csv",
+        )
+        preview = ExportPreviewResponse(
+            export_type="od_globale",
+            period="2025-01",
+            employees_count=0,
+            totals=ExportTotals(employees_count=0),
+            anomalies=[],
+            warnings=[],
+            can_generate=False,
+        )
+        with patch.object(
+            export_service.domain_rules,
+            "is_supported_export_type_for_generate",
+            return_value=True,
+        ):
+            with patch.object(
+                export_service.queries, "preview_export", return_value=preview
+            ):
+                with pytest.raises(ValueError, match="Génération impossible"):
+                    export_service.generate_export("company-1", "user-1", req)

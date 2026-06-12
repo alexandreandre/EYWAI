@@ -36,6 +36,20 @@ def _env_bool(name: str, default: bool = False) -> bool:
 # que soit la config par entreprise. Empêche tout appel réseau tant que rien n'est branché.
 NET_ENTREPRISES_ENABLED = _env_bool("NET_ENTREPRISES_ENABLED", False)
 
+# Intégration comptable API (Cegid Loop, etc.). Désactivé par défaut.
+ACCOUNTING_API_ENABLED = _env_bool("ACCOUNTING_API_ENABLED", False)
+
+# Cegid Loop API (Quadra) — host public documenté ; surchargeable par entreprise.
+# https://developers.cegid.com/docreference/BusinessUnits/Loop-Api-Management-Docs/
+CEGID_LOOP_API_BASE_URL = os.getenv(
+    "CEGID_LOOP_API_BASE_URL",
+    "https://loop-publicapi.cegid.com",
+).rstrip("/")
+CEGID_LOOP_API_BASE_URL_TEST = os.getenv(
+    "CEGID_LOOP_API_BASE_URL_TEST",
+    "https://loop-publicapi.cegid.com",
+).rstrip("/")
+
 # SMTP / e-mails transactionnels (repli si config plateforme inactive ou absente).
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))

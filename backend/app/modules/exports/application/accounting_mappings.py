@@ -80,7 +80,7 @@ def upsert_company_mapping(
         .maybe_single()
         .execute()
     )
-    if existing.data:
+    if existing and existing.data:
         up = (
             supabase.table("accounting_mappings")
             .update(payload)

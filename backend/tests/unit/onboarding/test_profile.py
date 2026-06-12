@@ -54,6 +54,18 @@ class TestMissingPayrollFields:
         emp["adresse"] = {"ville": "Lyon"}
         assert "Adresse postale" not in missing_payroll_fields(emp)
 
+    def test_bic_without_valid_iban_counts_as_missing(self):
+        emp = _complete_employee()
+        emp["coordonnees_bancaires"] = {"bic": "BNPAFRPP", "iban": ""}
+        missing = missing_payroll_fields(emp)
+        assert "Coordonnées bancaires (RIB)" in missing
+        assert is_profile_complete(emp) is False
+
+    def test_short_iban_counts_as_missing(self):
+        emp = _complete_employee()
+        emp["coordonnees_bancaires"] = {"iban": "FR761234567890", "bic": "BNPAFRPP"}
+        assert "Coordonnées bancaires (RIB)" in missing_payroll_fields(emp)
+
 
 class TestPayrollEligibility:
     def test_en_onboarding_is_not_payroll_eligible(self):

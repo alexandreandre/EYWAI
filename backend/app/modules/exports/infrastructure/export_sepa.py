@@ -119,9 +119,13 @@ def preview_sepa(
         company_id, period, employee_ids, excluded_employee_ids
     )
     blocking = [a for a in anomalies if a.get("severity") == "blocking"]
+    employees_count = totals.get("employees_count", totals.get("virements_count", 0))
     return {
-        "employees_count": totals.get("employees_count", 0),
-        "totals": totals,
+        "employees_count": employees_count,
+        "totals": {
+            "employees_count": employees_count,
+            "total_amount": totals.get("total_amount"),
+        },
         "anomalies": anomalies,
         "warnings": warnings + ["Format SEPA pain.001.001.03 — transmission manuelle à la banque."],
         "can_generate": len(blocking) == 0,

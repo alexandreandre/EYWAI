@@ -21,6 +21,7 @@ reportlab
 # --- Utilities ---
 requests
 httpx
+cryptography
 python-multipart
 pydantic[email]
 

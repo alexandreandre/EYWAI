@@ -49,7 +49,7 @@ def build_fec_rows(
     employee_ids: Optional[List[str]] = None,
     date_ecriture: Optional[str] = None,
     company_siret: str = "",
-) -> Tuple[List[Dict[str, str]], Dict[str, Any]]:
+) -> Tuple[List[Dict[str, str]], Dict[str, Any], Optional[Dict[str, Any]]]:
     ecritures_raw, od_totals, _ = build_payroll_ledger(
         company_id, period, employee_ids, date_ecriture, scope="full"
     )
@@ -91,7 +91,7 @@ def build_fec_rows(
         "lines_count": len(rows),
         "equilibre": od_totals.get("equilibre", False),
     }
-    return rows, totals
+    return rows, totals, od_totals.get("balance_debug")
 
 
 def generate_fec_export(
@@ -101,7 +101,7 @@ def generate_fec_export(
     date_ecriture: Optional[str] = None,
     company_siret: str = "",
 ) -> bytes:
-    rows, _ = build_fec_rows(
+    rows, _, _ = build_fec_rows(
         company_id, period, employee_ids, date_ecriture, company_siret
     )
     output = io.StringIO()
@@ -116,7 +116,7 @@ def preview_fec(
     period: str,
     employee_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    rows, totals = build_fec_rows(company_id, period, employee_ids)
+    rows, totals, balance_debug = build_fec_rows(company_id, period, employee_ids)
     anomalies: List[Dict[str, Any]] = []
     warnings: List[str] = []
     if not rows:
@@ -135,5 +135,9 @@ def preview_fec(
         "anomalies": anomalies,
         "warnings": warnings,
         "can_generate": len(anomalies) == 0,
-        "details": {"lines_count": len(rows)},
+        "details": {
+            "lines_count": len(rows),
+            "balance_debug": balance_debug,
+        },
+        "balance_debug": balance_debug,
     }

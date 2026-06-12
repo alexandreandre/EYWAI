@@ -75,18 +75,28 @@ def preview_export(
             request.filters.get("date_ecriture") if request.filters else None,
             regroupement,
         )
+        payslip_totals = preview.get("totals") or {}
+        employees_count = int(
+            preview.get("employees_count") or payslip_totals.get("employees_count") or 0
+        )
         totals = ExportTotals(
-            employees_count=0,
+            employees_count=employees_count,
+            total_brut=payslip_totals.get("total_brut"),
+            total_net_a_payer=payslip_totals.get("total_net_a_payer"),
+            total_cotisations_salariales=payslip_totals.get("total_cotisations_salariales"),
+            total_cotisations_patronales=payslip_totals.get("total_cotisations_patronales"),
             total_amount=preview.get("total_debit", 0),
         )
+        balance_debug = preview.get("balance_debug")
         return ExportPreviewResponse(
             export_type=request.export_type,
             period=request.period,
-            employees_count=0,
+            employees_count=employees_count,
             totals=totals,
             anomalies=[ExportAnomaly(**a) for a in preview["anomalies"]],
             warnings=preview["warnings"],
             can_generate=preview["can_generate"],
+            details={"balance_debug": balance_debug} if balance_debug else None,
         )
     elif request.export_type in [
         "export_cabinet_generique",
@@ -210,6 +220,10 @@ def preview_export(
         )
     elif request.export_type == "fec":
         preview = providers.preview_fec(company_id, request.period, request.employee_ids)
+        balance_debug = preview.get("balance_debug")
+        details = preview.get("details") or {}
+        if balance_debug and "balance_debug" not in details:
+            details = {**details, "balance_debug": balance_debug}
         return ExportPreviewResponse(
             export_type=request.export_type,
             period=request.period,
@@ -218,7 +232,7 @@ def preview_export(
             anomalies=[ExportAnomaly(**a) for a in preview["anomalies"]],
             warnings=preview["warnings"],
             can_generate=preview["can_generate"],
-            details=preview.get("details"),
+            details=details or None,
         )
     elif request.export_type == "prets_employeur":
         preview = providers.preview_prets_employeur(company_id, request.period)
@@ -328,17 +342,52 @@ def get_export_history(
     return ExportHistoryResponse(exports=history_entries, total=len(history_entries))
 
 
-def get_export_for_download(company_id: str, export_id: str) -> str:
+def _resolve_file_path_entry(entry: object) -> tuple[str, str]:
+    """Retourne (storage_path, filename) depuis une entrée file_paths."""
+    if isinstance(entry, dict):
+        path = str(entry.get("path") or entry.get("filename") or "")
+        filename = str(entry.get("filename") or path.rsplit("/", 1)[-1] or "export")
+        return path, filename
+    path = str(entry)
+    return path, path.rsplit("/", 1)[-1] or "export"
+
+
+def get_export_for_download(
+    company_id: str, export_id: str, file_index: int = 0
+) -> str:
     """
-    Retourne l'URL signée du premier fichier d'un export.
+    Retourne l'URL signée d'un fichier d'un export (index 0 par défaut).
     Raises:
         ValueError: si l'export n'existe pas ou n'a pas de fichier.
     """
+    files = get_export_download_files(company_id, export_id)
+    if file_index < 0 or file_index >= len(files):
+        raise ValueError("Index de fichier invalide")
+    return files[file_index]["download_url"]
+
+
+def get_export_download_files(company_id: str, export_id: str) -> list[dict[str, str]]:
+    """Liste les URLs signées de tous les fichiers d'un export."""
     export = infra_queries.get_export_by_id(export_id, company_id)
     if not export:
         raise ValueError("Export non trouvé")
     file_paths = export.get("file_paths", [])
-    if not file_paths:
+    if not file_paths or not isinstance(file_paths, list):
         raise ValueError("Aucun fichier associé à cet export")
-    file_path = file_paths[0]
-    return create_signed_url(file_path, 3600)
+
+    result: list[dict[str, str]] = []
+    for idx, entry in enumerate(file_paths):
+        path, filename = _resolve_file_path_entry(entry)
+        if not path:
+            continue
+        result.append(
+            {
+                "index": str(idx),
+                "filename": filename,
+                "path": path,
+                "download_url": create_signed_url(path, 3600),
+            }
+        )
+    if not result:
+        raise ValueError("Aucun fichier associé à cet export")
+    return result

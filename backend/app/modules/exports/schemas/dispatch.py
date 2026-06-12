@@ -9,6 +9,18 @@ DispatchChannel = Literal["compta", "banque"]
 DispatchStatus = Literal["pending", "generated", "transmitted", "failed"]
 
 
+class DispatchBlockingAnomaly(BaseModel):
+    source_key: str
+    source_label: str
+    message: str
+    employee_id: Optional[str] = None
+    employee_name: Optional[str] = None
+    action_label: str
+    action_path: str
+    context_note: Optional[str] = None
+    balance_debug: Optional[Dict[str, Any]] = None
+
+
 class DispatchChannelStatus(BaseModel):
     channel: DispatchChannel
     period: str
@@ -22,6 +34,7 @@ class DispatchChannelStatus(BaseModel):
     transmission_note: Optional[str] = None
     can_generate: bool = True
     blocking_anomalies_count: int = 0
+    blocking_anomalies: List[DispatchBlockingAnomaly] = Field(default_factory=list)
 
 
 class DispatchStatusResponse(BaseModel):
@@ -33,6 +46,7 @@ class DispatchStatusResponse(BaseModel):
 class DispatchComptaRequest(BaseModel):
     period: str = Field(..., pattern=r"^\d{4}-\d{2}$")
     format: Literal["csv", "xlsx"] = "csv"
+    force_manual: bool = False
 
 
 class DispatchBanqueRequest(BaseModel):
@@ -58,6 +72,10 @@ class DispatchResultResponse(BaseModel):
     files: List[ExportFileInfo] = Field(default_factory=list)
     downloads: List[DispatchFileDownload] = Field(default_factory=list)
     message: str
+    transmission_id: Optional[str] = None
+    transmission_status: Optional[str] = None
+    transmission_provider: Optional[str] = None
+    transmission_manual_fallback: bool = False
 
 
 class MarkDispatchTransmittedRequest(BaseModel):

@@ -125,13 +125,19 @@ async def get_export_history(
 @router.get("/download/{export_id}")
 async def download_export(
     export_id: str,
+    file_index: Optional[int] = None,
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
 ):
-    """Télécharge un export depuis l'historique (retourne l'URL signée du premier fichier)."""
+    """Retourne l'URL signée d'un fichier export (file_index) ou la liste de tous les fichiers."""
     try:
         _require_rh_exports(current_user, company_id)
-        download_url = export_service.get_export_download_url(company_id, export_id)
+        if file_index is None:
+            files = export_service.get_export_download_files(company_id, export_id)
+            return {"files": files}
+        download_url = export_service.get_export_download_url(
+            company_id, export_id, file_index
+        )
         return {"download_url": download_url}
     except HTTPException:
         raise
@@ -201,13 +207,14 @@ async def scheduled_export_history(
 )
 async def run_scheduled_export_now(
     schedule_id: str,
+    period: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
 ):
     _require_rh_exports(current_user, company_id)
     try:
         return scheduled_export_service.run_scheduled_now(
-            schedule_id, company_id, str(current_user.id)
+            schedule_id, company_id, str(current_user.id), period=period
         )
     except ValueError as e:
         raise _value_error_to_http(e)

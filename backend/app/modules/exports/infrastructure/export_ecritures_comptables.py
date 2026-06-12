@@ -6,6 +6,10 @@ from calendar import monthrange
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.database import supabase
+from app.modules.exports.infrastructure.payslip_accounting_extract import (
+    extract_cotisations_from_payslip,
+    extract_pas_amount,
+)
 from app.shared.utils.export import format_period, generate_csv, generate_xlsx
 
 DEFAULT_MAPPINGS = {
@@ -105,7 +109,7 @@ def get_payslip_data_for_od(
             first_name,
             last_name,
             company_id,
-            companies(name, company_name)
+            companies(company_name)
         )
         """
         )
@@ -140,26 +144,10 @@ def get_payslip_data_for_od(
         brut = float(payslip_data.get("salaire_brut", 0) or 0)
         net_a_payer = float(payslip_data.get("net_a_payer", 0) or 0)
         synthese_net = payslip_data.get("synthese_net", {})
-        float(
-            synthese_net.get("net_imposable", 0)
-            if isinstance(synthese_net, dict)
-            else 0
+        pas = extract_pas_amount(synthese_net)
+        cotisations_salariales, cotisations_patronales, cotisations_list, _cot_meta = (
+            extract_cotisations_from_payslip(payslip_data)
         )
-        pas = float(
-            synthese_net.get("impot_preleve_a_la_source", 0)
-            if isinstance(synthese_net, dict)
-            else 0
-        )
-        cotisations = payslip_data.get("structure_cotisations", {})
-        cotisations_list = (
-            cotisations.get("cotisations", []) if isinstance(cotisations, dict) else []
-        )
-        cotisations_salariales = 0.0
-        cotisations_patronales = 0.0
-        for coti in cotisations_list:
-            if isinstance(coti, dict):
-                cotisations_salariales += float(coti.get("montant_salarial", 0) or 0)
-                cotisations_patronales += float(coti.get("montant_patronal", 0) or 0)
 
         company_info = employee.get("companies") or {}
         if isinstance(company_info, list) and company_info:
@@ -347,12 +335,28 @@ def preview_od(
             "Utilisation des mappings par défaut. Configurez vos mappings comptables pour personnaliser."
         )
 
+    _, payslip_totals = get_payslip_data_for_od(
+        company_id, period, employee_ids, od_type
+    )
+    employees_count = int(payslip_totals.get("employees_count") or 0)
+    if employees_count == 0:
+        anomalies.append(
+            {
+                "type": "error",
+                "message": "Aucun bulletin de paie validé pour cette période",
+                "severity": "blocking",
+            }
+        )
+
     return {
         "nombre_lignes": len(ecritures),
         "total_debit": od_totals["total_debit"],
         "total_credit": od_totals["total_credit"],
         "equilibre": od_totals["equilibre"],
         "ecart": od_totals["ecart"],
+        "balance_debug": od_totals.get("balance_debug"),
+        "employees_count": employees_count,
+        "totals": payslip_totals,
         "anomalies": anomalies,
         "warnings": warnings,
         "can_generate": len([a for a in anomalies if a.get("severity") == "blocking"])

@@ -31,6 +31,39 @@ from app.modules.exports.schemas import (
 BUCKET = "exports"
 
 
+def _assert_can_generate(company_id: str, request: ExportGenerateRequest) -> None:
+    """Vérifie via preview que la génération est autorisée (sauf DSN : accept_warnings)."""
+    if request.export_type == "dsn_mensuelle":
+        return
+    preview_req = ExportPreviewRequest(
+        export_type=request.export_type,
+        period=request.period,
+        company_id=request.company_id,
+        employee_ids=request.employee_ids,
+        filters=request.filters,
+        excluded_employee_ids=request.excluded_employee_ids,
+        execution_date=request.execution_date,
+        payment_label=request.payment_label,
+    )
+    preview = queries.preview_export(company_id, preview_req)
+    if preview.can_generate:
+        return
+    blocking = [
+        a
+        for a in preview.anomalies
+        if a.severity == "blocking" or a.type == "error"
+    ]
+    if blocking:
+        first = blocking[0]
+        detail = first.message
+        if first.employee_name:
+            detail = f"{first.employee_name} — {detail}"
+        raise ValueError(f"Génération impossible : {detail}")
+    raise ValueError(
+        "Génération impossible : vérifiez les anomalies sur la période sélectionnée."
+    )
+
+
 def preview_export(
     company_id: str, request: ExportPreviewRequest
 ) -> ExportPreviewResponse:
@@ -47,9 +80,16 @@ def get_export_history(
     return queries.get_export_history(company_id, export_type, period)
 
 
-def get_export_download_url(company_id: str, export_id: str) -> str:
-    """Retourne l'URL signée pour télécharger le premier fichier d'un export."""
-    return queries.get_export_for_download(company_id, export_id)
+def get_export_download_url(
+    company_id: str, export_id: str, file_index: int = 0
+) -> str:
+    """Retourne l'URL signée pour télécharger un fichier d'un export."""
+    return queries.get_export_for_download(company_id, export_id, file_index)
+
+
+def get_export_download_files(company_id: str, export_id: str) -> list[dict[str, str]]:
+    """Retourne les URLs signées de tous les fichiers d'un export."""
+    return queries.get_export_download_files(company_id, export_id)
 
 
 def generate_export(
@@ -64,6 +104,7 @@ def generate_export(
     company_id = request.company_id or company_id
     if not domain_rules.is_supported_export_type_for_generate(request.export_type):
         raise ValueError(f"Type d'export '{request.export_type}' non implémenté")
+    _assert_can_generate(company_id, request)
     user_name = get_user_display_name(user_id)
 
     if request.export_type == "journal_paie":
@@ -1414,7 +1455,7 @@ def _generate_virement_salaires(
     files_list = [
         ExportFileInfo(
             filename=filename,
-            path=storage_path,
+            path=final_storage_path,
             size=len(file_content),
             format=request.format,
         ),
@@ -1440,7 +1481,12 @@ def _generate_virement_salaires(
             employees_count=totals.get(
                 "employees_count", totals.get("virements_count", 0)
             ),
-            totals=ExportTotals(**totals),
+            totals=ExportTotals(
+                employees_count=totals.get(
+                    "employees_count", totals.get("virements_count", 0)
+                ),
+                total_amount=totals.get("total_amount"),
+            ),
             anomalies=[ExportAnomaly(**a) for a in anomalies],
             warnings=warnings,
             parameters=parameters,

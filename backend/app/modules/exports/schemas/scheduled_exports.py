@@ -46,3 +46,5 @@ class ScheduledExportOut(BaseModel):
 class ScheduledExportRunNowResponse(BaseModel):
     export_id: str
     message: str
+    email_status: Optional[str] = None
+    email_message: Optional[str] = None

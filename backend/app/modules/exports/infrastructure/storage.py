@@ -63,3 +63,13 @@ def create_signed_url(path: str, expires_sec: int = SIGNED_URL_EXPIRES_SEC) -> s
         path, expires_sec
     )
     return response.get("signedURL") or response.get("signedUrl", "")
+
+
+def download_export_file(path: str) -> bytes:
+    """Télécharge le contenu brut d'un fichier export depuis le bucket."""
+    data = supabase.storage.from_(BUCKET_EXPORTS).download(path)
+    if isinstance(data, bytes):
+        return data
+    if isinstance(data, bytearray):
+        return bytes(data)
+    raise ValueError("Téléchargement du fichier export impossible")

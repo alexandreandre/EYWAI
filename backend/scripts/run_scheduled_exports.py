@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exécute les exports planifiés compta/banque dont next_run_at est dépassé."""
+"""Exécute les exports planifiés (canaux compta/banque + RH par type) échus."""
 
 from __future__ import annotations
 
@@ -15,13 +15,22 @@ if str(_BACKEND) not in sys.path:
 def main() -> int:
     from app.modules.exports.application.scheduled_exports import (
         run_due_channel_schedules,
+        run_due_rh_schedules,
     )
 
-    results = run_due_channel_schedules()
+    from app.modules.accounting_integration.application import service as accounting_service
+
+    channel_results = run_due_channel_schedules()
+    rh_results = run_due_rh_schedules()
+    poll_stats = accounting_service.poll_pending_accounting_transmissions()
+    results = channel_results + rh_results
     summary = {
         "executed": len(results),
         "success": sum(1 for r in results if r.get("success")),
         "failed": sum(1 for r in results if not r.get("success")),
+        "channel_results": channel_results,
+        "rh_results": rh_results,
+        "accounting_poll": poll_stats,
         "results": results,
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2))

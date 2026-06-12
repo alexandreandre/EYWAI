@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .requests import ExportType
 
@@ -39,6 +39,17 @@ class ExportTotals(BaseModel):
     total_remboursements: Optional[float] = None
     total_prelevements: Optional[float] = None
     operations_count: Optional[int] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_virements_count(cls, data: Any) -> Any:
+        """Les exports virement stockent parfois virements_count au lieu de employees_count."""
+        if isinstance(data, dict) and "employees_count" not in data:
+            if "virements_count" in data:
+                data = {**data, "employees_count": data["virements_count"]}
+            else:
+                data = {**data, "employees_count": 0}
+        return data
 
 
 class ExportPreviewResponse(BaseModel):

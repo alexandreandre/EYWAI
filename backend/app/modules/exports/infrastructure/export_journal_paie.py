@@ -2,6 +2,10 @@
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
+from app.modules.exports.infrastructure.payslip_accounting_extract import (
+    extract_cotisations_from_payslip,
+    extract_pas_amount,
+)
 from app.shared.utils.export import format_period, generate_csv, generate_xlsx
 
 
@@ -29,7 +33,7 @@ def get_journal_paie_data(
             contract_type,
             statut,
             company_id,
-            companies(name, company_name)
+            companies(company_name)
         )
         """
         )
@@ -80,22 +84,10 @@ def get_journal_paie_data(
             else 0
         )
 
-        cotisations = payslip_data.get("structure_cotisations", {})
-        cotisations_list = (
-            cotisations.get("cotisations", []) if isinstance(cotisations, dict) else []
+        pas = extract_pas_amount(synthese_net)
+        cotisations_salariales, cotisations_patronales, _, _ = extract_cotisations_from_payslip(
+            payslip_data
         )
-
-        cotisations_salariales = 0.0
-        cotisations_patronales = 0.0
-
-        for coti in cotisations_list:
-            if isinstance(coti, dict):
-                cotisations_salariales += float(coti.get("montant_salarial", 0) or 0)
-                cotisations_patronales += float(coti.get("montant_patronal", 0) or 0)
-
-        pas = 0.0
-        if isinstance(synthese_net, dict):
-            pas = float(synthese_net.get("impot_preleve_a_la_source", 0) or 0)
 
         row = {
             "Matricule": employee.get("id", "")[:8],
@@ -167,6 +159,13 @@ def preview_journal_paie(
 
     if totals["employees_count"] == 0:
         warnings.append("Aucun bulletin trouvé pour cette période")
+        anomalies.append(
+            {
+                "type": "error",
+                "message": "Aucun bulletin de paie validé pour cette période",
+                "severity": "blocking",
+            }
+        )
 
     if totals["employees_count"] > 0:
         expected_net = (
@@ -186,5 +185,6 @@ def preview_journal_paie(
         "anomalies": anomalies,
         "warnings": warnings,
         "can_generate": len([a for a in anomalies if a.get("severity") == "blocking"])
-        == 0,
+        == 0
+        and totals["employees_count"] > 0,
     }
