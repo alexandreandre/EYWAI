@@ -27,7 +27,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SharkFinLoader } from "@/components/SharkFinLoader";
+import { ExportCardRefreshOverlay } from "@/components/exports/ExportCardRefreshOverlay";
+import { exportsLiveQueryOptions, refreshExportsPageQueries } from "@/lib/exportsQuery";
 
 export function AccountingMappingsPanel() {
   const { activeCompany } = useCompany();
@@ -36,10 +38,11 @@ export function AccountingMappingsPanel() {
   const qc = useQueryClient();
   const [editing, setEditing] = useState<AccountingMapping | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: ["accounting-mappings", companyId],
     queryFn: () => getAccountingMappings(companyId),
     enabled: Boolean(companyId),
+    ...exportsLiveQueryOptions,
   });
 
   const saveMutation = useMutation({
@@ -49,6 +52,7 @@ export function AccountingMappingsPanel() {
       toast({ title: "Compte comptable enregistré" });
       setEditing(null);
       void qc.invalidateQueries({ queryKey: ["accounting-mappings", companyId] });
+      refreshExportsPageQueries(qc, companyId);
     },
     onError: (e: Error) => {
       toast({ title: "Erreur", description: e.message, variant: "destructive" });
@@ -58,7 +62,11 @@ export function AccountingMappingsPanel() {
   if (!companyId) return null;
 
   return (
-    <Card>
+    <Card id="accounting-mappings" className="relative">
+      <ExportCardRefreshOverlay
+        visible={isFetching && !isLoading}
+        label="Actualisation des comptes…"
+      />
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <Settings2 className="h-5 w-5" />
@@ -71,7 +79,7 @@ export function AccountingMappingsPanel() {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <Skeleton className="h-40 w-full" />
+          <SharkFinLoader className="min-h-[160px]" label="Chargement des comptes comptables…" />
         ) : (
           <div className="overflow-x-auto">
             <Table>

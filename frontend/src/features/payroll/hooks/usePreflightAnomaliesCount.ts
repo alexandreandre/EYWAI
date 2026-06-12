@@ -16,9 +16,14 @@ export function usePreflightAnomalies(year: number, month: number, enabled = tru
 
 export function usePreflightAnomaliesCount(year: number, month: number, enabled = true) {
   const query = usePreflightAnomalies(year, month, enabled);
+  const anomalies = query.data?.anomalies ?? [];
+  const openAnomalies = anomalies.filter((a) => a.status === 'a_traiter');
+  const openBlockingAnomalies = openAnomalies.filter((a) => a.severity === 'bloquant');
+
   return {
     ...query,
-    openAnomaliesCount: query.data?.total_open ?? 0,
+    openAnomaliesCount: openAnomalies.length,
+    openBlockingAnomaliesCount: openBlockingAnomalies.length,
     totalAnomalies: query.data?.total ?? 0,
   };
 }

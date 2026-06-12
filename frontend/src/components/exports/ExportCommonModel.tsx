@@ -1,9 +1,13 @@
 // src/components/exports/ExportCommonModel.tsx
 // Modèle commun d'export - ÉTAPE 1 : Structure et UX uniquement
 
-import { useState, useEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getEmptyExportAlertMessage, isEmptyDataMessage } from "@/lib/exportEmptyState";
+import {
+  EXPORTS_REFETCH_INTERVAL_MS,
+  refreshExportsPageQueries,
+} from "@/lib/exportsQuery";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DialogDescription,
@@ -90,6 +94,7 @@ const EXPORT_TYPE_MAP: Record<string, ExportType> = {
   "DSN mensuelle": "dsn_mensuelle",
   "Virement salaires": "virement_salaires",
   "Récapitulatif des montants": "recapitulatif_montants",
+  "recapitulatif-montants": "recapitulatif_montants",
 };
 
 const FILE_FORMAT_EXPORT_TYPES = new Set<ExportType>([
@@ -173,15 +178,24 @@ const exportTypeLabels: Record<string, string> = {
   notes_frais: "Notes de frais",
 };
 
+type DsnType = "dsn_mensuelle_normale" | "dsn_neant";
+
 interface ExportCommonModelProps {
   exportType: string;
   exportDescription: string;
   onClose?: () => void;
+  onViewHistory?: () => void;
 }
 
-export function ExportCommonModel({ exportType, exportDescription, onClose }: ExportCommonModelProps) {
+export function ExportCommonModel({
+  exportType,
+  exportDescription,
+  onClose,
+  onViewHistory,
+}: ExportCommonModelProps) {
   const displayName = exportTypeLabels[exportType] || exportType;
   const { activeCompany } = useCompany();
+  const queryClient = useQueryClient();
   const apiExportType = useMemo(() => resolveApiExportType(exportType), [exportType]);
   const supportsFileFormat = FILE_FORMAT_EXPORT_TYPES.has(apiExportType);
   const [currentStep, setCurrentStep] = useState<ExportStep>("parametrage");
@@ -206,6 +220,9 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
   const [executionDate, setExecutionDate] = useState<string>("");
   const [paymentLabel, setPaymentLabel] = useState<string>("");
   const [excludedEmployees, setExcludedEmployees] = useState<string[]>([]);
+  const [dsnType, setDsnType] = useState<DsnType>("dsn_mensuelle_normale");
+  const [establishmentId, setEstablishmentId] = useState("");
+  const [acceptWarnings, setAcceptWarnings] = useState(false);
 
   const { data: employeesSummary = [] } = useQuery({
     queryKey: ["employees-summary-payroll", activeCompany?.company_id],
@@ -228,6 +245,15 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
     }
     if (apiExportType === "virement_salaires") {
       filters.bank_format = bankFileFormat;
+    }
+    if (apiExportType === "dsn_mensuelle") {
+      filters.dsn_type = dsnType;
+      if (establishmentId.trim()) {
+        filters.establishment_id = establishmentId.trim();
+      }
+      if (acceptWarnings) {
+        filters.accept_warnings = true;
+      }
     }
     return filters;
   };
@@ -285,39 +311,88 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
     setSelectedPeriod(currentMonth);
   }, []);
 
-  const handlePreview = async () => {
-    if (!selectedPeriod) {
-      setError("Veuillez sélectionner une période");
-      return;
-    }
-    if (selectedScope === "selection" && selectedEmployeeIds.length === 0) {
-      setError("Sélectionnez au moins un collaborateur");
-      return;
-    }
-    
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const preview = await previewExport({
-        export_type: apiExportType,
-        period: selectedPeriod,
-        company_id: selectedCompany,
-        employee_ids: resolvedEmployeeIds,
-        excluded_employee_ids: excludedEmployees.length > 0 ? excludedEmployees : undefined,
-        execution_date: executionDate || undefined,
-        payment_label: paymentLabel || undefined,
-        filters: buildExportFilters(),
-      });
-      
-      setPreviewData(preview);
-      setCurrentStep("previsualisation");
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Erreur lors de la prévisualisation");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const runPreview = useCallback(
+    async (options?: { advanceStep?: boolean; silent?: boolean }) => {
+      if (!selectedPeriod) {
+        if (!options?.silent) setError("Veuillez sélectionner une période");
+        return;
+      }
+      if (selectedScope === "selection" && selectedEmployeeIds.length === 0) {
+        if (!options?.silent) setError("Sélectionnez au moins un collaborateur");
+        return;
+      }
+
+      if (!options?.silent) {
+        setIsLoading(true);
+        setError(null);
+      }
+
+      try {
+        const preview = await previewExport({
+          export_type: apiExportType,
+          period: selectedPeriod,
+          company_id: selectedCompany,
+          employee_ids: resolvedEmployeeIds,
+          excluded_employee_ids: excludedEmployees.length > 0 ? excludedEmployees : undefined,
+          execution_date: executionDate || undefined,
+          payment_label: paymentLabel || undefined,
+          filters: buildExportFilters(),
+        });
+
+        setPreviewData(preview);
+        if (options?.advanceStep !== false) {
+          setCurrentStep("previsualisation");
+        }
+      } catch (err: unknown) {
+        if (!options?.silent) {
+          const detail =
+            err &&
+            typeof err === "object" &&
+            "response" in err &&
+            (err as { response?: { data?: { detail?: string } } }).response?.data?.detail;
+          setError(detail || "Erreur lors de la prévisualisation");
+        }
+      } finally {
+        if (!options?.silent) setIsLoading(false);
+      }
+    },
+    [
+      apiExportType,
+      selectedPeriod,
+      selectedCompany,
+      resolvedEmployeeIds,
+      excludedEmployees,
+      executionDate,
+      paymentLabel,
+      selectedScope,
+      selectedEmployeeIds,
+      odRegroupement,
+      cabinetFormat,
+      bankFileFormat,
+      dsnType,
+      establishmentId,
+      acceptWarnings,
+    ],
+  );
+
+  const handlePreview = () => void runPreview({ advanceStep: true });
+
+  useEffect(() => {
+    if (currentStep !== "previsualisation" || !selectedPeriod) return;
+
+    const refresh = () => {
+      if (document.hidden) return;
+      void runPreview({ advanceStep: false, silent: true });
+    };
+
+    const interval = window.setInterval(refresh, EXPORTS_REFETCH_INTERVAL_MS);
+    const onVisible = () => refresh();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [currentStep, selectedPeriod, runPreview]);
 
   const handleGenerate = async () => {
     if (!previewData || !previewData.can_generate) {
@@ -333,8 +408,13 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
         export_type: apiExportType,
         period: selectedPeriod,
         company_id: selectedCompany,
-        employee_ids: selectedScope === "all" ? undefined : [],
-        format: exportFormat,
+        employee_ids: resolvedEmployeeIds,
+        format:
+          apiExportType === "dsn_mensuelle"
+            ? "xml"
+            : apiExportType === "fec"
+              ? "csv"
+              : exportFormat,
         excluded_employee_ids: excludedEmployees.length > 0 ? excludedEmployees : undefined,
         execution_date: executionDate || undefined,
         payment_label: paymentLabel || undefined,
@@ -343,7 +423,8 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
       
       setGenerateResponse(response);
       setCurrentStep("generation");
-      
+      refreshExportsPageQueries(queryClient, selectedCompany);
+
       // Télécharger automatiquement les fichiers
       if (response.download_urls && Object.keys(response.download_urls).length > 0) {
         // Pour les virements, télécharger tous les fichiers
@@ -373,13 +454,16 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
         <DialogTitle className="text-xl">{displayName}</DialogTitle>
         <DialogDescription>{exportDescription}</DialogDescription>
       </DialogHeader>
-      {(displayName === "Virement salaires" || displayName === "Récapitulatif des montants") && (
+      {(displayName === "Virement salaires" ||
+        displayName === "Récapitulatif des montants" ||
+        apiExportType === "paiement_organismes") && (
         <Alert className="border-orange-200 bg-orange-50 dark:bg-orange-950">
           <AlertTriangle className="h-4 w-4 text-orange-600" />
           <AlertTitle className="text-orange-800 dark:text-orange-200">Important</AlertTitle>
           <AlertDescription className="text-orange-700 dark:text-orange-300">
-            Ce fichier ne déclenche aucun paiement automatiquement.
-            Il doit être transmis manuellement à votre banque après validation.
+            {apiExportType === "paiement_organismes"
+              ? "Ce fichier ne déclenche aucun paiement automatique vers les organismes. Transmission manuelle requise après validation."
+              : "Ce fichier ne déclenche aucun paiement automatiquement. Il doit être transmis manuellement à votre banque après validation."}
           </AlertDescription>
         </Alert>
       )}
@@ -455,7 +539,56 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
               </div>
             </div>
 
-            {supportsFileFormat ? (
+            {apiExportType === "dsn_mensuelle" ? (
+              <>
+                <Separator />
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Type de DSN</Label>
+                    <Select
+                      value={dsnType}
+                      onValueChange={(v) => setDsnType(v as DsnType)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="dsn_mensuelle_normale">DSN mensuelle normale</SelectItem>
+                        <SelectItem value="dsn_neant">DSN néant</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="establishment-id">Établissement (optionnel)</Label>
+                    <Input
+                      id="establishment-id"
+                      value={establishmentId}
+                      onChange={(e) => setEstablishmentId(e.target.value)}
+                      placeholder="UUID établissement"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="accept-warnings"
+                    checked={acceptWarnings}
+                    onCheckedChange={(c) => setAcceptWarnings(c === true)}
+                  />
+                  <Label htmlFor="accept-warnings" className="font-normal">
+                    Accepter les avertissements non bloquants à la génération
+                  </Label>
+                </div>
+              </>
+            ) : null}
+
+            {apiExportType === "fec" ? (
+              <p className="text-muted-foreground text-sm">
+                Format : fichier texte FEC (norme fiscale). Le sélecteur CSV/XLSX ne s&apos;applique
+                pas à cet export.
+              </p>
+            ) : null}
+
+            {supportsFileFormat && apiExportType !== "fec" ? (
               <div className="space-y-2 max-w-xs">
                 <Label htmlFor="export-format" className="flex items-center gap-2">
                   <FileSpreadsheet className="h-4 w-4" />
@@ -874,26 +1007,30 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
               <CheckCircle2 className="h-4 w-4" />
               <AlertTitle>Export généré avec succès</AlertTitle>
               <AlertDescription>
+                L&apos;export a été enregistré dans l&apos;historique.
+                {Object.keys(generateResponse.download_urls).length > 0 ? (
+                  <ul className="mt-2 space-y-1">
+                    {Object.entries(generateResponse.download_urls).map(([name, url]) => (
+                      <li key={name}>
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary inline-flex items-center gap-1 text-sm hover:underline"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          {name}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
                 {(exportType === "virement-salaires" || exportType === "virement_salaires") ? (
-                  <>
-                    Les fichiers ont été générés et téléchargés automatiquement :
-                    <ul className="list-disc list-inside mt-2 space-y-1">
-                      {generateResponse.files.map((file, index) => (
-                        <li key={index}>{file.filename}</li>
-                      ))}
-                    </ul>
-                    L'export a été enregistré dans l'historique.
-                    <p className="mt-2 font-semibold text-orange-700 dark:text-orange-300">
-                      ⚠️ Rappel : Ces fichiers ne déclenchent aucun paiement automatiquement. 
-                      Transmettez-les manuellement à votre banque après validation.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    Le fichier a été généré et téléchargé automatiquement. 
-                    L'export a été enregistré dans l'historique.
-                  </>
-                )}
+                  <p className="mt-2 font-semibold text-orange-700 dark:text-orange-300">
+                    Rappel : ces fichiers ne déclenchent aucun paiement automatiquement.
+                    Transmettez-les manuellement à votre banque après validation.
+                  </p>
+                ) : null}
               </AlertDescription>
             </Alert>
 
@@ -903,8 +1040,8 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Type d'export :</span>
-                  <span className="font-medium">{exportType}</span>
+                  <span className="text-muted-foreground">Type d&apos;export :</span>
+                  <span className="font-medium">{displayName}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Période :</span>
@@ -916,7 +1053,7 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Statut :</span>
-                  <Badge variant="default">{generateResponse.status}</Badge>
+                  <Badge variant="default">Généré</Badge>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Fichiers générés :</span>
@@ -937,6 +1074,11 @@ export function ExportCommonModel({ exportType, exportDescription, onClose }: Ex
               <Button variant="outline" onClick={handleBack} disabled={isLoading}>
                 Retour
               </Button>
+              {onViewHistory ? (
+                <Button variant="secondary" onClick={onViewHistory} disabled={isLoading}>
+                  Voir dans l&apos;historique
+                </Button>
+              ) : null}
               {onClose && (
                 <Button onClick={onClose} disabled={isLoading}>
                   Fermer

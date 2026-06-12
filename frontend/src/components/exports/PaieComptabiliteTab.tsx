@@ -1,7 +1,7 @@
 // src/components/exports/PaieComptabiliteTab.tsx
 // Sous-onglet Paie & Comptabilité - ÉTAPE 1
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileText, Calculator, Database, History, Wallet, Scale, FileSpreadsheet, Landmark } from "lucide-react";
@@ -9,8 +9,18 @@ import { ExportCommonModel } from "./ExportCommonModel";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ExportHistoryModal } from "./ExportHistoryModal";
 import { AccountingMappingsPanel } from "./AccountingMappingsPanel";
+import { AccountingIntegrationPanel } from "@/features/accounting-integration/components/AccountingIntegrationPanel";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-export function PaieComptabiliteTab() {
+interface PaieComptabiliteTabProps {
+  onOpenHistory?: (exportType?: string) => void;
+  initialExportId?: string | null;
+}
+
+export function PaieComptabiliteTab({
+  onOpenHistory,
+  initialExportId,
+}: PaieComptabiliteTabProps) {
   const [selectedExport, setSelectedExport] = useState<string | null>(null);
   const [historyModal, setHistoryModal] = useState<{ exportType: string; exportName: string } | null>(null);
 
@@ -29,6 +39,18 @@ export function PaieComptabiliteTab() {
     fec: "fec",
     prets_employeur: "prets_employeur",
   };
+
+  useEffect(() => {
+    if (initialExportId && exportTypeMapping[initialExportId]) {
+      setSelectedExport(initialExportId);
+    }
+  }, [initialExportId]);
+
+  useEffect(() => {
+    if (window.location.hash === "#accounting-mappings") {
+      document.getElementById("accounting-mappings")?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, []);
 
   const exports = [
     {
@@ -107,6 +129,14 @@ export function PaieComptabiliteTab() {
 
   return (
     <div className="space-y-6">
+      <Alert>
+        <AlertTitle>Guide exports comptables</AlertTitle>
+        <AlertDescription className="text-sm">
+          Clôture mensuelle complète (OD + journal + FEC) : onglet Envois → Comptabilité.
+          Formats cabinet Quadra / Sage : cartes ci-dessous. FEC seul : contrôle fiscal.
+        </AlertDescription>
+      </Alert>
+      <AccountingIntegrationPanel />
       {/* Description */}
       <Card>
         <CardHeader>
@@ -138,7 +168,13 @@ export function PaieComptabiliteTab() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                      onClick={() => setHistoryModal({ exportType, exportName: exportItem.name })}
+                      onClick={() => {
+                        if (onOpenHistory && exportType) {
+                          onOpenHistory(exportType);
+                        } else {
+                          setHistoryModal({ exportType, exportName: exportItem.name });
+                        }
+                      }}
                       title="Voir l'historique"
                     >
                       <History className="h-4 w-4" />
@@ -175,6 +211,15 @@ export function PaieComptabiliteTab() {
               exportType={selectedExport}
               exportDescription={exports.find(e => e.id === selectedExport)?.description || ""}
               onClose={() => setSelectedExport(null)}
+              onViewHistory={
+                onOpenHistory
+                  ? () => {
+                      const mapped = exportTypeMapping[selectedExport];
+                      if (mapped) onOpenHistory(mapped);
+                      setSelectedExport(null);
+                    }
+                  : undefined
+              }
             />
           </DialogContent>
         </Dialog>

@@ -10,6 +10,7 @@ import {
   deleteScheduledExport,
   getScheduledExports,
   runScheduledExportNow,
+  updateScheduledExport,
   type ExportType,
   type ScheduledExportCreate,
   type ScheduledExportFrequency,
@@ -26,7 +27,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SharkFinLoader } from "@/components/SharkFinLoader";
+import { ExportCardRefreshOverlay } from "@/components/exports/ExportCardRefreshOverlay";
+import { exportsLiveQueryOptions, refreshExportsPageQueries } from "@/lib/exportsQuery";
 
 export function ScheduledExportsPanel() {
   const { activeCompany } = useCompany();
@@ -37,18 +40,20 @@ export function ScheduledExportsPanel() {
   const [name, setName] = useState("");
   const [exportType, setExportType] = useState<ExportType>("journal_paie");
   const [frequency, setFrequency] = useState<ScheduledExportFrequency>("monthly");
+  const [dayOfWeek, setDayOfWeek] = useState(0);
   const [dayOfMonth, setDayOfMonth] = useState(5);
   const [hourUtc, setHourUtc] = useState(6);
   const [recipients, setRecipients] = useState("");
 
-  const { data: schedules, isLoading } = useQuery({
+  const { data: schedules, isLoading, isFetching } = useQuery({
     queryKey: ["scheduled-exports", companyId],
     queryFn: () => getScheduledExports(companyId),
     enabled: Boolean(companyId),
+    ...exportsLiveQueryOptions,
   });
 
   const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ["scheduled-exports", companyId] });
+    refreshExportsPageQueries(qc, companyId);
   };
 
   const createMutation = useMutation({
@@ -66,7 +71,11 @@ export function ScheduledExportsPanel() {
   if (!companyId) return null;
 
   return (
-    <Card>
+    <Card className="relative">
+      <ExportCardRefreshOverlay
+        visible={isFetching && !isLoading}
+        label="Actualisation des exports planifiés…"
+      />
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <CalendarClock className="h-5 w-5" />
@@ -113,16 +122,31 @@ export function ScheduledExportsPanel() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1">
-            <Label>Jour du mois</Label>
-            <Input
-              type="number"
-              min={1}
-              max={28}
-              value={dayOfMonth}
-              onChange={(e) => setDayOfMonth(parseInt(e.target.value || "5", 10))}
-            />
-          </div>
+          {frequency === "weekly" ? (
+            <div className="space-y-1">
+              <Label>Jour de la semaine (0 = lundi)</Label>
+              <Input
+                type="number"
+                min={0}
+                max={6}
+                value={dayOfWeek}
+                onChange={(e) => setDayOfWeek(parseInt(e.target.value || "0", 10))}
+              />
+            </div>
+          ) : null}
+          {frequency !== "daily" ? (
+            <div className="space-y-1">
+              <Label>Jour du mois</Label>
+              <Input
+                type="number"
+                min={1}
+                max={28}
+                value={dayOfMonth}
+                onChange={(e) => setDayOfMonth(parseInt(e.target.value || "5", 10))}
+                disabled={frequency === "weekly"}
+              />
+            </div>
+          ) : null}
           <div className="space-y-1">
             <Label>Heure UTC</Label>
             <Input
@@ -150,7 +174,8 @@ export function ScheduledExportsPanel() {
               name: name.trim(),
               export_type: exportType,
               frequency,
-              day_of_month: dayOfMonth,
+              day_of_week: frequency === "weekly" ? dayOfWeek : undefined,
+              day_of_month: frequency === "monthly" ? dayOfMonth : undefined,
               hour_utc: hourUtc,
               recipients: recipients
                 .split(/[\s,;]+/)
@@ -163,7 +188,10 @@ export function ScheduledExportsPanel() {
         </Button>
 
         {isLoading ? (
-          <Skeleton className="h-24 w-full" />
+          <SharkFinLoader
+            className="min-h-[160px]"
+            label="Chargement des exports planifiés…"
+          />
         ) : (schedules ?? []).length === 0 ? (
           <p className="text-muted-foreground text-sm">Aucun export planifié.</p>
         ) : (
@@ -177,11 +205,32 @@ export function ScheduledExportsPanel() {
                   <p className="font-medium">{s.name}</p>
                   <p className="text-muted-foreground text-sm">
                     {s.export_type_label} — {s.frequency_label}
-                    {s.next_run_at ? ` — prochain : ${new Date(s.next_run_at).toLocaleString("fr-FR")}` : ""}
+                    {s.frequency === "weekly" && s.day_of_week != null
+                      ? ` — jour ${s.day_of_week}`
+                      : ""}
+                    {s.next_run_at
+                      ? ` — prochain : ${new Date(s.next_run_at).toLocaleString("fr-FR")}`
+                      : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Switch checked={s.is_active} disabled aria-readonly />
+                  <Switch
+                    checked={s.is_active}
+                    onCheckedChange={async (checked) => {
+                      try {
+                        await updateScheduledExport(s.id, companyId, {
+                          is_active: checked,
+                        });
+                        invalidate();
+                      } catch (e: unknown) {
+                        toast({
+                          title: "Erreur",
+                          description: e instanceof Error ? e.message : "Erreur",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                  />
                   <Button
                     type="button"
                     size="sm"
@@ -189,7 +238,16 @@ export function ScheduledExportsPanel() {
                     onClick={async () => {
                       try {
                         const r = await runScheduledExportNow(s.id, companyId);
-                        toast({ title: "Export lancé", description: r.message });
+                        const emailHint =
+                          r.email_status === "skipped_no_smtp"
+                            ? " (SMTP non configuré)"
+                            : r.email_status === "sent"
+                              ? " (e-mail envoyé)"
+                              : "";
+                        toast({
+                          title: "Export lancé",
+                          description: `${r.message}${emailHint}`,
+                        });
                         invalidate();
                       } catch (e: unknown) {
                         toast({

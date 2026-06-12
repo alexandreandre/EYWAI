@@ -1,23 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Calendar,
   Plane,
   Notebook,
-  ClipboardEdit,
-  Scale,
-  Wallet,
   CheckCircle2,
   AlertTriangle,
   Loader2,
   ChevronDown,
   ChevronRight,
-  ClipboardCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRhSidebarTaskBadges } from '@/hooks/useRhSidebarTaskBadges';
-import { usePreflightAnomaliesCount } from '@/features/payroll/hooks/usePreflightAnomaliesCount';
 
 interface PreflightStep {
   url: string;
@@ -54,79 +49,27 @@ const PREFLIGHT_STEPS: PreflightStep[] = [
     icon: Notebook,
     tracked: true,
   },
-  {
-    url: '/payroll/review',
-    label: 'Revue des anomalies',
-    description: 'Écarts heures, pointage et conflits à traiter',
-    icon: ClipboardCheck,
-    tracked: true,
-  },
-  {
-    url: '/saisies',
-    label: 'Primes & éléments variables',
-    description: 'Saisies du mois à vérifier',
-    icon: ClipboardEdit,
-    tracked: false,
-  },
-  {
-    url: '/salary-seizures',
-    label: 'Saisies sur salaire',
-    description: 'Saisies-arrêts à intégrer',
-    icon: Scale,
-    tracked: false,
-  },
-  {
-    url: '/salary-advances',
-    label: 'Avances sur salaire',
-    description: 'Acomptes à intégrer',
-    icon: Wallet,
-    tracked: false,
-  },
 ];
 
 interface PayrollPreflightChecklistProps {
   className?: string;
   /** Navigation programmée (ex. depuis un modal) — évite le conflit Link + navigate(-1). */
   onStepClick?: (url: string) => void;
-  /** Mois cible pour la revue des anomalies (YYYY-MM). Défaut : mois courant. */
-  payrollMonth?: string;
-}
-
-function parsePayrollMonth(value: string | undefined): { year: number; month: number } {
-  const now = new Date();
-  const fallback = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const [yearStr, monthStr] = (value ?? fallback).split('-');
-  return {
-    year: parseInt(yearStr, 10),
-    month: parseInt(monthStr, 10),
-  };
 }
 
 export function PayrollPreflightChecklist({
   className,
   onStepClick,
-  payrollMonth,
 }: PayrollPreflightChecklistProps) {
   const { getCount, isLoading: badgesLoading } = useRhSidebarTaskBadges(true);
   const [manualOpen, setManualOpen] = useState<boolean | null>(null);
 
-  const { year, month } = useMemo(() => parsePayrollMonth(payrollMonth), [payrollMonth]);
-  const {
-    openAnomaliesCount,
-    isLoading: preflightLoading,
-  } = usePreflightAnomaliesCount(year, month);
+  const isLoading = badgesLoading;
 
-  const isLoading = badgesLoading || preflightLoading;
-
-  const steps = PREFLIGHT_STEPS.map((step) => {
-    if (step.url === '/payroll/review') {
-      return { ...step, count: openAnomaliesCount };
-    }
-    return {
-      ...step,
-      count: step.tracked ? getCount(step.url) : 0,
-    };
-  });
+  const steps = PREFLIGHT_STEPS.map((step) => ({
+    ...step,
+    count: step.tracked ? getCount(step.url) : 0,
+  }));
 
   const pendingSteps = steps.filter((step) => step.count > 0);
   const totalPending = pendingSteps.reduce((acc, step) => acc + step.count, 0);
@@ -230,13 +173,11 @@ export function PayrollPreflightChecklist({
                     <span className="shrink-0 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">
                       {step.count} à traiter
                     </span>
-                  ) : step.tracked ? (
+                  ) : (
                     <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-success">
                       <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
                       À jour
                     </span>
-                  ) : (
-                    <span className="shrink-0 text-xs text-muted-foreground">À vérifier</span>
                   )}
                   <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                 </>

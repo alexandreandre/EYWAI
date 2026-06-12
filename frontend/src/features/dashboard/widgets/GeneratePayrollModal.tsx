@@ -8,14 +8,14 @@ import { Label } from '@/components/ui/label';
 import { AlertTriangle, Loader2, PartyPopper } from 'lucide-react';
 import { PayrollProgressBar } from '@/features/payroll/components/PayrollProgressBar';
 import { PayrollPreflightChecklist } from '@/features/payroll/components/PayrollPreflightChecklist';
-import { PayrollPreflightAcknowledgeDialog } from '@/features/payroll/components/review/PayrollPreflightAcknowledgeDialog';
+import { PayrollPreflightAnomaliesSection } from '@/features/payroll/components/PayrollPreflightAnomaliesSection';
 import { usePayrollGeneration } from '@/features/payroll/hooks/usePayrollGeneration';
-import { usePreflightAnomaliesCount } from '@/features/payroll/hooks/usePreflightAnomaliesCount';
+import { usePreflightAnomalies } from '@/features/payroll/hooks/usePreflightAnomaliesCount';
 import { PayrollEmployeeEmptyState } from '@/features/payroll/components/PayrollEmployeeEmptyState';
 import { PayrollEmployeeReadinessAlert } from '@/features/payroll/components/PayrollEmployeeReadinessAlert';
-import { acknowledgePreflight } from '@/api/payrollPreflight';
 import type { PayrollGenerateEmployee } from '@/features/payroll/types';
 import type { EmployeeListItem } from '@/hooks/queries/useEmployeesQuery';
+import { cn } from '@/lib/utils';
 
 export type { PayrollGenerateEmployee } from '@/features/payroll/types';
 
@@ -45,9 +45,6 @@ export function GeneratePayrollModal({
   const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [uiPhase, setUiPhase] = useState<Phase>('select');
-  const [ackOpen, setAckOpen] = useState(false);
-  const [ackConfirmed, setAckConfirmed] = useState(false);
-  const [ackSubmitting, setAckSubmitting] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
 
   const generation = usePayrollGeneration();
@@ -61,9 +58,8 @@ export function GeneratePayrollModal({
 
   const {
     data: preflightData,
-    openAnomaliesCount,
     isLoading: preflightLoading,
-  } = usePreflightAnomaliesCount(parsedMonth.year, parsedMonth.month, !!selectedMonth);
+  } = usePreflightAnomalies(parsedMonth.year, parsedMonth.month, !!selectedMonth);
 
   const generateMonthOptions = () => {
     const options = [];
@@ -131,9 +127,6 @@ export function GeneratePayrollModal({
   useEffect(() => () => generation.dismiss(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const eligibleEmployees = employees.filter((e) => e.payroll_eligible !== false);
-  const ineligibleCount = employees.length - eligibleEmployees.length;
-  const selectableEmployees =
-    ineligibleCount > 0 ? eligibleEmployees : employees;
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -155,13 +148,9 @@ export function GeneratePayrollModal({
     setSelectedEmployees(newSet);
   };
 
-  const handleGenerate = () => {
-    if (openAnomaliesCount > 0) {
-      setAckConfirmed(false);
-      setAckOpen(true);
-      return;
-    }
-    startGeneration();
+  const handleVerifyAnomaly = (path: string) => {
+    handleClose();
+    onNavigateTo?.(path);
   };
 
   const startGeneration = () => {
@@ -180,29 +169,6 @@ export function GeneratePayrollModal({
 
     setUiPhase('running');
     generation.generateJobs(jobs);
-  };
-
-  const handleAcknowledgeAndGenerate = async () => {
-    if (!selectedMonth || !preflightData) return;
-    setAckSubmitting(true);
-    try {
-      const summary = [
-        ...(preflightData.counts.ecart_heures > 0 ? ['ecart_heures'] : []),
-        ...(preflightData.counts.heures_non_saisies > 0 ? ['heures_non_saisies'] : []),
-        ...(preflightData.counts.pointage > 0 ? ['pointage'] : []),
-        ...(preflightData.counts.conflit_absence > 0 ? ['conflit_absence'] : []),
-      ];
-      await acknowledgePreflight({
-        year: parsedMonth.year,
-        month: parsedMonth.month,
-        open_anomalies_count: openAnomaliesCount,
-        anomaly_types_summary: summary,
-      });
-      setAckOpen(false);
-      startGeneration();
-    } finally {
-      setAckSubmitting(false);
-    }
   };
 
   const handleReset = () => {
@@ -224,7 +190,6 @@ export function GeneratePayrollModal({
   const errorCount = generation.log.filter((l) => l.status === 'error').length;
 
   return (
-    <>
     <Dialog
       open={isOpen}
       onOpenChange={(open) => {
@@ -243,16 +208,16 @@ export function GeneratePayrollModal({
         {uiPhase === 'select' && (
           <>
             <div className="px-6 pb-4">
-              <PayrollPreflightChecklist onStepClick={onNavigateTo} payrollMonth={selectedMonth} />
+              <PayrollPreflightChecklist onStepClick={onNavigateTo} />
             </div>
 
-            {openAnomaliesCount > 0 && !preflightLoading && (
-              <div className="mx-6 mb-4 rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/20 dark:text-amber-100">
-                {openAnomaliesCount} anomalie{openAnomaliesCount > 1 ? 's' : ''} ouverte
-                {openAnomaliesCount > 1 ? 's' : ''} pour ce mois — un acquittement sera demandé avant
-                la génération.
-              </div>
-            )}
+            <div className="px-6 pb-4">
+              <PayrollPreflightAnomaliesSection
+                anomalies={preflightData?.anomalies ?? []}
+                isLoading={preflightLoading && !!selectedMonth}
+                onVerify={handleVerifyAnomaly}
+              />
+            </div>
 
             <div className="px-6 pb-4">
               <Label htmlFor="month-select" className="text-sm font-medium mb-2 block">
@@ -291,45 +256,60 @@ export function GeneratePayrollModal({
                   onNavigateTo={onNavigateTo}
                 />
               </div>
-            ) : eligibleEmployees.length === 0 ? null : (
+            ) : (
               <div className="px-2 pb-2">
-                {ineligibleCount > 0 && (
-                  <p className="px-4 pb-2 text-xs text-muted-foreground">
-                    {eligibleEmployees.length} collaborateur{eligibleEmployees.length > 1 ? 's' : ''}{' '}
-                    prêt{eligibleEmployees.length > 1 ? 's' : ''} — les autres sont listés dans le
-                    détail ci-dessus.
-                  </p>
-                )}
                 <Command className="rounded-lg border border-border/60">
                   <CommandInput placeholder="Rechercher un employé..." className="h-10" />
                   <CommandList className="max-h-[240px] overflow-y-auto">
                     <CommandEmpty>Aucun employé trouvé.</CommandEmpty>
                     <CommandGroup>
-                      <CommandItem
-                        onSelect={() => handleSelectAll(!isAllSelected)}
-                        className="flex items-center gap-3"
-                      >
-                        <Checkbox checked={isAllSelected} onCheckedChange={handleSelectAll} />
-                        <span className="text-sm font-medium">Tout sélectionner</span>
-                      </CommandItem>
-                      {selectableEmployees.map((emp) => (
+                      {eligibleEmployees.length > 0 && (
                         <CommandItem
-                          key={emp.id}
-                          value={`${emp.first_name} ${emp.last_name}`}
-                          onSelect={() =>
-                            handleSelect(emp.id, !selectedEmployees.has(emp.id))
-                          }
+                          onSelect={() => handleSelectAll(!isAllSelected)}
                           className="flex items-center gap-3"
                         >
-                          <Checkbox
-                            checked={selectedEmployees.has(emp.id)}
-                            onCheckedChange={(checked) => handleSelect(emp.id, !!checked)}
-                          />
-                          <span className="text-sm">
-                            {emp.first_name} {emp.last_name}
-                          </span>
+                          <Checkbox checked={isAllSelected} onCheckedChange={handleSelectAll} />
+                          <span className="text-sm font-medium">Tout sélectionner</span>
                         </CommandItem>
-                      ))}
+                      )}
+                      {employees.map((emp) => {
+                        const isIncomplete = emp.payroll_eligible === false;
+                        return (
+                          <CommandItem
+                            key={emp.id}
+                            value={`${emp.first_name} ${emp.last_name}`}
+                            disabled={isIncomplete}
+                            onSelect={() => {
+                              if (!isIncomplete) {
+                                handleSelect(emp.id, !selectedEmployees.has(emp.id));
+                              }
+                            }}
+                            className={cn(
+                              'flex items-center gap-3',
+                              isIncomplete && 'opacity-60 cursor-not-allowed',
+                            )}
+                          >
+                            <Checkbox
+                              checked={selectedEmployees.has(emp.id)}
+                              disabled={isIncomplete}
+                              onCheckedChange={(checked) => handleSelect(emp.id, !!checked)}
+                            />
+                            <span
+                              className={cn(
+                                'text-sm flex-1 min-w-0 truncate',
+                                isIncomplete && 'text-muted-foreground',
+                              )}
+                            >
+                              {emp.first_name} {emp.last_name}
+                            </span>
+                            {isIncomplete && (
+                              <span className="shrink-0 text-xs font-medium text-muted-foreground">
+                                À compléter
+                              </span>
+                            )}
+                          </CommandItem>
+                        );
+                      })}
                     </CommandGroup>
                   </CommandList>
                 </Command>
@@ -354,7 +334,7 @@ export function GeneratePayrollModal({
                 </Button>
                 <Button
                   className="bg-cyan-500 hover:bg-cyan-600 text-white"
-                  onClick={handleGenerate}
+                  onClick={startGeneration}
                   disabled={selectedEmployees.size === 0 || !selectedMonth}
                   title={
                     selectedEmployees.size === 0 && employees.length > 0
@@ -464,16 +444,5 @@ export function GeneratePayrollModal({
         )}
       </DialogContent>
     </Dialog>
-
-      <PayrollPreflightAcknowledgeDialog
-        open={ackOpen}
-        onOpenChange={setAckOpen}
-        data={preflightData}
-        acknowledged={ackConfirmed}
-        onAcknowledgedChange={setAckConfirmed}
-        onConfirm={handleAcknowledgeAndGenerate}
-        isSubmitting={ackSubmitting}
-      />
-    </>
   );
 }

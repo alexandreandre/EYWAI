@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { needsContractEndDate } from '@/constants/contracts';
+import { ibanFieldSchema } from '@/lib/ibanSchema';
 
 export const employeeProfileEditSchema = z
   .object({
@@ -19,7 +20,7 @@ export const employeeProfileEditSchema = z
       ville: z.string().min(2, { message: 'Ville requise.' }),
     }),
     coordonnees_bancaires: z.object({
-      iban: z.string().min(14, { message: 'IBAN invalide.' }),
+      iban: ibanFieldSchema,
       bic: z.string().min(8, { message: 'BIC invalide.' }),
     }),
     hire_date: z.string().refine((d) => d && !Number.isNaN(Date.parse(d)), {

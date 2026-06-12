@@ -7,6 +7,7 @@ import {
   sanitizeBackendMessage,
 } from '@/lib/errorMessages';
 import { queryKeys } from '@/lib/queryKeys';
+import { invalidateExportsPageQueries } from '@/lib/exportsQuery';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import {
   monthYearLabel,
@@ -237,9 +238,10 @@ export function usePayrollGeneration() {
         setProgress(100);
         setEstimatedRemainingSec(0);
         setPhase('done');
+        invalidateExportsPageQueries(queryClient);
       }
     }
-  }, [invalidatePayslips, startTick, stopTick, updateProgress]);
+  }, [invalidatePayslips, queryClient, startTick, stopTick, updateProgress]);
 
   const enqueueJobs = useCallback(
     (jobs: PayrollGenerationJob[]) => {

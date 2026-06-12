@@ -12,6 +12,7 @@ import {
   Percent,
   Send,
   Mail,
+  Plug,
 } from "lucide-react";
 
 export type AdminNavItem = {
@@ -74,6 +75,11 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         name: "Télétransmissions DSN",
         href: "/super-admin/dsn-transmissions",
         icon: Send,
+      },
+      {
+        name: "Intégrations comptables",
+        href: "/super-admin/accounting-integrations",
+        icon: Plug,
       },
     ],
   },

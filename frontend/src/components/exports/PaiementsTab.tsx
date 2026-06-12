@@ -1,7 +1,7 @@
 // src/components/exports/PaiementsTab.tsx
 // Sous-onglet Paiements - ÉTAPE 1
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CreditCard, Receipt, Building2, History } from "lucide-react";
@@ -9,7 +9,11 @@ import { ExportCommonModel } from "./ExportCommonModel";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ExportHistoryModal } from "./ExportHistoryModal";
 
-export function PaiementsTab() {
+interface PaiementsTabProps {
+  initialExportId?: string | null;
+}
+
+export function PaiementsTab({ initialExportId }: PaiementsTabProps) {
   const [selectedExport, setSelectedExport] = useState<string | null>(null);
   const [historyModal, setHistoryModal] = useState<{ exportType: string; exportName: string } | null>(null);
 
@@ -19,6 +23,12 @@ export function PaiementsTab() {
     "recapitulatif-montants": "recapitulatif_montants",
     "paiement-organismes": "paiement_organismes",
   };
+
+  useEffect(() => {
+    if (initialExportId && exportTypeMapping[initialExportId]) {
+      setSelectedExport(initialExportId);
+    }
+  }, [initialExportId]);
 
   const exports = [
     {

@@ -168,10 +168,34 @@ export async function getExportHistory(
   return response.data;
 }
 
-// Télécharger un export depuis l'historique
-export async function downloadExport(exportId: string): Promise<{ download_url: string }> {
-  const response = await apiClient.get(`/api/exports/download/${exportId}`);
+export interface ExportFileDownloadInfo {
+  index: string;
+  filename: string;
+  download_url: string;
+}
+
+// Télécharger un export depuis l'historique (un fichier par index, ou liste complète)
+export async function downloadExport(
+  exportId: string,
+  fileIndex?: number,
+): Promise<{ download_url: string } | { files: ExportFileDownloadInfo[] }> {
+  const params =
+    fileIndex !== undefined ? `?file_index=${encodeURIComponent(String(fileIndex))}` : "";
+  const response = await apiClient.get(`/api/exports/download/${exportId}${params}`);
   return response.data;
+}
+
+export async function listExportDownloadFiles(
+  exportId: string,
+): Promise<ExportFileDownloadInfo[]> {
+  const data = await downloadExport(exportId);
+  if ("files" in data && Array.isArray(data.files)) {
+    return data.files;
+  }
+  if ("download_url" in data) {
+    return [{ index: "0", filename: "export", download_url: data.download_url }];
+  }
+  return [];
 }
 
 /** Types alignés sur EXPORT_TYPES_GENERATE (backend) — exports planifiés */
@@ -293,8 +317,18 @@ export async function deleteScheduledExport(
 export async function runScheduledExportNow(
   scheduleId: string,
   companyId: string | null | undefined,
-): Promise<{ export_id: string; message: string }> {
-  const { data } = await apiClient.post<{ export_id: string; message: string }>(
+): Promise<{
+  export_id: string;
+  message: string;
+  email_status?: string | null;
+  email_message?: string | null;
+}> {
+  const { data } = await apiClient.post<{
+    export_id: string;
+    message: string;
+    email_status?: string | null;
+    email_message?: string | null;
+  }>(
     `/api/exports/scheduled/${scheduleId}/run-now`,
     {},
     { headers: scheduledHeaders(companyId) },
@@ -359,6 +393,35 @@ export async function upsertAccountingMapping(
 export type DispatchChannel = "compta" | "banque";
 export type DispatchStatus = "pending" | "generated" | "transmitted" | "failed";
 
+export interface DispatchBlockingAnomaly {
+  source_key: string;
+  source_label: string;
+  message: string;
+  employee_id?: string | null;
+  employee_name?: string | null;
+  action_label: string;
+  action_path: string;
+  context_note?: string | null;
+  balance_debug?: OdBalanceDebug | null;
+}
+
+export interface OdBalanceDebug {
+  period?: string;
+  formula?: string;
+  total_debit?: number;
+  total_credit?: number;
+  ecart?: number;
+  heavier_side?: "debit" | "credit" | "balanced";
+  interpretation?: string;
+  payslips_included?: number;
+  ecritures_lines?: number;
+  debit_by_component?: Record<string, number>;
+  credit_by_component?: Record<string, number>;
+  payslip_source_totals?: Record<string, number>;
+  reconciliation?: Record<string, number>;
+  skipped_entries?: string[];
+}
+
 export interface DispatchChannelStatus {
   channel: DispatchChannel;
   period: string;
@@ -372,6 +435,7 @@ export interface DispatchChannelStatus {
   transmission_note: string | null;
   can_generate: boolean;
   blocking_anomalies_count: number;
+  blocking_anomalies?: DispatchBlockingAnomaly[];
 }
 
 export interface DispatchStatusResponse {
@@ -396,6 +460,10 @@ export interface DispatchResultResponse {
   files: ExportFileInfo[];
   downloads: DispatchFileDownload[];
   message: string;
+  transmission_id?: string | null;
+  transmission_status?: string | null;
+  transmission_provider?: string | null;
+  transmission_manual_fallback?: boolean;
 }
 
 export interface DispatchHistoryEntry {
@@ -461,10 +529,11 @@ export async function dispatchCompta(
   companyId: string | null | undefined,
   period: string,
   format: "csv" | "xlsx" = "csv",
+  options?: { force_manual?: boolean },
 ): Promise<DispatchResultResponse> {
   const { data } = await apiClient.post<DispatchResultResponse>(
     "/api/exports/dispatch/compta",
-    { period, format },
+    { period, format, force_manual: options?.force_manual ?? false },
     { headers: dispatchHeaders(companyId) },
   );
   return data;

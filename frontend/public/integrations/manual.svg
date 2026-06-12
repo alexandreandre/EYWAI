@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 32" role="img" aria-label="Manuel">
+  <rect width="120" height="32" rx="4" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="60" y="21" text-anchor="middle" fill="#334155" font-family="Arial,sans-serif" font-size="12" font-weight="600">Manuel</text>
+</svg>

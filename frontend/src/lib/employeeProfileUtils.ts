@@ -84,9 +84,13 @@ export function formatTrialPeriodLabel(profile: EmployeeProfileData): string | n
 
 export function maskIban(iban: string | undefined): string {
   if (!iban?.trim()) return 'Non renseigné';
-  const trimmed = iban.replace(/\s/g, '');
+  const trimmed = iban.replace(/\s/g, '').toUpperCase();
+  if (trimmed.length < 8) return trimmed;
   const last4 = trimmed.slice(-4);
-  return `FR** **** **** **** **** ***${last4}`;
+  if (/^[A-Z]{2}/.test(trimmed)) {
+    return `${trimmed.slice(0, 4)} **** **** ${last4}`;
+  }
+  return `**** **** ${last4}`;
 }
 
 export function formatProfileCurrency(amount: number | undefined): string | null {

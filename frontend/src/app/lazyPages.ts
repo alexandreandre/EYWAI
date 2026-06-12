@@ -11,7 +11,6 @@ export const EmployeeDetail = lazy(() => import('@/pages/rh/EmployeeDetail'));
 export const Rates = lazy(() => import('@/pages/rh/Rates'));
 export const Payroll = lazy(() => import('@/pages/rh/Payroll'));
 export const PayrollGenerate = lazy(() => import('@/pages/rh/PayrollGenerate'));
-export const PayrollReview = lazy(() => import('@/pages/rh/PayrollReview'));
 export const PayrollDetail = lazy(() => import('@/pages/rh/PayrollDetail'));
 export const PayslipEdit = lazy(() => import('@/pages/rh/PayslipEdit'));
 export const Saisies = lazy(() => import('@/pages/rh/Saisies'));
@@ -85,6 +84,7 @@ export const SuperAdminReductionFillon = lazy(() => import('@/pages/admin/super/
 export const AdminRates = lazy(() => import('@/pages/admin/eywai/RatesAdmin'));
 export const SuperAdminScraping = lazy(() => import('@/pages/admin/super/Scraping'));
 export const SuperAdminDsnTransmissions = lazy(() => import('@/pages/admin/eywai/DsnTransmissions'));
+export const SuperAdminAccountingIntegrations = lazy(() => import('@/pages/admin/eywai/AccountingIntegrations'));
 export const SuperAdminEmailSettings = lazy(() => import('@/pages/admin/eywai/EmailSettings'));
 export const CollectiveAgreementsCatalog = lazy(() => import('@/pages/admin/super/CollectiveAgreementsCatalog'));
 export const CompanyGroups = lazy(() => import('@/pages/admin/super/CompanyGroups'));

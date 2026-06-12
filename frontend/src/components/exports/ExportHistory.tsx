@@ -3,14 +3,23 @@
 
 import { log } from '@/lib/logger';
 import { showErrorToast } from '@/lib/errorMessages';
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { exportsLiveQueryOptions } from "@/lib/exportsQuery";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { History, Loader2, Download } from "lucide-react";
-import { getExportHistory, ExportHistoryEntry, downloadExport, ExportType } from "@/api/exports";
-import { downloadBlob, openBlobInNewTab, createBlobPreviewUrl } from '@/lib/downloadBlob';
+import { SharkFinLoader } from "@/components/SharkFinLoader";
+import { ExportCardRefreshOverlay } from "@/components/exports/ExportCardRefreshOverlay";
+import {
+  getExportHistory,
+  ExportHistoryEntry,
+  listExportDownloadFiles,
+  ExportType,
+} from "@/api/exports";
+import { downloadBlob } from '@/lib/downloadBlob';
 
 const exportTypeLabels: Record<string, string> = {
   // Paie & Comptabilité
@@ -32,6 +41,11 @@ const exportTypeLabels: Record<string, string> = {
   conges_absences: "Congés payés / Absences",
   notes_frais: "Notes de frais",
   acomptes: "Acomptes & avances",
+  saisies: "Saisies sur salaire",
+  fec: "FEC",
+  prets_employeur: "Prêts employeur",
+  paiement_organismes: "Paiement organismes",
+  attestations_annexes: "Attestations & annexes",
   // Anciens formats (pour compatibilité)
   ecritures_comptables: "Écritures comptables",
 };
@@ -42,59 +56,46 @@ interface ExportHistoryProps {
 }
 
 export function ExportHistory({ exportType, hideHeader = false }: ExportHistoryProps) {
-  const [history, setHistory] = useState<ExportHistoryEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    loadHistory();
-  }, [exportType]);
+  const {
+    data: historyResponse,
+    isLoading,
+    isFetching,
+    error: queryError,
+  } = useQuery({
+    queryKey: ["export-history", exportType ?? "all"],
+    queryFn: () => getExportHistory(exportType as ExportType | undefined),
+    ...exportsLiveQueryOptions,
+  });
 
-  const loadHistory = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await getExportHistory(exportType as ExportType | undefined);
-      setHistory(response.exports);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Erreur lors du chargement de l'historique");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const history = historyResponse?.exports ?? [];
+  const error =
+    queryError && typeof queryError === "object" && "response" in queryError
+      ? String((queryError as { response?: { data?: { detail?: string } } }).response?.data?.detail)
+      : queryError
+        ? "Erreur lors du chargement de l'historique"
+        : null;
 
   const handleDownload = async (exportId: string, exportType: string, period: string) => {
     setDownloadingIds((prev) => new Set(prev).add(exportId));
     try {
-      const response = await downloadExport(exportId);
-      const downloadUrl = response.download_url;
-
-      // Télécharger le fichier
-      const fileResponse = await fetch(downloadUrl);
-      if (!fileResponse.ok) {
-        throw new Error(`Erreur HTTP: ${fileResponse.statusText}`);
+      const files = await listExportDownloadFiles(exportId);
+      if (files.length === 0) {
+        throw new Error("Aucun fichier disponible");
       }
 
-      const blob = await fileResponse.blob();
-      
-      // Déterminer le nom du fichier
-      const periodFormatted = period.replace("-", "_");
-      const contentType = fileResponse.headers.get("content-type") || "";
-      let extension = "xlsx";
-      if (contentType.includes("csv") || contentType.includes("text/csv")) {
-        extension = "csv";
-      } else if (contentType.includes("zip") || contentType.includes("application/zip")) {
-        extension = "zip";
-      } else if (contentType.includes("xml")) {
-        extension = "xml";
+      for (const file of files) {
+        const fileResponse = await fetch(file.download_url);
+        if (!fileResponse.ok) {
+          throw new Error(`Erreur HTTP: ${fileResponse.statusText}`);
+        }
+        const blob = await fileResponse.blob();
+        const fallbackName = `${exportType}_${period.replace("-", "_")}`;
+        const filename =
+          file.filename && file.filename !== "export" ? file.filename : fallbackName;
+        downloadBlob(blob, filename);
       }
-      
-      const filename = `${exportType}_${periodFormatted}.${extension}`;
-
-      // Créer un lien de téléchargement
-      downloadBlob(blob, filename);
-      window.URL.revokeObjectURL(url);
     } catch (err: any) {
       log.error("Erreur lors du téléchargement:", err);
       showErrorToast(err, {
@@ -139,7 +140,11 @@ export function ExportHistory({ exportType, hideHeader = false }: ExportHistoryP
   };
 
   return (
-    <Card>
+    <Card className="relative">
+      <ExportCardRefreshOverlay
+        visible={isFetching && !isLoading}
+        label="Actualisation de l'historique…"
+      />
       {!hideHeader && (
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -155,9 +160,7 @@ export function ExportHistory({ exportType, hideHeader = false }: ExportHistoryP
       )}
       <CardContent>
         {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
+          <SharkFinLoader className="min-h-[160px]" label="Chargement de l'historique…" />
         ) : error ? (
           <div className="text-center py-8 text-destructive">
             <p>{error}</p>
@@ -203,12 +206,23 @@ export function ExportHistory({ exportType, hideHeader = false }: ExportHistoryP
                       size="icon"
                       onClick={() => handleDownload(item.id, item.export_type, item.period)}
                       disabled={downloadingIds.has(item.id) || item.status !== "generated"}
-                      title="Télécharger l'export"
+                      title={
+                        item.files_count > 1
+                          ? `Télécharger ${item.files_count} fichiers`
+                          : "Télécharger l'export"
+                      }
                     >
                       {downloadingIds.has(item.id) ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        <Download className="h-4 w-4" />
+                        <span className="relative inline-flex">
+                          <Download className="h-4 w-4" />
+                          {item.files_count > 1 ? (
+                            <span className="bg-primary text-primary-foreground absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full px-0.5 text-[10px]">
+                              {item.files_count}
+                            </span>
+                          ) : null}
+                        </span>
                       )}
                     </Button>
                   </TableCell>

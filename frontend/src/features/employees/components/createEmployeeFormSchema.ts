@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ibanFieldSchema } from "@/lib/ibanSchema";
 
 export const createEmployeeFormSchema = z.object({
   // --- SECTION SALARIÉ (COMPLÉTÉE) ---
@@ -15,7 +16,7 @@ export const createEmployeeFormSchema = z.object({
     ville: z.string().min(2, { message: "Ville requise." }),
   }),
   coordonnees_bancaires: z.object({
-    iban: z.string().min(14, { message: "IBAN invalide." }),
+    iban: ibanFieldSchema,
     bic: z.string().min(8, { message: "BIC invalide." }),
   }),
   

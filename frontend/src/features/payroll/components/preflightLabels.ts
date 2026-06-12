@@ -38,8 +38,16 @@ export function formatEcartValue(anomaly: PreflightAnomaly): string {
   return `${value >= 0 ? '+' : ''}${value.toFixed(1)}${unit}`;
 }
 
+export function verifyPathForAnomaly(anomaly: PreflightAnomaly): string {
+  if (anomaly.type === 'pointage') {
+    return `/badgeuse-rh?employee=${encodeURIComponent(anomaly.employee_id)}`;
+  }
+  return '/schedules';
+}
+
+/** @deprecated Utiliser verifyPathForAnomaly */
 export function correctionPathForType(type: PreflightAnomalyType): string {
-  if (type === 'pointage') return '/badgeuse';
+  if (type === 'pointage') return '/badgeuse-rh';
   return '/schedules';
 }
 
@@ -60,4 +68,12 @@ export function countOpenByType(
   type: PreflightAnomalyType,
 ): number {
   return anomalies.filter((a) => a.type === type && a.status === 'a_traiter').length;
+}
+
+export function countOpenAnomalies(anomalies: PreflightAnomaly[]): number {
+  return anomalies.filter((a) => a.status === 'a_traiter').length;
+}
+
+export function countOpenBlockingAnomalies(anomalies: PreflightAnomaly[]): number {
+  return anomalies.filter((a) => a.status === 'a_traiter' && a.severity === 'bloquant').length;
 }

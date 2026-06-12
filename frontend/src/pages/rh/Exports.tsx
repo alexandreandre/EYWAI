@@ -3,10 +3,15 @@
 
 import { RhPageHeader } from '@/components/layout';
 import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calculator, FileText, Receipt, Users, History, CalendarClock } from "lucide-react";
-import { useHasActiveCompanyRhAccess } from "@/contexts/CompanyContext";
-import { Navigate } from "react-router-dom";
+import { useCompany, useHasActiveCompanyRhAccess } from "@/contexts/CompanyContext";
+import { Navigate, useSearchParams } from "react-router-dom";
+import {
+  refreshExportsPageQueries,
+  useExportsPageAutoRefresh,
+} from "@/lib/exportsQuery";
 
 import { PaieComptabiliteTab } from "@/components/exports/PaieComptabiliteTab";
 import { DeclarationsTab } from "@/components/exports/DeclarationsTab";
@@ -15,17 +20,58 @@ import { ExportsRhTab } from "@/components/exports/ExportsRhTab";
 import { ExportHistory } from "@/components/exports/ExportHistory";
 import { PlanifiesTab } from "@/components/exports/PlanifiesTab";
 
+const EXPORT_TABS = [
+  "paie-comptabilite",
+  "declarations",
+  "paiements",
+  "exports-rh",
+  "planifies",
+  "historique",
+] as const;
+
 export default function Exports() {
   const hasRhAccess = useHasActiveCompanyRhAccess();
-  const [activeTab, setActiveTab] = useState("paie-comptabilite");
+  const { activeCompany } = useCompany();
+  const companyId = activeCompany?.company_id ?? null;
+  const queryClient = useQueryClient();
+  useExportsPageAutoRefresh(queryClient, companyId);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const initialTab =
+    tabParam && EXPORT_TABS.includes(tabParam as (typeof EXPORT_TABS)[number])
+      ? tabParam
+      : "paie-comptabilite";
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [historyFilter, setHistoryFilter] = useState<string | undefined>(undefined);
+  const deepLinkExport = searchParams.get("export");
+
+  useEffect(() => {
+    if (tabParam && EXPORT_TABS.includes(tabParam as (typeof EXPORT_TABS)[number])) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
     if (activeTab !== "historique") {
       setHistoryFilter(undefined);
     }
-  }, [activeTab]);
+    refreshExportsPageQueries(queryClient, companyId);
+  }, [activeTab, queryClient, companyId]);
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    const next = new URLSearchParams(searchParams);
+    if (tab === "paie-comptabilite") {
+      next.delete("tab");
+    } else {
+      next.set("tab", tab);
+    }
+    if (tab !== "paie-comptabilite" && tab !== "paiements") {
+      next.delete("export");
+    }
+    setSearchParams(next, { replace: true });
+  };
 
   if (!hasRhAccess) {
     return <Navigate to="/" replace />;
@@ -38,7 +84,7 @@ export default function Exports() {
         description="Centre de production réglementaire pour transmettre des données à la comptabilité, produire des déclarations sociales et extraire des tableaux RH complets et auditables."
       />
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid h-auto w-full grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
           <TabsTrigger value="paie-comptabilite" className="flex items-center gap-2 text-xs sm:text-sm">
             <Calculator className="h-4 w-4 shrink-0" />
@@ -70,7 +116,13 @@ export default function Exports() {
         </TabsList>
 
         <TabsContent value="paie-comptabilite" className="space-y-6 mt-6">
-          <PaieComptabiliteTab />
+          <PaieComptabiliteTab
+            initialExportId={deepLinkExport}
+            onOpenHistory={(filter) => {
+              setHistoryFilter(filter);
+              handleTabChange("historique");
+            }}
+          />
         </TabsContent>
 
         <TabsContent value="declarations" className="space-y-6 mt-6">
@@ -78,7 +130,7 @@ export default function Exports() {
         </TabsContent>
 
         <TabsContent value="paiements" className="space-y-6 mt-6">
-          <PaiementsTab />
+          <PaiementsTab initialExportId={activeTab === "paiements" ? deepLinkExport : null} />
         </TabsContent>
 
         <TabsContent value="exports-rh" className="space-y-6 mt-6">

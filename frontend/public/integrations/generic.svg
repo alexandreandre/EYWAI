@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 32" role="img" aria-label="Dépôt SFTP">
+  <g fill="none" stroke="#64748b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="4" y="10" width="22" height="16" rx="2" fill="#f1f5f9"/>
+    <line x1="8" y1="15" x2="22" y2="15"/>
+    <line x1="8" y1="19" x2="18" y2="19"/>
+    <circle cx="21" cy="19" r="1" fill="#64748b" stroke="none"/>
+    <path d="M34 22V12"/>
+    <path d="M29 17l5-5 5 5"/>
+    <rect x="44" y="14" width="14" height="12" rx="1.5" fill="#f1f5f9"/>
+    <path d="M47 18h8M47 21h5"/>
+  </g>
+  <text x="64" y="21" fill="#334155" font-family="system-ui,-apple-system,sans-serif" font-size="11" font-weight="600">SFTP</text>
+</svg>

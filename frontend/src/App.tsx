@@ -176,14 +176,6 @@ function ProtectedRoutes() {
                   <Route path="/employee-loans" element={<Pages.EmployeeLoans />} />
                   <Route path="/rates" element={<Pages.Rates />} />
                   <Route
-                    path="/payroll/review"
-                    element={
-                      <Suspense fallback={<TableSkeleton rows={8} columns={5} />}>
-                        <Pages.PayrollReview />
-                      </Suspense>
-                    }
-                  />
-                  <Route
                     path="/payroll/generate"
                     element={
                       <Suspense fallback={<TableSkeleton rows={8} columns={5} />}>
@@ -329,6 +321,7 @@ export default function App() {
                       <Route path="reduction-fillon" element={<Pages.SuperAdminReductionFillon />} />
                       <Route path="scraping" element={<Pages.SuperAdminScraping />} />
                       <Route path="dsn-transmissions" element={<Pages.SuperAdminDsnTransmissions />} />
+                      <Route path="accounting-integrations" element={<Pages.SuperAdminAccountingIntegrations />} />
                       <Route path="email-settings" element={<Pages.SuperAdminEmailSettings />} />
                       <Route path="monitoring" element={<Pages.SuperAdminMonitoring />} />
                       <Route path="tests" element={<Pages.SuperAdminTests />} />
