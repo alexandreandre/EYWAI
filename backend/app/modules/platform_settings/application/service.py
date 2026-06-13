@@ -15,7 +15,6 @@ from app.modules.platform_settings.schemas.responses import (
     EmailSettingsResponse,
     EmailTestResponse,
 )
-from app.shared.infrastructure.email.smtp_sender import SmtpMailSender
 
 
 def _row_to_response(row: Optional[Dict[str, Any]]) -> EmailSettingsResponse:
@@ -108,6 +107,8 @@ def update_email_settings(
 
 
 def send_test_email(to_email: str) -> EmailTestResponse:
+    from app.shared.infrastructure.email.smtp_sender import SmtpMailSender
+
     sender = SmtpMailSender()
     subject = "[EYWAI] Test de configuration e-mail"
     text = (

@@ -1,3 +1,3 @@
-from app.modules.platform_settings.application import service
+"""Couche application platform_settings (pas d'import eager — évite cycles SMTP)."""
 
-__all__ = ["service"]
+__all__ = ["email_config", "service"]

@@ -117,7 +117,7 @@ class TestUpdateEmailSettings:
 class TestSendTestEmail:
     def test_success_message(self):
         with patch(
-            "app.modules.platform_settings.application.service.SmtpMailSender"
+            "app.shared.infrastructure.email.smtp_sender.SmtpMailSender"
         ) as mock_cls:
             mock_cls.return_value.send_multipart_email.return_value = (True, None)
             result = service.send_test_email("test@eywai.fr")
@@ -126,7 +126,7 @@ class TestSendTestEmail:
 
     def test_failure_message(self):
         with patch(
-            "app.modules.platform_settings.application.service.SmtpMailSender"
+            "app.shared.infrastructure.email.smtp_sender.SmtpMailSender"
         ) as mock_cls:
             mock_cls.return_value.send_multipart_email.return_value = (
                 False,
