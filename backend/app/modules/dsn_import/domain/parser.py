@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.modules.dsn_import.domain.model import (
     ContratBlock,
@@ -94,9 +94,14 @@ from app.modules.dsn_import.domain.rubriques import (
     R_S21_REM_PERIODE_FIN,
     R_S21_REM_TYPE,
     R_S21_REM_TYPE_LEGACY,
+    R_S21_ACT_MESURE,
+    R_S21_ACT_TYPE,
+    R_S21_ACT_UNITE,
     R_S21_VER_DATE,
     R_S21_VER_NET_FISCAL,
+    R_S21_VER_NUMERO,
     R_S21_VER_PAS,
+    R_S21_VER_PAS_LEGACY,
 )
 from app.shared.dsn_validation import build_siret_from_siren_nic
 
@@ -192,6 +197,7 @@ class _ParseContext:
         self.versement: Optional[VersementBlock] = None
         self.remuneration: Optional[RemunerationBlock] = None
         self.cotisation: Optional[CotisationBlock] = None
+        self.activite: Optional[Dict[str, Any]] = None
         self.warnings: List[str] = []
 
     def _ensure_individu(self) -> IndividuBlock:
@@ -228,6 +234,15 @@ class _ParseContext:
             ver.cotisations.append(self.cotisation)
         return self.cotisation
 
+    def _ensure_activite(self) -> Dict[str, Any]:
+        ver = self._ensure_versement()
+        if self.activite is None:
+            self.activite = {}
+            activites = ver.rubriques.setdefault("activites", [])
+            if isinstance(activites, list):
+                activites.append(self.activite)
+        return self.activite
+
     def on_block_start(self, g00: str) -> None:
         block = BLOCK_G00.get(g00)
         if block == "individu":
@@ -237,6 +252,7 @@ class _ParseContext:
             self.versement = None
             self.remuneration = None
             self.cotisation = None
+            self.activite = None
         elif block == "contrat":
             ind = self._ensure_individu()
             self.contrat = ContratBlock()
@@ -244,12 +260,14 @@ class _ParseContext:
             self.versement = None
             self.remuneration = None
             self.cotisation = None
+            self.activite = None
         elif block == "versement":
             ctr = self._ensure_contrat()
             self.versement = VersementBlock()
             ctr.versements.append(self.versement)
             self.remuneration = None
             self.cotisation = None
+            self.activite = None
         elif block == "remuneration":
             ver = self._ensure_versement()
             self.remuneration = RemunerationBlock()
@@ -258,6 +276,12 @@ class _ParseContext:
             ver = self._ensure_versement()
             self.cotisation = CotisationBlock()
             ver.cotisations.append(self.cotisation)
+        elif block == "activite":
+            ver = self._ensure_versement()
+            self.activite = {}
+            activites = ver.rubriques.setdefault("activites", [])
+            if isinstance(activites, list):
+                activites.append(self.activite)
         elif block == "etablissement":
             if not self.etablissement.siret and not self.etablissement.nic:
                 self.etablissement = EtablissementBlock()
@@ -266,6 +290,7 @@ class _ParseContext:
             self.versement = None
             self.remuneration = None
             self.cotisation = None
+            self.activite = None
         elif block == "entreprise":
             self.entreprise = EntrepriseBlock()
 
@@ -459,6 +484,18 @@ class _ParseContext:
             self._ensure_versement().net_fiscal = _float_val(valeur)
         elif rubrique == R_S21_VER_PAS:
             self._ensure_versement().pas = _float_val(valeur)
+        elif rubrique == R_S21_VER_PAS_LEGACY:
+            if self.dsn_format == "legacy":
+                self._ensure_versement().pas = _float_val(valeur)
+            else:
+                self._ensure_versement().rubriques[rubrique] = valeur
+        elif rubrique == R_S21_ACT_TYPE:
+            self._ensure_activite()["type"] = valeur
+        elif rubrique == R_S21_ACT_MESURE:
+            self._ensure_activite()["mesure"] = _float_val(valeur)
+        elif rubrique == R_S21_ACT_UNITE:
+            act = self._ensure_activite()
+            act["unite"] = valeur.split(" - ", 1)[0].strip() if " - " in valeur else valeur.strip()
         elif rubrique == R_S21_REM_PERIODE_DEB:
             rem = self._ensure_remuneration()
             rem.rubriques[rubrique] = valeur

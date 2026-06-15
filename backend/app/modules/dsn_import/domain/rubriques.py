@@ -86,7 +86,15 @@ R_S21_CTR_LIBELLE_EMPLOI = "S21.G00.40.006"
 # --- Versement S21.G00.50 ---
 R_S21_VER_DATE = "S21.G00.50.001"
 R_S21_VER_NET_FISCAL = "S21.G00.50.002"
-R_S21_VER_PAS = "S21.G00.50.003"
+# Legacy (P21-) : .003 = montant PAS ; norme courante : .003 = n° versement, .009 = montant PAS
+R_S21_VER_NUMERO = "S21.G00.50.003"
+R_S21_VER_PAS_LEGACY = R_S21_VER_NUMERO
+R_S21_VER_PAS = "S21.G00.50.009"
+
+# --- Activité S21.G00.53 ---
+R_S21_ACT_TYPE = "S21.G00.53.001"
+R_S21_ACT_MESURE = "S21.G00.53.002"
+R_S21_ACT_UNITE = "S21.G00.53.003"
 
 # --- Rémunération S21.G00.51 ---
 # Legacy (P21-) : .001 = type, .011 = heures, .013 = montant
@@ -123,6 +131,7 @@ BLOCK_G00 = {
     "51": "remuneration",
     "78": "cotisation",
     "81": "base_assujettie",
+    "53": "activite",
 }
 
 # Codes nature contrat DSN -> libellé EYWAI
@@ -142,7 +151,18 @@ CONTRACT_NATURE_MAP = {
 }
 
 STATUT_CADRE_CODES = {"03", "04", "06", "07", "08", "09"}
-REMUNERATION_BRUT_TYPES = {"001", "002", "003", "010", "011", "012", "018", "019"}
+# Types obligatoires DSN : vues différentes du même salaire — ne pas les additionner
+REMUNERATION_BRUT_PRIMARY = ("001", "010", "002", "003")
+REMUNERATION_BRUT_TYPES = set(REMUNERATION_BRUT_PRIMARY)
+# Types de rémunération dont .012 = nombre d'heures
+REMUNERATION_HEURES_TYPES = {
+    "001", "010", "012", "013", "016", "017", "018", "019", "020", "025",
+}
+# Unités d'activité comptées en heures (S21.G00.53.003)
+ACTIVITE_UNITE_HEURES = {"10", "21"}
+# Journées / forfait jour — converties en heures pour la synthèse (7 h/j)
+ACTIVITE_UNITE_JOURS = {"12", "20"}
+ACTIVITE_HEURES_PAR_JOUR = 7.0
 # Bases assujetties DSN utilisées comme repli brut (assiette brute)
 BASE_ASSUJETTIE_BRUT_CODES = {"02", "03", "04", "11"}
 REDUCTION_GENERALE_COT_CODES = {

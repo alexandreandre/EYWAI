@@ -9,9 +9,13 @@ from typing import Any, Dict, List, Optional, Tuple
 from app.core.paths import payroll_engine_employee_folder
 from app.modules.dsn_import.domain.model import IndividuBlock, ParsedDsnSet
 from app.modules.dsn_import.domain.rubriques import (
+    ACTIVITE_HEURES_PAR_JOUR,
+    ACTIVITE_UNITE_HEURES,
+    ACTIVITE_UNITE_JOURS,
     BASE_ASSUJETTIE_BRUT_CODES,
     REDUCTION_GENERALE_COT_CODES,
-    REMUNERATION_BRUT_TYPES,
+    REMUNERATION_BRUT_PRIMARY,
+    REMUNERATION_HEURES_TYPES,
 )
 
 
@@ -56,14 +60,66 @@ def _remuneration_montant(rem) -> float:
 
 
 def _is_brut_remuneration(type_code: str, montant: float) -> bool:
-    """Indique si la ligne rémunération contribue au brut."""
+    """Indique si la ligne rémunération contribue au brut (repli legacy / fichiers mal typés)."""
     normalized = _normalize_rem_type(type_code)
-    if normalized in REMUNERATION_BRUT_TYPES:
+    if normalized in REMUNERATION_BRUT_PRIMARY:
         return True
-    # Fichiers mal typés (type = date en .001 norme courante) mais montant présent
     if montant > 0 and (_looks_like_dsn_date(type_code) or not normalized):
         return True
     return False
+
+
+def _brut_from_remunerations(rems: List) -> float:
+    """Retourne le brut du versement (type 001 prioritaire, sans cumuler 001+002+003+010)."""
+    by_type: Dict[str, float] = {}
+    fallback = 0.0
+    for rem in rems:
+        montant = _remuneration_montant(rem)
+        if montant <= 0:
+            continue
+        normalized = _normalize_rem_type(rem.type_code)
+        if normalized in REMUNERATION_BRUT_PRIMARY:
+            by_type[normalized] = by_type.get(normalized, 0.0) + montant
+        elif _is_brut_remuneration(rem.type_code, montant):
+            fallback = max(fallback, montant)
+    for code in REMUNERATION_BRUT_PRIMARY:
+        if by_type.get(code, 0.0) > 0:
+            return round(by_type[code], 2)
+    return round(fallback, 2)
+
+
+def _heures_from_versement(versement) -> float:
+    """Heures déclarées : .012 des rémunérations, repli bloc Activité type 01."""
+    from_rems = 0.0
+    for rem in versement.remunerations:
+        normalized = _normalize_rem_type(rem.type_code)
+        if rem.heures > 0 and normalized in REMUNERATION_HEURES_TYPES:
+            from_rems += rem.heures
+    if from_rems > 0:
+        return from_rems
+
+    hour_candidates: List[float] = []
+    activites = versement.rubriques.get("activites") if versement.rubriques else None
+    if isinstance(activites, list):
+        for act in activites:
+            if not isinstance(act, dict):
+                continue
+            act_type = str(act.get("type") or "").split(" - ", 1)[0].strip()
+            if act_type not in {"01", "1"}:
+                continue
+            unite = str(act.get("unite") or "").strip()
+            mesure = float(act.get("mesure") or 0.0)
+            if mesure <= 0:
+                continue
+            if unite in ACTIVITE_UNITE_HEURES:
+                hour_candidates.append(mesure)
+            elif not unite and mesure >= 10:
+                # Fréquent en P26 : mesure mensuelle (ex. 151,67) sans rubrique .003
+                hour_candidates.append(mesure)
+            elif unite in ACTIVITE_UNITE_JOURS:
+                hour_candidates.append(mesure * ACTIVITE_HEURES_PAR_JOUR)
+            # Unité 40 = jours calendaires plafond SS — non convertis en heures travaillées
+    return max(hour_candidates) if hour_candidates else 0.0
 
 
 def _brut_from_bases(versement) -> float:
@@ -89,15 +145,11 @@ def extract_monthly_totals(ind: IndividuBlock) -> Dict[str, float]:
         for ver in contrat.versements:
             net_imposable += ver.net_fiscal
             pas += ver.pas
-            ver_brut = 0.0
-            for rem in ver.remunerations:
-                montant = _remuneration_montant(rem)
-                if _is_brut_remuneration(rem.type_code, montant):
-                    ver_brut += montant
-                heures += rem.heures
+            ver_brut = _brut_from_remunerations(ver.remunerations)
             if ver_brut <= 0:
                 ver_brut = _brut_from_bases(ver)
             brut += ver_brut
+            heures += _heures_from_versement(ver)
             for cot in ver.cotisations:
                 if cot.code in REDUCTION_GENERALE_COT_CODES:
                     reduction_pat += abs(cot.montant_patronal)
