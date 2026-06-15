@@ -23,4 +23,10 @@ def _collect_paths_from_routes(routes: Iterable[Any], *, prefix: str = "") -> Li
 
 def collect_app_route_paths(app: Any) -> List[str]:
     """Retourne tous les chemins enregistrés, y compris sous routers inclus."""
-    return _collect_paths_from_routes(getattr(app, "routes", []))
+    walked = _collect_paths_from_routes(getattr(app, "routes", []))
+    try:
+        openapi_paths = list(app.openapi().get("paths", {}).keys())
+    except Exception:
+        openapi_paths = []
+    # Union : parcours récursif + OpenAPI (fiable pour routers inclus / Mount Starlette).
+    return list(dict.fromkeys([*walked, *openapi_paths]))

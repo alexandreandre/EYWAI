@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-09T00:00:00.000Z",
+  "generatedAt": "2026-06-15T15:36:21.783Z",
   "routePaths": [
     "*",
     "*",
@@ -71,6 +71,7 @@
     "collective-agreements",
     "companies",
     "companies/:companyId",
+    "dsn-import",
     "dsn-transmissions",
     "email-settings",
     "groups",
@@ -163,6 +164,7 @@
     "SuperAdminCompanies",
     "SuperAdminCompanyDetails",
     "SuperAdminDashboard",
+    "SuperAdminDsnImport",
     "SuperAdminDsnTransmissions",
     "SuperAdminEmailSettings",
     "SuperAdminLayout",
