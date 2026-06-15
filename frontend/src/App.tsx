@@ -321,6 +321,7 @@ export default function App() {
                       <Route path="reduction-fillon" element={<Pages.SuperAdminReductionFillon />} />
                       <Route path="scraping" element={<Pages.SuperAdminScraping />} />
                       <Route path="dsn-transmissions" element={<Pages.SuperAdminDsnTransmissions />} />
+                      <Route path="dsn-import" element={<Pages.SuperAdminDsnImport />} />
                       <Route path="accounting-integrations" element={<Pages.SuperAdminAccountingIntegrations />} />
                       <Route path="email-settings" element={<Pages.SuperAdminEmailSettings />} />
                       <Route path="monitoring" element={<Pages.SuperAdminMonitoring />} />

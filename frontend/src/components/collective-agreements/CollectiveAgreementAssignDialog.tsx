@@ -35,6 +35,12 @@ type CompanyOption = {
   company_name: string;
 };
 
+export type CollectiveAgreementAssignResult = {
+  companyId: string;
+  collectiveAgreementId: string;
+  agreementDetails?: collectiveAgreementsApi.CollectiveAgreementCatalog;
+};
+
 type CollectiveAgreementAssignDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -48,7 +54,7 @@ type CollectiveAgreementAssignDialogProps = {
   /** Entreprise cible imposée (fiche entreprise admin / RH). */
   fixedCompanyId?: string;
   fixedCompanyName?: string;
-  onAssigned?: () => void;
+  onAssigned?: (result: CollectiveAgreementAssignResult) => void | Promise<void>;
 };
 
 export function CollectiveAgreementAssignDialog({
@@ -112,6 +118,9 @@ export function CollectiveAgreementAssignDialog({
       return;
     }
 
+    const agreementDetails =
+      fixedAgreement ?? availableCatalog.find((item) => item.id === selectedAgreementId) ?? null;
+
     setIsSubmitting(true);
     try {
       await collectiveAgreementsApi.assignAgreement(selectedAgreementId, targetCompanyId);
@@ -121,8 +130,12 @@ export function CollectiveAgreementAssignDialog({
           ? `Assignée à ${fixedCompanyName}.`
           : 'La convention a été assignée à l\'entreprise.',
       });
+      await onAssigned?.({
+        companyId: targetCompanyId,
+        collectiveAgreementId: selectedAgreementId,
+        agreementDetails: agreementDetails ?? undefined,
+      });
       onOpenChange(false);
-      onAssigned?.();
     } catch (err: unknown) {
       const error = err as { response?: { data?: { detail?: string } }; message?: string };
       toast({

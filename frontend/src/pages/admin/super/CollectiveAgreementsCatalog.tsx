@@ -49,6 +49,7 @@ import axios from 'axios';
 import * as collectiveAgreementsApi from '@/api/collectiveAgreements';
 import { CollectiveAgreementRow } from '@/components/collective-agreements/CollectiveAgreementRow';
 import { CollectiveAgreementAssignDialog } from '@/components/collective-agreements/CollectiveAgreementAssignDialog';
+import type { CollectiveAgreementAssignResult } from '@/components/collective-agreements/CollectiveAgreementAssignDialog';
 import { ConventionDocumentViewerDialog } from '@/components/collective-agreements/ConventionDocumentViewerDialog';
 import type { DocumentLoadingKind } from '@/components/collective-agreements/CollectiveAgreementRow';
 import { AdminPageHeader } from '@/features/admin/components/eywai/AdminPageHeader';
@@ -166,9 +167,43 @@ export default function CollectiveAgreementsCatalog() {
     try {
       const res = await collectiveAgreementsApi.getAllCompanyAssignments();
       setCompanyAssignments(res.data ?? []);
-    } catch {
-      setCompanyAssignments([]);
+    } catch (err) {
+      log.error('Erreur lors du rafraîchissement des assignations:', err);
     }
+  };
+
+  const handleCompanyAssigned = async (result: CollectiveAgreementAssignResult) => {
+    if (result.agreementDetails) {
+      setCompanyAssignments((prev) =>
+        prev.map((company) => {
+          if (company.id !== result.companyId) return company;
+          if (
+            company.assigned_agreements.some(
+              (assignment) =>
+                assignment.collective_agreement_id === result.collectiveAgreementId
+            )
+          ) {
+            return company;
+          }
+          return {
+            ...company,
+            assigned_agreements: [
+              ...company.assigned_agreements,
+              {
+                id: `optimistic-${result.collectiveAgreementId}`,
+                company_id: result.companyId,
+                collective_agreement_id: result.collectiveAgreementId,
+                assigned_at: new Date().toISOString(),
+                agreement_details: result.agreementDetails!,
+              },
+            ],
+          };
+        })
+      );
+    }
+    await refreshCompanyAssignments();
+    setAssignDialogAgreement(null);
+    setAssignDialogCompany(null);
   };
 
   useEffect(() => {
@@ -1575,11 +1610,7 @@ export default function CollectiveAgreementsCatalog() {
                 .map((a) => a.id)
             : []
         }
-        onAssigned={() => {
-          void refreshCompanyAssignments();
-          setAssignDialogAgreement(null);
-          setAssignDialogCompany(null);
-        }}
+        onAssigned={(result) => void handleCompanyAssigned(result)}
       />
     </div>
   );

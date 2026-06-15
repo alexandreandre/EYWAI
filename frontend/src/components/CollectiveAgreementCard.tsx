@@ -44,6 +44,7 @@ import { useConventionDocumentViewer } from '@/hooks/useConventionDocumentViewer
 import type { ConventionDocumentKind } from '@/lib/collectiveAgreementDocumentCache';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { CollectiveAgreementAssignDialog } from '@/components/collective-agreements/CollectiveAgreementAssignDialog';
+import type { CollectiveAgreementAssignResult } from '@/components/collective-agreements/CollectiveAgreementAssignDialog';
 
 export type CollectiveAgreementCardProps = {
   /** Entreprise cible (fiche admin). Sinon entreprise active du contexte RH. */
@@ -114,7 +115,10 @@ export default function CollectiveAgreementCard({
     setRulesStatusMap(map);
   };
 
-  const fetchAssignments = async (targetCompanyId?: string) => {
+  const fetchAssignments = async (
+    targetCompanyId?: string,
+    options?: { silent?: boolean }
+  ) => {
     const scopedCompanyId = targetCompanyId ?? companyId;
     if (!scopedCompanyId) {
       setAssignments([]);
@@ -123,7 +127,9 @@ export default function CollectiveAgreementCard({
       return;
     }
 
-    setIsLoading(true);
+    if (!options?.silent) {
+      setIsLoading(true);
+    }
     try {
       const response = await collectiveAgreementsApi.getMyCompanyAgreements(scopedCompanyId);
       const data = response.data || [];
@@ -135,11 +141,38 @@ export default function CollectiveAgreementCard({
       }
     } catch (err: unknown) {
       log.error('Erreur lors de la récupération des conventions assignées:', err);
-      setAssignments([]);
-      setRulesStatusMap({});
+      if (!options?.silent) {
+        setAssignments([]);
+        setRulesStatusMap({});
+      }
     } finally {
-      setIsLoading(false);
+      if (!options?.silent) {
+        setIsLoading(false);
+      }
     }
+  };
+
+  const handleAssigned = async (result: CollectiveAgreementAssignResult) => {
+    if (result.agreementDetails && result.companyId === companyId) {
+      setAssignments((prev) => {
+        if (
+          prev.some((item) => item.collective_agreement_id === result.collectiveAgreementId)
+        ) {
+          return prev;
+        }
+        return [
+          ...prev,
+          {
+            id: `optimistic-${result.collectiveAgreementId}`,
+            company_id: result.companyId,
+            collective_agreement_id: result.collectiveAgreementId,
+            assigned_at: new Date().toISOString(),
+            agreement_details: result.agreementDetails!,
+          },
+        ];
+      });
+    }
+    await fetchAssignments(companyId, { silent: true });
   };
 
   useEffect(() => {
@@ -386,7 +419,7 @@ export default function CollectiveAgreementCard({
         fixedCompanyId={companyId}
         fixedCompanyName={companyName}
         excludedAgreementIds={assignments.map((a) => a.collective_agreement_id)}
-        onAssigned={() => void fetchAssignments(companyId)}
+        onAssigned={(result) => void handleAssigned(result)}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

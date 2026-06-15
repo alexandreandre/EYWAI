@@ -84,6 +84,7 @@ export const SuperAdminReductionFillon = lazy(() => import('@/pages/admin/super/
 export const AdminRates = lazy(() => import('@/pages/admin/eywai/RatesAdmin'));
 export const SuperAdminScraping = lazy(() => import('@/pages/admin/super/Scraping'));
 export const SuperAdminDsnTransmissions = lazy(() => import('@/pages/admin/eywai/DsnTransmissions'));
+export const SuperAdminDsnImport = lazy(() => import('@/pages/admin/eywai/DsnImport'));
 export const SuperAdminAccountingIntegrations = lazy(() => import('@/pages/admin/eywai/AccountingIntegrations'));
 export const SuperAdminEmailSettings = lazy(() => import('@/pages/admin/eywai/EmailSettings'));
 export const CollectiveAgreementsCatalog = lazy(() => import('@/pages/admin/super/CollectiveAgreementsCatalog'));
