@@ -36,6 +36,9 @@ class ParseInstructionRequest(BaseModel):
     # Mode « fiche collaborateur » : toutes les heures sont attribuées à l'unique
     # employé du roster, même si la consigne ne mentionne aucun nom.
     single_employee: bool = False
+    # Mode « saisie collective » : la consigne s'applique à TOUS les employés du
+    # roster (ex. les « À saisir »), sans avoir à citer de noms.
+    broadcast: bool = False
 
 
 class AiDayEntry(BaseModel):

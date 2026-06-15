@@ -177,6 +177,7 @@ def assisted_fill_parse_text(
             instruction=payload.instruction,
             roster=payload.employees,
             single_employee=payload.single_employee,
+            broadcast=payload.broadcast,
         )
     except ScheduleAppError as e:
         _handle_schedule_error(e)

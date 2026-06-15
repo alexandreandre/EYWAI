@@ -53,7 +53,28 @@ class TestTryFastParseInstruction:
             instruction="8h du lundi au vendredi pour tout le monde",
             roster=ROSTER,
         )
-        assert result is None
+        assert result is not None
+        assert len(result.employees) == 2
+
+    def test_broadcast_zero_hours_with_exclusion(self):
+        roster = ROSTER + [
+            RosterEmployee(id="e3", first_name="Fredo", last_name="André"),
+        ]
+        result = try_fast_parse_instruction(
+            year=2026,
+            month=6,
+            instruction="Met 0h faites à tout le monde sauf fredo andré",
+            roster=roster,
+        )
+        assert result is not None
+        assert result.source == "texte (analyse rapide)"
+        assert len(result.employees) == 2
+        assert all(emp.employee_id in ("e1", "e2") for emp in result.employees)
+        assert all(
+            all(d.heures == 0 and d.nature == "reel" for d in emp.days)
+            for emp in result.employees
+        )
+        assert len(result.employees[0].days) == 30
 
     def test_returns_none_without_hours(self):
         result = try_fast_parse_instruction(

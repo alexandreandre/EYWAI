@@ -15,6 +15,7 @@ from typing import List, Optional
 from app.modules.schedules.application.ai_fill import (
     _VALID_NATURES,
     _WEEKDAYS_FR,
+    _build_broadcast_proposal,
     _build_proposal,
     _normalize,
     _resolve_employee,
@@ -54,6 +55,13 @@ _REEL_HINTS = (
     "travaille",
     "travaillees",
     "a travaille",
+)
+
+_BROADCAST_PHRASES = (
+    "tout le monde",
+    "tous les collaborateurs",
+    "tous les salaries",
+    "everyone",
 )
 
 
@@ -163,19 +171,117 @@ def _extract_days(instruction: str, year: int, month: int) -> Optional[List[int]
     return None
 
 
+def is_broadcast_instruction(instruction: str) -> bool:
+    """Détecte une consigne collective (« tout le monde », « à tous », etc.)."""
+    norm = _normalize(instruction)
+    if any(phrase in norm for phrase in _BROADCAST_PHRASES):
+        return True
+    if "tous les jours" in norm:
+        return False
+    return bool(re.search(r"\b(?:a|pour)\s+tous\b", norm))
+
+
+def excluded_employees_from_instruction(
+    instruction: str, roster: List[RosterEmployee]
+) -> List[RosterEmployee]:
+    """Employés cités après « sauf » / « except » dans la consigne."""
+    match = re.search(r"\b(?:sauf|except)\b(.+)", instruction, re.IGNORECASE)
+    if not match:
+        return []
+    return _employees_mentioned(match.group(1), roster)
+
+
+def _all_month_days(year: int, month: int) -> List[int]:
+    num_days = cal_mod.monthrange(year, month)[1]
+    return list(range(1, num_days + 1))
+
+
+def _try_fast_parse_broadcast(
+    *,
+    year: int,
+    month: int,
+    instruction: str,
+    roster: List[RosterEmployee],
+    force: bool = False,
+) -> Optional[AiCalendarProposalResponse]:
+    # `force` : mode collectif explicite (bouton « À saisir »), on diffuse même
+    # sans formule « tout le monde » dans la consigne.
+    if not force and not is_broadcast_instruction(instruction):
+        return None
+
+    hours = _extract_hours(instruction)
+    if hours is None:
+        return None
+
+    days = _extract_days(instruction, year, month) or _all_month_days(year, month)
+    excluded_ids = {e.id for e in excluded_employees_from_instruction(instruction, roster)}
+    targets = [e for e in roster if e.id not in excluded_ids]
+    if not targets:
+        return None
+
+    nature = _detect_nature(instruction)
+    if nature not in _VALID_NATURES:
+        nature = "reel"
+
+    extracted = {
+        "employees": [
+            {
+                "name": "(tous)",
+                "days": [
+                    {
+                        "jour": day,
+                        "heures": hours,
+                        "type": "travail",
+                        "nature": nature,
+                    }
+                    for day in days
+                ],
+            }
+        ],
+        "warnings": [],
+    }
+    return _build_broadcast_proposal(
+        year=year,
+        month=month,
+        source="texte (analyse rapide)",
+        extracted=extracted,
+        roster=targets,
+        default_nature=nature,
+    )
+
+
 def try_fast_parse_instruction(
     *,
     year: int,
     month: int,
     instruction: str,
     roster: List[RosterEmployee],
+    force_broadcast: bool = False,
 ) -> Optional[AiCalendarProposalResponse]:
     """
     Tente une analyse locale sans LLM. Retourne None si l'instruction est
     trop ambiguë pour une interprétation fiable.
+
+    Si `force_broadcast` est vrai (mode « À saisir » collectif), on ne tente
+    QUE la diffusion à tout le roster : jamais de résolution sur un seul nom.
     """
     text = (instruction or "").strip()
     if not text or not roster:
+        return None
+
+    broadcast = _try_fast_parse_broadcast(
+        year=year,
+        month=month,
+        instruction=text,
+        roster=roster,
+        force=force_broadcast,
+    )
+    if broadcast is not None:
+        return broadcast
+
+    # En mode collectif forcé, on ne retombe pas sur la résolution mono-nom :
+    # si l'analyse rapide n'a pas suffi, on laisse le LLM diffuser à tous.
+    if force_broadcast:
         return None
 
     hours = _extract_hours(text)
@@ -231,4 +337,8 @@ def try_fast_parse_instruction(
     return result
 
 
-__all__ = ["try_fast_parse_instruction"]
+__all__ = [
+    "excluded_employees_from_instruction",
+    "is_broadcast_instruction",
+    "try_fast_parse_instruction",
+]

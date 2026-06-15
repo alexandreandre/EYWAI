@@ -177,6 +177,21 @@ class TestParseInstruction:
                 )
         assert exc.value.status_code == 400
 
+    def test_broadcast_collective_mode_without_llm(self):
+        roster = ROSTER + [
+            RosterEmployee(id="e3", first_name="Fredo", last_name="André"),
+        ]
+        with patch.object(ai_fill, "extract_structured_json") as mock_llm:
+            proposal = ai_fill.parse_instruction(
+                year=2026,
+                month=6,
+                instruction="Met 0h faites à tout le monde sauf fredo andré",
+                roster=roster,
+            )
+        mock_llm.assert_not_called()
+        assert proposal.source == "texte (analyse rapide)"
+        assert len(proposal.employees) == 2
+
     def test_raises_when_llm_returns_none(self):
         with patch.object(ai_fill, "is_llm_configured", return_value=True), patch.object(
             ai_fill, "extract_structured_json", return_value=None
@@ -218,6 +233,70 @@ class TestParseInstruction:
         assert emp.employee_id == "e1"
         assert emp.match_confidence == "high"
         assert [d.jour for d in emp.days] == [1, 2]
+
+    def test_broadcast_applies_to_all_roster_without_names(self):
+        # Saisie collective : mêmes jours appliqués à tous (analyse rapide).
+        with patch.object(ai_fill, "extract_structured_json") as mock_llm:
+            proposal = ai_fill.parse_instruction(
+                year=2026,
+                month=6,
+                instruction="tout le monde a fait 7h le 1 et le 2",
+                roster=ROSTER,
+                broadcast=True,
+            )
+
+        mock_llm.assert_not_called()
+        assert proposal.source == "texte (analyse rapide)"
+        assert {e.employee_id for e in proposal.employees} == {"e1", "e2", "e3"}
+        for emp in proposal.employees:
+            assert emp.match_confidence == "high"
+            assert [d.jour for d in emp.days] == [1, 2]
+            assert all(d.heures == 7 for d in emp.days)
+
+    def test_broadcast_flag_clear_instruction_no_llm(self):
+        # Mode collectif (flag) avec consigne claire sans nom : diffusé à tout le
+        # roster de façon déterministe, sans LLM (évite les coupures de réponse).
+        with patch.object(ai_fill, "extract_structured_json") as mock_llm:
+            proposal = ai_fill.parse_instruction(
+                year=2026,
+                month=6,
+                instruction="a fait 8h du 1 au 3",
+                roster=ROSTER,
+                broadcast=True,
+            )
+        mock_llm.assert_not_called()
+        assert {e.employee_id for e in proposal.employees} == {"e1", "e2", "e3"}
+        for emp in proposal.employees:
+            assert [d.jour for d in emp.days] == [1, 2, 3]
+            assert all(d.heures == 8 for d in emp.days)
+
+    def test_broadcast_flag_vague_instruction_uses_llm_for_all(self):
+        # Consigne sans heures exploitables par le fast-path : le LLM prend le
+        # relais mais la diffusion reste sur TOUT le roster (jamais un seul nom).
+        extracted = {
+            "employees": [
+                {
+                    "name": "(tous)",
+                    "days": [
+                        {"jour": 1, "heures": 8, "type": "travail", "nature": "reel"}
+                    ],
+                }
+            ],
+            "warnings": [],
+        }
+        with patch.object(ai_fill, "is_llm_configured", return_value=True), patch.object(
+            ai_fill, "extract_structured_json", return_value=_result(extracted)
+        ) as mock_llm:
+            proposal = ai_fill.parse_instruction(
+                year=2026,
+                month=6,
+                instruction="comme d'habitude le 1er",
+                roster=ROSTER,
+                broadcast=True,
+            )
+        mock_llm.assert_called_once()
+        assert proposal.source == "texte (saisie collective)"
+        assert {e.employee_id for e in proposal.employees} == {"e1", "e2", "e3"}
 
     def test_single_employee_skips_fast_path(self):
         # Même une consigne « fast-path friendly » passe par le LLM en mode mono.

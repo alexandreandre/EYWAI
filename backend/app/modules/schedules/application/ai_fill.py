@@ -120,6 +120,7 @@ def _build_system_prompt(
     month: int,
     default_nature: str,
     single_employee_name: str | None = None,
+    collective: bool = False,
 ) -> str:
     num_days = cal_mod.monthrange(year, month)[1]
     base = (
@@ -140,6 +141,16 @@ def _build_system_prompt(
             f"{single_employee_name}.\n"
             "- Attribue 100% des heures à ce salarié, même si aucun nom n'est écrit.\n"
             f"- Renseigne toujours name='{single_employee_name}' (un seul employé en sortie).\n"
+            "- warnings : ambiguïtés (heures, nature)."
+        )
+    if collective:
+        return base + (
+            "- IMPORTANT : la consigne décrit un horaire COMMUN à plusieurs "
+            "salariés (saisie collective).\n"
+            "- Ne cherche PAS à identifier des noms : aucun nom n'est attendu.\n"
+            "- Produis UN SEUL employé en sortie, name='(tous)', contenant "
+            "l'ensemble des jours décrits.\n"
+            "- N'invente aucun jour non mentionné.\n"
             "- warnings : ambiguïtés (heures, nature)."
         )
     return base + (
@@ -350,6 +361,80 @@ def _build_single_employee_proposal(
     )
 
 
+def _build_broadcast_proposal(
+    *,
+    year: int,
+    month: int,
+    source: str,
+    extracted: Dict[str, Any],
+    roster: List[RosterEmployee],
+    default_nature: str,
+) -> AiCalendarProposalResponse:
+    """Applique un même jeu de jours à TOUS les employés du roster.
+
+    Mode « saisie collective » : la consigne ne cite aucun nom et concerne
+    l'ensemble des collaborateurs ciblés (ex. les « À saisir »). Le RH peut
+    ensuite ajuster chaque collaborateur individuellement avant enregistrement.
+    """
+    num_days = cal_mod.monthrange(year, month)[1]
+    raw_days: List[Dict[str, Any]] = []
+    for raw_emp in extracted.get("employees", []) or []:
+        raw_days.extend(raw_emp.get("days", []) or [])
+
+    days = _coerce_days(raw_days, num_days, default_nature)
+    global_warnings = [
+        str(w) for w in (extracted.get("warnings") or []) if str(w).strip()
+    ]
+
+    if not days or not roster:
+        global_warnings.append(
+            "Aucune donnée exploitable n'a été extraite. Reformulez la consigne."
+        )
+        return AiCalendarProposalResponse(
+            year=year,
+            month=month,
+            source=source,
+            employees=[],
+            warnings=global_warnings,
+        )
+
+    employees_out: List[AiEmployeeProposal] = []
+    for emp in roster:
+        full_name = f"{emp.first_name} {emp.last_name}"
+        employees_out.append(
+            AiEmployeeProposal(
+                raw_name=full_name,
+                employee_id=emp.id,
+                matched_name=full_name,
+                match_confidence="high",
+                days=[
+                    AiDayEntry(
+                        jour=d.jour,
+                        heures=d.heures,
+                        type=d.type,
+                        nature=d.nature,
+                    )
+                    for d in days
+                ],
+            )
+        )
+
+    if len(employees_out) > 1:
+        global_warnings.insert(
+            0,
+            f"Saisie collective appliquée à {len(employees_out)} collaborateur(s). "
+            "Ajustez individuellement si besoin avant d'enregistrer.",
+        )
+
+    return AiCalendarProposalResponse(
+        year=year,
+        month=month,
+        source=source,
+        employees=employees_out,
+        warnings=global_warnings,
+    )
+
+
 def parse_instruction(
     *,
     year: int,
@@ -357,31 +442,46 @@ def parse_instruction(
     instruction: str,
     roster: List[RosterEmployee],
     single_employee: bool = False,
+    broadcast: bool = False,
 ) -> AiCalendarProposalResponse:
     """Convertit une instruction en langage naturel en proposition de calendrier.
 
     Si `single_employee` est vrai, toutes les heures sont rattachées à l'unique
     employé du roster (mode fiche collaborateur), même sans nom dans la consigne.
+
+    Si `broadcast` est vrai ou si la consigne vise « tout le monde », un même
+    jeu de jours est appliqué à tous les employés du roster (hors exclusions « sauf »).
     """
     if not (instruction or "").strip():
         raise ScheduleAppError(
             "validation", "L'instruction est vide.", status_code=400
         )
 
+    from app.modules.schedules.application.nl_fast_path import (
+        excluded_employees_from_instruction,
+        is_broadcast_instruction,
+        try_fast_parse_instruction,
+    )
+
     target = roster[0] if (single_employee and roster) else None
+    broadcast_mode = bool(broadcast or is_broadcast_instruction(instruction))
+    collective = broadcast_mode and target is None and bool(roster)
+    excluded = (
+        excluded_employees_from_instruction(instruction, roster) if collective else []
+    )
+    excluded_ids = {e.id for e in excluded}
+    target_roster = [e for e in roster if e.id not in excluded_ids]
 
     # En mode mono-employé, on saute le fast-path (résolution par nom) pour
     # garantir l'attribution à la bonne personne via le LLM puis le forçage.
+    # En mode collectif, on force la diffusion à tout le roster ciblé.
     if target is None:
-        from app.modules.schedules.application.nl_fast_path import (
-            try_fast_parse_instruction,
-        )
-
         fast = try_fast_parse_instruction(
             year=year,
             month=month,
             instruction=instruction,
-            roster=roster,
+            roster=target_roster if collective else roster,
+            force_broadcast=collective,
         )
         if fast is not None:
             return fast
@@ -401,6 +501,16 @@ def parse_instruction(
             f"{instruction.strip()}"
         )
         system_prompt_name = f"{target.first_name} {target.last_name}"
+    elif collective:
+        user_prompt = (
+            "Consigne RH (horaire commun à plusieurs salariés) :\n"
+            f"{instruction.strip()}\n\n"
+            "Produis un seul bloc de jours communs (name='(tous)')."
+        )
+        if excluded:
+            names = ", ".join(f"{e.first_name} {e.last_name}" for e in excluded)
+            user_prompt += f"\nExclure explicitement : {names}."
+        system_prompt_name = None
     else:
         roster_hint = _roster_hint_for_text(roster)
         user_prompt = (
@@ -417,7 +527,7 @@ def parse_instruction(
     default_nature = "reel"
     result = extract_structured_json(
         system_prompt=_build_system_prompt(
-            year, month, default_nature, system_prompt_name
+            year, month, default_nature, system_prompt_name, collective=collective
         ),
         user_prompt=user_prompt,
         json_schema=_PROPOSAL_JSON_SCHEMA,
@@ -439,6 +549,16 @@ def parse_instruction(
             source="texte",
             extracted=result.data,
             target=target,
+            default_nature=default_nature,
+        )
+
+    if collective:
+        return _build_broadcast_proposal(
+            year=year,
+            month=month,
+            source="texte (saisie collective)",
+            extracted=result.data,
+            roster=target_roster,
             default_nature=default_nature,
         )
 
