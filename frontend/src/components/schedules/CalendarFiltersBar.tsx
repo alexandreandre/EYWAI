@@ -1,5 +1,4 @@
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -24,7 +23,6 @@ interface CalendarFiltersBarProps {
   onModeFilterChange: (f: ModeFilter) => void;
   viewMode: ViewMode;
   onViewModeChange: (v: ViewMode) => void;
-  onSelectLatecomers: () => void;
   filteredCount: number;
   totalCount: number;
   isLoading?: boolean;
@@ -42,7 +40,6 @@ export function CalendarFiltersBar({
   onModeFilterChange,
   viewMode,
   onViewModeChange,
-  onSelectLatecomers,
   filteredCount,
   totalCount,
   isLoading = false,
@@ -132,7 +129,7 @@ export function CalendarFiltersBar({
               <SelectItem value="all">Tous les statuts</SelectItem>
               <SelectItem value="a_saisir">À saisir</SelectItem>
               <SelectItem value="saisi">Saisi</SelectItem>
-              <SelectItem value="saisi_avec_ecart">Saisi avec écart</SelectItem>
+              <SelectItem value="saisi_avec_ecart">Écart à vérifier</SelectItem>
             </SelectContent>
           </Select>
 
@@ -152,18 +149,13 @@ export function CalendarFiltersBar({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span>
-          {isLoading
-            ? 'Chargement des calendriers…'
-            : `${filteredCount} employé${filteredCount > 1 ? 's' : ''} affiché${
-                filteredCount !== totalCount ? ` sur ${totalCount}` : ''
-              }`}
-        </span>
-        <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={onSelectLatecomers}>
-          Sélectionner tous les « À saisir »
-        </Button>
-      </div>
+      <p className="text-xs text-muted-foreground">
+        {isLoading
+          ? 'Chargement des calendriers…'
+          : `${filteredCount} employé${filteredCount > 1 ? 's' : ''} affiché${
+              filteredCount !== totalCount ? ` sur ${totalCount}` : ''
+            }`}
+      </p>
     </div>
   );
 }

@@ -120,6 +120,29 @@ export function isSignificantEcart(heuresPrevues: number, heuresFaites: number):
   return ecart / heuresPrevues > ECART_THRESHOLD_RATIO;
 }
 
+function hasHourValue(value: number | null | undefined): boolean {
+  return value !== null && value !== undefined;
+}
+
+/** Jour prêt pour la paie : type travail exige prévu + réel ; les autres types sont complets en l'état. */
+export function isDayReadyForPayroll(
+  plannedDay: PlannedEventData | undefined,
+  actualDay: ActualHoursData | undefined,
+  isForfaitJour = false
+): boolean {
+  if (!plannedDay) return false;
+  if (plannedDay.type === 'travail') {
+    if (!hasHourValue(plannedDay.heures_prevues)) return false;
+    if (!hasHourValue(actualDay?.heures_faites)) return false;
+    const prev = plannedDay.heures_prevues as number;
+    const fait = actualDay!.heures_faites as number;
+    // Horaire : 0 h sur un jour prévu = pas encore saisi (distinct du forfait 0/1).
+    if (!isForfaitJour && prev > 0 && fait <= 0) return false;
+    return true;
+  }
+  return true;
+}
+
 export function computeEmployeeRowStatus(
   planned: PlannedEventData[],
   actual: ActualHoursData[],
@@ -127,7 +150,13 @@ export function computeEmployeeRowStatus(
   month: number,
   isForfaitJour: boolean
 ): EmployeeRowStatus {
-  const completion = computeMonthCompletionStatus(planned, year, month);
+  const completion = computeMonthCompletionStatus(
+    planned,
+    actual,
+    year,
+    month,
+    isForfaitJour
+  );
   if (completion === 'a_saisir') return 'a_saisir';
   const stats = computeMonthStats(planned, actual, isForfaitJour);
   if (isForfaitJour) {
@@ -138,19 +167,22 @@ export function computeEmployeeRowStatus(
     : 'saisi';
 }
 
-/** Heuristique front : mois saisi si tous les jours ouvrés ont au moins une valeur prévue renseignée. */
+/** Mois prêt pour la paie : chaque jour travail du mois a prévu et réel renseignés. */
 export function computeMonthCompletionStatus(
   planned: PlannedEventData[],
+  actual: ActualHoursData[],
   year: number,
-  month: number
+  month: number,
+  isForfaitJour = false
 ): MonthCompletionStatus {
   const daysInMonth = new Date(year, month, 0).getDate();
+  const plannedByDay = new Map(planned.map((p) => [p.jour, p]));
+  const actualByDay = new Map(actual.map((a) => [a.jour, a]));
+
   for (let day = 1; day <= daysInMonth; day++) {
-    const date = new Date(year, month - 1, day);
-    const dow = date.getDay();
-    if (dow === 0 || dow === 6) continue;
-    const row = planned.find((p) => p.jour === day);
-    if (!row || row.heures_prevues === null || row.heures_prevues === undefined) {
+    const plannedDay = plannedByDay.get(day);
+    const actualDay = actualByDay.get(day);
+    if (!isDayReadyForPayroll(plannedDay, actualDay, isForfaitJour)) {
       return 'a_saisir';
     }
   }

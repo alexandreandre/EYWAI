@@ -308,7 +308,7 @@ export function exportOverviewCsv(
       r.rowStatus === 'a_saisir'
         ? 'À saisir'
         : r.rowStatus === 'saisi_avec_ecart'
-          ? 'Saisi avec écart'
+          ? 'Écart à vérifier'
           : 'Saisi';
     const unit = r.isForfaitJour ? ' j' : ' h';
     return [

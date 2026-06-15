@@ -1,6 +1,7 @@
 // src/contexts/AuthContext.tsx
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 import apiClient from '@/api/apiClient';
 import { refreshAccessToken } from '@/api/authRefresh';
 import {
@@ -60,11 +61,26 @@ function applyAccessToken(token: string): void {
 }
 
 async function fetchCurrentUser(): Promise<User> {
-  const token = getAccessToken();
-  const response = await apiClient.get('/api/auth/me', {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-  });
-  return normalizeUser(response.data);
+  const requestMe = async () => {
+    const token = getAccessToken();
+    const response = await apiClient.get('/api/auth/me', {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    return normalizeUser(response.data);
+  };
+
+  try {
+    return await requestMe();
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.status === 401 && hasRefreshToken()) {
+      const renewed = await refreshAccessToken({ clearOnFailure: false });
+      if (renewed) {
+        applyAccessToken(renewed);
+        return await requestMe();
+      }
+    }
+    throw error;
+  }
 }
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {

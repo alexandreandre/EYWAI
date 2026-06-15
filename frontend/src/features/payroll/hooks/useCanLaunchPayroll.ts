@@ -7,12 +7,13 @@ export const PAYROLL_WORKFLOW_URLS = [
 ] as const;
 
 export function useCanLaunchPayroll(enabled = true) {
-  const { getCount, isLoading } = useRhSidebarTaskBadges(enabled);
+  const { getCount, isPayrollPipelineLoading } = useRhSidebarTaskBadges(enabled);
   const canLaunchPayroll =
-    !isLoading && PAYROLL_WORKFLOW_URLS.every((url) => getCount(url) === 0);
+    !isPayrollPipelineLoading &&
+    PAYROLL_WORKFLOW_URLS.every((url) => getCount(url) === 0);
 
   return {
     canLaunchPayroll,
-    isLoading,
+    isLoading: isPayrollPipelineLoading,
   };
 }

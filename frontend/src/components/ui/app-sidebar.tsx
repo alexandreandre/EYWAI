@@ -365,10 +365,12 @@ function SidebarSubLinkContent({
   item,
   count,
   isActive,
+  hideCount,
 }: {
   item: SidebarLinkItem;
   count: number;
   isActive: boolean;
+  hideCount?: boolean;
 }) {
   if (item.disabled) {
     return (
@@ -405,7 +407,7 @@ function SidebarSubLinkContent({
           <span className={SIDEBAR_NAV.subLinkLabel}>{item.title}</span>
         </NavLink>
       </SidebarMenuSubButton>
-      <SubNavCountBadge count={count} />
+      <SubNavCountBadge count={hideCount ? 0 : count} />
     </div>
   );
 }
@@ -415,14 +417,21 @@ function SidebarSubLinkItem({
   item,
   count,
   isActive,
+  hideCount,
 }: {
   item: SidebarLinkItem;
   count: number;
   isActive: boolean;
+  hideCount?: boolean;
 }) {
   return (
     <SidebarMenuSubItem>
-      <SidebarSubLinkContent item={item} count={count} isActive={isActive} />
+      <SidebarSubLinkContent
+        item={item}
+        count={count}
+        isActive={isActive}
+        hideCount={hideCount}
+      />
     </SidebarMenuSubItem>
   );
 }
@@ -438,7 +447,13 @@ const PAIE_WORKFLOW_RAIL_X = 9;
 const PAIE_WORKFLOW_BTN_LEAD_PX = 17;
 
 /** Rail vertical du parcours paie (pastilles numérotées). */
-function PaieWorkflowVerticalRail({ stepCount }: { stepCount: number }) {
+function PaieWorkflowVerticalRail({
+  stepCount,
+  muted = false,
+}: {
+  stepCount: number;
+  muted?: boolean;
+}) {
   const lastStepY = stepCount * PAIE_WORKFLOW_STEP_PX;
   const cornerY =
     lastStepY +
@@ -457,9 +472,9 @@ function PaieWorkflowVerticalRail({ stepCount }: { stepCount: number }) {
       <path
         d={`M ${PAIE_WORKFLOW_RAIL_X} ${PAIE_WORKFLOW_START_Y} L ${PAIE_WORKFLOW_RAIL_X} ${cornerY}`}
         fill="none"
-        stroke="hsl(var(--primary))"
+        stroke={muted ? "hsl(var(--muted-foreground))" : "hsl(var(--primary))"}
         strokeWidth="2"
-        strokeOpacity="0.55"
+        strokeOpacity={muted ? 0.35 : 0.55}
         strokeLinecap="round"
       />
     </svg>
@@ -467,7 +482,7 @@ function PaieWorkflowVerticalRail({ stepCount }: { stepCount: number }) {
 }
 
 /** Branche horizontale jusqu’au bord gauche du bouton « Lancer la paie ». */
-function PaieWorkflowButtonLead() {
+function PaieWorkflowButtonLead({ muted = false }: { muted?: boolean }) {
   const viewW = PAIE_WORKFLOW_BTN_LEAD_PX;
 
   return (
@@ -487,9 +502,9 @@ function PaieWorkflowButtonLead() {
         <path
           d={`M 0 4 L ${viewW} 4`}
           fill="none"
-          stroke="hsl(var(--primary))"
+          stroke={muted ? "hsl(var(--muted-foreground))" : "hsl(var(--primary))"}
           strokeWidth="2"
-          strokeOpacity="0.55"
+          strokeOpacity={muted ? 0.35 : 0.55}
           strokeLinecap="round"
         />
       </svg>
@@ -502,12 +517,12 @@ function SidebarPaieWorkflow({
   groups,
   getCount,
   isActive,
-  badgesLoading,
+  pipelineLoading,
 }: {
   groups: SidebarLinkGroup[];
   getCount: (url: string) => number;
   isActive: (path: string) => boolean;
-  badgesLoading?: boolean;
+  pipelineLoading?: boolean;
 }) {
   /** Liens hors parcours numéroté (ex. Analytics Paie), affichés en tête de section. */
   const topItems = groups
@@ -554,7 +569,10 @@ function SidebarPaieWorkflow({
         role="group"
         aria-label="Parcours de préparation à la paie"
       >
-        <PaieWorkflowVerticalRail stepCount={workflowItems.length} />
+        <PaieWorkflowVerticalRail
+          stepCount={workflowItems.length}
+          muted={pipelineLoading}
+        />
 
         <div className="relative z-[1] flex w-[18px] shrink-0 flex-col">
           {workflowItems.map((item, index) => {
@@ -568,7 +586,7 @@ function SidebarPaieWorkflow({
                 <WorkflowStepBadge
                   step={index + 1}
                   count={itemCount}
-                  isLoading={badgesLoading}
+                  isLoading={pipelineLoading}
                 />
               </div>
             );
@@ -585,6 +603,7 @@ function SidebarPaieWorkflow({
                     item={item}
                     count={itemCount}
                     isActive={isActive(item.url)}
+                    hideCount={pipelineLoading}
                   />
                 </SidebarMenuSubItem>
               );
@@ -592,8 +611,12 @@ function SidebarPaieWorkflow({
           </SidebarMenuSub>
 
           <div className="relative z-[2] mt-4 flex min-h-9 items-center pb-2">
-            <PaieWorkflowButtonLead />
-            <LaunchPayrollButton fullWidth className="relative z-[1]" />
+            <PaieWorkflowButtonLead muted={pipelineLoading} />
+            <LaunchPayrollButton
+              fullWidth
+              className="relative z-[1]"
+              pipelineLoading={pipelineLoading}
+            />
           </div>
         </div>
       </div>
@@ -782,7 +805,7 @@ export function AppSidebar() {
     (user.role === "rh" ||
       user.role === "admin" ||
       (isCollaborateurRh && viewMode === "rh"));
-  const { getCount, totalRhPending, isLoading: badgesLoading } =
+  const { getCount, totalRhPending, isPayrollPipelineLoading } =
     useRhSidebarTaskBadges(isRhMenu);
 
   const hasConsolidatedViews = accessibleGroups.length > 0;
@@ -819,7 +842,8 @@ export function AppSidebar() {
 
   const teamSectionHasTasks = sectionHasTasksFromGroups(RH_TEAM_GROUPS, getCount);
   const gestionSectionHasTasks = sectionHasTasksFromGroups(rhGestionGroups, getCount);
-  const paieSectionHasTasks = sectionHasTasksFromGroups(RH_PAIE_GROUPS, getCount);
+  const paieSectionHasTasks =
+    !isPayrollPipelineLoading && sectionHasTasksFromGroups(RH_PAIE_GROUPS, getCount);
 
   const [teamOpen, setTeamOpen] = useState(() =>
     sectionIsActiveFromGroups(RH_TEAM_GROUPS, isActive),
@@ -1051,7 +1075,7 @@ export function AppSidebar() {
                             groups={RH_PAIE_GROUPS}
                             getCount={getCount}
                             isActive={isActive}
-                            badgesLoading={badgesLoading}
+                            pipelineLoading={isPayrollPipelineLoading}
                           />
                         </SidebarMenuSub>
                       </CollapsibleContent>

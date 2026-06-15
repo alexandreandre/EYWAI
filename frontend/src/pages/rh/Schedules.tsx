@@ -222,13 +222,6 @@ export default function Schedules() {
     }
   };
 
-  const selectLatecomers = () => {
-    const late = sortedRows
-      .filter((r) => r.rowStatus === 'a_saisir')
-      .map((r) => r.employee.id);
-    setSelectedIds(new Set(late));
-  };
-
   const allSaisiBanner =
     !isPageLoading &&
     filteredRows.length > 0 &&
@@ -277,7 +270,6 @@ export default function Schedules() {
         onModeFilterChange={setModeFilter}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
-        onSelectLatecomers={selectLatecomers}
         filteredCount={filteredRows.length}
         totalCount={rows.length}
         isLoading={isPageLoading}
@@ -285,7 +277,7 @@ export default function Schedules() {
 
       {allSaisiBanner && (
         <div className="rounded-md border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-900">
-          Tous les calendriers affichés sont saisis pour ce mois. Vous pouvez lancer le
+          Tous les calendriers affichés sont prêts pour la paie ce mois-ci. Vous pouvez lancer le
           calcul de paie.
                         </div>
                       )}

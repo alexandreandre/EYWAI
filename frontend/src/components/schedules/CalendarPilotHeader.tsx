@@ -122,7 +122,7 @@ export function CalendarPilotHeader({
             <Skeleton className="h-3.5 w-40" />
           ) : kpis.aSaisir > 0 ? (
             <span>
-              Reste à saisir :{' '}
+              Reste à compléter :{' '}
               <span className="font-medium text-foreground">
                 {kpis.aSaisir} calendrier{kpis.aSaisir > 1 ? 's' : ''}
               </span>{' '}
@@ -130,7 +130,7 @@ export function CalendarPilotHeader({
             </span>
           ) : (
             <span className="font-medium text-emerald-600">
-              Tous les calendriers sont saisis
+              Tous les calendriers sont prêts pour la paie
             </span>
           )}
           {!isLoading && <span>{kpis.progressPercent} %</span>}

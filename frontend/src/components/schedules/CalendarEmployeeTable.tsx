@@ -34,7 +34,7 @@ import { isSignificantEcart } from '@/lib/calendarStats';
 const ROW_STATUS_LABELS: Record<string, string> = {
   a_saisir: 'À saisir',
   saisi: 'Saisi',
-  saisi_avec_ecart: 'Écart',
+  saisi_avec_ecart: 'Écart à vérifier',
 };
 
 const ROW_STATUS_VARIANT: Record<

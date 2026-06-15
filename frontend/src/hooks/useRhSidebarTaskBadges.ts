@@ -241,21 +241,29 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
     return s;
   }, [counts, ribAlertsQuery.data]);
 
+  const queryInFlight = (q: { isPending: boolean; isFetching: boolean }) =>
+    q.isPending || q.isFetching;
+
   const isLoading =
     enabled &&
-    (dashboardQuery.isPending ||
-      residenceQuery.isPending ||
-      medicalSettingsQuery.isPending ||
-      ribAlertsQuery.isPending ||
-      annualReviewsQuery.isPending ||
-      recruitmentSettingsQuery.isPending ||
+    (queryInFlight(dashboardQuery) ||
+      queryInFlight(residenceQuery) ||
+      queryInFlight(medicalSettingsQuery) ||
+      queryInFlight(ribAlertsQuery) ||
+      queryInFlight(annualReviewsQuery) ||
+      queryInFlight(recruitmentSettingsQuery) ||
       (recruitmentSettingsQuery.data?.enabled === true &&
-        recruitmentCandidatesQuery.isPending) ||
-      (medicalSettingsQuery.data?.enabled === true && medicalKpisQuery.isPending) ||
-      schedulesBadgeQuery.isPending ||
-      workMedalsQuery.isPending);
+        queryInFlight(recruitmentCandidatesQuery)) ||
+      (medicalSettingsQuery.data?.enabled === true && queryInFlight(medicalKpisQuery)) ||
+      queryInFlight(schedulesBadgeQuery) ||
+      queryInFlight(workMedalsQuery));
+
+  /** Parcours paie (calendriers, congés, frais) : gris tant que ces compteurs ne sont pas stabilisés. */
+  const isPayrollPipelineLoading =
+    enabled &&
+    (queryInFlight(dashboardQuery) || queryInFlight(schedulesBadgeQuery));
 
   const getCount = (url: string) => counts[url] ?? 0;
 
-  return { getCount, counts, isLoading, totalRhPending };
+  return { getCount, counts, isLoading, isPayrollPipelineLoading, totalRhPending };
 }

@@ -89,10 +89,20 @@ export function useCalendar(
     if (isLoading || !isMonthDataReady) return 'a_saisir' as const;
     return computeMonthCompletionStatus(
       plannedCalendar,
+      actualHours,
       selectedDate.year,
-      selectedDate.month
+      selectedDate.month,
+      isForfaitJourMode
     );
-  }, [plannedCalendar, selectedDate.year, selectedDate.month, isLoading, isMonthDataReady]);
+  }, [
+    plannedCalendar,
+    actualHours,
+    selectedDate.year,
+    selectedDate.month,
+    isLoading,
+    isMonthDataReady,
+    isForfaitJourMode,
+  ]);
 
   const buildMonthCalendar = useCallback(
     (

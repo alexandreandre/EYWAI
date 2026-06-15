@@ -138,7 +138,7 @@ export function CollectiveAgreementAssignDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent className="sm:max-w-[520px] overflow-hidden">
         <DialogHeader>
           <DialogTitle>Assigner une convention collective</DialogTitle>
           <DialogDescription>
@@ -171,32 +171,39 @@ export function CollectiveAgreementAssignDialog({
 
           {fixedAgreement ? (
             <div className="rounded-md border bg-muted/30 p-3 text-sm">
-              <p className="font-medium">{formatCatalogConventionName(fixedAgreement.name)}</p>
+              <p className="font-medium break-words leading-snug">
+                {formatCatalogConventionName(fixedAgreement.name)}
+              </p>
               <p className="text-muted-foreground">IDCC {fixedAgreement.idcc}</p>
             </div>
           ) : (
             <div className="space-y-2">
-              <Label>Convention *</Label>
+              <Label htmlFor="cc-assign-picker" className="block">
+                Convention *
+              </Label>
               <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
                 <PopoverTrigger asChild>
                   <Button
+                    id="cc-assign-picker"
                     variant="outline"
                     role="combobox"
                     aria-expanded={comboboxOpen}
-                    className="w-full justify-between"
+                    className="h-auto min-h-10 w-full min-w-0 justify-between gap-2 overflow-hidden whitespace-normal py-2 font-normal"
                     disabled={!targetCompanyId}
                   >
-                    {agreementId
-                      ? formatCatalogConventionName(
-                          availableCatalog.find((c) => c.id === agreementId)?.name
-                        )
-                      : targetCompanyId
-                        ? 'Rechercher une convention…'
-                        : 'Choisissez d\'abord une entreprise'}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <span className="line-clamp-2 min-w-0 flex-1 text-left text-sm leading-snug">
+                      {agreementId
+                        ? formatCatalogConventionName(
+                            availableCatalog.find((c) => c.id === agreementId)?.name
+                          )
+                        : targetCompanyId
+                          ? 'Rechercher une convention…'
+                          : 'Choisissez d\'abord une entreprise'}
+                    </span>
+                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[450px] p-0">
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] max-w-[520px] p-0" align="start">
                   <Command>
                     <CommandInput placeholder="Rechercher par nom ou IDCC…" />
                     <CommandEmpty>
@@ -218,8 +225,8 @@ export function CollectiveAgreementAssignDialog({
                               agreementId === agreement.id ? 'opacity-100' : 'opacity-0'
                             )}
                           />
-                          <div className="flex-1">
-                            <p className="font-medium">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium break-words leading-snug">
                               {formatCatalogConventionName(agreement.name)}
                             </p>
                             <p className="text-xs text-muted-foreground">

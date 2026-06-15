@@ -19,6 +19,7 @@ import {
   CALENDAR_TYPE_BAR_COLORS,
   getCalendarTypeLabel,
 } from '@/lib/calendarTypes';
+import { isDayReadyForPayroll } from '@/lib/calendarStats';
 
 interface CalendarDayCellProps {
   arg: DayCellContentArg;
@@ -43,10 +44,13 @@ const EDITABLE_TYPES = [
 const DEFAULT_SCALE_HOURS = 10;
 
 function dayNeedsInput(
-  heuresPrevues: number | null | undefined,
-  heuresFaites: number | null | undefined
+  type: string,
+  plannedDay: PlannedEventData,
+  actualDay: ActualHoursData,
+  isForfaitJour = false
 ): boolean {
-  return heuresPrevues === null && heuresFaites === null;
+  if (type !== 'travail') return false;
+  return !isDayReadyForPayroll(plannedDay, actualDay, isForfaitJour);
 }
 
 function HourGauges({
@@ -263,7 +267,7 @@ export function CalendarDayCell({
     );
   }
 
-  const needsInput = dayNeedsInput(plannedDay.heures_prevues, actualDay.heures_faites);
+  const needsInput = dayNeedsInput(plannedDay.type, plannedDay, actualDay, isForfaitJour);
 
   const handleTypeChange = (newType: string) => {
     const preserved = plannedDay.heures_prevues;

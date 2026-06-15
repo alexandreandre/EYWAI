@@ -31,7 +31,7 @@ const PREFLIGHT_STEPS: PreflightStep[] = [
   {
     url: '/schedules',
     label: 'Calendrier & temps de travail',
-    description: 'Heures et plannings du mois à saisir',
+    description: 'Heures prévues et réelles du mois à compléter',
     icon: Calendar,
     tracked: true,
   },

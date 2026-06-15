@@ -59,9 +59,23 @@ export function clearAuthSession(): void {
 
 /** True si le JWT est absent, expiré, ou expire bientôt. */
 export function shouldRefreshAccessToken(): boolean {
-  const expiresAt = getExpiresAt();
+  const expiresAt = getExpiresAt() ?? decodeJwtExp(getAccessToken());
   if (!expiresAt) return false;
   return Date.now() >= expiresAt * 1000 - REFRESH_MARGIN_MS;
+}
+
+function decodeJwtExp(token: string | null): number | null {
+  if (!token) return null;
+  const parts = token.split('.');
+  if (parts.length < 2) return null;
+  try {
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))) as {
+      exp?: unknown;
+    };
+    return typeof payload.exp === 'number' ? payload.exp : null;
+  } catch {
+    return null;
+  }
 }
 
 export function hasRefreshToken(): boolean {
