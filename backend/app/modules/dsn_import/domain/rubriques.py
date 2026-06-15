@@ -1,0 +1,114 @@
+"""Constantes rubriques DSN (NEODeS / GIP-MDS)."""
+
+from __future__ import annotations
+
+# --- Envoi S10 ---
+R_S10_NORME = "S10.G00.00.006"
+R_S10_PERIODE = "S10.G00.00.005"
+R_S10_TYPE = "S10.G00.00.007"
+
+# --- Établissement S20 ---
+R_S20_SIRET = "S20.G00.05.001"
+R_S20_RAISON = "S20.G00.05.002"
+R_S20_NAF = "S20.G00.05.003"
+R_S20_RUE = "S20.G00.05.004"
+R_S20_CP = "S20.G00.05.005"
+R_S20_VILLE = "S20.G00.05.006"
+
+# --- Entreprise S21.G00.06 ---
+R_S21_ENT_SIREN = "S21.G00.06.001"
+R_S21_ENT_RAISON = "S21.G00.06.002"
+R_S21_ENT_NAF = "S21.G00.06.003"
+
+# --- Établissement S21.G00.11 ---
+R_S21_ETAB_SIRET = "S21.G00.11.001"
+R_S21_ETAB_RAISON = "S21.G00.11.002"
+R_S21_ETAB_NAF = "S21.G00.11.003"
+R_S21_ETAB_RUE = "S21.G00.11.004"
+R_S21_ETAB_CP = "S21.G00.11.005"
+R_S21_ETAB_VILLE = "S21.G00.11.006"
+R_S21_ETAB_EFFECTIF = "S21.G00.11.015"
+
+# --- Individu S21.G00.30 ---
+R_S21_IND_NOM = "S21.G00.30.001"
+R_S21_IND_PRENOM = "S21.G00.30.002"
+R_S21_IND_NIR = "S21.G00.30.003"
+R_S21_IND_NAISSANCE = "S21.G00.30.004"
+R_S21_IND_LIEU_NAISS = "S21.G00.30.005"
+R_S21_IND_NATIONALITE = "S21.G00.30.006"
+R_S21_IND_RUE = "S21.G00.30.008"
+R_S21_IND_CP = "S21.G00.30.009"
+R_S21_IND_VILLE = "S21.G00.30.010"
+
+# --- Contrat S21.G00.40 ---
+R_S21_CTR_NATURE = "S21.G00.40.007"
+R_S21_CTR_STATUT = "S21.G00.40.002"
+R_S21_CTR_PCS = "S21.G00.40.004"
+R_S21_CTR_DATE_DEBUT = "S21.G00.40.001"
+R_S21_CTR_DATE_FIN = "S21.G00.40.003"
+R_S21_CTR_IDCC = "S21.G00.40.017"
+R_S21_CTR_MODALITE_TEMPS = "S21.G00.40.011"
+R_S21_CTR_QUOTITE = "S21.G00.40.012"
+R_S21_CTR_LIBELLE_EMPLOI = "S21.G00.40.006"
+
+# --- Versement S21.G00.50 ---
+R_S21_VER_DATE = "S21.G00.50.001"
+R_S21_VER_NET_FISCAL = "S21.G00.50.002"
+R_S21_VER_PAS = "S21.G00.50.003"
+
+# --- Rémunération S21.G00.51 ---
+R_S21_REM_TYPE = "S21.G00.51.001"
+R_S21_REM_MONTANT = "S21.G00.51.013"
+R_S21_REM_HEURES = "S21.G00.51.011"
+
+# --- Cotisation S21.G00.78 ---
+R_S21_COT_CODE = "S21.G00.78.001"
+R_S21_COT_BASE = "S21.G00.78.002"
+R_S21_COT_TAUX_SAL = "S21.G00.78.003"
+R_S21_COT_TAUX_PAT = "S21.G00.78.004"
+R_S21_COT_MONTANT_SAL = "S21.G00.78.005"
+R_S21_COT_MONTANT_PAT = "S21.G00.78.006"
+
+# --- Base assujettie S21.G00.81 ---
+R_S21_BASE_CODE = "S21.G00.81.001"
+R_S21_BASE_MONTANT = "S21.G00.81.002"
+
+# Blocs G00 (3e segment) déclenchant une nouvelle instance
+BLOCK_G00 = {
+    "06": "entreprise",
+    "11": "etablissement",
+    "30": "individu",
+    "40": "contrat",
+    "50": "versement",
+    "51": "remuneration",
+    "78": "cotisation",
+    "81": "base_assujettie",
+}
+
+# Codes nature contrat DSN -> libellé EYWAI
+CONTRACT_NATURE_MAP = {
+    "01": "CDI",
+    "02": "CDD",
+    "03": "CDD",
+    "04": "CDD",
+    "29": "apprentissage",
+    "32": "professionnalisation",
+    "50": "stage",
+    "70": "CDI",
+    "80": "CDD",
+    "81": "CDD",
+    "82": "CDD",
+    "89": "CDD",
+}
+
+# Statut conventionnel (40.002) -> Cadre / Non-Cadre
+STATUT_CADRE_CODES = {"03", "04", "06", "07", "08", "09"}
+
+# Type rémunération brut
+REMUNERATION_BRUT_TYPES = {"001", "002", "003", "010", "011", "012", "018", "019"}
+
+# Code cotisation réduction générale (approximation multi-éditeurs)
+REDUCTION_GENERALE_COT_CODES = {
+    "114", "115", "116", "117", "118", "119",
+    "214", "215", "216", "217", "218", "219",
+}

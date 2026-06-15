@@ -33,6 +33,7 @@ from app.modules.collective_agreements.api.router import (
 from app.modules.company_groups.api.router import router as company_groups_router
 from app.modules.cse.api.router import router as cse_router
 from app.modules.dashboard.api.router import router as dashboard_router
+from app.modules.dsn_import.api.router import router as dsn_import_router
 from app.modules.employees.api.router import router as employees_router
 from app.modules.employee_exits.api.router import router as employee_exits_router
 from app.modules.employee_loans.api.router import router as employee_loans_router
@@ -119,6 +120,7 @@ router.include_router(collective_agreements_chat_router)
 router.include_router(company_groups_router)
 router.include_router(cse_router)
 router.include_router(dashboard_router)
+router.include_router(dsn_import_router)
 router.include_router(employees_router)
 router.include_router(employee_exits_router)
 router.include_router(employee_loans_router)

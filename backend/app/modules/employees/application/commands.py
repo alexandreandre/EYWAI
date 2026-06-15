@@ -12,6 +12,7 @@ logger = get_logger("modules.employees.application.commands")
 
 import secrets
 import string
+import uuid
 from datetime import date as _date
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -363,6 +364,117 @@ async def create_employee(
             ) from e
         logger.exception("Exception")
         raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}") from e
+
+
+def create_employee_imported(
+    employee_data: Dict[str, Any],
+    company_id: str,
+) -> Dict[str, Any]:
+    """
+    Crée un salarié importé (DSN) sans compte Auth.
+    Statut en_onboarding ; activation / invitation différée.
+    """
+    first_name = employee_data["first_name"]
+    last_name = employee_data["last_name"]
+    email = employee_data.get("email") or f"import.{uuid.uuid4().hex[:8]}@dsn-import.local"
+
+    normalized_last_name = remove_accents(last_name).upper()
+    normalized_first_name = remove_accents(first_name).capitalize()
+    folder_name = build_employee_folder_name(normalized_last_name, normalized_first_name)
+    username = derive_collaborator_username(first_name, last_name, email=email)
+
+    new_id = str(uuid.uuid4())
+    db_insert_data = prepare_employee_insert_data(
+        employee_data,
+        new_user_id=new_id,
+        company_id=company_id,
+        username=username,
+        folder_name=folder_name,
+    )
+    db_insert_data["user_id"] = None
+    db_insert_data["employment_status"] = employee_data.get("employment_status") or "en_onboarding"
+    db_insert_data["email"] = email
+
+    new_employee_db = _employee_repository.create(db_insert_data)
+    return dict(new_employee_db)
+
+
+def activate_imported_employee_account(
+    employee_id: str,
+    company_id: str,
+    email: str,
+    granted_by_user_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Crée le compte Auth pour un salarié importé et active son accès entreprise.
+    """
+    emp = _employee_repository.get_by_id(employee_id, company_id)
+    if emp is None:
+        raise HTTPException(status_code=404, detail="Employé non trouvé.")
+    if emp.get("user_id"):
+        raise HTTPException(
+            status_code=400,
+            detail="Ce salarié possède déjà un compte utilisateur.",
+        )
+
+    auth = get_auth_provider()
+    alphabet = string.ascii_letters + string.digits + "!@#$%*?"
+    password = "".join(secrets.choice(alphabet) for _ in range(12))
+
+    try:
+        new_user_id = auth.create_user(email=email, password=password)
+    except RuntimeError as auth_err:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Impossible de créer le compte : {auth_err}",
+        ) from auth_err
+
+    profile_data = {
+        "id": str(new_user_id),
+        "first_name": emp.get("first_name", ""),
+        "last_name": emp.get("last_name", ""),
+        "role": "collaborateur",
+        "company_id": company_id,
+        "job_title": emp.get("job_title") or "",
+    }
+    try:
+        _profile_repository.upsert(profile_data)
+    except RuntimeError:
+        try:
+            auth.delete_user(new_user_id)
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail="Échec de la création du profil.")
+
+    update_employee(
+        employee_id,
+        {
+            "email": email,
+        },
+    )
+    _employee_repository.update(
+        employee_id,
+        {"user_id": str(new_user_id), "employment_status": "actif"},
+    )
+
+    try:
+        _grant_collaborator_company_access(
+            str(new_user_id),
+            company_id,
+            granted_by_user_id,
+        )
+    except Exception as grant_err:
+        raise HTTPException(
+            status_code=500,
+            detail="Compte créé mais échec de l'accès entreprise.",
+        ) from grant_err
+
+    return {
+        "employee_id": employee_id,
+        "user_id": str(new_user_id),
+        "email": email,
+        "generated_password": password,
+    }
 
 
 def _maybe_activate_after_onboarding(employee_id: str) -> None:
