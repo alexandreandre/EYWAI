@@ -102,9 +102,7 @@ def test_verify_sonar_proposes_new_url(mock_require, mock_chat):
 @patch("agent.source_validator._verify_official_url_with_sonar")
 @patch("agent.source_validator.check_url_alive")
 @patch("agent.source_validator.fetch_all_official_sources")
-@patch("agent.source_validator.agent_disabled", return_value=False)
 def test_validate_all_confirms_and_refreshes_display(
-    _disabled,
     mock_fetch,
     mock_alive,
     mock_sonar,
@@ -150,9 +148,7 @@ def test_validate_all_confirms_and_refreshes_display(
 @patch("agent.source_validator._verify_official_url_with_sonar")
 @patch("agent.source_validator.check_url_alive")
 @patch("agent.source_validator.fetch_all_official_sources")
-@patch("agent.source_validator.agent_disabled", return_value=False)
 def test_validate_failed_triggers_discovery_and_updates_display_only(
-    _disabled,
     mock_fetch,
     mock_alive,
     mock_verify,
