@@ -22,11 +22,16 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList,
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/components/ui/use-toast';
 import * as collectiveAgreementsApi from '@/api/collectiveAgreements';
 import { formatCatalogConventionName } from '@/lib/collectiveAgreementDisplay';
+import {
+  collectiveAgreementCommandValue,
+  filterCollectiveAgreements,
+} from '@/lib/collectiveAgreementSearch';
 import { cn } from '@/lib/utils';
 import { Check, ChevronsUpDown, Loader2 } from 'lucide-react';
 
@@ -75,6 +80,7 @@ export function CollectiveAgreementAssignDialog({
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [comboboxOpen, setComboboxOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const targetCompanyId = fixedCompanyId ?? companyId;
   const excluded = useMemo(() => new Set(excludedAgreementIds), [excludedAgreementIds]);
@@ -93,10 +99,16 @@ export function CollectiveAgreementAssignDialog({
     [catalog, excluded]
   );
 
+  const filteredCatalog = useMemo(
+    () => filterCollectiveAgreements(availableCatalog, searchQuery),
+    [availableCatalog, searchQuery]
+  );
+
   useEffect(() => {
     if (!open) return;
     setCompanyId(fixedCompanyId ?? '');
     setAgreementId(fixedAgreement?.id ?? '');
+    setSearchQuery('');
     if (!fixedAgreement) {
       setIsLoadingCatalog(true);
       void collectiveAgreementsApi
@@ -194,7 +206,14 @@ export function CollectiveAgreementAssignDialog({
               <Label htmlFor="cc-assign-picker" className="block">
                 Convention *
               </Label>
-              <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
+              <Popover
+                modal={false}
+                open={comboboxOpen}
+                onOpenChange={(next) => {
+                  setComboboxOpen(next);
+                  if (!next) setSearchQuery('');
+                }}
+              >
                 <PopoverTrigger asChild>
                   <Button
                     id="cc-assign-picker"
@@ -217,39 +236,46 @@ export function CollectiveAgreementAssignDialog({
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[var(--radix-popover-trigger-width)] max-w-[520px] p-0" align="start">
-                  <Command>
-                    <CommandInput placeholder="Rechercher par nom ou IDCC…" />
-                    <CommandEmpty>
-                      {isLoadingCatalog ? 'Chargement…' : 'Aucune convention disponible.'}
-                    </CommandEmpty>
-                    <CommandGroup className="max-h-64 overflow-auto">
-                      {availableCatalog.map((agreement) => (
-                        <CommandItem
-                          key={agreement.id}
-                          value={`${agreement.name} ${agreement.idcc}`}
-                          onSelect={() => {
-                            setAgreementId(agreement.id);
-                            setComboboxOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              'mr-2 h-4 w-4',
-                              agreementId === agreement.id ? 'opacity-100' : 'opacity-0'
-                            )}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p className="font-medium break-words leading-snug">
-                              {formatCatalogConventionName(agreement.name)}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              IDCC {agreement.idcc}
-                              {agreement.sector ? ` · ${agreement.sector}` : ''}
-                            </p>
-                          </div>
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
+                  <Command
+                    shouldFilter={false}
+                    value={searchQuery}
+                    onValueChange={setSearchQuery}
+                  >
+                    <CommandInput placeholder="Rechercher (ex. plasturgie, syntec) ou IDCC…" />
+                    <CommandList>
+                      <CommandEmpty>
+                        {isLoadingCatalog ? 'Chargement…' : 'Aucune convention disponible.'}
+                      </CommandEmpty>
+                      <CommandGroup className="max-h-64 overflow-auto">
+                        {filteredCatalog.map((agreement) => (
+                          <CommandItem
+                            key={agreement.id}
+                            value={collectiveAgreementCommandValue(agreement)}
+                            onSelect={() => {
+                              setAgreementId(agreement.id);
+                              setSearchQuery('');
+                              setComboboxOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                'mr-2 h-4 w-4',
+                                agreementId === agreement.id ? 'opacity-100' : 'opacity-0'
+                              )}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium break-words leading-snug">
+                                {formatCatalogConventionName(agreement.name)}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                IDCC {agreement.idcc}
+                                {agreement.sector ? ` · ${agreement.sector}` : ''}
+                              </p>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
                   </Command>
                 </PopoverContent>
               </Popover>

@@ -49,12 +49,14 @@ import axios from 'axios';
 import * as collectiveAgreementsApi from '@/api/collectiveAgreements';
 import { CollectiveAgreementRow } from '@/components/collective-agreements/CollectiveAgreementRow';
 import { CollectiveAgreementAssignDialog } from '@/components/collective-agreements/CollectiveAgreementAssignDialog';
+import { CollectiveAgreementIdccSearchInput } from '@/components/collective-agreements/CollectiveAgreementIdccSearchInput';
 import type { CollectiveAgreementAssignResult } from '@/components/collective-agreements/CollectiveAgreementAssignDialog';
 import { ConventionDocumentViewerDialog } from '@/components/collective-agreements/ConventionDocumentViewerDialog';
 import type { DocumentLoadingKind } from '@/components/collective-agreements/CollectiveAgreementRow';
 import { AdminPageHeader } from '@/features/admin/components/eywai/AdminPageHeader';
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { formatCatalogConventionName } from '@/lib/collectiveAgreementDisplay';
+import { filterCollectiveAgreements } from '@/lib/collectiveAgreementSearch';
 import {
   getReadinessFromRulesStatus,
   getPayrollGridUnavailableReason,
@@ -285,20 +287,8 @@ export default function CollectiveAgreementsCatalog() {
   }, []);
 
   useEffect(() => {
-    // Filtrer le catalogue selon les critères
-    let filtered = [...catalog];
+    let filtered = filterCollectiveAgreements(catalog, searchTerm);
 
-    // Filtre par recherche (nom ou IDCC)
-    if (searchTerm) {
-      const search = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        (agreement) =>
-          agreement.name.toLowerCase().includes(search) ||
-          agreement.idcc.toLowerCase().includes(search)
-      );
-    }
-
-    // Filtre par secteur
     if (sectorFilter !== 'all') {
       filtered = filtered.filter((agreement) => agreement.sector === sectorFilter);
     }
@@ -1126,16 +1116,17 @@ export default function CollectiveAgreementsCatalog() {
           <div className="border-t pt-4 space-y-2">
             <p className="text-sm font-medium">Ajouter une nouvelle convention</p>
             <p className="text-xs text-muted-foreground">
-              Si la convention n&apos;est pas encore dans le catalogue, saisissez son numéro IDCC.
+              Recherchez par secteur ou mot-clé (ex. plasturgie) pour trouver l&apos;IDCC, ou saisissez-le directement.
             </p>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <Input
+              <CollectiveAgreementIdccSearchInput
                 id="import-idcc"
-                placeholder="Numéro IDCC (ex. 1486)"
                 value={importIdcc}
-                onChange={(e) => setImportIdcc(e.target.value)}
+                onValueChange={setImportIdcc}
+                localCatalog={catalog}
                 onKeyDown={(e) => e.key === 'Enter' && void handleImportKali()}
-                className="sm:max-w-xs"
+                className="w-full sm:max-w-2xl"
+                inputClassName="h-11"
               />
               <Button
                 variant="outline"
@@ -1250,7 +1241,7 @@ export default function CollectiveAgreementsCatalog() {
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Rechercher par nom ou IDCC..."
+                placeholder="Rechercher (ex. plasturgie, syntec) ou IDCC…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"

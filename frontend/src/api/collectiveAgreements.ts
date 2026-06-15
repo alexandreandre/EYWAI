@@ -51,6 +51,40 @@ export const getCatalog = (params?: {
   });
 };
 
+export interface CollectiveAgreementSuggestItem {
+  idcc: string;
+  name: string;
+  source: 'catalog' | 'kali';
+  agreement_id?: string | null;
+  sector?: string | null;
+}
+
+export interface CollectiveAgreementSuggestResponse {
+  suggestions: CollectiveAgreementSuggestItem[];
+}
+
+/**
+ * Suggestions de conventions (langage naturel ou IDCC).
+ */
+export const suggestCatalog = (
+  query: string,
+  params?: {
+    limit?: number;
+    active_only?: boolean;
+    include_kali?: boolean;
+    signal?: AbortSignal;
+  }
+) => {
+  const { signal, ...rest } = params ?? {};
+  return apiClient.get<CollectiveAgreementSuggestResponse>(
+    '/api/collective-agreements/catalog/suggest',
+    {
+      params: { q: query, ...rest },
+      signal,
+    }
+  );
+};
+
 /**
  * Récupère une convention du catalogue par son ID
  */
