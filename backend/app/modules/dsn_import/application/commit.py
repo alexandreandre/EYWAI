@@ -17,14 +17,48 @@ logger = get_logger("modules.dsn_import.commit")
 _group_repo = CompanyGroupRepository()
 _employee_repo = EmployeeRepository()
 
+PHASE_LABELS = {
+    "group": "Création du groupe",
+    "establishment": "Création de l'entreprise",
+    "collective_agreement": "Conventions collectives",
+    "employee": "Import des salariés",
+    "cumul": "Reconstruction des cumuls",
+    "done": "Finalisation",
+}
+
+
+def _phase_label(item_type: Optional[str]) -> str:
+    return PHASE_LABELS.get(item_type or "", "Traitement")
+
+
+def _item_label(item: Optional[Dict[str, Any]]) -> Optional[str]:
+    if not item:
+        return None
+    payload = item.get("mapped_payload") or {}
+    item_type = item.get("item_type")
+    if item_type == "group":
+        return payload.get("group_name") or "Groupe"
+    if item_type == "establishment":
+        return payload.get("company_name") or payload.get("raison_sociale") or "Entreprise"
+    if item_type == "employee":
+        name = f"{payload.get('first_name', '')} {payload.get('last_name', '')}".strip()
+        return name or "Salarié"
+    if item_type == "collective_agreement":
+        return f"IDCC {payload.get('idcc', '')}".strip()
+    if item_type == "cumul":
+        return f"Cumuls {payload.get('period', '')}".strip()
+    return item.get("source_ref")
+
 
 def commit_batch(
     batch_id: str,
     overrides: Optional[Dict[str, str]] = None,
+    payload_edits: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """
     Exécute le commit d'un batch previewed.
     overrides : {source_ref: action} où action in create|update|skip
+    payload_edits : {source_ref: {champ: valeur}} modifications utilisateur
     """
     batch = repo.get_batch(batch_id)
     if not batch:
@@ -34,6 +68,7 @@ def commit_batch(
 
     items = repo.list_items(batch_id)
     overrides = overrides or {}
+    payload_edits = payload_edits or {}
 
     # Index résolutions
     group_id: Optional[str] = None
@@ -51,7 +86,32 @@ def commit_batch(
         else 99,
     )
 
-    for item in items_sorted:
+    # Suivi de progression : publié dans batch.summary.commit_progress, lu par le front.
+    total = len(items_sorted)
+    summary_state: Dict[str, Any] = dict(batch.get("summary") or {})
+    emit_every = max(1, total // 25)
+    last_phase: Optional[str] = None
+
+    def emit_progress(done: int, item: Optional[Dict[str, Any]], force: bool = False) -> None:
+        nonlocal last_phase
+        phase = item.get("item_type") if item else "done"
+        phase_changed = phase != last_phase
+        if not force and not phase_changed and done % emit_every != 0:
+            return
+        last_phase = phase
+        percent = 100 if total == 0 else min(100, round(done / total * 100))
+        summary_state["commit_progress"] = {
+            "done": done,
+            "total": total,
+            "percent": percent,
+            "phase": phase,
+            "phase_label": _phase_label(phase),
+            "label": _item_label(item),
+        }
+        repo.update_batch(batch_id, {"summary": summary_state})
+
+    for idx, item in enumerate(items_sorted):
+        emit_progress(idx, item)
         item_id = str(item["id"])
         source_ref = item.get("source_ref", "")
         action = overrides.get(source_ref, item.get("action", "create"))
@@ -61,7 +121,15 @@ def commit_batch(
             continue
 
         item_type = item.get("item_type")
-        payload = item.get("mapped_payload") or {}
+        payload = dict(item.get("mapped_payload") or {})
+        edits = payload_edits.get(source_ref) or {}
+        if edits:
+            payload.update(edits)
+            if item_type == "establishment" and edits.get("company_name"):
+                payload["raison_sociale"] = edits["company_name"]
+            if item_type == "employee":
+                if edits.get("last_name") or edits.get("first_name"):
+                    payload["_label_override"] = True
 
         try:
             target_id = None
@@ -121,9 +189,18 @@ def commit_batch(
         "companies": company_by_siret,
         "imported_employees": imported_employees,
     }
+    summary_state["commit_report"] = report
+    summary_state["commit_progress"] = {
+        "done": total,
+        "total": total,
+        "percent": 100,
+        "phase": "done",
+        "phase_label": "Terminé",
+        "label": None,
+    }
     repo.update_batch(
         batch_id,
-        {"status": status, "summary": {**(batch.get("summary") or {}), "commit_report": report}},
+        {"status": status, "summary": summary_state},
     )
     return report
 
@@ -240,7 +317,9 @@ def _commit_employee(
     clean_payload = {
         k: v
         for k, v in payload.items()
-        if not k.startswith("_") and k not in ("collective_agreement_idcc", "import_source")
+        if not k.startswith("_")
+        and k not in ("collective_agreement_idcc", "import_source", "ntt", "matricule", "employee_key")
+        and v is not None
     }
 
     idcc = payload.get("collective_agreement_idcc")
@@ -278,7 +357,7 @@ def _commit_cumul(
 
     emp = repo.find_employee_by_nir(company_id, nir)
     if not emp:
-        ref = f"emp:{siret}:{nir}"
+        ref = f"emp:{siret}:{payload.get('employee_key') or nir}"
         emp = employee_by_ref.get(ref)
     if not emp or not emp.get("employee_folder_name"):
         raise RuntimeError(f"Salarié NIR {nir} introuvable pour cumuls")

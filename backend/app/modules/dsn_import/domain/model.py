@@ -61,7 +61,10 @@ class ContratBlock:
 class IndividuBlock:
     nom: str = ""
     prenom: str = ""
+    nom_usage: str = ""
     nir: str = ""
+    matricule: str = ""
+    ntt: str = ""
     date_naissance: str = ""
     lieu_naissance: str = ""
     nationalite: str = ""
@@ -71,10 +74,16 @@ class IndividuBlock:
     rubriques: Dict[str, str] = field(default_factory=dict)
     contrats: List[ContratBlock] = field(default_factory=list)
 
+    @property
+    def identifiant(self) -> str:
+        """Clé stable pour fusion / références (NIR, NTT ou matricule)."""
+        return self.nir or self.ntt or self.matricule or ""
+
 
 @dataclass
 class EtablissementBlock:
     siret: str = ""
+    nic: str = ""
     raison_sociale: str = ""
     code_naf: str = ""
     adresse_rue: str = ""
@@ -86,10 +95,24 @@ class EtablissementBlock:
 
 
 @dataclass
+class DeclarationBlock:
+    """Bloc S20.G00.05 — déclaration (norme courante)."""
+
+    nature: str = ""
+    type_declaration: str = ""
+    mois_principal: str = ""
+    rubriques: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
 class EntrepriseBlock:
     siren: str = ""
+    nic_siege: str = ""
     raison_sociale: str = ""
     code_naf: str = ""
+    adresse_rue: str = ""
+    adresse_cp: str = ""
+    adresse_ville: str = ""
     rubriques: Dict[str, str] = field(default_factory=dict)
 
 
@@ -107,11 +130,13 @@ class DsnFile:
 
     file_name: str
     envoi: EnvoiBlock = field(default_factory=EnvoiBlock)
+    declaration: DeclarationBlock = field(default_factory=DeclarationBlock)
     etablissement_s20: EtablissementBlock = field(default_factory=EtablissementBlock)
     entreprise: EntrepriseBlock = field(default_factory=EntrepriseBlock)
     etablissement: EtablissementBlock = field(default_factory=EtablissementBlock)
     raw_rubriques: List[RubriqueLine] = field(default_factory=list)
     parse_warnings: List[str] = field(default_factory=list)
+    dsn_format: str = "modern"
 
 
 @dataclass
@@ -148,9 +173,10 @@ class ParsedDsnSet:
         out: Dict[str, EtablissementBlock] = {}
         for dsn_file in self.files:
             for etab in self._etablissements_from_file(dsn_file):
-                siret = etab.siret
+                siret = self._resolve_etab_siret(etab, dsn_file)
                 if not siret:
                     continue
+                etab.siret = siret
                 if siret not in out:
                     out[siret] = etab
                 else:
@@ -158,26 +184,59 @@ class ParsedDsnSet:
         return out
 
     @staticmethod
+    def _resolve_etab_siret(etab: EtablissementBlock, dsn_file: DsnFile) -> str:
+        from app.shared.dsn_validation import build_siret_from_siren_nic
+
+        if etab.siret and len(etab.siret.replace(" ", "")) == 14:
+            return etab.siret.replace(" ", "")
+        siren = dsn_file.entreprise.siren or ""
+        if etab.nic and siren:
+            return build_siret_from_siren_nic(siren, etab.nic)
+        if etab.siret:
+            return etab.siret.replace(" ", "")
+        if dsn_file.etablissement_s20.siret:
+            return dsn_file.etablissement_s20.siret.replace(" ", "")
+        return ""
+
+    @staticmethod
     def _period_from_file(dsn_file: DsnFile) -> Optional[str]:
-        periode = dsn_file.envoi.periode
+        mois = dsn_file.declaration.mois_principal.replace("-", "").strip()
+        if len(mois) == 8 and mois.isdigit() and mois.startswith("01"):
+            # Format DSN : 01mmaaaa
+            return f"{mois[4:8]}-{mois[2:4]}"
+
+        periode = dsn_file.envoi.periode.replace("-", "").strip()
         if not periode:
-            return None
-        clean = periode.replace("-", "").strip()
-        if len(clean) == 6 and clean.isdigit():
-            return f"{clean[:4]}-{clean[4:6]}"
-        if len(clean) == 7 and "-" in periode:
-            return periode
-        return periode if len(periode) == 7 else None
+            return ParsedDsnSet._period_from_versements(dsn_file)
+        # Legacy : YYYYMM en S10.G00.00.005 (exports simplifiés)
+        if len(periode) == 6 and periode.isdigit():
+            return f"{periode[:4]}-{periode[4:6]}"
+        if len(periode) == 7 and "-" in dsn_file.envoi.periode:
+            return dsn_file.envoi.periode
+        return ParsedDsnSet._period_from_versements(dsn_file)
+
+    @staticmethod
+    def _period_from_versements(dsn_file: DsnFile) -> Optional[str]:
+        dates: List[str] = []
+        for ind in dsn_file.etablissement.individus:
+            for ctr in ind.contrats:
+                for ver in ctr.versements:
+                    d = ver.date_versement.replace("-", "").strip()
+                    if len(d) == 8 and d.isdigit():
+                        dates.append(f"{d[4:8]}-{d[2:4]}")
+        return min(dates) if dates else None
 
     @staticmethod
     def _etablissements_from_file(dsn_file: DsnFile) -> List[EtablissementBlock]:
         etabs: List[EtablissementBlock] = []
-        if dsn_file.etablissement.siret:
+        if dsn_file.etablissement.siret or dsn_file.etablissement.nic:
             etabs.append(dsn_file.etablissement)
         elif dsn_file.etablissement_s20.siret:
             etab = dsn_file.etablissement_s20
             etab.individus = dsn_file.etablissement.individus
             etabs.append(etab)
+        elif dsn_file.etablissement.individus:
+            etabs.append(dsn_file.etablissement)
         return etabs
 
     @staticmethod
@@ -190,13 +249,14 @@ class ParsedDsnSet:
             target.adresse_rue = source.adresse_rue
             target.adresse_cp = source.adresse_cp
             target.adresse_ville = source.adresse_ville
-        nir_index = {i.nir: i for i in target.individus if i.nir}
+        id_index = {i.identifiant: i for i in target.individus if i.identifiant}
         for ind in source.individus:
-            if ind.nir and ind.nir in nir_index:
-                existing = nir_index[ind.nir]
+            key = ind.identifiant
+            if key and key in id_index:
+                existing = id_index[key]
                 if ind.contrats:
                     existing.contrats.extend(ind.contrats)
             else:
                 target.individus.append(ind)
-                if ind.nir:
-                    nir_index[ind.nir] = ind
+                if key:
+                    id_index[key] = ind

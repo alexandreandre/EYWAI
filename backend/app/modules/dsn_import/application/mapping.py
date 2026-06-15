@@ -18,25 +18,170 @@ from app.modules.dsn_import.domain.normalize import (
     map_temps_partiel,
     normalize_date_dsn,
 )
-from app.modules.dsn_import.domain.rubriques import REMUNERATION_BRUT_TYPES
+from app.modules.dsn_import.application.cumuls import extract_monthly_totals
+
+# Champs modifiables en preview (clé payload -> libellé UI)
+EDITABLE_FIELDS: Dict[str, Dict[str, str]] = {
+    "group": {
+        "group_name": "Raison sociale",
+        "siren": "SIREN",
+    },
+    "establishment": {
+        "company_name": "Raison sociale",
+        "siret": "SIRET",
+        "code_naf": "Code NAF",
+        "adresse_rue": "Adresse",
+        "adresse_code_postal": "Code postal",
+        "adresse_ville": "Ville",
+    },
+    "employee": {
+        "last_name": "Nom",
+        "first_name": "Prénom",
+        "nir": "NIR",
+        "email": "Email",
+        "job_title": "Poste",
+        "hire_date": "Date d'embauche",
+    },
+}
+
+
+REVIEW_REASON_LABELS: Dict[str, str] = {
+    "brut_absent": "Brut absent",
+    "identifiant_absent": "NIR / matricule absent",
+}
+
+
+def compute_review_reasons(ind: IndividuBlock, brut: float) -> List[str]:
+    """Motifs nécessitant une relecture RH (adresse absente exclue — norme DSN)."""
+    reasons: List[str] = []
+    if brut <= 0:
+        reasons.append("brut_absent")
+    if not ind.nir and not ind.ntt and not ind.matricule:
+        reasons.append("identifiant_absent")
+    return reasons
+
+
+def build_actions_summary(items: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Agrège les actions create/update/skip par type d'item."""
+    totals = {"create": 0, "update": 0, "skip": 0}
+    by_type: Dict[str, Dict[str, int]] = {}
+    for it in items:
+        action = it.get("action", "create")
+        if action not in totals:
+            action = "create"
+        totals[action] = totals.get(action, 0) + 1
+        item_type = it.get("item_type", "other")
+        bucket = by_type.setdefault(item_type, {"create": 0, "update": 0, "skip": 0})
+        bucket[action] = bucket.get(action, 0) + 1
+    return {"totals": totals, "by_type": by_type}
+
+
+def enrich_summary_from_items(
+    summary: Dict[str, Any],
+    parsed: ParsedDsnSet,
+    items: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Complète le résumé avec SIRET, IDCC, agrégats d'actions."""
+    etabs = parsed.etablissements_by_siret()
+    sirets = list(etabs.keys())
+    summary = {**summary}
+    summary["siret"] = sirets[0] if len(sirets) == 1 else (sirets[0] if sirets else None)
+    summary["sirets"] = sirets
+
+    idcc_map = collect_idcc_by_establishment(parsed)
+    primary_idcc = None
+    for idccs in idcc_map.values():
+        if idccs:
+            primary_idcc = idccs[0]
+            break
+    summary["primary_idcc"] = primary_idcc
+
+    non_cumul = [it for it in items if it.get("item_type") != "cumul"]
+    summary["actions_summary"] = build_actions_summary(non_cumul)
+    summary["has_existing_dossier"] = any(
+        it.get("action") == "update"
+        for it in non_cumul
+        if it.get("item_type") in ("group", "establishment")
+    )
+    return summary
+
+
+def _is_generic_company_name(name: Optional[str]) -> bool:
+    """Nom générique généré par l'import (pas une raison sociale DSN)."""
+    if not name or not str(name).strip():
+        return True
+    n = str(name).strip()
+    if n.startswith("Établissement "):
+        return True
+    if n.startswith("Groupe ") and n.replace("Groupe ", "").isdigit():
+        return True
+    return False
+
+
+def apply_legal_name_to_preview(
+    items: List[Dict[str, Any]],
+    legal_name: str,
+    *,
+    single_establishment: bool = False,
+) -> None:
+    """
+    Applique la raison sociale (DSN / SIRENE) sur l'entreprise, pas sur le groupe EYWAI.
+    Le groupe reste un conteneur organisationnel discret.
+    """
+    clean = legal_name.strip()
+    if not clean:
+        return
+    short = clean.split("(")[0].strip() or clean
+
+    for it in items:
+        item_type = it.get("item_type")
+        payload = it.get("mapped_payload") or {}
+
+        if item_type == "establishment":
+            current = payload.get("company_name") or ""
+            if _is_generic_company_name(current):
+                payload["company_name"] = clean
+                payload["raison_sociale"] = clean
+                it["label"] = clean
+                it["mapped_payload"] = payload
+
+        elif item_type == "group":
+            payload["group_name"] = f"Groupe {short}"
+            payload["description"] = "Conteneur EYWAI — créé automatiquement à l'import DSN"
+            it["label"] = f"Groupe {short}"
+            it["mapped_payload"] = payload
+            if single_establishment:
+                it["is_scaffold"] = True
+                it["label"] = f"Conteneur groupe ({short})"
 
 
 def map_group_payload(parsed: ParsedDsnSet) -> Dict[str, Any]:
     siren = parsed.siren or ""
-    raison = ""
-    for f in parsed.files:
-        if f.entreprise.raison_sociale:
-            raison = f.entreprise.raison_sociale
-            break
-        if f.etablissement.raison_sociale:
-            raison = f.etablissement.raison_sociale
-            break
+    raison = _find_raison_sociale(parsed)
+    short = raison.split("(")[0].strip() if raison else ""
     return {
-        "group_name": raison or f"Groupe {siren}",
+        "group_name": f"Groupe {short}" if short else f"Groupe {siren}",
         "siren": siren,
-        "description": "Importé depuis DSN",
+        "description": "Conteneur EYWAI — créé automatiquement à l'import DSN",
         "is_active": True,
     }
+
+
+def _find_raison_sociale(parsed: ParsedDsnSet) -> str:
+    for f in parsed.files:
+        if f.entreprise.raison_sociale and not _looks_like_code(f.entreprise.raison_sociale):
+            return f.entreprise.raison_sociale
+        if f.etablissement_s20.raison_sociale and not _looks_like_code(f.etablissement_s20.raison_sociale):
+            return f.etablissement_s20.raison_sociale
+        if f.etablissement.raison_sociale and not _looks_like_code(f.etablissement.raison_sociale):
+            return f.etablissement.raison_sociale
+    return ""
+
+
+def _default_establishment_name(etab: EtablissementBlock, siret: str) -> str:
+    if etab.adresse_ville:
+        return f"Établissement {etab.adresse_ville} ({siret[-5:]})"
+    return f"Établissement {siret}"
 
 
 def map_establishment_payload(
@@ -44,11 +189,10 @@ def map_establishment_payload(
 ) -> Dict[str, Any]:
     addr = build_address_dict(etab.adresse_rue, etab.adresse_cp, etab.adresse_ville)
     raison = etab.raison_sociale or ""
-    if not raison:
-        for f in parsed.files:
-            if f.entreprise.raison_sociale:
-                raison = f.entreprise.raison_sociale
-                break
+    if not raison or _looks_like_code(raison):
+        raison = _find_raison_sociale(parsed)
+    if not raison or _looks_like_code(raison):
+        raison = _default_establishment_name(etab, etab.siret)
     payload = {
         "company_name": raison,
         "raison_sociale": raison,
@@ -63,13 +207,32 @@ def map_establishment_payload(
     return payload
 
 
+def _looks_like_code(value: str) -> bool:
+    """Évite d'utiliser un NIC/NAF comme raison sociale."""
+    clean = value.replace(" ", "")
+    if not clean:
+        return True
+    if clean.isdigit() and len(clean) <= 5:
+        return True
+    if len(clean) <= 6 and any(c.isdigit() for c in clean) and any(c.isalpha() for c in clean):
+        return True
+    return False
+
+
+def _employee_label(ind: IndividuBlock) -> str:
+    name = f"{ind.prenom} {ind.nom}".strip()
+    if name:
+        return name
+    if ind.matricule:
+        return f"Matricule {ind.matricule}"
+    return ind.identifiant or "Salarié"
+
+
 def _estimate_brut_from_contrat(contrat: ContratBlock) -> float:
-    total = 0.0
-    for ver in contrat.versements:
-        for rem in ver.remunerations:
-            if rem.type_code in REMUNERATION_BRUT_TYPES or not rem.type_code:
-                total += rem.montant
-    return round(total, 2)
+    from app.modules.dsn_import.domain.model import IndividuBlock
+
+    stub = IndividuBlock(contrats=[contrat])
+    return extract_monthly_totals(stub).get("brut", 0.0)
 
 
 def map_employee_payload(
@@ -89,7 +252,9 @@ def map_employee_payload(
         "first_name": ind.prenom,
         "last_name": ind.nom,
         "email": email_placeholder,
-        "nir": ind.nir,
+        "nir": ind.nir or None,
+        "ntt": ind.ntt or None,
+        "matricule": ind.matricule or None,
         "date_naissance": normalize_date_dsn(ind.date_naissance),
         "lieu_naissance": ind.lieu_naissance or "Non renseigné",
         "nationalite": ind.nationalite or "Française",
@@ -120,16 +285,24 @@ def map_employee_payload(
         "collective_agreement_idcc": contrat.idcc,
         "employment_status": "en_onboarding",
         "import_source": "dsn",
-        "_needs_review": brut <= 0 or not ind.adresse_rue,
+        "_needs_review": bool(compute_review_reasons(ind, brut)),
+    }
+
+
+def employee_review_fields(ind: IndividuBlock, brut: float) -> Dict[str, Any]:
+    reasons = compute_review_reasons(ind, brut)
+    return {
+        "needs_review": bool(reasons),
+        "review_reasons": reasons,
     }
 
 
 def _placeholder_email(ind: IndividuBlock, siret: str) -> str:
     """Email technique pour salarié importé (compte Auth différé)."""
-    nir_tail = (ind.nir or "000")[-6:]
+    id_tail = (ind.identifiant or "000")[-6:]
     slug = f"{ind.prenom}.{ind.nom}".lower().replace(" ", "-")
     slug = "".join(c for c in slug if c.isalnum() or c in ".-_") or "salarie"
-    return f"import.{slug}.{nir_tail}@{siret[:9]}.dsn-import.local"
+    return f"import.{slug}.{id_tail}@{siret[:9]}.dsn-import.local"
 
 
 def collect_idcc_by_establishment(parsed: ParsedDsnSet) -> Dict[str, List[str]]:
@@ -152,6 +325,8 @@ def build_preview_items(parsed: ParsedDsnSet) -> Tuple[List[Dict[str, Any]], Dic
     siren = parsed.siren or ""
 
     group_payload = map_group_payload(parsed)
+    etabs = parsed.etablissements_by_siret()
+    single_establishment = len(etabs) == 1
     items.append(
         {
             "item_type": "group",
@@ -159,11 +334,12 @@ def build_preview_items(parsed: ParsedDsnSet) -> Tuple[List[Dict[str, Any]], Dic
             "action": "create",
             "mapped_payload": group_payload,
             "label": group_payload.get("group_name"),
+            "editable_fields": EDITABLE_FIELDS["group"],
+            "is_scaffold": single_establishment,
         }
     )
 
     idcc_map = collect_idcc_by_establishment(parsed)
-    etabs = parsed.etablissements_by_siret()
 
     for siret, etab in etabs.items():
         etab_payload = map_establishment_payload(etab, siren, parsed)
@@ -173,8 +349,9 @@ def build_preview_items(parsed: ParsedDsnSet) -> Tuple[List[Dict[str, Any]], Dic
                 "source_ref": f"etab:{siret}",
                 "action": "create",
                 "mapped_payload": etab_payload,
-                "label": etab_payload.get("company_name"),
+                "label": etab_payload.get("company_name") or siret,
                 "employee_count": len(etab.individus),
+                "editable_fields": EDITABLE_FIELDS["establishment"],
             }
         )
         for idcc in idcc_map.get(siret, []):
@@ -189,15 +366,25 @@ def build_preview_items(parsed: ParsedDsnSet) -> Tuple[List[Dict[str, Any]], Dic
             )
         for ind in etab.individus:
             emp_payload = map_employee_payload(ind, etab, siret)
-            ref = f"emp:{siret}:{ind.nir or ind.nom}"
+            ident = ind.identifiant or ind.nom
+            ref = f"emp:{siret}:{ident}"
+            review = employee_review_fields(ind, emp_payload.get("salaire_de_base", {}).get("valeur", 0))
             items.append(
                 {
                     "item_type": "employee",
                     "source_ref": ref,
                     "action": "create",
                     "mapped_payload": emp_payload,
-                    "label": f"{ind.prenom} {ind.nom}".strip(),
-                    "needs_review": emp_payload.get("_needs_review", False),
+                    "label": _employee_label(ind),
+                    "needs_review": review["needs_review"],
+                    "review_reasons": review["review_reasons"],
+                    "preview_columns": {
+                        "nir": emp_payload.get("nir") or emp_payload.get("matricule") or "—",
+                        "job_title": emp_payload.get("job_title"),
+                        "hire_date": emp_payload.get("hire_date"),
+                        "brut": emp_payload.get("salaire_de_base", {}).get("valeur"),
+                    },
+                    "editable_fields": EDITABLE_FIELDS["employee"],
                 }
             )
 
@@ -209,4 +396,9 @@ def build_preview_items(parsed: ParsedDsnSet) -> Tuple[List[Dict[str, Any]], Dic
         "employee_count": sum(len(e.individus) for e in etabs.values()),
         "file_count": len(parsed.files),
     }
+
+    raison = _find_raison_sociale(parsed)
+    if raison:
+        apply_legal_name_to_preview(items, raison, single_establishment=single_establishment)
+
     return items, summary

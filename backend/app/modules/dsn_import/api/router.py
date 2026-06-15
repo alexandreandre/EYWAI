@@ -4,21 +4,23 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from app.modules.dsn_import.api.dependencies import verify_super_admin
 from app.modules.dsn_import.application import service
 from app.modules.dsn_import.schemas.requests import (
     ActivateImportedEmployeeBody,
     DsnImportCommitBody,
+    DsnImportRevalidateBody,
 )
 from app.modules.dsn_import.schemas.responses import (
     ActivateImportedEmployeeResponse,
+    DsnImportAnomaly,
     DsnImportBatchDetailResponse,
     DsnImportBatchListResponse,
     DsnImportBatchSummary,
-    DsnImportCommitResponse,
+    DsnImportCommitStartResponse,
     DsnImportParseResponse,
-    ImportedEmployeeSummary,
+    DsnImportRevalidateResponse,
 )
 
 router = APIRouter(prefix="/api/dsn-import", tags=["Import DSN"])
@@ -100,32 +102,58 @@ async def get_import_batch(
     )
 
 
-@router.post("/batches/{batch_id}/commit", response_model=DsnImportCommitResponse)
+@router.post("/batches/{batch_id}/revalidate", response_model=DsnImportRevalidateResponse)
+async def revalidate_import_batch(
+    batch_id: str,
+    body: DsnImportRevalidateBody,
+    _super_admin: Dict[str, Any] = Depends(verify_super_admin),
+) -> DsnImportRevalidateResponse:
+    """Recalcule anomalies après éditions preview (SIRET, NIR, etc.)."""
+    try:
+        result = service.revalidate_preview(batch_id, payload_edits=body.payload_edits)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Batch introuvable.") from None
+
+    return DsnImportRevalidateResponse(
+        anomalies=[DsnImportAnomaly(**a) for a in result.get("anomalies") or []],
+        can_commit=bool(result.get("can_commit")),
+        summary=result.get("summary") or {},
+    )
+
+
+@router.post("/batches/{batch_id}/commit", response_model=DsnImportCommitStartResponse)
 async def commit_import_batch(
     batch_id: str,
     body: DsnImportCommitBody,
+    background_tasks: BackgroundTasks,
     _super_admin: Dict[str, Any] = Depends(verify_super_admin),
-) -> DsnImportCommitResponse:
-    """Valide et exécute l'import DSN."""
+) -> DsnImportCommitStartResponse:
+    """
+    Lance l'import DSN en arrière-plan.
+
+    Le commit (création groupe / entreprises / salariés / cumuls) peut être long.
+    On bascule le batch en 'committing' et on exécute le travail via une tâche
+    d'arrière-plan : l'import se poursuit même si le client quitte ou recharge la page.
+    Le front interroge ensuite GET /batches/{id} jusqu'au statut committed | failed.
+    """
     try:
-        report = service.execute_commit(batch_id, overrides=body.overrides)
+        should_launch = service.begin_commit(
+            batch_id, overrides=body.overrides, payload_edits=body.payload_edits
+        )
     except LookupError:
         raise HTTPException(status_code=404, detail="Batch introuvable.") from None
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
 
-    return DsnImportCommitResponse(
-        stats=report.get("stats") or {},
-        errors=report.get("errors") or [],
-        group_id=report.get("group_id"),
-        companies=report.get("companies") or {},
-        imported_employees=[
-            ImportedEmployeeSummary(**row)
-            for row in (report.get("imported_employees") or [])
-        ],
-    )
+    if should_launch:
+        background_tasks.add_task(
+            service.run_commit,
+            batch_id,
+            body.overrides,
+            body.payload_edits,
+        )
+
+    return DsnImportCommitStartResponse(status="committing", batch_id=batch_id)
 
 
 @router.post("/employees/activate", response_model=ActivateImportedEmployeeResponse)

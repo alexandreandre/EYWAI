@@ -4,6 +4,7 @@ from pathlib import Path
 
 from app.modules.dsn_import.application.cumuls import (
     build_cumuls_for_month,
+    build_cumuls_summary,
     extract_monthly_totals,
     plan_cumul_items,
 )
@@ -37,3 +38,29 @@ def test_plan_cumul_items():
     items = plan_cumul_items(parsed)
     assert len(items) == 1
     assert items[0]["item_type"] == "cumul"
+
+
+def test_build_cumuls_summary():
+    items = [
+        {
+            "mapped_payload": {
+                "period": "2026-01",
+                "employee_key": "a",
+                "month_totals": {"brut": 3000, "net_imposable": 2400, "pas": 300, "heures": 151.67},
+            }
+        },
+        {
+            "mapped_payload": {
+                "period": "2026-01",
+                "employee_key": "b",
+                "month_totals": {"brut": 0, "net_imposable": 0, "pas": 0, "heures": 0},
+            }
+        },
+    ]
+    summary = build_cumuls_summary(items)
+    assert summary["period_count"] == 1
+    assert summary["employee_count"] == 2
+    assert summary["entry_count"] == 2
+    assert summary["by_period"][0]["brut"] == 3000.0
+    assert summary["by_period"][0]["employees_without_brut"] == 1
+

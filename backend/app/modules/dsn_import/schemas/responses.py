@@ -14,7 +14,11 @@ class DsnImportItemPreview(BaseModel):
     mapped_payload: Dict[str, Any] = Field(default_factory=dict)
     label: Optional[str] = None
     needs_review: Optional[bool] = None
+    review_reasons: Optional[List[str]] = None
+    preview_columns: Optional[Dict[str, Any]] = None
     employee_count: Optional[int] = None
+    editable_fields: Optional[Dict[str, str]] = None
+    is_scaffold: Optional[bool] = None
 
 
 class DsnImportAnomaly(BaseModel):
@@ -55,6 +59,13 @@ class DsnImportCommitResponse(BaseModel):
     imported_employees: List[ImportedEmployeeSummary] = Field(default_factory=list)
 
 
+class DsnImportCommitStartResponse(BaseModel):
+    """Réponse immédiate au lancement d'un commit asynchrone."""
+
+    status: str = "committing"
+    batch_id: str
+
+
 class ActivateImportedEmployeeResponse(BaseModel):
     employee_id: str
     user_id: str
@@ -84,3 +95,9 @@ class DsnImportBatchDetailResponse(BaseModel):
 
 class DsnImportBatchListResponse(BaseModel):
     batches: List[DsnImportBatchSummary]
+
+
+class DsnImportRevalidateResponse(BaseModel):
+    anomalies: List[DsnImportAnomaly]
+    can_commit: bool
+    summary: Dict[str, Any] = Field(default_factory=dict)
