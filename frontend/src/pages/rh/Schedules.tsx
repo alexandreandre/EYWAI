@@ -69,6 +69,7 @@ export default function Schedules() {
   const [drawerEmployeeId, setDrawerEmployeeId] = useState<string | null>(null);
   const [applyModelOpen, setApplyModelOpen] = useState(false);
   const [assistedFillOpen, setAssistedFillOpen] = useState(false);
+  const [aiTargetIds, setAiTargetIds] = useState<string[] | null>(null);
   const [pointageImportOpen, setPointageImportOpen] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -168,6 +169,23 @@ export default function Schedules() {
 
   const visibleIds = sortedRows.map((r) => r.employee.id);
 
+  const aSaisirRows = useMemo(
+    () => sortedRows.filter((r) => r.rowStatus === 'a_saisir'),
+    [sortedRows]
+  );
+
+  const aSaisirIds = useMemo(
+    () => aSaisirRows.map((r) => r.employee.id),
+    [aSaisirRows]
+  );
+
+  const allASaisirSelected =
+    aSaisirIds.length > 0 && aSaisirIds.every((id) => selectedIds.has(id));
+
+  const selectSubsetToFill = useCallback((ids: string[]) => {
+    setSelectedIds(new Set(ids));
+  }, []);
+
   const orderedEmployeesForDrawer = useMemo(
     () => sortedRows.map((r) => r.employee),
     [sortedRows]
@@ -186,6 +204,41 @@ export default function Schedules() {
       })),
     [employees]
   );
+
+  const aiDialogRoster = useMemo(() => {
+    if (!aiTargetIds) return assistedFillRoster;
+    const byId = new Map(
+      rows.map((r) => [
+        r.employee.id,
+        {
+          id: r.employee.id,
+          first_name: r.employee.first_name,
+          last_name: r.employee.last_name,
+        },
+      ])
+    );
+    return aiTargetIds
+      .map((id) => byId.get(id))
+      .filter((e): e is (typeof assistedFillRoster)[number] => e != null);
+  }, [assistedFillRoster, aiTargetIds, rows]);
+
+  const aiTargetSummary = useMemo(() => {
+    if (!aiTargetIds) return null;
+    return {
+      count: aiDialogRoster.length,
+      names: aiDialogRoster.map((e) => `${e.last_name} ${e.first_name}`),
+    };
+  }, [aiTargetIds, aiDialogRoster]);
+
+  const openAssistedFillForAll = useCallback(() => {
+    setAiTargetIds(null);
+    setAssistedFillOpen(true);
+  }, []);
+
+  const openAssistedFillForASaisir = useCallback((ids: string[]) => {
+    setAiTargetIds(ids);
+    setAssistedFillOpen(true);
+  }, []);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -236,7 +289,7 @@ export default function Schedules() {
         onMonthChange={setSelectedMonth}
         kpis={globalKpis}
         isLoading={isPageLoading}
-        onOpenAssistedFill={() => setAssistedFillOpen(true)}
+        onOpenAssistedFill={openAssistedFillForAll}
         onOpenPointageImport={() => setPointageImportOpen(true)}
       />
 
@@ -272,6 +325,11 @@ export default function Schedules() {
         onViewModeChange={setViewMode}
         filteredCount={filteredRows.length}
         totalCount={rows.length}
+        teamsById={teamsById}
+        aSaisirRows={aSaisirRows}
+        allASaisirSelected={allASaisirSelected}
+        onSelectSubset={selectSubsetToFill}
+        onFillASaisirWithAi={openAssistedFillForASaisir}
         isLoading={isPageLoading}
       />
 
@@ -351,10 +409,15 @@ export default function Schedules() {
 
       <AssistedFillDialog
         open={assistedFillOpen}
-        onOpenChange={setAssistedFillOpen}
+        onOpenChange={(open) => {
+          setAssistedFillOpen(open);
+          if (!open) setAiTargetIds(null);
+        }}
         year={selectedYear}
         month={selectedMonth}
-        roster={assistedFillRoster}
+        roster={aiDialogRoster}
+        targetSummary={aiTargetSummary}
+        broadcast={aiTargetIds !== null}
         onApplied={refreshCalendars}
       />
 

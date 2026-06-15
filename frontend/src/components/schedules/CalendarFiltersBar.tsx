@@ -9,6 +9,8 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Search, LayoutList, Users } from 'lucide-react';
 import type { Team } from '@/api/teams';
+import type { EmployeeCalendarOverviewRow } from '@/lib/schedulesOverview';
+import { ASaisirActionsMenu } from './ASaisirActionsMenu';
 import type { ModeFilter, SaisieStatusFilter, ViewMode } from './types';
 
 interface CalendarFiltersBarProps {
@@ -25,6 +27,11 @@ interface CalendarFiltersBarProps {
   onViewModeChange: (v: ViewMode) => void;
   filteredCount: number;
   totalCount: number;
+  teamsById: Map<string, Team>;
+  aSaisirRows: EmployeeCalendarOverviewRow[];
+  allASaisirSelected: boolean;
+  onSelectSubset: (ids: string[]) => void;
+  onFillASaisirWithAi: (ids: string[]) => void;
   isLoading?: boolean;
 }
 
@@ -42,6 +49,11 @@ export function CalendarFiltersBar({
   onViewModeChange,
   filteredCount,
   totalCount,
+  teamsById,
+  aSaisirRows,
+  allASaisirSelected,
+  onSelectSubset,
+  onFillASaisirWithAi,
   isLoading = false,
 }: CalendarFiltersBarProps) {
   const teamValue =
@@ -147,6 +159,17 @@ export function CalendarFiltersBar({
             </SelectContent>
           </Select>
         </div>
+
+        {/* Menu « À saisir » : sélection partielle + remplissage IA */}
+        {isLoading ? null : (
+          <ASaisirActionsMenu
+            rows={aSaisirRows}
+            teamsById={teamsById}
+            allSelected={allASaisirSelected}
+            onSelectSubset={onSelectSubset}
+            onFillWithAi={onFillASaisirWithAi}
+          />
+        )}
       </div>
 
       <p className="text-xs text-muted-foreground">

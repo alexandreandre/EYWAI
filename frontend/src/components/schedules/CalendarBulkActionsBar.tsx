@@ -1,18 +1,26 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { ToastAction } from '@/components/ui/toast';
 import {
   Copy,
   Download,
   LayoutTemplate,
   Loader2,
   Calculator,
-  Equal,
+  CopyCheck,
+  Undo2,
 } from 'lucide-react';
 import * as calendarApi from '@/api/calendar';
 import { runWithConcurrency } from '@/lib/concurrency';
 import { useToast } from '@/components/ui/use-toast';
 import { exportOverviewCsv } from '@/lib/schedulesOverview';
 import type { EmployeeCalendarOverviewRow } from '@/lib/schedulesOverview';
+import {
+  restoreActualSnapshots,
+  restorePlannedSnapshots,
+  type ActualSnapshot,
+  type PlannedSnapshot,
+} from '@/lib/calendarBulkUndo';
 
 interface CalendarBulkActionsBarProps {
   selectedCount: number;
@@ -42,6 +50,36 @@ export function CalendarBulkActionsBar({
     selectedEmployeeIds.includes(r.employee.id)
   );
 
+  const runUndo = async (restore: () => Promise<void>) => {
+    setBusy('undo');
+    try {
+      await restore();
+      toast({
+        title: 'Action annulée',
+        description: "L'état précédent a été restauré.",
+      });
+      onActionComplete();
+    } catch {
+      toast({
+        title: 'Erreur',
+        description: "Impossible d'annuler l'action.",
+        variant: 'destructive',
+      });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const undoToastAction = (restore: () => Promise<void>) => (
+    <ToastAction
+      altText="Annuler la dernière action"
+      onClick={() => void runUndo(restore)}
+    >
+      <Undo2 className="mr-1 h-3.5 w-3.5" />
+      Annuler
+    </ToastAction>
+  );
+
   const copyPreviousMonth = async () => {
     setBusy('copy');
     let prevMonth = month - 1;
@@ -52,6 +90,7 @@ export function CalendarBulkActionsBar({
     }
 
     try {
+      const snapshots: PlannedSnapshot[] = [];
       const tasks = selectedEmployeeIds.map((id) => async () => {
         const [prevRes, currentPlannedRes] = await Promise.all([
           calendarApi.getPlannedCalendar(id, prevYear, prevMonth),
@@ -59,6 +98,7 @@ export function CalendarBulkActionsBar({
         ]);
         const prevData = prevRes.data.calendrier_prevu ?? [];
         const currentData = currentPlannedRes.data.calendrier_prevu ?? [];
+        snapshots.push({ id, planned: currentData });
         const daysInMonth = new Date(year, month, 0).getDate();
 
         const merged = [];
@@ -83,6 +123,9 @@ export function CalendarBulkActionsBar({
       toast({
         title: 'Mois précédent copié',
         description: `Planning copié pour ${selectedEmployeeIds.length} employé(s).`,
+        action: undoToastAction(() =>
+          restorePlannedSnapshots(snapshots, year, month)
+        ),
       });
       onActionComplete();
     } catch {
@@ -99,9 +142,15 @@ export function CalendarBulkActionsBar({
   const copyPlannedToActual = async () => {
     setBusy('equal');
     try {
+      const snapshots: ActualSnapshot[] = [];
       const tasks = selectedEmployeeIds.map((id) => async () => {
         const row = overviewRows.find((r) => r.employee.id === id);
         if (!row) return;
+        const prevActualRes = await calendarApi.getActualHours(id, year, month);
+        snapshots.push({
+          id,
+          actual: prevActualRes.data.calendrier_reel ?? [],
+        });
         const actual = row.planned.map((p) => ({
           jour: p.jour,
           type: p.type,
@@ -113,6 +162,9 @@ export function CalendarBulkActionsBar({
       toast({
         title: 'Heures réelles mises à jour',
         description: `Réel = prévu pour ${selectedEmployeeIds.length} employé(s).`,
+        action: undoToastAction(() =>
+          restoreActualSnapshots(snapshots, year, month)
+        ),
       });
       onActionComplete();
     } catch {
@@ -187,7 +239,7 @@ export function CalendarBulkActionsBar({
         {busy === 'equal' ? (
           <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
         ) : (
-          <Equal className="mr-1.5 h-4 w-4" />
+          <CopyCheck className="mr-1.5 h-4 w-4" />
         )}
         Réel = prévu
       </Button>

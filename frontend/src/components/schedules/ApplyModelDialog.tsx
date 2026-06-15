@@ -19,9 +19,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2 } from 'lucide-react';
+import { ToastAction } from '@/components/ui/toast';
+import { Loader2, Undo2 } from 'lucide-react';
 import apiClient from '@/api/apiClient';
+import * as calendarApi from '@/api/calendar';
 import { useToast } from '@/components/ui/use-toast';
+import { runWithConcurrency } from '@/lib/concurrency';
+import {
+  restorePlannedSnapshots,
+  type PlannedSnapshot,
+} from '@/lib/calendarBulkUndo';
 import type { DayConfig, WeekConfig, WeekNumber } from './types';
 
 const INITIAL_DAY: DayConfig = { type: 'travail', hours: 8 };
@@ -81,6 +88,23 @@ export function ApplyModelDialog({
     }));
   };
 
+  const restoreModel = async (snapshots: PlannedSnapshot[]) => {
+    try {
+      await restorePlannedSnapshots(snapshots, year, month);
+      toast({
+        title: 'Action annulée',
+        description: 'Le planning précédent a été restauré.',
+      });
+      onApplied();
+    } catch {
+      toast({
+        title: 'Erreur',
+        description: "Impossible d'annuler l'application du modèle.",
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleApply = async () => {
     if (selectedEmployeeIds.length === 0) return;
     setIsApplying(true);
@@ -95,6 +119,13 @@ export function ApplyModelDialog({
           }
         : weekConfigs;
 
+      const snapshots: PlannedSnapshot[] = [];
+      const snapshotTasks = selectedEmployeeIds.map((id) => async () => {
+        const res = await calendarApi.getPlannedCalendar(id, year, month);
+        snapshots.push({ id, planned: res.data.calendrier_prevu ?? [] });
+      });
+      await runWithConcurrency(snapshotTasks, 5);
+
       await apiClient.post('/api/schedules/apply-model', {
         employee_ids: selectedEmployeeIds,
         year,
@@ -105,6 +136,15 @@ export function ApplyModelDialog({
       toast({
         title: 'Modèle appliqué',
         description: `Planning appliqué à ${selectedEmployeeIds.length} employé(s).`,
+        action: (
+          <ToastAction
+            altText="Annuler l'application du modèle"
+            onClick={() => void restoreModel(snapshots)}
+          >
+            <Undo2 className="mr-1 h-3.5 w-3.5" />
+            Annuler
+          </ToastAction>
+        ),
       });
       onApplied();
       onOpenChange(false);

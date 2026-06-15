@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Loader2, Mic, Sparkles, Square } from 'lucide-react';
+import { ListChecks, Loader2, Mic, Sparkles, Square } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/components/ui/use-toast';
 import { useSpeechDictation } from '@/hooks/useSpeechDictation';
 import { cn } from '@/lib/utils';
@@ -34,6 +35,16 @@ interface AssistedFillDialogProps {
   onApplied: () => void;
   /** Mode fiche collaborateur : tout est attribué à l'unique employé du roster. */
   singleEmployee?: boolean;
+  /**
+   * Quand l'analyse IA est restreinte à un sous-ensemble (ex. « À saisir »),
+   * affiche le périmètre exact pour que l'utilisateur comprenne la portée.
+   */
+  targetSummary?: { count: number; names: string[] } | null;
+  /**
+   * Mode saisie collective : la consigne s'applique à TOUS les employés du
+   * roster (les « À saisir »), sans avoir à citer de noms.
+   */
+  broadcast?: boolean;
 }
 
 export function AssistedFillDialog({
@@ -44,6 +55,8 @@ export function AssistedFillDialog({
   roster,
   onApplied,
   singleEmployee = false,
+  targetSummary = null,
+  broadcast = false,
 }: AssistedFillDialogProps) {
   const { toast } = useToast();
   const [instruction, setInstruction] = useState('');
@@ -99,6 +112,7 @@ export function AssistedFillDialog({
         instruction,
         roster,
         singleEmployee,
+        broadcast,
       );
       showProposal(result);
     } catch (e) {
@@ -150,6 +164,43 @@ export function AssistedFillDialog({
           />
         ) : (
           <div className="space-y-2 pt-1">
+            {targetSummary && targetSummary.count > 0 && !singleEmployee && (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5 text-sm">
+                <p className="flex items-center gap-1.5 font-medium text-foreground">
+                  <ListChecks className="h-4 w-4 text-primary" />
+                  Ciblé sur {targetSummary.count} collaborateur
+                  {targetSummary.count > 1 ? 's' : ''} « À saisir »
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {broadcast ? (
+                    <>
+                      Inutile de citer les noms : décrivez l&apos;horaire une
+                      fois, il sera appliqué à ces {targetSummary.count}{' '}
+                      collaborateurs (et à eux seuls). Vous pourrez ajuster
+                      chacun avant d&apos;enregistrer.
+                    </>
+                  ) : (
+                    <>
+                      Seuls ces collaborateurs seront reconnus par l&apos;IA.
+                      Citez leur nom dans la consigne ; les autres sont ignorés.
+                    </>
+                  )}
+                </p>
+                <ScrollArea className="mt-2 max-h-28 rounded-md border bg-background/60">
+                  <ul className="divide-y px-2 py-1">
+                    {targetSummary.names.map((name) => (
+                      <li
+                        key={name}
+                        className="py-1 text-[11px] text-foreground/80"
+                      >
+                        {name}
+                      </li>
+                    ))}
+                  </ul>
+                </ScrollArea>
+              </div>
+            )}
+
             <div
               className={cn(
                 'group relative rounded-xl border bg-card shadow-sm transition-colors focus-within:border-primary/60 focus-within:ring-1 focus-within:ring-primary/20',
@@ -162,7 +213,9 @@ export function AssistedFillDialog({
                 placeholder={
                   targetName
                     ? 'Ex : a fait 8h du lundi au jeudi et 7h le vendredi (heures faites). La semaine prochaine, prévu 7h tous les jours (heures prévues).'
-                    : 'Ex : Paul Martin a fait 8h du lundi au jeudi et 7h le vendredi (heures faites). Sophie Durand est prévue 7h tous les jours la semaine prochaine (heures prévues).'
+                    : broadcast
+                      ? 'Ex : tout le monde a fait 7h du lundi au vendredi, et 4h les samedis (heures faites). Inutile de citer les noms.'
+                      : 'Ex : Paul Martin a fait 8h du lundi au jeudi et 7h le vendredi (heures faites). Sophie Durand est prévue 7h tous les jours la semaine prochaine (heures prévues).'
                 }
                 rows={6}
                 className="resize-none border-0 bg-transparent px-4 pt-4 pb-16 text-sm shadow-none focus-visible:ring-0"

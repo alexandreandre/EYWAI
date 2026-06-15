@@ -113,10 +113,18 @@ export const parseScheduleInstruction = async (
   instruction: string,
   employees: RosterEmployee[],
   singleEmployee = false,
+  broadcast = false,
 ): Promise<AiCalendarProposal> => {
   const { data } = await apiClient.post<AiCalendarProposal>(
     '/api/schedules/assisted-fill/parse-text',
-    { year, month, instruction, employees, single_employee: singleEmployee },
+    {
+      year,
+      month,
+      instruction,
+      employees,
+      single_employee: singleEmployee,
+      broadcast,
+    },
   );
   return data;
 };
