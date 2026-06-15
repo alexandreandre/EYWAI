@@ -6,7 +6,7 @@ export default function DsnImport() {
     <div className="space-y-6">
       <AdminPageHeader
         title="Import DSN"
-        description="Reconstruisez un dossier paie complet (groupe, établissements, salariés, conventions et cumuls) à partir de fichiers DSN."
+        description="Reconstruisez un dossier paie complet (groupe, établissements, salariés, conventions et cumuls) à partir de fichiers plats NEODeS (.txt, .dsn) — plusieurs mois acceptés."
       />
       <DsnImportWizard />
     </div>

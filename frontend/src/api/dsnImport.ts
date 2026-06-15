@@ -14,7 +14,22 @@ export type DsnImportItemPreview = {
   mapped_payload: Record<string, unknown>;
   label?: string | null;
   needs_review?: boolean | null;
+  review_reasons?: string[] | null;
+  preview_columns?: Record<string, unknown> | null;
   employee_count?: number | null;
+  editable_fields?: Record<string, string> | null;
+  is_scaffold?: boolean | null;
+};
+
+export type DsnImportActionsSummary = {
+  totals: { create: number; update: number; skip: number };
+  by_type: Record<string, { create: number; update: number; skip: number }>;
+};
+
+export type DsnImportRevalidateResponse = {
+  anomalies: DsnImportAnomaly[];
+  can_commit: boolean;
+  summary: Record<string, unknown>;
 };
 
 export type DsnImportParseResponse = {
@@ -61,6 +76,18 @@ export type DsnImportCommitResponse = {
   imported_employees: ImportedEmployeeSummary[];
 };
 
+export type DsnImportCommitStartResponse = {
+  status: string;
+  batch_id: string;
+};
+
+export type DsnImportBatchStatus =
+  | 'parsed'
+  | 'previewed'
+  | 'committing'
+  | 'committed'
+  | 'failed';
+
 export type ActivateImportedEmployeeResponse = {
   employee_id: string;
   user_id: string;
@@ -93,10 +120,22 @@ export async function getDsnImportBatch(batchId: string): Promise<DsnImportBatch
 export async function commitDsnImportBatch(
   batchId: string,
   overrides: Record<string, string> = {},
-): Promise<DsnImportCommitResponse> {
-  const { data } = await apiClient.post<DsnImportCommitResponse>(
+  payloadEdits: Record<string, Record<string, unknown>> = {},
+): Promise<DsnImportCommitStartResponse> {
+  const { data } = await apiClient.post<DsnImportCommitStartResponse>(
     `/api/dsn-import/batches/${batchId}/commit`,
-    { overrides },
+    { overrides, payload_edits: payloadEdits },
+  );
+  return data;
+}
+
+export async function revalidateDsnImportBatch(
+  batchId: string,
+  payloadEdits: Record<string, Record<string, unknown>> = {},
+): Promise<DsnImportRevalidateResponse> {
+  const { data } = await apiClient.post<DsnImportRevalidateResponse>(
+    `/api/dsn-import/batches/${batchId}/revalidate`,
+    { payload_edits: payloadEdits },
   );
   return data;
 }
@@ -113,6 +152,11 @@ export async function activateImportedEmployee(
   return data;
 }
 
+export const DSN_IMPORT_REVIEW_REASON_LABELS: Record<string, string> = {
+  brut_absent: 'Brut absent',
+  identifiant_absent: 'NIR / matricule absent',
+};
+
 export const DSN_IMPORT_ACTION_LABELS: Record<string, string> = {
   create: 'Créer',
   update: 'Mettre à jour',
@@ -120,8 +164,8 @@ export const DSN_IMPORT_ACTION_LABELS: Record<string, string> = {
 };
 
 export const DSN_IMPORT_ITEM_TYPE_LABELS: Record<string, string> = {
-  group: 'Groupe (SIREN)',
-  establishment: 'Établissement',
+  group: 'Conteneur groupe (SIREN)',
+  establishment: 'Entreprise (SIRET)',
   employee: 'Salarié',
   cumul: 'Cumuls',
   collective_agreement: 'Convention collective',
