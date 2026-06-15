@@ -269,14 +269,40 @@ export default function CollectiveAgreementCard({
   };
 
   const handleDeleteConfirm = async () => {
-    if (!assignmentToDelete) return;
+    if (!assignmentToDelete || !companyId) return;
 
     try {
-      await collectiveAgreementsApi.unassignAgreement(assignmentToDelete.id, companyId);
+      let assignmentId = assignmentToDelete.id;
+      if (assignmentId.startsWith('optimistic-')) {
+        const response = await collectiveAgreementsApi.getMyCompanyAgreements(companyId);
+        const persistedAssignment = (response.data ?? []).find(
+          (item) =>
+            item.collective_agreement_id === assignmentToDelete.collective_agreement_id
+        );
+        if (persistedAssignment) {
+          assignmentId = persistedAssignment.id;
+        }
+      }
+
+      if (!assignmentId.startsWith('optimistic-')) {
+        await collectiveAgreementsApi.unassignAgreement(assignmentId, companyId);
+      }
+
+      setAssignments((prev) =>
+        prev.filter(
+          (item) =>
+            item.collective_agreement_id !== assignmentToDelete.collective_agreement_id
+        )
+      );
+      setRulesStatusMap((prev) => {
+        const next = { ...prev };
+        delete next[assignmentToDelete.collective_agreement_id];
+        return next;
+      });
       toast({ title: 'Succès', description: 'Convention collective retirée.' });
       setDeleteDialogOpen(false);
       setAssignmentToDelete(null);
-      await fetchAssignments();
+      await fetchAssignments(companyId, { silent: true });
     } catch (err: unknown) {
       const error = err as { response?: { data?: { detail?: string } }; message?: string };
       const errorMsg =

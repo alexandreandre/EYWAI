@@ -142,6 +142,13 @@ export default function CollectiveAgreementsCatalog() {
     id: string;
     company_name: string;
   } | null>(null);
+  const [unassignDialogOpen, setUnassignDialogOpen] = useState(false);
+  const [assignmentToUnassign, setAssignmentToUnassign] = useState<{
+    assignment: collectiveAgreementsApi.CompanyCollectiveAgreementWithDetails;
+    companyId: string;
+    companyName: string;
+  } | null>(null);
+  const [isUnassigning, setIsUnassigning] = useState(false);
 
   // Liste des secteurs
   const sectors = [
@@ -204,6 +211,72 @@ export default function CollectiveAgreementsCatalog() {
     await refreshCompanyAssignments();
     setAssignDialogAgreement(null);
     setAssignDialogCompany(null);
+  };
+
+  const handleUnassignClick = (
+    company: collectiveAgreementsApi.CompanyWithAssignments,
+    assignment: collectiveAgreementsApi.CompanyCollectiveAgreementWithDetails
+  ) => {
+    setAssignmentToUnassign({
+      assignment,
+      companyId: company.id,
+      companyName: company.company_name,
+    });
+    setUnassignDialogOpen(true);
+  };
+
+  const handleUnassignConfirm = async () => {
+    if (!assignmentToUnassign) return;
+
+    const { assignment, companyId, companyName } = assignmentToUnassign;
+    setIsUnassigning(true);
+    try {
+      let assignmentId = assignment.id;
+      if (assignmentId.startsWith('optimistic-')) {
+        const res = await collectiveAgreementsApi.getAllCompanyAssignments();
+        const refreshedCompany = (res.data ?? []).find((item) => item.id === companyId);
+        const persistedAssignment = refreshedCompany?.assigned_agreements.find(
+          (item) =>
+            item.collective_agreement_id === assignment.collective_agreement_id
+        );
+        if (persistedAssignment) {
+          assignmentId = persistedAssignment.id;
+        }
+      }
+
+      if (!assignmentId.startsWith('optimistic-')) {
+        await collectiveAgreementsApi.unassignAgreement(assignmentId, companyId);
+      }
+
+      setCompanyAssignments((prev) =>
+        prev.map((company) => {
+          if (company.id !== companyId) return company;
+          return {
+            ...company,
+            assigned_agreements: company.assigned_agreements.filter(
+              (item) => item.collective_agreement_id !== assignment.collective_agreement_id
+            ),
+          };
+        })
+      );
+      toast({
+        title: 'Convention retirée',
+        description: `${formatCatalogConventionName(assignment.agreement_details?.name)} n'est plus assignée à ${companyName}.`,
+      });
+      setUnassignDialogOpen(false);
+      setAssignmentToUnassign(null);
+      await refreshCompanyAssignments();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { detail?: string } }; message?: string };
+      toast({
+        title: 'Erreur',
+        description:
+          error.response?.data?.detail || error.message || 'Impossible de retirer la convention.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUnassigning(false);
+    }
   };
 
   useEffect(() => {
@@ -1115,11 +1188,25 @@ export default function CollectiveAgreementsCatalog() {
                       {hasAssignments ? (
                         <div className="flex flex-wrap gap-1">
                           {company.assigned_agreements.map((assignment) => (
-                            <Badge key={assignment.id} variant="secondary" className="text-xs font-normal">
-                              {formatCatalogConventionName(assignment.agreement_details?.name)}
-                              {assignment.agreement_details?.idcc
-                                ? ` · IDCC ${assignment.agreement_details.idcc}`
-                                : ''}
+                            <Badge
+                              key={assignment.id}
+                              variant="secondary"
+                              className="gap-1 pr-1 text-xs font-normal"
+                            >
+                              <span>
+                                {formatCatalogConventionName(assignment.agreement_details?.name)}
+                                {assignment.agreement_details?.idcc
+                                  ? ` · IDCC ${assignment.agreement_details.idcc}`
+                                  : ''}
+                              </span>
+                              <button
+                                type="button"
+                                className="rounded-sm p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-red-600"
+                                onClick={() => handleUnassignClick(company, assignment)}
+                                aria-label={`Retirer ${formatCatalogConventionName(assignment.agreement_details?.name)} de ${company.company_name}`}
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
                             </Badge>
                           ))}
                         </div>
@@ -1400,6 +1487,36 @@ export default function CollectiveAgreementsCatalog() {
             <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteConfirm} className="bg-red-600 hover:bg-red-700">
               Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={unassignDialogOpen}
+        onOpenChange={(open) => {
+          setUnassignDialogOpen(open);
+          if (!open) setAssignmentToUnassign(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Retirer cette convention ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              La convention &laquo;{' '}
+              {formatCatalogConventionName(assignmentToUnassign?.assignment.agreement_details?.name)}{' '}
+              &raquo; ne sera plus assignée à {assignmentToUnassign?.companyName}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isUnassigning}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void handleUnassignConfirm()}
+              disabled={isUnassigning}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isUnassigning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Retirer
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
