@@ -240,7 +240,6 @@ export function DsnImportWizard() {
   const [employeeFilter, setEmployeeFilter] = useState<EmployeeFilter>('all');
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [showAdvancedActions, setShowAdvancedActions] = useState(false);
-  const [showDetailSections, setShowDetailSections] = useState(true);
   const [analyzedFileNames, setAnalyzedFileNames] = useState<string[]>([]);
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
   const [isRestoring, setIsRestoring] = useState(true);
@@ -270,12 +269,8 @@ export function DsnImportWizard() {
       setPayloadEdits({});
       setFieldErrors({});
       setExpandedRows({});
-      const empCount = data.items.filter((i) => i.item_type === 'employee').length;
-      setEmployeesOpen(empCount <= 12);
-      const express =
-        data.anomalies.length === 0 &&
-        !data.items.some((i) => i.item_type === 'employee' && i.needs_review);
-      setShowDetailSections(!express);
+      setEmployeesOpen(true);
+      setCumulsOpen(true);
       setActiveBatchId(data.batch_id);
       persistState({ batchId: data.batch_id, step: 'preview' });
       setStep('preview');
@@ -395,8 +390,8 @@ export function DsnImportWizard() {
               initial[it.source_ref] = it.action;
             });
             setOverrides(initial);
-            const empCount = pr.items.filter((i) => i.item_type === 'employee').length;
-            setEmployeesOpen(empCount <= 12);
+            setEmployeesOpen(true);
+            setCumulsOpen(true);
             setStep('preview');
           } else {
             persistState(null);
@@ -851,19 +846,6 @@ export function DsnImportWizard() {
               )}
             </Card>
 
-            {!showDetailSections && (
-              <Card className="border-emerald-200/60 bg-emerald-50/20">
-                <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
-                  <p className="text-sm text-emerald-900">
-                    Onboarding express — aucune anomalie ni salarié à vérifier.
-                  </p>
-                  <Button variant="outline" size="sm" onClick={() => setShowDetailSections(true)}>
-                    Afficher le détail
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-
             {parseResult.anomalies.length > 0 && (
               <Card className="border-amber-200/80 bg-amber-50/30">
                 <CardHeader className="pb-2">
@@ -908,9 +890,8 @@ export function DsnImportWizard() {
               </p>
             )}
 
-            {showDetailSections && (
-              <>
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
                   <div className="flex items-center gap-2">
                     <Pencil className="h-3.5 w-3.5 shrink-0" />
                     Cliquez sur une ligne pour corriger une valeur avant validation.
@@ -1030,8 +1011,7 @@ export function DsnImportWizard() {
                     </Card>
                   );
                 })}
-              </>
-            )}
+            </>
 
             <StickyPreviewFooter
               onBack={goBackToUpload}

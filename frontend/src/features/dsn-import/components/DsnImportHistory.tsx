@@ -40,15 +40,27 @@ function formatPeriod(min?: string | null, max?: string | null): string {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  previewed: 'Analysé',
+  parsed: 'Analyse en cours',
+  previewed: 'Non importé',
+  committing: 'Import en cours',
   committed: 'Importé',
   failed: 'Échec',
-  parsed: 'En cours',
 };
 
-function statusVariant(status: string): 'secondary' | 'outline' | 'destructive' {
-  if (status === 'committed') return 'secondary';
+const STATUS_TITLES: Record<string, string> = {
+  previewed: 'Fichier analysé — aucune donnée n’a été créée dans EYWAI',
+  committed: 'Données appliquées dans EYWAI (groupe, établissement, salariés, cumuls)',
+  committing: 'Import en cours d’application',
+  parsed: 'Parsing et validation en cours',
+  failed: 'L’import a échoué',
+};
+
+function statusVariant(
+  status: string,
+): 'secondary' | 'outline' | 'destructive' | 'success' | 'warning' {
+  if (status === 'committed') return 'success';
   if (status === 'failed') return 'destructive';
+  if (status === 'committing' || status === 'parsed') return 'warning';
   return 'outline';
 }
 
@@ -65,9 +77,12 @@ export function DsnImportHistory() {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <History className="h-4 w-4 text-muted-foreground" />
-          Imports récents
+          Dépôts DSN récents
         </CardTitle>
-        <CardDescription>Traçabilité des dépôts DSN (lecture seule).</CardDescription>
+        <CardDescription>
+          Historique des dépôts DSN. Seul le statut « Importé » correspond à des données créées
+          dans EYWAI — « Non importé » signifie analyse / prévisualisation uniquement.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -108,7 +123,10 @@ export function DsnImportHistory() {
                       {(b.file_names ?? []).length || (b.summary?.file_count as number) || 0}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={statusVariant(b.status)}>
+                      <Badge
+                        variant={statusVariant(b.status)}
+                        title={STATUS_TITLES[b.status] ?? undefined}
+                      >
                         {STATUS_LABELS[b.status] ?? b.status}
                       </Badge>
                     </TableCell>
