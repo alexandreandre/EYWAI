@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, List, Optional
 
-from app.core.database import get_supabase_client
+from app.core.database import get_supabase_admin_client, get_supabase_client
 from app.modules.collective_agreements.domain.exceptions import (
     NotFoundError,
     ValidationError,
@@ -24,11 +24,51 @@ SELECT_AGREEMENT_DETAILS = (
 )
 
 
+def _maybe_single_row(response: Any) -> Optional[dict[str, Any]]:
+    """PostgREST + maybe_single : execute() peut renvoyer None si aucune ligne."""
+    if not response:
+        return None
+    data = response.data
+    if data is None:
+        return None
+    if isinstance(data, list):
+        return data[0] if data else None
+    return data
+
+
+def _first_mutation_row(response: Any) -> Optional[dict[str, Any]]:
+    if not response:
+        return None
+    data = response.data
+    if not data:
+        return None
+    if isinstance(data, list):
+        return data[0] if data else None
+    return data
+
+
+def _response_rows(response: Any) -> List[dict[str, Any]]:
+    if not response:
+        return []
+    data = response.data
+    if not data:
+        return []
+    if isinstance(data, list):
+        return list(data)
+    return [data]
+
+
 class CollectiveAgreementRepository:
     """Implémentation de ICollectiveAgreementRepository."""
 
-    def __init__(self, supabase_client: Any = None):
+    def __init__(self, supabase_client: Any = None, admin_client: Any = None):
         self._supabase = supabase_client or get_supabase_client()
+        if admin_client is not None:
+            self._admin = admin_client
+        elif supabase_client is not None:
+            self._admin = supabase_client
+        else:
+            self._admin = get_supabase_admin_client()
 
     def list_catalog(
         self,
@@ -46,7 +86,7 @@ class CollectiveAgreementRepository:
             query = query.or_(f"name.ilike.%{search}%,idcc.ilike.%{search}%")
         query = query.order("name")
         response = query.execute()
-        return list(response.data or [])
+        return _response_rows(response)
 
     def get_catalog_item(self, agreement_id: str) -> Optional[dict[str, Any]]:
         response = (
@@ -56,7 +96,7 @@ class CollectiveAgreementRepository:
             .maybe_single()
             .execute()
         )
-        return response.data if response.data else None
+        return _maybe_single_row(response)
 
     def get_catalog_item_rules_path(self, agreement_id: str) -> Optional[str]:
         response = (
@@ -66,7 +106,8 @@ class CollectiveAgreementRepository:
             .maybe_single()
             .execute()
         )
-        return response.data.get("rules_pdf_path") if response.data else None
+        row = _maybe_single_row(response)
+        return row.get("rules_pdf_path") if row else None
 
     def get_classifications_for_agreement(self, agreement_id: str) -> List[Any]:
         item = self.get_catalog_item(agreement_id)
@@ -81,9 +122,10 @@ class CollectiveAgreementRepository:
             .insert(db_data)
             .execute()
         )
-        if not response.data:
+        row = _first_mutation_row(response)
+        if not row:
             raise ValidationError("Échec de la création")
-        return response.data[0]
+        return row
 
     def update_catalog_item(
         self, agreement_id: str, data: dict[str, Any]
@@ -95,7 +137,7 @@ class CollectiveAgreementRepository:
             .maybe_single()
             .execute()
         )
-        if not current.data:
+        if not _maybe_single_row(current):
             raise NotFoundError("Convention collective non trouvée")
         if not data:
             raise ValidationError("Aucune donnée à mettre à jour")
@@ -106,9 +148,10 @@ class CollectiveAgreementRepository:
             .eq("id", agreement_id)
             .execute()
         )
-        if not response.data:
+        row = _first_mutation_row(response)
+        if not row:
             raise NotFoundError("Convention collective non trouvée")
-        return response.data[0]
+        return row
 
     def delete_catalog_item(self, agreement_id: str) -> bool:
         response = (
@@ -117,18 +160,18 @@ class CollectiveAgreementRepository:
             .eq("id", agreement_id)
             .execute()
         )
-        if not response.data:
+        if not _response_rows(response):
             raise NotFoundError("Convention collective non trouvée")
         return True
 
     def get_my_company_assignments(self, company_id: str) -> List[dict[str, Any]]:
         response = (
-            self._supabase.table("company_collective_agreements")
+            self._admin.table("company_collective_agreements")
             .select(SELECT_AGREEMENT_DETAILS)
             .eq("company_id", company_id)
             .execute()
         )
-        return list(response.data or [])
+        return _response_rows(response)
 
     def assign_to_company(
         self, company_id: str, collective_agreement_id: str, assigned_by: str
@@ -139,36 +182,38 @@ class CollectiveAgreementRepository:
             "assigned_by": assigned_by,
         }
         response = (
-            self._supabase.table("company_collective_agreements")
+            self._admin.table("company_collective_agreements")
             .insert(assignment_data)
             .execute()
         )
-        if not response.data:
+        row = _first_mutation_row(response)
+        if not row:
             raise ValidationError("Échec de l'assignation")
-        return response.data[0]
+        return row
 
     def unassign_from_company(self, assignment_id: str, company_id: str) -> bool:
         response = (
-            self._supabase.table("company_collective_agreements")
+            self._admin.table("company_collective_agreements")
             .delete()
             .eq("id", assignment_id)
             .eq("company_id", company_id)
             .execute()
         )
-        if not response.data:
+        if not _response_rows(response):
             raise NotFoundError("Assignation non trouvée ou non autorisée")
         return True
 
     def get_all_assignments_by_company(self) -> List[dict[str, Any]]:
         companies_response = (
-            self._supabase.table("companies").select("id, company_name").execute()
+            self._admin.table("companies").select("id, company_name").execute()
         )
-        if not companies_response.data:
+        companies = _response_rows(companies_response)
+        if not companies:
             return []
         result = []
-        for company in companies_response.data:
+        for company in companies:
             assignments_response = (
-                self._supabase.table("company_collective_agreements")
+                self._admin.table("company_collective_agreements")
                 .select(SELECT_AGREEMENT_DETAILS)
                 .eq("company_id", company["id"])
                 .execute()
@@ -177,7 +222,7 @@ class CollectiveAgreementRepository:
                 {
                     "id": company["id"],
                     "company_name": company["company_name"],
-                    "assigned_agreements": list(assignments_response.data or []),
+                    "assigned_agreements": _response_rows(assignments_response),
                 }
             )
         return result
@@ -186,14 +231,14 @@ class CollectiveAgreementRepository:
         self, company_id: str, collective_agreement_id: str
     ) -> bool:
         response = (
-            self._supabase.table("company_collective_agreements")
+            self._admin.table("company_collective_agreements")
             .select("id")
             .eq("company_id", company_id)
             .eq("collective_agreement_id", collective_agreement_id)
             .maybe_single()
             .execute()
         )
-        return bool(response.data)
+        return _maybe_single_row(response) is not None
 
     def get_agreement_for_chat(self, agreement_id: str) -> Optional[dict[str, Any]]:
         response = (
@@ -203,4 +248,4 @@ class CollectiveAgreementRepository:
             .maybe_single()
             .execute()
         )
-        return response.data if response.data else None
+        return _maybe_single_row(response)

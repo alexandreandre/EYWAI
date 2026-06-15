@@ -1,11 +1,15 @@
 """Tests unitaires — règles d'écart calendrier paie."""
 
+from datetime import date
+
 from app.modules.schedules.domain.ecart_rules import (
     compute_day_ecarts,
     compute_heures_supplementaires,
+    compute_month_completion,
     compute_row_status,
     detect_absence_conflict_days,
     detect_absence_conflicts,
+    is_day_ready_for_payroll,
     is_significant_ecart,
 )
 
@@ -16,6 +20,70 @@ def _weekday_planned(day: int, hours: float | None = 8.0):
 
 def _weekday_actual(day: int, hours: float | None = 8.0):
     return {"jour": day, "type": "travail", "heures_faites": hours}
+
+
+def _build_full_june_2026(
+    weekday_travail,
+) -> tuple[list[dict], list[dict]]:
+    planned: list[dict] = []
+    actual: list[dict] = []
+    for day in range(1, 31):
+        dt = date(2026, 6, day)
+        if dt.weekday() >= 5:
+            planned.append({"jour": day, "type": "weekend", "heures_prevues": 0})
+            actual.append({"jour": day, "type": "weekend", "heures_faites": 0})
+            continue
+        prev, fait = weekday_travail(day)
+        planned.append({"jour": day, "type": "travail", "heures_prevues": prev})
+        actual.append({"jour": day, "type": "travail", "heures_faites": fait})
+    return planned, actual
+
+
+class TestIsDayReadyForPayroll:
+    def test_travail_requires_prevu_and_reel(self):
+        assert is_day_ready_for_payroll(
+            {"jour": 3, "type": "travail", "heures_prevues": 8},
+            {"jour": 3, "type": "travail", "heures_faites": 8},
+        )
+        assert not is_day_ready_for_payroll(
+            {"jour": 3, "type": "travail", "heures_prevues": 8},
+            {"jour": 3, "type": "travail", "heures_faites": None},
+        )
+
+    def test_travail_zero_reel_incomplete_en_horaire(self):
+        assert not is_day_ready_for_payroll(
+            {"jour": 3, "type": "travail", "heures_prevues": 8},
+            {"jour": 3, "type": "travail", "heures_faites": 0},
+        )
+        assert is_day_ready_for_payroll(
+            {"jour": 3, "type": "travail", "heures_prevues": 8},
+            {"jour": 3, "type": "travail", "heures_faites": 0},
+            forfait=True,
+        )
+
+    def test_weekend_complete_without_hours(self):
+        assert is_day_ready_for_payroll(
+            {"jour": 7, "type": "weekend", "heures_prevues": 0},
+            None,
+        )
+
+    def test_saturday_travail_requires_reel(self):
+        assert not is_day_ready_for_payroll(
+            {"jour": 6, "type": "travail", "heures_prevues": 8},
+            {"jour": 6, "type": "travail", "heures_faites": None},
+        )
+
+
+class TestComputeMonthCompletion:
+    def test_a_saisir_when_actual_missing_on_travail_day(self):
+        planned, actual = _build_full_june_2026(
+            lambda day: (8, None if day == 10 else 8)
+        )
+        assert compute_month_completion(planned, actual, 2026, 6) == "a_saisir"
+
+    def test_saisi_when_all_travail_days_complete(self):
+        planned, actual = _build_full_june_2026(lambda _day: (8, 8))
+        assert compute_month_completion(planned, actual, 2026, 6) == "saisi"
 
 
 class TestIsSignificantEcart:
@@ -30,9 +98,17 @@ class TestIsSignificantEcart:
 
 
 class TestComputeRowStatus:
-    def test_a_saisir_when_weekday_missing(self):
+    def test_a_saisir_when_prevu_missing_on_travail_day(self):
         planned = [_weekday_planned(3), _weekday_planned(4, None)]
         actual = [_weekday_actual(3), _weekday_actual(4)]
+        assert compute_row_status(planned, actual, 2026, 6, False) == "a_saisir"
+
+    def test_a_saisir_when_reel_missing_on_travail_day(self):
+        planned, actual = _build_full_june_2026(lambda _day: (8, None))
+        assert compute_row_status(planned, actual, 2026, 6, False) == "a_saisir"
+
+    def test_a_saisir_when_reel_zero_on_travail_day(self):
+        planned, actual = _build_full_june_2026(lambda _day: (8, 0))
         assert compute_row_status(planned, actual, 2026, 6, False) == "a_saisir"
 
     def test_saisi_avec_ecart(self):

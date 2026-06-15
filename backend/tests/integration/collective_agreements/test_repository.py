@@ -312,6 +312,15 @@ class TestCollectiveAgreementRepositoryCheckAssignmentExists:
 
         assert result is False
 
+    def test_returns_false_when_execute_returns_none(self):
+        mock_supabase = MagicMock()
+        mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.maybe_single.return_value.execute.return_value = None
+        repo = CollectiveAgreementRepository(supabase_client=mock_supabase)
+
+        result = repo.check_assignment_exists("c1", "agr-1")
+
+        assert result is False
+
     def test_returns_true_when_assignment_exists(self):
         mock_supabase = MagicMock()
         mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.maybe_single.return_value.execute.return_value = MagicMock(

@@ -44,20 +44,50 @@ def sum_hours(values: List[Any]) -> float:
     return total
 
 
+def is_day_ready_for_payroll(
+    planned: Dict[str, Any] | None,
+    actual: Dict[str, Any] | None,
+    *,
+    forfait: bool = False,
+) -> bool:
+    """Jour prêt pour la paie : travail exige prévu + réel ; les autres types sont complets."""
+    if not planned:
+        return False
+    day_type = str(planned.get("type") or "")
+    if day_type == "travail":
+        prev = planned.get("heures_prevues")
+        if prev is None:
+            return False
+        if not actual or actual.get("heures_faites") is None:
+            return False
+        # Horaire : 0 h sur un jour prévu = pas encore saisi (distinct du forfait 0/1).
+        if not forfait and float(prev) > 0 and float(actual.get("heures_faites") or 0) <= 0:
+            return False
+        return True
+    return True
+
+
 def compute_month_completion(
-    planned_days: List[Dict[str, Any]], year: int, month: int
+    planned_days: List[Dict[str, Any]],
+    actual_days: List[Dict[str, Any]],
+    year: int,
+    month: int,
+    *,
+    forfait: bool = False,
 ) -> str:
     days_in_month = calendar.monthrange(year, month)[1]
-    by_jour = {int(d.get("jour", 0)): d for d in planned_days if d.get("jour")}
+    planned_by_jour = {
+        int(d.get("jour", 0)): d for d in planned_days if d.get("jour")
+    }
+    actual_by_jour = {
+        int(d.get("jour", 0)): d for d in actual_days if d.get("jour")
+    }
     for day in range(1, days_in_month + 1):
-        dt = date(year, month, day)
-        if dt.weekday() >= 5:
-            continue
-        row = by_jour.get(day)
-        if row is None:
-            return "a_saisir"
-        hp = row.get("heures_prevues")
-        if hp is None:
+        if not is_day_ready_for_payroll(
+            planned_by_jour.get(day),
+            actual_by_jour.get(day),
+            forfait=forfait,
+        ):
             return "a_saisir"
     return "saisi"
 
@@ -78,7 +108,9 @@ def compute_row_status(
     month: int,
     forfait: bool,
 ) -> EmployeeRowStatus:
-    completion = compute_month_completion(planned_days, year, month)
+    completion = compute_month_completion(
+        planned_days, actual_days, year, month, forfait=forfait
+    )
     if completion == "a_saisir":
         return "a_saisir"
     heures_prevues = sum_hours([d.get("heures_prevues") for d in planned_days])
