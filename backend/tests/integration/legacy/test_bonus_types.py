@@ -233,7 +233,9 @@ def _scenario_routes_registered() -> bool:
     try:
         from app.main import app
 
-        routes = [route.path for route in app.routes]
+        from tests.route_helpers import collect_app_route_paths
+
+        routes = collect_app_route_paths(app)
         required_routes = [
             "/api/bonus-types",
             "/api/bonus-types/calculate/{bonus_type_id}",

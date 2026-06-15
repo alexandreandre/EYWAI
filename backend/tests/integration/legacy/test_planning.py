@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import inspect
 from pathlib import Path
-from typing import Any, List, get_args
+from typing import Any, get_args
 
 import pytest
 
@@ -46,11 +46,9 @@ def test_planning_router_registered_in_main() -> None:
     """Le préfixe /api/planning est bien enregistré sur l'application FastAPI."""
     from app.main import app
 
-    paths: List[str] = []
-    for route in app.routes:
-        p = getattr(route, "path", None)
-        if isinstance(p, str):
-            paths.append(p)
+    from tests.route_helpers import collect_app_route_paths
+
+    paths = collect_app_route_paths(app)
     assert any("/api/planning" in p for p in paths), (
         "Aucune route ne contient /api/planning — vérifiez include_router(planning_router)."
     )
