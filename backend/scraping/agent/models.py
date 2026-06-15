@@ -20,6 +20,8 @@ MODEL_URL_SEARCH = os.getenv(
 MAX_ITERATIONS = int(os.getenv("EYWAI_REPAIR_MAX_ITERATIONS", "5"))
 BUDGET_CAP_USD = float(os.getenv("EYWAI_REPAIR_BUDGET_CAP", "2.0"))
 
+ENV_AGENT_ENABLED = "EYWAI_REPAIR_AGENT_ENABLED"
+# Rétrocompat : explicit disable force l'arrêt même si ENABLED=1
 ENV_AGENT_DISABLED = "EYWAI_REPAIR_AGENT_DISABLED"
 
 from core.official_domains import OFFICIAL_WEB_SEARCH_DOMAINS
@@ -29,7 +31,9 @@ OFFICIAL_DOMAINS = list(OFFICIAL_WEB_SEARCH_DOMAINS)
 
 
 def agent_disabled() -> bool:
-    return os.environ.get(ENV_AGENT_DISABLED, "").strip() in ("1", "true", "yes")
+    if os.environ.get(ENV_AGENT_DISABLED, "").strip().lower() in ("1", "true", "yes"):
+        return True
+    return os.environ.get(ENV_AGENT_ENABLED, "").strip().lower() not in ("1", "true", "yes")
 
 
 def code_model_for_iteration(attempt: int) -> str:

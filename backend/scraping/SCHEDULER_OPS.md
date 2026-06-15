@@ -16,7 +16,7 @@ Le rafraîchissement automatique repose sur deux mécanismes distincts :
 
 Validation mensuelle Sonar + HTTP des `scraping_sources.primary_url`, puis propagation vers `payroll_config.source_links` :
 
-- **GitHub Actions** : workflow `scraping-repair-agent.yml` — cron `0 5 1 * *` (1er du mois, 05:00 UTC) → `python -m agent --validate-sources`
+- **GitHub Actions** : workflow `scraping-repair-agent.yml` (validation URLs uniquement) — cron `0 5 1 * *` (1er du mois, 05:00 UTC) → `python -m agent --validate-sources`
 - **Cron self-hosted** : `python backend/scraping/scheduler.py --validate-sources` (même fréquence recommandée)
 
 Cette validation ne modifie pas les montants/taux ni les scripts de scraping : elle met à jour uniquement `scraping_sources.primary_url` et les pastilles des cartes Suivi des taux. Si la validation échoue, un second passage Sonar recherche automatiquement la nouvelle URL officielle à afficher.

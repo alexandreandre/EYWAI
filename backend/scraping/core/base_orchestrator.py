@@ -77,7 +77,9 @@ def _sig_valid_default(sig: Any) -> bool:
 
 def _maybe_enqueue_orchestrator_repair(spec: RateSpec, error: str) -> None:
     """Dépose un job repair agent après échec orchestrateur (hors dry-run optionnel)."""
-    if os.environ.get("EYWAI_REPAIR_AGENT_DISABLED", "").strip() in ("1", "true", "yes"):
+    from agent.models import agent_disabled
+
+    if agent_disabled():
         return
     try:
         supabase = init_supabase_client()

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Loader2, AlertTriangle, RefreshCw, CheckCircle2, XCircle, Clock,
-  Play, Calendar, Bell, Database, TrendingUp, AlertCircle, ShieldCheck, ExternalLink, Wrench
+  Play, Calendar, Bell, Database, TrendingUp, AlertCircle, ShieldCheck, ExternalLink
 } from 'lucide-react';
 import apiClient from '@/api/apiClient';
 import { SharkFinLoader } from '@/components/SharkFinLoader';
@@ -23,17 +23,14 @@ import {
   resolveAlert,
   getJobLogs,
   listPendingChanges,
-  listRepairJobs,
   ScrapingSource,
   ScrapingJob,
   ScrapingAlert,
   ScrapingDashboardStats,
-  ScrapingRepairJob,
 } from '@/api/scraping';
 
 import { AdminPageHeader } from '@/features/admin/components/eywai/AdminPageHeader';
 import { MonthlyReviewTab } from '@/features/admin/components/scraping/MonthlyReviewTab';
-import { RepairAgentTab } from '@/features/admin/components/scraping/RepairAgentTab';
 import { getUserErrorMessage, showErrorToast } from '@/lib/errorMessages';
 import { log } from '@/lib/logger';
 // Types pour les données scrapées
@@ -62,8 +59,6 @@ export default function ScrapingPage() {
   const [jobStatus, setJobStatus] = useState<string | null>(null);
   const [logPollingInterval, setLogPollingInterval] = useState<NodeJS.Timeout | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
-  const [repairJobs, setRepairJobs] = useState<ScrapingRepairJob[]>([]);
-  const [activeRepairCount, setActiveRepairCount] = useState(0);
 
   const pendingFromStats = dashboardStats?.stats?.pending_changes ?? pendingCount;
 
@@ -95,14 +90,13 @@ export default function ScrapingPage() {
       setLoading(true);
       setError(null);
 
-      const [dashData, sourcesData, jobsData, alertsData, ratesResp, pendingResp, repairResp] = await Promise.all([
+      const [dashData, sourcesData, jobsData, alertsData, ratesResp, pendingResp] = await Promise.all([
         getScrapingDashboard(),
         listSources({ is_active: true }),
         listJobs({ limit: 20 }),
         listAlerts({ is_read: false, limit: 10 }),
         apiClient.get<RatesResponse>('/api/rates/all'),
         listPendingChanges({ status: 'pending' }).catch(() => ({ pending: [], total: 0 })),
-        listRepairJobs({ limit: 30 }).catch(() => ({ jobs: [], total: 0, active: 0 })),
       ]);
 
       setDashboardStats(dashData);
@@ -113,8 +107,6 @@ export default function ScrapingPage() {
       setPendingCount(
         dashData.stats?.pending_changes ?? pendingResp.total ?? pendingResp.pending?.length ?? 0
       );
-      setRepairJobs(repairResp.jobs);
-      setActiveRepairCount(repairResp.active ?? 0);
     } catch (e: any) {
       log.error('Erreur lors du chargement des données:', e);
       setError(getUserErrorMessage(e));
@@ -439,23 +431,11 @@ export default function ScrapingPage() {
             <Bell className="h-4 w-4 mr-2" />
             Alertes ({alerts.filter(a => !a.is_read).length})
           </TabsTrigger>
-          <TabsTrigger value="repair-agent">
-            <Wrench className="h-4 w-4 mr-2" />
-            Agent réparation
-            {activeRepairCount > 0 && (
-              <Badge className="ml-2 bg-amber-600 hover:bg-amber-600">{activeRepairCount}</Badge>
-            )}
-          </TabsTrigger>
         </TabsList>
 
         {/* ONGLET REVUE MENSUELLE */}
         <TabsContent value="review" className="space-y-4">
           <MonthlyReviewTab />
-        </TabsContent>
-
-        {/* ONGLET AGENT RÉPARATION */}
-        <TabsContent value="repair-agent" className="space-y-4">
-          <RepairAgentTab jobs={repairJobs} activeCount={activeRepairCount} />
         </TabsContent>
 
         {/* ONGLET DASHBOARD */}

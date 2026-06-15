@@ -8,6 +8,8 @@ from typing import Any, Optional
 
 from supabase import Client
 
+from agent.models import agent_disabled
+
 logger = logging.getLogger(__name__)
 
 REPAIR_JOBS_TABLE = "scraping_repair_jobs"
@@ -37,6 +39,10 @@ def enqueue_repair_job(
     context: Optional[dict[str, Any]] = None,
 ) -> Optional[dict[str, Any]]:
     """Insère un job queued ; ignore si un job actif existe déjà pour ce scraper."""
+    if agent_disabled():
+        logger.debug("Agent réparation désactivé — skip enqueue (%s)", scraper_name)
+        return None
+
     if trigger not in VALID_TRIGGERS:
         trigger = "manual"
 

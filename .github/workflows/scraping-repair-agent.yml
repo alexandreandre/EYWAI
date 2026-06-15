@@ -1,39 +1,21 @@
-# Agent autonome réparation scraping + validation mensuelle URLs officielles.
-name: Scraping repair agent
+# Validation mensuelle des URLs officielles (scraping_sources.primary_url).
+# L'agent autonome de réparation de code est désactivé par défaut.
+name: Scraping source validation
 
 on:
   workflow_dispatch:
-    inputs:
-      mode:
-        description: "Mode d'exécution"
-        required: true
-        default: from-queue
-        type: choice
-        options:
-          - from-queue
-          - validate-sources
-          - both
   schedule:
-    # File repair : tous les jours à 7h UTC
-    - cron: "0 7 * * *"
     # Validation URLs officielles : 1er du mois à 5h UTC
     - cron: "0 5 1 * *"
-  workflow_run:
-    workflows: ["Scraping live dry-run"]
-    types: [completed]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
-  repair-agent:
-    name: Agent réparation scraping
+  validate-sources:
+    name: Validation URLs officielles
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    if: >-
-      github.event_name != 'workflow_run'
-      || github.event.workflow_run.conclusion == 'failure'
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: backend
@@ -45,8 +27,6 @@ jobs:
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-python@v5
         with:
@@ -72,26 +52,5 @@ jobs:
             exit 1
           fi
 
-      - name: Enqueue failures from dry-run (workflow_run)
-        if: github.event_name == 'workflow_run'
-        run: python scraping/agent/ci_enqueue_failures.py --tier critical
-
-      - name: Validate official source URLs (monthly / dispatch)
-        if: >-
-          (github.event_name == 'schedule' && github.event.schedule == '0 5 1 * *')
-          || (github.event_name == 'workflow_dispatch' && (inputs.mode == 'validate-sources' || inputs.mode == 'both'))
+      - name: Validate official source URLs
         run: PYTHONPATH=scraping python -m agent --validate-sources
-
-      - name: Process repair queue
-        if: >-
-          github.event_name != 'schedule'
-          || github.event.schedule == '0 7 * * *'
-        run: PYTHONPATH=scraping python -m agent --from-queue --max-jobs 3
-
-      - name: Install GitHub CLI
-        run: sudo apt-get update && sudo apt-get install -y gh
-
-      - name: Configure git for agent
-        run: |
-          git config user.email "scraping-agent@eywai.app"
-          git config user.name "EYWAI Scraping Agent"

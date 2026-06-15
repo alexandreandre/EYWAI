@@ -17,7 +17,7 @@ _SCRAPING = Path(__file__).resolve().parent.parent
 if str(_SCRAPING) not in sys.path:
     sys.path.insert(0, str(_SCRAPING))
 
-from agent.models import MODEL_URL_SEARCH, OFFICIAL_DOMAINS, agent_disabled
+from agent.models import MODEL_URL_SEARCH, OFFICIAL_DOMAINS
 from agent.prompts import DISPLAY_URL_DISCOVERY_SYSTEM, SOURCE_VALIDATION_SYSTEM
 from agent.source_registry import (
     OfficialSource,
@@ -275,9 +275,6 @@ def validate_all_official_sources(
     Met à jour scraping_sources.primary_url et payroll_config.source_links
     si Sonar propose une URL — sans modifier les scripts de scraping.
     """
-    if agent_disabled():
-        return {"skipped": True, "reason": "agent disabled"}
-
     ensure_scraping_path()
     load_env()
     supabase = supabase or init_supabase_client()
