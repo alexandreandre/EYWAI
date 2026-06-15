@@ -219,3 +219,24 @@ class TestKaliClient:
         assert meta.kalicont_id == "KALICONT000000000002"
         assert meta.title == convention_title
         assert meta.full_title == convention_title
+
+    @patch.object(KaliClient, "_post")
+    def test_search_conventions_by_text(self, mock_post):
+        mock_post.return_value = {
+            "results": [
+                {
+                    "cidConteneur": "KALICONT000000000099",
+                    "titre": "Convention collective nationale de la plasturgie (IDCC 1297)",
+                    "num": "1297",
+                },
+                {
+                    "cidConteneur": "KALICONT000000000098",
+                    "titre": "Avenant salaires plasturgie 2024",
+                },
+            ]
+        }
+        client = KaliClient(client_id="id", client_secret="secret")
+        results = client.search_conventions_by_text("plasturgie", limit=5)
+        assert len(results) == 1
+        assert results[0].idcc == "1297"
+        assert "plasturgie" in results[0].title.lower()

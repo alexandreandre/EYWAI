@@ -25,6 +25,7 @@ from app.modules.collective_agreements.schemas import (
     CollectiveAgreementCatalog,
     CollectiveAgreementCatalogCreate,
     CollectiveAgreementCatalogUpdate,
+    CollectiveAgreementSuggestResponse,
     CompanyCollectiveAgreementWithDetails,
     KaliImportBatchRequest,
     KaliImportBatchResponse,
@@ -78,6 +79,32 @@ async def list_catalog(
         return queries.list_catalog_query(
             sector=sector, search=search, active_only=active_only
         )
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/catalog/suggest", response_model=CollectiveAgreementSuggestResponse)
+async def suggest_catalog(
+    q: str = Query(..., min_length=2, description="Recherche en langage naturel ou IDCC"),
+    limit: int = Query(10, ge=1, le=20),
+    active_only: bool = Query(True),
+    include_kali: bool = Query(
+        True, description="Compléter avec Légifrance si peu de résultats catalogue"
+    ),
+    current_user: CollectiveAgreementUserContext = Depends(get_current_user),
+):
+    """Propose des conventions (IDCC + intitulé) à partir d'une recherche textuelle."""
+    try:
+        suggestions = queries.suggest_catalog_query(
+            q,
+            limit=limit,
+            active_only=active_only,
+            include_kali=include_kali,
+        )
+        return {"suggestions": suggestions}
     except HTTPException:
         raise
     except Exception as e:

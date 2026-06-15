@@ -83,7 +83,12 @@ class CollectiveAgreementRepository:
         if sector:
             query = query.eq("sector", sector)
         if search:
-            query = query.or_(f"name.ilike.%{search}%,idcc.ilike.%{search}%")
+            term = search.strip()
+            if term:
+                query = query.or_(
+                    f"name.ilike.%{term}%,idcc.ilike.%{term}%,"
+                    f"sector.ilike.%{term}%,description.ilike.%{term}%"
+                )
         query = query.order("name")
         response = query.execute()
         return _response_rows(response)

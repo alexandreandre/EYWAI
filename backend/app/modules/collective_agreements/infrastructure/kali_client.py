@@ -256,6 +256,72 @@ class KaliClient:
                 return meta
         raise KaliNotFoundError(f"Aucune convention KALI trouvée pour IDCC {idcc}")
 
+    def search_conventions_by_text(
+        self, query: str, *, limit: int = 10
+    ) -> list[KaliConventionMeta]:
+        """Recherche des conventions KALI par mots-clés (ex. plasturgie, syntec)."""
+        cleaned = query.strip()
+        if len(cleaned) < 2:
+            return []
+
+        self.require_configured()
+        data = self._post(
+            "search",
+            {
+                "recherche": {
+                    "fond": "KALI",
+                    "champs": [
+                        {
+                            "typeChamp": "ALL",
+                            "criteres": [
+                                {
+                                    "typeRecherche": "UN_DES_MOTS",
+                                    "valeur": cleaned,
+                                    "operateur": "ET",
+                                }
+                            ],
+                        }
+                    ],
+                    "pageNumber": 1,
+                    "pageSize": min(max(limit * 4, 20), 40),
+                    "sort": "PERTINENCE",
+                }
+            },
+        )
+        if not data:
+            return []
+
+        rows = data.get("results") or []
+        candidates: list[tuple[KaliConventionMeta, int]] = []
+        seen_idcc: set[str] = set()
+
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            kalicont_id = _extract_kalicont_id(row)
+            if not kalicont_id:
+                continue
+            title = _extract_row_title(row)
+            idcc = _extract_idcc_from_row(row, title)
+            if not idcc or idcc in seen_idcc:
+                continue
+            if _is_secondary_kali_title(title):
+                continue
+            seen_idcc.add(idcc)
+            display_title = _normalize_display_title(title, idcc)
+            meta = KaliConventionMeta(
+                idcc=idcc,
+                kalicont_id=kalicont_id,
+                title=display_title,
+                legifrance_url=_legifrance_url(kalicont_id),
+                full_title=title or display_title,
+            )
+            score = _score_convention_title(title, idcc) + _score_text_match(title, cleaned)
+            candidates.append((meta, score))
+
+        candidates.sort(key=lambda item: (-item[1], item[0].title))
+        return [meta for meta, _ in candidates[:limit]]
+
     def _resolve_from_list(self, idcc: str) -> Optional[KaliConventionMeta]:
         data = self._post(
             "list/conventions",
@@ -463,6 +529,40 @@ def _normalize_idcc(idcc: str) -> str:
     if s.isdigit():
         return s.zfill(4) if len(s) <= 4 else s
     return s
+
+
+_IDCC_IN_TITLE_RE = re.compile(r"(?i)\bidcc\s*(\d{1,4})\b")
+
+
+def _extract_idcc_from_row(row: dict[str, Any], title: str = "") -> Optional[str]:
+    for key in ("idcc", "numIdcc", "num"):
+        val = row.get(key)
+        if val is None:
+            continue
+        raw = str(val).strip()
+        if raw.isdigit():
+            return _normalize_idcc(raw)
+    resolved_title = title or _extract_row_title(row)
+    match = _IDCC_IN_TITLE_RE.search(resolved_title)
+    if match:
+        return _normalize_idcc(match.group(1))
+    return None
+
+
+def _score_text_match(title: str, query: str) -> int:
+    from app.modules.collective_agreements.domain.search import (
+        normalize_search_text,
+        search_tokens,
+    )
+
+    normalized_title = normalize_search_text(title)
+    score = 0
+    for token in search_tokens(query):
+        if token in normalized_title:
+            score += 30
+        if normalized_title.startswith(token):
+            score += 20
+    return score
 
 
 def _extract_row_title(row: dict[str, Any]) -> str:

@@ -39,6 +39,20 @@ class CollectiveAgreementCatalog(CollectiveAgreementCatalogBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CollectiveAgreementSuggestItem(BaseModel):
+    """Suggestion de convention (catalogue ou KALI)."""
+
+    idcc: str
+    name: str
+    source: str = Field(description="catalog ou kali")
+    agreement_id: Optional[str] = None
+    sector: Optional[str] = None
+
+
+class CollectiveAgreementSuggestResponse(BaseModel):
+    suggestions: List[CollectiveAgreementSuggestItem]
+
+
 # --- Liaison (assignation entreprise <-> convention) ---
 
 

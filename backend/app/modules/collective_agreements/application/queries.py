@@ -40,6 +40,24 @@ def list_catalog_query(
     return svc.list_catalog(sector=sector, search=search, active_only=active_only)
 
 
+def suggest_catalog_query(
+    query: str,
+    *,
+    limit: int = 10,
+    active_only: bool = True,
+    include_kali: bool = True,
+    service: Optional[CollectiveAgreementsService] = None,
+) -> List[dict]:
+    """Suggestions de conventions (nom / secteur / IDCC)."""
+    svc = service or get_collective_agreements_service()
+    return svc.suggest_catalog(
+        query,
+        limit=limit,
+        active_only=active_only,
+        include_kali=include_kali,
+    )
+
+
 def get_catalog_item_query(
     agreement_id: str,
     service: Optional[CollectiveAgreementsService] = None,

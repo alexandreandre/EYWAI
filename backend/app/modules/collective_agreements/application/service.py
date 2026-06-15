@@ -82,14 +82,106 @@ class CollectiveAgreementsService:
         active_only: bool = True,
     ) -> List[dict[str, Any]]:
         try:
-            agreements = self._repo.list_catalog(
-                sector=sector, search=search, active_only=active_only
+            from app.modules.collective_agreements.domain.search import (
+                filter_and_rank_agreements,
             )
+
+            db_search = search.strip() if search else None
+            if db_search:
+                first_token = db_search.split()[0]
+            else:
+                first_token = None
+            agreements = self._repo.list_catalog(
+                sector=sector,
+                search=first_token or db_search,
+                active_only=active_only,
+            )
+            if db_search:
+                agreements = filter_and_rank_agreements(agreements, db_search)
             for ag in agreements:
                 if ag.get("rules_pdf_path"):
                     url = self._storage.create_signed_url(ag["rules_pdf_path"], 3600)
                     add_signed_url_to_agreement(ag, url)
             return agreements
+        except (NotFoundError, ForbiddenError, ValidationError) as e:
+            raise _to_http(e)
+
+    def suggest_catalog(
+        self,
+        query: str,
+        *,
+        limit: int = 10,
+        active_only: bool = True,
+        include_kali: bool = True,
+    ) -> list[dict[str, Any]]:
+        """Suggestions IDCC à partir du catalogue et, si besoin, de KALI."""
+        try:
+            from app.modules.collective_agreements.domain.search import (
+                filter_and_rank_agreements,
+                normalize_search_text,
+            )
+            from app.modules.collective_agreements.infrastructure.kali_client import (
+                PisteNotConfiguredError,
+                get_kali_client,
+            )
+
+            cleaned = query.strip()
+            if len(cleaned) < 2:
+                return []
+
+            safe_limit = max(1, min(limit, 20))
+            catalog_rows = self._repo.list_catalog(
+                search=cleaned.split()[0],
+                active_only=active_only,
+            )
+            ranked = filter_and_rank_agreements(catalog_rows, cleaned, limit=safe_limit)
+
+            suggestions: list[dict[str, Any]] = []
+            seen_idcc: set[str] = set()
+            for row in ranked:
+                idcc = str(row.get("idcc") or "").strip()
+                if not idcc or idcc in seen_idcc:
+                    continue
+                seen_idcc.add(idcc)
+                suggestions.append(
+                    {
+                        "idcc": idcc,
+                        "name": row.get("name") or f"Convention collective IDCC {idcc}",
+                        "source": "catalog",
+                        "agreement_id": row.get("id"),
+                        "sector": row.get("sector"),
+                    }
+                )
+
+            query_norm = normalize_search_text(cleaned)
+            should_query_kali = include_kali and len(suggestions) < safe_limit
+            if should_query_kali and not (query_norm.isdigit() and len(query_norm) >= 4):
+                try:
+                    kali_client = get_kali_client()
+                    if kali_client.is_configured():
+                        kali_results = kali_client.search_conventions_by_text(
+                            cleaned,
+                            limit=safe_limit,
+                        )
+                        for meta in kali_results:
+                            if meta.idcc in seen_idcc:
+                                continue
+                            seen_idcc.add(meta.idcc)
+                            suggestions.append(
+                                {
+                                    "idcc": meta.idcc,
+                                    "name": meta.title,
+                                    "source": "kali",
+                                    "agreement_id": None,
+                                    "sector": None,
+                                }
+                            )
+                            if len(suggestions) >= safe_limit:
+                                break
+                except PisteNotConfiguredError:
+                    pass
+
+            return suggestions[:safe_limit]
         except (NotFoundError, ForbiddenError, ValidationError) as e:
             raise _to_http(e)
 
