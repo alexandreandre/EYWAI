@@ -2,7 +2,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { scheduleInvalidateRhSidebarBadges } from '@/lib/invalidateRhSidebarBadges';
 
 export const QUERY_CACHE_KEY = 'eywai-rq-cache-v1';
-export const QUERY_CACHE_BUSTER = import.meta.env.VITE_APP_BUILD_ID ?? '1';
+export const QUERY_CACHE_BUSTER = import.meta.env.VITE_APP_BUILD_ID ?? '20260616-dsn-actif';
 
 export function createAppQueryClient() {
   const queryClient = new QueryClient({

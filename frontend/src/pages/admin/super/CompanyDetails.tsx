@@ -1,7 +1,13 @@
 // frontend/src/pages/super-admin/CompanyDetails.tsx
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import apiClient from '../../../api/apiClient';
+import { fetchDsnCoverage } from '@/api/dsnImport';
+import {
+  DsnCoverageTimeline,
+  dsnStatusLabel,
+} from '@/features/dsn-import/components/DsnCoverageTimeline';
 import {
   fetchAdminCompanyDetails,
   patchAdminCompany,
@@ -23,7 +29,7 @@ import { EditCompanyDialog } from '@/pages/admin/eywai/companies/EditCompanyDial
 import { log } from '@/lib/logger';
 import { showErrorToast } from '@/lib/errorMessages';
 import { toast } from '@/hooks/use-toast';
-import { Pencil } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 
 function formatCompanyAddress(company: AdminCompanyDetails): string | null {
   if (company.adresse_rue) {
@@ -78,6 +84,12 @@ export default function CompanyDetails() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [updatingUser, setUpdatingUser] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const { data: dsnCoverage } = useQuery({
+    queryKey: ['dsn-coverage', companyId],
+    queryFn: () => fetchDsnCoverage(companyId as string),
+    enabled: Boolean(companyId),
+  });
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [jeiForm, setJeiForm] = useState<JeiFormValues>(defaultJeiFormValues);
@@ -472,6 +484,36 @@ export default function CompanyDetails() {
       {companyId && (
         <div className="mb-6">
           <CollectiveAgreementCard companyId={companyId} companyName={company.company_name} />
+        </div>
+      )}
+
+      {/* Couverture DSN */}
+      {companyId && dsnCoverage && (
+        <div className="mb-6 rounded-lg border bg-white p-6 shadow">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-xl font-bold text-gray-900">Couverture DSN</h2>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full border px-2 py-0.5 text-xs font-medium">
+                {dsnStatusLabel(dsnCoverage.status)}
+              </span>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-50"
+                onClick={() =>
+                  navigate(`/super-admin/dsn-import?companyId=${companyId}&mode=monthly`)
+                }
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Importer DSN
+              </button>
+            </div>
+          </div>
+          <DsnCoverageTimeline timeline={dsnCoverage.timeline} />
+          {dsnCoverage.gaps.length > 0 && (
+            <p className="mt-2 text-sm text-amber-800">
+              Mois manquants : {dsnCoverage.gaps.join(', ')}
+            </p>
+          )}
         </div>
       )}
 

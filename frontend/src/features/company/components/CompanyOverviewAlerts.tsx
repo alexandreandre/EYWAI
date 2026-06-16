@@ -1,14 +1,61 @@
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, FileText, FlaskConical } from "lucide-react";
+import { AlertTriangle, Copy, FileText, FlaskConical, RefreshCw } from "lucide-react";
 import type { CompanyOverview, CompanyOverviewAlert } from "@/api/company";
 import type { ComplianceAnchor } from "@/features/company/components/CompanyComplianceBand";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 const CC_COMPANY_CODE = "missing_company_collective_agreement";
 const CC_EMPLOYEES_CODE = "employees_without_collective_agreement";
 const JEI_NO_RD_CODE = "jei_enabled_no_rd_employees";
 const JEI_RD_WITHOUT_COMPANY_CODE = "jei_rd_without_company_status";
+const DSN_CODES = new Set([
+  "dsn_never_imported",
+  "dsn_onboarding_incomplete",
+  "dsn_month_missing",
+  "dsn_month_late",
+]);
+
+function DsnRhAlert({ alert }: { alert: CompanyOverviewAlert }) {
+  const { toast } = useToast();
+  const expected = (alert as CompanyOverviewAlert & { expected_period?: string }).expected_period;
+  const monthLabel = expected ?? "le mois attendu";
+
+  const copyRequest = async () => {
+    const text = `Bonjour,\n\nPourriez-vous importer la DSN de ${monthLabel} dans EYWAI ? Nos cumuls de paie peuvent être incomplets sans cet import.\n\nMerci.`;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: "Demande copiée", description: "Collez-la dans votre message à l'administrateur EYWAI." });
+    } catch {
+      toast({ title: "Copie impossible", variant: "destructive" });
+    }
+  };
+
+  return (
+    <Alert className="border-amber-200 bg-amber-50/80">
+      <RefreshCw className="h-4 w-4 text-amber-700" />
+      <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <span className="text-sm text-foreground">
+          {alert.label}
+          {alert.code === "dsn_month_missing" || alert.code === "dsn_never_imported"
+            ? " — vos cumuls de paie peuvent être incomplets. Contactez votre administrateur EYWAI."
+            : null}
+        </span>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="shrink-0 border-amber-300 bg-white hover:bg-amber-50"
+          onClick={() => void copyRequest()}
+        >
+          <Copy className="mr-1.5 h-3.5 w-3.5" />
+          Copier la demande
+        </Button>
+      </AlertDescription>
+    </Alert>
+  );
+}
 
 function GenericAlertItem({ alert }: { alert: CompanyOverviewAlert }) {
   return (
@@ -161,12 +208,14 @@ export function CompanyOverviewAlerts({
   const employeesCcAlert = alerts.find((a) => a.code === CC_EMPLOYEES_CODE);
   const jeiNoRdAlert = alerts.find((a) => a.code === JEI_NO_RD_CODE);
   const jeiRdWithoutCompanyAlert = alerts.find((a) => a.code === JEI_RD_WITHOUT_COMPANY_CODE);
+  const dsnAlerts = alerts.filter((a) => DSN_CODES.has(a.code));
   const genericAlerts = alerts.filter(
     (a) =>
       a.code !== CC_COMPANY_CODE
       && a.code !== CC_EMPLOYEES_CODE
       && a.code !== JEI_NO_RD_CODE
-      && a.code !== JEI_RD_WITHOUT_COMPANY_CODE,
+      && a.code !== JEI_RD_WITHOUT_COMPANY_CODE
+      && !DSN_CODES.has(a.code),
   );
 
   return (
@@ -184,6 +233,9 @@ export function CompanyOverviewAlerts({
           onGoToPayrollSection={onGoToPayrollSection}
         />
       ) : null}
+      {dsnAlerts.map((a) => (
+        <DsnRhAlert key={a.code} alert={a} />
+      ))}
       {genericAlerts.length > 0 ? (
         <Alert>
           <AlertTriangle className="h-4 w-4" />

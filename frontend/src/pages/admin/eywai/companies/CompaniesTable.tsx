@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
@@ -18,7 +19,13 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Loader2, MoreHorizontal } from "lucide-react";
+import { GripVertical, Loader2, MoreHorizontal, Plus } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchDsnAdminLateSummary } from "@/api/dsnImport";
+import {
+  dsnStatusLabel,
+  dsnStatusVariant,
+} from "@/features/dsn-import/components/DsnCoverageTimeline";
 import type { AdminCompany } from "@/pages/admin/eywai/companies/types";
 import { DEFAULT_PLATFORM_GROUP_NAME } from "@/lib/adminGroup";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -85,6 +92,7 @@ type CompanyRowProps = {
   reorderMode?: boolean;
   showOrderColumn?: boolean;
   sortable?: boolean;
+  dsnStatus?: string | null;
 };
 
 function CompanyRow({
@@ -98,6 +106,7 @@ function CompanyRow({
   reorderMode = false,
   showOrderColumn = false,
   sortable = false,
+  dsnStatus = null,
 }: CompanyRowProps) {
   const navigate = useNavigate();
   const inGroup = isInMajiGroup(company, majiGroupId);
@@ -212,6 +221,13 @@ function CompanyRow({
           {company.is_active ? "Actif" : "Inactif"}
         </Badge>
       </TableCell>
+      <TableCell className="hidden md:table-cell cursor-pointer" onClick={goToCompany}>
+        {dsnStatus ? (
+          <Badge variant={dsnStatusVariant(dsnStatus)}>{dsnStatusLabel(dsnStatus)}</Badge>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
+      </TableCell>
       <TableCell
         className="hidden lg:table-cell text-muted-foreground text-sm cursor-pointer"
         onClick={goToCompany}
@@ -228,6 +244,16 @@ function CompanyRow({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={goToCompany}>Voir la fiche</DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() =>
+                navigate(
+                  `/super-admin/dsn-import?companyId=${company.id}&mode=monthly`,
+                )
+              }
+            >
+              <Plus className="mr-2 h-3.5 w-3.5" />
+              Importer DSN
+            </DropdownMenuItem>
             {!inGroup && majiGroupId ? (
               <DropdownMenuItem onClick={() => onAssignToGroup(company.id)}>
                 Rattacher au groupe
@@ -271,6 +297,21 @@ export function CompaniesTable({
   savingOrder = false,
   onReorder,
 }: CompaniesTableProps) {
+  const { data: dsnSummary } = useQuery({
+    queryKey: ['dsn-admin-late-summary'],
+    queryFn: fetchDsnAdminLateSummary,
+    staleTime: 60_000,
+  });
+
+  const dsnStatusByCompany = useMemo(() => {
+    const map = new Map<string, string>();
+    const rows = dsnSummary?.all_companies ?? dsnSummary?.companies ?? [];
+    rows.forEach((c) => {
+      map.set(c.company_id, c.status);
+    });
+    return map;
+  }, [dsnSummary]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, {
@@ -280,7 +321,7 @@ export function CompaniesTable({
 
   const extraCols =
     (showOrderColumn ? 1 : 0) + (reorderMode ? 1 : 0);
-  const colSpan = 8 + extraCols;
+  const colSpan = 9 + extraCols;
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -303,6 +344,7 @@ export function CompaniesTable({
         <TableHead className="hidden sm:table-cell">Employés</TableHead>
         <TableHead className="hidden sm:table-cell">Utilisateurs</TableHead>
         <TableHead>Statut</TableHead>
+        <TableHead className="hidden md:table-cell">DSN</TableHead>
         <TableHead className="hidden lg:table-cell">Créée le</TableHead>
         <TableHead className="w-[50px]" />
       </TableRow>
@@ -356,6 +398,7 @@ export function CompaniesTable({
                   onDelete={onDelete}
                   reorderMode={reorderMode}
                   showOrderColumn={showOrderColumn}
+                  dsnStatus={dsnStatusByCompany.get(company.id) ?? null}
                 />
               ))}
             </SortableContext>
@@ -381,6 +424,7 @@ export function CompaniesTable({
             onDelete={onDelete}
             reorderMode={reorderMode}
             showOrderColumn={showOrderColumn}
+            dsnStatus={dsnStatusByCompany.get(company.id) ?? null}
           />
         ))}
       </TableBody>

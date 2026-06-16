@@ -100,7 +100,7 @@ export default function Employees() {
         : employmentStatusFilter === "all"
           ? true
           : employmentStatusFilter === "actifs_et_depart"
-            ? status === "actif" || status === "active" || status === "en_sortie"
+            ? status === "actif" || status === "active" || status === "en_sortie" || status === "en_onboarding"
             : status === employmentStatusFilter;
     const matchesDeadlines =
       !contractDeadlineIds || contractDeadlineIds.has(emp.id);

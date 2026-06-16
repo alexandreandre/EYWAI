@@ -1,5 +1,6 @@
 import apiClient from "@/api/apiClient";
 import { downloadBlob } from '@/lib/downloadBlob';
+import type { DsnCoverage, DsnSyncMode } from '@/api/dsnImport';
 
 export interface MonthlyEvolution {
   month: string;
@@ -57,6 +58,7 @@ export interface CompanyDetails {
   nom_signataire_rh: string | null;
   qualite_signataire_rh: string | null;
   settings?: { medical_follow_up_enabled?: boolean };
+  dsn_sync_mode?: DsnSyncMode | null;
 }
 
 export interface CompanyDetailsPayload {
@@ -110,6 +112,7 @@ export interface CompanyOverview {
     top_absence_types: { type: string; count: number }[];
   };
   alerts: CompanyOverviewAlert[];
+  dsn_coverage?: DsnCoverage | null;
   compliance: {
     at_mp_configured: boolean;
     vm_configured: boolean;
@@ -140,7 +143,9 @@ export type CompanyDetailsUpdate = Partial<
     | "nom_signataire_rh"
     | "qualite_signataire_rh"
   >
->;
+> & {
+  dsn_sync_mode?: DsnSyncMode;
+};
 
 export async function fetchCompanyDetails(): Promise<CompanyDetailsPayload> {
   const { data } = await apiClient.get<CompanyDetailsPayload>("/api/company/details");

@@ -29,7 +29,7 @@ export function useEmployeesQuery(enabled = true) {
     queryKey: queryKeys.employees(companyId),
     queryFn: fetchEmployees,
     enabled: enabled && Boolean(companyId),
-    placeholderData: (previous) => previous,
+    refetchOnMount: 'always',
   });
 }
 

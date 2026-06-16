@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Upload,
   FileText,
@@ -27,6 +27,10 @@ import {
   getDsnImportBatch,
   parseDsnImportFiles,
   revalidateDsnImportBatch,
+  fetchDsnCoverage,
+  listDsnImportCompanies,
+  type DsnImportLaunchConfig,
+  type DsnImportMode,
   DSN_IMPORT_ACTION_LABELS,
   DSN_IMPORT_ITEM_TYPE_LABELS,
   DSN_IMPORT_REVIEW_REASON_LABELS,
@@ -39,6 +43,8 @@ import {
   type DsnImportParseResponse,
   type ImportedEmployeeSummary,
 } from '@/api/dsnImport';
+import { DsnImportAttributionCard } from './DsnImportAttributionCard';
+import { DsnCoverageTimeline } from './DsnCoverageTimeline';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { SharkFinBootProgress } from '@/components/SharkFinBootProgress';
@@ -76,7 +82,6 @@ import {
 } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { DsnImportHistory } from './DsnImportHistory';
 import {
   buildCumulsSummaryFromItems,
   CumulsSummaryCard,
@@ -94,6 +99,13 @@ const STEP_LABELS: Record<'upload' | 'preview' | 'result', string> = {
 };
 
 const STORAGE_KEY = 'eywai.dsn-import.active';
+
+const IMPORT_ACK_TYPES = new Set([
+  'period_mismatch',
+  'intended_period_mismatch',
+  'company_name_mismatch',
+  'siret_mismatch',
+]);
 
 type PersistedState = { batchId: string; step: Step };
 
@@ -222,7 +234,20 @@ const SECTION_ICONS: Record<string, typeof Building2> = {
   employee: Users,
 };
 
-export function DsnImportWizard() {
+export function DsnImportWizard({
+  launchConfig,
+  onResetLaunch,
+  initialFiles,
+  embedded = false,
+}: {
+  launchConfig?: DsnImportLaunchConfig | null;
+  onResetLaunch?: () => void;
+  initialFiles?: File[];
+  embedded?: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const importMode: DsnImportMode = launchConfig?.mode ?? 'onboarding';
+  const lockedTargetCompanyId = importMode === 'monthly' ? launchConfig?.targetCompanyId ?? null : null;
   const { toast } = useToast();
   const [step, setStep] = useState<Step>('upload');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -243,7 +268,17 @@ export function DsnImportWizard() {
   const [analyzedFileNames, setAnalyzedFileNames] = useState<string[]>([]);
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
   const [isRestoring, setIsRestoring] = useState(true);
+  const [targetCompanyId, setTargetCompanyId] = useState<string | null>(
+    lockedTargetCompanyId ?? launchConfig?.targetCompanyId ?? null,
+  );
+  const [replaceExistingPeriods, setReplaceExistingPeriods] = useState(false);
+  const [acknowledgedWarnings, setAcknowledgedWarnings] = useState<Record<string, boolean>>({});
+  const [resumeBatchId, setResumeBatchId] = useState<string | null>(
+    launchConfig?.resumeBatchId ?? null,
+  );
+  const initialFilesHandled = useRef(false);
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
+  const closeLabel = embedded ? 'Fermer' : 'Nouvel import';
 
   const finalizeResult = useCallback(
     (report: DsnImportCommitResponse, batchId: string) => {
@@ -258,9 +293,15 @@ export function DsnImportWizard() {
   );
 
   const parseMutation = useMutation({
-    mutationFn: (files: File[]) => parseDsnImportFiles(files),
+    mutationFn: (files: File[]) =>
+      parseDsnImportFiles(files, {
+        importMode,
+        targetCompanyId: lockedTargetCompanyId ?? targetCompanyId,
+        intendedPeriod: launchConfig?.suggestedPeriod ?? null,
+      }),
     onSuccess: (data) => {
       setParseResult(data);
+      setAcknowledgedWarnings({});
       const initial: Record<string, string> = {};
       data.items.forEach((it) => {
         initial[it.source_ref] = it.action;
@@ -269,6 +310,12 @@ export function DsnImportWizard() {
       setPayloadEdits({});
       setFieldErrors({});
       setExpandedRows({});
+      if (lockedTargetCompanyId) {
+        setTargetCompanyId(lockedTargetCompanyId);
+      } else if (!data.summary?.target_company_id) {
+        setTargetCompanyId(null);
+      }
+      setReplaceExistingPeriods(Boolean((data.summary?.duplicate_periods as string[] | undefined)?.length));
       setEmployeesOpen(true);
       setCumulsOpen(true);
       setActiveBatchId(data.batch_id);
@@ -281,28 +328,55 @@ export function DsnImportWizard() {
   });
 
   const revalidateMutation = useMutation({
-    mutationFn: (edits: Record<string, Record<string, string>>) => {
+    mutationFn: (vars: {
+      edits: Record<string, Record<string, string>>;
+      targetCompanyId: string | null;
+    }) => {
       if (!parseResult) throw new Error('Aucune analyse');
-      return revalidateDsnImportBatch(parseResult.batch_id, edits);
+      return revalidateDsnImportBatch(parseResult.batch_id, vars.edits, vars.targetCompanyId);
     },
     onSuccess: (data) => {
-      setParseResult((prev) =>
-        prev
-          ? {
-              ...prev,
-              anomalies: data.anomalies,
-              can_commit: data.can_commit,
-              summary: { ...prev.summary, ...data.summary },
-            }
-          : prev,
-      );
+      setParseResult((prev) => {
+        if (!prev) return prev;
+        // Réconcilie les actions recalculées côté serveur avec les overrides :
+        // on adopte les nouvelles actions sauf là où l'utilisateur a choisi
+        // manuellement (override différent de l'ancienne action).
+        if (data.items?.length) {
+          const oldActions: Record<string, string> = {};
+          prev.items.forEach((it) => {
+            oldActions[it.source_ref] = it.action;
+          });
+          setOverrides((ov) => {
+            const next = { ...ov };
+            data.items.forEach((it) => {
+              const userChanged =
+                ov[it.source_ref] !== undefined && ov[it.source_ref] !== oldActions[it.source_ref];
+              if (!userChanged) next[it.source_ref] = it.action;
+            });
+            return next;
+          });
+        }
+        return {
+          ...prev,
+          items: data.items?.length ? data.items : prev.items,
+          anomalies: data.anomalies,
+          can_commit: data.can_commit,
+          summary: { ...prev.summary, ...data.summary },
+        };
+      });
     },
   });
 
   const commitMutation = useMutation({
     mutationFn: () => {
       if (!parseResult) throw new Error('Aucune analyse en cours');
-      return commitDsnImportBatch(parseResult.batch_id, overrides, payloadEdits);
+      return commitDsnImportBatch(
+        parseResult.batch_id,
+        overrides,
+        payloadEdits,
+        targetCompanyId,
+        { importMode, replaceExistingPeriods },
+      );
     },
     onSuccess: (data) => {
       setConfirmOpen(false);
@@ -347,11 +421,106 @@ export function DsnImportWizard() {
       };
     finalizeResult(report, batchId);
     if (status === 'committed') {
+      void queryClient.invalidateQueries({ queryKey: ['dsn-import-batches'] });
+      void queryClient.invalidateQueries({ queryKey: ['dsn-import-batches-pending'] });
+      void queryClient.invalidateQueries({ queryKey: ['dsn-coverage'] });
+      void queryClient.invalidateQueries({ queryKey: ['dsn-admin-late-summary'] });
+      void queryClient.invalidateQueries({ queryKey: ['dsn-admin-matrix'] });
+      void queryClient.invalidateQueries({
+        predicate: (query) =>
+          Array.isArray(query.queryKey)
+          && query.queryKey[0] === 'company'
+          && query.queryKey.includes('employees'),
+      });
+      void queryClient.invalidateQueries({
+        predicate: (query) =>
+          Array.isArray(query.queryKey)
+          && query.queryKey[0] === 'company'
+          && query.queryKey.includes('onboarding'),
+      });
       toast({ title: 'Import terminé', description: 'Le dossier a été reconstruit.' });
     } else {
       toast({ title: "Échec de l'import", description: 'Consultez le détail.', variant: 'destructive' });
     }
-  }, [pollQuery.data, step, activeBatchId, finalizeResult, toast]);
+  }, [pollQuery.data, step, activeBatchId, finalizeResult, toast, queryClient]);
+
+  useEffect(() => {
+    if (launchConfig?.resumeBatchId) {
+      setResumeBatchId(launchConfig.resumeBatchId);
+    }
+  }, [launchConfig?.resumeBatchId]);
+
+  // Reprise depuis le launcher (batch previewed / committing).
+  useEffect(() => {
+    const resumeId = resumeBatchId;
+    if (!resumeId || parseResult) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const detail = await getDsnImportBatch(resumeId);
+        if (cancelled) return;
+        const preview = detail.preview ?? {};
+        const items = (preview.items as DsnImportItemPreview[]) ?? [];
+        setParseResult({
+          batch_id: resumeId,
+          summary: detail.summary ?? {},
+          anomalies: (preview.anomalies as DsnImportParseResponse['anomalies']) ?? [],
+          items,
+          can_commit: Boolean(preview.can_commit ?? true),
+        });
+        const initial: Record<string, string> = {};
+        items.forEach((it) => {
+          initial[it.source_ref] = it.action;
+        });
+        setOverrides(initial);
+        setTargetCompanyId(
+          lockedTargetCompanyId ??
+            (detail.summary?.target_company_id as string | undefined) ??
+            null,
+        );
+        setActiveBatchId(resumeId);
+        setStep('preview');
+        persistState({ batchId: resumeId, step: 'preview' });
+      } finally {
+        if (!cancelled) setIsRestoring(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [resumeBatchId, lockedTargetCompanyId, parseResult]);
+
+  const coverageCompanyId = targetCompanyId ?? lockedTargetCompanyId;
+  const coverageQuery = useQuery({
+    queryKey: ['dsn-coverage', coverageCompanyId],
+    queryFn: () => fetchDsnCoverage(coverageCompanyId as string),
+    enabled: Boolean(coverageCompanyId) && step === 'preview',
+  });
+
+  const { data: importCompanies } = useQuery({
+    queryKey: ['dsn-import-companies'],
+    queryFn: listDsnImportCompanies,
+    staleTime: 60_000,
+  });
+
+  const lockedCompanyName = useMemo(() => {
+    if (!lockedTargetCompanyId) return null;
+    return importCompanies?.find((c) => c.id === lockedTargetCompanyId)?.company_name ?? null;
+  }, [importCompanies, lockedTargetCompanyId]);
+
+  useEffect(() => {
+    if (initialFilesHandled.current || !initialFiles?.length || isRestoring) return;
+    initialFilesHandled.current = true;
+    setSelectedFiles(initialFiles);
+    setAnalyzedFileNames(initialFiles.map((f) => f.name));
+    parseMutation.mutate(initialFiles);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFiles, isRestoring]);
+
+  const duplicatePeriods = useMemo(
+    () => (parseResult?.summary?.duplicate_periods as string[] | undefined) ?? [],
+    [parseResult],
+  );
 
   // Restauration au montage : reprise d'un import en cours ou affichage du résultat terminé.
   useEffect(() => {
@@ -390,6 +559,7 @@ export function DsnImportWizard() {
               initial[it.source_ref] = it.action;
             });
             setOverrides(initial);
+            setTargetCompanyId((detail.summary?.target_company_id as string | null) ?? null);
             setEmployeesOpen(true);
             setCumulsOpen(true);
             setStep('preview');
@@ -442,7 +612,10 @@ export function DsnImportWizard() {
     setActivationEmails({});
     setActivatedIds({});
     setConfirmOpen(false);
-  }, []);
+    setTargetCompanyId(lockedTargetCompanyId ?? null);
+    setReplaceExistingPeriods(false);
+    onResetLaunch?.();
+  }, [lockedTargetCompanyId, onResetLaunch]);
 
   const getPayloadValue = useCallback(
     (item: DsnImportItemPreview, field: string): string => {
@@ -513,10 +686,22 @@ export function DsnImportWizard() {
     });
     if (!hasKeyEdits) return;
     const timer = setTimeout(() => {
-      revalidateMutation.mutate(payloadEdits);
+      revalidateMutation.mutate({ edits: payloadEdits, targetCompanyId });
     }, 600);
     return () => clearTimeout(timer);
-  }, [payloadEdits, parseResult]);
+  }, [payloadEdits, parseResult, targetCompanyId]);
+
+  // Changement de rattachement : on recalcule immédiatement (salariés déjà
+  // présents dans l'entreprise cible, actions, compteurs).
+  const handleTargetChange = useCallback(
+    (companyId: string | null) => {
+      setTargetCompanyId(companyId);
+      if (parseResult) {
+        revalidateMutation.mutate({ edits: payloadEdits, targetCompanyId: companyId });
+      }
+    },
+    [parseResult, payloadEdits, revalidateMutation],
+  );
 
   const blockingCount = useMemo(
     () => parseResult?.anomalies.filter((a) => a.severity === 'blocking').length ?? 0,
@@ -527,6 +712,25 @@ export function DsnImportWizard() {
     () => parseResult?.anomalies.filter((a) => a.severity !== 'blocking').length ?? 0,
     [parseResult],
   );
+
+  const contextWarnings = useMemo(
+    () => parseResult?.anomalies.filter((a) => IMPORT_ACK_TYPES.has(a.type)) ?? [],
+    [parseResult?.anomalies],
+  );
+
+  const allContextWarningsAcked = useMemo(
+    () => contextWarnings.every((a) => acknowledgedWarnings[a.type]),
+    [contextWarnings, acknowledgedWarnings],
+  );
+
+  const detectedPeriodLabel = useMemo(() => {
+    const detected = parseResult?.summary?.detected_period as string | undefined;
+    if (detected) return formatPeriod(detected);
+    return formatPeriod(
+      parseResult?.summary?.period_min as string | undefined,
+      parseResult?.summary?.period_max as string | undefined,
+    );
+  }, [parseResult?.summary]);
 
   const reviewCount = useMemo(
     () => parseResult?.items.filter((i) => i.item_type === 'employee' && i.needs_review).length ?? 0,
@@ -569,6 +773,35 @@ export function DsnImportWizard() {
     [parseResult],
   );
 
+  const existingEmployees = useMemo(
+    () => parseResult?.items.filter((i) => i.item_type === 'employee' && i.is_existing) ?? [],
+    [parseResult],
+  );
+
+  const existingCount = existingEmployees.length;
+
+  // Les fiches existantes sont rafraîchies si l'utilisateur a basculé leur
+  // action en "update" (sinon "skip" = on ne réécrit pas).
+  const updateExisting = useMemo(
+    () =>
+      existingCount > 0 &&
+      existingEmployees.every((e) => (overrides[e.source_ref] ?? e.action) === 'update'),
+    [existingEmployees, existingCount, overrides],
+  );
+
+  const toggleUpdateExisting = useCallback(
+    (next: boolean) => {
+      setOverrides((prev) => {
+        const updated = { ...prev };
+        existingEmployees.forEach((e) => {
+          updated[e.source_ref] = next ? 'update' : 'skip';
+        });
+        return updated;
+      });
+    },
+    [existingEmployees],
+  );
+
   const sectionOrder = useMemo(() => {
     const base: string[] = ['establishment', 'collective_agreement', 'employee'];
     if ((groupedItems.group?.length ?? 0) > 0) {
@@ -596,16 +829,20 @@ export function DsnImportWizard() {
     !commitMutation.isPending &&
     !hasFieldErrors &&
     (parseResult?.can_commit ?? true) &&
-    !(blockingCount > 0 && editCount === 0);
+    !(blockingCount > 0 && editCount === 0) &&
+    (contextWarnings.length === 0 || allContextWarningsAcked);
 
   const commitBlockReason = useMemo(() => {
     if (hasFieldErrors) return 'Corrigez les champs invalides (SIREN, SIRET, NIR) avant validation.';
+    if (contextWarnings.length > 0 && !allContextWarningsAcked) {
+      return 'Cochez les confirmations période / entreprise ci-dessous avant validation.';
+    }
     if (blockingCount > 0 && editCount === 0) {
       return `${blockingCount} anomalie(s) bloquante(s) — corrigez ou éditez les lignes concernées.`;
     }
     if (parseResult && !parseResult.can_commit) return 'Import bloqué par des anomalies non résolues.';
     return null;
-  }, [hasFieldErrors, blockingCount, editCount, parseResult]);
+  }, [hasFieldErrors, contextWarnings.length, allContextWarningsAcked, blockingCount, editCount, parseResult]);
 
   const commitProgress = (pollQuery.data?.summary?.commit_progress ??
     parseResult?.summary?.commit_progress) as
@@ -697,14 +934,26 @@ export function DsnImportWizard() {
         )}
 
         {step === 'upload' && (
+          embedded && parseMutation.isPending && initialFiles?.length ? (
+            <Card>
+              <CardContent className="flex items-center gap-3 py-10 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Analyse du fichier en cours…
+              </CardContent>
+            </Card>
+          ) : (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Upload className="h-5 w-5" />
-                Déposer les fichiers DSN
+                {importMode === 'monthly'
+                  ? `Import DSN mensuel${lockedCompanyName ? ` — ${lockedCompanyName}` : ''}`
+                  : 'Constituer le dossier paie'}
               </CardTitle>
               <CardDescription>
-                Format plat NEODeS — un ou plusieurs fichiers mensuels acceptés.
+                {importMode === 'monthly'
+                  ? 'Le mois est lu automatiquement dans le fichier DSN — aucune sélection manuelle requise.'
+                  : 'Pour un dossier fiable, importez toutes les DSN de l\u2019année depuis janvier jusqu\u2019au dernier mois de paie clôturé. Vous pouvez déposer plusieurs fichiers en une fois.'}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -773,11 +1022,91 @@ export function DsnImportWizard() {
               </div>
             </CardContent>
           </Card>
+          )
         )}
 
         {step === 'preview' && parseResult && (
           <>
             <WizardNav onBack={goBackToUpload} backOnly />
+
+            {importMode === 'monthly' && detectedPeriodLabel !== '—' && (
+              <Card className="border-primary/30 bg-primary/5">
+                <CardContent className="flex flex-wrap items-center justify-between gap-2 py-3">
+                  <p className="text-sm">
+                    <span className="text-muted-foreground">Mois identifié dans la DSN :</span>{' '}
+                    <strong className="text-foreground">{detectedPeriodLabel}</strong>
+                  </p>
+                  {parseResult.summary.dsn_company_name ? (
+                    <p className="text-xs text-muted-foreground">
+                      Raison sociale DSN :{' '}
+                      <span className="font-medium text-foreground">
+                        {String(parseResult.summary.dsn_company_name)}
+                      </span>
+                    </p>
+                  ) : null}
+                </CardContent>
+              </Card>
+            )}
+
+            {contextWarnings.length > 0 && (
+              <Card className="border-amber-300/80 bg-amber-50/40">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-base text-amber-950">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    Confirmations requises
+                  </CardTitle>
+                  <CardDescription className="text-amber-900/80">
+                    Ces écarts ne bloquent pas l&apos;import, mais vous devez les valider explicitement.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {contextWarnings.map((a) => (
+                    <label
+                      key={a.type}
+                      className="flex cursor-pointer items-start gap-3 rounded-md border border-amber-200/80 bg-background/80 p-3 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-1 rounded border-input"
+                        checked={Boolean(acknowledgedWarnings[a.type])}
+                        onChange={(e) =>
+                          setAcknowledgedWarnings((prev) => ({
+                            ...prev,
+                            [a.type]: e.target.checked,
+                          }))
+                        }
+                      />
+                      <span className="leading-snug text-amber-950">{a.message}</span>
+                    </label>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            <DsnImportAttributionCard
+              targetCompanyId={targetCompanyId}
+              onChange={handleTargetChange}
+              detectedExisting={Boolean(parseResult.summary.has_existing_dossier)}
+              detectedSiret={parseResult.summary.siret as string | undefined}
+              isRevalidating={revalidateMutation.isPending}
+              locked={Boolean(lockedTargetCompanyId)}
+            />
+
+            {coverageQuery.data ? (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Couverture DSN</CardTitle>
+                  <CardDescription>
+                    {importMode === 'onboarding'
+                      ? 'Objectif : remplir du premier mois utile au mois clos sans trou.'
+                      : 'Mois attendu mis en avant dans la timeline.'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <DsnCoverageTimeline timeline={coverageQuery.data.timeline} />
+                </CardContent>
+              </Card>
+            ) : null}
 
             <Card>
               <CardHeader className="pb-3">
@@ -830,6 +1159,9 @@ export function DsnImportWizard() {
                     label="Actions prévues"
                     value={`${actionsSummary.totals.create} créer / ${actionsSummary.totals.update} MAJ`}
                   />
+                )}
+                {existingCount > 0 && (
+                  <Stat label="Déjà présents" value={String(existingCount)} />
                 )}
               </CardContent>
               {(reviewCount > 0 || editCount > 0) && (
@@ -888,6 +1220,35 @@ export function DsnImportWizard() {
                 Un conteneur groupe EYWAI est créé automatiquement en arrière-plan pour le rattachement
                 plateforme — vous n&apos;avez rien à saisir à ce niveau.
               </p>
+            )}
+
+            {existingCount > 0 && (
+              <Card className="border-sky-200/80 bg-sky-50/40">
+                <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+                  <div className="flex items-start gap-2.5 text-sm">
+                    <Users className="mt-0.5 h-4 w-4 shrink-0 text-sky-700" />
+                    <div>
+                      <p className="font-medium text-sky-900">
+                        {existingCount} salarié{existingCount > 1 ? 's' : ''} déjà présent
+                        {existingCount > 1 ? 's' : ''} dans l&apos;entreprise
+                      </p>
+                      <p className="text-xs text-sky-800/80">
+                        Leur fiche n&apos;est pas réécrite — seuls les cumuls du mois sont importés
+                        (idéal pour une DSN mensuelle après une autre).
+                      </p>
+                    </div>
+                  </div>
+                  <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-sky-900">
+                    <input
+                      type="checkbox"
+                      checked={updateExisting}
+                      onChange={(e) => toggleUpdateExisting(e.target.checked)}
+                      className="rounded border"
+                    />
+                    Mettre à jour les fiches existantes
+                  </label>
+                </CardContent>
+              </Card>
             )}
 
             <>
@@ -1030,17 +1391,19 @@ export function DsnImportWizard() {
               actionsSummary={actionsSummary}
               employeeCount={parseResult.summary.employee_count as number}
               reviewCount={reviewCount}
-              periodLabel={formatPeriod(
-                parseResult.summary.period_min as string | undefined,
-                parseResult.summary.period_max as string | undefined,
-              )}
+              existingCount={existingCount}
+              updateExisting={updateExisting}
+              periodLabel={detectedPeriodLabel}
+              duplicatePeriods={duplicatePeriods}
+              replaceExistingPeriods={replaceExistingPeriods}
+              onReplaceExistingPeriodsChange={setReplaceExistingPeriods}
             />
           </>
         )}
 
         {step === 'result' && commitReport && (
           <>
-            <WizardNav onBack={resetWizard} backLabel="Nouvel import" />
+            <WizardNav onBack={resetWizard} backLabel={closeLabel} />
 
             <Card>
               <CardHeader>
@@ -1110,11 +1473,9 @@ export function DsnImportWizard() {
               />
             )}
 
-            <WizardNav onBack={resetWizard} backLabel="Nouvel import" />
+            <WizardNav onBack={resetWizard} backLabel={closeLabel} />
           </>
         )}
-
-        {step !== 'preview' && <DsnImportHistory />}
       </div>
     </TooltipProvider>
   );
@@ -1173,7 +1534,12 @@ function CommitConfirmDialog({
   actionsSummary,
   employeeCount,
   reviewCount,
+  existingCount,
+  updateExisting,
   periodLabel,
+  duplicatePeriods = [],
+  replaceExistingPeriods = false,
+  onReplaceExistingPeriodsChange,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1183,7 +1549,12 @@ function CommitConfirmDialog({
   actionsSummary?: DsnImportActionsSummary;
   employeeCount: number;
   reviewCount: number;
+  existingCount: number;
+  updateExisting: boolean;
   periodLabel: string;
+  duplicatePeriods?: string[];
+  replaceExistingPeriods?: boolean;
+  onReplaceExistingPeriodsChange?: (value: boolean) => void;
 }) {
   const create = actionsSummary?.totals.create ?? 0;
   const update = actionsSummary?.totals.update ?? 0;
@@ -1210,10 +1581,35 @@ function CommitConfirmDialog({
           <li>
             <strong>Actions :</strong> {create} création(s), {update} mise(s) à jour
           </li>
+          {existingCount > 0 && (
+            <li className="text-muted-foreground">
+              {existingCount} salarié(s) déjà présent(s) —{' '}
+              {updateExisting
+                ? 'leurs fiches seront mises à jour.'
+                : 'leurs fiches sont conservées (seuls les cumuls sont importés).'}
+            </li>
+          )}
           {reviewCount > 0 && (
             <li className="flex items-start gap-2 text-amber-800">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               {reviewCount} salarié(s) marqué(s) à vérifier — l&apos;import reste possible.
+            </li>
+          )}
+          {duplicatePeriods.length > 0 && (
+            <li className="space-y-2 rounded-md border border-amber-200 bg-amber-50/80 p-3 text-amber-950">
+              <p className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                Remplacer les cumuls de {duplicatePeriods.join(', ')} ?
+              </p>
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={replaceExistingPeriods}
+                  onChange={(e) => onReplaceExistingPeriodsChange?.(e.target.checked)}
+                  className="rounded border-input"
+                />
+                Écraser les cumuls existants pour ces mois
+              </label>
             </li>
           )}
         </ul>
@@ -1221,7 +1617,10 @@ function CommitConfirmDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Annuler
           </Button>
-          <Button onClick={onConfirm} disabled={loading}>
+          <Button
+            onClick={onConfirm}
+            disabled={loading}
+          >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Confirmer l&apos;import
           </Button>
@@ -1482,6 +1881,16 @@ function ItemsTable({
                   )}
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-1.5">
+                      {it.is_existing && (
+                        <Badge
+                          variant="outline"
+                          className="border-sky-300 bg-sky-50 font-normal text-[10px] text-sky-800"
+                        >
+                          {(overrides[it.source_ref] ?? it.action) === 'update'
+                            ? 'Déjà présent · MAJ'
+                            : 'Déjà présent'}
+                        </Badge>
+                      )}
                       {(it.review_reasons ?? []).map((reason) => (
                         <Badge key={reason} variant="outline" className="font-normal text-[10px]">
                           {DSN_IMPORT_REVIEW_REASON_LABELS[reason] ?? reason}

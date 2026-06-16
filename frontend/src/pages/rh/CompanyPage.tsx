@@ -38,6 +38,7 @@ import {
   useCompanyPeriod,
   computePeriodPayroll,
 } from "@/features/company";
+import { CompanyDsnCoverageBand } from "@/features/company/components/CompanyDsnCoverageBand";
 import {
   isComplianceAnchor,
   type ComplianceAnchor,
@@ -315,6 +316,9 @@ export default function CompanyPage() {
             <div className="h-16 rounded-lg border bg-muted/30 animate-pulse" />
           ) : null}
           <CompanyGroupPositionBand />
+          {overview?.dsn_coverage ? (
+            <CompanyDsnCoverageBand coverage={overview.dsn_coverage} />
+          ) : null}
           {overview?.alerts?.length ? (
             <CompanyOverviewAlerts
               alerts={overview.alerts}
@@ -342,6 +346,9 @@ export default function CompanyPage() {
             company={company}
             scrollAnchor={payrollScrollAnchor}
             cseObligation={overview?.compliance.cse_obligation}
+            dsnCoverage={overview?.dsn_coverage ?? null}
+            canEditDsn={canEdit}
+            onDsnUpdated={() => void overviewQuery.refetch()}
           />
         </TabsContent>
 

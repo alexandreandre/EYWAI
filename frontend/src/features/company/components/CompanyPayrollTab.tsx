@@ -2,10 +2,12 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, CalendarDays, ChevronDown, Percent } from "lucide-react";
 import type { CompanyDetails } from "@/api/company";
+import type { DsnCoverage } from "@/api/dsnImport";
 import CollectiveAgreementCard from "@/components/CollectiveAgreementCard";
 import MaintenanceSettingsCard from "@/features/company/components/MaintenanceSettingsCard";
 import JeiSettingsCard from "@/features/company/components/JeiSettingsCard";
 import WorkMedalSettingsCard from "@/features/company/components/WorkMedalSettingsCard";
+import { DsnSyncModeCard } from "@/features/dsn-import/components/DsnSyncModeCard";
 import { WorkMedalCasesList } from "@/features/work-medals/components/WorkMedalCasesList";
 import OethSettingsCard from "@/features/company/components/OethSettingsCard";
 import NetEntreprisesConfigCard from "@/features/net-entreprises/components/NetEntreprisesConfigCard";
@@ -68,10 +70,16 @@ export function CompanyPayrollTab({
   company,
   scrollAnchor,
   cseObligation,
+  dsnCoverage = null,
+  canEditDsn = false,
+  onDsnUpdated,
 }: {
   company: CompanyDetails;
   scrollAnchor?: ComplianceAnchor | null;
   cseObligation?: boolean;
+  dsnCoverage?: DsnCoverage | null;
+  canEditDsn?: boolean;
+  onDsnUpdated?: () => void;
 }): JSX.Element {
   const cc = formatCollectiveAgreementLabel(company.collective_agreement, company.idcc);
   const anchorRefs = useRef<Partial<Record<ComplianceAnchor, HTMLElement | null>>>({});
@@ -212,6 +220,12 @@ export function CompanyPayrollTab({
 
       <section className="space-y-3">
         <SectionHeading>Déclarations</SectionHeading>
+        <DsnSyncModeCard
+          company={company}
+          coverage={dsnCoverage}
+          readOnly={!canEditDsn}
+          onUpdated={onDsnUpdated}
+        />
         <NetEntreprisesConfigCard />
       </section>
 

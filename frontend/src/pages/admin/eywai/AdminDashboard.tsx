@@ -12,8 +12,10 @@ import {
   Radar,
   Plus,
   Shield,
+  RefreshCw,
 } from "lucide-react";
 import { getAdminGlobalStats } from "@/api/adminEYWAI";
+import { fetchDsnAdminLateSummary } from "@/api/dsnImport";
 import { getActionLabel } from "@/lib/auditLabels";
 import { queryKeys } from "@/lib/queryKeys";
 import { AdminPageHeader } from "@/features/admin/components/eywai/AdminPageHeader";
@@ -52,6 +54,12 @@ export default function AdminDashboard() {
     queryKey: queryKeys.adminGlobalStats(),
     queryFn: getAdminGlobalStats,
     placeholderData: (previous) => previous,
+  });
+
+  const { data: dsnLate } = useQuery({
+    queryKey: ['dsn-admin-late-summary'],
+    queryFn: fetchDsnAdminLateSummary,
+    staleTime: 60_000,
   });
 
   useEffect(() => {
@@ -136,6 +144,14 @@ export default function AdminDashboard() {
           icon={Radar}
           variant={(stats.scraping_alerts?.unread ?? 0) > 0 ? "warning" : "default"}
           onClick={() => navigate("/super-admin/scraping")}
+        />
+        <AdminStatCard
+          title="DSN en retard"
+          value={dsnLate?.late_count ?? 0}
+          subtitle="Paie externe / reprise"
+          icon={RefreshCw}
+          variant={(dsnLate?.late_count ?? 0) > 0 ? "warning" : "default"}
+          onClick={() => navigate("/super-admin/companies?dsn=late")}
         />
         <AdminStatCard
           title="Équipe EYWAI"
