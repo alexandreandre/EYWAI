@@ -330,3 +330,32 @@ def write_cumuls_file(employee_folder_name: str, month: int, document: Dict[str,
     path = cumuls_dir / f"{month:02d}.json"
     path.write_text(json.dumps(document, indent=2, ensure_ascii=False), encoding="utf-8")
     return path
+
+
+def read_cumuls_file(employee_folder_name: str, month: int) -> Optional[Dict[str, Any]]:
+    """Lit cumuls/MM.json s'il existe."""
+    folder = payroll_engine_employee_folder(employee_folder_name)
+    path = folder / "cumuls" / f"{month:02d}.json"
+    if not path.is_file():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def rebuild_cumuls_with_previous_on_disk(
+    employee_folder_name: str,
+    month: int,
+    month_totals: Dict[str, float],
+    fallback_document: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Reconstruit le cumul YTD en chaînant sur le mois précédent déjà sur disque.
+    Utilisé pour les imports mensuels isolés (sessions distinctes).
+    """
+    prev_month = month - 1 if month > 1 else 12
+    prev_doc = read_cumuls_file(employee_folder_name, prev_month)
+    if prev_doc:
+        return build_cumuls_for_month(prev_doc, month_totals, month)
+    return fallback_document

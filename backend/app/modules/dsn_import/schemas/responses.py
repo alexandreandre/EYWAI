@@ -19,6 +19,24 @@ class DsnImportItemPreview(BaseModel):
     employee_count: Optional[int] = None
     editable_fields: Optional[Dict[str, str]] = None
     is_scaffold: Optional[bool] = None
+    is_existing: Optional[bool] = None
+    existing_employee_id: Optional[str] = None
+
+
+class DsnImportCompany(BaseModel):
+    """Entreprise existante proposée pour le rattachement d'un import DSN."""
+
+    id: str
+    company_name: str
+    siret: Optional[str] = None
+    siren: Optional[str] = None
+    group_id: Optional[str] = None
+    group_name: Optional[str] = None
+    is_active: bool = True
+
+
+class DsnImportCompanyListResponse(BaseModel):
+    companies: List[DsnImportCompany]
 
 
 class DsnImportAnomaly(BaseModel):
@@ -101,3 +119,60 @@ class DsnImportRevalidateResponse(BaseModel):
     anomalies: List[DsnImportAnomaly]
     can_commit: bool
     summary: Dict[str, Any] = Field(default_factory=dict)
+    items: List[DsnImportItemPreview] = Field(default_factory=list)
+
+
+class DsnCoverageTimelineMonth(BaseModel):
+    period: str
+    month: int
+    state: str
+
+
+class DsnCoverageBatchRef(BaseModel):
+    batch_id: str
+    created_at: Optional[str] = None
+    period_min: Optional[str] = None
+    period_max: Optional[str] = None
+    import_mode: Optional[str] = None
+    periods: List[str] = Field(default_factory=list)
+
+
+class DsnCoverageResponse(BaseModel):
+    company_id: str
+    dsn_sync_mode: str
+    status: str
+    expected_last_period: str
+    last_period: Optional[str] = None
+    last_import_at: Optional[str] = None
+    months_covered: List[str] = Field(default_factory=list)
+    gaps: List[str] = Field(default_factory=list)
+    timeline: List[DsnCoverageTimelineMonth] = Field(default_factory=list)
+    batch_count: int = 0
+    recent_batches: List[DsnCoverageBatchRef] = Field(default_factory=list)
+    alerts: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class DsnCoverageAdminSummary(BaseModel):
+    late_count: int
+    companies: List[Dict[str, Any]] = Field(default_factory=list)
+    all_companies: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class DsnCoverageMatrixCompany(BaseModel):
+    company_id: str
+    company_name: Optional[str] = None
+    group_name: Optional[str] = None
+    siret: Optional[str] = None
+    dsn_sync_mode: str
+    status: str
+    expected_last_period: str
+    last_period: Optional[str] = None
+    last_import_at: Optional[str] = None
+    gaps_count: int = 0
+    months_covered: List[str] = Field(default_factory=list)
+    timeline: List[DsnCoverageTimelineMonth] = Field(default_factory=list)
+
+
+class DsnCoverageAdminMatrixResponse(BaseModel):
+    year: int
+    companies: List[DsnCoverageMatrixCompany] = Field(default_factory=list)

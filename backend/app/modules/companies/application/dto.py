@@ -5,7 +5,7 @@ Structure cible pour les retours des queries/commands (details+kpis, settings).
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 
 @dataclass
@@ -34,3 +34,4 @@ class CompanyOverviewDto:
     alerts: list
     compliance: Dict[str, Any]
     cdd_ending_within_30_days: int
+    dsn_coverage: Optional[Dict[str, Any]] = None

@@ -18,6 +18,28 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+# Cache : présence des colonnes "fiche salarié" optionnelles (ajoutées par migration).
+# Évite de casser l'insert si la migration d'état civil DSN n'est pas encore appliquée.
+_employee_column_cache: Dict[str, bool] = {}
+
+
+def employee_has_column(column: str) -> bool:
+    """Indique si la colonne existe sur la table employees (résultat mis en cache)."""
+    if column in _employee_column_cache:
+        return _employee_column_cache[column]
+    exists = True
+    try:
+        get_supabase_admin_client().table("employees").select(column).limit(1).execute()
+    except Exception as exc:  # noqa: BLE001 — on n'attrape que l'absence de colonne
+        if "42703" in str(exc) or "does not exist" in str(exc):
+            exists = False
+        else:
+            # Erreur réseau/autre : on ne fait pas de rétention négative
+            return True
+    _employee_column_cache[column] = exists
+    return exists
+
+
 def insert_batch(record: Dict[str, Any]) -> Optional[str]:
     try:
         client = get_supabase_admin_client()
@@ -46,20 +68,93 @@ def get_batch(batch_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def list_batches(limit: int = 50) -> List[Dict[str, Any]]:
+def list_batches(limit: int = 50, status: Optional[str] = None) -> List[Dict[str, Any]]:
+    try:
+        client = get_supabase_admin_client()
+        q = client.table(BATCHES_TABLE).select("*").order("created_at", desc=True).limit(limit)
+        if status:
+            q = q.eq("status", status)
+        resp = q.execute()
+        return resp.data or []
+    except Exception:
+        logger.exception("Liste batches échouée")
+        return []
+
+
+def list_committed_batches(limit: int = 500) -> List[Dict[str, Any]]:
+    return list_batches(limit=limit, status="committed")
+
+
+def list_batches_by_statuses(statuses: List[str], limit: int = 100) -> List[Dict[str, Any]]:
     try:
         client = get_supabase_admin_client()
         resp = (
             client.table(BATCHES_TABLE)
             .select("*")
+            .in_("status", statuses)
             .order("created_at", desc=True)
             .limit(limit)
             .execute()
         )
         return resp.data or []
     except Exception:
-        logger.exception("Liste batches échouée")
+        logger.exception("Liste batches par statuts échouée")
         return []
+
+
+def list_companies_with_dsn_mode() -> List[Dict[str, Any]]:
+    try:
+        client = get_supabase_admin_client()
+        companies = (
+            client.table("companies")
+            .select(
+                "id, company_name, siret, siren, dsn_sync_mode, "
+                "paie_occurrence, paie_jour_de_fin, group_id, is_active"
+            )
+            .order("company_name")
+            .execute()
+        ).data or []
+        groups = (
+            client.table("company_groups").select("id, group_name").execute()
+        ).data or []
+        group_names = {str(g["id"]): g.get("group_name") for g in groups}
+        out: List[Dict[str, Any]] = []
+        for c in companies:
+            gid = str(c["group_id"]) if c.get("group_id") else None
+            row = dict(c)
+            row["id"] = str(c["id"])
+            row["group_name"] = group_names.get(gid) if gid else None
+            out.append(row)
+        return out
+    except Exception:
+        logger.exception("Liste entreprises dsn_sync_mode échouée")
+        return []
+
+
+def update_company_dsn_sync_mode(company_id: str, mode: str) -> None:
+    client = get_supabase_admin_client()
+    client.table("companies").update({"dsn_sync_mode": mode}).eq("id", company_id).execute()
+
+
+def update_company_dsn_sync_mode_if_native(company_id: str, mode: str) -> None:
+    try:
+        client = get_supabase_admin_client()
+        resp = (
+            client.table("companies")
+            .select("dsn_sync_mode")
+            .eq("id", company_id)
+            .limit(1)
+            .execute()
+        )
+        row = (resp.data or [None])[0]
+        if not row:
+            return
+        current = (row.get("dsn_sync_mode") or "native").strip().lower()
+        if current in ("", "native", None):
+            client.table("companies").update({"dsn_sync_mode": mode}).eq("id", company_id).execute()
+    except Exception:
+        logger.exception("MAJ conditionnelle dsn_sync_mode %s échouée", company_id)
+        raise
 
 
 def insert_items(items: List[Dict[str, Any]]) -> int:
@@ -134,6 +229,61 @@ def find_company_by_siret(siret: str) -> Optional[Dict[str, Any]]:
     except Exception:
         logger.exception("Recherche entreprise SIRET %s échouée", siret)
         return None
+
+
+def find_company_by_id(company_id: str) -> Optional[Dict[str, Any]]:
+    if not company_id:
+        return None
+    try:
+        client = get_supabase_admin_client()
+        resp = (
+            client.table("companies")
+            .select("*")
+            .eq("id", company_id)
+            .limit(1)
+            .execute()
+        )
+        return resp.data[0] if resp.data else None
+    except Exception:
+        logger.exception("Recherche entreprise id %s échouée", company_id)
+        return None
+
+
+def list_companies_for_attribution() -> List[Dict[str, Any]]:
+    """
+    Liste les entreprises existantes (avec leur groupe) pour proposer le
+    rattachement manuel d'un import DSN. Lecture seule, super-admin.
+    """
+    try:
+        client = get_supabase_admin_client()
+        companies = (
+            client.table("companies")
+            .select("id, company_name, siret, siren, group_id, is_active")
+            .order("company_name")
+            .execute()
+        ).data or []
+        groups = (
+            client.table("company_groups").select("id, group_name").execute()
+        ).data or []
+        group_names = {str(g["id"]): g.get("group_name") for g in groups}
+        out: List[Dict[str, Any]] = []
+        for c in companies:
+            gid = str(c["group_id"]) if c.get("group_id") else None
+            out.append(
+                {
+                    "id": str(c["id"]),
+                    "company_name": c.get("company_name") or "Entreprise",
+                    "siret": c.get("siret"),
+                    "siren": c.get("siren"),
+                    "group_id": gid,
+                    "group_name": group_names.get(gid) if gid else None,
+                    "is_active": c.get("is_active", True),
+                }
+            )
+        return out
+    except Exception:
+        logger.exception("Liste entreprises pour rattachement échouée")
+        return []
 
 
 def find_employee_by_nir(company_id: str, nir: str) -> Optional[Dict[str, Any]]:

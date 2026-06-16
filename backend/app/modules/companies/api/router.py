@@ -102,6 +102,7 @@ def get_company_overview(current_user: User = Depends(get_current_user)):
             alerts=result.alerts,
             compliance=result.compliance,
             cdd_ending_within_30_days=result.cdd_ending_within_30_days,
+            dsn_coverage=result.dsn_coverage,
         )
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))

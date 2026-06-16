@@ -79,6 +79,10 @@ class CompanyDetailsUpdate(BaseModel):
     adresse_ville: Optional[str] = None
     nom_signataire_rh: Optional[str] = None
     qualite_signataire_rh: Optional[str] = None
+    dsn_sync_mode: Optional[str] = Field(
+        None,
+        description="external | native | transition — source paie pour alertes DSN",
+    )
 
     def to_update_dict(self) -> Dict[str, Any]:
         return self.model_dump(exclude_none=True)

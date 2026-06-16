@@ -82,6 +82,18 @@ def get_company_overview(company_id: str, current_user: Any) -> CompanyOverviewD
         0,
     )
 
+    dsn_coverage: Optional[Dict[str, Any]] = None
+    try:
+        from app.modules.dsn_import.application.coverage import (
+            compute_coverage,
+            merge_dsn_alerts_into_overview,
+        )
+
+        dsn_coverage = compute_coverage(company)
+        alerts = merge_dsn_alerts_into_overview(alerts, dsn_coverage)
+    except Exception:
+        pass
+
     return CompanyOverviewDto(
         demographics=demographics,
         movements=movements,
@@ -89,6 +101,7 @@ def get_company_overview(company_id: str, current_user: Any) -> CompanyOverviewD
         alerts=alerts,
         compliance=compliance,
         cdd_ending_within_30_days=int(cdd_ending),
+        dsn_coverage=dsn_coverage,
     )
 
 

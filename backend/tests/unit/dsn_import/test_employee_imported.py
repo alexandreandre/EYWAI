@@ -30,7 +30,7 @@ def employee_payload():
         "classification_conventionnelle": {},
         "elements_variables": {},
         "specificites_paie": {"mutuelle": {"adhesion": False}, "prevoyance": {"adhesion": False}},
-        "employment_status": "en_onboarding",
+        "employment_status": "actif",
     }
 
 
@@ -40,12 +40,12 @@ def test_create_employee_imported_no_auth(employee_payload):
         repo.create.return_value = {
             "id": "emp-1",
             "employee_folder_name": "MARTIN_Jean",
-            "employment_status": "en_onboarding",
+            "employment_status": "actif",
             "user_id": None,
         }
         row = create_employee_imported(employee_payload, company_id)
-        assert row["employment_status"] == "en_onboarding"
+        assert row["employment_status"] == "actif"
         repo.create.assert_called_once()
         call_data = repo.create.call_args[0][0]
         assert call_data.get("user_id") is None
-        assert call_data.get("employment_status") == "en_onboarding"
+        assert call_data.get("employment_status") == "actif"

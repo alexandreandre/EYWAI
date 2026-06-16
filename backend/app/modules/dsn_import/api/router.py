@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
-from app.modules.dsn_import.api.dependencies import verify_super_admin
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
+from app.modules.dsn_import.api.dependencies import (
+    verify_super_admin,
+    verify_super_admin_or_company_access,
+)
 from app.modules.dsn_import.application import service
 from app.modules.dsn_import.schemas.requests import (
     ActivateImportedEmployeeBody,
@@ -19,6 +22,12 @@ from app.modules.dsn_import.schemas.responses import (
     DsnImportBatchListResponse,
     DsnImportBatchSummary,
     DsnImportCommitStartResponse,
+    DsnImportCompany,
+    DsnImportCompanyListResponse,
+    DsnCoverageAdminSummary,
+    DsnCoverageAdminMatrixResponse,
+    DsnCoverageResponse,
+    DsnImportItemPreview,
     DsnImportParseResponse,
     DsnImportRevalidateResponse,
 )
@@ -29,6 +38,9 @@ router = APIRouter(prefix="/api/dsn-import", tags=["Import DSN"])
 @router.post("/parse", response_model=DsnImportParseResponse)
 async def parse_dsn_files(
     files: List[UploadFile] = File(...),
+    import_mode: Optional[str] = Query(default="onboarding"),
+    target_company_id: Optional[str] = Query(default=None),
+    intended_period: Optional[str] = Query(default=None),
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ) -> DsnImportParseResponse:
     """Upload et analyse de un ou plusieurs fichiers DSN."""
@@ -43,11 +55,89 @@ async def parse_dsn_files(
         payloads.append((f.filename or "dsn.txt", content))
 
     try:
-        result = service.parse_and_stage(payloads, uploaded_by=str(super_admin.get("user_id")))
+        result = service.parse_and_stage(
+            payloads,
+            uploaded_by=str(super_admin.get("user_id")),
+            import_mode=import_mode,
+            target_company_id=target_company_id,
+            intended_period=intended_period,
+        )
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
     return DsnImportParseResponse(**result)
+
+
+@router.get("/coverage", response_model=DsnCoverageResponse)
+async def get_dsn_coverage(
+    ctx: Dict[str, Any] = Depends(verify_super_admin_or_company_access),
+) -> DsnCoverageResponse:
+    """Couverture DSN (mois importés, trous, statut) pour une entreprise."""
+    company_id = str(ctx["company_id"])
+    try:
+        data = service.get_company_coverage(company_id)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Entreprise introuvable.") from None
+    return DsnCoverageResponse(**data)
+
+
+@router.get("/coverage/admin-summary", response_model=DsnCoverageAdminSummary)
+async def get_dsn_admin_summary(
+    _super_admin: Dict[str, Any] = Depends(verify_super_admin),
+) -> DsnCoverageAdminSummary:
+    """Entreprises en retard d'import DSN (super-admin)."""
+    data = service.get_admin_late_summary()
+    return DsnCoverageAdminSummary(**data)
+
+
+@router.get("/coverage/admin-matrix", response_model=DsnCoverageAdminMatrixResponse)
+async def get_dsn_admin_matrix(
+    year: Optional[int] = Query(default=None),
+    _super_admin: Dict[str, Any] = Depends(verify_super_admin),
+) -> DsnCoverageAdminMatrixResponse:
+    """Matrice couverture DSN (entreprises × mois) pour une année."""
+    from datetime import date
+
+    y = year if year is not None else date.today().year
+    if y < 2000 or y > 2100:
+        raise HTTPException(status_code=400, detail="Année invalide.")
+    data = service.get_admin_coverage_matrix(y)
+    return DsnCoverageAdminMatrixResponse(**data)
+
+
+@router.get("/batches/pending", response_model=DsnImportBatchListResponse)
+async def list_pending_import_batches(
+    limit: int = 20,
+    _super_admin: Dict[str, Any] = Depends(verify_super_admin),
+) -> DsnImportBatchListResponse:
+    rows = service.list_pending_batches(limit=limit)
+    batches = [
+        DsnImportBatchSummary(
+            id=str(r["id"]),
+            uploaded_by=str(r.get("uploaded_by", "")),
+            file_names=r.get("file_names") or [],
+            siren=r.get("siren"),
+            period_min=r.get("period_min"),
+            period_max=r.get("period_max"),
+            status=r.get("status", "parsed"),
+            summary=r.get("summary") or {},
+            created_at=r.get("created_at"),
+            updated_at=r.get("updated_at"),
+        )
+        for r in rows
+    ]
+    return DsnImportBatchListResponse(batches=batches)
+
+
+@router.get("/companies", response_model=DsnImportCompanyListResponse)
+async def list_attribution_companies(
+    _super_admin: Dict[str, Any] = Depends(verify_super_admin),
+) -> DsnImportCompanyListResponse:
+    """Entreprises existantes proposées pour rattacher un import DSN."""
+    rows = service.list_attribution_companies()
+    return DsnImportCompanyListResponse(
+        companies=[DsnImportCompany(**r) for r in rows]
+    )
 
 
 @router.get("/batches", response_model=DsnImportBatchListResponse)
@@ -108,9 +198,13 @@ async def revalidate_import_batch(
     body: DsnImportRevalidateBody,
     _super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ) -> DsnImportRevalidateResponse:
-    """Recalcule anomalies après éditions preview (SIRET, NIR, etc.)."""
+    """Recalcule anomalies après éditions preview (SIRET, NIR, rattachement…)."""
     try:
-        result = service.revalidate_preview(batch_id, payload_edits=body.payload_edits)
+        result = service.revalidate_preview(
+            batch_id,
+            payload_edits=body.payload_edits,
+            target_company_id=body.target_company_id,
+        )
     except LookupError:
         raise HTTPException(status_code=404, detail="Batch introuvable.") from None
 
@@ -118,6 +212,7 @@ async def revalidate_import_batch(
         anomalies=[DsnImportAnomaly(**a) for a in result.get("anomalies") or []],
         can_commit=bool(result.get("can_commit")),
         summary=result.get("summary") or {},
+        items=[DsnImportItemPreview(**it) for it in result.get("items") or []],
     )
 
 
@@ -138,7 +233,12 @@ async def commit_import_batch(
     """
     try:
         should_launch = service.begin_commit(
-            batch_id, overrides=body.overrides, payload_edits=body.payload_edits
+            batch_id,
+            overrides=body.overrides,
+            payload_edits=body.payload_edits,
+            target_company_id=body.target_company_id,
+            import_mode=body.import_mode,
+            replace_existing_periods=body.replace_existing_periods,
         )
     except LookupError:
         raise HTTPException(status_code=404, detail="Batch introuvable.") from None
@@ -151,6 +251,7 @@ async def commit_import_batch(
             batch_id,
             body.overrides,
             body.payload_edits,
+            body.target_company_id,
         )
 
     return DsnImportCommitStartResponse(status="committing", batch_id=batch_id)

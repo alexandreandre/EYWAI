@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 from app.core.database import get_supabase_admin_client
 from app.core.logging import get_logger
 from app.modules.company_groups.infrastructure.repository import CompanyGroupRepository
-from app.modules.dsn_import.application.cumuls import write_cumuls_file
+from app.modules.dsn_import.application.cumuls import write_cumuls_file, rebuild_cumuls_with_previous_on_disk
 from app.modules.dsn_import.infrastructure import repository as repo
 from app.modules.employees.application.commands import create_employee_imported, update_employee
 from app.modules.employees.infrastructure.repository import EmployeeRepository
@@ -54,11 +54,15 @@ def commit_batch(
     batch_id: str,
     overrides: Optional[Dict[str, str]] = None,
     payload_edits: Optional[Dict[str, Dict[str, Any]]] = None,
+    target_company_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Exécute le commit d'un batch previewed.
     overrides : {source_ref: action} où action in create|update|skip
     payload_edits : {source_ref: {champ: valeur}} modifications utilisateur
+    target_company_id : rattachement manuel à une entreprise existante. Si
+        fourni, l'import est attaché à cette entreprise (et son groupe) au lieu
+        de créer/résoudre une entreprise via le SIRET de la DSN.
     """
     batch = repo.get_batch(batch_id)
     if not batch:
@@ -70,13 +74,27 @@ def commit_batch(
     overrides = overrides or {}
     payload_edits = payload_edits or {}
 
+    # Rattachement manuel : on résout l'entreprise cible une seule fois.
+    target_company = (
+        repo.find_company_by_id(target_company_id) if target_company_id else None
+    )
+    if target_company_id and not target_company:
+        raise ValueError("Entreprise de rattachement introuvable")
+    target_cid = str(target_company["id"]) if target_company else None
+    target_group_id = (
+        str(target_company["group_id"])
+        if target_company and target_company.get("group_id")
+        else None
+    )
+
     # Index résolutions
-    group_id: Optional[str] = None
+    group_id: Optional[str] = target_group_id
     company_by_siret: Dict[str, str] = {}
     employee_by_ref: Dict[str, Dict[str, Any]] = {}
     stats = {"created": 0, "updated": 0, "skipped": 0, "failed": 0}
     errors: List[str] = []
     imported_employees: List[Dict[str, Any]] = []
+    periods_committed: set = set()
 
     ordered_types = ["group", "establishment", "collective_agreement", "employee", "cumul"]
     items_sorted = sorted(
@@ -134,14 +152,31 @@ def commit_batch(
         try:
             target_id = None
             if item_type == "group":
-                target_id, created = _commit_group(payload, action)
-                stats["created" if created else "updated"] += 1
-                group_id = target_id
+                if target_company is not None:
+                    # Rattachement : pas de création de groupe, on réutilise celui
+                    # de l'entreprise cible (peut être None).
+                    target_id = target_group_id
+                    group_id = target_group_id
+                    action = "skip"
+                    stats["skipped"] += 1
+                else:
+                    target_id, created = _commit_group(payload, action)
+                    stats["created" if created else "updated"] += 1
+                    group_id = target_id
             elif item_type == "establishment":
-                target_id, created = _commit_establishment(payload, group_id, action)
-                stats["created" if created else "updated"] += 1
-                if payload.get("siret"):
-                    company_by_siret[payload["siret"]] = target_id
+                if target_company is not None:
+                    # Rattachement : on attache l'import à l'entreprise existante
+                    # sans écraser ses informations curées.
+                    target_id = target_cid
+                    if payload.get("siret"):
+                        company_by_siret[payload["siret"]] = target_cid
+                    action = "update"
+                    stats["updated"] += 1
+                else:
+                    target_id, created = _commit_establishment(payload, group_id, action)
+                    stats["created" if created else "updated"] += 1
+                    if payload.get("siret"):
+                        company_by_siret[payload["siret"]] = target_id
             elif item_type == "collective_agreement":
                 _commit_collective_agreement(payload, company_by_siret)
                 stats["updated"] += 1
@@ -165,12 +200,15 @@ def commit_batch(
                     )
             elif item_type == "cumul":
                 _commit_cumul(payload, company_by_siret, employee_by_ref)
+                period = payload.get("period")
+                if period:
+                    periods_committed.add(str(period))
                 stats["updated"] += 1
 
             repo.update_item(
                 item_id,
                 {
-                    "status": "committed",
+                    "status": "skipped" if action == "skip" else "committed",
                     "action": action,
                     "target_id": target_id,
                 },
@@ -182,14 +220,19 @@ def commit_batch(
             stats["failed"] += 1
 
     status = "committed" if not errors else "failed"
+    import_mode = summary_state.get("import_mode")
     report = {
         "stats": stats,
         "errors": errors,
         "group_id": group_id,
         "companies": company_by_siret,
         "imported_employees": imported_employees,
+        "target_company_id": target_cid,
     }
     summary_state["commit_report"] = report
+    summary_state["periods_committed"] = sorted(periods_committed)
+    if import_mode:
+        summary_state["import_mode"] = import_mode
     summary_state["commit_progress"] = {
         "done": total,
         "total": total,
@@ -202,7 +245,21 @@ def commit_batch(
         batch_id,
         {"status": status, "summary": summary_state},
     )
+    if status == "committed":
+        _mark_companies_dsn_transition(set(company_by_siret.values()), target_cid)
     return report
+
+
+def _mark_companies_dsn_transition(company_ids: set, target_cid: Optional[str]) -> None:
+    """Passe en transition les entreprises qui reçoivent un import DSN (historique visible)."""
+    ids = {str(cid) for cid in company_ids if cid}
+    if target_cid:
+        ids.add(str(target_cid))
+    for cid in ids:
+        try:
+            repo.update_company_dsn_sync_mode_if_native(cid, "transition")
+        except Exception:
+            logger.exception("MAJ dsn_sync_mode entreprise %s échouée", cid)
 
 
 def _commit_group(payload: Dict[str, Any], action: str) -> tuple[str, bool]:
@@ -269,6 +326,7 @@ def _commit_establishment(
         return cid, False
 
     insert_data.setdefault("is_active", True)
+    insert_data.setdefault("dsn_sync_mode", "transition")
     resp = client.table("companies").insert(insert_data).execute()
     if not resp.data:
         raise RuntimeError(f"Création entreprise {siret} échouée")
@@ -322,6 +380,12 @@ def _commit_employee(
         and v is not None
     }
 
+    # Colonnes optionnelles (état civil DSN) : on ne les envoie que si la migration
+    # les a créées, sinon l'insert échouerait (column does not exist).
+    for optional_col in ("sexe", "nom_usage"):
+        if optional_col in clean_payload and not repo.employee_has_column(optional_col):
+            clean_payload.pop(optional_col, None)
+
     idcc = payload.get("collective_agreement_idcc")
     if idcc:
         agreement_id = repo.resolve_collective_agreement_id(idcc)
@@ -362,4 +426,9 @@ def _commit_cumul(
     if not emp or not emp.get("employee_folder_name"):
         raise RuntimeError(f"Salarié NIR {nir} introuvable pour cumuls")
 
-    write_cumuls_file(str(emp["employee_folder_name"]), month, document)
+    folder_name = str(emp["employee_folder_name"])
+    month_totals = payload.get("month_totals") or {}
+    document = rebuild_cumuls_with_previous_on_disk(
+        folder_name, month, month_totals, document
+    )
+    write_cumuls_file(folder_name, month, document)

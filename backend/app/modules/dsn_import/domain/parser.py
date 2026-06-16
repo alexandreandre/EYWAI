@@ -44,13 +44,18 @@ from app.modules.dsn_import.domain.rubriques import (
     R_S21_COT_TAUX_SAL,
     R_S21_CTR_DATE_DEBUT,
     R_S21_CTR_DATE_FIN,
+    R_S21_CTR_DISPOSITIF,
     R_S21_CTR_IDCC,
     R_S21_CTR_LIBELLE_EMPLOI,
     R_S21_CTR_MODALITE_TEMPS,
     R_S21_CTR_NATURE,
+    R_S21_CTR_NUMERO,
     R_S21_CTR_PCS,
+    R_S21_CTR_POSITION,
     R_S21_CTR_QUOTITE,
+    R_S21_CTR_QUOTITE_REF,
     R_S21_CTR_STATUT,
+    R_S21_CTR_UNITE_QUOTITE,
     R_S21_ENT_CP,
     R_S21_ENT_NAF,
     R_S21_ENT_NIC_SIEGE,
@@ -82,6 +87,7 @@ from app.modules.dsn_import.domain.rubriques import (
     R_S21_IND_NOM_LEGACY,
     R_S21_IND_NOM_USAGE,
     R_S21_IND_NTT,
+    R_S21_IND_SEXE,
     R_S21_IND_NATIONALITE_LEGACY,
     R_S21_IND_PRENOM,
     R_S21_IND_PRENOM_LEGACY,
@@ -99,9 +105,14 @@ from app.modules.dsn_import.domain.rubriques import (
     R_S21_ACT_UNITE,
     R_S21_VER_DATE,
     R_S21_VER_NET_FISCAL,
+    R_S21_VER_NET_VERSE,
     R_S21_VER_NUMERO,
     R_S21_VER_PAS,
+    R_S21_VER_PAS_ASSIETTE,
+    R_S21_VER_PAS_ID,
     R_S21_VER_PAS_LEGACY,
+    R_S21_VER_PAS_TAUX,
+    R_S21_VER_PAS_TYPE,
 )
 from app.shared.dsn_validation import build_siret_from_siren_nic
 
@@ -415,6 +426,8 @@ class _ParseContext:
             ind.rubriques[rubrique] = valeur
         elif rubrique == R_S21_IND_NOM_USAGE:
             self._ensure_individu().nom_usage = valeur
+        elif rubrique == R_S21_IND_SEXE:
+            self._ensure_individu().sexe = valeur.strip()
         elif rubrique == R_S21_IND_PRENOM:
             self._ensure_individu().prenom = valeur
         elif rubrique == R_S21_IND_NAISSANCE:
@@ -470,20 +483,40 @@ class _ParseContext:
             self._ensure_contrat().date_debut = valeur
         elif rubrique == R_S21_CTR_DATE_FIN:
             self._ensure_contrat().date_fin = valeur
+        elif rubrique == R_S21_CTR_DISPOSITIF:
+            self._ensure_contrat().dispositif = valeur.strip()
+        elif rubrique == R_S21_CTR_NUMERO:
+            self._ensure_contrat().numero_contrat = valeur.strip()
         elif rubrique == R_S21_CTR_IDCC:
             self._ensure_contrat().idcc = valeur
+        elif rubrique == R_S21_CTR_POSITION:
+            self._ensure_contrat().position_conv = valeur.strip()
         elif rubrique == R_S21_CTR_MODALITE_TEMPS:
-            self._ensure_contrat().modalite_temps = valeur
+            self._ensure_contrat().modalite_temps = valeur.strip()
         elif rubrique == R_S21_CTR_QUOTITE:
             self._ensure_contrat().quotite = valeur
+        elif rubrique == R_S21_CTR_QUOTITE_REF:
+            self._ensure_contrat().quotite_reference = valeur
+        elif rubrique == R_S21_CTR_UNITE_QUOTITE:
+            self._ensure_contrat().unite_quotite = valeur.strip()
         elif rubrique == R_S21_CTR_LIBELLE_EMPLOI:
             self._ensure_contrat().libelle_emploi = valeur
         elif rubrique == R_S21_VER_DATE:
             self._ensure_versement().date_versement = valeur
         elif rubrique == R_S21_VER_NET_FISCAL:
             self._ensure_versement().net_fiscal = _float_val(valeur)
+        elif rubrique == R_S21_VER_NET_VERSE:
+            self._ensure_versement().net_verse = _float_val(valeur)
         elif rubrique == R_S21_VER_PAS:
             self._ensure_versement().pas = _float_val(valeur)
+        elif rubrique == R_S21_VER_PAS_TAUX:
+            self._ensure_versement().pas_taux = _float_val(valeur)
+        elif rubrique == R_S21_VER_PAS_TYPE:
+            self._ensure_versement().pas_type = valeur.strip()
+        elif rubrique == R_S21_VER_PAS_ID:
+            self._ensure_versement().pas_identifiant = valeur.strip()
+        elif rubrique == R_S21_VER_PAS_ASSIETTE:
+            self._ensure_versement().montant_soumis_pas = _float_val(valeur)
         elif rubrique == R_S21_VER_PAS_LEGACY:
             if self.dsn_format == "legacy":
                 self._ensure_versement().pas = _float_val(valeur)

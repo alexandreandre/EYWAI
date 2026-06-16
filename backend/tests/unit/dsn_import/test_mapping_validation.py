@@ -43,7 +43,7 @@ def test_map_employee_contract_type():
     payload = map_employee_payload(ind, dsn.etablissement, dsn.etablissement.siret)
     assert payload["contract_type"] == "CDI"
     assert payload["statut"] == "Cadre"
-    assert payload["employment_status"] == "en_onboarding"
+    assert payload["employment_status"] == "actif"
 
 
 def test_apply_legal_name_targets_company_not_group():

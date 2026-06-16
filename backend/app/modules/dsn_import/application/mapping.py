@@ -14,8 +14,9 @@ from app.modules.dsn_import.domain.normalize import (
     build_address_dict,
     flatten_company_address,
     map_contract_type,
+    map_sexe,
     map_statut_cadre,
-    map_temps_partiel,
+    map_temps_partiel_dsn,
     normalize_date_dsn,
 )
 from app.modules.dsn_import.application.cumuls import extract_monthly_totals
@@ -235,20 +236,59 @@ def _estimate_brut_from_contrat(contrat: ContratBlock) -> float:
     return extract_monthly_totals(stub).get("brut", 0.0)
 
 
+def _extract_pas(contrat: ContratBlock) -> Dict[str, Any]:
+    """Reconstitue le prélèvement à la source depuis le dernier versement DSN.
+
+    On retient le versement le plus récent porteur d'un taux PAS afin d'initialiser
+    `specificites_paie.prelevement_a_la_source.taux` (consommé par le moteur de paie).
+    """
+    candidates = [v for v in contrat.versements if v.pas_taux or v.pas or v.montant_soumis_pas]
+    if not candidates:
+        return {}
+
+    def _sort_key(ver: Any) -> str:
+        d = (ver.date_versement or "").replace("-", "").replace("/", "")
+        if len(d) == 8 and d.isdigit():
+            return f"{d[4:8]}{d[2:4]}{d[0:2]}"
+        return d
+
+    ver = max(candidates, key=_sort_key)
+    pas: Dict[str, Any] = {}
+    if ver.pas_taux:
+        pas["taux"] = round(ver.pas_taux, 4)
+    if ver.pas_type:
+        pas["type_taux"] = ver.pas_type
+    if ver.pas_identifiant:
+        pas["identifiant_taux"] = ver.pas_identifiant
+    if ver.montant_soumis_pas:
+        pas["assiette_dsn"] = round(ver.montant_soumis_pas, 2)
+    if ver.pas:
+        pas["montant_dsn"] = round(ver.pas, 2)
+    return pas
+
+
 def map_employee_payload(
     ind: IndividuBlock,
     etab: EtablissementBlock,
     siret: str,
 ) -> Dict[str, Any]:
     contrat = ind.contrats[0] if ind.contrats else ContratBlock()
-    is_tp, heures = map_temps_partiel(contrat.modalite_temps, contrat.quotite)
+    is_tp, heures = map_temps_partiel_dsn(
+        contrat.modalite_temps,
+        contrat.unite_quotite,
+        contrat.quotite,
+        contrat.quotite_reference,
+    )
     brut = _estimate_brut_from_contrat(contrat)
     hire = normalize_date_dsn(contrat.date_debut) or normalize_date_dsn(contrat.rubriques.get("S21.G00.40.001", ""))
     end = normalize_date_dsn(contrat.date_fin)
 
     email_placeholder = _placeholder_email(ind, siret)
+    contract_type = map_contract_type(contrat.nature)
+    pas = _extract_pas(contrat)
+    sexe = map_sexe(ind.sexe)
 
-    return {
+    payload: Dict[str, Any] = {
         "first_name": ind.prenom,
         "last_name": ind.nom,
         "email": email_placeholder,
@@ -261,7 +301,7 @@ def map_employee_payload(
         "adresse": build_address_dict(ind.adresse_rue, ind.adresse_cp, ind.adresse_ville),
         "coordonnees_bancaires": {"iban": "", "bic": ""},
         "hire_date": hire,
-        "contract_type": map_contract_type(contrat.nature),
+        "contract_type": contract_type,
         "contract_end_date": end,
         "statut": map_statut_cadre(contrat.statut),
         "job_title": contrat.libelle_emploi or contrat.pcs or "Salarié",
@@ -275,18 +315,40 @@ def map_employee_payload(
         "classification_conventionnelle": {
             "idcc": contrat.idcc,
             "pcs": contrat.pcs,
+            "libelle_emploi": contrat.libelle_emploi or None,
+            "statut_categoriel": map_statut_cadre(contrat.statut),
+            "code_statut_dsn": contrat.statut or None,
+            "position": contrat.position_conv or None,
+            "dispositif_politique_publique": contrat.dispositif or None,
+            "numero_contrat_dsn": contrat.numero_contrat or None,
         },
         "elements_variables": {},
         "specificites_paie": {
             "prevoyance": {"adhesion": False},
             "mutuelle": {"adhesion": False},
-            "prelevement_a_la_source": {},
+            "prelevement_a_la_source": pas,
         },
         "collective_agreement_idcc": contrat.idcc,
-        "employment_status": "en_onboarding",
+        # Salariés en activité chez l'établisseur externe — pas le flux onboarding EYWAI.
+        "employment_status": "actif",
         "import_source": "dsn",
         "_needs_review": bool(compute_review_reasons(ind, brut)),
     }
+
+    # Champs d'état civil persistés uniquement si la migration correspondante est
+    # appliquée (cf. _commit_employee qui filtre selon les colonnes réelles).
+    if sexe:
+        payload["sexe"] = sexe
+    if ind.nom_usage:
+        payload["nom_usage"] = ind.nom_usage.strip()
+
+    # Alternance : la date de début d'exécution est le fait générateur du régime
+    # apprenti (PAS, cotisations). On l'initialise sur la date de début du contrat.
+    if contract_type in ("apprentissage", "professionnalisation") and hire:
+        payload["date_debut_execution"] = hire
+        payload["date_conclusion_contrat"] = hire
+
+    return payload
 
 
 def employee_review_fields(ind: IndividuBlock, brut: float) -> Dict[str, Any]:

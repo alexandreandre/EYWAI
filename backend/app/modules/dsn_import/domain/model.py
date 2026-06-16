@@ -36,7 +36,12 @@ class RemunerationBlock:
 class VersementBlock:
     date_versement: str = ""
     net_fiscal: float = 0.0
+    net_verse: float = 0.0
     pas: float = 0.0
+    pas_taux: float = 0.0
+    pas_type: str = ""
+    pas_identifiant: str = ""
+    montant_soumis_pas: float = 0.0
     remunerations: List[RemunerationBlock] = field(default_factory=list)
     cotisations: List[CotisationBlock] = field(default_factory=list)
     rubriques: Dict[str, str] = field(default_factory=dict)
@@ -52,6 +57,11 @@ class ContratBlock:
     idcc: str = ""
     modalite_temps: str = ""
     quotite: str = ""
+    quotite_reference: str = ""
+    unite_quotite: str = ""
+    dispositif: str = ""
+    numero_contrat: str = ""
+    position_conv: str = ""
     libelle_emploi: str = ""
     rubriques: Dict[str, str] = field(default_factory=dict)
     versements: List[VersementBlock] = field(default_factory=list)
@@ -62,6 +72,7 @@ class IndividuBlock:
     nom: str = ""
     prenom: str = ""
     nom_usage: str = ""
+    sexe: str = ""
     nir: str = ""
     matricule: str = ""
     ntt: str = ""

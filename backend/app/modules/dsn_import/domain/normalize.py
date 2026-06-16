@@ -37,7 +37,7 @@ def map_statut_cadre(statut_code: str) -> str:
 
 
 def map_temps_partiel(modalite: str, quotite: str) -> tuple[bool, float]:
-    """Retourne (is_temps_partiel, duree_hebdomadaire)."""
+    """Retourne (is_temps_partiel, duree_hebdomadaire) — interprétation simplifiée (quotité en %)."""
     mod = (modalite or "").strip()
     try:
         q = float((quotite or "100").replace(",", "."))
@@ -47,6 +47,66 @@ def map_temps_partiel(modalite: str, quotite: str) -> tuple[bool, float]:
     is_tp = mod in ("10", "12", "13", "14", "15") or q < 100
     heures = round(35.0 * q / 100.0, 2) if q else 35.0
     return is_tp, heures
+
+
+def _to_float(value: str) -> float:
+    try:
+        return float((value or "").replace(",", ".").strip())
+    except (ValueError, AttributeError):
+        return 0.0
+
+
+def map_temps_partiel_dsn(
+    modalite: str,
+    unite_quotite: str,
+    quotite: str,
+    quotite_reference: str,
+) -> tuple[bool, float]:
+    """Détermine (is_temps_partiel, duree_hebdomadaire) depuis les rubriques contrat P26.
+
+    - Modalité S21.G00.40.014 : 10 = temps plein, 20/21 = temps partiel.
+    - Quotité contrat .013 vs quotité de référence entreprise .012 : si la quotité
+      du contrat est inférieure à la référence, c'est un temps partiel.
+    - Unité .011 : 10 = heures (mensualisées), 12 = forfait jours.
+    Les quotités horaires DSN sont mensuelles (ex. 151,67) ; on les convertit en
+    durée hebdomadaire (× 12 / 52). Sans information exploitable, on retombe sur le
+    temps plein 35 h pour rester cohérent avec le comportement historique.
+    """
+    mod = (modalite or "").strip()
+    unite = (unite_quotite or "").strip()
+    q_contrat = _to_float(quotite)
+    q_ref = _to_float(quotite_reference)
+
+    if mod == "20" or mod == "21":
+        is_tp = True
+    elif mod == "10":
+        is_tp = False
+    elif q_contrat > 0 and q_ref > 0:
+        is_tp = q_contrat < q_ref - 0.01
+    else:
+        is_tp = False
+
+    # Conversion en heures hebdomadaires (seulement si quotité exprimée en heures)
+    heures = 35.0
+    if unite in ("", "10", "21") and q_contrat > 0:
+        # Quotité mensuelle (> 60 h) -> hebdo ; sinon déjà hebdomadaire
+        heures = round(q_contrat * 12.0 / 52.0, 2) if q_contrat > 60 else round(q_contrat, 2)
+    elif unite in ("", "10", "21") and q_ref > 0 and not is_tp:
+        heures = round(q_ref * 12.0 / 52.0, 2) if q_ref > 60 else round(q_ref, 2)
+
+    if heures <= 0:
+        heures = 35.0
+    return is_tp, heures
+
+
+def map_sexe(code: str) -> Optional[str]:
+    """Code sexe DSN (S21.G00.30.005) -> 'M' / 'F'. 01 = masculin, 02 = féminin."""
+    c = (code or "").strip().upper()
+    if c in ("01", "1", "M", "H"):
+        return "M"
+    if c in ("02", "2", "F"):
+        return "F"
+    return None
 
 
 def build_address_dict(rue: str, cp: str, ville: str) -> Dict[str, Any]:

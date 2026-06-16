@@ -372,7 +372,7 @@ def create_employee_imported(
 ) -> Dict[str, Any]:
     """
     Crée un salarié importé (DSN) sans compte Auth.
-    Statut en_onboarding ; activation / invitation différée.
+    Statut actif par défaut ; activation du compte utilisateur différée.
     """
     first_name = employee_data["first_name"]
     last_name = employee_data["last_name"]
@@ -392,7 +392,7 @@ def create_employee_imported(
         folder_name=folder_name,
     )
     db_insert_data["user_id"] = None
-    db_insert_data["employment_status"] = employee_data.get("employment_status") or "en_onboarding"
+    db_insert_data["employment_status"] = employee_data.get("employment_status") or "actif"
     db_insert_data["email"] = email
 
     new_employee_db = _employee_repository.create(db_insert_data)

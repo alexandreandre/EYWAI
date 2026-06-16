@@ -61,3 +61,7 @@ class CompanyOverviewResponse(BaseModel):
     alerts: List[Dict[str, Any]] = Field(default_factory=list)
     compliance: Dict[str, bool] = Field(default_factory=dict)
     cdd_ending_within_30_days: int = Field(0, description="Nombre de CDD finissant sous 30j")
+    dsn_coverage: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Couverture import DSN (mois couverts, statut, timeline)",
+    )
