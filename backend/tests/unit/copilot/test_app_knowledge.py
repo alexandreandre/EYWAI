@@ -24,7 +24,7 @@ def test_guide_distinguishes_rh_users_from_collaborators():
 def test_guide_covers_employee_loans():
     """Le guide documente le module Prêts employeur (workflow paie et espace collaborateur)."""
     assert "Prêts employeur" in APP_FEATURE_GUIDE
-    assert "⑦ Prêts employeur" in APP_FEATURE_GUIDE
+    assert "⑩ Prêts employeur" in APP_FEATURE_GUIDE
 
 
 def test_guide_covers_salary_advances_and_acomptes():
@@ -34,11 +34,24 @@ def test_guide_covers_salary_advances_and_acomptes():
     assert "acompte sur prime" in APP_FEATURE_GUIDE.lower()
 
 
-def test_guide_workflow_paie_seven_steps():
-    """Le parcours paie couvre les 7 étapes numérotées avant Lancer la paie."""
-    for step in ("①", "②", "③", "④", "⑤", "⑥", "⑦"):
+def test_guide_workflow_paie_ten_steps():
+    """Le parcours paie couvre les 10 étapes numérotées avant Lancer la paie."""
+    for step in ("①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"):
         assert step in APP_FEATURE_GUIDE
     assert "Lancer la paie" in APP_FEATURE_GUIDE
+
+
+def test_guide_covers_ijss_and_contingent_hs():
+    """Le guide documente Suivi IJSS, Contingent HS et Modulation (workflow paie)."""
+    assert "Suivi IJSS / CPAM" in APP_FEATURE_GUIDE
+    assert "Contingent HS" in APP_FEATURE_GUIDE
+    assert "Modulation" in APP_FEATURE_GUIDE
+
+
+def test_guide_covers_participation():
+    """Le guide documente participation côté RH et collaborateur."""
+    assert "Participation & Intéressement" in APP_FEATURE_GUIDE
+    assert "Participation" in APP_FEATURE_GUIDE
 
 
 def test_guide_covers_work_medals():

@@ -64,9 +64,10 @@ ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
 
 — Documents (« Documents ») : explorateur des documents de l'entreprise
   (contrats, avenants, pièces justificatives, bulletins, identifiants de connexion),
-  génération de documents. Pour retrouver les identifiants d'un salarié : ouvrir
-  le dossier « Autres », sélectionner le collaborateur, puis télécharger le PDF
-  « Identifiants de connexion ».
+  génération de documents (contrat, avenant, attestation, fiche de poste si un
+  modèle est configuré dans la bibliothèque). Pour retrouver les identifiants d'un
+  salarié : ouvrir le dossier « Autres », sélectionner le collaborateur, puis
+  télécharger le PDF « Identifiants de connexion ».
 
 — Titres de séjour (« Titres de séjour ») : suivi des échéances et statuts des
   titres de séjour des collaborateurs étrangers.
@@ -109,8 +110,11 @@ ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
   « Bibliothèque de documents » permet d'importer des modèles Word (.docx) pour
   contrats, attestations et fiches de poste (variables au format {{nom}},
   {{prenom}}, {{poste}}, {{missions}}, etc.). L'onglet Paie permet de
-  configurer les médailles du travail (activation, paliers, scan des éligibles)
-  et de valider les dossiers en attente RH.
+  configurer les médailles du travail (activation, paliers, scan des éligibles),
+  valider les dossiers en attente RH, paramétrer le temps de travail (jours
+  fériés, congés/RTT, CP ancienneté, fractionnement CP, modulation 32h/37h,
+  contingent HS, CET) et les variables de paie récurrentes (astreinte, équipe,
+  productivité, modulation).
 
 — Fiche de poste : importer le modèle dans Mon Entreprise → Bibliothèque de
   documents (type « Fiche de poste »), puis générer depuis la fiche Collaborateur
@@ -125,23 +129,30 @@ Le parcours est numéroté et doit être suivi dans l'ordre avant de lancer la p
     « Calendriers » en EYWAI Gestion, mais accessible ici dans le workflow paie).
   ② Congés & Absences → valider / refuser les demandes de congés et absences.
      Pour les arrêts en subrogation : génération automatique de l'attestation de
-     salaire ; lien « Suivi IJSS » vers le rapprochement CPAM.
-  ② bis Suivi IJSS / CPAM (« Suivi IJSS / CPAM », menu EYWAI Paie) : chaque mois,
-     rapprocher les IJSS théoriques (bulletins), les décomptes CPAM (Net-Entreprises
-     ou import fichier) et les virements reçus (import récap compta). Sync bulletins,
-     import virements, sync Net-Entreprises, justifier les écarts, clôturer le mois,
-     export audit Excel.
-  ③ Notes de frais → valider les notes de frais.
-  ④ Primes → saisir les primes, la participation et l'intéressement.
-  ⑤ Saisies sur salaire → saisies-arrêts, pensions alimentaires, ATD.
-  ⑥ Avances & acomptes → valider et verser avances sur salaire, acomptes sur
+     salaire ; lien vers le rapprochement IJSS.
+  ③ Suivi IJSS / CPAM → chaque mois, rapprocher les IJSS théoriques (bulletins),
+     les décomptes CPAM (Net-Entreprises ou import fichier) et les virements reçus
+     (import récap compta). Sync bulletins, import virements, sync Net-Entreprises,
+     justifier les écarts, clôturer le mois, export audit Excel.
+  ④ Contingent HS → suivi du contingent annuel d'heures supplémentaires par
+     salarié (consommation, alertes, repos compensateurs). Paramétrage dans
+     Mon Entreprise → onglet Paie → section Temps de travail.
+  ⑤ Modulation → suivi des soldes d'heures de modulation / annualisation par
+     salarié (heures théoriques vs réelles). Paramétrage dans Mon Entreprise →
+     onglet Paie → section Temps de travail.
+  ⑥ Notes de frais → valider les notes de frais.
+  ⑦ Primes → saisir les primes mensuelles ; sous-onglet « Participation &
+     Intéressement » pour simuler la RSP, lancer une campagne de bulletins
+     d'option et suivre les choix des salariés.
+  ⑧ Saisies sur salaire → saisies-arrêts, pensions alimentaires, ATD.
+  ⑨ Avances & acomptes → valider et verser avances sur salaire, acomptes sur
     salaire et acomptes sur prime (réconciliation possible au moment de la paie).
-  ⑦ Prêts employeur → gérer les prêts en cours, échéanciers et remboursements
+  ⑩ Prêts employeur → gérer les prêts en cours, échéanciers et remboursements
     sur bulletin.
 Une fois les étapes à jour, le bouton « Lancer la paie » génère les bulletins du
 mois.
 
-— Prêts employeur (« Prêts employeur », étape ⑦ du workflow) : création et suivi
+— Prêts employeur (« Prêts employeur », étape ⑩ du workflow) : création et suivi
   des prêts accordés aux salariés (montant, taux, échéancier, remboursements
   déduits en paie). Le collaborateur peut consulter ses prêts dans son espace
   (« Prêts employeur »). La fiche collaborateur (onglet « Primes et autres »)
@@ -183,6 +194,9 @@ ESPACE COLLABORATEUR (barre latérale du salarié)
   sur salaire, un acompte sur salaire (droit du salarié) ou un acompte sur prime.
 — Prêts employeur (« Prêts employeur ») : consulter les prêts accordés par
   l'entreprise et leur échéancier de remboursement.
+— Participation (« Participation ») : consulter et répondre aux bulletins
+  d'option participation / intéressement (choix versement, PEE, mixte) lorsque
+  l'entreprise a lancé une campagne.
 — Mes documents (« Mes documents ») : consulter ses documents RH. Le PDF
   « Identifiants de connexion » (nom d'utilisateur et mot de passe temporaire)
   est dans le dossier « Autres ».
@@ -232,7 +246,7 @@ Sans e-mail, le compte ne peut pas être créé.
 FAQ RH TRANSVERSES
 ================================================================================
 
-— Lancer la paie : suivre le parcours numéroté ① à ⑦ dans EYWAI Paie, puis
+— Lancer la paie : suivre le parcours numéroté ① à ⑩ dans EYWAI Paie, puis
   cliquer sur « Lancer la paie » (disponible une fois les étapes à jour).
 — Avance vs acompte : une avance sur salaire est versée avant le travail ;
   un acompte sur salaire concerne le salaire déjà gagné ; un acompte sur prime
@@ -241,11 +255,19 @@ FAQ RH TRANSVERSES
   collaborateur ; paramétrage et validation des médailles du travail dans
   Mon Entreprise → onglet Paie.
 — Temps de travail (Mon Entreprise → Paie) : section « Temps de travail » avec
-  Jours fériés, RTT (mode forfait-jours cadres), CP ancienneté (presets plasturgie
-  / LEWIS / règles personnalisées), fractionnement CP, modulation 32h/37h,
-  contingent HS. Section « Variables de paie » : règles astreinte, équipe,
-  productivité, modulation → génération dans Primes → « Préparer variables du mois ».
-— Suivi modulation : menu EYWAI Paie → Modulation (solde heures par salarié).
+  Jours fériés, congés/RTT (mode forfait-jours cadres), CP ancienneté (presets
+  plasturgie / LEWIS / règles personnalisées), fractionnement CP, modulation
+  32h/37h, contingent HS, CET (compte épargne-temps). Section « Variables de paie » :
+  règles astreinte, équipe, productivité, modulation → génération dans Primes →
+  « Préparer variables du mois ».
+— Contingent HS : paramétrage Mon Entreprise → Paie ; suivi mensuel EYWAI Paie →
+  Contingent HS.
+— Modulation : paramétrage Mon Entreprise → Paie ; suivi mensuel EYWAI Paie →
+  Modulation (solde heures par salarié).
+— Participation / intéressement : simulation et campagne côté RH dans Primes →
+  sous-onglet « Participation & Intéressement » ; réponse salarié dans
+  « Participation » (espace collaborateur).
+— Suivi IJSS : EYWAI Paie → Suivi IJSS / CPAM (étape ③ du workflow paie).
 — Convention collective : affectée par salarié dans sa fiche (Collaborateurs)
   ou consultée via l'assistant IA pour les questions réglementaires.
 — Multi-entreprises : un gestionnaire RH peut basculer d'entreprise via le

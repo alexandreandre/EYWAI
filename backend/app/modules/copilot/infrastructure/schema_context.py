@@ -20,6 +20,7 @@ Table 'employees': Fiche salarié — source principale effectifs et contrat.
   - last_name (text): Nom de famille.
   - email (text): Email professionnel.
   - hire_date (date): Date d'embauche. Cruciale pour calculer l'ancienneté.
+  - seniority_reference_date (date): Date de référence ancienneté (reprise / accord).
   - date_naissance (date): Date de naissance.
   - contract_type (text): Type de contrat (ex: 'CDI', 'CDD', 'Apprenti').
   - statut (text): Classification (Valeurs: 'Cadre', 'Non-Cadre').
@@ -80,9 +81,89 @@ Table 'absence_requests': Stocke toutes les demandes d'absence des employés.
   - employee_id (uuid, foreign key to employees.id): ID de l'employé.
   - type (text): Type d'absence (Valeurs: 'conge_paye', 'rtt', 'maladie', 'sans_solde').
   - status (text): Statut (Valeurs: 'pending', 'validated', 'rejected', 'cancelled').
+  - subrogation_active (boolean): Subrogation IJSS pour cet arrêt (null = défaut entreprise).
+  - arret_type (text): Type d'arrêt maladie si applicable.
   - selected_days (array of dates): Liste des jours d'absence.
     -- USAGE: Utiliser array_length(selected_days, 1) pour compter le nombre de jours.
     -- USAGE: Pour vérifier si un jour est inclus : '2025-10-20'::date = ANY(selected_days)
+
+---
+Table 'company_leave_settings': Paramètres congés payés et RTT par entreprise.
+  - company_id (uuid, UNIQUE), cp_counting_unit (text: 'ouvrable', 'ouvre')
+  - cp_acquisition_days_per_month (numeric), rtt_annual_days (numeric)
+  - rtt_use_calendar_formula (boolean), rtt_use_forfait_jours_formula (boolean)
+  - rtt_forfait_annual_days (int), rtt_forfait_cp_ouvres_deduction (numeric)
+  - rtt_year_end_reminder_enabled (boolean)
+
+---
+Table 'employee_leave_adjustments': Soldes d'ouverture CP/RTT par salarié et année.
+  - employee_id (uuid), year (int)
+  - cp_n1_opening_balance (numeric), cp_n_opening_balance (numeric)
+  - rtt_opening_balance (numeric), rtt_forfeited_days (numeric)
+
+---
+Table 'salary_certificates': Attestations de salaire (Cerfa) pour arrêts IJSS.
+  - employee_id (uuid), absence_request_id (uuid), company_id (uuid)
+  - transmitted_to_cpam (boolean), transmission_date (timestamptz)
+
+---
+Table 'ijss_tracking_periods': Périodes mensuelles de rapprochement IJSS.
+  - company_id (uuid), period_year (int), period_month (int)
+  - status (text): 'open', 'partial', 'reconciled', 'closed'
+  - expected_total, received_cpam_total, received_bank_total, variance_total (numeric)
+
+---
+Table 'ijss_expected_lines': IJSS théoriques par salarié et période.
+  - period_id (uuid), employee_id (uuid), absence_request_id (uuid)
+  - ijss_theorique (numeric), ijss_subrogees_bulletin (numeric)
+  - line_status (text): 'pending', 'partial', 'ok', 'variance', 'justified'
+
+---
+Table 'ijss_received_lines': IJSS reçues (CPAM, virement, saisie manuelle).
+  - period_id (uuid), employee_id (uuid), source (text: 'cpam_decompte', 'bank_transfer', 'manual')
+  - amount (numeric), match_status (text): 'unmatched', 'matched', 'disputed'
+
+---
+Table 'company_overtime_contingent_settings': Paramètres contingent HS entreprise.
+  - company_id (uuid), legal_cor_contingent_hours (numeric, défaut 220)
+  - management_contingent_hours (numeric), hours_per_rest_day (numeric)
+
+---
+Table 'employee_overtime_adjustments': Solde d'ouverture contingent HS par salarié.
+  - employee_id (uuid), year (int), opening_balance_hours (numeric)
+
+---
+Table 'company_modulation_settings': Paramètres modulation / annualisation.
+  - company_id (uuid), enabled (boolean)
+  - average_weekly_hours, weekly_high_hours, weekly_low_hours (numeric)
+  - high_weeks_per_cycle, low_weeks_per_cycle (int)
+
+---
+Table 'employee_modulation_counters': Compteurs modulation par salarié et année.
+  - employee_id (uuid), year (int)
+  - theoretical_hours, actual_hours, balance_hours (numeric)
+
+---
+Table 'company_cet_settings': Paramètres compte épargne-temps (CET).
+  - company_id (uuid), cet_enabled (boolean), validation_mode (text: 'auto', 'rh')
+
+---
+Table 'employee_cet_movements': Mouvements CET (dépôt HS, retrait congé).
+  - employee_id (uuid), year (int), month (int)
+  - movement_type (text): 'deposit_hs', 'withdraw_rest', 'adjustment'
+  - hours (numeric), status (text): 'pending', 'validated', 'rejected', 'applied_payroll'
+
+---
+Table 'participation_campaigns': Campagnes bulletin d'option participation/intéressement.
+  - company_id (uuid), year (int), status (text): 'draft', 'open', 'closed'
+  - deadline_at (timestamptz), payroll_year (int), payroll_month (int)
+
+---
+Table 'participation_bulletins': Bulletins d'option par salarié et campagne.
+  - campaign_id (uuid), employee_id (uuid), company_id (uuid)
+  - dispositif_type (text): 'participation', 'interessement'
+  - status (text): 'draft', 'sent', 'responded', 'late', 'default_pee'
+  - gross_amount (numeric), choice_type (text)
 
 ---
 Table 'expense_reports': Stocke les notes de frais soumises par les employés.
@@ -177,6 +258,10 @@ Table 'teams': Équipes de l'entreprise.
 ---
 Table 'companies': Entreprises clientes.
   - id (uuid, PK), company_name (text), is_active (boolean), group_id (uuid)
+  - dsn_sync_mode (text): mode synchronisation DSN
+  - service_sante_travail_nom, service_sante_travail_telephone, service_sante_travail_email (text)
+  - service_sante_travail_adresse_rue, service_sante_travail_adresse_code_postal,
+    service_sante_travail_adresse_ville (text)
 
 ---
 Table 'recruitment_jobs': Offres de recrutement.
@@ -276,6 +361,47 @@ Table 'employee_loans': Prêts employeur.
 
 Table 'absence_requests': Demandes d'absence.
   - employee_id, type (conge_paye/rtt/maladie/sans_solde), status, selected_days (array)
+  - subrogation_active (boolean), arret_type (text)
+
+Table 'company_leave_settings': Paramètres CP/RTT entreprise.
+  - company_id, cp_counting_unit, rtt_annual_days, rtt_use_forfait_jours_formula
+
+Table 'employee_leave_adjustments': Soldes ouverture CP/RTT par salarié.
+  - employee_id, year, cp_n_opening_balance, rtt_opening_balance
+
+Table 'ijss_tracking_periods': Rapprochement IJSS mensuel.
+  - company_id, period_year, period_month, status (open/reconciled/closed)
+  - expected_total, received_cpam_total, variance_total
+
+Table 'ijss_expected_lines': IJSS théoriques par salarié.
+  - period_id, employee_id, ijss_theorique, line_status
+
+Table 'salary_certificates': Attestations salaire arrêts maladie.
+  - employee_id, absence_request_id, transmitted_to_cpam
+
+Table 'company_overtime_contingent_settings': Contingent HS entreprise.
+  - company_id, legal_cor_contingent_hours, management_contingent_hours
+
+Table 'employee_overtime_adjustments': Solde ouverture contingent HS.
+  - employee_id, year, opening_balance_hours
+
+Table 'company_modulation_settings': Modulation temps de travail.
+  - company_id, enabled, average_weekly_hours, weekly_high_hours, weekly_low_hours
+
+Table 'employee_modulation_counters': Solde modulation par salarié.
+  - employee_id, year, balance_hours, theoretical_hours, actual_hours
+
+Table 'company_cet_settings': Paramètres CET.
+  - company_id, cet_enabled, validation_mode
+
+Table 'employee_cet_movements': Mouvements CET.
+  - employee_id, year, month, movement_type, hours, status
+
+Table 'participation_campaigns': Campagnes participation/intéressement.
+  - company_id, year, status (draft/open/closed), deadline_at
+
+Table 'participation_bulletins': Bulletins d'option salariés.
+  - campaign_id, employee_id, status, gross_amount, choice_type
 
 Table 'expense_reports': Notes de frais.
   - employee_id, date, amount, type, status (pending/validated/rejected)
