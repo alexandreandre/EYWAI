@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 from app.modules.recruitment.application.cv_text_loader import load_cv_text
+from app.shared.infrastructure.documents.text_extraction import ExtractionMetadata
 
 
 class TestLoadCvText:
@@ -23,6 +24,7 @@ class TestLoadCvText:
         mock_extract.return_value = (
             "Expérience Python développeur senior plus de cinq ans en entreprise",
             "PDF natif",
+            ExtractionMetadata(),
         )
 
         text, status = load_cv_text("https://example.com/cv.pdf?token=abc")

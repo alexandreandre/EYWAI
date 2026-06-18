@@ -5,16 +5,19 @@ get_all_rates(reader) : récupère les lignes via le reader, applique le service
 Reader mocké, pas de DB.
 """
 
-from unittest.mock import MagicMock
-
+from unittest.mock import MagicMock, patch
 
 from app.modules.rates.application.queries import get_all_rates
 
 
+@patch(
+    "app.modules.rates.application.queries.merge_official_urls_into_rates",
+    side_effect=lambda grouped: grouped,
+)
 class TestGetAllRates:
     """Query get_all_rates : délégation au reader puis groupement/formatage."""
 
-    def test_returns_empty_dict_when_reader_returns_empty(self):
+    def test_returns_empty_dict_when_reader_returns_empty(self, _mock_merge):
         """Reader sans lignes → dict vide."""
         reader = MagicMock()
         reader.get_all_active_rows.return_value = []
@@ -22,7 +25,7 @@ class TestGetAllRates:
         assert result == {}
         reader.get_all_active_rows.assert_called_once()
 
-    def test_returns_grouped_and_formatted_when_reader_returns_rows(self):
+    def test_returns_grouped_and_formatted_when_reader_returns_rows(self, _mock_merge):
         """Reader avec lignes → dict groupé par config_key, format sortie (clés API)."""
         reader = MagicMock()
         reader.get_all_active_rows.return_value = [
@@ -48,7 +51,7 @@ class TestGetAllRates:
         assert "created_at" not in out
         reader.get_all_active_rows.assert_called_once()
 
-    def test_selects_best_row_per_config_key(self):
+    def test_selects_best_row_per_config_key(self, _mock_merge):
         """Plusieurs lignes pour une même config_key : la meilleure (version puis created_at) est retenue."""
         reader = MagicMock()
         reader.get_all_active_rows.return_value = [
@@ -76,7 +79,7 @@ class TestGetAllRates:
         assert result["taux_cse"]["version"] == 2
         assert result["taux_cse"]["config_data"] == {"seuil": 20}
 
-    def test_multiple_config_keys_all_present(self):
+    def test_multiple_config_keys_all_present(self, _mock_merge):
         """Plusieurs config_key → toutes présentes en sortie."""
         reader = MagicMock()
         reader.get_all_active_rows.return_value = [
