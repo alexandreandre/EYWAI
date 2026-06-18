@@ -35,8 +35,11 @@ class TestCCRulesServiceBatch:
         )
 
         outcomes = service.extract_batch(priority_only=True, dry_run=True)
-        assert len(outcomes) == 5
-        assert all(o.idcc in {"1486", "1090", "1516", "2098", "0044"} for o in outcomes)
+        assert len(outcomes) == 6
+        assert all(
+            o.idcc in {"1486", "1090", "1516", "2098", "0044", "0292"}
+            for o in outcomes
+        )
         mock_extractor_cls.return_value.extract_from_text.assert_not_called()
 
     @patch("app.modules.collective_agreements.rules.service.CCRulesExtractor")

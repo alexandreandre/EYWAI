@@ -10,6 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from app.modules.absences.application import queries
+from tests.unit.absences.conftest import mock_leave_context
 
 TEST_COMPANY_ID = "company-absences-test"
 
@@ -84,7 +85,10 @@ class TestGetAbsenceRequests:
                     "app.modules.absences.application.queries.get_repos_credits_by_employee_year",
                     return_value={"emp-1": 0.0},
                 ):
-                    result = queries.get_absence_requests(company_id=TEST_COMPANY_ID)
+                    with mock_leave_context():
+                        result = queries.get_absence_requests(
+                            company_id=TEST_COMPANY_ID
+                        )
 
         assert len(result) == 1
         assert "employee" in result[0]
@@ -183,7 +187,8 @@ class TestGetMyAbsenceBalances:
                     "app.modules.absences.application.queries.get_repos_credits_by_employee_year",
                     return_value={"emp-1": 2.0},
                 ):
-                    result = queries.get_my_absence_balances("emp-1")
+                    with mock_leave_context():
+                        result = queries.get_my_absence_balances("emp-1")
 
         assert isinstance(result, list)
         types_found = [b["type"] for b in result]
@@ -268,7 +273,10 @@ class TestGetMyAbsencesPageData:
                         "app.modules.absences.application.queries.get_planned_calendar",
                         return_value=[],
                     ):
-                        result = queries.get_my_absences_page_data("emp-1", 2025, 6)
+                        with mock_leave_context():
+                            result = queries.get_my_absences_page_data(
+                                "emp-1", 2025, 6
+                            )
 
         assert "balances" in result
         assert "calendar_days" in result

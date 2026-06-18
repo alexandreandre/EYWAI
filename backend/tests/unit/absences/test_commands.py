@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.modules.absences.application import commands
+from app.modules.maintenance_settings.schemas.responses import MaintenanceSettings
 
 
 class TestCreateAbsenceRequest:
@@ -268,9 +269,15 @@ class TestUpdateAbsenceRequestStatus:
                     with patch(
                         "app.modules.absences.application.commands.calendar_update_provider"
                     ) as cal:
-                        result = commands.update_absence_request_status(
-                            "req-cp", "validated", current_user_id="user-1"
-                        )
+                        with patch(
+                            "app.modules.absences.application.commands.get_maintenance_settings",
+                            return_value=MaintenanceSettings(
+                                company_id="company-1"
+                            ),
+                        ):
+                            result = commands.update_absence_request_status(
+                                "req-cp", "validated", current_user_id="user-1"
+                            )
 
         assert result["status"] == "validated"
         call_update = repo.update.call_args[0][1]
