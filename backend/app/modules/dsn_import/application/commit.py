@@ -47,7 +47,12 @@ def _apply_workforce_resolutions(
     current_user_id: Optional[str],
 ) -> Dict[str, Any]:
     """Applique les décisions de réconciliation effectifs post-import."""
-    report: Dict[str, Any] = {"closed": [], "ignored": [], "open_exit_deferred": []}
+    report: Dict[str, Any] = {
+        "closed": [],
+        "ignored": [],
+        "open_exit_deferred": [],
+        "acknowledged_new_hires": [],
+    }
     if not resolutions or not company_id:
         return report
 
@@ -67,6 +72,15 @@ def _apply_workforce_resolutions(
                     "gap_id": gap_id,
                     "employee_id": employee_id,
                     "ignore_reason": res.get("ignore_reason"),
+                }
+            )
+            continue
+        if action == "acknowledge_new_hire":
+            report["acknowledged_new_hires"].append(
+                {
+                    "gap_id": gap_id,
+                    "employee_id": employee_id,
+                    "hire_date": res.get("hire_date"),
                 }
             )
             continue

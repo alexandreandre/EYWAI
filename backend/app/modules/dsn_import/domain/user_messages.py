@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
 
@@ -124,20 +124,33 @@ def workforce_reconciliation_summary_anomaly(
     company_name: str,
     gap_count: int,
     period: Optional[str],
+    gap_counts_by_type: Optional[Dict[str, int]] = None,
 ) -> Dict[str, Any]:
     period_label = f" ({period})" if period else ""
+    counts = gap_counts_by_type or {}
+    parts: List[str] = []
+    if counts.get("new_hire_not_in_dsn"):
+        n = counts["new_hire_not_in_dsn"]
+        parts.append(f"{n} embauche(s) récente(s)")
+    if counts.get("missing_from_dsn"):
+        n = counts["missing_from_dsn"]
+        parts.append(f"{n} départ(s) probable(s)")
+    if counts.get("contract_end_in_dsn"):
+        n = counts["contract_end_in_dsn"]
+        parts.append(f"{n} fin(s) de contrat DSN")
+    breakdown = f" — {', '.join(parts)}" if parts else ""
     return build_anomaly(
         "workforce_reconciliation_required",
         (
-            f"{gap_count} écart(s) effectif(s) détecté(s) chez {company_name}{period_label}. "
+            f"{gap_count} écart(s) effectif(s) détecté(s) chez {company_name}{period_label}{breakdown}. "
             "Une décision est requise avant validation."
         ),
         hint=(
-            "Pour chaque salarié : clôture rapide (départ déjà effectué), "
-            "ouvrir le parcours départ complet, ou ignorer avec motif."
+            "Embauches récentes : confirmez l'écart attendu. "
+            "Départs probables : clôture rapide, parcours départ complet, ou ignorer avec motif."
         ),
         severity="warning",
-        meta={"gap_count": gap_count, "period": period},
+        meta={"gap_count": gap_count, "period": period, "gap_counts_by_type": counts},
     )
 
 
@@ -145,13 +158,26 @@ def employee_workforce_gap_anomaly(*, gap: Dict[str, Any]) -> Dict[str, Any]:
     gap_type = gap.get("gap_type")
     name = gap.get("employee_name") or "Salarié"
     employee_id = gap.get("employee_id")
-    if gap_type == "missing_from_dsn":
+    period = gap.get("period")
+    period_label = f" ({period})" if period else " du mois"
+    if gap_type == "new_hire_not_in_dsn":
+        hire = gap.get("hire_date") or "—"
         message = (
-            f"{name} (NIR {gap.get('nir_masked', '—')}) est actif en base "
-            "mais absent de la DSN du mois."
+            f"{name} (NIR {gap.get('nir_masked', '—')}) : embauche récente "
+            f"({hire}) absente de la DSN{period_label}."
         )
         hint = (
-            "Le salarié est peut-être sorti des effectifs. "
+            "Normal si la première paie n'est pas encore dans ce fichier DSN. "
+            "Confirmez l'embauche récente pour poursuivre l'import."
+        )
+        code = "employee_new_hire_not_in_dsn"
+    elif gap_type == "missing_from_dsn":
+        message = (
+            f"{name} (NIR {gap.get('nir_masked', '—')}) est actif en base "
+            f"mais absent de la DSN{period_label}."
+        )
+        hint = (
+            "Le salarié était en poste ce mois-là et est peut-être sorti des effectifs. "
             "Clôturez le départ ou ignorez si la DSN est incomplète."
         )
         code = "employee_missing_from_dsn"

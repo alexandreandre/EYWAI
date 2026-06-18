@@ -26,6 +26,17 @@ def _period_end_date(period: Optional[str]) -> Optional[date]:
         return None
 
 
+def _period_start_date(period: Optional[str]) -> Optional[date]:
+    if not period or "-" not in period:
+        return None
+    try:
+        year_s, month_s = period.split("-", 1)
+        year, month = int(year_s), int(month_s)
+        return date(year, month, 1)
+    except (ValueError, TypeError):
+        return None
+
+
 def _resolve_period(summary: Dict[str, Any]) -> Optional[str]:
     periods = summary.get("cumul_periods") or []
     if periods:
@@ -52,31 +63,82 @@ def _parse_iso_date(value: Any) -> Optional[date]:
         return None
 
 
+def _employee_in_payroll_scope(
+    employee: Dict[str, Any],
+    period_start: Optional[date],
+    period_end: Optional[date],
+) -> bool:
+    """Salarié susceptible d'apparaître dans la DSN du mois (embauché et pas encore parti)."""
+    hire = _parse_iso_date(employee.get("hire_date"))
+    end = _parse_iso_date(employee.get("contract_end_date"))
+    if period_end and hire and hire > period_end:
+        return False
+    if period_start and end and end < period_start:
+        return False
+    return True
+
+
+def _classify_missing_from_dsn_gap(
+    employee: Dict[str, Any],
+    period_start: Optional[date],
+) -> Tuple[str, str]:
+    """
+    Retourne (gap_type, likely_scenario) pour un salarié absent de la DSN.
+    """
+    hire = _parse_iso_date(employee.get("hire_date"))
+    if period_start and hire and hire >= period_start:
+        return "new_hire_not_in_dsn", "new_hire"
+    if hire:
+        return "missing_from_dsn", "departure"
+    return "missing_from_dsn", "unknown"
+
+
 def _build_gap(
     *,
     gap_type: str,
     employee: Dict[str, Any],
+    period: Optional[str] = None,
     contract_end_date: Optional[str] = None,
     suggested_last_working_day: Optional[str] = None,
+    likely_scenario: Optional[str] = None,
     resolution: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     employee_id = str(employee["id"])
-    gap_id = f"{gap_type.split('_')[0]}:{employee_id}"
-    if gap_type == "missing_from_dsn":
+    if gap_type in ("missing_from_dsn", "new_hire_not_in_dsn"):
         gap_id = f"missing:{employee_id}"
     elif gap_type == "contract_end_in_dsn":
         gap_id = f"end:{employee_id}"
+    else:
+        gap_id = f"{gap_type.split('_')[0]}:{employee_id}"
     nir = (employee.get("nir") or "").strip()
+    hire_raw = employee.get("hire_date")
+    hire_iso = str(hire_raw)[:10] if hire_raw else None
     return {
         "gap_id": gap_id,
         "employee_id": employee_id,
         "employee_name": _employee_display_name(employee),
         "nir_masked": _mask_nir(nir),
         "gap_type": gap_type,
+        "hire_date": hire_iso,
+        "period": period,
+        "likely_scenario": likely_scenario,
         "suggested_last_working_day": suggested_last_working_day,
         "contract_end_date": contract_end_date,
         "resolution": resolution,
     }
+
+
+def _count_gaps_by_type(gaps: List[Dict[str, Any]]) -> Dict[str, int]:
+    counts = {
+        "new_hire_not_in_dsn": 0,
+        "missing_from_dsn": 0,
+        "contract_end_in_dsn": 0,
+    }
+    for gap in gaps:
+        gap_type = gap.get("gap_type")
+        if gap_type in counts:
+            counts[str(gap_type)] += 1
+    return counts
 
 
 def compute_workforce_gaps(
@@ -102,11 +164,18 @@ def compute_workforce_gaps(
         "unresolved_count": 0,
         "resolved_count": 0,
         "active_without_nir_count": 0,
+        "excluded_out_of_scope_count": 0,
+        "gap_counts_by_type": {
+            "new_hire_not_in_dsn": 0,
+            "missing_from_dsn": 0,
+            "contract_end_in_dsn": 0,
+        },
     }
     if (import_mode or "").strip().lower() != "monthly" or not target_company_id:
         return disabled, []
 
     period = _resolve_period(summary)
+    period_start = _period_start_date(period)
     period_end = _period_end_date(period)
     company_id = str(target_company_id)
 
@@ -129,22 +198,33 @@ def compute_workforce_gaps(
 
     gaps: List[Dict[str, Any]] = []
     seen_employee_ids: set[str] = set()
+    excluded_out_of_scope_count = 0
 
     for nir, employee in active_by_nir.items():
-        if nir not in dsn_nirs:
-            employee_id = str(employee["id"])
-            if employee_id in seen_employee_ids:
-                continue
-            seen_employee_ids.add(employee_id)
-            resolution = stored_resolutions.get(f"missing:{employee_id}")
-            gaps.append(
-                _build_gap(
-                    gap_type="missing_from_dsn",
-                    employee=employee,
-                    suggested_last_working_day=period_end.isoformat() if period_end else None,
-                    resolution=resolution,
-                )
+        if nir in dsn_nirs:
+            continue
+        employee_id = str(employee["id"])
+        if employee_id in seen_employee_ids:
+            continue
+        if not _employee_in_payroll_scope(employee, period_start, period_end):
+            excluded_out_of_scope_count += 1
+            continue
+        seen_employee_ids.add(employee_id)
+        gap_type, likely_scenario = _classify_missing_from_dsn_gap(employee, period_start)
+        resolution = stored_resolutions.get(f"missing:{employee_id}")
+        suggested_lwd = None
+        if gap_type == "missing_from_dsn" and period_end:
+            suggested_lwd = period_end.isoformat()
+        gaps.append(
+            _build_gap(
+                gap_type=gap_type,
+                employee=employee,
+                period=period,
+                likely_scenario=likely_scenario,
+                suggested_last_working_day=suggested_lwd,
+                resolution=resolution,
             )
+        )
 
     if period_end:
         for nir, it in dsn_nir_to_item.items():
@@ -171,6 +251,8 @@ def compute_workforce_gaps(
                 _build_gap(
                     gap_type="contract_end_in_dsn",
                     employee=employee,
+                    period=period,
+                    likely_scenario="departure",
                     contract_end_date=str(end_raw)[:10] if end_raw else end_date.isoformat(),
                     suggested_last_working_day=end_date.isoformat(),
                     resolution=resolution,
@@ -179,6 +261,7 @@ def compute_workforce_gaps(
 
     resolved_count = sum(1 for g in gaps if g.get("resolution"))
     unresolved_count = len(gaps) - resolved_count
+    gap_counts_by_type = _count_gaps_by_type(gaps)
 
     workforce_summary: Dict[str, Any] = {
         "enabled": True,
@@ -190,6 +273,8 @@ def compute_workforce_gaps(
         "active_without_nir_count": len(active_without_nir),
         "dsn_employee_count": len(dsn_nirs),
         "active_db_count": len(active_employees),
+        "excluded_out_of_scope_count": excluded_out_of_scope_count,
+        "gap_counts_by_type": gap_counts_by_type,
     }
 
     anomalies: List[Dict[str, Any]] = []
@@ -203,6 +288,7 @@ def compute_workforce_gaps(
                 company_name=company_name,
                 gap_count=len(gaps),
                 period=period,
+                gap_counts_by_type=gap_counts_by_type,
             )
         )
         for gap in gaps:
@@ -277,14 +363,14 @@ def validate_workforce_resolutions_for_commit(
             f"Réconciliation effectifs incomplète : décision requise pour {len(missing)} "
             f"salarié(s) ({names}{extra})."
         )
-    valid_actions = {"open_exit", "close_departure", "ignore"}
+    valid_actions = {"open_exit", "close_departure", "ignore", "acknowledge_new_hire"}
     for gap in gaps:
         gap_id = gap.get("gap_id")
         res = by_gap_id.get(gap_id) or {}
         action = res.get("action")
         if action not in valid_actions:
             raise ValueError(f"Action invalide pour {gap.get('employee_name')}.")
-        if action == "ignore":
+        if action in ("ignore", "acknowledge_new_hire"):
             continue
         if action in ("open_exit", "close_departure"):
             lwd = res.get("last_working_day") or gap.get("suggested_last_working_day")

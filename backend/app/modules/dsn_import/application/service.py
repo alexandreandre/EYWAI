@@ -638,6 +638,7 @@ def save_workforce_resolutions(
                     "last_working_day",
                     "exit_reason",
                     "ignore_reason",
+                    "hire_date",
                 )
                 and v is not None
             }

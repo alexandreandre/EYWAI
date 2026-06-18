@@ -27,6 +27,7 @@ ENRICHMENT_WARNING_TYPES = frozenset(
         "parse_warning",
         "workforce_reconciliation_required",
         "employee_missing_from_dsn",
+        "employee_new_hire_not_in_dsn",
         "employee_contract_end_in_dsn",
         "workforce_active_without_nir",
     }

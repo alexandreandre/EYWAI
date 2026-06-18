@@ -11,7 +11,7 @@ from pydantic import BaseModel, EmailStr, Field
 class WorkforceResolution(BaseModel):
     gap_id: str
     employee_id: str
-    action: Literal["open_exit", "close_departure", "ignore"]
+    action: Literal["open_exit", "close_departure", "ignore", "acknowledge_new_hire"]
     exit_type: Optional[str] = None
     last_working_day: Optional[date] = None
     exit_reason: Optional[str] = None
@@ -31,7 +31,11 @@ class DsnImportCommitBody(BaseModel):
     )
     replace_existing_periods: bool = Field(
         default=False,
-        description="Remplacer les cumuls des périodes déjà importées",
+        description=(
+            "Consentement UX : l'utilisateur confirme le remplacement des cumuls "
+            "d'une période déjà importée. L'écrasement sur disque est effectif "
+            "via write_cumuls_file au commit, indépendamment de ce flag."
+        ),
     )
     workforce_resolutions: List[WorkforceResolution] = Field(default_factory=list)
 
