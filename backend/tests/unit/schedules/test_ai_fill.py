@@ -13,6 +13,15 @@ from app.modules.schedules.application import ai_fill
 from app.modules.schedules.application.exceptions import ScheduleAppError
 from app.modules.schedules.schemas.ai import RosterEmployee
 from app.shared.infrastructure.ai.structured_extractor import StructuredExtractionResult
+from app.shared.infrastructure.documents.text_extraction import ExtractionMetadata
+
+_EMPTY_META = ExtractionMetadata()
+
+
+@pytest.fixture(autouse=True)
+def _deterministic_extract_mode(monkeypatch):
+    """Les tests ai_fill ciblent le chemin Cegid/LLM document (pas l'hybride async)."""
+    monkeypatch.setenv("TIMESHEET_EXTRACT_MODE", "deterministic")
 
 
 ROSTER = [
@@ -342,7 +351,7 @@ class TestExtractTimesheet:
             "warnings": ["scan partiel"],
         }
         with patch.object(ai_fill, "is_llm_configured", return_value=True), patch.object(
-            ai_fill, "extract_document_text", return_value=("texte ocr", "PDF natif")
+            ai_fill, "extract_document_text", return_value=("texte ocr", "PDF natif", _EMPTY_META)
         ), patch.object(
             ai_fill, "extract_structured_json", return_value=_result(extracted)
         ):
@@ -380,7 +389,7 @@ class TestExtractTimesheet:
             "warnings": [],
         }
         with patch.object(ai_fill, "is_llm_configured", return_value=True), patch.object(
-            ai_fill, "extract_document_text", return_value=("texte ocr", "PDF natif")
+            ai_fill, "extract_document_text", return_value=("texte ocr", "PDF natif", _EMPTY_META)
         ), patch.object(
             ai_fill, "extract_structured_json", return_value=_result(extracted)
         ):
@@ -415,3 +424,173 @@ class TestExtractTimesheet:
                     roster=ROSTER,
                 )
         assert exc.value.status_code == 400
+
+    def test_attaches_period_metadata_for_weekly_releve(self):
+        from tests.fixtures.timesheets.ocr_samples import WEEKLY_HEADER
+
+        extracted = {
+            "employees": [
+                {
+                    "name": "Paul Martin",
+                    "days": [
+                        {"jour": 3, "heures": 8, "type": "travail", "nature": "reel"},
+                        {"jour": 4, "heures": 7.5, "type": "travail", "nature": "reel"},
+                    ],
+                }
+            ],
+            "warnings": [],
+        }
+        with patch.object(ai_fill, "is_llm_configured", return_value=True), patch.object(
+            ai_fill, "extract_document_text", return_value=(WEEKLY_HEADER, "PDF natif", _EMPTY_META)
+        ), patch.object(
+            ai_fill, "extract_structured_json", return_value=_result(extracted)
+        ):
+            proposal = ai_fill.extract_timesheet(
+                year=2025,
+                month=6,
+                file_content=b"%PDF-1.4 fake",
+                filename="semaine.pdf",
+                roster=ROSTER,
+            )
+
+        assert proposal.detected_scope == "weekly"
+        assert proposal.detected_period_start is not None
+        assert proposal.detected_days_count == 2
+        assert proposal.suggested_year == 2025
+        assert proposal.suggested_month == 6
+
+    def test_auto_corrects_month_when_releve_outside_ui_month(self):
+        may_week = """
+        Semaine du 25/05/2026 au 31/05/2026
+        Martin Paul
+        Lun 25/05 8h Mar 26/05 8h Mer 27/05 8h Jeu 28/05 8h Ven 29/05 8h
+        """
+        extracted = {
+            "employees": [
+                {
+                    "name": "Paul Martin",
+                    "days": [
+                        {"jour": 25, "heures": 8, "type": "travail", "nature": "reel"},
+                        {"jour": 26, "heures": 8, "type": "travail", "nature": "reel"},
+                    ],
+                }
+            ],
+            "warnings": [],
+        }
+        with patch.object(ai_fill, "is_llm_configured", return_value=True), patch.object(
+            ai_fill, "extract_document_text", return_value=(may_week, "PDF natif", _EMPTY_META)
+        ), patch.object(
+            ai_fill, "extract_structured_json", return_value=_result(extracted)
+        ):
+            proposal = ai_fill.extract_timesheet(
+                year=2026,
+                month=6,
+                file_content=b"%PDF-1.4 fake",
+                filename="semaine.pdf",
+                roster=ROSTER,
+            )
+
+        assert proposal.month_auto_corrected is True
+        assert proposal.year == 2026
+        assert proposal.month == 5
+        assert proposal.requested_year == 2026
+        assert proposal.requested_month == 6
+        assert proposal.month_correction_message is not None
+        assert not any("hors du mois" in w for w in proposal.period_warnings)
+
+
+class TestExtractTimesheetCegid:
+    def test_cegid_parser_without_llm(self):
+        from tests.fixtures.timesheets.ocr_samples import CEGID_WEEK_22
+
+        roster = [
+            RosterEmployee(id="e1", first_name="Sophie", last_name="Durand", time_tracking_id="270"),
+            RosterEmployee(id="e2", first_name="Adam", last_name="Youssef", time_tracking_id="196"),
+        ]
+        with patch.object(ai_fill, "is_llm_configured", return_value=False), patch.object(
+            ai_fill, "extract_document_text", return_value=(CEGID_WEEK_22, "PDF natif", _EMPTY_META)
+        ), patch(
+            "app.modules.schedules.application.roster_enrichment.enrich_roster_time_tracking_ids",
+            side_effect=lambda r, c: r,
+        ):
+            proposal = ai_fill.extract_timesheet(
+                year=2026,
+                month=5,
+                file_content=b"%PDF-1.4 fake",
+                filename="semaine22.pdf",
+                roster=roster,
+            )
+
+        assert proposal.detected_format == "cegid_weekly"
+        assert len(proposal.employees) >= 2
+        assert proposal.quality_checks is not None
+        assert proposal.review_summary is not None
+
+    def test_cegid_long_text_not_truncated_before_parse(self):
+        from tests.fixtures.timesheets.ocr_samples import CEGID_LONG_TEXT, _CEGID_EMP_NAMES
+
+        assert len(CEGID_LONG_TEXT) > ai_fill._MAX_LLM_TEXT_CHARS
+        roster = [
+            RosterEmployee(
+                id=f"e{i}",
+                first_name=_CEGID_EMP_NAMES[i % len(_CEGID_EMP_NAMES)],
+                last_name="Employe",
+                time_tracking_id=str(100 + i),
+            )
+            for i in range(90)
+        ]
+        meta = ExtractionMetadata(
+            ocr_pages_total=18,
+            ocr_pages_processed=18,
+        )
+        with patch.object(ai_fill, "is_llm_configured", return_value=False), patch.object(
+            ai_fill, "extract_document_text", return_value=(CEGID_LONG_TEXT, "OCR PDF (Tesseract)", meta)
+        ), patch(
+            "app.modules.schedules.application.roster_enrichment.enrich_roster_time_tracking_ids",
+            side_effect=lambda r, c: r,
+        ):
+            proposal = ai_fill.extract_timesheet(
+                year=2026,
+                month=5,
+                file_content=b"%PDF-1.4 fake",
+                filename="semaine22.pdf",
+                roster=roster,
+            )
+
+        assert proposal.detected_format == "cegid_weekly"
+        assert len(proposal.employees) >= 80
+        assert not any("tronqué" in w.lower() for w in proposal.extraction_warnings)
+        assert proposal.extraction_pages_processed == 18
+        assert proposal.extraction_truncated is False
+
+    def test_llm_fallback_truncates_long_text(self):
+        long_generic = "RELEVÉ GENERIQUE\n" + ("Paul Martin 8h jour 1\n" * 2000)
+        assert len(long_generic) > ai_fill._MAX_LLM_TEXT_CHARS
+        extracted = {
+            "employees": [
+                {
+                    "name": "Paul Martin",
+                    "days": [
+                        {"jour": 1, "heures": 8, "type": "travail", "nature": "reel"}
+                    ],
+                }
+            ],
+            "warnings": [],
+        }
+        with patch.object(ai_fill, "is_llm_configured", return_value=True), patch.object(
+            ai_fill, "extract_document_text", return_value=(long_generic, "PDF natif", _EMPTY_META)
+        ), patch.object(
+            ai_fill, "extract_structured_json", return_value=_result(extracted)
+        ) as mock_llm:
+            proposal = ai_fill.extract_timesheet(
+                year=2026,
+                month=6,
+                file_content=b"%PDF-1.4 fake",
+                filename="releve.pdf",
+                roster=ROSTER,
+            )
+
+        mock_llm.assert_called_once()
+        prompt = mock_llm.call_args.kwargs.get("user_prompt") or mock_llm.call_args[1].get("user_prompt")
+        assert len(prompt) < len(long_generic)
+        assert any("tronqué" in w.lower() for w in proposal.extraction_warnings)
