@@ -64,8 +64,8 @@ def resolve_connector(
 
     if definition.connector_class == "cegid_quadra":
         if _api_globally_enabled() and is_api_mode(mode):
-            if has_complete_cegid_credentials(config or {}):
-                return CegidQuadraConnector()
+            if has_complete_cegid_credentials(config or {}, platform_row):
+                return CegidQuadraConnector(platform_row)
         return _MANUAL
 
     if definition.connector_class == "stub":

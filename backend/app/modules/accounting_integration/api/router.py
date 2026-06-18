@@ -14,6 +14,8 @@ from app.modules.accounting_integration.schemas.responses import (
     AccountingConfigResponse,
     AccountingConfigUpdate,
     AccountingTransmissionsResponse,
+    BulkCegidDossiersResponse,
+    BulkCegidDossiersUpdate,
     ConnectionTestResponse,
     PlatformCatalogResponse,
     PlatformProviderEntry,
@@ -138,6 +140,32 @@ async def update_platform_provider(
 ) -> PlatformProviderEntry:
     try:
         return service.update_platform_provider(provider_key, body)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router_admin.post(
+    "/catalog/{provider_key}/test-connection",
+    response_model=ConnectionTestResponse,
+)
+async def admin_test_platform_accounting_connection(
+    provider_key: str,
+    _admin: Dict[str, Any] = Depends(_verify_super_admin),
+) -> ConnectionTestResponse:
+    return service.test_platform_connection(provider_key)
+
+
+@router_admin.post(
+    "/companies/bulk-cegid-dossiers",
+    response_model=BulkCegidDossiersResponse,
+)
+async def admin_bulk_update_cegid_dossiers(
+    body: BulkCegidDossiersUpdate,
+    _admin: Dict[str, Any] = Depends(_verify_super_admin),
+) -> BulkCegidDossiersResponse:
+    try:
+        return service.bulk_update_cegid_dossiers(body)
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e)) from e

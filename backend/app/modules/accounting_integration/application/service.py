@@ -25,7 +25,9 @@ from app.modules.accounting_integration.infrastructure.connector_factory import 
 from app.modules.accounting_integration.infrastructure.cegid_quadra_connector import (
     CegidQuadraConnector,
     has_complete_cegid_credentials,
+    has_platform_cegid_auth_keys,
     parse_cegid_credentials,
+    resolve_cegid_auth_source,
 )
 from app.modules.accounting_integration.infrastructure import repository
 from app.modules.accounting_integration.schemas.responses import (
@@ -33,6 +35,8 @@ from app.modules.accounting_integration.schemas.responses import (
     AccountingConfigUpdate,
     AccountingTransmissionEntry,
     AccountingTransmissionsResponse,
+    BulkCegidDossiersResponse,
+    BulkCegidDossiersUpdate,
     ConnectionTestResponse,
     PlatformCatalogResponse,
     PlatformProviderEntry,
@@ -70,12 +74,20 @@ def _connection_state(
     if definition and definition.connector_class == "cegid_quadra":
         if (
             _api_globally_enabled()
-            and has_complete_cegid_credentials(config)
+            and has_complete_cegid_credentials(config, platform_row)
             and config.get("last_test_status") == "connected"
         ):
             return "connected"
-        if has_stored_secret(config.get("credentials_ref")):
-            return "failed" if config.get("last_test_status") == "failed" else "not_configured"
+        if config.get("last_test_status") == "failed":
+            return "failed"
+        if has_complete_cegid_credentials(config, platform_row):
+            return "not_configured"
+        if (
+            has_stored_secret(config.get("credentials_ref"))
+            or str(config.get("code_dossier_cegid") or "").strip()
+            or has_platform_cegid_auth_keys(platform_row)
+        ):
+            return "not_configured"
         return "not_configured"
     if is_api_mode(mode):
         return "stub"
@@ -95,7 +107,13 @@ def _config_to_response(
         str(row.get("mode") or "manual")
     ))
     cegid_complete = (
-        provider == "cegid_quadra" and has_complete_cegid_credentials(row)
+        provider == "cegid_quadra"
+        and has_complete_cegid_credentials(row, platform_row)
+    )
+    auth_source = (
+        resolve_cegid_auth_source(row, platform_row)
+        if provider == "cegid_quadra"
+        else "incomplete"
     )
     return AccountingConfigResponse(
         enabled=bool(row.get("enabled")),
@@ -105,6 +123,10 @@ def _config_to_response(
         recipients_compta=[str(x) for x in rec if x],
         has_credentials=has_stored_secret(row.get("credentials_ref")),
         cegid_credentials_complete=cegid_complete,
+        has_platform_cegid_credentials=has_platform_cegid_auth_keys(platform_row),
+        code_dossier_cegid=row.get("code_dossier_cegid") or None,
+        cegid_auth_mode=str(row.get("cegid_auth_mode") or "shared"),
+        cegid_auth_source=auth_source,
         force_manual=bool(row.get("force_manual")),
         last_transmission_at=row.get("last_transmission_at"),
         last_test_at=row.get("last_test_at"),
@@ -126,6 +148,13 @@ def update_config(
 ) -> AccountingConfigResponse:
     fields = body.model_dump(exclude_unset=True)
     credentials = fields.pop("credentials", None)
+    clear_company_credentials = fields.pop("clear_company_credentials", None)
+    if clear_company_credentials:
+        fields["credentials_ref"] = None
+    elif body.cegid_auth_mode == "shared" and body.credentials is None:
+        existing = repository.get_config(company_id) or {}
+        if str(existing.get("cegid_auth_mode") or "") == "dedicated":
+            fields["credentials_ref"] = None
     if credentials is not None:
         fields["credentials_ref"] = encrypt_secret(credentials)
         definition = get_provider_definition(str(fields.get("provider") or "manual"))
@@ -417,7 +446,8 @@ def poll_pending_accounting_transmissions(*, limit: int = 50) -> Dict[str, int]:
             continue
         company_id = str(row.get("company_id"))
         config = repository.get_config(company_id) or {}
-        parsed = parse_cegid_credentials(config)
+        platform_row = repository.get_platform_provider("cegid_quadra")
+        parsed = parse_cegid_credentials(config, platform_row)
         if not parsed:
             continue
         stats["polled"] += 1
@@ -451,12 +481,16 @@ def poll_pending_accounting_transmissions(*, limit: int = 50) -> Dict[str, int]:
 
 def _platform_entry(row: Dict[str, Any]) -> PlatformProviderEntry:
     definition = get_provider_definition(row.get("provider_key") or "")
+    is_cegid = str(row.get("provider_key")) == "cegid_quadra"
     return PlatformProviderEntry(
         provider_key=str(row.get("provider_key")),
         name=definition.name if definition else str(row.get("provider_key")),
         logo_key=definition.logo_key if definition else "generic",
         enabled=bool(row.get("enabled")),
         has_platform_credentials=has_stored_secret(row.get("platform_credentials_ref")),
+        has_platform_cegid_credentials=(
+            has_platform_cegid_auth_keys(row) if is_cegid else False
+        ),
         settings=row.get("settings") or {},
         last_test_at=row.get("last_test_at"),
         last_test_status=row.get("last_test_status"),
@@ -496,6 +530,55 @@ def update_platform_provider(
         fields["platform_credentials_ref"] = encrypt_secret(body.platform_credentials)
     row = repository.upsert_platform_provider(provider_key, fields)
     return _platform_entry(row or {"provider_key": provider_key})
+
+
+def test_platform_connection(provider_key: str) -> ConnectionTestResponse:
+    if provider_key != "cegid_quadra":
+        return ConnectionTestResponse(
+            success=False,
+            status="not_configured",
+            message="Test plateforme disponible uniquement pour Cegid Loop.",
+        )
+    platform_row = repository.get_platform_provider(provider_key) or {}
+    connector = CegidQuadraConnector(platform_row)
+    result = connector.test_platform_connection(platform_row)
+    update_fields: Dict[str, Any] = {
+        "last_test_at": datetime.now(timezone.utc).isoformat(),
+        "last_test_status": result.status,
+        "last_test_message": result.message,
+    }
+    repository.upsert_platform_provider(provider_key, update_fields)
+    return ConnectionTestResponse(
+        success=result.success,
+        status=result.status,
+        message=result.message,
+    )
+
+
+def bulk_update_cegid_dossiers(body: BulkCegidDossiersUpdate) -> BulkCegidDossiersResponse:
+    failed: List[str] = []
+    updated = 0
+    for entry in body.entries:
+        code = str(entry.code_dossier_cegid or "").strip()
+        if not code:
+            failed.append(entry.company_id)
+            continue
+        try:
+            repository.upsert_config(
+                entry.company_id,
+                {
+                    "enabled": entry.enabled,
+                    "provider": "cegid_quadra",
+                    "mode": "api_quadra",
+                    "default_format": "fec",
+                    "code_dossier_cegid": code,
+                    "cegid_auth_mode": entry.cegid_auth_mode,
+                },
+            )
+            updated += 1
+        except Exception:
+            failed.append(entry.company_id)
+    return BulkCegidDossiersResponse(updated=updated, failed=failed)
 
 
 def list_all_transmissions(

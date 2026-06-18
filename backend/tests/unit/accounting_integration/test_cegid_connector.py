@@ -11,9 +11,23 @@ import httpx
 from app.modules.accounting_integration.infrastructure.cegid_quadra_connector import (
     CegidQuadraConnector,
     has_complete_cegid_credentials,
+    has_platform_cegid_auth_keys,
     parse_cegid_credentials,
+    parse_platform_cegid_auth,
+    resolve_cegid_auth_source,
 )
 from app.shared.utils.secret_store import encrypt_secret
+
+
+def _platform_creds() -> dict:
+    return {
+        "platform_credentials_ref": encrypt_secret(
+            {
+                "loop_apikey": "cabinet-key:cabinet-secret",
+                "apim_subscription_key": "cabinet-sub",
+            }
+        )
+    }
 
 
 def _full_creds() -> dict:
@@ -38,6 +52,52 @@ class TestCegidCredentials:
         ref = encrypt_secret({"loop_apikey": "a:b", "code_dossier": "X"})
         assert not has_complete_cegid_credentials({"credentials_ref": ref})
 
+    def test_shared_platform_plus_code_dossier_column(self):
+        cfg = {
+            "code_dossier_cegid": "MAJI001",
+            "cegid_auth_mode": "shared",
+        }
+        platform = _platform_creds()
+        creds = parse_cegid_credentials(cfg, platform)
+        assert creds is not None
+        assert creds.loop_apikey == "cabinet-key:cabinet-secret"
+        assert creds.code_dossier == "MAJI001"
+        assert has_complete_cegid_credentials(cfg, platform)
+        assert resolve_cegid_auth_source(cfg, platform) == "shared"
+
+    def test_shared_without_code_dossier_incomplete(self):
+        platform = _platform_creds()
+        cfg = {"cegid_auth_mode": "shared"}
+        assert parse_cegid_credentials(cfg, platform) is None
+        assert resolve_cegid_auth_source(cfg, platform) == "incomplete"
+
+    def test_dedicated_ignores_platform_keys(self):
+        company_ref = encrypt_secret(
+            {
+                "loop_apikey": "dedicated:k",
+                "apim_subscription_key": "d-sub",
+                "code_dossier": "DED001",
+            }
+        )
+        cfg = {
+            "credentials_ref": company_ref,
+            "cegid_auth_mode": "dedicated",
+            "code_dossier_cegid": "COL001",
+        }
+        platform = _platform_creds()
+        creds = parse_cegid_credentials(cfg, platform)
+        assert creds is not None
+        assert creds.loop_apikey == "dedicated:k"
+        assert creds.code_dossier == "COL001"
+        assert resolve_cegid_auth_source(cfg, platform) == "dedicated"
+
+    def test_platform_auth_without_code_dossier(self):
+        platform = _platform_creds()
+        auth = parse_platform_cegid_auth(platform)
+        assert auth is not None
+        assert auth.code_dossier == ""
+        assert has_platform_cegid_auth_keys(platform)
+
 
 class TestCegidQuadraConnector:
     def _config(self) -> dict:
@@ -61,6 +121,21 @@ class TestCegidQuadraConnector:
         result = conn.test_connection({"enabled": True, "credentials_ref": ref})
         assert result.success is False
         assert result.status == "failed"
+
+    @patch(
+        "app.modules.accounting_integration.infrastructure.cegid_quadra_connector._request_with_retry"
+    )
+    def test_platform_connection_success(self, retry_mock):
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.content = b'{"depositUrl":"https://blob/x"}'
+        resp.json.return_value = {"depositUrl": "https://blob/x"}
+        retry_mock.return_value = resp
+
+        conn = CegidQuadraConnector(_platform_creds())
+        result = conn.test_platform_connection(_platform_creds())
+        assert result.success is True
+        assert result.status == "connected"
 
     @patch(
         "app.modules.accounting_integration.infrastructure.cegid_quadra_connector._request_with_retry"

@@ -9,6 +9,8 @@ AccountingMode = Literal[
     "manual", "api_quadra", "api_sage", "api_pennylane", "sftp"
 ]
 ConnectionState = Literal["not_configured", "manual", "connected", "stub", "failed"]
+CegidAuthMode = Literal["shared", "dedicated"]
+CegidAuthSource = Literal["shared", "dedicated", "incomplete"]
 TransmissionStatusType = Literal[
     "generated", "queued", "sent", "transmitted", "acknowledged", "rejected", "manual", "failed"
 ]
@@ -22,6 +24,10 @@ class AccountingConfigResponse(BaseModel):
     recipients_compta: List[str] = Field(default_factory=list)
     has_credentials: bool = False
     cegid_credentials_complete: bool = False
+    has_platform_cegid_credentials: bool = False
+    code_dossier_cegid: Optional[str] = None
+    cegid_auth_mode: CegidAuthMode = "shared"
+    cegid_auth_source: CegidAuthSource = "incomplete"
     force_manual: bool = False
     last_transmission_at: Optional[str] = None
     last_test_at: Optional[str] = None
@@ -37,7 +43,26 @@ class AccountingConfigUpdate(BaseModel):
     default_format: Optional[str] = None
     recipients_compta: Optional[List[str]] = None
     credentials: Optional[Dict[str, Any]] = None
+    code_dossier_cegid: Optional[str] = None
+    cegid_auth_mode: Optional[CegidAuthMode] = None
+    clear_company_credentials: Optional[bool] = None
     force_manual: Optional[bool] = None
+
+
+class BulkCegidDossierEntry(BaseModel):
+    company_id: str
+    code_dossier_cegid: str
+    enabled: bool = True
+    cegid_auth_mode: CegidAuthMode = "shared"
+
+
+class BulkCegidDossiersUpdate(BaseModel):
+    entries: List[BulkCegidDossierEntry]
+
+
+class BulkCegidDossiersResponse(BaseModel):
+    updated: int
+    failed: List[str] = Field(default_factory=list)
 
 
 class ConnectionTestResponse(BaseModel):
@@ -93,6 +118,7 @@ class PlatformProviderEntry(BaseModel):
     logo_key: str
     enabled: bool
     has_platform_credentials: bool = False
+    has_platform_cegid_credentials: bool = False
     settings: Dict[str, Any] = Field(default_factory=dict)
     last_test_at: Optional[str] = None
     last_test_status: Optional[str] = None

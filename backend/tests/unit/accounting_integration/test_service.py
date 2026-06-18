@@ -114,3 +114,52 @@ class TestAccountingIntegrationService:
             ok, msg = service.try_transmit_compta_files("co-1", [], {"period": "2026-05"})
         assert ok is True
         assert "manuel" in msg.lower() or "repli" in msg.lower()
+
+    def test_config_response_shared_auth_source(self):
+        from app.shared.utils.secret_store import encrypt_secret
+
+        platform_row = {
+            "enabled": True,
+            "platform_credentials_ref": encrypt_secret(
+                {
+                    "loop_apikey": "k:s",
+                    "apim_subscription_key": "sub",
+                }
+            ),
+        }
+        with patch(
+            "app.modules.accounting_integration.application.service.repository.get_config",
+            return_value={
+                "enabled": True,
+                "mode": "api_quadra",
+                "provider": "cegid_quadra",
+                "code_dossier_cegid": "MAJI",
+                "cegid_auth_mode": "shared",
+            },
+        ), patch(
+            "app.modules.accounting_integration.application.service.repository.get_platform_provider",
+            return_value=platform_row,
+        ):
+            cfg = service.get_config("co-1")
+        assert cfg.has_platform_cegid_credentials is True
+        assert cfg.code_dossier_cegid == "MAJI"
+        assert cfg.cegid_auth_source == "shared"
+        assert cfg.cegid_auth_mode == "shared"
+
+    @patch(
+        "app.modules.accounting_integration.application.service.CegidQuadraConnector"
+    )
+    def test_platform_test_connection(self, connector_cls):
+        connector_cls.return_value.test_platform_connection.return_value = MagicMock(
+            success=True, status="connected", message="OK"
+        )
+        with patch(
+            "app.modules.accounting_integration.application.service.repository.get_platform_provider",
+            return_value={"enabled": True, "platform_credentials_ref": "enc"},
+        ), patch(
+            "app.modules.accounting_integration.application.service.repository.upsert_platform_provider",
+            return_value={"provider_key": "cegid_quadra", "enabled": True},
+        ):
+            result = service.test_platform_connection("cegid_quadra")
+        assert result.success is True
+        connector_cls.return_value.test_platform_connection.assert_called_once()

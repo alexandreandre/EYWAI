@@ -56,24 +56,106 @@ class CegidCredentials:
     api_base_url: str
 
 
-def parse_cegid_credentials(config: Dict[str, Any]) -> Optional[CegidCredentials]:
-    """Extrait les credentials Cegid Loop depuis credentials_ref chiffré."""
-    if not has_stored_secret(config.get("credentials_ref")):
-        return None
-    raw = decrypt_secret(config.get("credentials_ref")) or {}
+def _auth_from_raw(raw: Dict[str, Any]) -> tuple[str, str, str]:
     loop_apikey = str(
         raw.get("loop_apikey") or raw.get("api_key") or ""
     ).strip()
     apim_subscription_key = str(
         raw.get("apim_subscription_key") or raw.get("subscription_key") or ""
     ).strip()
-    code_dossier = str(
-        raw.get("code_dossier") or raw.get("codeIbs") or raw.get("code_ibs") or ""
-    ).strip()
     base = (
         str(raw.get("api_base_url") or "").strip()
         or getattr(settings, "CEGID_LOOP_API_BASE_URL", DEFAULT_BASE_URL)
     ).rstrip("/")
+    return loop_apikey, apim_subscription_key, base
+
+
+def _code_dossier_from_config(config: Dict[str, Any], raw: Optional[Dict[str, Any]] = None) -> str:
+    column_value = str(config.get("code_dossier_cegid") or "").strip()
+    if column_value:
+        return column_value
+    if raw:
+        return str(
+            raw.get("code_dossier") or raw.get("codeIbs") or raw.get("code_ibs") or ""
+        ).strip()
+    return ""
+
+
+def has_platform_cegid_auth_keys(platform_row: Optional[Dict[str, Any]]) -> bool:
+    if not platform_row or not has_stored_secret(platform_row.get("platform_credentials_ref")):
+        return False
+    raw = decrypt_secret(platform_row.get("platform_credentials_ref")) or {}
+    loop_apikey, apim_subscription_key, _ = _auth_from_raw(raw)
+    return bool(loop_apikey and apim_subscription_key)
+
+
+def parse_platform_cegid_auth(
+    platform_row: Optional[Dict[str, Any]],
+) -> Optional[CegidCredentials]:
+    """Clés cabinet (sans codeIbs) — test auth plateforme."""
+    if not has_platform_cegid_auth_keys(platform_row):
+        return None
+    raw = decrypt_secret((platform_row or {}).get("platform_credentials_ref")) or {}
+    loop_apikey, apim_subscription_key, base = _auth_from_raw(raw)
+    return CegidCredentials(
+        loop_apikey=loop_apikey,
+        apim_subscription_key=apim_subscription_key,
+        code_dossier="",
+        api_base_url=base,
+    )
+
+
+def _company_has_dedicated_auth(config: Dict[str, Any]) -> bool:
+    """Mode dédié : explicite ou legacy (blob entreprise avec clés auth)."""
+    mode = str(config.get("cegid_auth_mode") or "shared").strip().lower()
+    if mode == "dedicated":
+        return True
+    if not has_stored_secret(config.get("credentials_ref")):
+        return False
+    raw = decrypt_secret(config.get("credentials_ref")) or {}
+    loop_apikey, apim_subscription_key, _ = _auth_from_raw(raw)
+    return bool(loop_apikey and apim_subscription_key)
+
+
+def resolve_cegid_auth_source(
+    config: Dict[str, Any],
+    platform_row: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Retourne shared | dedicated | incomplete."""
+    if _company_has_dedicated_auth(config):
+        return "dedicated"
+    if has_platform_cegid_auth_keys(platform_row):
+        code = _code_dossier_from_config(config)
+        if code:
+            return "shared"
+        return "incomplete"
+    return "incomplete"
+
+
+def parse_cegid_credentials(
+    config: Dict[str, Any],
+    platform_row: Optional[Dict[str, Any]] = None,
+) -> Optional[CegidCredentials]:
+    """Fusionne clés cabinet (plateforme ou dédiées filiale) + codeIbs."""
+    company_raw: Dict[str, Any] = {}
+    if has_stored_secret(config.get("credentials_ref")):
+        company_raw = decrypt_secret(config.get("credentials_ref")) or {}
+
+    dedicated = _company_has_dedicated_auth(config)
+    loop_apikey, apim_subscription_key, base = _auth_from_raw(company_raw)
+
+    if dedicated:
+        if not loop_apikey or not apim_subscription_key:
+            return None
+    else:
+        platform_auth = parse_platform_cegid_auth(platform_row)
+        if not platform_auth:
+            return None
+        loop_apikey = platform_auth.loop_apikey
+        apim_subscription_key = platform_auth.apim_subscription_key
+        base = platform_auth.api_base_url
+
+    code_dossier = _code_dossier_from_config(config, company_raw)
     if not loop_apikey or not apim_subscription_key or not code_dossier:
         return None
     return CegidCredentials(
@@ -84,8 +166,11 @@ def parse_cegid_credentials(config: Dict[str, Any]) -> Optional[CegidCredentials
     )
 
 
-def has_complete_cegid_credentials(config: Dict[str, Any]) -> bool:
-    return parse_cegid_credentials(config) is not None
+def has_complete_cegid_credentials(
+    config: Dict[str, Any],
+    platform_row: Optional[Dict[str, Any]] = None,
+) -> bool:
+    return parse_cegid_credentials(config, platform_row) is not None
 
 
 def _validate_apikey_format(loop_apikey: str) -> None:
@@ -127,9 +212,8 @@ def _request_with_retry(
 class CegidQuadraConnector:
     mode = "api_quadra"
 
-    def __init__(self, platform_settings: Optional[Dict[str, Any]] = None) -> None:
-        # Mode clé par client uniquement — platform_settings ignoré pour l'auth.
-        self._platform_settings = platform_settings or {}
+    def __init__(self, platform_row: Optional[Dict[str, Any]] = None) -> None:
+        self._platform_row = platform_row
 
     def _auth_headers(self, creds: CegidCredentials) -> Dict[str, str]:
         """Headers d'authentification Loop (cf. Getting started)."""
@@ -273,20 +357,7 @@ class CegidQuadraConnector:
         # Statut inattendu : on reste en cours pour re-poller plus tard.
         return "sent", "Statut d'import Cegid non reconnu — nouvelle vérification ultérieure."
 
-    def test_connection(self, config: Dict[str, Any]) -> ConnectionTestResult:
-        if not config.get("enabled"):
-            return ConnectionTestResult(
-                success=False,
-                status="not_configured",
-                message="Intégration non activée pour cette entreprise.",
-            )
-        creds = parse_cegid_credentials(config)
-        if not creds:
-            return ConnectionTestResult(
-                success=False,
-                status="not_configured",
-                message="Credentials Cegid incomplets (APIKey, subscription key, code dossier).",
-            )
+    def _run_auth_test(self, creds: CegidCredentials) -> ConnectionTestResult:
         try:
             _validate_apikey_format(creds.loop_apikey)
         except ValueError as exc:
@@ -296,15 +367,13 @@ class CegidQuadraConnector:
                 message=str(exc),
             )
         try:
-            # Appel léger authentifié : demande d'une URL de dépôt (sans upload).
-            # Valide x-apikey + subscription key. Le code dossier est vérifié à l'import.
             resp = self._authenticated_request(
                 creds,
                 "GET",
                 FILE_DEPOSIT_PATH,
                 params={"filename": "eywai-connection-test.txt"},
             )
-            if resp.status_code == 401 or resp.status_code == 403:
+            if resp.status_code in (401, 403):
                 return ConnectionTestResult(
                     success=False,
                     status="failed",
@@ -329,6 +398,41 @@ class CegidQuadraConnector:
                 message=f"Impossible de joindre Cegid Loop : {exc}",
             )
 
+    def test_platform_connection(
+        self, platform_row: Optional[Dict[str, Any]]
+    ) -> ConnectionTestResult:
+        creds = parse_platform_cegid_auth(platform_row)
+        if not creds:
+            return ConnectionTestResult(
+                success=False,
+                status="not_configured",
+                message="Clés cabinet Cegid non configurées au niveau plateforme.",
+            )
+        return self._run_auth_test(creds)
+
+    def test_connection(self, config: Dict[str, Any]) -> ConnectionTestResult:
+        if not config.get("enabled"):
+            return ConnectionTestResult(
+                success=False,
+                status="not_configured",
+                message="Intégration non activée pour cette entreprise.",
+            )
+        creds = parse_cegid_credentials(config, self._platform_row)
+        if not creds:
+            auth_source = resolve_cegid_auth_source(config, self._platform_row)
+            if auth_source == "dedicated":
+                msg = "Credentials Cegid dédiés incomplets (APIKey, subscription key, code dossier)."
+            elif has_platform_cegid_auth_keys(self._platform_row):
+                msg = "Code dossier Cegid manquant pour cette filiale."
+            else:
+                msg = "Credentials Cegid incomplets (clés cabinet ou code dossier)."
+            return ConnectionTestResult(
+                success=False,
+                status="not_configured",
+                message=msg,
+            )
+        return self._run_auth_test(creds)
+
     def _pick_fec_file(
         self, files: List[tuple[str, bytes]]
     ) -> Optional[tuple[str, bytes]]:
@@ -344,7 +448,7 @@ class CegidQuadraConnector:
         files: List[tuple[str, bytes]],
         metadata: Dict[str, Any],
     ) -> TransmissionResult:
-        creds = parse_cegid_credentials(config)
+        creds = parse_cegid_credentials(config, self._platform_row)
         if not creds:
             return TransmissionResult(
                 success=False,
