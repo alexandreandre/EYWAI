@@ -8,6 +8,7 @@ from typing import Optional
 from app.modules.collective_agreements.rules.schema import (
     BaseCalculPrime,
     CCRulesDocument,
+    CpAnciennete,
     GrilleSalaires,
     PrimeAnciennete,
 )
@@ -19,6 +20,7 @@ class CCRulesSeed:
 
     grille: Optional[GrilleSalaires] = None
     prime: Optional[PrimeAnciennete] = None
+    cp_anciennete: Optional[CpAnciennete] = None
 
 
 def _normalize_idcc(idcc: str) -> str:
@@ -38,6 +40,13 @@ def get_seed(idcc: str) -> Optional[CCRulesSeed]:
         )
 
         return METALLURGIE_3248_SEED
+    # Plasturgie : IDCC officiel 0292 ; alias 1297 utilisé dans certains jeux de données
+    if norm in ("0292", "1297") or stripped in ("292", "1297"):
+        from app.modules.collective_agreements.rules.seeds.plasturgie_0292 import (
+            PLASTURGIE_0292_SEED,
+        )
+
+        return PLASTURGIE_0292_SEED
     return None
 
 
@@ -58,5 +67,8 @@ def apply_seed_to_document(doc: CCRulesDocument, seed: CCRulesSeed) -> CCRulesDo
                 prime.base_de_calcul = seed.prime.base_de_calcul
             if seed.prime.bareme and not prime.bareme:
                 prime.bareme = seed.prime.bareme
+
+    if seed.cp_anciennete and not doc.cp_anciennete:
+        doc.cp_anciennete = seed.cp_anciennete
 
     return doc

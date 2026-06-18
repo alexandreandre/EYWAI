@@ -8,14 +8,27 @@ from app.modules.dsn_import.application.commit import commit_batch
 from app.modules.dsn_import.application.cumuls import build_cumuls_summary, plan_cumul_items
 from app.modules.dsn_import.application.mapping import (
     apply_legal_name_to_preview,
+    apply_review_flags,
     build_preview_items,
+    build_review_summary,
     enrich_summary_from_items,
+    normalize_employee_edits,
+)
+from app.modules.dsn_import.application.workforce_reconciliation import (
+    attach_workforce_reconciliation,
+    validate_workforce_resolutions_for_commit,
 )
 from app.modules.dsn_import.application.import_checks import (
     attach_import_context_warnings,
+    strip_enrichment_warnings,
     strip_import_context_warnings,
 )
 from app.modules.dsn_import.domain.parser import parse_dsn_files
+from app.modules.dsn_import.domain.user_messages import (
+    employee_other_company_anomaly,
+    parse_warning_anomaly,
+    psc_warning_anomaly,
+)
 from app.modules.dsn_import.domain.validation import validate_parsed_dsn
 from app.modules.dsn_import.infrastructure import repository as repo
 
@@ -31,6 +44,8 @@ def parse_and_stage(
     """Parse les fichiers, construit preview, persiste batch + items."""
     parsed = parse_dsn_files(files)
     anomalies = validate_parsed_dsn(parsed)
+    for warning in parsed.warnings or []:
+        anomalies.append(parse_warning_anomaly(str(warning)))
     preview_items, summary = build_preview_items(parsed)
     cumul_items = plan_cumul_items(parsed)
     all_items = preview_items + cumul_items
@@ -40,11 +55,14 @@ def parse_and_stage(
         mode = "onboarding"
 
     # Détection create vs update vs salariés déjà présents (best effort sans bloquer)
-    _enrich_actions(all_items, target_company_id=target_company_id)
+    _enrich_actions(all_items, target_company_id=target_company_id, anomalies=anomalies)
+    _attach_psc_warnings(all_items, anomalies)
 
     summary = enrich_summary_from_items(summary, parsed, all_items)
+    if parsed.warnings:
+        summary["parse_warnings"] = [str(w) for w in parsed.warnings]
     summary.update(_employee_state_counts(all_items))
-    summary["import_mode"] = mode
+    summary["review_summary"] = build_review_summary(all_items)
     if target_company_id:
         summary["target_company_id"] = target_company_id
 
@@ -58,6 +76,17 @@ def parse_and_stage(
     summary["cumul_month_count"] = len(periods)
     summary["cumul_periods"] = periods
     summary["cumuls_summary"] = build_cumuls_summary(cumul_items)
+    summary["import_mode"] = mode
+    if target_company_id:
+        summary["target_company_id"] = target_company_id
+
+    attach_workforce_reconciliation(
+        all_items,
+        summary,
+        anomalies,
+        target_company_id=target_company_id,
+        import_mode=mode,
+    )
 
     from app.modules.dsn_import.application.mapping import _find_raison_sociale
 
@@ -222,9 +251,32 @@ def _attach_import_warnings(
             )
 
 
+def _attach_psc_warnings(items: List[Dict[str, Any]], anomalies: List[Dict[str, Any]]) -> None:
+    """Expose les avertissements PSC mutuelle/prévoyance issus du mapping DSN."""
+    for it in items:
+        if it.get("item_type") != "employee":
+            continue
+        payload = it.get("mapped_payload") or {}
+        psc_meta = payload.get("_psc_meta") or {}
+        warnings = psc_meta.get("warnings") or []
+        if not warnings:
+            continue
+        label = it.get("label") or "Salarié"
+        source_ref = it.get("source_ref") or ""
+        for warning in warnings:
+            anomalies.append(
+                psc_warning_anomaly(
+                    source_ref=source_ref,
+                    message=str(warning),
+                    employee_label=str(label),
+                )
+            )
+
+
 def _enrich_actions(
     items: List[Dict[str, Any]],
     target_company_id: Optional[str] = None,
+    anomalies: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
     """
     Détecte ce qui existe déjà en base pour pré-remplir les actions.
@@ -241,6 +293,11 @@ def _enrich_actions(
     """
     target_co = repo.find_company_by_id(target_company_id) if target_company_id else None
     target_cid = str(target_co["id"]) if target_co else None
+    target_company_name = (
+        (target_co or {}).get("company_name")
+        or (target_co or {}).get("raison_sociale")
+        or "l'entreprise cible"
+    )
 
     for it in items:
         payload = it.get("mapped_payload") or {}
@@ -266,15 +323,49 @@ def _enrich_actions(
                 if company_id and nir
                 else None
             )
+            if not existing and nir:
+                existing = repo.find_employee_by_nir_global(nir)
             if existing:
                 it["is_existing"] = True
                 it["existing_employee_id"] = str(existing["id"])
                 it["action"] = "skip"
+                existing_cid = str(existing.get("company_id") or "")
+                if company_id and existing_cid and existing_cid != str(company_id):
+                    other_co = repo.find_company_by_id(existing_cid)
+                    other_name = (
+                        (other_co or {}).get("company_name")
+                        or (other_co or {}).get("raison_sociale")
+                        or "une autre entreprise"
+                    )
+                    it["existing_company_id"] = existing_cid
+                    it["existing_company_name"] = other_name
+                    if anomalies is not None and target_cid:
+                        payload = it.get("mapped_payload") or {}
+                        anomalies.append(
+                            employee_other_company_anomaly(
+                                source_ref=it.get("source_ref") or "",
+                                employee_name=(
+                                    it.get("label")
+                                    or f"{payload.get('first_name', '')} {payload.get('last_name', '')}".strip()
+                                    or "Ce salarié"
+                                ),
+                                nir=nir,
+                                target_company_name=target_company_name,
+                                existing_company_name=other_name,
+                            )
+                        )
             else:
                 it["is_existing"] = False
                 it["existing_employee_id"] = None
                 if it.get("action") == "skip":
                     it["action"] = "create"
+            apply_review_flags(it)
+
+
+def _apply_review_to_employees(items: List[Dict[str, Any]]) -> None:
+    for it in items:
+        if it.get("item_type") == "employee":
+            apply_review_flags(it)
 
 
 def _employee_state_counts(items: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -331,6 +422,8 @@ def revalidate_preview(
         it = dict(row)
         mapped = dict(row.get("mapped_payload") or {})
         edits = payload_edits.get(it.get("source_ref")) or {}
+        if edits and it.get("item_type") == "employee":
+            edits = normalize_employee_edits(edits)
         if edits:
             mapped.update(edits)
         it["mapped_payload"] = mapped
@@ -339,18 +432,28 @@ def revalidate_preview(
             it["action"] = "create"
         preview_items.append(it)
 
-    _enrich_actions(preview_items, target_company_id=target_company_id)
-
     result = revalidate_batch_preview(batch, preview_items, payload_edits)
+    mode = str((batch.get("summary") or {}).get("import_mode") or "onboarding")
+    result["anomalies"] = strip_import_context_warnings(result["anomalies"])
+    result["anomalies"] = strip_enrichment_warnings(result["anomalies"])
+    _enrich_actions(preview_items, target_company_id=target_company_id, anomalies=result["anomalies"])
+    attach_workforce_reconciliation(
+        preview_items,
+        result["summary"],
+        result["anomalies"],
+        target_company_id=target_company_id,
+        import_mode=mode,
+    )
+    _attach_psc_warnings(preview_items, result["anomalies"])
+    _apply_review_to_employees(preview_items)
     result["summary"].update(_employee_state_counts(preview_items))
+    result["summary"]["review_summary"] = build_review_summary(preview_items)
     result["summary"]["target_company_id"] = target_company_id
     result["items"] = preview_items
 
-    mode = str((batch.get("summary") or {}).get("import_mode") or "onboarding")
     periods = list((result["summary"].get("cumul_periods") or []))
     intended = (batch.get("summary") or {}).get("intended_period")
     dsn_name = (batch.get("summary") or {}).get("dsn_company_name")
-    result["anomalies"] = strip_import_context_warnings(result["anomalies"])
     attach_import_context_warnings(
         result["anomalies"],
         result["summary"],
@@ -395,12 +498,16 @@ def execute_commit(
     overrides: Optional[Dict[str, str]] = None,
     payload_edits: Optional[Dict[str, Dict[str, Any]]] = None,
     target_company_id: Optional[str] = None,
+    workforce_resolutions: Optional[List[Dict[str, Any]]] = None,
+    current_user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     return commit_batch(
         batch_id,
         overrides=overrides,
         payload_edits=payload_edits,
         target_company_id=target_company_id,
+        workforce_resolutions=workforce_resolutions,
+        current_user_id=current_user_id,
     )
 
 
@@ -411,6 +518,8 @@ def begin_commit(
     target_company_id: Optional[str] = None,
     import_mode: Optional[str] = None,
     replace_existing_periods: bool = False,
+    workforce_resolutions: Optional[List[Dict[str, Any]]] = None,
+    current_user_id: Optional[str] = None,
 ) -> bool:
     """
     Bascule le batch en 'committing' avant lancement en arrière-plan.
@@ -424,21 +533,29 @@ def begin_commit(
         raise ValueError("Ce batch a déjà été validé")
     if status == "committing":
         return False
+
+    summary = batch.get("summary") or {}
+    mode = import_mode or summary.get("import_mode") or "onboarding"
+    resolutions_payload = [dict(r) for r in (workforce_resolutions or [])]
+    validate_workforce_resolutions_for_commit(summary, resolutions_payload)
+
     repo.update_batch(
         batch_id,
         {
             "status": "committing",
             "summary": {
-                **(batch.get("summary") or {}),
+                **summary,
                 "target_company_id": target_company_id,
-                "import_mode": import_mode or (batch.get("summary") or {}).get("import_mode"),
+                "import_mode": mode,
                 "replace_existing_periods": replace_existing_periods,
                 "commit_request": {
                     "overrides": overrides or {},
                     "payload_edits": payload_edits or {},
                     "target_company_id": target_company_id,
-                    "import_mode": import_mode,
+                    "import_mode": mode,
                     "replace_existing_periods": replace_existing_periods,
+                    "workforce_resolutions": resolutions_payload,
+                    "current_user_id": current_user_id,
                 },
             },
         },
@@ -451,9 +568,13 @@ def run_commit(
     overrides: Optional[Dict[str, str]] = None,
     payload_edits: Optional[Dict[str, Dict[str, Any]]] = None,
     target_company_id: Optional[str] = None,
+    workforce_resolutions: Optional[List[Dict[str, Any]]] = None,
+    current_user_id: Optional[str] = None,
 ) -> None:
     """Exécute le commit (tâche d'arrière-plan). Trace l'échec dans le batch."""
     from app.core.logging import get_logger
+
+    from app.modules.dsn_import.domain.user_messages import humanize_commit_error, issue_to_legacy_string
 
     logger = get_logger("modules.dsn_import.run_commit")
     try:
@@ -462,20 +583,25 @@ def run_commit(
             overrides=overrides,
             payload_edits=payload_edits,
             target_company_id=target_company_id,
+            workforce_resolutions=workforce_resolutions,
+            current_user_id=current_user_id,
         )
     except Exception as exc:
         logger.exception("Commit arrière-plan batch %s échoué", batch_id)
         batch = repo.get_batch(batch_id) or {}
+        issue = humanize_commit_error(exc)
+        legacy = issue_to_legacy_string(issue)
         repo.update_batch(
             batch_id,
             {
                 "status": "failed",
-                "error_message": str(exc),
+                "error_message": legacy,
                 "summary": {
                     **(batch.get("summary") or {}),
                     "commit_report": {
                         "stats": {"created": 0, "updated": 0, "skipped": 0, "failed": 0},
-                        "errors": [str(exc)],
+                        "errors": [issue],
+                        "error_messages": [legacy],
                         "group_id": None,
                         "companies": {},
                         "imported_employees": [],
@@ -483,6 +609,53 @@ def run_commit(
                 },
             },
         )
+
+
+def save_workforce_resolutions(
+    batch_id: str,
+    resolutions: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Persiste les décisions de réconciliation et recalcule le summary."""
+    batch = repo.get_batch(batch_id)
+    if not batch:
+        raise LookupError("Batch introuvable")
+
+    summary = dict(batch.get("summary") or {})
+    wf = dict(summary.get("workforce_reconciliation") or {})
+    stored: Dict[str, Dict[str, Any]] = {}
+    for res in resolutions:
+        gap_id = str(res.get("gap_id") or "")
+        if gap_id:
+            stored[gap_id] = {
+                k: v
+                for k, v in res.items()
+                if k
+                in (
+                    "gap_id",
+                    "employee_id",
+                    "action",
+                    "exit_type",
+                    "last_working_day",
+                    "exit_reason",
+                    "ignore_reason",
+                )
+                and v is not None
+            }
+            if hasattr(res.get("last_working_day"), "isoformat"):
+                stored[gap_id]["last_working_day"] = res["last_working_day"].isoformat()
+    wf["resolutions"] = stored
+    gaps = wf.get("gaps") or []
+    for gap in gaps:
+        gap_id = gap.get("gap_id")
+        if gap_id and gap_id in stored:
+            gap["resolution"] = stored[gap_id]
+    resolved_count = sum(1 for g in gaps if g.get("resolution"))
+    wf["resolved_count"] = resolved_count
+    wf["unresolved_count"] = len(gaps) - resolved_count
+    summary["workforce_reconciliation"] = wf
+
+    repo.update_batch(batch_id, {"summary": summary})
+    return {"summary": summary, "workforce_reconciliation": wf}
 
 
 def activate_imported_employee(

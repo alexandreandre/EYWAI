@@ -305,6 +305,81 @@ def find_employee_by_nir(company_id: str, nir: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+def find_employee_by_nir_global(nir: str) -> Optional[Dict[str, Any]]:
+    """Recherche un salarié par NIR (contrainte unique globale sur employees.nir)."""
+    if not nir:
+        return None
+    try:
+        client = get_supabase_admin_client()
+        resp = (
+            client.table("employees")
+            .select("*")
+            .eq("nir", nir)
+            .limit(1)
+            .execute()
+        )
+        return resp.data[0] if resp.data else None
+    except Exception:
+        logger.exception("Recherche salarié NIR (global) échouée")
+        return None
+
+
+def list_active_employees_with_nir(company_id: str) -> List[Dict[str, Any]]:
+    """Salariés actifs de l'entreprise porteurs d'un NIR (réconciliation effectifs DSN)."""
+    if not company_id:
+        return []
+    try:
+        client = get_supabase_admin_client()
+        resp = (
+            client.table("employees")
+            .select(
+                "id, first_name, last_name, nir, employment_status, "
+                "contract_end_date, hire_date"
+            )
+            .eq("company_id", company_id)
+            .not_.is_("nir", "null")
+            .neq("nir", "")
+            .order("last_name")
+            .execute()
+        )
+        active_statuses = {"actif", "active"}
+        return [
+            dict(row)
+            for row in (resp.data or [])
+            if (row.get("employment_status") or "actif").lower() in active_statuses
+        ]
+    except Exception:
+        logger.exception("Liste salariés actifs NIR échouée pour %s", company_id)
+        return []
+
+
+def list_active_employees_without_nir(company_id: str) -> List[Dict[str, Any]]:
+    """Salariés actifs sans NIR (hors comparaison NIR, signal informatif)."""
+    if not company_id:
+        return []
+    try:
+        client = get_supabase_admin_client()
+        resp = (
+            client.table("employees")
+            .select("id, first_name, last_name, employment_status")
+            .eq("company_id", company_id)
+            .order("last_name")
+            .execute()
+        )
+        active_statuses = {"actif", "active"}
+        out: List[Dict[str, Any]] = []
+        for row in resp.data or []:
+            if (row.get("employment_status") or "actif").lower() not in active_statuses:
+                continue
+            nir = (row.get("nir") or "").strip()
+            if not nir:
+                out.append(dict(row))
+        return out
+    except Exception:
+        logger.exception("Liste salariés actifs sans NIR échouée pour %s", company_id)
+        return []
+
+
 def resolve_collective_agreement_id(idcc: str) -> Optional[str]:
     if not idcc:
         return None

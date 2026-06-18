@@ -39,6 +39,8 @@ class TestGoldenCCRules:
             ("1486", 240, 100.0),  # 2500 * 0.04 (6 ans, palier 5 ans)
             ("1090", 150, 120.0),  # 3000 * 0.04 (6 ans, palier 6 ans → 0.04)
             ("0044", None, 90.0),  # 3000 * 0.03 (6 ans, palier 5 ans)
+            ("0292", None, 144.0),  # 3000 * 0.048 (6 ans, palier plasturgie)
+            ("1297", None, 144.0),  # alias plasturgie dans certains jeux de données
         ],
     )
     def test_prime_anciennete_par_idcc(

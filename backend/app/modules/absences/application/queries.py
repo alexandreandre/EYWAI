@@ -16,6 +16,13 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from app.core.database import supabase
+from app.modules.absences.domain.enums import IJSS_ELIGIBLE_TYPES
+from app.modules.absences.application.balance_display import balances_to_api_list
+from app.modules.absences.domain.leave_policy import (
+    DEFAULT_LEAVE_POLICY,
+    EmployeeLeaveAdjustment,
+    RTT_ANNUAL_DAYS_DEFAULT,
+)
 from app.modules.absences.domain.rules import (
     calculate_acquired_cp,
     calculate_acquired_rtt,
@@ -23,7 +30,21 @@ from app.modules.absences.domain.rules import (
     compute_cp_balances_for_bulletin,
     count_absence_days_taken,
     requires_salary_certificate,
+    resolve_rtt_annual_base,
     validate_conge_paye_request_days,
+)
+from app.modules.absences.application.cp_seniority_queries import (
+    compute_and_persist_grant,
+    get_forfait_annual_days_adjusted,
+    load_employee_cp_seniority_context,
+)
+from app.modules.absences.domain.cp_seniority import CpSenioritySettings
+from app.modules.absences.infrastructure.cp_seniority_repository import (
+    get_cp_seniority_settings,
+)
+from app.modules.absences.infrastructure.leave_settings_repository import (
+    get_employee_adjustment,
+    get_leave_policy,
 )
 from app.modules.absences.infrastructure.providers import (
     evenement_familial_provider,
@@ -32,6 +53,7 @@ from app.modules.absences.infrastructure.providers import (
 from app.modules.absences.application.service import resolve_employee_id_for_user
 from app.modules.absences.infrastructure.queries import (
     get_employee_hire_date,
+    get_employee_company_id,
     get_employees_hire_dates_batch,
     get_planned_calendar,
     get_repos_credits_by_employee_year,
@@ -48,6 +70,72 @@ from app.modules.users.schemas.responses import User
 
 BUCKET_LEAVE_ATTACHMENTS = "leave_attachments"
 BUCKET_SALARY_CERTIFICATES = "salary_certificates"
+
+
+def resolve_nombre_enfants_employee(employee_id: str) -> int:
+    """Nombre d'enfants à charge (specificites_paie ou 0)."""
+    try:
+        resp = (
+            supabase.table("employees")
+            .select("specificites_paie")
+            .eq("id", employee_id)
+            .maybe_single()
+            .execute()
+        )
+        row = resp.data if resp else None
+        if not row:
+            return 0
+        spec = row.get("specificites_paie") or {}
+        if isinstance(spec, dict):
+            for key in ("nombre_enfants", "nombre_enfants_a_charge", "enfants_a_charge"):
+                val = spec.get(key)
+                if isinstance(val, (int, float)) and val >= 0:
+                    return int(val)
+    except Exception:
+        logger.exception("Lecture nombre_enfants employé %s", employee_id)
+    return 0
+
+
+def build_historique_arrets_annee(
+    employee_id: str,
+    year: int,
+    *,
+    exclude_request_id: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Historique des arrêts validés de l'année (pour continuité / carence employeur)."""
+    try:
+        resp = (
+            supabase.table("absence_requests")
+            .select("id, type, arret_type, selected_days, status")
+            .eq("employee_id", employee_id)
+            .eq("status", "validated")
+            .execute()
+        )
+        rows = resp.data or []
+    except Exception:
+        logger.exception("Historique arrêts employé %s", employee_id)
+        return []
+
+    historique: List[Dict[str, Any]] = []
+    for row in rows:
+        if exclude_request_id and str(row.get("id")) == str(exclude_request_id):
+            continue
+        if row.get("type") not in IJSS_ELIGIBLE_TYPES:
+            continue
+        days_raw = row.get("selected_days") or []
+        if not days_raw:
+            continue
+        parsed = sorted(_parse_absence_day(d) for d in days_raw)
+        if parsed[0].year != year:
+            continue
+        historique.append(
+            {
+                "arret_type": row.get("arret_type") or "maladie_simple",
+                "date_debut": parsed[0].isoformat(),
+                "date_fin": parsed[-1].isoformat(),
+            }
+        )
+    return historique
 
 
 def _enrich_absence_certificate_fields(row: dict) -> None:
@@ -125,41 +213,25 @@ def get_absence_requests(
             continue
         hire_date = hire_dates[emp_id]
         emp_validated = [r for r in validated_reqs if r["employee_id"] == emp_id]
+        policy, adjustment, rtt_base, cp_seniority = _leave_context(
+            emp_id, today.year, company_id
+        )
+        extras = _cp_balance_extras(
+            emp_id, today, company_id, policy, cp_seniority
+        )
         soldes = compute_absence_balances(
             hire_date,
             emp_validated,
             today,
             repos_acquis=repos_credits_by_emp.get(emp_id, 0.0),
+            rtt_annual_base=rtt_base,
+            policy=policy,
+            adjustment=adjustment,
+            **extras,
         )
-        cp = soldes["conges_payes"]
-        rtt = soldes["rtt"]
-        repos = soldes["repos_compensateur"]
-        balances_map[emp_id] = [
-            {
-                "type": "Congés Payés",
-                "acquired": cp["acquis"],
-                "taken": cp["pris"],
-                "remaining": cp["solde"],
-            },
-            {
-                "type": "RTT",
-                "acquired": rtt["acquis"],
-                "taken": rtt["pris"],
-                "remaining": rtt["solde"],
-            },
-            {
-                "type": "Repos compensateur",
-                "acquired": repos["acquis"],
-                "taken": repos["pris"],
-                "remaining": repos["solde"],
-            },
-            {
-                "type": "Événement familial",
-                "acquired": 0,
-                "taken": 0,
-                "remaining": "selon événement",
-            },
-        ]
+        balances_map[emp_id] = balances_to_api_list(
+            soldes, policy=policy, cp_seniority=cp_seniority
+        )
 
     for req in requests:
         emp_id = req["employee"]["id"]
@@ -228,6 +300,69 @@ def get_absence_request_detail(
     return enriched
 
 
+def _get_employee_company_id(employee_id: str) -> str | None:
+    return get_employee_company_id(employee_id)
+
+
+def _resolve_employee_rtt_base(
+    employee_id: str,
+    company_id: str | None,
+    year: int,
+    policy: LeavePolicySettings,
+) -> float:
+    from app.modules.absences.application.leave_settings_queries import (
+        _load_observed_holiday_ids,
+    )
+
+    cid = company_id or _get_employee_company_id(employee_id)
+    observed = _load_observed_holiday_ids(cid) if cid else None
+    forfait_override = None
+    if policy.rtt_use_forfait_jours_formula and cid:
+        forfait_override = get_forfait_annual_days_adjusted(
+            employee_id, cid, year
+        )
+    return resolve_rtt_annual_base(
+        year,
+        policy,
+        observed_holiday_ids=observed,
+        forfait_days_override=forfait_override,
+    )
+
+
+def _leave_context(
+    employee_id: str, year: int, company_id: str | None = None
+) -> tuple:
+    cid = company_id or _get_employee_company_id(employee_id)
+    if not cid:
+        return (
+            DEFAULT_LEAVE_POLICY,
+            EmployeeLeaveAdjustment.empty(),
+            RTT_ANNUAL_DAYS_DEFAULT,
+            CpSenioritySettings.disabled(),
+        )
+    policy = get_leave_policy(cid)
+    adjustment = get_employee_adjustment(employee_id, year)
+    rtt_base = _resolve_employee_rtt_base(employee_id, cid, year, policy)
+    cp_seniority = get_cp_seniority_settings(cid)
+    return policy, adjustment, rtt_base, cp_seniority
+
+
+def _cp_balance_extras(
+    employee_id: str,
+    ref_date: date,
+    company_id: str | None,
+    policy,
+    cp_seniority: CpSenioritySettings,
+) -> dict:
+    ctx = load_employee_cp_seniority_context(employee_id)
+    cid = company_id or _get_employee_company_id(employee_id)
+    if cid and cp_seniority.is_active:
+        compute_and_persist_grant(
+            cid, employee_id, cp_seniority, ctx, ref_date, policy=policy
+        )
+    return {"cp_seniority": cp_seniority, "employee_ctx": ctx}
+
+
 def _parse_hire_date(employee_id: str) -> date | None:
     hire_date_raw = get_employee_hire_date(employee_id)
     if not hire_date_raw:
@@ -256,7 +391,30 @@ def assert_employee_conge_paye_request_allowed(
         elif isinstance(day, str):
             parsed_days.append(date.fromisoformat(day[:10]))
     employee_requests = absence_repository.list_by_employee_id(employee_id)
-    validate_conge_paye_request_days(hire_date, employee_requests, parsed_days)
+    policy, adjustment, _, cp_seniority = _leave_context(employee_id, date.today().year)
+    extra_cet = 0.0
+    try:
+        from app.modules.cet.application.queries import (
+            get_cet_cp_extra_committed_for_absences,
+        )
+
+        extra_cet = get_cet_cp_extra_committed_for_absences(
+            employee_id, date.today().year
+        )
+    except Exception:
+        extra_cet = 0.0
+    extras = _cp_balance_extras(
+        employee_id, date.today(), None, policy, cp_seniority
+    )
+    validate_conge_paye_request_days(
+        hire_date,
+        employee_requests,
+        parsed_days,
+        policy=policy,
+        adjustment=adjustment,
+        extra_committed_days=extra_cet,
+        **extras,
+    )
 
 
 def get_absence_balances_at_date(
@@ -269,11 +427,17 @@ def get_absence_balances_at_date(
     validated_list = absence_repository.list_validated_for_employees([employee_id])
     repos_credits = get_repos_credits_by_employee_year([employee_id], ref_date.year)
     repos_acquis = repos_credits.get(employee_id, 0.0)
+    policy, adjustment, rtt_base, cp_seniority = _leave_context(employee_id, ref_date.year)
+    extras = _cp_balance_extras(employee_id, ref_date, None, policy, cp_seniority)
     return compute_absence_balances(
         hire_date,
         validated_list,
         ref_date,
         repos_acquis=repos_acquis,
+        rtt_annual_base=rtt_base,
+        policy=policy,
+        adjustment=adjustment,
+        **extras,
     )
 
 
@@ -289,20 +453,64 @@ def get_absence_balances_for_payslip(
     validated_list = absence_repository.list_validated_for_employees([employee_id])
     repos_credits = get_repos_credits_by_employee_year([employee_id], ref_date.year)
     repos_acquis = repos_credits.get(employee_id, 0.0)
-    cp_lines = compute_cp_balances_for_bulletin(hire_date, validated_list, ref_date)
+    policy, adjustment, rtt_base, cp_seniority = _leave_context(employee_id, ref_date.year)
+    extras = _cp_balance_extras(employee_id, ref_date, None, policy, cp_seniority)
+    cp_lines = compute_cp_balances_for_bulletin(
+        hire_date,
+        validated_list,
+        ref_date,
+        policy=policy,
+        adjustment=adjustment,
+        **extras,
+    )
     autres = compute_absence_balances(
         hire_date,
         validated_list,
         ref_date,
         repos_acquis=repos_acquis,
+        rtt_annual_base=rtt_base,
+        policy=policy,
+        adjustment=adjustment,
+        **extras,
     )
-    return {
+    balances: dict[str, object] = {
         "date_reference": ref_date.strftime("%d/%m/%Y"),
         "conges_payes": cp_lines["periode_courante"],
         "conges_payes_periode_precedente": cp_lines["periode_precedente"],
         "rtt": autres["rtt"],
         "repos_compensateur": autres["repos_compensateur"],
+        "cp_seniority_days": autres.get("cp_seniority_days", 0),
     }
+    company_id = _get_employee_company_id(employee_id)
+    if company_id:
+        from app.modules.absences.application.fractionnement_queries import (
+            apply_fractionnement_to_payslip_balances,
+        )
+        from app.modules.absences.application.cp_seniority_queries import (
+            get_forfait_annual_days_adjusted,
+        )
+
+        balances = apply_fractionnement_to_payslip_balances(
+            employee_id, company_id, year, month, balances
+        )
+        forfait_adj = get_forfait_annual_days_adjusted(
+            employee_id, company_id, ref_date.year
+        )
+        if forfait_adj is not None:
+            balances["forfait_annual_days_adjusted"] = forfait_adj
+            cp_seniority_days = float(balances.get("cp_seniority_days") or 0)
+            if cp_seniority_days > 0:
+                from app.modules.absences.infrastructure.cp_seniority_repository import (
+                    get_cp_seniority_settings,
+                )
+
+                cp_settings = get_cp_seniority_settings(company_id)
+                base = cp_settings.forfait_annual_days_default
+                balances["cp_seniority_forfait_note"] = (
+                    f"Forfait annuel ajusté : {forfait_adj:.0f} j "
+                    f"({base:.0f} − {cp_seniority_days:.0f} CP ancienneté)"
+                )
+    return balances
 
 
 def get_my_absence_balances(employee_id: str) -> List[dict]:
@@ -313,51 +521,43 @@ def get_my_absence_balances(employee_id: str) -> List[dict]:
         raise LookupError("Date d'embauche non trouvée pour l'employé.")
 
     validated_list = absence_repository.list_validated_for_employees([employee_id])
-    balances = compute_absence_balances(
+    policy, adjustment, rtt_base, cp_seniority = _leave_context(employee_id, today.year)
+    extras = _cp_balance_extras(employee_id, today, None, policy, cp_seniority)
+    soldes = compute_absence_balances(
         hire_date,
         validated_list,
         today,
         repos_acquis=get_repos_credits_by_employee_year([employee_id], today.year).get(
             employee_id, 0.0
         ),
+        rtt_annual_base=rtt_base,
+        policy=policy,
+        adjustment=adjustment,
+        **extras,
     )
-    cp = balances["conges_payes"]
-    rtt = balances["rtt"]
-    repos = balances["repos_compensateur"]
-    ss_pris = count_absence_days_taken(validated_list, "sans_solde", today)
+    try:
+        from app.modules.cet.application.queries import (
+            get_cet_cp_extra_committed_for_absences,
+        )
 
-    return [
-        {
-            "type": "Congés Payés",
-            "acquired": cp["acquis"],
-            "taken": cp["pris"],
-            "remaining": cp["solde"],
-        },
-        {
-            "type": "RTT",
-            "acquired": rtt["acquis"],
-            "taken": rtt["pris"],
-            "remaining": rtt["solde"],
-        },
-        {
-            "type": "Repos compensateur",
-            "acquired": repos["acquis"],
-            "taken": repos["pris"],
-            "remaining": repos["solde"],
-        },
-        {
-            "type": "Événement familial",
-            "acquired": 0,
-            "taken": 0,
-            "remaining": "selon événement",
-        },
+        cet_cp = get_cet_cp_extra_committed_for_absences(employee_id, today.year)
+        if cet_cp > 0 and "conges_payes" in soldes:
+            cp = dict(soldes["conges_payes"])
+            cp["solde"] = round(max(0.0, float(cp.get("solde") or 0) - cet_cp), 2)
+            soldes = {**soldes, "conges_payes": cp}
+    except Exception:
+        pass
+    ss_pris = count_absence_days_taken(validated_list, "sans_solde", today)
+    result = balances_to_api_list(soldes, policy=policy, cp_seniority=cp_seniority)
+    result.append(
         {
             "type": "Congé sans solde",
             "acquired": 0,
             "taken": ss_pris,
             "remaining": "N/A",
-        },
-    ]
+        }
+    )
+    return result
 
 
 def get_my_monthly_calendar(employee_id: str, year: int, month: int) -> List[dict]:
@@ -390,49 +590,31 @@ def get_my_absences_page_data(employee_id: str, year: int, month: int) -> dict:
 
     validated_requests = absence_repository.list_validated_for_employees([employee_id])
     repos_credits = get_repos_credits_by_employee_year([employee_id], today.year)
+    policy, adjustment, rtt_base, cp_seniority = _leave_context(employee_id, today.year)
+    extras = _cp_balance_extras(employee_id, today, None, policy, cp_seniority)
     soldes = compute_absence_balances(
         hire_date,
         validated_requests,
         today,
         repos_acquis=repos_credits.get(employee_id, 0.0),
+        rtt_annual_base=rtt_base,
+        policy=policy,
+        adjustment=adjustment,
+        **extras,
     )
-    cp = soldes["conges_payes"]
-    rtt = soldes["rtt"]
-    repos = soldes["repos_compensateur"]
     ss_pris = count_absence_days_taken(validated_requests, "sans_solde", today)
 
-    balances_data = [
-        {
-            "type": "Congés Payés",
-            "acquired": cp["acquis"],
-            "taken": cp["pris"],
-            "remaining": cp["solde"],
-        },
-        {
-            "type": "RTT",
-            "acquired": rtt["acquis"],
-            "taken": rtt["pris"],
-            "remaining": rtt["solde"],
-        },
-        {
-            "type": "Repos compensateur",
-            "acquired": repos["acquis"],
-            "taken": repos["pris"],
-            "remaining": repos["solde"],
-        },
-        {
-            "type": "Événement familial",
-            "acquired": 0,
-            "taken": 0,
-            "remaining": "selon événement",
-        },
+    balances_data = balances_to_api_list(
+        soldes, policy=policy, cp_seniority=cp_seniority
+    )
+    balances_data.append(
         {
             "type": "Congé sans solde",
             "acquired": 0,
             "taken": ss_pris,
             "remaining": "N/A",
-        },
-    ]
+        }
+    )
 
     calendar_data = get_planned_calendar(employee_id, year, month)
     history_data = absence_repository.list_by_employee_id(employee_id)
@@ -654,7 +836,25 @@ def get_absence_maintenance_preview(
     settings_model = get_maintenance_settings(emp_company)
     settings_dict = settings_model.model_dump(mode="json")
 
-    sub_active = _infer_subrogation_active(settings_dict, arret_type, subrogation_active)
+    sub_active = _infer_subrogation_active(
+        settings_dict,
+        arret_type,
+        subrogation_active
+        if subrogation_active is not None
+        else absence.get("subrogation_active"),
+    )
+
+    nombre_enfants = int(absence.get("nombre_enfants") or 0)
+    if not nombre_enfants:
+        nombre_enfants = resolve_nombre_enfants_employee(str(absence["employee_id"]))
+
+    historique = absence.get("historique_arrets_annee")
+    if not historique:
+        historique = build_historique_arrets_annee(
+            str(absence["employee_id"]),
+            date_debut_periode.year,
+            exclude_request_id=absence_id,
+        )
 
     temps_travail_row = (
         employee_row.get("temps_travail")
@@ -666,7 +866,7 @@ def get_absence_maintenance_preview(
         "date_debut": date_debut_periode.isoformat(),
         "date_fin": date_fin_periode.isoformat(),
         "subrogation_active": sub_active,
-        "nombre_enfants": int(absence.get("nombre_enfants") or 0),
+        "nombre_enfants": nombre_enfants,
         "is_temps_partiel": bool(
             absence.get("is_temps_partiel")
             if absence.get("is_temps_partiel") is not None
@@ -679,7 +879,7 @@ def get_absence_maintenance_preview(
             or temps_travail_row.get("quotite")
             or 1.0
         ),
-        "historique_arrets_annee": absence.get("historique_arrets_annee") or [],
+        "historique_arrets_annee": historique or [],
         "date_dernier_arret": absence.get("date_dernier_arret"),
         "salaire_periode_reelle": float(absence.get("salaire_periode_reelle") or 0.0),
     }

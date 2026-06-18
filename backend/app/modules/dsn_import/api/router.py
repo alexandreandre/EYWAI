@@ -14,6 +14,7 @@ from app.modules.dsn_import.schemas.requests import (
     ActivateImportedEmployeeBody,
     DsnImportCommitBody,
     DsnImportRevalidateBody,
+    DsnImportWorkforceResolutionsBody,
 )
 from app.modules.dsn_import.schemas.responses import (
     ActivateImportedEmployeeResponse,
@@ -216,12 +217,26 @@ async def revalidate_import_batch(
     )
 
 
+@router.patch("/batches/{batch_id}/workforce-resolutions")
+async def save_workforce_resolutions(
+    batch_id: str,
+    body: DsnImportWorkforceResolutionsBody,
+    _super_admin: Dict[str, Any] = Depends(verify_super_admin),
+) -> Dict[str, Any]:
+    """Enregistre les décisions de réconciliation effectifs avant commit."""
+    try:
+        resolutions = [r.model_dump(mode="json") for r in body.resolutions]
+        return service.save_workforce_resolutions(batch_id, resolutions)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Batch introuvable.") from None
+
+
 @router.post("/batches/{batch_id}/commit", response_model=DsnImportCommitStartResponse)
 async def commit_import_batch(
     batch_id: str,
     body: DsnImportCommitBody,
     background_tasks: BackgroundTasks,
-    _super_admin: Dict[str, Any] = Depends(verify_super_admin),
+    super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ) -> DsnImportCommitStartResponse:
     """
     Lance l'import DSN en arrière-plan.
@@ -232,6 +247,7 @@ async def commit_import_batch(
     Le front interroge ensuite GET /batches/{id} jusqu'au statut committed | failed.
     """
     try:
+        workforce_resolutions = [r.model_dump(mode="json") for r in body.workforce_resolutions]
         should_launch = service.begin_commit(
             batch_id,
             overrides=body.overrides,
@@ -239,6 +255,8 @@ async def commit_import_batch(
             target_company_id=body.target_company_id,
             import_mode=body.import_mode,
             replace_existing_periods=body.replace_existing_periods,
+            workforce_resolutions=workforce_resolutions,
+            current_user_id=str(super_admin.get("user_id")),
         )
     except LookupError:
         raise HTTPException(status_code=404, detail="Batch introuvable.") from None
@@ -252,6 +270,8 @@ async def commit_import_batch(
             body.overrides,
             body.payload_edits,
             body.target_company_id,
+            workforce_resolutions,
+            str(super_admin.get("user_id")),
         )
 
     return DsnImportCommitStartResponse(status="committing", batch_id=batch_id)

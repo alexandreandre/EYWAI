@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi.responses import Response
 
 from app.core.security import get_current_user
 from app.modules.audit.application.commands import log_audit_event
@@ -17,6 +18,7 @@ from app.modules.webhooks.application.service import trigger_webhook_event
 from app.modules.users.schemas.responses import User
 
 from app.modules.recruitment.application import commands, queries
+from app.modules.documents.application import commands as document_commands
 from app.modules.recruitment.schemas import (
     ArchiveCandidateBody,
     CandidateCreate,
@@ -28,6 +30,7 @@ from app.modules.recruitment.schemas import (
     InterviewOut,
     InterviewUpdate,
     JobCreate,
+    JobFichePosteBody,
     JobOut,
     JobUpdate,
     MoveCandidateBody,
@@ -205,6 +208,33 @@ def update_job(
         return JobOut(**out)
     except ValueError as e:
         raise _value_error_to_http(e)
+
+
+@router.post("/jobs/{job_id}/fiche-poste")
+def generate_job_fiche_poste(
+    job_id: str,
+    body: JobFichePosteBody | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    company_id = _ensure_module_enabled(current_user)
+    _ensure_rh_access(current_user, company_id)
+    template_id = body.template_id if body else None
+    try:
+        pdf_bytes = document_commands.generate_job_fiche_poste_pdf(
+            company_id, job_id, template_id
+        )
+    except (ValueError, LookupError) as e:
+        raise _value_error_to_http(e)
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    safe_title = "fiche_poste"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_title}_{job_id[:8]}.pdf"'
+        },
+    )
 
 
 # ─── PIPELINE STAGES ───────────────────────────────────────────────────

@@ -110,6 +110,20 @@ async def postgrest_exception_handler(request: Request, exc: APIError):
             content={"detail": detail},
         )
 
+    if code == "PGRST204" and any(
+        c in message
+        for c in ("nom_signataire_rh", "qualite_signataire_rh")
+    ):
+        detail = (
+            "Colonnes signataire RH absentes sur Supabase. "
+            "Appliquez la migration supabase/migrations/20260604120000_company_signatory.sql "
+            "(SQL Editor ou script backend/scripts/check_companies_schema.py)."
+        )
+        return JSONResponse(
+            status_code=503,
+            content={"detail": detail},
+        )
+
     logger.error(
         "PostgREST error on %s %s: %s",
         request.method,

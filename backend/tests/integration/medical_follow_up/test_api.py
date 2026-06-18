@@ -338,12 +338,23 @@ class TestMedicalFollowUpWithRhUser:
         ) or "trouvé" in response.json().get("detail", "")
 
     def test_get_settings_returns_200(self, client_with_rh: TestClient):
-        """GET /api/medical-follow-up/settings → 200 et enabled."""
-        response = client_with_rh.get("/api/medical-follow-up/settings")
+        """GET /api/medical-follow-up/settings → 200, enabled et contact SPST."""
+        with patch(
+            "app.modules.medical_follow_up.infrastructure.company_contact.get_occupational_health_contact",
+            return_value={
+                "nom": "SPSTI Test",
+                "adresse_rue": "1 rue Santé",
+                "adresse_code_postal": "44000",
+                "adresse_ville": "Nantes",
+                "telephone": "02 40 00 00 00",
+                "email": "contact@spst.test",
+            },
+        ):
+            response = client_with_rh.get("/api/medical-follow-up/settings")
         assert response.status_code == 200
         data = response.json()
-        assert "enabled" in data
         assert data["enabled"] is True
+        assert data["occupational_health_contact"]["nom"] == "SPSTI Test"
 
 
 class TestMedicalFollowUpForbiddenNonRh:

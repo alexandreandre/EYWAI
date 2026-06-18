@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from app.modules.badgeuse.application.deps import deps
 from app.modules.badgeuse.application._internals import *  # noqa: F403
+
+
 def build_company_summary_csv(
     *,
     company_id: str,
@@ -23,6 +25,13 @@ def build_company_summary_csv(
         employee_ids=list(employee_ids) if employee_ids else None,
     )
 
+    accounting_map = deps.day_accounting_repository.get_for_company_between(
+        company_id=company_id,
+        start=start,
+        end=end,
+        employee_ids=list(employee_ids) if employee_ids else None,
+    )
+
     grouped: Dict[str, Dict[date, List[TimeEntry]]] = {}
     for row in rows:
         emp_id = str(row["employee_id"])
@@ -32,13 +41,19 @@ def build_company_summary_csv(
             deps.time_entry_repository._row_to_entry(row)  # type: ignore[attr-defined]
         )
 
+    for (emp_id, d), _ in accounting_map.items():
+        grouped.setdefault(emp_id, {}).setdefault(d, [])
+
     output = StringIO()
     writer = csv.writer(output, delimiter=";")
     writer.writerow(
         [
             "employe_id",
             "date",
-            "total_heures",
+            "heures_brutes",
+            "heures_comptabilisees",
+            "heures_effectives",
+            "override",
             "nombre_sequences",
             "anomalie",
         ]
@@ -46,15 +61,32 @@ def build_company_summary_csv(
 
     for emp_id, days in grouped.items():
         for d, entries in sorted(days.items(), key=lambda x: x[0]):
-            summary = deps.compute_day_summary(entries)
-            total_hours = summary.total_duration.total_seconds() / 3600.0
+            if entries:
+                summary = deps.compute_day_summary(entries)
+                computed = summary.total_duration.total_seconds()
+                sequences = len(summary.sequences)
+                has_anomaly = bool(summary.anomalies)
+            else:
+                computed = 0.0
+                sequences = 0
+                has_anomaly = False
+            accounted = accounting_map.get((emp_id, d))
+            effective = deps.resolve_effective_seconds(int(computed), accounted)
+            brut_h = computed / 3600.0
+            effective_h = effective / 3600.0
+            compt_h = (
+                accounted / 3600.0 if accounted is not None else effective_h
+            )
             writer.writerow(
                 [
                     emp_id,
                     d.isoformat(),
-                    f"{total_hours:.2f}",
-                    len(summary.sequences),
-                    "oui" if summary.anomalies else "non",
+                    f"{brut_h:.2f}",
+                    f"{compt_h:.2f}" if accounted is not None else "",
+                    f"{effective_h:.2f}",
+                    "oui" if accounted is not None else "non",
+                    sequences,
+                    "oui" if has_anomaly else "non",
                 ]
             )
 

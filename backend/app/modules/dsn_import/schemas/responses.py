@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class DsnImportItemPreview(BaseModel):
@@ -21,6 +21,8 @@ class DsnImportItemPreview(BaseModel):
     is_scaffold: Optional[bool] = None
     is_existing: Optional[bool] = None
     existing_employee_id: Optional[str] = None
+    existing_company_id: Optional[str] = None
+    existing_company_name: Optional[str] = None
 
 
 class DsnImportCompany(BaseModel):
@@ -39,11 +41,36 @@ class DsnImportCompanyListResponse(BaseModel):
     companies: List[DsnImportCompany]
 
 
-class DsnImportAnomaly(BaseModel):
-    type: str
+class DsnImportIssue(BaseModel):
+    code: str
     message: str
-    severity: str = "warning"
+    hint: Optional[str] = None
+    severity: str = "error"
     source_ref: Optional[str] = None
+    item_label: Optional[str] = None
+    meta: Optional[Dict[str, Any]] = None
+
+
+class DsnImportAnomaly(DsnImportIssue):
+    type: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_anomaly_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        out = dict(data)
+        raw_type = str(out.get("type") or "")
+        if not out.get("code"):
+            if raw_type and raw_type not in ("error", "warning"):
+                out["code"] = raw_type
+            elif out.get("severity") == "blocking" or raw_type == "error":
+                out["code"] = "validation_error"
+            else:
+                out["code"] = "validation_warning"
+        if not out.get("type"):
+            out["type"] = out["code"]
+        return out
 
 
 class DsnImportParseResponse(BaseModel):
@@ -69,9 +96,14 @@ class ImportedEmployeeSummary(BaseModel):
     employment_status: Optional[str] = None
 
 
+class DsnImportCommitError(DsnImportIssue):
+    pass
+
+
 class DsnImportCommitResponse(BaseModel):
     stats: Dict[str, int]
-    errors: List[str]
+    errors: List[DsnImportCommitError] = Field(default_factory=list)
+    error_messages: List[str] = Field(default_factory=list)
     group_id: Optional[str] = None
     companies: Dict[str, str] = Field(default_factory=dict)
     imported_employees: List[ImportedEmployeeSummary] = Field(default_factory=list)

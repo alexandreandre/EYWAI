@@ -159,3 +159,29 @@ def query_company_by_id(company_id: str) -> Optional[Dict[str, Any]]:
         supabase.table("companies").select("*").eq("id", company_id).single().execute()
     )
     return dict(resp.data) if resp.data else None
+
+
+def query_list_active_employees(company_id: str) -> List[Dict[str, Any]]:
+    """Salariés actifs avec statut (pour suggestions de planification)."""
+    resp = (
+        supabase.table("employees")
+        .select("id, first_name, last_name, statut, employment_status")
+        .eq("company_id", company_id)
+        .order("last_name")
+        .execute()
+    )
+    return [dict(x) for x in list(resp.data or [])]
+
+
+def query_reviews_for_company_year(
+    company_id: str, year: int
+) -> List[Dict[str, Any]]:
+    """Entretiens d'une entreprise pour une année (tous statuts)."""
+    resp = (
+        supabase.table("annual_reviews")
+        .select("id, employee_id, interview_type, status, year")
+        .eq("company_id", company_id)
+        .eq("year", year)
+        .execute()
+    )
+    return [dict(x) for x in list(resp.data or [])]

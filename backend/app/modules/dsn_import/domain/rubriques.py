@@ -129,9 +129,25 @@ R_S21_COT_TAUX_PAT = "S21.G00.78.004"
 R_S21_COT_MONTANT_SAL = "S21.G00.78.005"
 R_S21_COT_MONTANT_PAT = "S21.G00.78.006"
 
-# --- Base assujettie S21.G00.81 ---
+# --- Base assujettie S21.G00.81 (legacy parser) / cotisation individuelle (norme) ---
 R_S21_BASE_CODE = "S21.G00.81.001"
 R_S21_BASE_MONTANT = "S21.G00.81.002"
+R_S21_CI_ASSIETTE = "S21.G00.81.002"
+R_S21_CI_MONTANT_SAL = "S21.G00.81.003"
+R_S21_CI_MONTANT_PAT = "S21.G00.81.004"
+R_S21_CI_IDENT_AFF = "S21.G00.81.005"
+
+# --- Affiliation PSC S21.G00.70 ---
+R_S21_AFF_REF_CONTRAT = "S21.G00.70.001"
+R_S21_AFF_CODE_ORG = "S21.G00.70.002"
+R_S21_AFF_CODE_DELEG = "S21.G00.70.003"
+R_S21_AFF_CODE_OPTION = "S21.G00.70.004"
+R_S21_AFF_CODE_POP = "S21.G00.70.005"
+R_S21_AFF_NB_ENFANTS = "S21.G00.70.007"
+R_S21_AFF_NB_ADULTES = "S21.G00.70.008"
+R_S21_AFF_IDENT = "S21.G00.70.012"
+
+PSC_COTISATION_CODE = "059"
 
 # Blocs G00 (3e segment) déclenchant une nouvelle instance
 BLOCK_G00 = {
@@ -141,8 +157,9 @@ BLOCK_G00 = {
     "40": "contrat",
     "50": "versement",
     "51": "remuneration",
+    "70": "affiliation",
     "78": "cotisation",
-    "81": "base_assujettie",
+    "81": "cotisation_individuelle",
     "53": "activite",
 }
 

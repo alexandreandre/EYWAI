@@ -7,7 +7,10 @@ from typing import List, Optional
 from app.modules.document_library.infrastructure.repository import (
     document_library_repository,
 )
-from app.modules.document_library.schemas.requests import KNOWN_DOCUMENT_TYPES
+from app.modules.document_library.schemas.requests import (
+    CLIENT_TEMPLATE_ONLY_TYPES,
+    KNOWN_DOCUMENT_TYPES,
+)
 
 
 def get_templates(company_id: str, status: Optional[str] = None) -> List[dict]:
@@ -25,7 +28,8 @@ def get_versions(template_id: str, company_id: str) -> List[dict]:
 def get_missing_types(company_id: str) -> List[str]:
     rows = document_library_repository.get_all(company_id, status="active")
     covered = {str(r["document_type"]) for r in rows}
-    return sorted(KNOWN_DOCUMENT_TYPES - covered)
+    eywai_types = KNOWN_DOCUMENT_TYPES - CLIENT_TEMPLATE_ONLY_TYPES
+    return sorted(eywai_types - covered)
 
 
 def get_version_download_url(

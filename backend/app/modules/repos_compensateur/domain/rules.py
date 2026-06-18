@@ -49,19 +49,13 @@ def get_taux_cor_par_effectif(effectif: int | None) -> float:
 
 
 # --- Extraction HS depuis payslip_data (règle métier : quelles lignes = HS) ---
-def extraire_heures_hs_du_bulletin(payslip_data: dict[str, Any] | None) -> float:
-    """
-    Extrait le total des heures supplémentaires d'un bulletin à partir de calcul_du_brut.
-    Filtre les lignes dont libelle contient "Heures suppl" ou "suppl" (insensible à la casse).
-    """
+def _iter_heures_sup_lignes(payslip_data: dict[str, Any] | None):
+    """Itère les lignes HS d'un bulletin (calcul_du_brut)."""
     if not payslip_data or not isinstance(payslip_data, dict):
-        return 0.0
-
+        return
     calcul_du_brut = payslip_data.get("calcul_du_brut")
     if not isinstance(calcul_du_brut, list):
-        return 0.0
-
-    total = 0.0
+        return
     for ligne in calcul_du_brut:
         if not isinstance(ligne, dict):
             continue
@@ -70,10 +64,36 @@ def extraire_heures_hs_du_bulletin(payslip_data: dict[str, Any] | None) -> float
         if "heures suppl" in libelle_lower or (
             "suppl" in libelle_lower and "heure" in libelle_lower
         ):
-            quantite = ligne.get("quantite")
-            if quantite is not None and isinstance(quantite, (int, float)):
-                total += float(quantite)
+            yield ligne, libelle_lower
 
+
+def extraire_heures_hs_du_bulletin(payslip_data: dict[str, Any] | None) -> float:
+    """
+    Extrait le total des heures supplémentaires d'un bulletin (structurelles + conjoncturelles).
+    Utilisé pour le cumul COR annuel.
+    """
+    total = 0.0
+    for ligne, _ in _iter_heures_sup_lignes(payslip_data):
+        quantite = ligne.get("quantite")
+        if quantite is not None and isinstance(quantite, (int, float)):
+            total += float(quantite)
+    return round(total, 2)
+
+
+def extraire_heures_hs_conjoncturelles_du_bulletin(
+    payslip_data: dict[str, Any] | None,
+) -> float:
+    """
+    Extrait les HS conjoncturelles uniquement (exclut les lignes « structurelles »).
+    Utilisé pour le suivi contingent (évite double comptage avec le calcul contrat).
+    """
+    total = 0.0
+    for ligne, libelle_lower in _iter_heures_sup_lignes(payslip_data):
+        if "structurel" in libelle_lower:
+            continue
+        quantite = ligne.get("quantite")
+        if quantite is not None and isinstance(quantite, (int, float)):
+            total += float(quantite)
     return round(total, 2)
 
 
@@ -101,5 +121,6 @@ __all__ = [
     "heures_vers_jours",
     "get_taux_cor_par_effectif",
     "extraire_heures_hs_du_bulletin",
+    "extraire_heures_hs_conjoncturelles_du_bulletin",
     "cumuler_heures_hs_annee",
 ]

@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any, Dict
 
 from app.modules.companies.application.dto import CompanySettingsResultDto
+from app.modules.companies.domain.public_holidays import merge_public_holidays_settings
 from app.modules.companies.infrastructure.repository import company_repository
 
 
@@ -31,6 +32,15 @@ def update_company_settings(
         current_settings["medical_follow_up_enabled"] = bool(
             settings_delta["medical_follow_up_enabled"]
         )
+
+    if "public_holidays" in settings_delta:
+        try:
+            current_settings = merge_public_holidays_settings(
+                current_settings,
+                settings_delta.get("public_holidays"),
+            )
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
 
     company_repository.update_settings(company_id, current_settings)
     return CompanySettingsResultDto(

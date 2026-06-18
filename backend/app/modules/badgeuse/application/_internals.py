@@ -25,6 +25,12 @@ from app.modules.badgeuse.infrastructure.badge_credentials_repository import (
 from app.modules.badgeuse.infrastructure.repository import (
     time_entry_repository,
     time_entry_validation_repository,
+    day_accounting_repository,
+)
+from app.modules.badgeuse.domain.day_accounting import (
+    resolve_effective_seconds,
+    has_accounting_override,
+    override_differs_from_computed,
 )
 from app.modules.companies.infrastructure.repository import company_repository
 from app.modules.employees.infrastructure.repository import EmployeeRepository
@@ -45,6 +51,27 @@ class DayStatusDTO:
     sequences_count: int
     has_anomalies: bool
     validated: bool = False
+    computed_seconds: int = 0
+    accounted_seconds: int | None = None
+    effective_seconds: int = 0
+    has_override: bool = False
+    override_differs_from_computed: bool = False
+
+
+def _build_accounting_fields(
+    computed_seconds: int, accounted_seconds: int | None
+) -> dict[str, Any]:
+    effective = resolve_effective_seconds(computed_seconds, accounted_seconds)
+    return {
+        "computed_seconds": computed_seconds,
+        "accounted_seconds": accounted_seconds,
+        "effective_seconds": effective,
+        "has_override": has_accounting_override(accounted_seconds),
+        "override_differs_from_computed": override_differs_from_computed(
+            computed_seconds, accounted_seconds
+        ),
+        "total_seconds": computed_seconds,
+    }
 
 
 def get_company_id_from_user(current_user: User) -> str:

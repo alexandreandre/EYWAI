@@ -388,6 +388,7 @@ def _creer_bulletin_simplifie(
                 "montant": round(montant_pas, 2),
             },
             "remboursement_transport": 0.0,
+            "indemnite_transport_fixe": 0.0,
         },
         "primes_non_soumises": [],
         "net_a_payer": round(net_a_payer, 2),

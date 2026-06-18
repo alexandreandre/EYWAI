@@ -69,10 +69,44 @@ def generate_annual_review_pdf(
     return pdf_bytes, filename
 
 
+def generate_convocation_pdf(
+    review_id: str,
+    company_id: str,
+    current_user_id: str,
+    is_rh: bool,
+    repository: Optional[IAnnualReviewRepository] = None,
+) -> Tuple[bytes, str]:
+    """Génère la lettre de convocation PDF. Retourne (pdf_bytes, filename)."""
+    from app.modules.annual_reviews.infrastructure.convocation_pdf import (
+        generate_convocation_pdf as _generate,
+    )
+
+    repo = repository or get_repository()
+    review_data = queries.get_annual_review_for_convocation(
+        review_id, company_id, current_user_id, is_rh, repository=repo
+    )
+    if not review_data:
+        raise LookupError("Entretien non trouvé.")
+
+    employee_id = review_data.get("employee_id")
+    employee_data = repo.get_employee_by_id(employee_id) if employee_id else {}
+    if not employee_data:
+        raise LookupError("Employé non trouvé.")
+
+    company_data = repo.get_company_by_id(company_id) or {}
+    pdf_bytes = _generate(review_data, employee_data, company_data)
+    employee_name = f"{employee_data.get('first_name', '')}_{employee_data.get('last_name', '')}".strip().replace(
+        " ", "_"
+    )
+    filename = f"convocation_{employee_name}_{review_data.get('year', '')}.pdf"
+    return pdf_bytes, filename
+
+
 __all__ = [
     "commands",
     "queries",
     "get_repository",
     "get_pdf_generator",
     "generate_annual_review_pdf",
+    "generate_convocation_pdf",
 ]

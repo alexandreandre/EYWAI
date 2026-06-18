@@ -25,6 +25,19 @@ def get_employee_hire_date(employee_id: str) -> Optional[str]:
 
 
 def get_employee_company_id(employee_id: str) -> Optional[str]:
+    r = (
+        supabase.table("employees")
+        .select("company_id")
+        .eq("id", employee_id)
+        .maybe_single()
+        .execute()
+    )
+    if r and r.data and r.data.get("company_id"):
+        return str(r.data["company_id"])
+    return None
+
+
+def get_employee_company_id(employee_id: str) -> Optional[str]:
     """Retourne company_id pour un employé."""
     r = (
         supabase.table("employees")

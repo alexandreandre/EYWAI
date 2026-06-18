@@ -46,6 +46,7 @@ def test_enrich_actions_new_employee_stays_create():
         repo.find_company_by_id.return_value = None
         repo.find_company_by_siret.return_value = {"id": "co-1"}
         repo.find_employee_by_nir.return_value = None
+        repo.find_employee_by_nir_global.return_value = None
 
         _enrich_actions(items)
 
@@ -72,6 +73,7 @@ def test_enrich_actions_uses_target_company_for_employee_lookup():
     with patch("app.modules.dsn_import.application.service.repo") as repo:
         repo.find_company_by_id.return_value = {"id": "target-co"}
         repo.find_employee_by_nir.return_value = None
+        repo.find_employee_by_nir_global.return_value = None
 
         _enrich_actions(items, target_company_id="target-co")
 
@@ -79,6 +81,38 @@ def test_enrich_actions_uses_target_company_for_employee_lookup():
     assert items[0]["action"] == "update"
     # Lookup salarié réalisé dans l'entreprise cible
     repo.find_employee_by_nir.assert_called_once_with("target-co", "NIR1")
+
+
+def test_enrich_actions_detects_employee_by_global_nir():
+    """Un NIR déjà présent dans une autre entreprise est détecté comme existant."""
+    items = [
+        {
+            "item_type": "employee",
+            "source_ref": "emp:44306184100047:NIR1",
+            "mapped_payload": {"nir": "NIR1", "first_name": "Jean", "last_name": "Martin"},
+            "label": "Jean Martin",
+            "action": "create",
+        }
+    ]
+    anomalies: list = []
+    with patch("app.modules.dsn_import.application.service.repo") as repo:
+        repo.find_company_by_id.side_effect = lambda cid: (
+            {"id": "target-co", "company_name": "Colorplast"}
+            if cid == "target-co"
+            else {"id": "other-co", "company_name": "Comitech Composite"}
+        )
+        repo.find_employee_by_nir.return_value = None
+        repo.find_employee_by_nir_global.return_value = {
+            "id": "emp-global",
+            "company_id": "other-co",
+        }
+
+        _enrich_actions(items, target_company_id="target-co", anomalies=anomalies)
+
+    assert items[0]["action"] == "skip"
+    assert items[0]["is_existing"] is True
+    assert items[0]["existing_company_name"] == "Comitech Composite"
+    assert any(a.get("code") == "employee_other_company" for a in anomalies)
 
 
 def test_employee_state_counts():
@@ -129,6 +163,8 @@ def test_commit_with_target_company_attaches_without_creating():
         repo.list_items.return_value = items
         repo.find_company_by_id.return_value = {"id": "target-co", "group_id": "grp-1"}
         repo.find_employee_by_nir.return_value = None
+        repo.find_employee_by_nir_global.return_value = None
+        repo.employee_has_column.return_value = True
         create_emp.return_value = {
             "id": "emp-new",
             "company_id": "target-co",

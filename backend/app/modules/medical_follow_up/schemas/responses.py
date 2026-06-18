@@ -3,7 +3,7 @@
 
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ObligationListItem(BaseModel):
@@ -37,7 +37,22 @@ class KPIsResponse(BaseModel):
     completed_this_month: int
 
 
+class OccupationalHealthContact(BaseModel):
+    """Coordonnées du service de santé au travail (SPST)."""
+
+    nom: Optional[str] = None
+    adresse_rue: Optional[str] = None
+    adresse_code_postal: Optional[str] = None
+    adresse_ville: Optional[str] = None
+    telephone: Optional[str] = None
+    email: Optional[str] = None
+
+
 class SettingsResponse(BaseModel):
     """Réponse GET /settings : module activé ou non pour l'entreprise active."""
 
     enabled: bool
+    occupational_health_contact: Optional[OccupationalHealthContact] = Field(
+        None,
+        description="Coordonnées SPST (null si non renseignées)",
+    )

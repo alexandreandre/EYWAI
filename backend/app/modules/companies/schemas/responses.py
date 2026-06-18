@@ -27,12 +27,6 @@ class CompanySettingsResponse(BaseModel):
 # ----- GET /api/company/details -----
 
 
-class CompanyPlanResponse(BaseModel):
-    """Réponse GET /plan : statut premium de l'entreprise active."""
-
-    is_premium: bool = Field(..., description="Plan premium EYWAI activé pour cette entreprise")
-
-
 class CompanyDetailsResponse(BaseModel):
     """
     Réponse GET /details.

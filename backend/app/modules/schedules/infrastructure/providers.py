@@ -31,6 +31,8 @@ class PayrollAnalyzerProvider(IPayrollAnalyzerProvider):
         annee: int,
         mois: int,
         employee_name: str,
+        *,
+        modulation_weekly_hours: dict[tuple[int, int], float] | None = None,
     ) -> List[Dict[str, Any]]:
         return payroll_analyzer_impl.analyser_horaires_du_mois(
             planned_data_all_months=planned_data_all_months,
@@ -39,6 +41,7 @@ class PayrollAnalyzerProvider(IPayrollAnalyzerProvider):
             annee=annee,
             mois=mois,
             employee_name=employee_name,
+            modulation_weekly_hours=modulation_weekly_hours,
         )
 
 

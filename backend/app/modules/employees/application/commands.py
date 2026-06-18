@@ -653,53 +653,44 @@ def upload_employee_contract(
     _maybe_activate_after_onboarding(employee_id)
 
 
-def delete_employee(employee_id: str) -> None:
+def delete_employee(employee_id: str, company_id: str) -> None:
     """
-    Supprime un employé : permissions, accès entreprises, profil, ligne employees,
-    puis compte Supabase Auth. Sans ce pré-nettoyage, auth.admin.delete_user échoue
-    souvent (FK / « Database error deleting user »).
+    Supprime un employé et toutes ses données liées (cascade DB + storage + compte).
     """
-    from app.modules.users.application.service import (
-        get_user_company_access_repository,
-        get_user_permission_repository,
-        get_user_repository,
+    from app.modules.employees.application.deletion_cleanup import (
+        cleanup_employee_orphan_rows,
+        cleanup_employee_storage,
+        cleanup_user_account_for_company,
     )
+    from app.shared.db_errors import raise_http_for_db_error
 
     auth = get_auth_provider()
-    emp = _employee_repository.get_by_id_only(employee_id)
+    emp = _employee_repository.get_by_id(employee_id, company_id)
     if emp is None:
         raise HTTPException(status_code=404, detail="Employé non trouvé.")
 
     auth_uid = str(emp.get("user_id") or employee_id)
 
     try:
-        access_repo = get_user_company_access_repository()
-        perm_repo = get_user_permission_repository()
-        user_repo = get_user_repository()
-
-        for acc in access_repo.get_accesses_for_user(auth_uid):
-            cid = acc["company_id"]
-            perm_repo.delete_for_user_company(auth_uid, cid)
-            access_repo.delete(auth_uid, cid)
-
-        user_repo.delete(auth_uid)
+        cleanup_employee_storage(company_id, employee_id)
+        cleanup_employee_orphan_rows(employee_id)
+        delete_auth_account = cleanup_user_account_for_company(
+            auth_uid, company_id, employee_id
+        )
         _employee_repository.delete(employee_id)
 
-        try:
-            auth.delete_user(auth_uid)
-        except Exception as auth_exc:
-            msg = str(auth_exc).lower()
-            if "not found" in msg:
-                return
-            raise
+        if delete_auth_account:
+            try:
+                auth.delete_user(auth_uid)
+            except Exception as auth_exc:
+                msg = str(auth_exc).lower()
+                if "not found" not in msg:
+                    raise
     except HTTPException:
         raise
-    except Exception as e:
-        logger.exception("Exception")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erreur interne du serveur lors de la suppression: {str(e)}",
-        ) from e
+    except Exception as exc:
+        logger.exception("delete_employee failed for %s", employee_id)
+        raise_http_for_db_error(exc)
 
 
 def confirm_trial_period(employee_id: str, company_id: str) -> Dict[str, Any]:

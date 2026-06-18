@@ -130,21 +130,53 @@ class TestCompaniesWiringSettingsPatch:
         assert call_settings["medical_follow_up_enabled"] is True
 
 
-class TestCompaniesWiringPlan:
-    """Flux GET /api/company/plan : entreprise active + lecture du flag premium."""
+class TestCompaniesWiringDetailsPatch:
+    """Flux PATCH /api/company/details : router -> commands.update_company_details -> repository."""
 
-    def test_plan_returns_is_premium(self, client: TestClient):
+    def test_details_patch_flow_persists_signatory_fields(
+        self, client: TestClient
+    ):
         from app.core.security import get_current_user
 
+        mock_repo = MagicMock()
+        updated_row = {
+            "id": TEST_COMPANY_ID,
+            "company_name": "Wiring Co",
+            "nom_signataire_rh": "Gerault Verny",
+            "qualite_signataire_rh": "Gérant",
+        }
+        mock_repo.update_company.return_value = updated_row
+        payload = {
+            "adresse_rue": "13 place des 4 dauphins",
+            "adresse_code_postal": "13100",
+            "adresse_ville": "Aix en Provence",
+            "phone": "0778193162",
+            "nom_signataire_rh": "Gerault Verny",
+            "qualite_signataire_rh": "Gérant",
+        }
         with patch(
-            "app.modules.companies.api.router.is_company_premium",
-            return_value=True,
+            "app.modules.companies.application.commands.company_repository",
+            mock_repo,
+        ), patch(
+            "app.modules.companies.application.queries.fetch_company_with_employees_and_payslips",
+            return_value={
+                "company_data": updated_row,
+                "employees": [],
+                "payslips": [],
+            },
         ):
             app.dependency_overrides[get_current_user] = lambda: _rh_user()
             try:
-                response = client.get("/api/company/plan")
+                response = client.patch(
+                    "/api/company/details",
+                    json=payload,
+                )
             finally:
                 app.dependency_overrides.pop(get_current_user, None)
 
         assert response.status_code == 200
-        assert response.json() == {"is_premium": True}
+        mock_repo.update_company.assert_called_once()
+        update_data = mock_repo.update_company.call_args[0][1]
+        assert update_data["nom_signataire_rh"] == "Gerault Verny"
+        assert update_data["qualite_signataire_rh"] == "Gérant"
+        assert response.json()["company_data"]["nom_signataire_rh"] == "Gerault Verny"

@@ -18,12 +18,14 @@ from app.core.security import get_current_user
 from app.modules.users.schemas.responses import User
 
 from app.modules.annual_reviews.application import commands, queries, service
+from app.modules.annual_reviews.application import planning_suggestions as planning_queries
 from app.modules.annual_reviews.infrastructure.mappers import row_to_annual_review_read
 from app.modules.annual_reviews.schemas import (
     AnnualReviewCreate,
     AnnualReviewListItem,
     AnnualReviewRead,
     AnnualReviewUpdate,
+    PlanningSuggestionRead,
     SendForSignatureBody,
 )
 
@@ -114,6 +116,17 @@ def get_my_current_annual_review(current_user: User = Depends(get_current_user))
         date.today().year,
         repository=_repo(),
     )
+
+
+# --- GET planning suggestions (RH)
+@router.get("/planning-suggestions", response_model=List[PlanningSuggestionRead])
+def get_planning_suggestions(
+    year: Optional[int] = Query(None, ge=2000, le=2100),
+    current_user: User = Depends(get_current_user),
+):
+    if not _is_rh(current_user):
+        raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
+    return planning_queries.list_planning_suggestions(_company_id(current_user), year=year)
 
 
 # --- GET by id
@@ -277,9 +290,38 @@ def download_annual_review_pdf(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Erreur lors de la génération du PDF: {e}"
+        raise HTTPException(status_code=500, detail=str(e) or "Erreur génération PDF.")
+
+
+# --- GET convocation PDF
+@router.get("/{review_id}/convocation-pdf")
+def download_convocation_pdf(
+    review_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        scope_id = (
+            _resolve_employee_id_for_current_user(current_user)
+            if not _is_rh(current_user)
+            else str(current_user.id)
         )
+        pdf_bytes, filename = service.generate_convocation_pdf(
+            review_id,
+            _company_id(current_user),
+            scope_id or "",
+            _is_rh(current_user),
+        )
+        return StreamingResponse(
+            io.BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e) or "Entretien non trouvé.")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e) or "Erreur génération PDF convocation.")
 
 
 # --- DELETE (RH)

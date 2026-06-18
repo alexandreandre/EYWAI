@@ -27,6 +27,10 @@ class JobUpdate(BaseModel):
     tags: Optional[list] = None
 
 
+class JobFichePosteBody(BaseModel):
+    template_id: Optional[str] = None
+
+
 class CandidateCreate(BaseModel):
     job_id: str
     first_name: str

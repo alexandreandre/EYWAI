@@ -42,6 +42,12 @@ def row_to_mutuelle_type(row: dict) -> MutuelleType:
             row.get("part_patronale_soumise_a_csg", True)
         ),
         is_active=bool(row.get("is_active", True)),
+        pack_couverture=row.get("pack_couverture"),
+        statut_categoriel=row.get("statut_categoriel") or "tous",
+        code_option_dsn=row.get("code_option_dsn"),
+        code_organisme_dsn=row.get("code_organisme_dsn"),
+        reference_contrat_dsn=row.get("reference_contrat_dsn"),
+        source=row.get("source") or "manual",
         created_at=_parse_datetime(row.get("created_at")),
         updated_at=_parse_datetime(row.get("updated_at")),
         created_by=_parse_uuid(row.get("created_by")),
@@ -57,7 +63,17 @@ def mutuelle_type_to_row(entity: MutuelleType) -> dict:
         "montant_patronal": entity.montant_patronal,
         "part_patronale_soumise_a_csg": entity.part_patronale_soumise_a_csg,
         "is_active": entity.is_active,
+        "statut_categoriel": entity.statut_categoriel,
+        "source": entity.source,
     }
+    if entity.pack_couverture is not None:
+        row["pack_couverture"] = entity.pack_couverture
+    if entity.code_option_dsn is not None:
+        row["code_option_dsn"] = entity.code_option_dsn
+    if entity.code_organisme_dsn is not None:
+        row["code_organisme_dsn"] = entity.code_organisme_dsn
+    if entity.reference_contrat_dsn is not None:
+        row["reference_contrat_dsn"] = entity.reference_contrat_dsn
     if entity.id is not None:
         row["id"] = str(entity.id)
     if entity.created_at is not None:
@@ -79,6 +95,12 @@ def entity_to_response_dict(entity: MutuelleType, employee_ids: list[str]) -> di
         "montant_patronal": entity.montant_patronal,
         "part_patronale_soumise_a_csg": entity.part_patronale_soumise_a_csg,
         "is_active": entity.is_active,
+        "pack_couverture": entity.pack_couverture,
+        "statut_categoriel": entity.statut_categoriel,
+        "code_option_dsn": entity.code_option_dsn,
+        "code_organisme_dsn": entity.code_organisme_dsn,
+        "reference_contrat_dsn": entity.reference_contrat_dsn,
+        "source": entity.source,
         "created_at": (entity.created_at.isoformat() if entity.created_at else None),
         "updated_at": (entity.updated_at.isoformat() if entity.updated_at else None),
         "created_by": str(entity.created_by) if entity.created_by else None,

@@ -20,6 +20,15 @@ class MutuelleTypeCreate(BaseModel):
     montant_patronal: float = Field(..., ge=0)
     part_patronale_soumise_a_csg: bool = True
     is_active: bool = True
+    pack_couverture: str | None = Field(
+        None, pattern="^(isole|famille|duo|autre)$"
+    )
+    statut_categoriel: str = Field(
+        default="tous", pattern="^(cadre|non_cadre|tous)$"
+    )
+    code_option_dsn: str | None = Field(None, max_length=32)
+    code_organisme_dsn: str | None = Field(None, max_length=32)
+    reference_contrat_dsn: str | None = Field(None, max_length=64)
     employee_ids: List[str] = Field(default_factory=list)
 
 
@@ -31,4 +40,13 @@ class MutuelleTypeUpdate(BaseModel):
     montant_patronal: float | None = Field(None, ge=0)
     part_patronale_soumise_a_csg: bool | None = None
     is_active: bool | None = None
+    pack_couverture: str | None = Field(
+        None, pattern="^(isole|famille|duo|autre)$"
+    )
+    statut_categoriel: str | None = Field(
+        None, pattern="^(cadre|non_cadre|tous)$"
+    )
+    code_option_dsn: str | None = Field(None, max_length=32)
+    code_organisme_dsn: str | None = Field(None, max_length=32)
+    reference_contrat_dsn: str | None = Field(None, max_length=64)
     employee_ids: List[str] | None = None

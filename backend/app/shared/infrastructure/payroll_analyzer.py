@@ -14,6 +14,8 @@ def analyser_horaires_du_mois(
     annee: int,
     mois: int,
     employee_name: str,
+    *,
+    modulation_weekly_hours: Dict[tuple[int, int], float] | None = None,
 ) -> List[Dict[str, Any]]:
     """Délègue à app.modules.payroll.application.analyzer.analyser_horaires_du_mois."""
     from app.modules.payroll.application.analyzer import (
@@ -27,4 +29,5 @@ def analyser_horaires_du_mois(
         annee=annee,
         mois=mois,
         employee_name=employee_name,
+        modulation_weekly_hours=modulation_weekly_hours,
     )

@@ -2,9 +2,20 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from datetime import date
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, EmailStr, Field
+
+
+class WorkforceResolution(BaseModel):
+    gap_id: str
+    employee_id: str
+    action: Literal["open_exit", "close_departure", "ignore"]
+    exit_type: Optional[str] = None
+    last_working_day: Optional[date] = None
+    exit_reason: Optional[str] = None
+    ignore_reason: Optional[str] = None
 
 
 class DsnImportCommitBody(BaseModel):
@@ -22,6 +33,7 @@ class DsnImportCommitBody(BaseModel):
         default=False,
         description="Remplacer les cumuls des périodes déjà importées",
     )
+    workforce_resolutions: List[WorkforceResolution] = Field(default_factory=list)
 
 
 class DsnImportParseQuery(BaseModel):
@@ -32,6 +44,10 @@ class DsnImportParseQuery(BaseModel):
 class DsnImportRevalidateBody(BaseModel):
     payload_edits: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
     target_company_id: Optional[str] = None
+
+
+class DsnImportWorkforceResolutionsBody(BaseModel):
+    resolutions: List[WorkforceResolution] = Field(default_factory=list)
 
 
 class ActivateImportedEmployeeBody(BaseModel):

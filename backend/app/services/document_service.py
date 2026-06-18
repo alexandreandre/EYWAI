@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 from app.core.database import supabase
+from app.modules.document_library.schemas.requests import CLIENT_TEMPLATE_ONLY_TYPES
 from app.services.common_attestation_generator import common_attestation_generator
 from app.services.document_engine import document_engine
 from app.services.document_variables import build_variables
@@ -300,6 +301,7 @@ class DocumentService:
         context: Optional[Dict[str, Any]] = None,
         generated_by: Optional[str] = None,
         template_id_override: Optional[str] = None,
+        persist: bool = True,
     ) -> Dict[str, Any]:
         ctx = context or {}
         if template_id_override:
@@ -324,6 +326,11 @@ class DocumentService:
             if file_format == "docx":
                 docx_result = document_engine.inject_docx(file_bytes, variables)
                 pdf_bytes = document_engine.docx_to_pdf(docx_result)
+                if not pdf_bytes and document_type in CLIENT_TEMPLATE_ONLY_TYPES:
+                    raise ValueError(
+                        "La conversion du modèle Word en PDF a échoué. "
+                        "Vérifiez le fichier ou contactez le support."
+                    )
             elif file_format == "html":
                 html_src = file_bytes.decode("utf-8", errors="replace")
                 html_out = document_engine.inject_html(html_src, variables)
@@ -386,7 +393,35 @@ class DocumentService:
                 logger.warning("generate_avenant_pdf (bibliothèque): %s", e)
                 pdf_bytes = None
 
+        if (
+            not pdf_bytes
+            and document_type in CLIENT_TEMPLATE_ONLY_TYPES
+            and not tpl_bundle
+        ):
+            if document_type == "fiche_poste":
+                raise ValueError(
+                    "Aucun modèle de fiche de poste configuré — importez un fichier "
+                    "dans la bibliothèque de documents."
+                )
+            if document_type in ("bulletin_participation", "bulletin_interessement"):
+                raise ValueError(
+                    "Aucun modèle de bulletin d'option configuré — importez un fichier "
+                    "dans la bibliothèque de documents."
+                )
+            raise ValueError(
+                "Aucun modèle personnalisé configuré pour ce type de document."
+            )
+
+        if not pdf_bytes and document_type in CLIENT_TEMPLATE_ONLY_TYPES and tpl_bundle:
+            raise ValueError(
+                "La génération du document a échoué avec le modèle importé."
+            )
+
         if not pdf_bytes and (is_eywai_template or tpl_bundle is not None):
+            if document_type in CLIENT_TEMPLATE_ONLY_TYPES:
+                raise ValueError(
+                    "La génération du document a échoué avec le modèle importé."
+                )
             try:
                 fb = self._generate_fallback_pdf(document_type, variables)
                 if fb:
@@ -396,6 +431,18 @@ class DocumentService:
                     template_version_id = None
             except Exception as e:
                 logger.warning("ReportLab fallback PDF (EYWAI): %s", e)
+
+        if not pdf_bytes:
+            raise ValueError("Impossible de générer le document PDF.")
+
+        if not persist:
+            return {
+                "pdf_bytes": pdf_bytes,
+                "is_eywai_template": is_eywai_template,
+                "document_type": document_type,
+                "template_id": template_id,
+                "template_version_id": template_version_id,
+            }
 
         ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         safe_type = re.sub(r"[^\w\-]+", "_", document_type)[:80]

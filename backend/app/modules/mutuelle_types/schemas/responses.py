@@ -24,6 +24,12 @@ class MutuelleType(BaseModel):
     montant_patronal: float = Field(..., ge=0)
     part_patronale_soumise_a_csg: bool = True
     is_active: bool = True
+    pack_couverture: Optional[str] = None
+    statut_categoriel: str = "tous"
+    code_option_dsn: Optional[str] = None
+    code_organisme_dsn: Optional[str] = None
+    reference_contrat_dsn: Optional[str] = None
+    source: str = "manual"
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     created_by: Optional[UUID] = None

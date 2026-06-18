@@ -95,6 +95,20 @@ class PrimeAnciennete(BaseModel):
     taux_par_classe: Optional[dict[str, float]] = None
 
 
+class CpAncienneteTier(BaseModel):
+    category: Literal["ouvrier_etam", "cadre"]
+    min_years: float
+    days: float
+
+
+class CpAnciennete(BaseModel):
+    """Congés payés supplémentaires d'ancienneté (jours, distinct de prime_anciennete)."""
+
+    mode: Literal["tier_total", "cumulative_rules"] = "tier_total"
+    seniority_reference: str = "cp_period_end"
+    tiers: list[CpAncienneteTier] = Field(default_factory=list)
+
+
 class SalaireMinimum(BaseModel):
     coefficient: float
     valeur: float
@@ -146,6 +160,7 @@ class CCRulesDocument(BaseModel):
     schema_version: int = SCHEMA_VERSION
     idcc: str
     prime_anciennete: Optional[PrimeAnciennete] = None
+    cp_anciennete: Optional[CpAnciennete] = None
     salaires_minima: list[SalaireMinimum] = Field(default_factory=list)
     grilles_salaires: list[GrilleSalaires] = Field(default_factory=list)
     completude: Optional[CompletudeExtraction] = None

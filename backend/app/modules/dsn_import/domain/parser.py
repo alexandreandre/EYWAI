@@ -6,8 +6,10 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.modules.dsn_import.domain.model import (
+    AffiliationBlock,
     ContratBlock,
     CotisationBlock,
+    CotisationIndividuelleBlock,
     DeclarationBlock,
     DsnFile,
     EtablissementBlock,
@@ -103,6 +105,18 @@ from app.modules.dsn_import.domain.rubriques import (
     R_S21_ACT_MESURE,
     R_S21_ACT_TYPE,
     R_S21_ACT_UNITE,
+    R_S21_AFF_CODE_DELEG,
+    R_S21_AFF_CODE_OPTION,
+    R_S21_AFF_CODE_ORG,
+    R_S21_AFF_CODE_POP,
+    R_S21_AFF_IDENT,
+    R_S21_AFF_NB_ADULTES,
+    R_S21_AFF_NB_ENFANTS,
+    R_S21_AFF_REF_CONTRAT,
+    R_S21_CI_ASSIETTE,
+    R_S21_CI_IDENT_AFF,
+    R_S21_CI_MONTANT_PAT,
+    R_S21_CI_MONTANT_SAL,
     R_S21_VER_DATE,
     R_S21_VER_NET_FISCAL,
     R_S21_VER_NET_VERSE,
@@ -208,6 +222,8 @@ class _ParseContext:
         self.versement: Optional[VersementBlock] = None
         self.remuneration: Optional[RemunerationBlock] = None
         self.cotisation: Optional[CotisationBlock] = None
+        self.cotisation_ind: Optional[CotisationIndividuelleBlock] = None
+        self.affiliation: Optional[AffiliationBlock] = None
         self.activite: Optional[Dict[str, Any]] = None
         self.warnings: List[str] = []
 
@@ -245,6 +261,20 @@ class _ParseContext:
             ver.cotisations.append(self.cotisation)
         return self.cotisation
 
+    def _ensure_cotisation_ind(self) -> CotisationIndividuelleBlock:
+        ver = self._ensure_versement()
+        if self.cotisation_ind is None:
+            self.cotisation_ind = CotisationIndividuelleBlock()
+            ver.cotisations_individuelles.append(self.cotisation_ind)
+        return self.cotisation_ind
+
+    def _ensure_affiliation(self) -> AffiliationBlock:
+        ctr = self._ensure_contrat()
+        if self.affiliation is None:
+            self.affiliation = AffiliationBlock()
+            ctr.affiliations.append(self.affiliation)
+        return self.affiliation
+
     def _ensure_activite(self) -> Dict[str, Any]:
         ver = self._ensure_versement()
         if self.activite is None:
@@ -263,6 +293,8 @@ class _ParseContext:
             self.versement = None
             self.remuneration = None
             self.cotisation = None
+            self.cotisation_ind = None
+            self.affiliation = None
             self.activite = None
         elif block == "contrat":
             ind = self._ensure_individu()
@@ -271,13 +303,20 @@ class _ParseContext:
             self.versement = None
             self.remuneration = None
             self.cotisation = None
+            self.cotisation_ind = None
+            self.affiliation = None
             self.activite = None
+        elif block == "affiliation":
+            ctr = self._ensure_contrat()
+            self.affiliation = AffiliationBlock()
+            ctr.affiliations.append(self.affiliation)
         elif block == "versement":
             ctr = self._ensure_contrat()
             self.versement = VersementBlock()
             ctr.versements.append(self.versement)
             self.remuneration = None
             self.cotisation = None
+            self.cotisation_ind = None
             self.activite = None
         elif block == "remuneration":
             ver = self._ensure_versement()
@@ -287,6 +326,10 @@ class _ParseContext:
             ver = self._ensure_versement()
             self.cotisation = CotisationBlock()
             ver.cotisations.append(self.cotisation)
+        elif block == "cotisation_individuelle":
+            ver = self._ensure_versement()
+            self.cotisation_ind = CotisationIndividuelleBlock()
+            ver.cotisations_individuelles.append(self.cotisation_ind)
         elif block == "activite":
             ver = self._ensure_versement()
             self.activite = {}
@@ -571,17 +614,55 @@ class _ParseContext:
             self._ensure_cotisation().montant_salarial = _float_val(valeur)
         elif rubrique == R_S21_COT_MONTANT_PAT:
             self._ensure_cotisation().montant_patronal = _float_val(valeur)
+        elif rubrique == R_S21_AFF_REF_CONTRAT:
+            aff = self._ensure_affiliation()
+            aff.reference_contrat = valeur.strip()
+            aff.rubriques[rubrique] = valeur
+        elif rubrique == R_S21_AFF_CODE_ORG:
+            self._ensure_affiliation().code_organisme = valeur.strip()
+        elif rubrique == R_S21_AFF_CODE_DELEG:
+            self._ensure_affiliation().code_delegataire = valeur.strip()
+        elif rubrique == R_S21_AFF_CODE_OPTION:
+            self._ensure_affiliation().code_option = valeur.strip()
+        elif rubrique == R_S21_AFF_CODE_POP:
+            self._ensure_affiliation().code_population = valeur.strip()
+        elif rubrique == R_S21_AFF_NB_ENFANTS:
+            try:
+                self._ensure_affiliation().nb_enfants = int(float(valeur.replace(",", ".")))
+            except ValueError:
+                pass
+        elif rubrique == R_S21_AFF_NB_ADULTES:
+            try:
+                self._ensure_affiliation().nb_adultes = int(float(valeur.replace(",", ".")))
+            except ValueError:
+                pass
+        elif rubrique == R_S21_AFF_IDENT:
+            self._ensure_affiliation().identifiant_affiliation = valeur.strip()
         elif rubrique == R_S21_BASE_CODE:
-            ver = self._ensure_versement()
-            ver.rubriques.setdefault("bases", {})
-            if isinstance(ver.rubriques["bases"], dict):
-                ver.rubriques["bases"][valeur] = 0.0
-        elif rubrique == R_S21_BASE_MONTANT:
-            ver = self._ensure_versement()
-            bases = ver.rubriques.get("bases")
-            if isinstance(bases, dict) and bases:
-                last_key = list(bases.keys())[-1]
-                bases[last_key] = _float_val(valeur)
+            if self.cotisation_ind is not None:
+                ci = self._ensure_cotisation_ind()
+                ci.code = valeur.strip()
+                ci.rubriques[rubrique] = valeur
+            else:
+                ver = self._ensure_versement()
+                ver.rubriques.setdefault("bases", {})
+                if isinstance(ver.rubriques["bases"], dict):
+                    ver.rubriques["bases"][valeur] = 0.0
+        elif rubrique in (R_S21_BASE_MONTANT, R_S21_CI_ASSIETTE):
+            if self.cotisation_ind is not None:
+                self._ensure_cotisation_ind().montant_assiette = _float_val(valeur)
+            else:
+                ver = self._ensure_versement()
+                bases = ver.rubriques.get("bases")
+                if isinstance(bases, dict) and bases:
+                    last_key = list(bases.keys())[-1]
+                    bases[last_key] = _float_val(valeur)
+        elif rubrique == R_S21_CI_MONTANT_SAL:
+            self._ensure_cotisation_ind().montant_salarial = _float_val(valeur)
+        elif rubrique == R_S21_CI_MONTANT_PAT:
+            self._ensure_cotisation_ind().montant_patronal = _float_val(valeur)
+        elif rubrique == R_S21_CI_IDENT_AFF:
+            self._ensure_cotisation_ind().identifiant_affiliation = valeur.strip()
 
 
 def _looks_like_code(value: str) -> bool:

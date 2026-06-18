@@ -16,16 +16,25 @@ from app.modules.absences.domain.entities import AbsenceRequestEntity
 from app.modules.absences.domain.enums import (
     SALARY_CERTIFICATE_ABSENCE_TYPES,
 )
+from app.modules.absences.domain.leave_policy import (
+    EmployeeLeaveAdjustment,
+    LeavePolicySettings,
+)
 from app.modules.absences.domain.rules import (
     calculate_acquired_cp,
     calculate_acquired_cp_for_period,
     calculate_acquired_rtt,
+    calculate_rtt_annual_calendar,
     compute_absence_balances,
     compute_cp_balances_for_bulletin,
+    compute_cp_period_balances,
     count_absence_days_taken,
+    get_available_conge_paye_days,
     get_cp_previous_reference_period,
     get_cp_reference_period,
+    get_rtt_year_end_status,
     requires_salary_certificate,
+    resolve_rtt_annual_base,
 )
 from app.modules.absences.domain.value_objects import (
     AbsenceBalanceValue,
@@ -358,3 +367,75 @@ class TestCongePayeAvailability:
                 too_many_days,
                 ref_date=ref,
             )
+
+
+class TestCpCarryover:
+    def test_carryover_disabled_matches_legacy_single_period(self):
+        hire_date = date(2020, 1, 1)
+        ref = date(2026, 3, 1)
+        policy = LeavePolicySettings(cp_carryover_enabled=False)
+        balances = compute_absence_balances(hire_date, [], ref, policy=policy)
+        assert balances["conges_payes"]["acquis"] == calculate_acquired_cp(
+            hire_date, ref, policy=policy
+        )
+
+    def test_carryover_n1_consumed_before_n(self):
+        hire_date = date(2020, 1, 1)
+        ref = date(2026, 1, 31)
+        policy = LeavePolicySettings(cp_carryover_enabled=True)
+        prev_start, prev_end = get_cp_previous_reference_period(ref)
+        prev_acquis = calculate_acquired_cp_for_period(
+            hire_date, prev_start, prev_end, policy=policy
+        )
+        adjustment = EmployeeLeaveAdjustment(
+            cp_n1_opening_balance=5.0 - prev_acquis
+        )
+        requests = [
+            {
+                "type": "conge_paye",
+                "selected_days": ["2026-01-06", "2026-01-07"],
+                "jours_payes": 2,
+            },
+        ]
+        periods = compute_cp_period_balances(
+            hire_date, requests, ref, policy=policy, adjustment=adjustment
+        )
+        assert periods["n1_remaining"] == 3.0
+
+    def test_available_includes_n1_when_carryover_enabled(self):
+        hire_date = date(2020, 1, 1)
+        ref = date(2026, 1, 31)
+        policy = LeavePolicySettings(cp_carryover_enabled=True)
+        prev_start, prev_end = get_cp_previous_reference_period(ref)
+        prev_acquis = calculate_acquired_cp_for_period(
+            hire_date, prev_start, prev_end, policy=policy
+        )
+        adjustment = EmployeeLeaveAdjustment(
+            cp_n1_opening_balance=4.0 - prev_acquis
+        )
+        available = get_available_conge_paye_days(
+            hire_date, [], ref, policy=policy, adjustment=adjustment
+        )
+        assert available >= 4.0
+
+
+class TestRttPolicy:
+    def test_calendar_formula_leap_year(self):
+        assert calculate_rtt_annual_calendar(2024) == 11.0
+        assert calculate_rtt_annual_calendar(2025) == 10.0
+
+    def test_resolve_custom_annual_days(self):
+        policy = LeavePolicySettings(rtt_annual_days=12.0)
+        assert resolve_rtt_annual_base(2025, policy) == 12.0
+
+    def test_rtt_forfeiture_zeros_remaining(self):
+        hire_date = date(2020, 1, 1)
+        ref_year = 2025
+        policy = LeavePolicySettings()
+        adjustment = EmployeeLeaveAdjustment(
+            rtt_forfeited_days=3.0, rtt_forfeited_at="2025-12-31T00:00:00Z"
+        )
+        status = get_rtt_year_end_status(
+            hire_date, [], ref_year, policy=policy, adjustment=adjustment
+        )
+        assert status["already_closed"] is True

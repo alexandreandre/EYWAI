@@ -276,6 +276,26 @@ def calculate_payroll_events(employee_id: str, year: int, month: int) -> Dict[st
             else:
                 logger.info('✅ Analyseur forfait jour utilisé (filtrage par mois)')
         else:
+            modulation_map = None
+            if company_id:
+                try:
+                    from app.modules.modulation.application.payroll_hook import (
+                        build_modulation_weekly_hours_map,
+                    )
+                    from app.modules.modulation.infrastructure import (
+                        repository as modulation_repo,
+                    )
+
+                    mod_settings = modulation_repo.get_modulation_settings(company_id)
+                    if mod_settings.enabled:
+                        modulation_map = build_modulation_weekly_hours_map(
+                            mod_settings, year
+                        )
+                except Exception as e:
+                    logger.warning(
+                        "Modulation non appliquée au calcul paie: %s", e
+                    )
+
             payroll_events_list = payroll_analyzer_provider.analyser_horaires(
                 planned_data_all_months=planned_data_all_months,
                 actual_data_all_months=actual_data_all_months,
@@ -283,8 +303,22 @@ def calculate_payroll_events(employee_id: str, year: int, month: int) -> Dict[st
                 annee=year,
                 mois=month,
                 employee_name=employee_name,
+                modulation_weekly_hours=modulation_map,
             )
             logger.info('✅ Analyseur normal (heures) utilisé')
+            if company_id and modulation_map:
+                try:
+                    from app.modules.modulation.application.payroll_hook import (
+                        sync_employee_modulation_counter,
+                    )
+
+                    sync_employee_modulation_counter(
+                        company_id, employee_id, year
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Sync compteur modulation ignorée: %s", e
+                    )
         logger.info(f'-> Analyse terminée : {len(payroll_events_list)} événements de paie générés.')
 
         result_json = {

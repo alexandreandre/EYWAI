@@ -126,3 +126,18 @@ class TestTrialReminderEligibility:
             }
         ]
         assert count_ending_trial_periods(employees, ref) == 1
+
+
+class TestUpdateEmployeeSchema:
+    def test_update_employee_schema_accepts_periode_essai(self):
+        from app.modules.employees.schemas.requests import UpdateEmployee
+
+        periode_essai = {
+            "duree_initiale": 2,
+            "unite": "mois",
+            "renouvellement_possible": True,
+            "statut": "en_cours",
+        }
+        payload = UpdateEmployee(periode_essai=periode_essai)
+        dumped = payload.model_dump(exclude_unset=True)
+        assert dumped["periode_essai"] == periode_essai

@@ -19,6 +19,7 @@ from app.modules.document_library.schemas.requests import (
     DOCUMENT_TYPE_LABELS,
     KNOWN_DOCUMENT_TYPES,
 )
+from app.services.document_variables import enrich_context_from_recruitment_job
 from app.modules.notifications.application.employee_document_alerts import (
     notify_employee_new_document,
 )
@@ -170,6 +171,21 @@ def _enrichir_contexte_avenant(
         ctx["nouveau_lieu"] = request.nouveau_lieu
 
 
+def _load_recruitment_job(job_id: str, company_id: str) -> Dict[str, Any]:
+    r = (
+        supabase.table("recruitment_jobs")
+        .select("*")
+        .eq("id", job_id)
+        .eq("company_id", company_id)
+        .maybe_single()
+        .execute()
+    )
+    row = _data(r)
+    if not row:
+        raise LookupError("Offre de recrutement introuvable.")
+    return dict(row)
+
+
 def generate_document(
     company_id: str,
     current_user_id: str,
@@ -189,10 +205,33 @@ def generate_document(
         company_id, request.document_type, request.template_id
     )
 
+    if request.document_type == "fiche_poste":
+        if not template_override:
+            raise ValueError(
+                "Un modèle de fiche de poste est obligatoire. "
+                "Importez un fichier dans la bibliothèque de documents."
+            )
+
+    if request.document_type in ("bulletin_participation", "bulletin_interessement"):
+        if not template_override:
+            bundle = document_service.get_active_template(company_id, request.document_type)
+            if not bundle:
+                raise ValueError(
+                    "Un modèle de bulletin d'option est obligatoire. "
+                    "Importez un fichier dans la bibliothèque de documents."
+                )
+
     employee_data = _load_employee(request.employee_id, company_id)
     company_data = _load_company(company_id)
 
     ctx: Dict[str, Any] = {}
+    if request.custom_fields:
+        ctx["custom_fields"] = {
+            str(k): str(v) for k, v in request.custom_fields.items() if str(k).strip()
+        }
+    if request.recruitment_job_id:
+        job = _load_recruitment_job(request.recruitment_job_id, company_id)
+        ctx = enrich_context_from_recruitment_job(ctx, job)
     if request.date_effet is not None:
         ctx["date_effet"] = request.date_effet.isoformat()
     if request.motif:
@@ -222,6 +261,47 @@ def generate_document(
     if not row:
         raise RuntimeError("Document créé mais non relisible.")
     return row
+
+
+def _resolve_fiche_poste_template_id(
+    company_id: str, template_id: Optional[str]
+) -> str:
+    override = _validate_template_choice(company_id, "fiche_poste", template_id)
+    if override:
+        return override
+    bundle = document_service.get_active_template(company_id, "fiche_poste")
+    if bundle and bundle.get("template"):
+        return str(bundle["template"]["id"])
+    raise ValueError(
+        "Aucun modèle de fiche de poste configuré — importez un fichier "
+        "dans la bibliothèque de documents."
+    )
+
+
+def generate_job_fiche_poste_pdf(
+    company_id: str,
+    job_id: str,
+    template_id: Optional[str] = None,
+) -> bytes:
+    job = _load_recruitment_job(job_id, company_id)
+    company_data = _load_company(company_id)
+    ctx = enrich_context_from_recruitment_job({}, job)
+    tid = _resolve_fiche_poste_template_id(company_id, template_id)
+    result = document_service.generate_document(
+        company_id=company_id,
+        employee_id="",
+        document_type="fiche_poste",
+        category="attestation_courante",
+        employee_data={},
+        company_data=company_data,
+        context=ctx,
+        template_id_override=tid,
+        persist=False,
+    )
+    pdf = result.get("pdf_bytes")
+    if not pdf:
+        raise RuntimeError("Génération PDF impossible.")
+    return bytes(pdf)
 
 
 def _effective_date_str_from_context(context: Dict[str, Any]) -> str:

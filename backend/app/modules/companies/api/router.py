@@ -22,29 +22,13 @@ from app.modules.companies.schemas.requests import (
     CompanyDetailsUpdate,
     CompanySettingsUpdate,
 )
-from app.core.premium import is_company_premium
 from app.modules.companies.schemas.responses import (
     CompanyDetailsResponse,
     CompanyOverviewResponse,
-    CompanyPlanResponse,
     CompanySettingsResponse,
 )
 
 router = APIRouter(tags=["Company"])
-
-
-@router.get("/plan", response_model=CompanyPlanResponse)
-def get_company_plan(current_user: User = Depends(get_current_user)):
-    """Indique si l'entreprise active est en plan premium (tout rôle avec accès à l'entreprise)."""
-    company_id = resolve_company_id_for_user(current_user)
-    if not company_id:
-        raise HTTPException(status_code=400, detail="Aucune entreprise active")
-    if not current_user.has_access_to_company(company_id):
-        raise HTTPException(
-            status_code=403,
-            detail="Accès non autorisé pour cette entreprise",
-        )
-    return CompanyPlanResponse(is_premium=is_company_premium(company_id))
 
 
 @router.get("/details", response_model=CompanyDetailsResponse)
@@ -220,5 +204,7 @@ def update_company_settings(
             medical_follow_up_enabled=result.medical_follow_up_enabled,
             settings=result.settings,
         )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except LookupError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e

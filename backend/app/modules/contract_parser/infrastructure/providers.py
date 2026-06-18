@@ -214,6 +214,7 @@ Je vais te fournir le texte extrait d'un document de contrat de travail. Ta tâc
 - Prélèvement à la source personnalisé ? (specificites_paie.prelevement_a_la_source.is_personnalise) - boolean
 - Taux de prélèvement (specificites_paie.prelevement_a_la_source.taux) - nombre décimal (en %)
 - Abonnement de transport mensuel total (specificites_paie.transport.abonnement_mensuel_total) - nombre décimal
+- Indemnité transport contractuelle nette mensuelle (specificites_paie.transport.indemnite_mensuelle_nette) - nombre décimal
 - Nombre de titres restaurant par mois (specificites_paie.titres_restaurant.nombre_par_mois) - nombre entier
 
 **MUTUELLE (tableau de lignes) :**
@@ -351,6 +352,7 @@ Ton rôle est d'extraire les informations suivantes depuis le texte d'un questio
 - Prélèvement à la source personnalisé ? (specificites_paie.prelevement_a_la_source.is_personnalise) - boolean
 - Taux de prélèvement (specificites_paie.prelevement_a_la_source.taux) - nombre décimal (en %)
 - Abonnement de transport mensuel total (specificites_paie.transport.abonnement_mensuel_total) - nombre décimal
+- Indemnité transport contractuelle nette mensuelle (specificites_paie.transport.indemnite_mensuelle_nette) - nombre décimal
 - Nombre de titres restaurant par mois (specificites_paie.titres_restaurant.nombre_par_mois) - nombre entier
 
 **MUTUELLE (tableau de lignes) :**

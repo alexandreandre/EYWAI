@@ -34,6 +34,7 @@ from app.modules.company_groups.api.router import router as company_groups_route
 from app.modules.cse.api.router import router as cse_router
 from app.modules.dashboard.api.router import router as dashboard_router
 from app.modules.dsn_import.api.router import router as dsn_import_router
+from app.modules.ijss_tracking.api.router import router as ijss_tracking_router
 from app.modules.employees.api.router import router as employees_router
 from app.modules.employee_exits.api.router import router as employee_exits_router
 from app.modules.employee_loans.api.router import router as employee_loans_router
@@ -78,6 +79,9 @@ from app.modules.onboarding.api.router import router as onboarding_router
 from app.modules.repos_compensateur.api.router import (
     router as repos_compensateur_router,
 )
+from app.modules.modulation.api.router import router as modulation_router
+from app.modules.payroll_variables.api.router import router as payroll_variables_router
+from app.modules.cet.api.router import router as cet_router
 from app.modules.saisies_avances.api.router import router as saisies_avances_router
 from app.modules.scraping.api.router import router as scraping_router
 from app.modules.residence_permits.api.router import router as residence_permits_router
@@ -121,6 +125,7 @@ router.include_router(company_groups_router)
 router.include_router(cse_router)
 router.include_router(dashboard_router)
 router.include_router(dsn_import_router)
+router.include_router(ijss_tracking_router)
 router.include_router(employees_router)
 router.include_router(employee_exits_router)
 router.include_router(employee_loans_router)
@@ -155,6 +160,9 @@ router.include_router(promotions_router)
 router.include_router(recruitment_router)
 router.include_router(onboarding_router)
 router.include_router(repos_compensateur_router)
+router.include_router(modulation_router)
+router.include_router(payroll_variables_router)
+router.include_router(cet_router)
 router.include_router(saisies_avances_router)
 router.include_router(scraping_router)
 router.include_router(residence_permits_router)

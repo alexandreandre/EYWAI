@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 
 from app.modules.net_entreprises.domain.value_objects import (
     ConnectionTestResult,
+    IjDecomptesFetchResult,
     TransmissionMode,
     TransmissionResult,
     TransmissionStatus,
@@ -50,3 +51,19 @@ class ManualNetEntreprisesConnector:
         self, config: Dict[str, Any], net_entreprises_ref: str
     ) -> Optional[TransmissionResult]:
         return None
+
+    def fetch_ij_decomptes(
+        self,
+        config: Dict[str, Any],
+        *,
+        period: str,
+        siret: str,
+    ) -> IjDecomptesFetchResult:
+        return IjDecomptesFetchResult(
+            success=False,
+            status="not_available",
+            message=(
+                "Récupération automatique indisponible en mode manuel. "
+                "Importez le décompte téléchargé depuis Net-Entreprises."
+            ),
+        )

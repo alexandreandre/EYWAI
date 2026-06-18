@@ -9,7 +9,69 @@ from __future__ import annotations
 import re
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any, Dict, List
+from typing import Any, Dict, List, TypedDict
+
+
+class DocumentVariableMeta(TypedDict):
+    key: str
+    label: str
+    category: str
+    example: str
+
+
+DOCUMENT_VARIABLE_CATALOG: List[DocumentVariableMeta] = [
+    {"key": "nom", "label": "Nom de famille", "category": "Salarié", "example": "Dupont"},
+    {"key": "prenom", "label": "Prénom", "category": "Salarié", "example": "Marie"},
+    {"key": "date_naissance", "label": "Date de naissance", "category": "Salarié", "example": "15/03/1990"},
+    {"key": "adresse_salarie", "label": "Adresse du salarié", "category": "Salarié", "example": "12 rue de la Paix, 75002 Paris"},
+    {"key": "numero_securite_sociale", "label": "N° sécurité sociale", "category": "Salarié", "example": "1 85 03 75 123 456 78"},
+    {"key": "poste", "label": "Intitulé de poste", "category": "Salarié", "example": "Responsable commercial"},
+    {"key": "classification", "label": "Classification conventionnelle", "category": "Salarié", "example": "Cadre"},
+    {"key": "coefficient", "label": "Coefficient", "category": "Salarié", "example": "250"},
+    {"key": "salaire_brut_mensuel", "label": "Salaire brut mensuel", "category": "Salarié", "example": "3 200,00 €"},
+    {"key": "salaire_brut_annuel", "label": "Salaire brut annuel", "category": "Salarié", "example": "38 400,00 €"},
+    {"key": "date_debut_contrat", "label": "Date d'embauche", "category": "Salarié", "example": "01/09/2023"},
+    {"key": "type_contrat", "label": "Type de contrat", "category": "Salarié", "example": "CDI"},
+    {"key": "duree_hebdomadaire", "label": "Durée hebdomadaire", "category": "Salarié", "example": "35 h"},
+    {"key": "lieu_travail", "label": "Lieu de travail", "category": "Salarié", "example": "Siège social"},
+    {"key": "periode_essai_duree", "label": "Durée période d'essai", "category": "Salarié", "example": "2 mois"},
+    {"key": "service", "label": "Service / département", "category": "Salarié", "example": "Commercial"},
+    {"key": "manager", "label": "Manager / responsable hiérarchique", "category": "Salarié", "example": "Jean Martin"},
+    {"key": "missions", "label": "Missions du poste", "category": "Fiche de poste", "example": "Prospection et fidélisation client"},
+    {"key": "description_poste", "label": "Description du poste", "category": "Fiche de poste", "example": "Pilotage de l'activité commerciale"},
+    {"key": "localisation_poste", "label": "Localisation du poste", "category": "Fiche de poste", "example": "Paris"},
+    {"key": "date_avenant", "label": "Date de l'avenant", "category": "Avenant", "example": "01/01/2026"},
+    {"key": "date_effet", "label": "Date d'effet", "category": "Avenant", "example": "01/01/2026"},
+    {"key": "motif_avenant", "label": "Motif de l'avenant", "category": "Avenant", "example": "Évolution de poste"},
+    {"key": "ancien_salaire", "label": "Ancien salaire", "category": "Avenant", "example": "2 800,00 €"},
+    {"key": "nouveau_salaire", "label": "Nouveau salaire", "category": "Avenant", "example": "3 000,00 €"},
+    {"key": "ancien_poste", "label": "Ancien poste", "category": "Avenant", "example": "Commercial junior"},
+    {"key": "nouveau_poste", "label": "Nouveau poste", "category": "Avenant", "example": "Commercial senior"},
+    {"key": "nom_entreprise", "label": "Raison sociale", "category": "Entreprise", "example": "ACME SAS"},
+    {"key": "siret", "label": "SIRET", "category": "Entreprise", "example": "123 456 789 00012"},
+    {"key": "code_ape", "label": "Code APE", "category": "Entreprise", "example": "6201Z"},
+    {"key": "adresse_entreprise", "label": "Adresse entreprise", "category": "Entreprise", "example": "10 avenue de la République, 44000 Nantes"},
+    {"key": "convention_collective", "label": "Convention collective", "category": "Entreprise", "example": "Bureaux d'études techniques"},
+    {"key": "idcc", "label": "IDCC", "category": "Entreprise", "example": "1486"},
+    {"key": "nom_signataire_rh", "label": "Nom du signataire RH", "category": "Entreprise", "example": "Sophie Leroy"},
+    {"key": "qualite_signataire_rh", "label": "Qualité du signataire", "category": "Entreprise", "example": "Directrice RH"},
+    {"key": "date_generation", "label": "Date du jour", "category": "Système", "example": "18/04/2026"},
+    {"key": "signature_lieu", "label": "Lieu de signature", "category": "Système", "example": "Nantes"},
+    {"key": "signature_date", "label": "Date de signature", "category": "Système", "example": "18/04/2026"},
+    {"key": "exercice", "label": "Année d'exercice", "category": "Participation", "example": "2025"},
+    {"key": "exercice_debut", "label": "Début d'exercice", "category": "Participation", "example": "01/01/2025"},
+    {"key": "exercice_fin", "label": "Fin d'exercice", "category": "Participation", "example": "31/12/2025"},
+    {"key": "date_emission", "label": "Date d'émission du bulletin", "category": "Participation", "example": "12/05/2025"},
+    {"key": "montant_brut", "label": "Montant brut participation/intéressement", "category": "Participation", "example": "3 225,33 €"},
+    {"key": "csg_non_deductible", "label": "CSG + CRDS non déductibles", "category": "Participation", "example": "93,53 €"},
+    {"key": "csg_deductible", "label": "CSG déductible des revenus", "category": "Participation", "example": "219,32 €"},
+    {"key": "acompte", "label": "Acompte déjà versé", "category": "Participation", "example": "1 000,00 €"},
+    {"key": "acompte_libelle", "label": "Libellé acompte", "category": "Participation", "example": "décembre 2025"},
+    {"key": "net_a_payer", "label": "Net à payer", "category": "Participation", "example": "1 912,47 €"},
+    {"key": "net_a_payer_final", "label": "Net à payer final", "category": "Participation", "example": "1 912,47 €"},
+    {"key": "type_dispositif", "label": "Type (Participation / Intéressement)", "category": "Participation", "example": "Participation"},
+    {"key": "clause_defaut_15j", "label": "Clause défaut 15 jours PEE", "category": "Participation", "example": "À défaut de réponse dans les 15 jours…"},
+]
 
 
 _PLACEHOLDER_RE = re.compile(r"\{\{\s*([a-zA-Z0-9_]+)\s*\}\}")
@@ -191,6 +253,40 @@ def _company_field(company: Dict[str, Any], *keys: str) -> str:
     return ""
 
 
+def _employee_service(employee: Dict[str, Any]) -> str:
+    svc = employee.get("service") or employee.get("department")
+    if isinstance(svc, dict):
+        return _s(svc.get("name") or svc.get("label") or svc.get("libelle") or "")
+    return _s(svc)
+
+
+def enrich_context_from_recruitment_job(
+    ctx: Dict[str, Any], job: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Préremplit le contexte de génération depuis une offre de recrutement."""
+    out = dict(ctx)
+    title = _s(job.get("title"))
+    description = _s(job.get("description"))
+    location = _s(job.get("location"))
+    contract_type = _s(job.get("contract_type"))
+    if title:
+        out.setdefault("poste", title)
+        out.setdefault("nouveau_poste", title)
+    if description:
+        out.setdefault("missions", description)
+        out.setdefault("description_poste", description)
+    if location:
+        out.setdefault("localisation_poste", location)
+    if contract_type:
+        out.setdefault("type_contrat", contract_type)
+    out["recruitment_job_id"] = str(job.get("id") or "")
+    return out
+
+
+def list_document_variables() -> List[DocumentVariableMeta]:
+    return list(DOCUMENT_VARIABLE_CATALOG)
+
+
 def build_variables(
     employee: Dict[str, Any],
     company: Dict[str, Any],
@@ -229,6 +325,24 @@ def build_variables(
     variables["duree_hebdomadaire"] = _duree_hebdomadaire(employee)
     variables["lieu_travail"] = _lieu_travail(employee)
     variables["periode_essai_duree"] = _periode_essai(employee)
+    variables["service"] = _employee_service(employee)
+    variables["manager"] = _s(
+        ctx.get("manager")
+        or employee.get("manager_name")
+        or employee.get("manager")
+    )
+
+    # --- Fiche de poste / recrutement (contexte) ---
+    missions = _s(ctx.get("missions") or ctx.get("description_poste"))
+    variables["missions"] = missions
+    variables["description_poste"] = _s(ctx.get("description_poste") or missions)
+    variables["localisation_poste"] = _s(
+        ctx.get("localisation_poste") or ctx.get("location") or variables["lieu_travail"]
+    )
+    if ctx.get("poste") and not variables["poste"]:
+        variables["poste"] = _s(ctx.get("poste"))
+    if ctx.get("type_contrat") and not variables["type_contrat"]:
+        variables["type_contrat"] = _s(ctx.get("type_contrat"))
 
     # --- Avenant (contexte) ---
     variables["date_avenant"] = _fmt_date_fr(ctx.get("date_avenant"))
@@ -277,6 +391,13 @@ def build_variables(
         ctx.get("signature_lieu") or company.get("city") or company.get("ville") or ""
     )
     variables["signature_date"] = _fmt_date_fr(ctx.get("signature_date") or today)
+
+    custom_fields = ctx.get("custom_fields")
+    if isinstance(custom_fields, dict):
+        for key, val in custom_fields.items():
+            k = str(key).strip()
+            if k:
+                variables[k] = _s(val)
 
     return variables
 

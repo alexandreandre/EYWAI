@@ -6,16 +6,22 @@ from app.modules.repos_compensateur.infrastructure.providers import (
 from app.modules.repos_compensateur.infrastructure.queries import (
     get_company_effectif,
     get_employees_for_company,
+    get_validated_repos_requests,
 )
 from app.modules.repos_compensateur.infrastructure.repository import (
     get_jours_by_employee_year,
     upsert_credit,
 )
+from app.modules.repos_compensateur.infrastructure.settings_repository import (
+    get_contingent_settings,
+)
 
 __all__ = [
     "get_bulletins_par_mois_par_employe",
     "get_company_effectif",
+    "get_contingent_settings",
     "get_employees_for_company",
     "get_jours_by_employee_year",
+    "get_validated_repos_requests",
     "upsert_credit",
 ]

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Literal, Optional
+from typing import Dict, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -39,6 +39,8 @@ class GenerateDocumentRequest(BaseModel):
     nouvelle_duree: Optional[str] = None
     ancien_lieu: Optional[str] = None
     nouveau_lieu: Optional[str] = None
+    custom_fields: Optional[Dict[str, str]] = None
+    recruitment_job_id: Optional[str] = None
 
 
 class UpdateDocumentStatusRequest(BaseModel):

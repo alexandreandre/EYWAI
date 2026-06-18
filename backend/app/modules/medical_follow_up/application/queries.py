@@ -81,10 +81,18 @@ def my_obligations(company_id: str, current_user: Any) -> List[ObligationListDTO
 
 
 def get_medical_settings(company_id: Optional[str], current_user: Any) -> dict:
-    """Indique si le module est activé pour l’entreprise active. Retourne {"enabled": bool}. Comportement identique au legacy."""
+    """Indique si le module est activé pour l’entreprise active et expose les coordonnées SPST."""
+    from app.modules.medical_follow_up.infrastructure.company_contact import (
+        get_occupational_health_contact,
+    )
+
     if not company_id:
-        return {"enabled": False}
-    return {"enabled": get_company_medical_setting(company_id)}
+        return {"enabled": False, "occupational_health_contact": None}
+    contact = get_occupational_health_contact(company_id)
+    return {
+        "enabled": get_company_medical_setting(company_id),
+        "occupational_health_contact": contact,
+    }
 
 
 def get_my_obligations_with_guards(current_user: Any) -> List[ObligationListDTO]:

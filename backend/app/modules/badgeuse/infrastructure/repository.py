@@ -258,3 +258,141 @@ class TimeEntryValidationRepository:
 
 
 time_entry_validation_repository = TimeEntryValidationRepository()
+
+
+class DayAccountingRepository:
+    """Override RH des heures comptabilisées par jour."""
+
+    table_name = "employee_time_day_accounting"
+
+    def get_for_employee_between(
+        self,
+        *,
+        employee_id: str,
+        company_id: str,
+        start: date,
+        end: date,
+    ) -> Dict[date, int]:
+        result = execute_supabase(
+            lambda: supabase.table(self.table_name)
+            .select("day, accounted_seconds")
+            .eq("employee_id", employee_id)
+            .eq("company_id", company_id)
+            .gte("day", start.isoformat())
+            .lte("day", end.isoformat())
+            .execute()
+        )
+        rows = result.data or []
+        out: Dict[date, int] = {}
+        for row in rows:
+            day_raw = row.get("day")
+            if not day_raw:
+                continue
+            out[date.fromisoformat(str(day_raw))] = int(row["accounted_seconds"])
+        return out
+
+    def get_for_company_between(
+        self,
+        *,
+        company_id: str,
+        start: date,
+        end: date,
+        employee_ids: Optional[List[str]] = None,
+    ) -> Dict[tuple[str, date], int]:
+        query = (
+            supabase.table(self.table_name)
+            .select("employee_id, day, accounted_seconds")
+            .eq("company_id", company_id)
+            .gte("day", start.isoformat())
+            .lte("day", end.isoformat())
+        )
+        if employee_ids:
+            query = query.in_("employee_id", employee_ids)
+        result = execute_supabase(lambda: query.execute())
+        rows = result.data or []
+        out: Dict[tuple[str, date], int] = {}
+        for row in rows:
+            day_raw = row.get("day")
+            if not day_raw:
+                continue
+            key = (str(row["employee_id"]), date.fromisoformat(str(day_raw)))
+            out[key] = int(row["accounted_seconds"])
+        return out
+
+    def get_accounted_seconds(
+        self,
+        *,
+        employee_id: str,
+        company_id: str,
+        day: date,
+    ) -> Optional[int]:
+        result = execute_supabase(
+            lambda: supabase.table(self.table_name)
+            .select("accounted_seconds")
+            .eq("employee_id", employee_id)
+            .eq("company_id", company_id)
+            .eq("day", day.isoformat())
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        if not rows:
+            return None
+        return int(rows[0]["accounted_seconds"])
+
+    def set_accounted_seconds(
+        self,
+        *,
+        employee_id: str,
+        company_id: str,
+        day: date,
+        accounted_seconds: int,
+        updated_by: str,
+    ) -> None:
+        payload: Dict[str, Any] = {
+            "employee_id": employee_id,
+            "company_id": company_id,
+            "day": day.isoformat(),
+            "accounted_seconds": accounted_seconds,
+            "updated_by": updated_by,
+            "updated_at": datetime.utcnow().isoformat(),
+        }
+        existing = execute_supabase(
+            lambda: supabase.table(self.table_name)
+            .select("id")
+            .eq("employee_id", employee_id)
+            .eq("company_id", company_id)
+            .eq("day", day.isoformat())
+            .execute()
+        )
+        rows = existing.data or []
+        if rows:
+            execute_supabase(
+                lambda: supabase.table(self.table_name)
+                .update(payload)
+                .eq("id", rows[0]["id"])
+                .execute()
+            )
+        else:
+            execute_supabase(
+                lambda: supabase.table(self.table_name).insert(payload).execute()
+            )
+
+    def clear_accounted_seconds(
+        self,
+        *,
+        employee_id: str,
+        company_id: str,
+        day: date,
+    ) -> None:
+        execute_supabase(
+            lambda: supabase.table(self.table_name)
+            .delete()
+            .eq("employee_id", employee_id)
+            .eq("company_id", company_id)
+            .eq("day", day.isoformat())
+            .execute()
+        )
+
+
+day_accounting_repository = DayAccountingRepository()

@@ -25,6 +25,33 @@ class CotisationBlock:
 
 
 @dataclass
+class CotisationIndividuelleBlock:
+    """Bloc S21.G00.81 — cotisation individuelle (ex. code 059 PSC)."""
+
+    code: str = ""
+    montant_assiette: float = 0.0
+    montant_salarial: float = 0.0
+    montant_patronal: float = 0.0
+    identifiant_affiliation: str = ""
+    rubriques: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class AffiliationBlock:
+    """Bloc S21.G00.70 — affiliation salarié mutuelle / prévoyance."""
+
+    reference_contrat: str = ""
+    code_organisme: str = ""
+    code_delegataire: str = ""
+    code_option: str = ""
+    code_population: str = ""
+    nb_enfants: int = 0
+    nb_adultes: int = 0
+    identifiant_affiliation: str = ""
+    rubriques: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
 class RemunerationBlock:
     type_code: str = ""
     montant: float = 0.0
@@ -44,6 +71,9 @@ class VersementBlock:
     montant_soumis_pas: float = 0.0
     remunerations: List[RemunerationBlock] = field(default_factory=list)
     cotisations: List[CotisationBlock] = field(default_factory=list)
+    cotisations_individuelles: List[CotisationIndividuelleBlock] = field(
+        default_factory=list
+    )
     rubriques: Dict[str, str] = field(default_factory=dict)
 
 
@@ -64,6 +94,7 @@ class ContratBlock:
     position_conv: str = ""
     libelle_emploi: str = ""
     rubriques: Dict[str, str] = field(default_factory=dict)
+    affiliations: List[AffiliationBlock] = field(default_factory=list)
     versements: List[VersementBlock] = field(default_factory=list)
 
 

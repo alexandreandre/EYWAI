@@ -35,3 +35,23 @@ class DocumentTemplate(BaseModel):
 
 class SignedVersionDownload(BaseModel):
     signed_url: str
+
+
+class DocumentVariableItem(BaseModel):
+    key: str
+    label: str
+    category: str
+    example: str
+
+
+class DocumentVariablesResponse(BaseModel):
+    variables: List[DocumentVariableItem]
+
+
+class ValidateTemplateFileResponse(BaseModel):
+    unknown_variables: List[str] = Field(default_factory=list)
+    preview_available: bool = False
+
+
+class DocumentTemplateVersionUpload(DocumentTemplateVersion):
+    unknown_variables: List[str] = Field(default_factory=list)

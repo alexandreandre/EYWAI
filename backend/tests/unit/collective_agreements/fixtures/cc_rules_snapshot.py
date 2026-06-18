@@ -67,6 +67,36 @@ PRIORITY_IDCC_RULES: Dict[str, Dict[str, Any]] = {
         },
         "salaires_minima": [{"coefficient": 200, "valeur": 2200.0}],
     },
+    "0292": {
+        "schema_version": 1,
+        "idcc": "0292",
+        "prime_anciennete": {
+            "bareme": [
+                {"annees_min": 3, "taux": 0.024},
+                {"annees_min": 6, "taux": 0.048},
+                {"annees_min": 9, "taux": 0.072},
+                {"annees_min": 12, "taux": 0.096},
+                {"annees_min": 15, "taux": 0.12},
+            ],
+            "base_de_calcul": {"methode": "pourcentage_salaire_de_base", "valeur": 1.0},
+        },
+        "salaires_minima": [{"coefficient": 150, "valeur": 1900.0}],
+    },
+    "1297": {
+        "schema_version": 1,
+        "idcc": "1297",
+        "prime_anciennete": {
+            "bareme": [
+                {"annees_min": 3, "taux": 0.024},
+                {"annees_min": 6, "taux": 0.048},
+                {"annees_min": 9, "taux": 0.072},
+                {"annees_min": 12, "taux": 0.096},
+                {"annees_min": 15, "taux": 0.12},
+            ],
+            "base_de_calcul": {"methode": "pourcentage_salaire_de_base", "valeur": 1.0},
+        },
+        "salaires_minima": [{"coefficient": 150, "valeur": 1900.0}],
+    },
 }
 
 

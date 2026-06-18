@@ -279,7 +279,7 @@ def _calculer_net_a_payer(
     primes_non_soumises: List[Dict[str, Any]],
     montant_acompte: float = 0.0,
     primes_soumises_impot: List[Dict[str, Any]] = None,
-) -> float:
+) -> tuple[float, float, float]:
     if primes_soumises_impot is None:
         primes_soumises_impot = []
 
@@ -318,6 +318,17 @@ def _calculer_net_a_payer(
         log_payroll_debug(logger, f'\t+ Remboursement Transport          : {remboursement_transport:10.2f} €')
         net_a_payer += remboursement_transport
 
+    indemnite_transport_fixe = _get_safe_float(
+        transport_spec.get("indemnite_mensuelle_nette", 0.0)
+    )
+    if indemnite_transport_fixe > 0:
+        indemnite_transport_fixe = round(indemnite_transport_fixe, 2)
+        log_payroll_debug(
+            logger,
+            f'\t+ Indemnité transport contractuelle : {indemnite_transport_fixe:10.2f} €',
+        )
+        net_a_payer += indemnite_transport_fixe
+
     # Ajout des primes non soumises aux cotisations ni à l'impôt
     montant_primes_non_soumises = 0.0
     for prime in primes_non_soumises:
@@ -346,7 +357,7 @@ def _calculer_net_a_payer(
     log_payroll_debug(logger, f'\t= NET À PAYER                      : {round(net_a_payer, 2):10.2f} €')
     log_payroll_debug(logger, '-----------------------------\n')
 
-    return round(net_a_payer, 2), remboursement_transport
+    return round(net_a_payer, 2), remboursement_transport, indemnite_transport_fixe
 
 
 def calculer_net_et_impot(
@@ -388,7 +399,7 @@ def calculer_net_et_impot(
         total_cotisations_salariales,
         primes_non_soumises,
     )
-    net_a_payer, remboursement_transport = _calculer_net_a_payer(
+    net_a_payer, remboursement_transport, indemnite_transport_fixe = _calculer_net_a_payer(
         net_social,
         montant_impot,
         contexte,
@@ -405,5 +416,6 @@ def calculer_net_et_impot(
         "montant_impot_pas": montant_impot,
         "net_a_payer": net_a_payer,
         "remboursement_transport": remboursement_transport,
+        "indemnite_transport_fixe": indemnite_transport_fixe,
         "acompte_verse": montant_acompte,  # <--- AJOUTEZ CETTE LIGNE
     }

@@ -73,6 +73,13 @@ class AbsenceRequestStatusUpdate(BaseModel):
     """Schéma pour la mise à jour du statut d'une demande."""
 
     status: AbsenceStatus
+    subrogation_active: Optional[bool] = None
+
+
+class SalaryCertificateTransmissionUpdate(BaseModel):
+    """Marquage transmission attestation vers CPAM / Net-Entreprises."""
+
+    transmitted_to_cpam: bool = True
 
 
 class ManagerApprovalRequest(BaseModel):

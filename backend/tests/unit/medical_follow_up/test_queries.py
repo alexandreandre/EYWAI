@@ -199,26 +199,47 @@ class TestMyObligations:
         assert result[0].id == "obl-1"
 
 
+@patch(
+    "app.modules.medical_follow_up.infrastructure.company_contact.get_occupational_health_contact"
+)
 @patch("app.modules.medical_follow_up.application.queries.get_company_medical_setting")
 class TestGetMedicalSettings:
     """Query get_medical_settings."""
 
-    def test_returns_enabled_false_when_no_company(self, mock_get_setting):
-        """company_id None → {"enabled": False}."""
+    def test_returns_enabled_false_when_no_company(
+        self, mock_get_setting, mock_get_contact
+    ):
+        """company_id None → enabled False et contact None."""
         result = queries.get_medical_settings(None, MagicMock())
-        assert result == {"enabled": False}
+        assert result == {"enabled": False, "occupational_health_contact": None}
         mock_get_setting.assert_not_called()
+        mock_get_contact.assert_not_called()
 
-    def test_returns_enabled_from_provider(self, mock_get_setting):
-        """company_id fourni → {"enabled": bool} selon le provider."""
+    def test_returns_enabled_and_contact_from_provider(
+        self, mock_get_setting, mock_get_contact
+    ):
+        """company_id fourni → enabled + coordonnées SPST."""
         mock_get_setting.return_value = True
+        mock_get_contact.return_value = {
+            "nom": "SPSTI Test",
+            "adresse_rue": "1 rue Santé",
+            "adresse_code_postal": "44000",
+            "adresse_ville": "Nantes",
+            "telephone": "02 40 00 00 00",
+            "email": "contact@spst.test",
+        }
         result = queries.get_medical_settings("co-1", MagicMock())
-        assert result == {"enabled": True}
+        assert result == {
+            "enabled": True,
+            "occupational_health_contact": mock_get_contact.return_value,
+        }
         mock_get_setting.assert_called_once_with("co-1")
+        mock_get_contact.assert_called_once_with("co-1")
 
         mock_get_setting.return_value = False
+        mock_get_contact.return_value = None
         result = queries.get_medical_settings("co-2", MagicMock())
-        assert result == {"enabled": False}
+        assert result == {"enabled": False, "occupational_health_contact": None}
 
 
 @patch("app.modules.medical_follow_up.application.queries.my_obligations")

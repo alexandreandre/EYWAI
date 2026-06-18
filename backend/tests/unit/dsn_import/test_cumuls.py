@@ -3,11 +3,13 @@
 from pathlib import Path
 
 from app.modules.dsn_import.application.cumuls import (
+    _brut_from_versement,
     build_cumuls_for_month,
     build_cumuls_summary,
     extract_monthly_totals,
     plan_cumul_items,
 )
+from app.modules.dsn_import.domain.model import RemunerationBlock, VersementBlock
 from app.modules.dsn_import.domain.parser import parse_dsn_files
 
 
@@ -63,4 +65,17 @@ def test_build_cumuls_summary():
     assert summary["entry_count"] == 2
     assert summary["by_period"][0]["brut"] == 3000.0
     assert summary["by_period"][0]["employees_without_brut"] == 1
+
+
+def test_brut_fallback_from_pas_assiette_when_primary_zero():
+    ver = VersementBlock(
+        montant_soumis_pas=1880.0,
+        remunerations=[RemunerationBlock(type_code="001", montant=0.0)],
+    )
+    assert _brut_from_versement(ver) == 1880.0
+
+
+def test_brut_fallback_not_used_without_zero_primary_line():
+    ver = VersementBlock(montant_soumis_pas=1880.0, remunerations=[])
+    assert _brut_from_versement(ver) == 0.0
 

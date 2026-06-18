@@ -20,6 +20,7 @@ from app.modules.badgeuse.api.terminal_router import router_terminal
 from app.modules.badgeuse.application import service as badgeuse_service
 from app.modules.badgeuse.application import terminal_service
 from app.modules.badgeuse.domain.time_tracking import TimeEntryType, TimeEntrySource
+from app.modules.badgeuse.schemas.requests import SetAccountedHoursRequest
 from app.modules.users.schemas.responses import User
 
 
@@ -145,6 +146,11 @@ def get_employee_days_summary(
             "date": d.isoformat(),
             "status": dto.status,
             "total_seconds": dto.total_seconds,
+            "computed_seconds": dto.computed_seconds,
+            "accounted_seconds": dto.accounted_seconds,
+            "effective_seconds": dto.effective_seconds,
+            "has_override": dto.has_override,
+            "override_differs_from_computed": dto.override_differs_from_computed,
             "sequences_count": dto.sequences_count,
             "has_anomalies": dto.has_anomalies,
             "validated": dto.validated,
@@ -187,6 +193,44 @@ def validate_employee_day(
         company_id=company_id,
         day=day,
         current_user=current_user,
+    )
+
+
+@router_rh.patch("/employees/{employee_id}/days/{day}/accounted-hours")
+def set_employee_day_accounted_hours(
+    employee_id: str,
+    day: date,
+    payload: SetAccountedHoursRequest,
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    current_user: User = Depends(get_current_user),
+):
+    """Définit les heures comptabilisées RH pour une journée (override du brut)."""
+    _require_badgeuse_rh_access(company_id, current_user)
+    try:
+        return badgeuse_service.set_accounted_hours_for_day(
+            employee_id=employee_id,
+            company_id=company_id,
+            day=day,
+            accounted_seconds=payload.accounted_seconds,
+            current_user=current_user,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router_rh.delete("/employees/{employee_id}/days/{day}/accounted-hours")
+def clear_employee_day_accounted_hours(
+    employee_id: str,
+    day: date,
+    company_id: str = Query(..., description="ID de l'entreprise"),
+    current_user: User = Depends(get_current_user),
+):
+    """Supprime l'override RH : les heures effectives redeviennent le brut pointages."""
+    _require_badgeuse_rh_access(company_id, current_user)
+    return badgeuse_service.clear_accounted_hours_for_day(
+        employee_id=employee_id,
+        company_id=company_id,
+        day=day,
     )
 
 
@@ -319,6 +363,7 @@ def get_company_summary(
             {
                 "employee_id": emp_id,
                 "total_seconds": dto.total_seconds,
+                "total_effective_seconds": dto.total_effective_seconds,
                 "days_with_anomalies": dto.days_with_anomalies,
             }
         )

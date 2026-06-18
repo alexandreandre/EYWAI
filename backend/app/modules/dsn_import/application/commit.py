@@ -7,7 +7,13 @@ from typing import Any, Dict, List, Optional
 from app.core.database import get_supabase_admin_client
 from app.core.logging import get_logger
 from app.modules.company_groups.infrastructure.repository import CompanyGroupRepository
-from app.modules.dsn_import.application.cumuls import write_cumuls_file, rebuild_cumuls_with_previous_on_disk
+from app.modules.dsn_import.application.cumuls import (
+    rebuild_cumuls_with_previous_on_disk,
+    write_cumuls_file,
+)
+from app.modules.dsn_import.domain.user_messages import humanize_commit_error, issue_to_legacy_string
+from app.modules.dsn_import.application.mapping import normalize_employee_edits
+from app.modules.dsn_import.application.psc_catalog import sync_employee_psc_catalog
 from app.modules.dsn_import.infrastructure import repository as repo
 from app.modules.employees.application.commands import create_employee_imported, update_employee
 from app.modules.employees.infrastructure.repository import EmployeeRepository
@@ -16,6 +22,94 @@ logger = get_logger("modules.dsn_import.commit")
 
 _group_repo = CompanyGroupRepository()
 _employee_repo = EmployeeRepository()
+
+
+def _patch_contract_end_date_on_skip(
+    payload: Dict[str, Any],
+    emp_row: Dict[str, Any],
+) -> None:
+    """Met à jour contract_end_date depuis la DSN sans toucher employment_status."""
+    end_date = payload.get("contract_end_date")
+    if not end_date:
+        return
+    employee_id = str(emp_row.get("id") or "")
+    if not employee_id:
+        return
+    existing_end = emp_row.get("contract_end_date")
+    if existing_end and str(existing_end)[:10] == str(end_date)[:10]:
+        return
+    update_employee(employee_id, {"contract_end_date": end_date})
+
+
+def _apply_workforce_resolutions(
+    resolutions: List[Dict[str, Any]],
+    company_id: str,
+    current_user_id: Optional[str],
+) -> Dict[str, Any]:
+    """Applique les décisions de réconciliation effectifs post-import."""
+    report: Dict[str, Any] = {"closed": [], "ignored": [], "open_exit_deferred": []}
+    if not resolutions or not company_id:
+        return report
+
+    from app.modules.employee_exits.application.commands import create_reconciliation_exit
+
+    user_id = current_user_id or "dsn-import-system"
+
+    for res in resolutions:
+        gap_id = str(res.get("gap_id") or "")
+        action = res.get("action")
+        employee_id = str(res.get("employee_id") or "")
+        if not gap_id or not employee_id:
+            continue
+        if action == "ignore":
+            report["ignored"].append(
+                {
+                    "gap_id": gap_id,
+                    "employee_id": employee_id,
+                    "ignore_reason": res.get("ignore_reason"),
+                }
+            )
+            continue
+        if action == "open_exit":
+            report["open_exit_deferred"].append(
+                {
+                    "gap_id": gap_id,
+                    "employee_id": employee_id,
+                    "exit_type": res.get("exit_type") or "demission",
+                    "last_working_day": res.get("last_working_day"),
+                }
+            )
+            continue
+        if action == "close_departure":
+            try:
+                created = create_reconciliation_exit(
+                    employee_id,
+                    company_id,
+                    user_id,
+                    exit_type=str(res.get("exit_type") or "demission"),
+                    last_working_day=res.get("last_working_day"),
+                    exit_reason=res.get("exit_reason")
+                    or f"Clôture réconciliation DSN ({gap_id})",
+                    fast_archive=True,
+                    source="dsn_reconciliation",
+                )
+                report["closed"].append(
+                    {
+                        "gap_id": gap_id,
+                        "employee_id": employee_id,
+                        "exit_id": str(created.get("id", "")),
+                    }
+                )
+            except Exception as exc:
+                logger.exception("Clôture réconciliation échouée pour %s", employee_id)
+                report.setdefault("failed", []).append(
+                    {
+                        "gap_id": gap_id,
+                        "employee_id": employee_id,
+                        "error": str(exc),
+                    }
+                )
+    return report
 
 PHASE_LABELS = {
     "group": "Création du groupe",
@@ -29,6 +123,38 @@ PHASE_LABELS = {
 
 def _phase_label(item_type: Optional[str]) -> str:
     return PHASE_LABELS.get(item_type or "", "Traitement")
+
+
+def _company_id_for_siret(
+    siret: str,
+    company_by_siret: Dict[str, str],
+) -> Optional[str]:
+    company_id = company_by_siret.get(siret)
+    if company_id:
+        return company_id
+    existing_co = repo.find_company_by_siret(siret)
+    return str(existing_co["id"]) if existing_co else None
+
+
+def _resolve_employee_row(
+    company_id: Optional[str],
+    nir: Optional[str],
+    source_ref: str,
+    payload: Dict[str, Any],
+    employee_by_ref: Dict[str, Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    emp: Optional[Dict[str, Any]] = None
+    if company_id and nir:
+        emp = repo.find_employee_by_nir(company_id, nir)
+    if not emp and nir:
+        emp = repo.find_employee_by_nir_global(nir)
+    if not emp:
+        parts = source_ref.split(":")
+        siret = parts[1] if len(parts) > 1 else payload.get("siret", "")
+        emp_key = payload.get("employee_key") or nir
+        if siret and emp_key:
+            emp = employee_by_ref.get(f"emp:{siret}:{emp_key}")
+    return emp
 
 
 def _item_label(item: Optional[Dict[str, Any]]) -> Optional[str]:
@@ -55,6 +181,8 @@ def commit_batch(
     overrides: Optional[Dict[str, str]] = None,
     payload_edits: Optional[Dict[str, Dict[str, Any]]] = None,
     target_company_id: Optional[str] = None,
+    workforce_resolutions: Optional[List[Dict[str, Any]]] = None,
+    current_user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Exécute le commit d'un batch previewed.
@@ -92,7 +220,8 @@ def commit_batch(
     company_by_siret: Dict[str, str] = {}
     employee_by_ref: Dict[str, Dict[str, Any]] = {}
     stats = {"created": 0, "updated": 0, "skipped": 0, "failed": 0}
-    errors: List[str] = []
+    errors: List[Dict[str, Any]] = []
+    error_messages: List[str] = []
     imported_employees: List[Dict[str, Any]] = []
     periods_committed: set = set()
 
@@ -134,6 +263,17 @@ def commit_batch(
         source_ref = item.get("source_ref", "")
         action = overrides.get(source_ref, item.get("action", "create"))
         if action == "skip":
+            if item.get("item_type") == "employee":
+                payload = dict(item.get("mapped_payload") or {})
+                parts = source_ref.split(":")
+                siret = parts[1] if len(parts) > 1 else ""
+                cid = _company_id_for_siret(siret, company_by_siret)
+                emp_row = _resolve_employee_row(
+                    cid, payload.get("nir"), source_ref, payload, employee_by_ref
+                )
+                if emp_row:
+                    employee_by_ref[source_ref] = emp_row
+                    _patch_contract_end_date_on_skip(payload, emp_row)
             repo.update_item(item_id, {"status": "skipped", "action": "skip"})
             stats["skipped"] += 1
             continue
@@ -142,6 +282,8 @@ def commit_batch(
         payload = dict(item.get("mapped_payload") or {})
         edits = payload_edits.get(source_ref) or {}
         if edits:
+            if item_type == "employee":
+                edits = normalize_employee_edits(edits)
             payload.update(edits)
             if item_type == "establishment" and edits.get("company_name"):
                 payload["raison_sociale"] = edits["company_name"]
@@ -152,11 +294,10 @@ def commit_batch(
         try:
             target_id = None
             if item_type == "group":
-                if target_company is not None:
-                    # Rattachement : pas de création de groupe, on réutilise celui
-                    # de l'entreprise cible (peut être None).
-                    target_id = target_group_id
-                    group_id = target_group_id
+                if target_company is not None or payload.get("_scaffold"):
+                    # Rattachement ou mono-établissement : pas de conteneur groupe.
+                    target_id = target_group_id if target_company is not None else None
+                    group_id = target_group_id if target_company is not None else None
                     action = "skip"
                     stats["skipped"] += 1
                 else:
@@ -215,19 +356,37 @@ def commit_batch(
             )
         except Exception as exc:
             logger.exception("Commit item %s échoué", source_ref)
-            errors.append(f"{source_ref} : {exc}")
+            issue = humanize_commit_error(
+                exc,
+                source_ref=source_ref,
+                item_label=_item_label(item),
+            )
+            errors.append(issue)
+            error_messages.append(issue_to_legacy_string(issue))
             repo.update_item(item_id, {"status": "failed"})
             stats["failed"] += 1
 
     status = "committed" if not errors else "failed"
     import_mode = summary_state.get("import_mode")
+    workforce_report: Dict[str, Any] = {}
+    resolution_company_id = target_cid or (
+        str(next(iter(company_by_siret.values()))) if company_by_siret else None
+    )
+    if status == "committed" and workforce_resolutions and resolution_company_id:
+        workforce_report = _apply_workforce_resolutions(
+            workforce_resolutions,
+            resolution_company_id,
+            current_user_id,
+        )
     report = {
         "stats": stats,
         "errors": errors,
+        "error_messages": error_messages,
         "group_id": group_id,
         "companies": company_by_siret,
         "imported_employees": imported_employees,
         "target_company_id": target_cid,
+        "workforce_reconciliation": workforce_report,
     }
     summary_state["commit_report"] = report
     summary_state["periods_committed"] = sorted(periods_committed)
@@ -370,7 +529,7 @@ def _commit_employee(
         raise RuntimeError(f"Établissement {siret} introuvable pour le salarié")
 
     nir = payload.get("nir")
-    existing = repo.find_employee_by_nir(company_id, nir) if nir else None
+    existing = _resolve_employee_row(company_id, nir, source_ref, payload, {})
 
     clean_payload = {
         k: v
@@ -393,12 +552,29 @@ def _commit_employee(
             clean_payload["collective_agreement_id"] = agreement_id
 
     if existing:
+        if str(existing.get("company_id")) != str(company_id):
+            other_co = repo.find_company_by_id(str(existing["company_id"]))
+            other_name = (other_co or {}).get("company_name") or "une autre entreprise"
+            raise RuntimeError(
+                f"NIR {nir} déjà enregistré chez {other_name} — "
+                "ignorez ce salarié à l'import ou corrigez la fiche manuellement."
+            )
         if action == "create":
             action = "update"
+        # Ne jamais écraser le statut RH (en_sortie / parti) via l'import DSN.
+        clean_payload.pop("employment_status", None)
         update_employee(str(existing["id"]), clean_payload)
+        try:
+            sync_employee_psc_catalog(company_id, str(existing["id"]), payload)
+        except Exception:
+            logger.exception("Sync PSC mutuelle échoué pour %s", existing["id"])
         return str(existing["id"]), False, existing
 
     row = create_employee_imported(clean_payload, company_id)
+    try:
+        sync_employee_psc_catalog(company_id, str(row["id"]), payload)
+    except Exception:
+        logger.exception("Sync PSC mutuelle échoué pour %s", row["id"])
     return str(row["id"]), True, row
 
 
@@ -419,10 +595,13 @@ def _commit_cumul(
     if not company_id:
         raise RuntimeError(f"Entreprise {siret} introuvable pour cumuls")
 
-    emp = repo.find_employee_by_nir(company_id, nir)
-    if not emp:
-        ref = f"emp:{siret}:{payload.get('employee_key') or nir}"
-        emp = employee_by_ref.get(ref)
+    emp = _resolve_employee_row(
+        company_id,
+        nir,
+        f"emp:{siret}:{payload.get('employee_key') or nir}",
+        payload,
+        employee_by_ref,
+    )
     if not emp or not emp.get("employee_folder_name"):
         raise RuntimeError(f"Salarié NIR {nir} introuvable pour cumuls")
 

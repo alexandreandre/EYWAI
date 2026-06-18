@@ -20,6 +20,7 @@ from app.modules.dsn_import.domain.normalize import (
     normalize_date_dsn,
 )
 from app.modules.dsn_import.application.cumuls import extract_monthly_totals
+from app.modules.dsn_import.domain.psc import build_specificites_paie_psc
 
 # Champs modifiables en preview (clé payload -> libellé UI)
 EDITABLE_FIELDS: Dict[str, Dict[str, str]] = {
@@ -42,24 +43,82 @@ EDITABLE_FIELDS: Dict[str, Dict[str, str]] = {
         "email": "Email",
         "job_title": "Poste",
         "hire_date": "Date d'embauche",
+        "salaire_brut": "Salaire brut mensuel",
     },
 }
 
 
 REVIEW_REASON_LABELS: Dict[str, str] = {
-    "brut_absent": "Brut absent",
-    "identifiant_absent": "NIR / matricule absent",
+    "brut_absent": "Brut non extrait de la DSN",
+    "nir_incomplet": "NIR absent (NTT ou matricule utilisé)",
 }
 
 
-def compute_review_reasons(ind: IndividuBlock, brut: float) -> List[str]:
-    """Motifs nécessitant une relecture RH (adresse absente exclue — norme DSN)."""
+def compute_review_reasons_from_payload(
+    payload: Dict[str, Any],
+    *,
+    effective_action: str = "create",
+    is_existing: bool = False,
+) -> List[str]:
+    """Motifs nécessitant une relecture RH (non bloquants pour l'import)."""
     reasons: List[str] = []
-    if brut <= 0:
+    brut = float((payload.get("salaire_de_base") or {}).get("valeur") or 0)
+    if brut <= 0 and not (is_existing and effective_action == "skip"):
         reasons.append("brut_absent")
-    if not ind.nir and not ind.ntt and not ind.matricule:
-        reasons.append("identifiant_absent")
+    if not payload.get("nir") and (payload.get("ntt") or payload.get("matricule")):
+        reasons.append("nir_incomplet")
     return reasons
+
+
+def apply_review_flags(item: Dict[str, Any], *, effective_action: Optional[str] = None) -> None:
+    """Met à jour needs_review / review_reasons sur un item salarié."""
+    if item.get("item_type") != "employee":
+        return
+    payload = item.get("mapped_payload") or {}
+    action = effective_action or item.get("action") or "create"
+    reasons = compute_review_reasons_from_payload(
+        payload,
+        effective_action=action,
+        is_existing=bool(item.get("is_existing")),
+    )
+    item["needs_review"] = bool(reasons)
+    item["review_reasons"] = reasons
+    cols = dict(item.get("preview_columns") or {})
+    cols["brut"] = (payload.get("salaire_de_base") or {}).get("valeur")
+    item["preview_columns"] = cols
+
+
+def normalize_employee_edits(edits: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalise les éditions preview salarié (clé plate salaire_brut -> salaire_de_base)."""
+    out = dict(edits)
+    if "salaire_brut" not in out:
+        return out
+    raw = out.pop("salaire_brut")
+    try:
+        val = float(str(raw).replace(",", ".").replace(" ", ""))
+    except (ValueError, TypeError):
+        val = 0.0
+    sb = out.get("salaire_de_base")
+    if not isinstance(sb, dict):
+        sb = {"type": "mensuel"}
+    sb = dict(sb)
+    sb["valeur"] = round(val, 2)
+    sb["a_verifier"] = val <= 0
+    out["salaire_de_base"] = sb
+    return out
+
+
+def build_review_summary(items: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Agrège les motifs de relecture pour le résumé preview."""
+    by_reason: Dict[str, int] = {}
+    total = 0
+    for it in items:
+        if it.get("item_type") != "employee" or not it.get("needs_review"):
+            continue
+        total += 1
+        for reason in it.get("review_reasons") or []:
+            by_reason[reason] = by_reason.get(reason, 0) + 1
+    return {"total": total, "by_reason": by_reason}
 
 
 def build_actions_summary(items: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -149,6 +208,7 @@ def apply_legal_name_to_preview(
         elif item_type == "group":
             payload["group_name"] = f"Groupe {short}"
             payload["description"] = "Conteneur EYWAI — créé automatiquement à l'import DSN"
+            payload["_scaffold"] = True
             it["label"] = f"Groupe {short}"
             it["mapped_payload"] = payload
             if single_establishment:
@@ -287,6 +347,8 @@ def map_employee_payload(
     contract_type = map_contract_type(contrat.nature)
     pas = _extract_pas(contrat)
     sexe = map_sexe(ind.sexe)
+    psc_block = build_specificites_paie_psc(contrat)
+    psc_meta = psc_block.pop("_psc_meta", {})
 
     payload: Dict[str, Any] = {
         "first_name": ind.prenom,
@@ -324,15 +386,15 @@ def map_employee_payload(
         },
         "elements_variables": {},
         "specificites_paie": {
-            "prevoyance": {"adhesion": False},
-            "mutuelle": {"adhesion": False},
+            **psc_block,
             "prelevement_a_la_source": pas,
         },
         "collective_agreement_idcc": contrat.idcc,
         # Salariés en activité chez l'établisseur externe — pas le flux onboarding EYWAI.
         "employment_status": "actif",
         "import_source": "dsn",
-        "_needs_review": bool(compute_review_reasons(ind, brut)),
+        "_psc_meta": psc_meta,
+        "_needs_review": brut <= 0,
     }
 
     # Champs d'état civil persistés uniquement si la migration correspondante est
@@ -349,14 +411,6 @@ def map_employee_payload(
         payload["date_conclusion_contrat"] = hire
 
     return payload
-
-
-def employee_review_fields(ind: IndividuBlock, brut: float) -> Dict[str, Any]:
-    reasons = compute_review_reasons(ind, brut)
-    return {
-        "needs_review": bool(reasons),
-        "review_reasons": reasons,
-    }
 
 
 def _placeholder_email(ind: IndividuBlock, siret: str) -> str:
@@ -386,9 +440,11 @@ def build_preview_items(parsed: ParsedDsnSet) -> Tuple[List[Dict[str, Any]], Dic
     items: List[Dict[str, Any]] = []
     siren = parsed.siren or ""
 
-    group_payload = map_group_payload(parsed)
     etabs = parsed.etablissements_by_siret()
     single_establishment = len(etabs) == 1
+    group_payload = map_group_payload(parsed)
+    if single_establishment:
+        group_payload["_scaffold"] = True
     items.append(
         {
             "item_type": "group",
@@ -430,25 +486,22 @@ def build_preview_items(parsed: ParsedDsnSet) -> Tuple[List[Dict[str, Any]], Dic
             emp_payload = map_employee_payload(ind, etab, siret)
             ident = ind.identifiant or ind.nom
             ref = f"emp:{siret}:{ident}"
-            review = employee_review_fields(ind, emp_payload.get("salaire_de_base", {}).get("valeur", 0))
-            items.append(
-                {
-                    "item_type": "employee",
-                    "source_ref": ref,
-                    "action": "create",
-                    "mapped_payload": emp_payload,
-                    "label": _employee_label(ind),
-                    "needs_review": review["needs_review"],
-                    "review_reasons": review["review_reasons"],
-                    "preview_columns": {
-                        "nir": emp_payload.get("nir") or emp_payload.get("matricule") or "—",
-                        "job_title": emp_payload.get("job_title"),
-                        "hire_date": emp_payload.get("hire_date"),
-                        "brut": emp_payload.get("salaire_de_base", {}).get("valeur"),
-                    },
-                    "editable_fields": EDITABLE_FIELDS["employee"],
-                }
-            )
+            emp_item = {
+                "item_type": "employee",
+                "source_ref": ref,
+                "action": "create",
+                "mapped_payload": emp_payload,
+                "label": _employee_label(ind),
+                "preview_columns": {
+                    "nir": emp_payload.get("nir") or emp_payload.get("matricule") or "—",
+                    "job_title": emp_payload.get("job_title"),
+                    "hire_date": emp_payload.get("hire_date"),
+                    "brut": emp_payload.get("salaire_de_base", {}).get("valeur"),
+                },
+                "editable_fields": EDITABLE_FIELDS["employee"],
+            }
+            apply_review_flags(emp_item)
+            items.append(emp_item)
 
     summary = {
         "siren": siren,

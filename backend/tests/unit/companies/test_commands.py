@@ -116,3 +116,41 @@ class TestUpdateCompanySettings:
                 current_user=MagicMock(),
             )
         assert result2.medical_follow_up_enabled is False
+
+    def test_update_company_settings_merge_public_holidays(self):
+        mock_repo = MagicMock()
+        mock_repo.get_settings.return_value = {"medical_follow_up_enabled": False}
+        mock_repo.update_settings.return_value = None
+
+        with patch(f"{MODULE_COMMANDS}.company_repository", mock_repo):
+            result = commands.update_company_settings(
+                company_id="company-ph",
+                settings_delta={
+                    "public_holidays": {
+                        "observed_holiday_ids": ["whit_monday", "christmas"],
+                    }
+                },
+                current_user=MagicMock(),
+            )
+
+        assert result.settings["public_holidays"]["observed_holiday_ids"] == [
+            "christmas",
+            "labor_day",
+            "whit_monday",
+        ]
+        mock_repo.update_settings.assert_called_once()
+
+    def test_update_company_settings_rejects_invalid_holiday_id(self):
+        mock_repo = MagicMock()
+        mock_repo.get_settings.return_value = {}
+
+        with patch(f"{MODULE_COMMANDS}.company_repository", mock_repo):
+            with pytest.raises(ValueError, match="invalides"):
+                commands.update_company_settings(
+                    company_id="company-ph",
+                    settings_delta={
+                        "public_holidays": {"observed_holiday_ids": ["not_valid"]},
+                    },
+                    current_user=MagicMock(),
+                )
+        mock_repo.update_settings.assert_not_called()

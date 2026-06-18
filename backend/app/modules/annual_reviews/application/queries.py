@@ -8,6 +8,7 @@ Comportement strictement identique au legacy.
 from typing import List, Optional
 
 from app.modules.annual_reviews.domain.interfaces import IAnnualReviewRepository
+from app.modules.annual_reviews.domain import rules as domain_rules
 from app.modules.annual_reviews.domain.rules import validate_pdf_allowed
 from app.modules.annual_reviews.infrastructure.mappers import (
     row_to_annual_review_read,
@@ -103,4 +104,23 @@ def get_annual_review_for_pdf(
     if not is_rh and row["employee_id"] != current_user_id:
         return None
     validate_pdf_allowed(row.get("status", ""))
+    return row
+
+
+def get_annual_review_for_convocation(
+    review_id: str,
+    company_id: str,
+    current_user_id: str,
+    is_rh: bool,
+    repository: IAnnualReviewRepository,
+) -> Optional[dict]:
+    """Récupère l'entretien pour génération de la lettre de convocation."""
+    row = repository.get_by_id(review_id)
+    if not row:
+        return None
+    if row["company_id"] != company_id:
+        return None
+    if not is_rh and row["employee_id"] != current_user_id:
+        return None
+    domain_rules.validate_convocation_allowed(row.get("status", ""))
     return row

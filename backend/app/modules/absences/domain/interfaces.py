@@ -133,6 +133,11 @@ class ICalendarUpdateService(ABC):
         employee_id: str,
         days: List[date],
         absence_type_str: str,
+        *,
+        arret_type: Optional[str] = None,
+        subrogation_active: Optional[bool] = None,
+        nombre_enfants: int = 0,
+        historique_arrets_annee: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
-        """Met à jour ou crée les plannings pour les mois concernés (type conge/rtt)."""
+        """Met à jour ou crée les plannings pour les mois concernés."""
         ...

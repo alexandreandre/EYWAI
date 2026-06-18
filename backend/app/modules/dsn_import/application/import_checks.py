@@ -7,6 +7,7 @@ import unicodedata
 from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional
 
+from app.modules.dsn_import.domain.user_messages import target_siret_missing_anomaly
 from app.modules.dsn_import.infrastructure import repository as repo
 
 IMPORT_WARNING_TYPES = frozenset(
@@ -15,6 +16,19 @@ IMPORT_WARNING_TYPES = frozenset(
         "intended_period_mismatch",
         "company_name_mismatch",
         "siret_mismatch",
+        "target_siret_missing",
+    }
+)
+
+ENRICHMENT_WARNING_TYPES = frozenset(
+    {
+        "employee_other_company",
+        "psc_warning",
+        "parse_warning",
+        "workforce_reconciliation_required",
+        "employee_missing_from_dsn",
+        "employee_contract_end_in_dsn",
+        "workforce_active_without_nir",
     }
 )
 
@@ -133,6 +147,15 @@ def strip_import_context_warnings(anomalies: List[Dict[str, Any]]) -> List[Dict[
     return [a for a in anomalies if a.get("type") not in IMPORT_WARNING_TYPES]
 
 
+def strip_enrichment_warnings(anomalies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [
+        a
+        for a in anomalies
+        if a.get("type") not in ENRICHMENT_WARNING_TYPES
+        and a.get("code") not in ENRICHMENT_WARNING_TYPES
+    ]
+
+
 def attach_import_context_warnings(
     anomalies: List[Dict[str, Any]],
     summary: Dict[str, Any],
@@ -241,6 +264,17 @@ def attach_import_context_warnings(
                     "Confirmez le rattachement."
                 ),
                 meta=summary["siret_mismatch"],
+            )
+        )
+    elif dsn_siret and not target_siret:
+        summary["target_siret_missing"] = {
+            "dsn_siret": normalize_siret(str(dsn_siret)),
+            "target_name": target_name,
+        }
+        anomalies.append(
+            target_siret_missing_anomaly(
+                target_company_name=target_name or "l'entreprise sélectionnée",
+                dsn_siret=normalize_siret(str(dsn_siret)),
             )
         )
 

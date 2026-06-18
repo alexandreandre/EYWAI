@@ -25,11 +25,35 @@ def get_company_effectif(company_id: str) -> int | None:
 
 
 def get_employees_for_company(company_id: str) -> list[dict]:
-    """Liste des employés de l'entreprise (id, company_id)."""
+    """Liste des employés actifs de l'entreprise."""
     resp = (
         supabase.table("employees")
-        .select("id, company_id")
+        .select(
+            "id, company_id, first_name, last_name, hire_date, duree_hebdomadaire"
+        )
         .eq("company_id", company_id)
         .execute()
     )
     return resp.data or []
+
+
+def get_validated_repos_requests(
+    company_id: str, employee_ids: list[str]
+) -> dict[str, list[dict]]:
+    """Demandes repos_compensateur validées par employé."""
+    if not employee_ids:
+        return {}
+    resp = (
+        supabase.table("absence_requests")
+        .select("employee_id, type, status, selected_days")
+        .eq("company_id", company_id)
+        .eq("type", "repos_compensateur")
+        .eq("status", "validated")
+        .in_("employee_id", employee_ids)
+        .execute()
+    )
+    result: dict[str, list[dict]] = {}
+    for row in resp.data or []:
+        eid = str(row["employee_id"])
+        result.setdefault(eid, []).append(row)
+    return result

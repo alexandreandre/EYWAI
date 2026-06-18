@@ -1,0 +1,74 @@
+"""Tests messages utilisateur import DSN."""
+
+from fastapi import HTTPException
+
+from app.modules.dsn_import.domain.user_messages import (
+    employee_other_company_anomaly,
+    humanize_commit_error,
+    issue_to_legacy_string,
+    target_siret_missing_anomaly,
+)
+
+
+def test_employee_other_company_anomaly_message():
+    anomaly = employee_other_company_anomaly(
+        source_ref="emp:80248516900022:1630899139837",
+        employee_name="Vitor DA SILVA CARDOSO",
+        nir="1630899139837",
+        target_company_name="Colorplast",
+        existing_company_name="Comitech Composite",
+    )
+    assert anomaly["code"] == "employee_other_company"
+    assert "Comitech Composite" in anomaly["message"]
+    assert "Colorplast" in anomaly["message"]
+    assert anomaly["hint"]
+
+
+def test_target_siret_missing_anomaly():
+    anomaly = target_siret_missing_anomaly(
+        target_company_name="Colorplast",
+        dsn_siret="80248516900022",
+    )
+    assert anomaly["code"] == "target_siret_missing"
+    assert "80248516900022" in anomaly["message"]
+
+
+def test_humanize_commit_error_duplicate_nir():
+    exc = Exception(
+        'duplicate key value violates unique constraint "employees_nir_key" '
+        'Key (nir)=(1630899139837) already exists.'
+    )
+    issue = humanize_commit_error(
+        exc,
+        source_ref="emp:80248516900022:1630899139837",
+        item_label="Vitor DA SILVA CARDOSO",
+    )
+    assert issue["code"] == "duplicate_nir"
+    assert "9837" in issue["message"]
+    assert issue["hint"]
+
+
+def test_humanize_commit_error_runtime_cross_company():
+    issue = humanize_commit_error(
+        RuntimeError(
+            "NIR 1630899139837 déjà enregistré chez Comitech Composite — "
+            "ignorez ce salarié à l'import ou corrigez la fiche manuellement."
+        ),
+        source_ref="emp:80248516900022:1630899139837",
+    )
+    assert issue["code"] == "employee_cross_company"
+    assert "Comitech Composite" in issue["message"]
+
+
+def test_humanize_commit_error_http_nir():
+    issue = humanize_commit_error(
+        HTTPException(status_code=400, detail="Ce numéro de sécurité sociale est déjà enregistré."),
+        source_ref="emp:1:2",
+    )
+    assert issue["code"] == "duplicate_nir"
+
+
+def test_issue_to_legacy_string():
+    issue = humanize_commit_error(RuntimeError("Salarié NIR 123 introuvable pour cumuls"))
+    legacy = issue_to_legacy_string(issue)
+    assert "cumuls" in legacy.lower()

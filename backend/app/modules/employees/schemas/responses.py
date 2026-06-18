@@ -172,6 +172,17 @@ class NewEmployeeResponse(FullEmployee):
     warnings: List[str] | None = None  # Ex: "RIB en doublon avec ..."
 
 
+class EmployeeDeletionImpact(BaseModel):
+    """Résumé des données qui seront supprimées avec le collaborateur."""
+
+    employee_id: str
+    employee_name: str
+    counts: Dict[str, int] = Field(default_factory=dict)
+    summary_lines: List[str] = Field(default_factory=list)
+    has_user_account: bool = False
+    has_data: bool = False
+
+
 __all__ = [
     "EmployeeSummary",
     "FullEmployee",
@@ -179,4 +190,5 @@ __all__ = [
     "ContractResponse",
     "EmployeeRhAccess",
     "PromotionListItem",
+    "EmployeeDeletionImpact",
 ]

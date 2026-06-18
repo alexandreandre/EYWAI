@@ -20,12 +20,47 @@ from app.modules.audit.application.commands import log_audit_event
 from app.modules.webhooks.application.service import trigger_webhook_event
 from app.modules.users.schemas.responses import User
 
-from app.modules.absences.application import commands, notifications as absence_notif, queries
+from app.modules.absences.schemas.fractionnement import (
+    FractionnementInputUpdate,
+    FractionnementPreviewRow,
+    FractionnementSettingsResponse,
+    FractionnementSettingsUpdate,
+)
+from app.modules.absences.schemas.cp_seniority import (
+    CpSeniorityPreviewRow,
+    CpSenioritySettingsResponse,
+    CpSenioritySettingsUpdate,
+)
+from app.modules.absences.application import (
+    commands,
+    cp_seniority_commands,
+    cp_seniority_queries,
+    fractionnement_queries,
+    leave_settings_commands,
+    leave_settings_queries,
+    notifications as absence_notif,
+    queries,
+)
 from app.modules.absences.domain.enums import SALARY_CERTIFICATE_ABSENCE_TYPES
+from app.modules.absences.schemas.leave_settings import (
+    EmployeeLeaveAdjustmentUpdate,
+    LeaveAdjustmentImportRequest,
+    LeaveSettingsUpdate,
+    RttYearEndCloseRequest,
+)
+from app.modules.absences.schemas.leave_settings_responses import (
+    EmployeeLeaveAdjustmentResponse,
+    LeaveAdjustmentImportResult,
+    LeaveBalancesOverviewResponse,
+    LeaveSettingsResponse,
+    RttYearEndCloseResult,
+    RttYearEndOverviewResponse,
+)
 from app.modules.absences.schemas.requests import (
     AbsenceRequestCreate,
     AbsenceRequestStatusUpdate,
     ManagerApprovalRequest,
+    SalaryCertificateTransmissionUpdate,
 )
 from app.modules.absences.schemas.responses import (
     AbsenceBalancesResponse,
@@ -310,6 +345,7 @@ async def update_absence_request_status(
             request_id,
             status_update.status,
             current_user_id=str(current_user.id),
+            subrogation_active=status_update.subrogation_active,
         )
         extra_ws: dict = {}
         if status_update.status == "validated":
@@ -715,6 +751,278 @@ async def get_salary_certificate(
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/{absence_id}/certificate/transmission")
+async def mark_salary_certificate_transmitted(
+    absence_id: str,
+    body: SalaryCertificateTransmissionUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    """Marque l'attestation comme transmise à la CPAM (Net-Entreprises)."""
+    try:
+        _require_rh_company_context(current_user)
+        return commands.mark_salary_certificate_transmitted(
+            absence_id,
+            transmitted=body.transmitted_to_cpam,
+            user_id=str(current_user.id),
+        )
+    except (ValueError, LookupError) as e:
+        _handle_application_errors(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ----- Paramètres congés / RTT -----
+
+
+@router.get("/leave-settings", response_model=LeaveSettingsResponse)
+async def get_leave_settings_route(
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    cid = company_id or _require_active_company_absences(current_user)
+    if company_id and not current_user.is_platform_admin:
+        _require_rh_company_context(current_user)
+    return leave_settings_queries.get_leave_settings(str(cid))
+
+
+@router.patch("/leave-settings", response_model=LeaveSettingsResponse)
+async def update_leave_settings_route(
+    body: LeaveSettingsUpdate,
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh_company_context(current_user)
+    if company_id and str(company_id) != str(cid):
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+    try:
+        return leave_settings_commands.update_leave_settings(str(cid), body)
+    except (ValueError, LookupError) as e:
+        _handle_application_errors(e)
+
+
+@router.get(
+    "/leave-settings/balances-overview",
+    response_model=LeaveBalancesOverviewResponse,
+)
+async def get_leave_balances_overview_route(
+    year: int | None = Query(None, ge=2000, le=2100),
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh_company_context(current_user)
+    if company_id and str(company_id) != str(cid):
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+    return leave_settings_queries.get_leave_balances_overview(str(cid), year)
+
+
+@router.get(
+    "/leave-settings/employees/{employee_id}/adjustment",
+    response_model=EmployeeLeaveAdjustmentResponse,
+)
+async def get_employee_leave_adjustment_route(
+    employee_id: str,
+    year: int = Query(..., ge=2000, le=2100),
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh_company_context(current_user)
+    try:
+        return leave_settings_queries.get_employee_leave_adjustment(
+            str(cid), employee_id, year
+        )
+    except LookupError as e:
+        _handle_application_errors(e)
+
+
+@router.patch(
+    "/leave-settings/employees/{employee_id}/adjustment",
+    response_model=EmployeeLeaveAdjustmentResponse,
+)
+async def update_employee_leave_adjustment_route(
+    employee_id: str,
+    body: EmployeeLeaveAdjustmentUpdate,
+    year: int = Query(..., ge=2000, le=2100),
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh_company_context(current_user)
+    try:
+        return leave_settings_commands.update_employee_leave_adjustment(
+            str(cid), employee_id, year, body
+        )
+    except (ValueError, LookupError) as e:
+        _handle_application_errors(e)
+
+
+@router.post(
+    "/leave-settings/adjustments/import",
+    response_model=LeaveAdjustmentImportResult,
+)
+async def import_leave_adjustments_route(
+    body: LeaveAdjustmentImportRequest,
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh_company_context(current_user)
+    return leave_settings_commands.import_leave_adjustments(str(cid), body)
+
+
+@router.get("/rtt-year-end/overview", response_model=RttYearEndOverviewResponse)
+async def get_rtt_year_end_overview_route(
+    year: int | None = Query(None, ge=2000, le=2100),
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh_company_context(current_user)
+    if company_id and str(company_id) != str(cid):
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+    return leave_settings_queries.get_rtt_year_end_overview(str(cid), year)
+
+
+@router.post("/rtt-year-end/close", response_model=RttYearEndCloseResult)
+async def close_rtt_year_end_route(
+    body: RttYearEndCloseRequest,
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh_company_context(current_user)
+    return leave_settings_commands.close_rtt_year_end(
+        str(cid), body, str(current_user.id)
+    )
+
+
+@router.get(
+    "/fractionnement/settings",
+    response_model=FractionnementSettingsResponse,
+)
+async def get_fractionnement_settings(
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    cid = company_id or _require_active_company_absences(current_user)
+    return FractionnementSettingsResponse(
+        **fractionnement_queries.get_fractionnement_settings(str(cid))
+    )
+
+
+@router.put(
+    "/fractionnement/settings",
+    response_model=FractionnementSettingsResponse,
+)
+async def update_fractionnement_settings(
+    body: FractionnementSettingsUpdate,
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh_company_context(current_user)
+    if company_id and str(company_id) != str(cid):
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+    payload = body.model_dump(exclude_unset=True)
+    return FractionnementSettingsResponse(
+        **fractionnement_queries.update_fractionnement_settings(str(cid), payload)
+    )
+
+
+@router.get(
+    "/fractionnement/preview",
+    response_model=list[FractionnementPreviewRow],
+)
+async def get_fractionnement_preview(
+    grant_year: int = Query(..., ge=2000, le=2100),
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh_company_context(current_user)
+    if company_id and str(company_id) != str(cid):
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+    rows = fractionnement_queries.list_fractionnement_preview(str(cid), grant_year)
+    return [FractionnementPreviewRow(**r) for r in rows]
+
+
+@router.put("/fractionnement/inputs/{employee_id}")
+async def upsert_fractionnement_input(
+    employee_id: str,
+    body: FractionnementInputUpdate,
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh_company_context(current_user)
+    if company_id and str(company_id) != str(cid):
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+    return fractionnement_queries.upsert_fractionnement_input(
+        str(cid),
+        employee_id,
+        body.grant_year,
+        body.cp_reported_june_ouvres,
+        body.cp_seniority_deduction_ouvres,
+    )
+
+
+@router.get(
+    "/cp-seniority-settings",
+    response_model=CpSenioritySettingsResponse,
+)
+async def get_cp_seniority_settings_route(
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    cid = company_id or _require_active_company_absences(current_user)
+    return CpSenioritySettingsResponse(
+        **cp_seniority_queries.get_cp_seniority_settings(str(cid))
+    )
+
+
+@router.patch(
+    "/cp-seniority-settings",
+    response_model=CpSenioritySettingsResponse,
+)
+async def update_cp_seniority_settings_route(
+    body: CpSenioritySettingsUpdate,
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh_company_context(current_user)
+    if company_id and str(company_id) != str(cid):
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+    payload = body.model_dump(exclude_unset=True)
+    return CpSenioritySettingsResponse(
+        **cp_seniority_commands.update_cp_seniority_settings(str(cid), payload)
+    )
+
+
+@router.post(
+    "/cp-seniority-settings/apply-preset/{preset}",
+    response_model=CpSenioritySettingsResponse,
+)
+async def apply_cp_seniority_preset_route(
+    preset: str,
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh_company_context(current_user)
+    if company_id and str(company_id) != str(cid):
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+    try:
+        return CpSenioritySettingsResponse(
+            **cp_seniority_commands.apply_cp_seniority_preset(str(cid), preset)
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get(
+    "/cp-seniority-settings/preview",
+    response_model=list[CpSeniorityPreviewRow],
+)
+async def get_cp_seniority_preview_route(
+    grant_year: int = Query(..., ge=2000, le=2100),
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh_company_context(current_user)
+    if company_id and str(company_id) != str(cid):
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+    rows = cp_seniority_queries.list_cp_seniority_preview(str(cid), grant_year)
+    return [CpSeniorityPreviewRow(**r) for r in rows]
 
 
 @router.get("/{absence_id}", response_model=AbsenceRequest)

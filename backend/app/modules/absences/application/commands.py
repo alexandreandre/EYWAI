@@ -31,6 +31,12 @@ from app.modules.absences.infrastructure.queries import (
     list_absence_requests_validated_for_cp,
 )
 from app.modules.absences.infrastructure.repository import absence_repository
+from app.modules.maintenance_settings.application.queries import get_maintenance_settings
+from app.modules.absences.application.queries import (
+    build_historique_arrets_annee,
+    resolve_nombre_enfants_employee,
+    _infer_subrogation_active,
+)
 
 
 def _trace_attestation_salaire_ijss_after_generation(
@@ -155,6 +161,7 @@ def update_absence_request_status(
     request_id: str,
     status: str,
     current_user_id: str | None = None,
+    subrogation_active: bool | None = None,
 ) -> dict:
     """
     Met à jour le statut d'une demande (validated / rejected / cancelled).
@@ -189,6 +196,9 @@ def update_absence_request_status(
         requested = len(req_before.get("selected_days") or [])
         update_dict["jours_payes"] = min(requested, available)
 
+    if subrogation_active is not None:
+        update_dict["subrogation_active"] = bool(subrogation_active)
+
     data = absence_repository.update(request_id, update_dict)
     if not data:
         raise LookupError("Demande introuvable après mise à jour.")
@@ -198,10 +208,33 @@ def update_absence_request_status(
             date.fromisoformat(d) if isinstance(d, str) else d
             for d in data["selected_days"]
         ]
-        calendar_update_provider.update_calendar_from_days(
-            data["employee_id"], days_to_update, data["type"]
-        )
         absence_type = data.get("type", "")
+        arret_type = data.get("arret_type")
+        settings_dict = get_maintenance_settings(
+            str(data.get("company_id") or "")
+        ).model_dump(mode="json")
+        sub_active = data.get("subrogation_active")
+        if sub_active is None and arret_type:
+            sub_active = _infer_subrogation_active(
+                settings_dict, str(arret_type), subrogation_active
+            )
+        nombre_enfants = resolve_nombre_enfants_employee(str(data["employee_id"]))
+        historique: list[dict[str, Any]] = []
+        if absence_type in IJSS_ELIGIBLE_TYPES and days_to_update:
+            historique = build_historique_arrets_annee(
+                str(data["employee_id"]),
+                days_to_update[0].year,
+                exclude_request_id=request_id,
+            )
+        calendar_update_provider.update_calendar_from_days(
+            data["employee_id"],
+            days_to_update,
+            absence_type,
+            arret_type=str(arret_type) if arret_type else None,
+            subrogation_active=sub_active if isinstance(sub_active, bool) else None,
+            nombre_enfants=nombre_enfants,
+            historique_arrets_annee=historique or None,
+        )
         # Types IJSS / attestation : alignés sur IJSS_ELIGIBLE_TYPES (= arrêts avec attestation).
         if requires_salary_certificate(absence_type) and absence_type in IJSS_ELIGIBLE_TYPES:
             try:
@@ -257,3 +290,42 @@ def generate_salary_certificate(
         logger.warning(f'⚠️ trace attestation IJSS (manuelle): {e}')
         logger.exception("Exception")
     return cert_id
+
+
+def mark_salary_certificate_transmitted(
+    absence_id: str,
+    *,
+    transmitted: bool,
+    user_id: str | None = None,
+) -> dict:
+    """Marque ou démarque la transmission CPAM d'une attestation."""
+    absence = absence_repository.get_by_id(absence_id)
+    if not absence:
+        raise LookupError("Arrêt non trouvé.")
+    cert_resp = (
+        supabase.table("salary_certificates")
+        .select("id")
+        .eq("absence_request_id", absence_id)
+        .maybe_single()
+        .execute()
+    )
+    if not cert_resp or not cert_resp.data:
+        raise LookupError("Aucune attestation trouvée pour cet arrêt.")
+    from datetime import datetime, timezone
+
+    payload: dict[str, Any] = {
+        "transmitted_to_cpam": bool(transmitted),
+        "transmission_date": datetime.now(timezone.utc).isoformat()
+        if transmitted
+        else None,
+    }
+    supabase.table("salary_certificates").update(payload).eq(
+        "absence_request_id", absence_id
+    ).execute()
+    return {
+        "absence_id": absence_id,
+        "transmitted_to_cpam": bool(transmitted),
+        "message": "Transmission CPAM enregistrée."
+        if transmitted
+        else "Transmission CPAM annulée.",
+    }

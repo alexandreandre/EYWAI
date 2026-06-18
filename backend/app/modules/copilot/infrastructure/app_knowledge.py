@@ -105,9 +105,18 @@ ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
   (onglet Documents) ou lors de la création / embauche, pas via ce module.
 
 — Mon Entreprise (« Mon Entreprise ») : paramétrage de l'entreprise (onglets
-  Pilotage, Identité, Paie, Mutuelle, Bibliothèque). L'onglet Paie permet de
+  Pilotage, Identité, Paie, Mutuelle, Bibliothèque de documents). L'onglet
+  « Bibliothèque de documents » permet d'importer des modèles Word (.docx) pour
+  contrats, attestations et fiches de poste (variables au format {{nom}},
+  {{prenom}}, {{poste}}, {{missions}}, etc.). L'onglet Paie permet de
   configurer les médailles du travail (activation, paliers, scan des éligibles)
   et de valider les dossiers en attente RH.
+
+— Fiche de poste : importer le modèle dans Mon Entreprise → Bibliothèque de
+  documents (type « Fiche de poste »), puis générer depuis la fiche Collaborateur
+  → Documents → « Générer une fiche de poste », ou depuis Recrutement (PDF
+  depuis l'offre, ou raccourci après embauche). Aucun modèle EYWAI par défaut
+  pour ce type : l'entreprise doit déposer son propre fichier Word.
 
 --- Section « EYWAI Paie » (parcours de production de la paie) ---
 
@@ -115,6 +124,13 @@ Le parcours est numéroté et doit être suivi dans l'ordre avant de lancer la p
   ① Calendrier → valider les heures / calendriers du mois (même écran que
     « Calendriers » en EYWAI Gestion, mais accessible ici dans le workflow paie).
   ② Congés & Absences → valider / refuser les demandes de congés et absences.
+     Pour les arrêts en subrogation : génération automatique de l'attestation de
+     salaire ; lien « Suivi IJSS » vers le rapprochement CPAM.
+  ② bis Suivi IJSS / CPAM (« Suivi IJSS / CPAM », menu EYWAI Paie) : chaque mois,
+     rapprocher les IJSS théoriques (bulletins), les décomptes CPAM (Net-Entreprises
+     ou import fichier) et les virements reçus (import récap compta). Sync bulletins,
+     import virements, sync Net-Entreprises, justifier les écarts, clôturer le mois,
+     export audit Excel.
   ③ Notes de frais → valider les notes de frais.
   ④ Primes → saisir les primes, la participation et l'intéressement.
   ⑤ Saisies sur salaire → saisies-arrêts, pensions alimentaires, ATD.
@@ -224,6 +240,12 @@ FAQ RH TRANSVERSES
 — Prêts employeur : module dédié dans le workflow paie (étape ⑦) et espace
   collaborateur ; paramétrage et validation des médailles du travail dans
   Mon Entreprise → onglet Paie.
+— Temps de travail (Mon Entreprise → Paie) : section « Temps de travail » avec
+  Jours fériés, RTT (mode forfait-jours cadres), CP ancienneté (presets plasturgie
+  / LEWIS / règles personnalisées), fractionnement CP, modulation 32h/37h,
+  contingent HS. Section « Variables de paie » : règles astreinte, équipe,
+  productivité, modulation → génération dans Primes → « Préparer variables du mois ».
+— Suivi modulation : menu EYWAI Paie → Modulation (solde heures par salarié).
 — Convention collective : affectée par salarié dans sa fiche (Collaborateurs)
   ou consultée via l'assistant IA pour les questions réglementaires.
 — Multi-entreprises : un gestionnaire RH peut basculer d'entreprise via le

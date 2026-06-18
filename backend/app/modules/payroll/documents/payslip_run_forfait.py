@@ -138,6 +138,29 @@ def run_payslip_generation_forfait(
             f"(statut: {contexte.statut_salarie}). Utilisez le générateur heures."
         )
 
+    employee_id = contexte.contrat.get("employee_id")
+    company_id = (contexte.entreprise or {}).get("id") or contexte.contrat.get(
+        "company_id"
+    )
+    if employee_id and company_id:
+        try:
+            from app.modules.absences.application.cp_seniority_queries import (
+                get_forfait_annual_days_adjusted,
+            )
+
+            forfait_adj = get_forfait_annual_days_adjusted(
+                str(employee_id), str(company_id), year
+            )
+            if forfait_adj is not None:
+                contexte.contrat["forfait_annual_days_adjusted"] = forfait_adj
+                logging.getLogger(__name__).info(
+                    "Forfait annuel ajusté CP ancienneté : %s j (employé %s)",
+                    forfait_adj,
+                    employee_id,
+                )
+        except Exception:
+            pass
+
     date_debut_periode, date_fin_periode = definir_periode_de_paie(
         contexte, year, month
     )

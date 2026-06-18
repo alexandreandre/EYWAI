@@ -19,6 +19,7 @@ from app.core.logging import get_logger
 from app.modules.net_entreprises.domain.interfaces import NetEntreprisesNotConfigured
 from app.modules.net_entreprises.domain.value_objects import (
     ConnectionTestResult,
+    IjDecomptesFetchResult,
     TransmissionMode,
     TransmissionResult,
 )
@@ -60,3 +61,20 @@ class NetEntreprisesApiConnector:
         self, config: Dict[str, Any], net_entreprises_ref: str
     ) -> Optional[TransmissionResult]:
         return None
+
+    def fetch_ij_decomptes(
+        self,
+        config: Dict[str, Any],
+        *,
+        period: str,
+        siret: str,
+    ) -> IjDecomptesFetchResult:
+        logger.info(
+            "Fetch décomptes IJ Net-Entreprises (API non branchée) période=%s",
+            period,
+        )
+        return IjDecomptesFetchResult(
+            success=False,
+            status="not_configured",
+            message=_NOT_READY_MSG,
+        )

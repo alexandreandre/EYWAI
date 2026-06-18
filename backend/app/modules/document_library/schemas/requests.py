@@ -25,10 +25,23 @@ DOCUMENT_TYPE_LABELS: dict[str, str] = {
     "attestation_location": "Attestation employeur pour location",
     "attestation_pret": "Attestation pour prêt bancaire",
     "attestation_retraite": "Attestation retraite",
+    "fiche_poste": "Fiche de poste",
     "document_transmis": "Document transmis",
+    "bulletin_participation": "Bulletin d'option participation",
+    "bulletin_interessement": "Bulletin d'option intéressement",
 }
 
 KNOWN_DOCUMENT_TYPES: frozenset[str] = frozenset(DOCUMENT_TYPE_LABELS.keys())
+
+EYWAI_DEFAULT_TYPES: frozenset[str] = frozenset(
+    dt
+    for dt in KNOWN_DOCUMENT_TYPES
+    if dt not in {"fiche_poste", "document_transmis"}
+)
+
+CLIENT_TEMPLATE_ONLY_TYPES: frozenset[str] = frozenset(
+    {"fiche_poste", "document_transmis", "bulletin_participation", "bulletin_interessement"}
+)
 
 DocumentTemplateStatus = Literal["active", "archived"]
 

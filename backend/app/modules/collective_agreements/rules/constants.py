@@ -1,6 +1,6 @@
 """IDCC prioritaires pour l'extraction batch (lot 1 MVP)."""
 
-PRIORITY_IDCC: list[str] = ["1486", "1090", "1516", "2098", "0044"]
+PRIORITY_IDCC: list[str] = ["1486", "1090", "1516", "2098", "0044", "0292"]
 
 SCHEMA_VERSION = 2
 

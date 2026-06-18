@@ -202,16 +202,43 @@ def get_summary_for_employee_period(
             end=end,
         )
     )
+    accounting_by_day = deps.day_accounting_repository.get_for_employee_between(
+        employee_id=employee_id,
+        company_id=company_id,
+        start=start,
+        end=end,
+    )
+
+    all_days = set(summaries.keys()) | set(accounting_by_day.keys())
 
     result: Dict[date, deps.DayStatusDTO] = {}
-    for d, summary in summaries.items():
+    for d in sorted(all_days):
+        summary = summaries.get(d)
+        if summary:
+            computed = int(summary.total_duration.total_seconds())
+            status = summary.status
+            sequences_count = len(summary.sequences)
+            has_anomalies = bool(summary.anomalies)
+        else:
+            computed = 0
+            status = "Absent"
+            sequences_count = 0
+            has_anomalies = False
+
+        accounted = accounting_by_day.get(d)
+        accounting = deps._build_accounting_fields(computed, accounted)
         result[d] = deps.DayStatusDTO(
             date=d,
-            status=summary.status,
-            total_seconds=int(summary.total_duration.total_seconds()),
-            sequences_count=len(summary.sequences),
-            has_anomalies=bool(summary.anomalies),
+            status=status,
+            total_seconds=computed,
+            sequences_count=sequences_count,
+            has_anomalies=has_anomalies,
             validated=d in validated_days,
+            computed_seconds=accounting["computed_seconds"],
+            accounted_seconds=accounting["accounted_seconds"],
+            effective_seconds=accounting["effective_seconds"],
+            has_override=accounting["has_override"],
+            override_differs_from_computed=accounting["override_differs_from_computed"],
         )
     return result
 
@@ -228,10 +255,17 @@ def get_day_detail_for_employee(
         day=day,
     )
     summary = deps.compute_day_summary(entries)
+    computed = int(summary.total_duration.total_seconds())
+    accounted = deps.day_accounting_repository.get_accounted_seconds(
+        employee_id=employee_id,
+        company_id=company_id,
+        day=day,
+    )
+    accounting = deps._build_accounting_fields(computed, accounted)
     return {
         "date": summary.date.isoformat(),
         "status": summary.status,
-        "total_seconds": int(summary.total_duration.total_seconds()),
+        "total_seconds": computed,
         "sequences_count": len(summary.sequences),
         "anomalies": [a.message for a in summary.anomalies],
         "validated": deps.time_entry_validation_repository.is_day_validated(
@@ -248,6 +282,7 @@ def get_day_detail_for_employee(
             }
             for e in entries
         ],
+        **accounting,
     }
 
 
@@ -255,6 +290,7 @@ def get_day_detail_for_employee(
 class EmployeePeriodSummary:
     employee_id: str
     total_seconds: int
+    total_effective_seconds: int
     days_with_anomalies: int
 
 
@@ -278,23 +314,49 @@ def get_company_period_summary(
     )
     entries: List[TimeEntry] = [deps.time_entry_repository._row_to_entry(r) for r in rows]  # type: ignore[attr-defined]
 
+    accounting_map = deps.day_accounting_repository.get_for_company_between(
+        company_id=company_id,
+        start=start,
+        end=end,
+        employee_ids=list(employee_ids) if employee_ids else None,
+    )
+
     by_employee: Dict[str, List[TimeEntry]] = {}
     for entry in entries:
         by_employee.setdefault(entry.employee_id, []).append(entry)
 
+    employee_id_set: Set[str] = set(by_employee.keys())
+    for emp_id, _ in accounting_map:
+        employee_id_set.add(emp_id)
+
     result: Dict[str, EmployeePeriodSummary] = {}
-    for emp_id, emp_entries in by_employee.items():
+    for emp_id in employee_id_set:
+        emp_entries = by_employee.get(emp_id, [])
         by_day = deps.group_entries_by_day(emp_entries)
         total = 0
+        total_effective = 0
         days_anomalies = 0
-        for _, day_entries in by_day.items():
-            summary = deps.compute_day_summary(day_entries)
-            total += int(summary.total_duration.total_seconds())
-            if summary.anomalies:
-                days_anomalies += 1
+        all_days = set(by_day.keys())
+        for (acc_emp_id, acc_day), _ in list(accounting_map.items()):
+            if acc_emp_id == emp_id:
+                all_days.add(acc_day)
+        for d in all_days:
+            day_entries = by_day.get(d, [])
+            if day_entries:
+                summary = deps.compute_day_summary(day_entries)
+                computed = int(summary.total_duration.total_seconds())
+                if summary.anomalies:
+                    days_anomalies += 1
+            else:
+                computed = 0
+            accounted = accounting_map.get((emp_id, d))
+            effective = deps.resolve_effective_seconds(computed, accounted)
+            total += computed
+            total_effective += effective
         result[emp_id] = EmployeePeriodSummary(
             employee_id=emp_id,
             total_seconds=total,
+            total_effective_seconds=total_effective,
             days_with_anomalies=days_anomalies,
         )
     return result
@@ -380,5 +442,47 @@ def delete_event_for_employee_day(*, event_id: str) -> None:
     Supprime un évènement de pointage.
     """
     deps.time_entry_repository.delete_entry(event_id)
+
+
+def set_accounted_hours_for_day(
+    *,
+    employee_id: str,
+    company_id: str,
+    day: date,
+    accounted_seconds: int,
+    current_user: User,
+) -> Dict[str, Any]:
+    if accounted_seconds < 0 or accounted_seconds > 86400:
+        raise ValueError("Durée comptabilisée invalide (0 à 24h)")
+    deps.day_accounting_repository.set_accounted_seconds(
+        employee_id=employee_id,
+        company_id=company_id,
+        day=day,
+        accounted_seconds=accounted_seconds,
+        updated_by=str(current_user.id),
+    )
+    return get_day_detail_for_employee(
+        employee_id=employee_id,
+        company_id=company_id,
+        day=day,
+    )
+
+
+def clear_accounted_hours_for_day(
+    *,
+    employee_id: str,
+    company_id: str,
+    day: date,
+) -> Dict[str, Any]:
+    deps.day_accounting_repository.clear_accounted_seconds(
+        employee_id=employee_id,
+        company_id=company_id,
+        day=day,
+    )
+    return get_day_detail_for_employee(
+        employee_id=employee_id,
+        company_id=company_id,
+        day=day,
+    )
 
 

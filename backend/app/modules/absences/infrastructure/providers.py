@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
 
+from app.modules.absences.domain.enums import IJSS_ELIGIBLE_TYPES
 from app.modules.absences.domain.interfaces import (
     ICalendarUpdateService,
     IEvenementFamilialQuotaProvider,
@@ -194,11 +195,42 @@ class SalaryCertificateProvider(ISalaryCertificateProvider):
 class CalendarUpdateProvider(ICalendarUpdateService):
     """Mise à jour employee_schedules.planned_calendar après validation absence."""
 
+    def _day_entry(
+        self,
+        day: int,
+        calendar_type: str,
+        heures: float,
+        *,
+        arret_type: Optional[str] = None,
+        subrogation_active: Optional[bool] = None,
+        nombre_enfants: int = 0,
+        historique_arrets_annee: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        entry: Dict[str, Any] = {
+            "jour": day,
+            "type": calendar_type,
+            "heures_prevues": heures if calendar_type == "travail" else 0,
+        }
+        if calendar_type == "arret_maladie" and arret_type:
+            entry["arret_type"] = arret_type
+            entry["subrogation_active"] = (
+                True if subrogation_active is None else bool(subrogation_active)
+            )
+            entry["nombre_enfants"] = int(nombre_enfants or 0)
+            if historique_arrets_annee:
+                entry["historique_arrets_annee"] = historique_arrets_annee
+        return entry
+
     def update_calendar_from_days(
         self,
         employee_id: str,
         days: List[date],
         absence_type_str: str,
+        *,
+        arret_type: Optional[str] = None,
+        subrogation_active: Optional[bool] = None,
+        nombre_enfants: int = 0,
+        historique_arrets_annee: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
         type_mapping = {
             "conge_paye": "conge",
@@ -206,9 +238,23 @@ class CalendarUpdateProvider(ICalendarUpdateService):
             "repos_compensateur": "conge",
             "evenement_familial": "conge",
         }
-        new_calendar_type = type_mapping.get(absence_type_str)
+        is_arret = absence_type_str in IJSS_ELIGIBLE_TYPES
+        new_calendar_type = "arret_maladie" if is_arret else type_mapping.get(absence_type_str)
         if not new_calendar_type:
             return
+
+        emp_row = (
+            supabase.table("employees")
+            .select("company_id, duree_hebdomadaire")
+            .eq("id", employee_id)
+            .maybe_single()
+            .execute()
+        )
+        if not emp_row or not emp_row.data or not emp_row.data.get("company_id"):
+            raise ValueError(
+                f"Employé {employee_id} sans company_id - impossible de mettre à jour le planning."
+            )
+        heures_jour = float(emp_row.data.get("duree_hebdomadaire") or 35) / 5.0
 
         grouped_by_month: Dict[tuple, List[int]] = {}
         for d in days:
@@ -235,41 +281,30 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                 or not schedule.data
                 or not schedule.data.get("planned_calendar")
             ):
-                emp = (
-                    supabase.table("employees")
-                    .select("company_id")
-                    .eq("id", employee_id)
-                    .maybe_single()
-                    .execute()
-                )
-                if not emp or not emp.data or not emp.data.get("company_id"):
-                    raise ValueError(
-                        f"Employé {employee_id} sans company_id - impossible de créer le planning."
-                    )
                 num_days = cal_module.monthrange(year, month)[1]
                 calendrier_prevu = []
                 for day in range(1, num_days + 1):
                     if day in day_list:
                         calendrier_prevu.append(
-                            {
-                                "jour": day,
-                                "type": new_calendar_type,
-                                "heures_prevues": 0,
-                            }
+                            self._day_entry(
+                                day,
+                                new_calendar_type,
+                                heures_jour,
+                                arret_type=arret_type,
+                                subrogation_active=subrogation_active,
+                                nombre_enfants=nombre_enfants,
+                                historique_arrets_annee=historique_arrets_annee,
+                            )
                         )
                     else:
                         calendrier_prevu.append(
-                            {
-                                "jour": day,
-                                "type": "travail",
-                                "heures_prevues": 0,
-                            }
+                            self._day_entry(day, "travail", heures_jour)
                         )
                 planned_calendar_json = {"calendrier_prevu": calendrier_prevu}
                 supabase.table("employee_schedules").insert(
                     {
                         "employee_id": employee_id,
-                        "company_id": emp.data["company_id"],
+                        "company_id": emp_row.data["company_id"],
                         "year": year,
                         "month": month,
                         "planned_calendar": planned_calendar_json,
@@ -283,6 +318,17 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                 for entry in planned_calendar.get("calendrier_prevu", []):
                     if entry.get("jour") in day_list:
                         entry["type"] = new_calendar_type
+                        entry["heures_prevues"] = 0
+                        if new_calendar_type == "arret_maladie" and arret_type:
+                            entry["arret_type"] = arret_type
+                            entry["subrogation_active"] = (
+                                True
+                                if subrogation_active is None
+                                else bool(subrogation_active)
+                            )
+                            entry["nombre_enfants"] = int(nombre_enfants or 0)
+                            if historique_arrets_annee:
+                                entry["historique_arrets_annee"] = historique_arrets_annee
                 supabase.table("employee_schedules").update(
                     {"planned_calendar": planned_calendar}
                 ).match(

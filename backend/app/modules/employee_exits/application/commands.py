@@ -142,6 +142,155 @@ def create_employee_exit(
     return created
 
 
+def create_reconciliation_exit(
+    employee_id: str,
+    company_id: str,
+    current_user_id: str,
+    *,
+    exit_type: str = "demission",
+    last_working_day: Any,
+    exit_reason: Optional[str] = None,
+    fast_archive: bool = True,
+    source: str = "dsn_reconciliation",
+    supabase_client: Any = None,
+) -> Dict[str, Any]:
+    """
+    Crée une sortie depuis la réconciliation DSN (bypass contrat généré).
+
+    Réservé au flux import DSN (``source='dsn_reconciliation'``).
+    """
+    if source != "dsn_reconciliation":
+        raise EmployeeExitApplicationError(400, "Source de création non autorisée.")
+    sb = supabase_client or supabase
+    employee = get_employee_by_id(employee_id, sb)
+    if not employee:
+        raise EmployeeExitApplicationError(404, "Employé non trouvé")
+    if str(employee.get("company_id")) != str(company_id):
+        raise EmployeeExitApplicationError(404, "Employé non trouvé")
+    status = str(employee.get("employment_status") or "actif").lower()
+    if status in ("en_sortie", "parti"):
+        exit_repo = EmployeeExitRepository(sb)
+        existing_exits = exit_repo.list(company_id, employee_id=str(employee_id))
+        if existing_exits:
+            return existing_exits[0]
+        raise EmployeeExitApplicationError(
+            400,
+            f"L'employé a déjà le statut {status}.",
+        )
+    if status not in ("actif", "active"):
+        raise EmployeeExitApplicationError(
+            400,
+            f"Ce collaborateur n'est pas éligible à un départ (statut : {status}).",
+        )
+
+    if hasattr(last_working_day, "isoformat"):
+        lwd = last_working_day
+        lwd_str = last_working_day.isoformat()
+    else:
+        from datetime import date as date_cls
+
+        lwd_str = str(last_working_day)[:10]
+        lwd = date_cls.fromisoformat(lwd_str)
+
+    exit_request_date = lwd_str
+    exit_data = {
+        "employee_id": employee_id,
+        "exit_type": exit_type,
+        "exit_request_date": exit_request_date,
+        "last_working_day": lwd_str,
+        "notice_period_days": 0,
+        "notice_indemnity_type": "not_applicable",
+        "exit_reason": exit_reason or "Réconciliation import DSN",
+    }
+
+    exit_type_norm = exit_type
+    initial_status = get_initial_status(exit_type_norm)
+    record = build_exit_record(
+        company_id=company_id,
+        employee_id=employee_id,
+        exit_type=exit_type_norm,
+        initial_status=initial_status,
+        exit_request_date=exit_request_date,
+        last_working_day=lwd_str,
+        notice_period_days=0,
+        is_gross_misconduct=False,
+        notice_indemnity_type="not_applicable",
+        notice_start_date=None,
+        notice_end_date=None,
+        exit_reason=exit_data.get("exit_reason"),
+        initiated_by=current_user_id,
+    )
+    exit_repo = EmployeeExitRepository(sb)
+    created = exit_repo.create(record)
+    exit_id = created["id"]
+    update_employee_employment_status(employee_id, "en_sortie", exit_id, sb)
+    create_default_checklist_sync(exit_id, company_id, sb)
+
+    if fast_archive:
+        from datetime import date as date_cls
+
+        today = date_cls.today()
+        if lwd <= today:
+            _fast_archive_reconciliation_exit(
+                exit_id,
+                company_id,
+                current_user_id,
+                exit_type_norm,
+                initial_status,
+                sb,
+            )
+            refreshed = exit_repo.get_by_id(exit_id, company_id)
+            return refreshed or created
+
+    return created
+
+
+def _fast_archive_reconciliation_exit(
+    exit_id: str,
+    company_id: str,
+    current_user_id: str,
+    exit_type: str,
+    initial_status: str,
+    sb: Any,
+) -> None:
+    """Enchaîne les transitions minimales vers archivee pour un départ passé."""
+    if exit_type in ("depart_retraite", "fin_periode_essai"):
+        update_exit_status(
+            exit_id, company_id, "archivee", "Clôture réconciliation DSN", current_user_id, sb
+        )
+        return
+    if exit_type == "demission":
+        if initial_status == "demission_recue":
+            update_exit_status(
+                exit_id,
+                company_id,
+                "demission_effective",
+                "Clôture réconciliation DSN",
+                current_user_id,
+                sb,
+            )
+        update_exit_status(
+            exit_id, company_id, "archivee", "Clôture réconciliation DSN", current_user_id, sb
+        )
+        return
+    if exit_type == "licenciement":
+        update_exit_status(
+            exit_id,
+            company_id,
+            "licenciement_effective",
+            "Clôture réconciliation DSN",
+            current_user_id,
+            sb,
+        )
+        update_exit_status(
+            exit_id, company_id, "archivee", "Clôture réconciliation DSN", current_user_id, sb
+        )
+        return
+    update_exit_status(
+        exit_id, company_id, "archivee", "Clôture réconciliation DSN", current_user_id, sb
+    )
+
+
 def _format_last_working_day_fr(exit_full_data: Dict[str, Any]) -> str:
     raw = exit_full_data.get("last_working_day")
     if not raw:

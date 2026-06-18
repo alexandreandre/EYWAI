@@ -362,112 +362,189 @@ def test_update_employee_not_found_raises_404(mock_emp_repo):
     assert exc_info.value.status_code == 404
 
 
-@patch("app.modules.users.application.service.get_user_repository")
-@patch("app.modules.users.application.service.get_user_permission_repository")
-@patch("app.modules.users.application.service.get_user_company_access_repository")
+@patch("app.modules.employees.application.commands._employee_repository")
+def test_update_employee_persists_periode_essai(mock_emp_repo):
+    """update_employee : persiste periode_essai jsonb."""
+    mock_emp_repo.get_by_id_only.return_value = {
+        "id": "emp-1",
+        "company_id": "company-1",
+        "employment_status": "en_onboarding",
+        "hire_date": "2026-01-15",
+        "nir": "1850574001234",
+        "date_naissance": "1985-05-01",
+        "adresse": {"rue": "1 rue Test"},
+        "coordonnees_bancaires": {"iban": "FR7612545678901234567890123"},
+        "salaire_de_base": {"valeur": 2500},
+    }
+    periode_essai = {
+        "duree_initiale": 2,
+        "unite": "mois",
+        "renouvellement_possible": True,
+        "statut": "en_cours",
+    }
+    mock_emp_repo.update.return_value = {"id": "emp-1", "periode_essai": periode_essai}
+
+    result = update_employee("emp-1", {"periode_essai": periode_essai})
+
+    mock_emp_repo.update.assert_any_call("emp-1", {"periode_essai": periode_essai})
+    assert result["id"] == "emp-1"
+
+
+@patch("app.modules.employees.application.commands._employee_repository")
+def test_update_employee_clears_periode_essai(mock_emp_repo):
+    """update_employee : periode_essai null désactive le suivi."""
+    mock_emp_repo.get_by_id_only.return_value = {
+        "id": "emp-1",
+        "company_id": "company-1",
+        "employment_status": "actif",
+        "nir": "1850574001234",
+        "date_naissance": "1985-05-01",
+        "adresse": {"rue": "1 rue Test"},
+        "coordonnees_bancaires": {"iban": "FR7612545678901234567890123"},
+        "salaire_de_base": {"valeur": 2500},
+    }
+    mock_emp_repo.update.return_value = {"id": "emp-1", "periode_essai": None}
+
+    update_employee("emp-1", {"periode_essai": None})
+
+    mock_emp_repo.update.assert_called_with("emp-1", {"periode_essai": None})
+
+
+@patch("app.modules.employees.application.deletion_cleanup.cleanup_user_account_for_company")
+@patch("app.modules.employees.application.deletion_cleanup.cleanup_employee_orphan_rows")
+@patch("app.modules.employees.application.deletion_cleanup.cleanup_employee_storage")
 @patch("app.modules.employees.application.commands.get_auth_provider")
 @patch("app.modules.employees.application.commands._employee_repository")
 def test_delete_employee_success_calls_repo_and_auth(
     mock_emp_repo,
     mock_get_auth,
-    mock_get_access_repo,
-    mock_get_perm_repo,
-    mock_get_user_repo,
+    mock_cleanup_storage,
+    mock_cleanup_orphans,
+    mock_cleanup_user,
 ):
-    """delete_employee : nettoie accès/permissions/profil, delete employee puis auth."""
+    """delete_employee : nettoie données, supprime la ligne puis Auth si orphelin."""
     auth = MagicMock()
     mock_get_auth.return_value = auth
-    mock_emp_repo.get_by_id_only.return_value = {"id": "emp-1", "company_id": "c1"}
+    mock_emp_repo.get_by_id.return_value = {"id": "emp-1", "company_id": "c1"}
     mock_emp_repo.delete.return_value = True
+    mock_cleanup_user.return_value = True
 
-    access_repo = MagicMock()
-    access_repo.get_accesses_for_user.return_value = [{"company_id": "c1"}]
-    mock_get_access_repo.return_value = access_repo
-    perm_repo = MagicMock()
-    mock_get_perm_repo.return_value = perm_repo
-    user_repo = MagicMock()
-    mock_get_user_repo.return_value = user_repo
+    delete_employee("emp-1", "c1")
 
-    delete_employee("emp-1")
-
-    mock_emp_repo.get_by_id_only.assert_called_once_with("emp-1")
-    perm_repo.delete_for_user_company.assert_called_once_with("emp-1", "c1")
-    access_repo.delete.assert_called_once_with("emp-1", "c1")
-    user_repo.delete.assert_called_once_with("emp-1")
+    mock_emp_repo.get_by_id.assert_called_once_with("emp-1", "c1")
+    mock_cleanup_storage.assert_called_once_with("c1", "emp-1")
+    mock_cleanup_orphans.assert_called_once_with("emp-1")
+    mock_cleanup_user.assert_called_once_with("emp-1", "c1", "emp-1")
     mock_emp_repo.delete.assert_called_once_with("emp-1")
     auth.delete_user.assert_called_once_with("emp-1")
 
 
-@patch("app.modules.users.application.service.get_user_repository")
-@patch("app.modules.users.application.service.get_user_permission_repository")
-@patch("app.modules.users.application.service.get_user_company_access_repository")
+@patch("app.modules.employees.application.deletion_cleanup.cleanup_user_account_for_company")
+@patch("app.modules.employees.application.deletion_cleanup.cleanup_employee_orphan_rows")
+@patch("app.modules.employees.application.deletion_cleanup.cleanup_employee_storage")
 @patch("app.modules.employees.application.commands.get_auth_provider")
 @patch("app.modules.employees.application.commands._employee_repository")
 def test_delete_employee_uses_user_id_when_set(
     mock_emp_repo,
     mock_get_auth,
-    mock_get_access_repo,
-    mock_get_perm_repo,
-    mock_get_user_repo,
+    _mock_storage,
+    _mock_orphans,
+    mock_cleanup_user,
 ):
     """delete_employee : auth_uid = employees.user_id si présent."""
     auth = MagicMock()
     mock_get_auth.return_value = auth
-    mock_emp_repo.get_by_id_only.return_value = {
+    mock_emp_repo.get_by_id.return_value = {
         "id": "row-id",
         "user_id": "auth-uid",
         "company_id": "c1",
     }
     mock_emp_repo.delete.return_value = True
-    access_repo = MagicMock()
-    access_repo.get_accesses_for_user.return_value = [{"company_id": "c1"}]
-    mock_get_access_repo.return_value = access_repo
-    mock_get_perm_repo.return_value = MagicMock()
-    mock_get_user_repo.return_value = MagicMock()
+    mock_cleanup_user.return_value = True
 
-    delete_employee("row-id")
+    delete_employee("row-id", "c1")
 
-    access_repo.get_accesses_for_user.assert_called_once_with("auth-uid")
+    mock_cleanup_user.assert_called_once_with("auth-uid", "c1", "row-id")
     auth.delete_user.assert_called_once_with("auth-uid")
     mock_emp_repo.delete.assert_called_once_with("row-id")
 
 
-@patch("app.modules.users.application.service.get_user_repository")
-@patch("app.modules.users.application.service.get_user_permission_repository")
-@patch("app.modules.users.application.service.get_user_company_access_repository")
+@patch("app.modules.employees.application.deletion_cleanup.cleanup_user_account_for_company")
+@patch("app.modules.employees.application.deletion_cleanup.cleanup_employee_orphan_rows")
+@patch("app.modules.employees.application.deletion_cleanup.cleanup_employee_storage")
 @patch("app.modules.employees.application.commands.get_auth_provider")
 @patch("app.modules.employees.application.commands._employee_repository")
 def test_delete_employee_user_not_found_auth_ok(
     mock_emp_repo,
     mock_get_auth,
-    mock_get_access_repo,
-    mock_get_perm_repo,
-    mock_get_user_repo,
+    _mock_storage,
+    _mock_orphans,
+    mock_cleanup_user,
 ):
     """delete_employee : Auth « user not found » après nettoyage → succès (idempotent)."""
     auth = MagicMock()
     auth.delete_user.side_effect = Exception("User not found")
     mock_get_auth.return_value = auth
-    mock_emp_repo.get_by_id_only.return_value = {"id": "emp-1"}
+    mock_emp_repo.get_by_id.return_value = {"id": "emp-1", "company_id": "c1"}
     mock_emp_repo.delete.return_value = True
-    mock_get_access_repo.return_value = MagicMock(
-        get_accesses_for_user=MagicMock(return_value=[])
-    )
-    mock_get_perm_repo.return_value = MagicMock()
-    mock_get_user_repo.return_value = MagicMock()
+    mock_cleanup_user.return_value = True
 
-    delete_employee("emp-1")
+    delete_employee("emp-1", "c1")
 
     mock_emp_repo.delete.assert_called_once_with("emp-1")
+
+
+@patch("app.modules.employees.application.deletion_cleanup.cleanup_user_account_for_company")
+@patch("app.modules.employees.application.deletion_cleanup.cleanup_employee_orphan_rows")
+@patch("app.modules.employees.application.deletion_cleanup.cleanup_employee_storage")
+@patch("app.modules.employees.application.commands._employee_repository")
+def test_delete_employee_skips_auth_when_user_retained(
+    mock_emp_repo,
+    _mock_storage,
+    _mock_orphans,
+    mock_cleanup_user,
+):
+    """delete_employee : ne supprime pas Auth si le compte est conservé."""
+    mock_emp_repo.get_by_id.return_value = {
+        "id": "emp-1",
+        "user_id": "auth-uid",
+        "company_id": "c1",
+    }
+    mock_cleanup_user.return_value = False
+
+    with patch("app.modules.employees.application.commands.get_auth_provider") as mock_auth:
+        delete_employee("emp-1", "c1")
+        mock_auth.return_value.delete_user.assert_not_called()
 
 
 @patch("app.modules.employees.application.commands._employee_repository")
 def test_delete_employee_not_found_raises_404(mock_emp_repo):
     """delete_employee : employé absent → 404."""
-    mock_emp_repo.get_by_id_only.return_value = None
+    mock_emp_repo.get_by_id.return_value = None
     with pytest.raises(HTTPException) as exc_info:
-        delete_employee("missing")
+        delete_employee("missing", "c1")
     assert exc_info.value.status_code == 404
+
+
+@patch("app.modules.employees.application.deletion_cleanup.cleanup_user_account_for_company")
+@patch("app.modules.employees.application.deletion_cleanup.cleanup_employee_orphan_rows")
+@patch("app.modules.employees.application.deletion_cleanup.cleanup_employee_storage")
+@patch("app.modules.employees.application.commands._employee_repository")
+def test_delete_employee_maps_fk_error_to_409(
+    mock_emp_repo,
+    _mock_storage,
+    _mock_orphans,
+    _mock_cleanup_user,
+):
+    """delete_employee : erreur FK → 409 message français."""
+    mock_emp_repo.get_by_id.return_value = {"id": "emp-1", "company_id": "c1"}
+    mock_emp_repo.delete.side_effect = Exception(
+        '{"code":"23503","message":"violates foreign key constraint"}'
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        delete_employee("emp-1", "c1")
+    assert exc_info.value.status_code == 409
+    assert "données liées" in exc_info.value.detail
 
 
 @patch("app.modules.employees.application.commands.get_storage_provider")

@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional, Protocol, runtime_checkable
 
 from app.modules.net_entreprises.domain.value_objects import (
     ConnectionTestResult,
+    IjDecomptesFetchResult,
     TransmissionResult,
 )
 
@@ -50,4 +51,14 @@ class AbstractNetEntreprisesConnector(Protocol):
         self, config: Dict[str, Any], net_entreprises_ref: str
     ) -> Optional[TransmissionResult]:
         """Récupère le statut d'un dépôt précédent (accusé / CRM)."""
+        ...
+
+    def fetch_ij_decomptes(
+        self,
+        config: Dict[str, Any],
+        *,
+        period: str,
+        siret: str,
+    ) -> IjDecomptesFetchResult:
+        """Récupère les décomptes IJSS CPAM pour une période."""
         ...

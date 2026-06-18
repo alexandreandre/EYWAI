@@ -7,11 +7,18 @@ get_bulletins_par_mois_par_employe, upsert_credit) mockées.
 
 from unittest.mock import patch
 
-
+from app.modules.repos_compensateur.domain.contingent_rules import ContingentSettings
 from app.modules.repos_compensateur.application.dto import CalculerCreditsResult
 from app.modules.repos_compensateur.application.service import (
     calculer_credits_repos,
     recalculer_credits_repos_employe,
+)
+
+
+_DEFAULT_SETTINGS = ContingentSettings(
+    legal_cor_contingent_hours=220.0,
+    management_contingent_hours=360.0,
+    hours_per_rest_day=7.0,
 )
 
 
@@ -21,6 +28,10 @@ class TestCalculerCreditsRepos:
     def test_no_employees_returns_zero_processed_and_credits(self):
         """Entreprise sans employés → employees_processed=0, credits_created=0."""
         with (
+            patch(
+                "app.modules.repos_compensateur.application.service.get_contingent_settings",
+                return_value=_DEFAULT_SETTINGS,
+            ),
             patch(
                 "app.modules.repos_compensateur.application.service.get_company_effectif",
                 return_value=25,
@@ -45,6 +56,10 @@ class TestCalculerCreditsRepos:
     def test_employees_with_no_hs_no_credits_created(self):
         """Employés sans heures sup ce mois → credits_created=0, employees_processed>0."""
         with (
+            patch(
+                "app.modules.repos_compensateur.application.service.get_contingent_settings",
+                return_value=_DEFAULT_SETTINGS,
+            ),
             patch(
                 "app.modules.repos_compensateur.application.service.get_company_effectif",
                 return_value=30,
@@ -87,6 +102,10 @@ class TestCalculerCreditsRepos:
             bulletins_emp1[m] = {}
 
         with (
+            patch(
+                "app.modules.repos_compensateur.application.service.get_contingent_settings",
+                return_value=_DEFAULT_SETTINGS,
+            ),
             patch(
                 "app.modules.repos_compensateur.application.service.get_company_effectif",
                 return_value=25,
@@ -134,6 +153,10 @@ class TestCalculerCreditsRepos:
 
         with (
             patch(
+                "app.modules.repos_compensateur.application.service.get_contingent_settings",
+                return_value=_DEFAULT_SETTINGS,
+            ),
+            patch(
                 "app.modules.repos_compensateur.application.service.get_company_effectif",
                 return_value=15,
             ),
@@ -177,6 +200,10 @@ class TestRecalculerCreditsReposEmploye:
             )
 
         with (
+            patch(
+                "app.modules.repos_compensateur.application.service.get_contingent_settings",
+                return_value=_DEFAULT_SETTINGS,
+            ),
             patch(
                 "app.modules.repos_compensateur.application.service.get_company_effectif",
                 return_value=25,

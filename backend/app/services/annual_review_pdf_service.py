@@ -23,14 +23,12 @@ from app.shared.infrastructure.pdf.helpers import (
     setup_custom_styles,
 )
 
-INTERVIEW_TYPE_LABELS: Dict[str, str] = {
-    "annual_performance": "Entretien annuel de performance",
-    "professional_2ans": "Entretien professionnel (2 ans)",
-    "competency_6ans": "Bilan de compétences (6 ans)",
-    "return_absence": "Entretien de retour d'absence",
-    "mid_year": "Entretien de mi-année",
-    "other": "Autre",
-}
+from app.modules.annual_reviews.domain.interview_types import (
+    INTERVIEW_TYPE_LABELS,
+    interview_type_label,
+)
+
+INTERVIEW_TYPE_LABELS = INTERVIEW_TYPE_LABELS  # compat re-export
 
 _L6315_MENTION = (
     "Conformément à l'article L.6315-1 du Code du travail, le présent entretien "

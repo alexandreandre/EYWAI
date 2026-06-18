@@ -23,6 +23,12 @@ class MutuelleType:
     montant_patronal: float
     part_patronale_soumise_a_csg: bool
     is_active: bool
+    pack_couverture: Optional[str] = None
+    statut_categoriel: str = "tous"
+    code_option_dsn: Optional[str] = None
+    code_organisme_dsn: Optional[str] = None
+    reference_contrat_dsn: Optional[str] = None
+    source: str = "manual"
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     created_by: Optional[UUID] = None

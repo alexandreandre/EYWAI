@@ -40,6 +40,19 @@ def archive_template(template_id: str, company_id: str) -> dict:
     return document_library_repository.archive(template_id, company_id)
 
 
+def validate_template_bytes(file_bytes: bytes, file_name: str) -> dict:
+    """Analyse un fichier modèle et retourne les variables inconnues."""
+    from app.services.document_engine import document_engine
+    from app.services.document_variables import build_variables, list_document_variables
+
+    fmt = _infer_format(file_name)
+    if fmt not in _ALLOWED_EXT:
+        raise ValueError("Format non autorisé : seuls .docx et .html sont acceptés.")
+    known = {v["key"]: "" for v in list_document_variables()}
+    known.update(build_variables({}, {}, {}))
+    return document_engine.preview_variables(file_bytes, fmt or "", known)
+
+
 def upload_template_file(
     company_id: str,
     template_id: str,
@@ -64,7 +77,7 @@ def upload_template_file(
         file_name,
         fmt,
     )
-    return document_library_repository.add_version(
+    row = document_library_repository.add_version(
         template_id,
         path,
         file_name,
@@ -72,6 +85,9 @@ def upload_template_file(
         len(file_bytes),
         created_by,
     )
+    preview = validate_template_bytes(file_bytes, file_name)
+    row["unknown_variables"] = preview.get("unknown_variables") or []
+    return row
 
 
 def restore_version(

@@ -270,6 +270,15 @@ def run_payslip_generation_heures(
     calendrier_etendu = creer_calendrier_etendu(
         employee_path, date_debut_periode, date_fin_periode
     )
+    cet_movement_ids: list[str] = []
+    if employee_id:
+        from app.modules.cet.application.payroll_hook import (
+            apply_cet_deposits_to_calendar,
+        )
+
+        calendrier_etendu, cet_movement_ids = apply_cet_deposits_to_calendar(
+            employee_id, year, month, calendrier_etendu
+        )
     chemin_horaires = employee_path / "horaires" / f"{month:02d}.json"
     saisie_horaires = (
         json.loads(chemin_horaires.read_text(encoding="utf-8"))
@@ -535,5 +544,15 @@ def run_payslip_generation_heures(
     )
     pdf_filename.parent.mkdir(parents=True, exist_ok=True)
     HTML(string=html_genere, base_url=str(engine_root)).write_pdf(pdf_filename)
+
+    if employee_id:
+        from app.modules.cet.application.payroll_hook import (
+            apply_cet_cp_debits_for_payroll,
+            finalize_cet_payroll_application,
+        )
+
+        if cet_movement_ids:
+            finalize_cet_payroll_application(cet_movement_ids)
+        apply_cet_cp_debits_for_payroll(employee_id, year, month)
 
     return bulletin_final

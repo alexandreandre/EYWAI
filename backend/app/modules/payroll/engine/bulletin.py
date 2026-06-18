@@ -255,6 +255,7 @@ def creer_bulletin_final(
             "montant": resultats_nets.get("montant_impot_pas"),
         },
         "remboursement_transport": resultats_nets.get("remboursement_transport"),
+        "indemnite_transport_fixe": resultats_nets.get("indemnite_transport_fixe"),
         "acompte_verse": resultats_nets.get(
             "acompte_verse", 0.0
         ),  # Montant des avances déduites

@@ -14,8 +14,6 @@ logger = get_logger("modules.repos_compensateur.application.service")
 from app.modules.repos_compensateur.application.dto import CalculerCreditsResult
 from app.modules.repos_compensateur.domain.entities import ReposCredit
 from app.modules.repos_compensateur.domain.rules import (
-    CONTINGENT_DEFAUT,
-    HEURES_PAR_JOUR_REPOS,
     calculer_heures_cor_mois,
     cumuler_heures_hs_annee,
     get_taux_cor_par_effectif,
@@ -24,6 +22,7 @@ from app.modules.repos_compensateur.domain.rules import (
 from app.modules.repos_compensateur.infrastructure import (
     get_bulletins_par_mois_par_employe,
     get_company_effectif,
+    get_contingent_settings,
     get_employees_for_company,
     upsert_credit,
 )
@@ -40,6 +39,9 @@ def calculer_credits_repos(
     """
     effectif = get_company_effectif(target_company_id)
     taux_cor = get_taux_cor_par_effectif(effectif)
+    settings = get_contingent_settings(target_company_id)
+    contingent = settings.legal_cor_contingent_hours
+    hours_per_day = settings.hours_per_rest_day
 
     employees = get_employees_for_company(target_company_id)
     employee_ids = [e["id"] for e in employees]
@@ -69,12 +71,12 @@ def calculer_credits_repos(
         heures_cor = calculer_heures_cor_mois(
             cumul_hs_fin_mois=cumul_mois,
             cumul_hs_fin_mois_precedent=cumul_precedent,
-            contingent=CONTINGENT_DEFAUT,
+            contingent=contingent,
             taux_cor=taux_cor,
         )
 
         if heures_cor > 0:
-            jours = heures_vers_jours(heures_cor, HEURES_PAR_JOUR_REPOS)
+            jours = heures_vers_jours(heures_cor, hours_per_day)
             credit = ReposCredit(
                 employee_id=emp_id,
                 company_id=company_id_emp,
@@ -106,6 +108,9 @@ def recalculer_credits_repos_employe(
     try:
         effectif = get_company_effectif(company_id)
         taux_cor = get_taux_cor_par_effectif(effectif)
+        settings = get_contingent_settings(company_id)
+        contingent = settings.legal_cor_contingent_hours
+        hours_per_day = settings.hours_per_rest_day
 
         bulletins_par_employe = get_bulletins_par_mois_par_employe(
             company_id, year, [employee_id]
@@ -121,10 +126,10 @@ def recalculer_credits_repos_employe(
             heures_cor = calculer_heures_cor_mois(
                 cumul_hs_fin_mois=cumul_mois,
                 cumul_hs_fin_mois_precedent=cumul_precedent,
-                contingent=CONTINGENT_DEFAUT,
+                contingent=contingent,
                 taux_cor=taux_cor,
             )
-            jours = heures_vers_jours(heures_cor, HEURES_PAR_JOUR_REPOS)
+            jours = heures_vers_jours(heures_cor, hours_per_day)
             credit = ReposCredit(
                 employee_id=employee_id,
                 company_id=company_id,

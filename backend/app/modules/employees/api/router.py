@@ -50,6 +50,7 @@ from app.modules.employees.domain.salary_augmentation import (
 from app.modules.employees.domain.salary_timeline import est_augmentation_planifiee
 from app.modules.employees.schemas.responses import (
     ContractResponse,
+    EmployeeDeletionImpact,
     EmployeeRhAccess,
     EmployeeSummary,
     FullEmployee,
@@ -57,6 +58,9 @@ from app.modules.employees.schemas.responses import (
     PromotionListItem,
 )
 from app.modules.users.schemas.responses import User
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/employees", tags=["Employees"])
 router.include_router(me_router)
@@ -545,22 +549,50 @@ async def confirm_trial_period(
         )
 
 
-@router.delete("/{employee_id}", status_code=204)
-async def delete_employee(
+@router.get("/{employee_id}/deletion-impact", response_model=EmployeeDeletionImpact)
+async def get_employee_deletion_impact(
     employee_id: str,
     current_user: User = Depends(get_current_user),
 ):
-    """Supprime un employé, son profil et son utilisateur d'authentification."""
+    """(RH) Résumé des données qui seront supprimées avec le collaborateur."""
+    company_id = require_rh_access(current_user.active_company_id, current_user)
+    assert_can_read_employee_profile(current_user, employee_id, company_id)
+    from app.modules.employees.application.deletion_cleanup import get_deletion_impact
+
+    impact = get_deletion_impact(employee_id, company_id)
+    if not impact.employee_name:
+        raise HTTPException(status_code=404, detail="Employé non trouvé.")
+    return impact.to_dict()
+
+
+@router.delete("/{employee_id}", status_code=204)
+async def delete_employee(
+    request: Request,
+    employee_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """(RH) Supprime un employé, ses données et son compte utilisateur si orphelin."""
     try:
-        commands.delete_employee(employee_id)
+        company_id = require_rh_access(current_user.active_company_id, current_user)
+        assert_can_read_employee_profile(current_user, employee_id, company_id)
+        commands.delete_employee(employee_id, company_id)
+        log_audit_event(
+            company_id=str(company_id),
+            user_id=str(current_user.id),
+            user_email=current_user.email,
+            action="employee.delete",
+            resource_type="employee",
+            resource_id=employee_id,
+            details={},
+            ip_address=request.client.host if request.client else None,
+        )
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erreur interne du serveur lors de la suppression: {str(e)}",
-        )
+        logger.exception("delete_employee endpoint failed")
+        from app.shared.db_errors import raise_http_for_db_error
+
+        raise_http_for_db_error(e)
 
 
 # ----- URLs signées (contrat, credentials, pièce d'identité) -----

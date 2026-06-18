@@ -10,14 +10,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-InterviewType = Literal[
-    "annual_performance",
-    "professional_2ans",
-    "competency_6ans",
-    "return_absence",
-    "mid_year",
-    "other",
-]
+from app.modules.annual_reviews.domain.interview_types import InterviewType
 
 AnnualReviewStatus = Literal[
     "planifie",  # RH a planifié avec notes

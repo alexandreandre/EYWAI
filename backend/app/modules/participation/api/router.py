@@ -25,6 +25,7 @@ from app.modules.participation.application import (
     get_participation_simulation,
     list_participation_simulations,
 )
+from app.modules.participation.application import campaign_service as campaign_svc
 from app.modules.participation.application.dto import (
     build_simulation_create_input,
     entity_to_simulation_list_item_dict,
@@ -37,6 +38,21 @@ from app.modules.participation.schemas import (
     ParticipationSimulationListItem,
     ParticipationSimulationResponse,
 )
+from app.modules.participation.schemas.campaign_requests import (
+    BulletinRespondRequest,
+    GeneratePayrollLinesRequest,
+    ParticipationCampaignCreate,
+)
+from app.modules.participation.schemas.campaign_responses import (
+    EmployeeParticipationBulletinListResponse,
+    ParticipationBulletinItem,
+    ParticipationBulletinListResponse,
+    ParticipationCampaignActionResponse,
+    ParticipationCampaignCreateResponse,
+    ParticipationCampaignDetail,
+    ParticipationCampaignListResponse,
+)
+from app.shared.employee_resolution import resolve_employee_id_for_user_account
 
 router = APIRouter(
     prefix="/api/participation",
@@ -229,3 +245,289 @@ def delete_participation_simulation_route(
             status_code=500,
             detail=f"Erreur lors de la suppression de la simulation: {str(e)}",
         )
+
+
+# --- Campagnes bulletin d'option ---
+
+
+def _rh_employee_id(user: ParticipationUserContext, company_id: str) -> Optional[str]:
+    try:
+        return resolve_employee_id_for_user_account(str(user.id), company_id)
+    except Exception:
+        return None
+
+
+@router.post("/campaigns", response_model=ParticipationCampaignCreateResponse)
+def create_campaign_route(
+    body: ParticipationCampaignCreate,
+    user: ParticipationUserContext = Depends(get_current_user),
+) -> ParticipationCampaignCreateResponse:
+    try:
+        _require_rh_or_admin(user)
+        company_id = _require_company_id(user)
+        detail, count = campaign_svc.create_campaign(
+            company_id, str(user.id), body
+        )
+        return ParticipationCampaignCreateResponse(
+            campaign=detail, bulletins_created=count
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/campaigns", response_model=ParticipationCampaignListResponse)
+def list_campaigns_route(
+    year: Optional[int] = None,
+    user: ParticipationUserContext = Depends(get_current_user),
+) -> ParticipationCampaignListResponse:
+    try:
+        _require_rh_or_admin(user)
+        company_id = _require_company_id(user)
+        items = campaign_svc.list_campaigns(company_id, year)
+        return ParticipationCampaignListResponse(campaigns=items)
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/campaigns/{campaign_id}", response_model=ParticipationCampaignDetail)
+def get_campaign_route(
+    campaign_id: str,
+    user: ParticipationUserContext = Depends(get_current_user),
+) -> ParticipationCampaignDetail:
+    try:
+        _require_rh_or_admin(user)
+        company_id = _require_company_id(user)
+        return campaign_svc.get_campaign_detail(campaign_id, company_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/campaigns/{campaign_id}/bulletins",
+    response_model=ParticipationBulletinListResponse,
+)
+def list_campaign_bulletins_route(
+    campaign_id: str,
+    user: ParticipationUserContext = Depends(get_current_user),
+) -> ParticipationBulletinListResponse:
+    try:
+        _require_rh_or_admin(user)
+        company_id = _require_company_id(user)
+        items = campaign_svc.list_campaign_bulletins(campaign_id, company_id)
+        return ParticipationBulletinListResponse(bulletins=items)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/campaigns/{campaign_id}/publish",
+    response_model=ParticipationCampaignActionResponse,
+)
+def publish_campaign_route(
+    campaign_id: str,
+    user: ParticipationUserContext = Depends(get_current_user),
+) -> ParticipationCampaignActionResponse:
+    try:
+        _require_rh_or_admin(user)
+        company_id = _require_company_id(user)
+        detail = campaign_svc.publish_campaign(
+            campaign_id, company_id, str(user.id)
+        )
+        return ParticipationCampaignActionResponse(
+            campaign=detail, detail="Bulletins publiés et salariés notifiés."
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/campaigns/{campaign_id}/remind",
+    response_model=ParticipationCampaignActionResponse,
+)
+def remind_campaign_route(
+    campaign_id: str,
+    user: ParticipationUserContext = Depends(get_current_user),
+) -> ParticipationCampaignActionResponse:
+    try:
+        _require_rh_or_admin(user)
+        company_id = _require_company_id(user)
+        rh_emp = _rh_employee_id(user, company_id)
+        count = campaign_svc.remind_late(campaign_id, company_id, rh_emp)
+        detail = campaign_svc.get_campaign_detail(campaign_id, company_id)
+        return ParticipationCampaignActionResponse(
+            campaign=detail,
+            detail=f"{count} rappel(s) envoyé(s).",
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/campaigns/{campaign_id}/close-defaults",
+    response_model=ParticipationCampaignActionResponse,
+)
+def close_defaults_route(
+    campaign_id: str,
+    user: ParticipationUserContext = Depends(get_current_user),
+) -> ParticipationCampaignActionResponse:
+    try:
+        _require_rh_or_admin(user)
+        company_id = _require_company_id(user)
+        rh_emp = _rh_employee_id(user, company_id)
+        detail, count = campaign_svc.close_defaults(
+            campaign_id, company_id, rh_emp
+        )
+        return ParticipationCampaignActionResponse(
+            campaign=detail,
+            detail=f"{count} salarié(s) passé(s) en défaut PEE.",
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/campaigns/{campaign_id}/generate-payroll-lines",
+    response_model=ParticipationCampaignActionResponse,
+)
+def generate_payroll_lines_route(
+    campaign_id: str,
+    body: GeneratePayrollLinesRequest,
+    user: ParticipationUserContext = Depends(get_current_user),
+) -> ParticipationCampaignActionResponse:
+    try:
+        _require_rh_or_admin(user)
+        company_id = _require_company_id(user)
+        detail, count = campaign_svc.generate_payroll_lines(
+            campaign_id, company_id, body
+        )
+        return ParticipationCampaignActionResponse(
+            campaign=detail,
+            detail=f"{count} ligne(s) de paie créée(s).",
+            payroll_lines_created=count,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/me/participation-bulletins",
+    response_model=EmployeeParticipationBulletinListResponse,
+)
+def list_my_bulletins_route(
+    user: ParticipationUserContext = Depends(get_current_user),
+) -> EmployeeParticipationBulletinListResponse:
+    try:
+        company_id = _require_company_id(user)
+        employee_id = resolve_employee_id_for_user_account(
+            str(user.id), company_id
+        )
+        if not employee_id:
+            raise HTTPException(status_code=404, detail="Profil salarié introuvable.")
+        items = campaign_svc.list_employee_bulletins(employee_id, company_id)
+        return EmployeeParticipationBulletinListResponse(bulletins=items)
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/me/participation-bulletins/{bulletin_id}",
+    response_model=ParticipationBulletinItem,
+)
+def get_my_bulletin_route(
+    bulletin_id: str,
+    user: ParticipationUserContext = Depends(get_current_user),
+) -> ParticipationBulletinItem:
+    try:
+        company_id = _require_company_id(user)
+        employee_id = resolve_employee_id_for_user_account(
+            str(user.id), company_id
+        )
+        if not employee_id:
+            raise HTTPException(status_code=404, detail="Profil salarié introuvable.")
+        return campaign_svc.get_employee_bulletin(
+            bulletin_id, employee_id, company_id
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/me/participation-bulletins/{bulletin_id}/respond",
+    response_model=ParticipationBulletinItem,
+)
+def respond_my_bulletin_route(
+    bulletin_id: str,
+    body: BulletinRespondRequest,
+    user: ParticipationUserContext = Depends(get_current_user),
+) -> ParticipationBulletinItem:
+    try:
+        company_id = _require_company_id(user)
+        employee_id = resolve_employee_id_for_user_account(
+            str(user.id), company_id
+        )
+        if not employee_id:
+            raise HTTPException(status_code=404, detail="Profil salarié introuvable.")
+        return campaign_svc.respond_to_bulletin(
+            bulletin_id, employee_id, company_id, body
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))

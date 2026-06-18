@@ -673,6 +673,9 @@
         {% if synthese_net.remboursement_transport and synthese_net.remboursement_transport > 0 %}
         <p><strong>Indemnité de transport (50%) :</strong><span class="gain">+ {{ "%.2f"|format(synthese_net.remboursement_transport) }} €</span></p>
         {% endif %}
+        {% if synthese_net.indemnite_transport_fixe and synthese_net.indemnite_transport_fixe > 0 %}
+        <p><strong>Indemnité transport contractuelle :</strong><span class="gain">+ {{ "%.2f"|format(synthese_net.indemnite_transport_fixe) }} €</span></p>
+        {% endif %}
         
         {% if remboursements_avances and remboursements_avances.total_rembourse and remboursements_avances.total_rembourse > 0 %}
         {% if remboursements_avances.avances %}
@@ -769,6 +772,28 @@
                     <td>{{ "%.2f"|format(pied_de_page.solde_conges.conges_payes.pris) }} j</td>
                     <td class="solde-value">{{ "%.2f"|format(pied_de_page.solde_conges.conges_payes.solde) }} j</td>
                 </tr>
+                {% if pied_de_page.solde_conges.fractionnement and pied_de_page.solde_conges.fractionnement.jours_acquis > 0 %}
+                <tr>
+                    <td colspan="4" style="font-size:7pt;padding-top:4px;">
+                        {{ pied_de_page.solde_conges.fractionnement.libelle }}
+                        (réf. {{ pied_de_page.solde_conges.fractionnement.reference_date }})
+                    </td>
+                </tr>
+                {% endif %}
+                {% if pied_de_page.solde_conges.cp_seniority_days and pied_de_page.solde_conges.cp_seniority_days > 0 %}
+                <tr>
+                    <td colspan="4" style="font-size:7pt;padding-top:4px;">
+                        Dont {{ "%.0f"|format(pied_de_page.solde_conges.cp_seniority_days) }} j CP ancienneté conventionnels
+                    </td>
+                </tr>
+                {% endif %}
+                {% if pied_de_page.solde_conges.cp_seniority_forfait_note %}
+                <tr>
+                    <td colspan="4" style="font-size:7pt;padding-top:2px;">
+                        {{ pied_de_page.solde_conges.cp_seniority_forfait_note }}
+                    </td>
+                </tr>
+                {% endif %}
                 {% if pied_de_page.solde_conges.rtt.acquis > 0 or pied_de_page.solde_conges.rtt.pris > 0 %}
                 <tr>
                     <td>RTT</td>

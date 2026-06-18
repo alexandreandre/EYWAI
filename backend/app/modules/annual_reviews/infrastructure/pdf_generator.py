@@ -16,6 +16,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from app.modules.annual_reviews.domain.interview_types import L6315_INTERVIEW_TYPES
 from app.shared.infrastructure.pdf.helpers import (
     build_branding_header_reportlab,
     format_date,
@@ -57,8 +58,12 @@ def generate_annual_review_pdf(
 
     interview_type = review_data.get("interview_type") or "annual_performance"
     title = "FICHE D'ENTRETIEN"
-    if interview_type == "professional_2ans":
+    if interview_type in L6315_INTERVIEW_TYPES or interview_type == "professional_2ans":
         title = "ENTRETIEN PROFESSIONNEL"
+    elif interview_type == "annual_cadres":
+        title = "ENTRETIEN ANNUEL DES CADRES"
+    elif interview_type == "annual_forfait_jour":
+        title = "ENTRETIEN ANNUEL FORFAIT JOUR"
     story.append(Paragraph(title, styles["TitrePrincipal"]))
     story.append(Spacer(1, 0.3 * cm))
 
@@ -83,7 +88,7 @@ def generate_annual_review_pdf(
         story.append(Paragraph("<br/>".join(info_lines), styles["CorpsTexte"]))
         story.append(Spacer(1, 0.5 * cm))
 
-    if interview_type == "professional_2ans":
+    if interview_type in L6315_INTERVIEW_TYPES or interview_type == "professional_2ans":
         story.append(Paragraph(_L6315_MENTION, styles["CorpsTexte"]))
         story.append(Spacer(1, 0.4 * cm))
 

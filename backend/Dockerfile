@@ -22,6 +22,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     poppler-utils \
     tesseract-ocr \
     tesseract-ocr-fra \
+    libreoffice-writer \
+    libreoffice-java-common \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 # --- FIN DE L'AJOUT ---

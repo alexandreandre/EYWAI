@@ -72,3 +72,15 @@ class AnnualReviewListItem(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class PlanningSuggestionRead(BaseModel):
+    """Suggestion RH : entretien annuel à planifier."""
+
+    employee_id: str
+    employee_name: str
+    interview_type: str
+    interview_type_label: str
+    reason: str
+    urgency: Literal["due", "overdue"]
+    year: int

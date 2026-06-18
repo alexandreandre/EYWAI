@@ -428,4 +428,7 @@ def get_medical_settings(current_user: User = Depends(get_current_user)):
     """Indique si le module est activé pour l'entreprise active (pour le front)."""
     company_id = resolve_company_id_for_medical(current_user)
     result = queries.get_medical_settings(company_id, current_user)
-    return SettingsResponse(enabled=result["enabled"])
+    return SettingsResponse(
+        enabled=result["enabled"],
+        occupational_health_contact=result.get("occupational_health_contact"),
+    )

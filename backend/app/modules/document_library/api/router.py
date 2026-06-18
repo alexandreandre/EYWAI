@@ -4,20 +4,26 @@ from __future__ import annotations
 
 import traceback
 from datetime import datetime
+from pathlib import Path
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 
-from app.core.premium import is_company_premium
 from app.core.security import get_current_user
 from app.modules.document_library.application import commands, queries
 from app.modules.document_library.schemas.requests import DocumentTemplateCreate, DocumentTemplateUpdate
 from app.modules.document_library.schemas.responses import (
     DocumentTemplate,
     DocumentTemplateVersion,
+    DocumentTemplateVersionUpload,
+    DocumentVariableItem,
+    DocumentVariablesResponse,
     SignedVersionDownload,
+    ValidateTemplateFileResponse,
 )
 from app.modules.users.schemas.responses import User
+from app.services.document_variables import list_document_variables
 
 router = APIRouter(prefix="/api/document-library", tags=["DocumentLibrary"])
 
@@ -60,11 +66,6 @@ def _can_write_library(user: User, company_id: str) -> bool:
         return True
     role = user.get_role_in_company(company_id)
     return role in ("admin", "rh", "collaborateur_rh")
-
-
-def _require_premium_for_custom_upload(company_id: str) -> None:
-    if not is_company_premium(company_id):
-        raise HTTPException(status_code=403, detail="PREMIUM_REQUIRED")
 
 
 def _is_primary_hr_or_admin(user: User, company_id: str) -> bool:
@@ -113,6 +114,82 @@ def _template_from_row(row: dict) -> DocumentTemplate:
         updated_at=_parse_dt(row["updated_at"]),
         current_version=_version_from_row(cv) if cv else None,
         versions_count=int(row.get("versions_count") or 0),
+    )
+
+
+def _version_upload_from_row(row: dict) -> DocumentTemplateVersionUpload:
+    base = _version_from_row(row)
+    return DocumentTemplateVersionUpload(
+        **base.model_dump(),
+        unknown_variables=list(row.get("unknown_variables") or []),
+    )
+
+
+@router.get("/variables", response_model=DocumentVariablesResponse)
+def list_variables_route(
+    current_user: User = Depends(get_current_user),
+) -> DocumentVariablesResponse:
+    cid = _company_id(current_user)
+    _require_company_access(current_user, cid)
+    if not _can_read_library(current_user, cid):
+        raise HTTPException(status_code=403, detail="Accès réservé au profil RH")
+    items = [
+        DocumentVariableItem(
+            key=v["key"],
+            label=v["label"],
+            category=v["category"],
+            example=v["example"],
+        )
+        for v in list_document_variables()
+    ]
+    return DocumentVariablesResponse(variables=items)
+
+
+@router.post("/validate-file", response_model=ValidateTemplateFileResponse)
+async def validate_file_route(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+) -> ValidateTemplateFileResponse:
+    cid = _company_id(current_user)
+    _require_company_access(current_user, cid)
+    if not _can_read_library(current_user, cid):
+        raise HTTPException(status_code=403, detail="Accès réservé au profil RH")
+    raw = await file.read()
+    fname = file.filename or "document"
+    try:
+        preview = commands.validate_template_bytes(raw, fname)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return ValidateTemplateFileResponse(
+        unknown_variables=list(preview.get("unknown_variables") or []),
+        preview_available=bool(preview.get("preview_available")),
+    )
+
+
+_EXAMPLE_FICHE_POSTE = (
+    Path(__file__).resolve().parents[3]
+    / "static"
+    / "document_templates"
+    / "fiche_poste_exemple.docx"
+)
+
+
+@router.get("/examples/fiche_poste")
+def download_fiche_poste_example_route(
+    current_user: User = Depends(get_current_user),
+):
+    cid = _company_id(current_user)
+    _require_company_access(current_user, cid)
+    if not _can_read_library(current_user, cid):
+        raise HTTPException(status_code=403, detail="Accès réservé au profil RH")
+    if not _EXAMPLE_FICHE_POSTE.is_file():
+        raise HTTPException(status_code=404, detail="Modèle exemple indisponible.")
+    return FileResponse(
+        path=_EXAMPLE_FICHE_POSTE,
+        media_type=(
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ),
+        filename="fiche_poste_exemple.docx",
     )
 
 
@@ -176,7 +253,6 @@ def create_template_route(
     _require_company_access(current_user, cid)
     if not _can_write_library(current_user, cid):
         raise HTTPException(status_code=403, detail="Création réservée aux profils RH")
-    _require_premium_for_custom_upload(cid)
     try:
         row = commands.create_template(cid, body, str(current_user.id))
         return _template_from_row(row)
@@ -245,24 +321,23 @@ def list_versions_route(
         _handle_application_errors(e)
 
 
-@router.post("/{template_id}/upload", response_model=DocumentTemplateVersion)
+@router.post("/{template_id}/upload", response_model=DocumentTemplateVersionUpload)
 async def upload_template_route(
     template_id: str,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
-) -> DocumentTemplateVersion:
+) -> DocumentTemplateVersionUpload:
     cid = _company_id(current_user)
     _require_company_access(current_user, cid)
     if not _can_write_library(current_user, cid):
         raise HTTPException(status_code=403, detail="Envoi de fichier réservé aux profils RH")
-    _require_premium_for_custom_upload(cid)
     try:
         raw = await file.read()
         fname = file.filename or "document"
         row = commands.upload_template_file(
             cid, template_id, raw, fname, str(current_user.id)
         )
-        return _version_from_row(row)
+        return _version_upload_from_row(row)
     except Exception as e:
         traceback.print_exc()
         _handle_application_errors(e)

@@ -195,7 +195,7 @@ class TestDeleteEmployee:
         response = client.delete("/api/employees/some-id")
         assert response.status_code == 401
 
-    def test_delete_employee_not_found_returns_404_or_500(
+    def test_delete_employee_not_found_returns_404(
         self, client: TestClient, auth_headers: dict
     ):
         if not auth_headers:
@@ -204,7 +204,13 @@ class TestDeleteEmployee:
             "/api/employees/00000000-0000-0000-0000-000000000000",
             headers=auth_headers,
         )
-        assert response.status_code in (204, 404, 500)
+        assert response.status_code in (403, 404)
+
+    def test_deletion_impact_without_auth_returns_401(self, client: TestClient):
+        response = client.get(
+            "/api/employees/00000000-0000-0000-0000-000000000000/deletion-impact"
+        )
+        assert response.status_code == 401
 
 
 class TestGetCredentialsPdfUrl:

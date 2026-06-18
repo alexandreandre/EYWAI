@@ -11,6 +11,10 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from app.core.security import get_current_user
 from app.modules.schedules.application import ai_fill, commands, queries
+from app.modules.schedules.application.badgeuse_import import (
+    import_actual_hours_from_badgeuse,
+    import_actual_hours_from_badgeuse_bulk,
+)
 from app.modules.schedules.application.exceptions import ScheduleAppError
 from app.modules.schedules.schemas import (
     ActualHoursRequest,
@@ -18,6 +22,8 @@ from app.modules.schedules.schemas import (
     ApplyModelRequest,
     CalendarResponse,
     CumulsResponse,
+    ImportBadgeuseBulkRequest,
+    ImportBadgeuseEmployeeRequest,
     ParseInstructionRequest,
     PlannedCalendarRequest,
     RosterEmployee,
@@ -117,6 +123,35 @@ def calculate_payroll_events(employee_id: str, request_body: dict):
         _handle_schedule_error(e)
 
 
+@router.post("/actual-hours/import-badgeuse", status_code=200)
+def import_actual_hours_from_badgeuse_route(
+    employee_id: str,
+    body: ImportBadgeuseEmployeeRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Importe les heures effectives badgeuse dans le calendrier réel du mois."""
+    _ = current_user
+    try:
+        result = import_actual_hours_from_badgeuse(
+            employee_id,
+            body.year,
+            body.month,
+            recalculate_payroll=body.recalculate_payroll,
+        )
+        return {
+            "status": "success",
+            "employee_id": result.employee_id,
+            "year": result.year,
+            "month": result.month,
+            "days_updated": result.days_updated,
+            "days_with_anomaly_warnings": result.days_with_anomaly_warnings,
+            "warnings": result.warnings,
+            "payroll_recalculated": result.payroll_recalculated,
+        }
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+
 # ----- Router 2 : /api/me -----
 
 router_me = APIRouter(
@@ -151,6 +186,25 @@ async def apply_schedule_model(
     """Applique un modèle de planning à plusieurs employés pour un mois donné. Réservé aux RH."""
     try:
         return commands.apply_schedule_model(request, current_user)
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+
+@router_rh.post("/import-badgeuse-actual-hours", status_code=200)
+def import_badgeuse_actual_hours_bulk(
+    request: ImportBadgeuseBulkRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Importe les heures badgeuse vers le calendrier réel pour plusieurs employés."""
+    _ = current_user
+    try:
+        return import_actual_hours_from_badgeuse_bulk(
+            company_id=request.company_id,
+            employee_ids=request.employee_ids,
+            year=request.year,
+            month=request.month,
+            recalculate_payroll=request.recalculate_payroll,
+        )
     except ScheduleAppError as e:
         _handle_schedule_error(e)
 

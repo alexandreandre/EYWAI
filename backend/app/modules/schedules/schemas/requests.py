@@ -49,6 +49,20 @@ class ActualHoursRequest(BaseModel):
     calendrier_reel: List[ActualHoursEntry]
 
 
+class ImportBadgeuseEmployeeRequest(BaseModel):
+    year: int
+    month: int
+    recalculate_payroll: bool = False
+
+
+class ImportBadgeuseBulkRequest(BaseModel):
+    company_id: str
+    employee_ids: List[str]
+    year: int
+    month: int
+    recalculate_payroll: bool = False
+
+
 # ----- Apply-model (POST /api/schedules/apply-model) -----
 
 
@@ -94,6 +108,8 @@ class ApplyModelRequest(BaseModel):
 __all__ = [
     "ActualHoursEntry",
     "ActualHoursRequest",
+    "ImportBadgeuseBulkRequest",
+    "ImportBadgeuseEmployeeRequest",
     "ApplyModelRequest",
     "DayConfigModel",
     "PlannedCalendarEntry",

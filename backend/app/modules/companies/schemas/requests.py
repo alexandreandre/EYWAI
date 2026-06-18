@@ -5,12 +5,21 @@ Définitions canoniques : settings, CRUD entreprise (create/update).
 Comportement identique aux anciennes définitions (api/routers/company, api/routers/super_admin).
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 # ----- Company settings (PATCH /api/company/settings) -----
+
+
+class PublicHolidaysSettingsUpdate(BaseModel):
+    """Jours fériés légaux chômés par l'entreprise."""
+
+    observed_holiday_ids: Optional[List[str]] = Field(
+        None,
+        description="IDs des fériés légaux chômés (catalogue France métropolitaine).",
+    )
 
 
 class CompanySettingsUpdate(BaseModel):
@@ -22,11 +31,30 @@ class CompanySettingsUpdate(BaseModel):
     medical_follow_up_enabled: Optional[bool] = Field(
         None, description="Activation du module suivi médical"
     )
+    public_holidays: Optional[PublicHolidaysSettingsUpdate] = Field(
+        None, description="Jours fériés légaux observés au planning"
+    )
     model_config = {"extra": "allow"}
+
+    @field_validator("public_holidays", mode="before")
+    @classmethod
+    def coerce_public_holidays(cls, value: Any) -> Any:
+        if value is None or isinstance(value, PublicHolidaysSettingsUpdate):
+            return value
+        if isinstance(value, dict):
+            return PublicHolidaysSettingsUpdate(**value)
+        raise ValueError("public_holidays doit être un objet.")
 
     def to_settings_delta(self) -> Dict[str, Any]:
         """Retourne un dict des champs fournis (non-None) pour merge avec settings existants."""
-        return self.model_dump(exclude_none=True)
+        data = self.model_dump(exclude_none=True)
+        if "public_holidays" in data and isinstance(data["public_holidays"], dict):
+            ph = data["public_holidays"]
+            if ph.get("observed_holiday_ids") is None and "observed_holiday_ids" in ph:
+                data["public_holidays"] = {}
+            elif not ph:
+                data.pop("public_holidays", None)
+        return data
 
 
 # ----- CRUD entreprise (Super Admin) -----
@@ -79,6 +107,12 @@ class CompanyDetailsUpdate(BaseModel):
     adresse_ville: Optional[str] = None
     nom_signataire_rh: Optional[str] = None
     qualite_signataire_rh: Optional[str] = None
+    service_sante_travail_nom: Optional[str] = None
+    service_sante_travail_adresse_rue: Optional[str] = None
+    service_sante_travail_adresse_code_postal: Optional[str] = None
+    service_sante_travail_adresse_ville: Optional[str] = None
+    service_sante_travail_telephone: Optional[str] = None
+    service_sante_travail_email: Optional[str] = None
     dsn_sync_mode: Optional[str] = Field(
         None,
         description="external | native | transition — source paie pour alertes DSN",

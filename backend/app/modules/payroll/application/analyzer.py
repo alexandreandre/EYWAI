@@ -56,6 +56,8 @@ def analyser_horaires_du_mois(
     annee: int,
     mois: int,
     employee_name: str,
+    *,
+    modulation_weekly_hours: Dict[tuple[int, int], float] | None = None,
 ) -> List[Dict[str, Any]]:
     """
     Analyse les horaires et produit les événements de paie.
@@ -92,6 +94,11 @@ def analyser_horaires_du_mois(
     # Étape 2 : Analyser chaque semaine
     evenements_finaux = []
     for cle_semaine, data in semaines.items():
+        duree_hebdo_semaine = duree_hebdo_contrat
+        if modulation_weekly_hours and cle_semaine in modulation_weekly_hours:
+            duree_hebdo_semaine = modulation_weekly_hours[cle_semaine]
+        duree_contrat_centiemes = int(duree_hebdo_semaine * 100)
+
         # On ajoute les jours non-travaillés sans heures réelles
         for jour_prevu in data["jours_non_travailles"]:
             heures_reelles_ce_jour = any(
@@ -125,7 +132,6 @@ def analyser_horaires_du_mois(
             fin_compteur = compteur_heures_semaine_centiemes + heures_jour_centiemes
             seuil_base_legal = 3500
             seuil_hs25_legal = 4300
-            duree_contrat_centiemes = int(duree_hebdo_contrat * 100)
 
             h_hs25 = max(
                 0,

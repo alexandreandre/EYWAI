@@ -309,3 +309,51 @@ class TestValidatePdfAllowed:
         """Statut realise → ValueError (pas encore clôturé)."""
         with pytest.raises(ValueError):
             domain_rules.validate_pdf_allowed("realise")
+
+
+class TestValidateConvocationAllowed:
+    """Validation avant génération de la convocation."""
+
+    def test_en_attente_acceptation_allows_convocation(self):
+        domain_rules.validate_convocation_allowed("en_attente_acceptation")
+
+    def test_accepte_allows_convocation(self):
+        domain_rules.validate_convocation_allowed("accepte")
+
+    def test_planifie_raises(self):
+        with pytest.raises(ValueError) as exc_info:
+            domain_rules.validate_convocation_allowed("planifie")
+        assert "transmis au salarié" in str(exc_info.value)
+
+
+class TestInterviewTypes:
+    """Types d'entretien et libellés."""
+
+    def test_all_types_have_labels(self):
+        from app.modules.annual_reviews.domain import interview_types as it
+
+        expected = {
+            "annual_performance",
+            "professional_2ans",
+            "competency_6ans",
+            "annual_cadres",
+            "annual_forfait_jour",
+            "return_absence",
+            "mid_year",
+            "other",
+        }
+        assert set(it.INTERVIEW_TYPE_LABELS.keys()) == expected
+
+    def test_l6315_types(self):
+        from app.modules.annual_reviews.domain import interview_types as it
+
+        assert "professional_2ans" in it.L6315_INTERVIEW_TYPES
+        assert "competency_6ans" in it.L6315_INTERVIEW_TYPES
+        assert "return_absence" in it.L6315_INTERVIEW_TYPES
+        assert "annual_cadres" not in it.L6315_INTERVIEW_TYPES
+
+    def test_interview_type_label_fallback(self):
+        from app.modules.annual_reviews.domain.interview_types import interview_type_label
+
+        assert "cadres" in interview_type_label("annual_cadres").lower()
+        assert interview_type_label("unknown_code") == "unknown_code"

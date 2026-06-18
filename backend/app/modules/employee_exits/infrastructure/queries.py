@@ -113,16 +113,23 @@ def get_exit_documents_storage_paths(
     return [d["storage_path"] for d in (r.data or []) if d.get("storage_path")]
 
 
+_UNSET_EXIT_ID = object()
+
+
 def update_employee_employment_status(
     employee_id: str,
     employment_status: str,
-    current_exit_id: Optional[str] = None,
+    current_exit_id: Optional[str] | object = _UNSET_EXIT_ID,
     supabase_client: Any = None,
 ) -> None:
-    """Met à jour employment_status et current_exit_id d'un employé."""
+    """Met à jour employment_status et, si fourni, current_exit_id d'un employé.
+
+    Passer ``current_exit_id=None`` explicitement pour effacer la colonne
+    (archivage ou annulation d'un départ).
+    """
     sb = supabase_client or supabase
-    payload = {"employment_status": employment_status}
-    if current_exit_id is not None:
+    payload: Dict[str, Any] = {"employment_status": employment_status}
+    if current_exit_id is not _UNSET_EXIT_ID:
         payload["current_exit_id"] = current_exit_id
     sb.table("employees").update(payload).eq("id", employee_id).execute()
 

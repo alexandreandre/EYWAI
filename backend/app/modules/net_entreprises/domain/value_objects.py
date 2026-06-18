@@ -63,3 +63,26 @@ class TransmissionResult:
     net_entreprises_ref: Optional[str] = None
     error_message: Optional[str] = None
     crm_retour: Optional[Dict[str, Any]] = field(default=None)
+
+
+@dataclass(frozen=True)
+class IjDecompteLine:
+    """Ligne de décompte IJSS CPAM."""
+
+    amount: float
+    payment_date: Optional[str] = None
+    employee_nir: Optional[str] = None
+    employee_name: Optional[str] = None
+    period_start: Optional[str] = None
+    period_end: Optional[str] = None
+    net_entreprises_ref: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class IjDecomptesFetchResult:
+    """Résultat récupération décomptes IJ via Net-Entreprises."""
+
+    success: bool
+    status: str  # success | not_available | not_configured | error
+    message: str
+    lines: tuple[IjDecompteLine, ...] = field(default_factory=tuple)

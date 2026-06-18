@@ -133,6 +133,33 @@ def _brut_from_bases(versement) -> float:
     return 0.0
 
 
+def _brut_fallback_from_pas_assiette(versement) -> float:
+    """Repli prudent : assiette PAS quand la ligne brut 001 est déclarée mais à 0."""
+    if versement.montant_soumis_pas <= 0:
+        return 0.0
+    has_zero_primary = False
+    for rem in versement.remunerations:
+        normalized = _normalize_rem_type(rem.type_code)
+        if normalized not in REMUNERATION_BRUT_PRIMARY:
+            continue
+        montant = _remuneration_montant(rem)
+        if montant <= 0:
+            has_zero_primary = True
+            break
+    if not has_zero_primary:
+        return 0.0
+    return round(float(versement.montant_soumis_pas), 2)
+
+
+def _brut_from_versement(versement) -> float:
+    ver_brut = _brut_from_remunerations(versement.remunerations)
+    if ver_brut <= 0:
+        ver_brut = _brut_from_bases(versement)
+    if ver_brut <= 0:
+        ver_brut = _brut_fallback_from_pas_assiette(versement)
+    return ver_brut
+
+
 def extract_monthly_totals(ind: IndividuBlock) -> Dict[str, float]:
     """Extrait brut, net imposable, PAS, heures, réduction générale d'un individu."""
     brut = 0.0
@@ -145,9 +172,7 @@ def extract_monthly_totals(ind: IndividuBlock) -> Dict[str, float]:
         for ver in contrat.versements:
             net_imposable += ver.net_fiscal
             pas += ver.pas
-            ver_brut = _brut_from_remunerations(ver.remunerations)
-            if ver_brut <= 0:
-                ver_brut = _brut_from_bases(ver)
+            ver_brut = _brut_from_versement(ver)
             brut += ver_brut
             heures += _heures_from_versement(ver)
             for cot in ver.cotisations:

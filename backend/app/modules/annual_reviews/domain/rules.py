@@ -122,3 +122,17 @@ def validate_pdf_allowed(current_status: str) -> None:
     """Lève ValueError si le PDF n'est pas autorisé (entretien non clôturé)."""
     if current_status != STATUS_REQUIRED_FOR_PDF:
         raise ValueError("Le PDF ne peut être généré que pour un entretien clôturé.")
+
+
+def validate_convocation_allowed(current_status: str) -> None:
+    """Lève ValueError si la convocation n'est pas encore disponible."""
+    from app.modules.annual_reviews.domain.interview_types import (
+        CONVOCATION_ALLOWED_STATUSES,
+    )
+
+    if current_status == "planifie":
+        raise ValueError(
+            "La convocation sera disponible une fois l'entretien transmis au salarié."
+        )
+    if current_status not in CONVOCATION_ALLOWED_STATUSES:
+        raise ValueError("Convocation non disponible pour cet entretien.")
