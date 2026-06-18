@@ -26,6 +26,11 @@ _BUILD_VARIABLES_KEYS = frozenset(
         "duree_hebdomadaire",
         "lieu_travail",
         "periode_essai_duree",
+        "service",
+        "manager",
+        "missions",
+        "description_poste",
+        "localisation_poste",
         "date_avenant",
         "date_effet",
         "motif_avenant",
@@ -115,6 +120,7 @@ def test_t1_build_variables_complete_no_none_french_amounts_and_dates() -> None:
     assert out["ancien_salaire"] == "2 400,00 €"
     assert out["ancien_lieu"] == "Paris"
     assert out["nouveau_lieu"] == "Lyon"
+    assert out["localisation_poste"] == "Paris"
 
     assert _DATE_FR_RE.match(out["date_naissance"])
     assert out["date_naissance"] == "10/05/1990"
