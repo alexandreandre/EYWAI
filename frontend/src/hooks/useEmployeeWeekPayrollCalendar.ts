@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { addDays, format, parseISO } from 'date-fns';
 import type { ActualHoursData, PlannedEventData } from '@/api/calendar';
 import * as calendarApi from '@/api/calendar';
-import { getFrenchPublicHolidayDayNumbers } from '@/lib/frenchPublicHolidays';
+import { applyHolidayHints } from '@/lib/companyCalendarHolidays';
+import type { FrenchPublicHolidayId } from '@/lib/frenchPublicHolidays';
 import { isForfaitJour } from '@/utils/employeeUtils';
 
 export interface WeekPayrollDay {
@@ -12,35 +13,12 @@ export interface WeekPayrollDay {
   actual?: ActualHoursData;
 }
 
-function applyHolidayHints(
-  baseCalendar: PlannedEventData[],
-  plannedDataFromApi: PlannedEventData[],
-  year: number,
-  month: number
-): PlannedEventData[] {
-  const holidayDays = getFrenchPublicHolidayDayNumbers(year, month);
-
-  return baseCalendar.map((defaultDay) => {
-    const apiDay = plannedDataFromApi.find((p) => p.jour === defaultDay.jour);
-    let merged = apiDay ? { ...defaultDay, ...apiDay } : defaultDay;
-
-    if (holidayDays.has(defaultDay.jour)) {
-      const date = new Date(year, month - 1, defaultDay.jour);
-      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-      if (!isWeekend && !apiDay) {
-        merged = { ...merged, type: 'ferie', heures_prevues: null };
-      }
-    }
-
-    return merged;
-  });
-}
-
 async function loadMonthCalendar(
   employeeId: string,
   year: number,
   month: number,
-  forfaitJour: boolean
+  forfaitJour: boolean,
+  observedHolidayIds: readonly FrenchPublicHolidayId[]
 ): Promise<{ planned: PlannedEventData[]; actual: ActualHoursData[] }> {
   const [plannedRes, actualRes] = await Promise.all([
     calendarApi.getPlannedCalendar(employeeId, year, month),
@@ -64,7 +42,13 @@ async function loadMonthCalendar(
     });
   }
 
-  const planned = applyHolidayHints(baseCalendar, plannedDataFromApi, year, month);
+  const planned = applyHolidayHints(
+    baseCalendar,
+    plannedDataFromApi,
+    year,
+    month,
+    observedHolidayIds
+  );
   const actual = planned.map((plannedDay) => {
     const apiDay = actualDataFromApi.find((a) => a.jour === plannedDay.jour);
     return {
@@ -110,13 +94,15 @@ export function useEmployeeWeekPayrollCalendar(
   employeeId: string | undefined,
   weekStart: string,
   employeeStatut?: string,
-  enabled = true
+  enabled = true,
+  observedHolidayIds: readonly FrenchPublicHolidayId[] = []
 ) {
   const forfaitJour = isForfaitJour(employeeStatut);
   const weekDaysIso = useMemo(() => weekDayIsos(weekStart), [weekStart]);
+  const holidayKey = observedHolidayIds.join(',');
 
   const query = useQuery({
-    queryKey: ['employee-week-payroll', employeeId, weekStart, forfaitJour],
+    queryKey: ['employee-week-payroll', employeeId, weekStart, forfaitJour, holidayKey],
     queryFn: async (): Promise<WeekPayrollDay[]> => {
       if (!employeeId) return [];
 
@@ -130,7 +116,16 @@ export function useEmployeeWeekPayrollCalendar(
           const [yearStr, monthStr] = key.split('-');
           const year = Number(yearStr);
           const month = Number(monthStr);
-          monthCalendars.set(key, await loadMonthCalendar(employeeId, year, month, forfaitJour));
+          monthCalendars.set(
+            key,
+            await loadMonthCalendar(
+              employeeId,
+              year,
+              month,
+              forfaitJour,
+              observedHolidayIds
+            )
+          );
         })
       );
 

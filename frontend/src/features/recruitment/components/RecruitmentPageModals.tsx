@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,8 +8,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, UserPlus } from "lucide-react";
+import { Loader2, AlertTriangle, UserPlus, FileDown } from "lucide-react";
 import type { Job } from "@/api/recruitment";
+import { downloadJobFichePostePdf } from "@/api/recruitment";
 import type { RecruitmentPageModel } from "@/features/recruitment/hooks/useRecruitmentPageModel";
 import { EmployeeContractConfigFields } from "@/features/employees/components/EmployeeContractConfigFields";
 import { RECRUITMENT_JOB_CONTRACT_TYPES, validateEmployeeContractConfig } from "@/constants/contracts";
@@ -24,6 +26,7 @@ type Props = Pick<
   | "createJobMutation"
   | "showEditJob"
   | "setShowEditJob"
+  | "editJobTargetId"
   | "editJob"
   | "setEditJob"
   | "updateJobMutation"
@@ -82,6 +85,7 @@ export function RecruitmentPageModals({
   createJobMutation,
   showEditJob,
   setShowEditJob,
+  editJobTargetId,
   editJob,
   setEditJob,
   updateJobMutation,
@@ -131,6 +135,36 @@ export function RecruitmentPageModals({
   createInterviewMutation,
 }: Props) {
   const { toast } = useToast();
+  const [fichePosteDownloading, setFichePosteDownloading] = useState(false);
+
+  const handleDownloadJobFichePoste = async (jobId: string) => {
+    setFichePosteDownloading(true);
+    try {
+      const blob = await downloadJobFichePostePdf(jobId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `fiche_poste_${jobId.slice(0, 8)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast({
+        title: "Téléchargement impossible",
+        description:
+          typeof msg === "string"
+            ? msg
+            : "Importez un modèle de fiche de poste dans Mon Entreprise → Bibliothèque.",
+        variant: "destructive",
+      });
+    } finally {
+      setFichePosteDownloading(false);
+    }
+  };
+
   return (
     <>
       <Dialog open={showCreateJob} onOpenChange={setShowCreateJob}>
@@ -263,7 +297,22 @@ export function RecruitmentPageModals({
               </Select>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full sm:w-auto"
+              disabled={!editJobTargetId || fichePosteDownloading}
+              onClick={() => editJobTargetId && void handleDownloadJobFichePoste(editJobTargetId)}
+            >
+              {fichePosteDownloading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FileDown className="mr-2 h-4 w-4" />
+              )}
+              Télécharger la fiche de poste (PDF)
+            </Button>
+            <div className="flex w-full gap-2 sm:w-auto">
             <Button variant="outline" onClick={() => setShowEditJob(false)}>
               Annuler
             </Button>
@@ -274,6 +323,7 @@ export function RecruitmentPageModals({
               {updateJobMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Enregistrer
             </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -574,6 +624,25 @@ export function RecruitmentPageModals({
             <Button variant="outline" type="button" onClick={() => setHireSuccessInfo(null)}>
               Fermer
             </Button>
+            {hireSuccessInfo?.jobId ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  if (hireSuccessInfo?.employeeId) {
+                    const q = new URLSearchParams({
+                      tab: 'documents',
+                      generate: 'fiche_poste',
+                      jobId: hireSuccessInfo.jobId!,
+                    });
+                    navigate(`/employees/${hireSuccessInfo.employeeId}?${q.toString()}`);
+                    setHireSuccessInfo(null);
+                  }
+                }}
+              >
+                Générer la fiche de poste
+              </Button>
+            ) : null}
             <Button
               type="button"
               onClick={() => {

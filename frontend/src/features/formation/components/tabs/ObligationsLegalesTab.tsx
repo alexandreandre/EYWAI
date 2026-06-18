@@ -48,6 +48,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useViewOptional } from "@/contexts/ViewContext";
 import { isPlatformAdmin } from '@/lib/platformAdmin';
 import { invalidateFormationHub } from "@/features/formation/formationQueryInvalidation";
+import { PlanningSuggestionsPanel } from "@/features/formation/components/PlanningSuggestionsPanel";
 
 function fmtDate(s?: string | null) {
   if (!s) return "—";
@@ -315,6 +316,8 @@ export default function ObligationsLegalesTab({ compactTable = false }: Obligati
           </Select>
         </div>
       </div>
+
+      {showRhActions && <PlanningSuggestionsPanel />}
 
       {listQuery.isLoading && (
         <div className="space-y-2">

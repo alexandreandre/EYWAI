@@ -20,6 +20,10 @@ import { getOverdueCount, getAllStatus } from "@/api/legalObligations";
 import { getBudget, type TrainingBudgetAlertLevel } from "@/api/trainingBudget";
 import { getAchievementRate } from "@/api/objectives";
 import { getAllAnnualReviews } from "@/api/annualReviews";
+import {
+  planningSuggestionPlanHref,
+  usePlanningSuggestionsForPilotage,
+} from "@/features/formation/components/PlanningSuggestionsPanel";
 import { AnnualReviewBadge } from "@/components/AnnualReviewBadge";
 import type { AnnualReviewStatus } from "@/api/annualReviews";
 import { cn } from "@/lib/utils";
@@ -34,11 +38,11 @@ const ACTIVE_REVIEW_STATUSES = new Set([
 
 type TodoRow = {
   id: string;
-  kind: "habilitation" | "obligation" | "entretien";
+  kind: "habilitation" | "obligation" | "entretien" | "planning";
   label: string;
   detail: string;
   severity: "red" | "orange" | "blue";
-  navigateTo: { hash: string; search?: string };
+  navigateTo: { hash?: string; search?: string; pathname?: string };
   reviewStatus?: AnnualReviewStatus;
 };
 
@@ -102,6 +106,7 @@ export default function PilotageTab() {
     },
     enabled: Boolean(companyId),
   });
+  const planningQuery = usePlanningSuggestionsForPilotage(Boolean(companyId));
 
   const expired = certsQuery.data?.expired ?? 0;
   const expiring = certsQuery.data?.expiring ?? 0;
@@ -151,6 +156,17 @@ export default function PilotageTab() {
       });
     }
 
+    for (const row of planningQuery.data ?? []) {
+      items.push({
+        id: `plan-${row.employee_id}-${row.interview_type}`,
+        kind: "planning",
+        label: row.employee_name,
+        detail: row.interview_type_label,
+        severity: row.urgency === "overdue" ? "orange" : "orange",
+        navigateTo: { pathname: planningSuggestionPlanHref(row) },
+      });
+    }
+
     for (const r of reviewsQuery.data ?? []) {
       if (!ACTIVE_REVIEW_STATUSES.has(r.status)) continue;
       items.push({
@@ -166,9 +182,13 @@ export default function PilotageTab() {
 
     const order = { red: 0, orange: 1, blue: 2 };
     return items.sort((a, b) => order[a.severity] - order[b.severity]).slice(0, MAX_TODO);
-  }, [certsListQuery.data, legalQuery.data, reviewsQuery.data]);
+  }, [certsListQuery.data, legalQuery.data, planningQuery.data, reviewsQuery.data]);
 
-  const go = (hash: string, search?: string) => {
+  const go = (hash: string, search?: string, pathname?: string) => {
+    if (pathname) {
+      navigate(pathname);
+      return;
+    }
     navigate(
       { pathname: "/formation", hash, search: search?.startsWith("?") ? search : search ? `?${search}` : "" },
       { replace: false },
@@ -176,7 +196,7 @@ export default function PilotageTab() {
   };
 
   const todoLoading =
-    certsListQuery.isLoading || legalQuery.isLoading || reviewsQuery.isLoading;
+    certsListQuery.isLoading || legalQuery.isLoading || planningQuery.isLoading || reviewsQuery.isLoading;
 
   return (
     <div className="space-y-8">
@@ -301,7 +321,11 @@ export default function PilotageTab() {
                         });
                         return;
                       }
-                      go(row.navigateTo.hash, row.navigateTo.search);
+                      go(
+                        row.navigateTo.hash ?? "",
+                        row.navigateTo.search,
+                        row.navigateTo.pathname,
+                      );
                     }}
                   >
                     <TableCell className="text-muted-foreground text-sm">
@@ -309,7 +333,9 @@ export default function PilotageTab() {
                         ? "Habilitation"
                         : row.kind === "obligation"
                           ? "Obligation légale"
-                          : "Entretien"}
+                          : row.kind === "planning"
+                            ? "Entretien à planifier"
+                            : "Entretien"}
                     </TableCell>
                     <TableCell className="font-medium">{row.label}</TableCell>
                     <TableCell className="text-muted-foreground">{row.detail}</TableCell>

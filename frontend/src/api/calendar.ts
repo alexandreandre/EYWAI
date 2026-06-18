@@ -67,6 +67,67 @@ export const calculatePayrollEvents = (employeeId: string, year: number, month: 
   });
 };
 
+export interface ImportBadgeuseResult {
+  status: string;
+  employee_id: string;
+  year: number;
+  month: number;
+  days_updated: number;
+  days_with_anomaly_warnings: number[];
+  warnings: string[];
+  payroll_recalculated: boolean;
+}
+
+export const importActualHoursFromBadgeuse = (
+  employeeId: string,
+  year: number,
+  month: number,
+  options?: { recalculatePayroll?: boolean }
+) => {
+  return apiClient.post<ImportBadgeuseResult>(
+    `/api/employees/${employeeId}/actual-hours/import-badgeuse`,
+    {
+      year,
+      month,
+      recalculate_payroll: options?.recalculatePayroll ?? false,
+    }
+  );
+};
+
+export interface ImportBadgeuseBulkResult {
+  year: number;
+  month: number;
+  employees_processed: number;
+  total_days_updated: number;
+  results: Array<{
+    employee_id: string;
+    days_updated: number;
+    warnings: string[];
+    days_with_anomaly_warnings: number[];
+    payroll_recalculated: boolean;
+  }>;
+  errors: Array<{ employee_id: string; message: string }>;
+}
+
+export const importBadgeuseActualHoursBulk = (
+  companyId: string,
+  employeeIds: string[],
+  year: number,
+  month: number,
+  options?: { recalculatePayroll?: boolean }
+) => {
+  return apiClient.post<ImportBadgeuseBulkResult>(
+    '/api/schedules/import-badgeuse-actual-hours',
+    {
+      company_id: companyId,
+      employee_ids: employeeIds,
+      year,
+      month,
+      recalculate_payroll: options?.recalculatePayroll ?? false,
+    }
+  );
+};
+
 // --- SAISIE ASSISTÉE PAR IA (page Calendriers RH) ---
 
 export interface RosterEmployee {

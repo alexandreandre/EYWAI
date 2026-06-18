@@ -13,6 +13,7 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   launchConfig: DsnImportLaunchConfig | null;
   initialFiles?: File[];
+  sessionKey?: string | null;
 };
 
 function sheetTitle(config: DsnImportLaunchConfig | null): string {
@@ -27,6 +28,7 @@ export function DsnImportSheet({
   onOpenChange,
   launchConfig,
   initialFiles,
+  sessionKey,
 }: Props) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -39,9 +41,10 @@ export function DsnImportSheet({
               : 'Analysez et validez la DSN mensuelle sans quitter la vue d\u2019ensemble.'}
           </SheetDescription>
         </SheetHeader>
-        {launchConfig && (
+        {launchConfig && sessionKey && (
           <div className="mt-4 flex-1 pb-6">
             <DsnImportWizard
+              key={sessionKey}
               launchConfig={launchConfig}
               initialFiles={initialFiles}
               embedded

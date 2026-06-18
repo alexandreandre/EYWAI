@@ -5,6 +5,7 @@ import {
   listDsnImportBatches,
   listDsnImportCompanies,
   type DsnImportBatchSummary,
+  type DsnImportCommitResponse,
   type DsnImportMode,
 } from '@/api/dsnImport';
 import { Badge } from '@/components/ui/badge';
@@ -27,6 +28,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { normalizeCommitErrors } from './DsnImportIssueList';
 
 const MONTHS_FR = [
   'janv.',
@@ -108,6 +110,14 @@ const STATUS_ORDER: Record<string, number> = {
   previewed: 3,
   parsed: 4,
 };
+
+function firstCommitError(batch: DsnImportBatchSummary): { message: string; hint?: string | null } | null {
+  const report = batch.summary?.commit_report as DsnImportCommitResponse | undefined;
+  if (!report) return null;
+  const issues = normalizeCommitErrors(report.errors, report.error_messages);
+  if (!issues.length) return null;
+  return { message: issues[0].message, hint: issues[0].hint };
+}
 
 function sortBatches(list: DsnImportBatchSummary[]): DsnImportBatchSummary[] {
   return [...list].sort((a, b) => {
@@ -270,6 +280,7 @@ export function DsnImportHistory({ onResume }: Props) {
                     (b.summary?.employee_count as number | undefined)
                     ?? stats?.created
                     ?? '—';
+                  const failure = b.status === 'failed' ? firstCommitError(b) : null;
                   return (
                     <TableRow
                       key={b.id}
@@ -293,16 +304,26 @@ export function DsnImportHistory({ onResume }: Props) {
                       <TableCell className="text-xs">{importModeLabel(b)}</TableCell>
                       <TableCell className="text-xs tabular-nums">{employeeCount}</TableCell>
                       <TableCell>
-                        <Badge
-                          variant={statusVariant(b.status)}
-                          title={STATUS_TITLES[b.status] ?? undefined}
-                          className="gap-1"
-                        >
-                          {resumable && onResume ? (
-                            <PlayCircle className="h-3 w-3" />
-                          ) : null}
-                          {STATUS_LABELS[b.status] ?? b.status}
-                        </Badge>
+                        <div className="space-y-1">
+                          <Badge
+                            variant={statusVariant(b.status)}
+                            title={STATUS_TITLES[b.status] ?? undefined}
+                            className="gap-1"
+                          >
+                            {resumable && onResume ? (
+                              <PlayCircle className="h-3 w-3" />
+                            ) : null}
+                            {STATUS_LABELS[b.status] ?? b.status}
+                          </Badge>
+                          {failure && (
+                            <p
+                              className="max-w-[220px] text-xs text-destructive"
+                              title={failure.hint ?? failure.message}
+                            >
+                              {failure.message}
+                            </p>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

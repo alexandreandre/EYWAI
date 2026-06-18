@@ -4,7 +4,6 @@ import {
   Loader2,
   MoreHorizontal,
   Pencil,
-  Trash2,
   UserPlus,
 } from 'lucide-react';
 import { isRecentHire } from '@/lib/onboardingUtils';
@@ -17,6 +16,7 @@ import {
 } from '@/lib/employeeDisplayUtils';
 import { ResidencePermitBadge } from '@/components/ResidencePermitBadge';
 import { TrialPeriodBadge } from '@/components/TrialPeriodBadge';
+import { EmployeeDeleteConfirmDialog } from '@/features/employee-detail/components/EmployeeDeleteConfirmDialog';
 import type { CompanyCollectiveAgreementWithDetails } from '@/api/collectiveAgreements';
 import type { Team } from '@/api/teams';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -29,17 +29,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Tooltip,
@@ -82,6 +71,7 @@ interface EmployeeDetailHeaderCardProps {
   employee: EmployeeDetailHeaderEmployee;
   credentialsPdfUrl: string | null;
   onDelete: () => void | Promise<void>;
+  isDeleting?: boolean;
   activeTeams: Team[];
   teamsLoading: boolean;
   draftTeamId: string;
@@ -131,6 +121,7 @@ export function EmployeeDetailHeaderCard({
   employee,
   credentialsPdfUrl,
   onDelete,
+  isDeleting = false,
   activeTeams,
   teamsLoading,
   draftTeamId,
@@ -192,36 +183,12 @@ export function EmployeeDetailHeaderCard({
   menuItems.push({
     key: 'delete',
     node: (
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <DropdownMenuItem
-            className="text-destructive focus:text-destructive"
-            onSelect={(e) => e.preventDefault()}
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Supprimer le collaborateur
-          </DropdownMenuItem>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Êtes-vous absolument certain ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Cette action est irréversible. Elle supprimera définitivement le
-              collaborateur, son compte utilisateur, et toutes les données
-              associées (bulletins, plannings, etc.).
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => void onDelete()}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Confirmer la suppression
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <EmployeeDeleteConfirmDialog
+        employeeId={employee.id}
+        employeeFullName={fullName}
+        onDelete={onDelete}
+        isDeleting={isDeleting}
+      />
     ),
   });
 

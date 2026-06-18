@@ -18,6 +18,7 @@ export const SalarySeizures = lazy(() => import('@/pages/rh/SalarySeizures'));
 export const SalaryAdvances = lazy(() => import('@/pages/rh/SalaryAdvances'));
 export const EmployeeLoans = lazy(() => import('@/pages/rh/EmployeeLoans'));
 export const RhAbsencesPage = lazy(() => import('@/pages/rh/Absences'));
+export const SuiviIJSS = lazy(() => import('@/pages/rh/SuiviIJSS'));
 export const Planning = lazy(() => import('@/pages/rh/Planning'));
 export const RhExpensesPage = lazy(() => import('@/pages/rh/Expenses'));
 export const RhSchedulesPage = lazy(() => import('@/pages/rh/Schedules'));
@@ -27,6 +28,8 @@ export const ExitDocumentEdit = lazy(() => import('@/pages/rh/ExitDocumentEdit')
 export const Exports = lazy(() => import('@/pages/rh/Exports'));
 export const ResidencePermits = lazy(() => import('@/pages/rh/ResidencePermits'));
 export const MedicalFollowUp = lazy(() => import('@/pages/rh/MedicalFollowUp'));
+export const SuiviContingentHs = lazy(() => import('@/pages/rh/SuiviContingentHs'));
+export const SuiviModulation = lazy(() => import('@/pages/rh/SuiviModulation'));
 export const AnnualReviews = lazy(() => import('@/pages/rh/AnnualReviews'));
 export const AnnualReviewDetail = lazy(() => import('@/pages/rh/AnnualReviewDetail'));
 export const AugmentationsEtPromotions = lazy(() => import('@/pages/rh/AugmentationsEtPromotions'));
@@ -68,6 +71,7 @@ export const EmployeeAnnualReviewDetail = lazy(() => import('@/pages/employee/An
 export const EmployeeCSE = lazy(() => import('@/pages/employee/CSE'));
 export const EmployeeMedicalFollowUp = lazy(() => import('@/pages/employee/MedicalFollowUp'));
 export const EmployeeCollaboratorDocumentsPage = lazy(() => import('@/pages/employee/Documents'));
+export const EmployeeParticipationPage = lazy(() => import('@/pages/employee/Participation'));
 
 export const SuperAdminLayout = lazy(() => import('@/pages/admin/super/SuperAdminLayout'));
 export const SuperAdminDashboard = lazy(() => import('@/pages/admin/super/SuperAdminDashboard'));

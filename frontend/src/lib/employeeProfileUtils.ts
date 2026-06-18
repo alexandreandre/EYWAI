@@ -41,6 +41,8 @@ export interface EmployeeProfileData {
     prelevement_a_la_source?: { taux?: number | null };
     mutuelle?: {
       adhesion?: boolean;
+      pack_couverture?: 'isole' | 'famille' | 'duo' | 'autre';
+      mutuelle_type_ids?: string[];
       lignes_specifiques?: EmployeeSocialLine[];
     };
     prevoyance?: {

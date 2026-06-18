@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getEmployeeDayDetail,
@@ -6,10 +6,15 @@ import {
   updateBadgeuseEvent,
   deleteBadgeuseEvent,
   validateEmployeeDay,
+  setEmployeeDayAccountedHours,
+  clearEmployeeDayAccountedHours,
   type DayDetail,
 } from "@/api/badgeuse";
 import {
   formatSecondsToHoursMinutes,
+  formatSecondsDelta,
+  parseHoursMinutesToSeconds,
+  secondsToHoursMinutesInput,
   sourceLabel,
 } from "@/lib/badgeuseFormat";
 import { formatBadgeuseDate, dayStatusLabel } from "@/lib/badgeuseApiUtils";
@@ -69,6 +74,7 @@ export function EmployeeBadgeuseDayDetail({
   const [editEventId, setEditEventId] = useState<string | null>(null);
   const [editEventTime, setEditEventTime] = useState("");
   const [editEventType, setEditEventType] = useState<"ENTREE" | "SORTIE">("ENTREE");
+  const [accountedTimeInput, setAccountedTimeInput] = useState("00:00");
 
   const enabled = Boolean(companyId && employeeId && day);
 
@@ -77,6 +83,15 @@ export function EmployeeBadgeuseDayDetail({
     queryFn: () => getEmployeeDayDetail(employeeId, companyId, day as string),
     enabled,
   });
+
+  useEffect(() => {
+    if (!dayDetail) return;
+    const base =
+      dayDetail.has_override && dayDetail.accounted_seconds != null
+        ? dayDetail.accounted_seconds
+        : dayDetail.effective_seconds;
+    setAccountedTimeInput(secondsToHoursMinutesInput(base));
+  }, [dayDetail]);
 
   const onMutationSuccess = (message: string) => {
     toast.success(message);
@@ -126,6 +141,29 @@ export function EmployeeBadgeuseDayDetail({
     onError: (e) => onMutationError(e, "Impossible de valider la journée."),
   });
 
+  const setAccountedHoursMutation = useMutation({
+    mutationFn: (accountedSeconds: number) =>
+      setEmployeeDayAccountedHours(employeeId, companyId, day as string, accountedSeconds),
+    onSuccess: () => onMutationSuccess("Heures comptabilisées enregistrées."),
+    onError: (e) => onMutationError(e, "Impossible d'enregistrer les heures comptabilisées."),
+  });
+
+  const clearAccountedHoursMutation = useMutation({
+    mutationFn: () => clearEmployeeDayAccountedHours(employeeId, companyId, day as string),
+    onSuccess: () => onMutationSuccess("Heures comptabilisées réinitialisées au brut."),
+    onError: (e) =>
+      onMutationError(e, "Impossible de réinitialiser les heures comptabilisées."),
+  });
+
+  const handleSaveAccountedHours = () => {
+    const seconds = parseHoursMinutesToSeconds(accountedTimeInput);
+    if (seconds == null) {
+      toast.error("Heure invalide (format HH:MM).");
+      return;
+    }
+    setAccountedHoursMutation.mutate(seconds);
+  };
+
   if (!day) {
     return (
       <div className="space-y-2">
@@ -168,8 +206,61 @@ export function EmployeeBadgeuseDayDetail({
           </div>
         )}
         <div className="text-muted-foreground">
-          Temps de présence : {formatSecondsToHoursMinutes(dayDetail.total_seconds)}
+          Temps brut (pointages) :{" "}
+          {formatSecondsToHoursMinutes(dayDetail.computed_seconds ?? dayDetail.total_seconds)}
         </div>
+        <div className="text-muted-foreground">
+          Heures effectives : {formatSecondsToHoursMinutes(dayDetail.effective_seconds)}
+        </div>
+      </div>
+
+      <div className="rounded-md border p-3 space-y-2 bg-muted/30">
+        <div className="text-sm font-medium">Heures comptabilisées</div>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col">
+            <Label className="text-xs mb-1">Durée payée</Label>
+            <Input
+              type="time"
+              value={accountedTimeInput}
+              onChange={(e) => setAccountedTimeInput(e.target.value)}
+              className="w-32"
+            />
+          </div>
+          <Button
+            size="sm"
+            type="button"
+            onClick={handleSaveAccountedHours}
+            disabled={setAccountedHoursMutation.isPending}
+          >
+            {setAccountedHoursMutation.isPending ? "Enregistrement…" : "Enregistrer"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            type="button"
+            onClick={() => clearAccountedHoursMutation.mutate()}
+            disabled={clearAccountedHoursMutation.isPending || !dayDetail.has_override}
+          >
+            Reprendre le brut
+          </Button>
+        </div>
+        {formatSecondsDelta(
+          dayDetail.computed_seconds ?? dayDetail.total_seconds,
+          dayDetail.effective_seconds
+        ) && (
+          <p className="text-xs text-muted-foreground">
+            Écart :{" "}
+            {formatSecondsDelta(
+              dayDetail.computed_seconds ?? dayDetail.total_seconds,
+              dayDetail.effective_seconds
+            )}
+          </p>
+        )}
+        {dayDetail.override_differs_from_computed && (
+          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+            Le brut des pointages a changé depuis la dernière saisie des heures comptabilisées.
+          </p>
+        )}
       </div>
 
       {dayDetail.anomalies.length > 0 && (

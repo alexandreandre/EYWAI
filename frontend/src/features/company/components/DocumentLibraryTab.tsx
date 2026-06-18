@@ -46,7 +46,6 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Table,
   TableBody,
@@ -55,13 +54,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCompanyPlan } from '@/hooks/useCompanyPlan';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   DOCUMENT_TYPE_LABELS,
   archiveTemplate,
   createTemplate,
+  downloadFichePosteExample,
+  getDocumentVariables,
   getMissingTypes,
   getTemplates,
   getVersionDownloadUrl,
@@ -69,51 +69,23 @@ import {
   restoreTemplateVersion,
   updateTemplate,
   uploadTemplateFile,
+  validateTemplateFile,
   type DocumentTemplate,
   type DocumentTemplateVersion,
 } from '@/api/documentLibrary';
-import { BookOpen, Download, History, Loader2, MoreHorizontal, Plus, Variable } from 'lucide-react';
+import { BookOpen, Copy, Download, History, Loader2, MoreHorizontal, Plus, Variable } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isPlatformAdmin } from '@/lib/platformAdmin';
 
 const QK_TEMPLATES = ['document-library', 'templates'] as const;
 const QK_MISSING = ['document-library', 'missing-types'] as const;
+const QK_VARIABLES = ['document-library', 'variables'] as const;
 
 const CONTRACT_TYPES = new Set(['cdi', 'cdd', 'convention_stage', 'contrat_alternance']);
 
-type CategoryFilter = 'all' | 'contrats' | 'avenants' | 'attestations';
+type CategoryFilter = 'all' | 'contrats' | 'avenants' | 'attestations' | 'fiches_poste' | 'participation' | 'autres';
 
-const VARIABLE_ROWS: { category: string; rows: { variable: string; description: string; example: string }[] }[] = [
-  {
-    category: 'Salarié',
-    rows: [
-      { variable: '{{salarie.nom}}', description: 'Nom de famille', example: 'Dupont' },
-      { variable: '{{salarie.prenom}}', description: 'Prénom', example: 'Marie' },
-      { variable: '{{salarie.date_embauche}}', description: 'Date d’embauche', example: '01/09/2023' },
-    ],
-  },
-  {
-    category: 'Avenant',
-    rows: [
-      { variable: '{{avenant.date_effet}}', description: 'Date d’effet', example: '01/01/2026' },
-      { variable: '{{avenant.motif}}', description: 'Motif', example: 'Évolution de poste' },
-    ],
-  },
-  {
-    category: 'Entreprise',
-    rows: [
-      { variable: '{{entreprise.raison_sociale}}', description: 'Raison sociale', example: 'ACME SAS' },
-      { variable: '{{entreprise.siret}}', description: 'SIRET', example: '123 456 789 00012' },
-    ],
-  },
-  {
-    category: 'Système',
-    rows: [
-      { variable: '{{date_du_jour}}', description: 'Date du jour', example: '18/04/2026' },
-      { variable: '{{document.reference}}', description: 'Référence document', example: 'DOC-2026-0042' },
-    ],
-  },
-];
+const PARTICIPATION_TYPES = new Set(['bulletin_participation', 'bulletin_interessement']);
 
 function formatDate(iso: string): string {
   try {
@@ -157,13 +129,14 @@ function matchesCategory(t: DocumentTemplate, cat: CategoryFilter): boolean {
   if (cat === 'contrats') return CONTRACT_TYPES.has(dt);
   if (cat === 'avenants') return dt.startsWith('avenant_');
   if (cat === 'attestations') return dt.startsWith('attestation_');
+  if (cat === 'fiches_poste') return dt === 'fiche_poste';
+  if (cat === 'participation') return PARTICIPATION_TYPES.has(dt);
+  if (cat === 'autres') return dt === 'document_transmis';
   return true;
 }
 
 type DocumentLibraryRhAddButtonProps = {
   rh: boolean;
-  isPremium: boolean;
-  isPlanLoading: boolean;
   onClick: () => void;
   size?: 'default' | 'sm' | 'lg' | 'icon';
   variant?: 'default' | 'secondary' | 'outline' | 'destructive' | 'ghost' | 'link';
@@ -175,8 +148,6 @@ type DocumentLibraryRhAddButtonProps = {
 
 function DocumentLibraryRhAddButton({
   rh,
-  isPremium,
-  isPlanLoading,
   onClick,
   size = 'default',
   variant = 'default',
@@ -186,33 +157,13 @@ function DocumentLibraryRhAddButton({
   compactPlus,
 }: DocumentLibraryRhAddButtonProps) {
   if (!rh) return null;
-  const locked = !isPremium || isPlanLoading;
-  const inner = (
-    <Button type="button" size={size} variant={variant} className={cn(className)} disabled={locked} onClick={onClick}>
+  return (
+    <Button type="button" size={size} variant={variant} className={cn(className)} onClick={onClick}>
       {showPlus && (
         <Plus className={cn('h-4 w-4', compactPlus ? 'mr-1 h-3 w-3' : 'mr-1.5')} />
       )}
       {label}
     </Button>
-  );
-  if (!locked) return inner;
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span className="inline-flex">{inner}</span>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" className="max-w-xs text-sm">
-          Disponible dans le plan premium. Contactez-nous pour activer.
-        </TooltipContent>
-      </Tooltip>
-      <Badge
-        variant="outline"
-        className="border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
-      >
-        Premium
-      </Badge>
-    </div>
   );
 }
 
@@ -220,7 +171,6 @@ export default function DocumentLibraryTab() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { isPremium, isLoading: isPlanLoading } = useCompanyPlan();
   const rh = hasRhWriteAccess(user);
   const primaryHr = canPrimaryHrActions(user);
 
@@ -236,14 +186,14 @@ export default function DocumentLibraryTab() {
   const [addDefault, setAddDefault] = useState(false);
   const [addFile, setAddFile] = useState<File | null>(null);
   const [addDrag, setAddDrag] = useState(false);
+  const [addUnknownVars, setAddUnknownVars] = useState<string[]>([]);
+  const [addValidating, setAddValidating] = useState(false);
 
   const [replaceFor, setReplaceFor] = useState<DocumentTemplate | null>(null);
   const [replaceFile, setReplaceFile] = useState<File | null>(null);
 
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
-
-  const [premiumRequiredOpen, setPremiumRequiredOpen] = useState(false);
 
   const {
     data: templates = [],
@@ -260,6 +210,33 @@ export default function DocumentLibraryTab() {
     queryKey: [...QK_MISSING],
     queryFn: () => getMissingTypes(),
   });
+
+  const { data: variableItems = [] } = useQuery({
+    queryKey: [...QK_VARIABLES],
+    queryFn: () => getDocumentVariables(),
+    enabled: variablesOpen,
+  });
+
+  const variableBlocks = useMemo(() => {
+    const byCat = new Map<string, typeof variableItems>();
+    for (const v of variableItems) {
+      const list = byCat.get(v.category) ?? [];
+      list.push(v);
+      byCat.set(v.category, list);
+    }
+    return [...byCat.entries()].map(([category, rows]) => ({ category, rows }));
+  }, [variableItems]);
+
+  const hasFichePosteTemplate = useMemo(
+    () =>
+      templates.some(
+        (t) =>
+          t.document_type === 'fiche_poste' &&
+          t.status === 'active' &&
+          t.current_version != null
+      ),
+    [templates]
+  );
 
   const filtered = useMemo(
     () => templates.filter((t) => matchesCategory(t, category)),
@@ -282,23 +259,26 @@ export default function DocumentLibraryTab() {
         document_type: vars.document_type,
         name: vars.name || undefined,
       });
-      await uploadTemplateFile(created.id, vars.file);
+      const uploaded = await uploadTemplateFile(created.id, vars.file);
       if (vars.asDefault && primaryHr) {
         await updateTemplate(created.id, { is_default: true });
       }
-      return created.id;
+      return uploaded.unknown_variables ?? [];
     },
-    onSuccess: () => {
+    onSuccess: (unknownVars) => {
       setAddOpen(false);
+      setAddUnknownVars([]);
       invalidateAll();
-      toast({ title: 'Modèle enregistré', description: 'Le modèle a été ajouté à la bibliothèque.' });
+      const unknown = unknownVars.length;
+      toast({
+        title: 'Modèle enregistré',
+        description:
+          unknown > 0
+            ? `Le modèle a été ajouté. ${unknown} variable(s) non reconnue(s) dans le fichier.`
+            : 'Le modèle a été ajouté à la bibliothèque.',
+      });
     },
     onError: (e: unknown) => {
-      if (axiosErrorDetail(e) === 'PREMIUM_REQUIRED') {
-        setAddOpen(false);
-        setPremiumRequiredOpen(true);
-        return;
-      }
       const msg = axiosErrorDetail(e);
       toast({
         title: 'Erreur',
@@ -351,12 +331,6 @@ export default function DocumentLibraryTab() {
       toast({ title: 'Nouvelle version', description: 'Le fichier a été importé.' });
     },
     onError: (e: unknown) => {
-      if (axiosErrorDetail(e) === 'PREMIUM_REQUIRED') {
-        setReplaceFor(null);
-        setReplaceFile(null);
-        setPremiumRequiredOpen(true);
-        return;
-      }
       const msg = axiosErrorDetail(e);
       toast({
         title: 'Échec de l’envoi',
@@ -372,7 +346,27 @@ export default function DocumentLibraryTab() {
     setAddName('');
     setAddDefault(false);
     setAddFile(null);
+    setAddUnknownVars([]);
     setAddOpen(true);
+  };
+
+  const handleAddFileSelected = async (file: File | null) => {
+    setAddFile(file);
+    setAddUnknownVars([]);
+    if (!file) return;
+    setAddValidating(true);
+    try {
+      const result = await validateTemplateFile(file);
+      setAddUnknownVars(result.unknown_variables ?? []);
+    } catch {
+      toast({
+        title: 'Analyse du fichier',
+        description: 'Impossible de valider les variables du modèle.',
+        variant: 'destructive',
+      });
+    } finally {
+      setAddValidating(false);
+    }
   };
 
   const handleSubmitAdd = () => {
@@ -415,14 +409,12 @@ export default function DocumentLibraryTab() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-sm text-muted-foreground">
-            Modèles Word/HTML utilisés pour les documents RH de votre entreprise.
+            Bibliothèque de modèles Word/HTML pour générer les documents RH de votre entreprise.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <DocumentLibraryRhAddButton
             rh={rh}
-            isPremium={isPremium}
-            isPlanLoading={isPlanLoading}
             onClick={() => openAddModal()}
             size="sm"
             label="Ajouter un modèle"
@@ -436,6 +428,9 @@ export default function DocumentLibraryTab() {
               <SelectItem value="contrats">Contrats</SelectItem>
               <SelectItem value="avenants">Avenants</SelectItem>
               <SelectItem value="attestations">Attestations</SelectItem>
+              <SelectItem value="fiches_poste">Fiches de poste</SelectItem>
+              <SelectItem value="participation">Participation & intéressement</SelectItem>
+              <SelectItem value="autres">Autres</SelectItem>
             </SelectContent>
           </Select>
           <Button variant="outline" size="sm" onClick={() => setVariablesOpen(true)}>
@@ -444,6 +439,30 @@ export default function DocumentLibraryTab() {
           </Button>
         </div>
       </div>
+
+      {!hasFichePosteTemplate && (
+        <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Fiche de poste</CardTitle>
+            <CardDescription>
+              Importez votre modèle Word — aucun modèle standard EYWAI pour ce type. EYWAI remplira
+              automatiquement les champs salarié et entreprise.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => void downloadFichePosteExample()}>
+              <Download className="mr-1.5 h-4 w-4" />
+              Modèle exemple
+            </Button>
+            <DocumentLibraryRhAddButton
+              rh={rh}
+              onClick={() => openAddModal('fiche_poste')}
+              size="sm"
+              label="Importer ma fiche de poste"
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {missingTypes.length > 0 && (
         <Card className="border-dashed bg-muted/30">
@@ -462,8 +481,6 @@ export default function DocumentLibraryTab() {
                 <span>{DOCUMENT_TYPE_LABELS[dt] ?? dt}</span>
                 <DocumentLibraryRhAddButton
                   rh={rh}
-                  isPremium={isPremium}
-                  isPlanLoading={isPlanLoading}
                   onClick={() => openAddModal(dt)}
                   variant="secondary"
                   size="sm"
@@ -517,8 +534,6 @@ export default function DocumentLibraryTab() {
             <p className="text-sm">Aucun modèle dans cette catégorie.</p>
             <DocumentLibraryRhAddButton
               rh={rh}
-              isPremium={isPremium}
-              isPlanLoading={isPlanLoading}
               onClick={() => openAddModal()}
               size="sm"
               variant="secondary"
@@ -584,15 +599,14 @@ export default function DocumentLibraryTab() {
                             Définir comme modèle par défaut
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            disabled={tpl.status !== 'active' || !isPremium}
+                            disabled={tpl.status !== 'active'}
                             onClick={() => {
-                              if (tpl.status !== 'active' || !isPremium) return;
+                              if (tpl.status !== 'active') return;
                               setReplaceFor(tpl);
                               setReplaceFile(null);
                             }}
                           >
                             Remplacer (nouvelle version)
-                            {!isPremium ? ' (Premium)' : ''}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             disabled={tpl.status !== 'active'}
@@ -653,11 +667,12 @@ export default function DocumentLibraryTab() {
           <SheetHeader>
             <SheetTitle>Variables disponibles</SheetTitle>
             <SheetDescription>
-              Placeholders à insérer dans vos modèles Word ou HTML (syntaxe indicative).
+              Placeholders à insérer dans vos modèles Word ou HTML — syntaxe{' '}
+              <code className="text-xs">{'{{nom_variable}}'}</code>.
             </SheetDescription>
           </SheetHeader>
           <div className="mt-6 space-y-8 pr-2">
-            {VARIABLE_ROWS.map((block) => (
+            {variableBlocks.map((block) => (
               <div key={block.category}>
                 <h3 className="mb-2 text-sm font-semibold">{block.category}</h3>
                 <Table>
@@ -665,15 +680,31 @@ export default function DocumentLibraryTab() {
                     <TableRow>
                       <TableHead>Variable</TableHead>
                       <TableHead>Description</TableHead>
-                      <TableHead>Exemple</TableHead>
+                      <TableHead className="w-10" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {block.rows.map((r) => (
-                      <TableRow key={r.variable}>
-                        <TableCell className="font-mono text-xs">{r.variable}</TableCell>
-                        <TableCell className="text-xs">{r.description}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{r.example}</TableCell>
+                      <TableRow key={r.key}>
+                        <TableCell className="font-mono text-xs">{`{{${r.key}}}`}</TableCell>
+                        <TableCell className="text-xs">
+                          <div>{r.label}</div>
+                          <div className="text-muted-foreground">ex. {r.example}</div>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => {
+                              void navigator.clipboard.writeText(`{{${r.key}}}`);
+                              toast({ title: 'Copié', description: `{{${r.key}}}` });
+                            }}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -744,7 +775,7 @@ export default function DocumentLibraryTab() {
                 e.preventDefault();
                 setAddDrag(false);
                 const f = e.dataTransfer.files?.[0];
-                if (f) setAddFile(f);
+                if (f) void handleAddFileSelected(f);
               }}
               onClick={() => document.getElementById('dl-add-file')?.click()}
             >
@@ -753,9 +784,14 @@ export default function DocumentLibraryTab() {
                 type="file"
                 accept=".docx,.html,.htm,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/html"
                 className="hidden"
-                onChange={(e) => setAddFile(e.target.files?.[0] ?? null)}
+                onChange={(e) => void handleAddFileSelected(e.target.files?.[0] ?? null)}
               />
-              {addFile ? (
+              {addValidating ? (
+                <span className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Analyse des variables…
+                </span>
+              ) : addFile ? (
                 <span className="font-medium">{addFile.name}</span>
               ) : (
                 <span className="text-muted-foreground">Glissez-déposez ou cliquez pour choisir un fichier</span>
@@ -767,6 +803,12 @@ export default function DocumentLibraryTab() {
                 <Label htmlFor="add-def" className="text-sm font-normal">
                   Définir comme modèle par défaut
                 </Label>
+              </div>
+            )}
+            {addUnknownVars.length > 0 && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                Variables non reconnues : {addUnknownVars.map((v) => `{{${v}}}`).join(', ')}. Ces
+                champs resteront vides à la génération.
               </div>
             )}
           </div>
@@ -815,23 +857,6 @@ export default function DocumentLibraryTab() {
             >
               {uploadReplaceMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Importer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={premiumRequiredOpen} onOpenChange={setPremiumRequiredOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Fonctionnalité Premium</DialogTitle>
-            <DialogDescription className="text-left text-sm text-muted-foreground">
-              L&apos;upload de modèles personnalisés est disponible dans le plan premium EYWAI. Contactez-nous pour
-              activer cette fonctionnalité.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button type="button" onClick={() => setPremiumRequiredOpen(false)}>
-              Fermer
             </Button>
           </DialogFooter>
         </DialogContent>

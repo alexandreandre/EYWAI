@@ -16,6 +16,7 @@ import apiClient from '@/api/apiClient';
 import * as saisiesApi from '@/api/saisies';
 
 import { log } from '@/lib/logger';
+import { ParticipationCampaignPanel } from '@/components/saisies/ParticipationCampaignPanel';
 import { downloadBlob } from '@/lib/downloadBlob';
 
 const MONTH_OPTIONS = [
@@ -1022,6 +1023,15 @@ export function ParticipationInteressementTab() {
           )}
         </CardContent>
       </Card>
+
+      {results.length > 0 && (
+        <ParticipationCampaignPanel
+          year={year}
+          results={results}
+          defaultPayrollYear={validateYear}
+          defaultPayrollMonth={validateMonth}
+        />
+      )}
 
       {/* Actions en bas de page */}
       <div className="flex flex-col gap-2 pt-4 sm:flex-row sm:justify-end">

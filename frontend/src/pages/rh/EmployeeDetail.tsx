@@ -3,7 +3,7 @@
 import { log } from '@/lib/logger';
 import { lazy, Suspense, useCallback, useState, useEffect, useRef, useMemo } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { updateEmployee } from "@/api/employees";
+import { deleteEmployee, updateEmployee } from "@/api/employees";
 import apiClient from "@/api/apiClient";
 import { EmployeeOnboardingCompletion } from "@/features/employee-detail/components/EmployeeOnboardingCompletion";
 import { EmployeeProfileEditDialog } from "@/features/employee-detail/components/EmployeeProfileEditDialog";
@@ -106,6 +106,7 @@ export default function EmployeeDetail() {
     return normalizeEmployeeDetailTab(params.get("tab"));
   });
   const [profileEditOpen, setProfileEditOpen] = useState(false);
+  const [isDeletingEmployee, setIsDeletingEmployee] = useState(false);
 
   const {
     selectedDate,
@@ -368,29 +369,44 @@ export default function EmployeeDetail() {
 
   const handleDeleteEmployee = async () => {
     if (!employeeId) return;
+    setIsDeletingEmployee(true);
     try {
-      await apiClient.delete(`/api/employees/${employeeId}`);
+      await deleteEmployee(employeeId);
       toast({
         title: "Collaborateur supprimé",
-        description: "Le collaborateur et son compte utilisateur ont été supprimés avec succès.",
+        description: "Le collaborateur et toutes ses données associées ont été supprimés.",
       });
       navigate("/employees");
     } catch (error: unknown) {
       if (import.meta.env.DEV) {
         log.error("Erreur lors de la suppression du collaborateur", error);
       }
-      const errorMessage =
+      const status =
+        error && typeof error === "object" && "response" in error
+          ? (error as { response?: { status?: number; data?: { detail?: string } } }).response
+              ?.status
+          : undefined;
+      const serverDetail =
         error && typeof error === "object" && "response" in error
           ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
           : undefined;
+      const description =
+        typeof serverDetail === "string" && serverDetail && !serverDetail.includes("{")
+          ? serverDetail
+          : status === 409
+            ? "Des données liées empêchent encore la suppression. Contactez le support si le problème persiste."
+            : status === 404
+              ? "Collaborateur introuvable."
+              : status === 403
+                ? "Vous n'avez pas les droits pour supprimer ce collaborateur."
+                : "La suppression a échoué. Réessayez ou contactez le support.";
       toast({
         title: "Erreur de suppression",
-        description:
-          typeof errorMessage === "string" && errorMessage
-            ? errorMessage
-            : "Une erreur est survenue.",
+        description,
         variant: "destructive",
       });
+    } finally {
+      setIsDeletingEmployee(false);
     }
   };
 
@@ -475,6 +491,7 @@ export default function EmployeeDetail() {
         employee={employee}
         credentialsPdfUrl={credentialsPdfUrl}
         onDelete={handleDeleteEmployee}
+        isDeleting={isDeletingEmployee}
         onEditProfile={() => setProfileEditOpen(true)}
         activeTeams={activeTeamsSorted}
         teamsLoading={teamsActiveQuery.isLoading}

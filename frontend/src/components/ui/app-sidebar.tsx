@@ -35,6 +35,7 @@ import {
   GraduationCap,
   BarChart2,
   ScanLine,
+  Clock,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext"; // <-- IMPORTATION
 import { isPlatformAdmin } from "@/lib/platformAdmin";
@@ -202,6 +203,9 @@ const RH_PAIE_GROUPS: SidebarLinkGroup[] = [
         icon: Calendar,
       },
       { title: "Congés & Absences", url: "/leaves", icon: Plane },
+      { title: "Suivi IJSS / CPAM", url: "/suivi-ijss", icon: FileCheck },
+      { title: "Contingent HS", url: "/suivi-contingent-hs", icon: Clock },
+      { title: "Modulation", url: "/suivi-modulation", icon: Clock },
       { title: "Notes de frais", url: "/expenses", icon: Notebook },
       { title: "Primes", url: "/saisies", icon: ClipboardEdit },
       { title: "Saisies sur salaire", url: "/salary-seizures", icon: Scale },

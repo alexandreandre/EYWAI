@@ -2,7 +2,7 @@ import { RhPageHeader } from '@/components/layout';
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Download, RefreshCw, Trash2, UserX, Users } from "lucide-react";
+import { AlertTriangle, Download, RefreshCw, Trash2, UserX, Users, CalendarSync } from "lucide-react";
 import { useCompany } from "@/contexts/CompanyContext";
 import {
   getCompanyBadgeuseSummary,
@@ -15,6 +15,7 @@ import {
   updateBadgeuseSettings,
   DaySummary,
 } from "@/api/badgeuse";
+import { importActualHoursFromBadgeuse } from "@/api/calendar";
 import { formatSecondsToHoursMinutes, formatTimeFr, eventTypeLabel, sourceLabel } from "@/lib/badgeuseFormat";
 import { apiErrorDetail, isBadgeuseSchemaMissing, BADGEUSE_MIGRATION_FILE } from "@/lib/badgeuseApiUtils";
 import { EmployeeBadgeuseDayDetail } from "@/components/badgeuse/rh/EmployeeBadgeuseDayDetail";
@@ -28,6 +29,7 @@ import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { toast } from "sonner";
 import { QrScannerPanel } from "@/components/badgeuse/rh/QrScannerPanel";
 import { BadgeuseFallbackPanel } from "@/components/badgeuse/rh/BadgeuseFallbackPanel";
 import { BadgeuseTerminalDevicesPanel } from "@/components/badgeuse/rh/BadgeuseTerminalDevicesPanel";
@@ -72,6 +74,7 @@ export default function BadgeuseRhPage() {
   );
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [validatingWeek, setValidatingWeek] = useState(false);
+  const [importingCalendar, setImportingCalendar] = useState(false);
   const [activeTab, setActiveTab] = useState(() => {
     const tab = searchParams.get("tab");
     if (tab === "corrections" || tab === "settings") return tab;
@@ -201,8 +204,36 @@ export default function BadgeuseRhPage() {
   }
 
   const totalTeamSeconds =
+    data?.reduce((acc, row) => acc + row.total_effective_seconds, 0) ?? 0;
+  const totalTeamBrutSeconds =
     data?.reduce((acc, row) => acc + row.total_seconds, 0) ?? 0;
   const anomalyEmployees = data?.filter((r) => r.days_with_anomalies > 0).length ?? 0;
+
+  const importPeriodMonth = () => {
+    const ref = to || from;
+    const d = new Date(ref);
+    return { year: d.getFullYear(), month: d.getMonth() + 1 };
+  };
+
+  const applyToCalendar = async () => {
+    if (!selectedEmployeeId || !companyId) return;
+    const { year, month } = importPeriodMonth();
+    setImportingCalendar(true);
+    try {
+      const res = await importActualHoursFromBadgeuse(selectedEmployeeId, year, month);
+      const payload = res.data;
+      toast.success(
+        `${payload.days_updated} jour(s) importé(s) vers le calendrier paie (${month}/${year}).`
+      );
+      if (payload.warnings?.length) {
+        payload.warnings.forEach((w) => toast.message(w));
+      }
+    } catch (err) {
+      toast.error(apiErrorDetail(err, "Impossible d'appliquer au calendrier."));
+    } finally {
+      setImportingCalendar(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -299,7 +330,9 @@ export default function BadgeuseRhPage() {
                   <Download className="h-5 w-5 text-muted-foreground" />
                   <div>
                     <p className="text-2xl font-bold tabular-nums">{secondsToHoursLabel(totalTeamSeconds)}</p>
-                    <p className="text-xs text-muted-foreground">Heures période</p>
+                    <p className="text-xs text-muted-foreground">
+                      Heures comptabilisées (brut {secondsToHoursLabel(totalTeamBrutSeconds)})
+                    </p>
                   </div>
                 </div>
               </div>
@@ -436,21 +469,22 @@ export default function BadgeuseRhPage() {
             <thead className="bg-muted/50">
               <tr>
                 <th className="px-4 py-2 text-left">Employé</th>
-                <th className="px-4 py-2 text-left">Total heures</th>
+                <th className="px-4 py-2 text-left">Brut</th>
+                <th className="px-4 py-2 text-left">Comptabilisé</th>
                 <th className="px-4 py-2 text-left">Statut</th>
               </tr>
             </thead>
             <tbody>
               {isLoading && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-3">
+                  <td colSpan={4} className="px-4 py-3">
                     Chargement...
                   </td>
                 </tr>
               )}
               {isError && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-6">
+                  <td colSpan={4} className="px-4 py-6">
                     <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-center">
                       <p className="text-sm text-destructive">{summaryErrorMessage}</p>
                       <Button
@@ -469,7 +503,7 @@ export default function BadgeuseRhPage() {
               )}
               {!isLoading && !isError && data && data.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-3 text-muted-foreground">
+                  <td colSpan={4} className="px-4 py-3 text-muted-foreground">
                     Aucune donnée de badgeuse pour cette période.
                   </td>
                 </tr>
@@ -487,6 +521,9 @@ export default function BadgeuseRhPage() {
                     </td>
                     <td className="px-4 py-2">
                       {secondsToHoursLabel(row.total_seconds)}
+                    </td>
+                    <td className="px-4 py-2">
+                      {secondsToHoursLabel(row.total_effective_seconds)}
                     </td>
                     <td className="px-4 py-2">
                       {row.days_with_anomalies > 0 ? (
@@ -519,19 +556,20 @@ export default function BadgeuseRhPage() {
             <thead className="bg-muted/50">
               <tr>
                 <th className="px-4 py-2 text-left">Employé</th>
-                <th className="px-4 py-2 text-left">Total heures</th>
+                <th className="px-4 py-2 text-left">Brut</th>
+                <th className="px-4 py-2 text-left">Comptabilisé</th>
                 <th className="px-4 py-2 text-left">Statut</th>
               </tr>
             </thead>
             <tbody>
               {isLoading && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-3">Chargement...</td>
+                  <td colSpan={4} className="px-4 py-3">Chargement...</td>
                 </tr>
               )}
               {isError && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-6">
+                  <td colSpan={4} className="px-4 py-6">
                     <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-center">
                       <p className="text-sm text-destructive">{summaryErrorMessage}</p>
                       <Button
@@ -550,7 +588,7 @@ export default function BadgeuseRhPage() {
               )}
               {!isLoading && !isError && data && data.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-3 text-muted-foreground">
+                  <td colSpan={4} className="px-4 py-3 text-muted-foreground">
                     Aucune donnée de badgeuse pour cette période.
                   </td>
                 </tr>
@@ -570,6 +608,9 @@ export default function BadgeuseRhPage() {
                   >
                     <td className="px-4 py-2">{row.employee_name ?? row.employee_id}</td>
                     <td className="px-4 py-2">{secondsToHoursLabel(row.total_seconds)}</td>
+                    <td className="px-4 py-2">
+                      {secondsToHoursLabel(row.total_effective_seconds)}
+                    </td>
                     <td className="px-4 py-2">
                       {row.days_with_anomalies > 0 ? "Anomalies" : "RAS"}
                     </td>
@@ -599,18 +640,29 @@ export default function BadgeuseRhPage() {
             )}
             {selectedEmployeeId && employeeDays && employeeDays.length > 0 && (
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-sm text-muted-foreground">
                     Journées sur la période sélectionnée
                   </span>
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    onClick={validateWeek}
-                    disabled={validatingWeek}
-                  >
-                    {validatingWeek ? "Validation en cours..." : "Valider la semaine"}
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="xs"
+                      variant="secondary"
+                      onClick={() => void applyToCalendar()}
+                      disabled={importingCalendar}
+                    >
+                      <CalendarSync className="mr-1 h-3.5 w-3.5" />
+                      {importingCalendar ? "Import…" : "Appliquer au calendrier"}
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={validateWeek}
+                      disabled={validatingWeek}
+                    >
+                      {validatingWeek ? "Validation en cours..." : "Valider la semaine"}
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {employeeDays.map((day) => (
@@ -629,7 +681,11 @@ export default function BadgeuseRhPage() {
                         {day.validated && " (validé)"}
                       </span>
                       <span className="text-xs">
-                        {secondsToHoursLabel(day.total_seconds)} •{" "}
+                        {secondsToHoursLabel(day.computed_seconds ?? day.total_seconds)}
+                        {day.has_override &&
+                          day.effective_seconds !== (day.computed_seconds ?? day.total_seconds) &&
+                          ` → ${secondsToHoursLabel(day.effective_seconds)}`}
+                        {" • "}
                         {day.has_anomalies ? "Anomalies" : "OK"}
                       </span>
                     </button>

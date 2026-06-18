@@ -60,7 +60,7 @@ export type UpdateEmployeePayload = {
       is_personnalise?: boolean;
       taux?: number;
     };
-    transport?: { abonnement_mensuel_total?: number };
+    transport?: { abonnement_mensuel_total?: number; indemnite_mensuelle_nette?: number };
     titres_restaurant?: { beneficie?: boolean; nombre_par_mois?: number };
     mutuelle?: {
       adhesion?: boolean;
@@ -74,6 +74,28 @@ export type UpdateEmployeePayload = {
     [key: string]: unknown;
   };
 };
+
+export type EmployeeDeletionImpact = {
+  employee_id: string;
+  employee_name: string;
+  counts: Record<string, number>;
+  summary_lines: string[];
+  has_user_account: boolean;
+  has_data: boolean;
+};
+
+export async function getEmployeeDeletionImpact(
+  employeeId: string,
+): Promise<EmployeeDeletionImpact> {
+  const { data } = await apiClient.get<EmployeeDeletionImpact>(
+    `/api/employees/${employeeId}/deletion-impact`,
+  );
+  return data;
+}
+
+export async function deleteEmployee(employeeId: string): Promise<void> {
+  await apiClient.delete(`/api/employees/${employeeId}`);
+}
 
 export async function getEmployee(employeeId: string): Promise<Employee> {
   const { data } = await apiClient.get<Employee>(`/api/employees/${employeeId}`);

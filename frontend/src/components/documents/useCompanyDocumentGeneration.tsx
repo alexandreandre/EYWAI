@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -38,25 +39,12 @@ import {
 import type { EmployeeDocumentGenerationHandlers } from '@/components/employee-detail/EmployeeDetailDocumentsRhSection';
 import { Loader2 } from 'lucide-react';
 
-const CONTRACT_TYPES = ['cdi', 'cdd', 'convention_stage', 'contrat_alternance'] as const;
-const AVENANT_TYPES = [
-  'avenant_salaire',
-  'avenant_poste',
-  'avenant_temps',
-  'avenant_lieu',
-  'avenant_general',
-] as const;
-const ATTESTATION_COURANTE_TYPES = [
-  'attestation_emploi',
-  'attestation_presence',
-  'attestation_anciennete',
-  'attestation_poste',
-  'attestation_salaire',
-  'attestation_revenus',
-  'attestation_location',
-  'attestation_pret',
-  'attestation_retraite',
-] as const;
+import {
+  CONTRACT_TYPES,
+  AVENANT_TYPES,
+  ATTESTATION_COURANTE_TYPES,
+  type DocumentGenMode,
+} from '@/lib/documentGenerationConfig';
 
 interface SimpleEmployee {
   id: string;
@@ -66,7 +54,7 @@ interface SimpleEmployee {
   exit_last_working_day?: string | null;
 }
 
-type GenMode = 'contrat' | 'avenant' | 'attestation' | null;
+type GenMode = DocumentGenMode;
 
 export function useCompanyDocumentGeneration() {
   const queryClient = useQueryClient();
@@ -78,6 +66,8 @@ export function useCompanyDocumentGeneration() {
   const [genTemplate, setGenTemplate] = useState('__eywai__');
   const [genDateEffet, setGenDateEffet] = useState('');
   const [genMotif, setGenMotif] = useState('');
+  const [genMissions, setGenMissions] = useState('');
+  const [genManager, setGenManager] = useState('');
   const [eywaiBanner, setEywaiBanner] = useState(false);
   const [loadingAction, setLoadingAction] = useState<{
     id: string;
@@ -110,6 +100,27 @@ export function useCompanyDocumentGeneration() {
   const displayName = selectedEmployee
     ? `${selectedEmployee.last_name} ${selectedEmployee.first_name}`.trim()
     : '';
+
+  const { data: allTemplates = [] } = useQuery({
+    queryKey: ['document-library', 'templates', 'active', 'company-gen'],
+    queryFn: () => getTemplates('active'),
+  });
+
+  const hasFichePosteTemplate = useMemo(
+    () =>
+      allTemplates.some(
+        (t) =>
+          t.document_type === 'fiche_poste' &&
+          t.status === 'active' &&
+          t.current_version != null
+      ),
+    [allTemplates]
+  );
+
+  const fichePosteTemplates = useMemo(
+    () => allTemplates.filter((t) => t.document_type === 'fiche_poste' && t.status === 'active'),
+    [allTemplates]
+  );
 
   const docTypeForTemplates = genDocType || '';
   const { data: templates = [] } = useQuery({
@@ -200,13 +211,37 @@ export function useCompanyDocumentGeneration() {
     },
   });
 
-  const openGen = (mode: GenMode) => {
+  const openGen = (mode: Exclude<GenMode, null>) => {
     setGenMode(mode);
-    setGenDocType('');
-    setGenTemplate('__eywai__');
+    if (mode === 'fiche_poste') {
+      setGenDocType('fiche_poste');
+      setGenTemplate(fichePosteTemplates[0]?.id ?? '');
+    } else {
+      setGenDocType('');
+      setGenTemplate('__eywai__');
+    }
     setGenDateEffet('');
     setGenMotif('');
+    setGenMissions('');
+    setGenManager('');
     setEywaiBanner(false);
+  };
+
+  const submitFichePoste = () => {
+    if (!genEmployeeId || !genTemplate) {
+      toast({ title: 'Champs requis', variant: 'destructive' });
+      return;
+    }
+    const custom_fields: Record<string, string> = {};
+    if (genMissions.trim()) custom_fields.missions = genMissions.trim();
+    if (genManager.trim()) custom_fields.manager = genManager.trim();
+    genMut.mutate({
+      employee_id: genEmployeeId,
+      document_type: 'fiche_poste',
+      category: 'attestation_courante',
+      template_id: genTemplate,
+      custom_fields: Object.keys(custom_fields).length ? custom_fields : null,
+    });
   };
 
   const submitGen = () => {
@@ -242,6 +277,8 @@ export function useCompanyDocumentGeneration() {
     openContrat: () => openGen('contrat'),
     openAvenant: () => openGen('avenant'),
     openAttestation: () => openGen('attestation'),
+    openFichePoste: () => openGen('fiche_poste'),
+    hasFichePosteTemplate,
     handleView: async (id: string) => {
       setLoadingAction({ id, kind: 'view' });
       try {
@@ -481,6 +518,59 @@ export function useCompanyDocumentGeneration() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={genMode === 'fiche_poste'} onOpenChange={(o) => !o && setGenMode(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Générer une fiche de poste</DialogTitle>
+            <DialogDescription>
+              {displayName || 'Sélectionnez un collaborateur ci-dessous.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            {employeeSelect}
+            <div className="space-y-2">
+              <Label>Modèle</Label>
+              <Select value={genTemplate || undefined} onValueChange={setGenTemplate}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choisir un modèle…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {fichePosteTemplates.map((tpl) => (
+                    <SelectItem key={tpl.id} value={tpl.id}>
+                      {tpl.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Missions (optionnel)</Label>
+              <Textarea
+                value={genMissions}
+                onChange={(e) => setGenMissions(e.target.value)}
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Manager (optionnel)</Label>
+              <Input value={genManager} onChange={(e) => setGenManager(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGenMode(null)}>
+              Annuler
+            </Button>
+            <Button
+              onClick={submitFichePoste}
+              disabled={!genEmployeeId || !genTemplate || genMut.isPending}
+            >
+              {genMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Générer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 
@@ -488,6 +578,6 @@ export function useCompanyDocumentGeneration() {
     handlers,
     dialogs,
     eywaiBanner,
-    onManageTemplates: () => navigate('/company#bibliotheque'),
+    onManageTemplates: () => navigate('/company?tab=modeles'),
   };
 }

@@ -64,3 +64,26 @@ describe('employeeProfileFormUtils JEI', () => {
     expect(payload.specificites_paie?.personnel_rd_eligible_jei).toBe(true);
   });
 });
+
+describe('employeeProfileFormUtils transport', () => {
+  it('round-trip indemnite_mensuelle_nette', () => {
+    const employee: Employee = {
+      ...baseEmployee,
+      specificites_paie: {
+        ...baseEmployee.specificites_paie,
+        transport: {
+          abonnement_mensuel_total: 80,
+          indemnite_mensuelle_nette: 120,
+        },
+      },
+    };
+    const values = buildDefaultValues(employee);
+    expect(values.specificites_paie.transport.indemnite_mensuelle_nette).toBe(120);
+
+    const payload = buildUpdatePayload(values, employee);
+    expect(payload.specificites_paie?.transport).toEqual({
+      abonnement_mensuel_total: 80,
+      indemnite_mensuelle_nette: 120,
+    });
+  });
+});

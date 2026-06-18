@@ -13,6 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Calendar, Plus, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import type { MaintenancePreview } from '@/api/absences';
 import {
@@ -386,6 +387,11 @@ export default function CongesAbsencesSection({
                 onClick={() => onOpenMaintienModal()}
               >
                 Voir détail calcul maintien
+              </Button>
+            ) : null}
+            {subrogationActive && ijssSub !== 0 ? (
+              <Button variant="link" size="sm" className="px-0 h-auto" asChild>
+                <Link to="/suivi-ijss">IJSS théoriques — voir suivi CPAM</Link>
               </Button>
             ) : null}
           </div>

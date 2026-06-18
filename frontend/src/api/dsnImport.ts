@@ -1,11 +1,63 @@
 import apiClient from './apiClient';
 
-export type DsnImportAnomaly = {
-  type: string;
+export type WorkforceGap = {
+  gap_id: string;
+  employee_id: string;
+  employee_name: string;
+  nir_masked: string;
+  gap_type: 'missing_from_dsn' | 'contract_end_in_dsn';
+  suggested_last_working_day?: string | null;
+  contract_end_date?: string | null;
+  resolution?: WorkforceResolution | null;
+};
+
+export type WorkforceReconciliationSummary = {
+  enabled: boolean;
+  company_id?: string | null;
+  period?: string | null;
+  gaps: WorkforceGap[];
+  unresolved_count: number;
+  resolved_count: number;
+  active_without_nir_count?: number;
+  dsn_employee_count?: number;
+  active_db_count?: number;
+  resolutions?: Record<string, WorkforceResolution>;
+};
+
+export type WorkforceResolution = {
+  gap_id: string;
+  employee_id: string;
+  action: 'open_exit' | 'close_departure' | 'ignore';
+  exit_type?: string | null;
+  last_working_day?: string | null;
+  exit_reason?: string | null;
+  ignore_reason?: string | null;
+};
+
+export type WorkforceReconciliationReport = {
+  closed: Array<{ gap_id: string; employee_id: string; exit_id?: string }>;
+  ignored: Array<{ gap_id: string; employee_id: string; ignore_reason?: string | null }>;
+  open_exit_deferred: Array<{
+    gap_id: string;
+    employee_id: string;
+    exit_type?: string;
+    last_working_day?: string;
+  }>;
+  failed?: Array<{ gap_id: string; employee_id: string; error: string }>;
+};
+
+export type DsnImportIssue = {
+  code: string;
   message: string;
+  hint?: string | null;
   severity: string;
   source_ref?: string | null;
+  item_label?: string | null;
   meta?: Record<string, unknown>;
+};
+
+export type DsnImportAnomaly = DsnImportIssue & {
+  type: string;
 };
 
 export type DsnImportItemPreview = {
@@ -22,6 +74,8 @@ export type DsnImportItemPreview = {
   is_scaffold?: boolean | null;
   is_existing?: boolean | null;
   existing_employee_id?: string | null;
+  existing_company_id?: string | null;
+  existing_company_name?: string | null;
 };
 
 export type DsnImportCompany = {
@@ -82,12 +136,16 @@ export type ImportedEmployeeSummary = {
   employment_status?: string | null;
 };
 
+export type DsnImportCommitError = DsnImportIssue;
+
 export type DsnImportCommitResponse = {
   stats: Record<string, number>;
-  errors: string[];
+  errors: DsnImportCommitError[];
+  error_messages?: string[];
   group_id?: string | null;
   companies: Record<string, string>;
   imported_employees: ImportedEmployeeSummary[];
+  workforce_reconciliation?: WorkforceReconciliationReport;
 };
 
 export type DsnImportCommitStartResponse = {
@@ -264,7 +322,11 @@ export async function commitDsnImportBatch(
   overrides: Record<string, string> = {},
   payloadEdits: Record<string, Record<string, unknown>> = {},
   targetCompanyId: string | null = null,
-  options?: { importMode?: DsnImportMode | null; replaceExistingPeriods?: boolean },
+  options?: {
+    importMode?: DsnImportMode | null;
+    replaceExistingPeriods?: boolean;
+    workforceResolutions?: WorkforceResolution[];
+  },
 ): Promise<DsnImportCommitStartResponse> {
   const { data } = await apiClient.post<DsnImportCommitStartResponse>(
     `/api/dsn-import/batches/${batchId}/commit`,
@@ -274,8 +336,22 @@ export async function commitDsnImportBatch(
       target_company_id: targetCompanyId,
       import_mode: options?.importMode ?? null,
       replace_existing_periods: options?.replaceExistingPeriods ?? false,
+      workforce_resolutions: options?.workforceResolutions ?? [],
     },
   );
+  return data;
+}
+
+export async function saveDsnWorkforceResolutions(
+  batchId: string,
+  resolutions: WorkforceResolution[],
+): Promise<{ summary: Record<string, unknown>; workforce_reconciliation: WorkforceReconciliationSummary }> {
+  const { data } = await apiClient.patch<{
+    summary: Record<string, unknown>;
+    workforce_reconciliation: WorkforceReconciliationSummary;
+  }>(`/api/dsn-import/batches/${batchId}/workforce-resolutions`, {
+    resolutions,
+  });
   return data;
 }
 
@@ -311,7 +387,8 @@ export async function activateImportedEmployee(
 }
 
 export const DSN_IMPORT_REVIEW_REASON_LABELS: Record<string, string> = {
-  brut_absent: 'Brut absent',
+  brut_absent: 'Brut non extrait de la DSN',
+  nir_incomplet: 'NIR absent (NTT ou matricule utilisé)',
   identifiant_absent: 'NIR / matricule absent',
 };
 

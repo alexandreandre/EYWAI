@@ -16,6 +16,17 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { mutuelleTypesApi, MutuelleType, MutuelleTypeCreate } from "@/api/mutuelleTypes";
+import {
+  PACK_COUVERTURE_LABELS,
+  STATUT_CATEGORIEL_LABELS,
+} from "@/lib/mutuelleUtils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface SimpleEmployee {
   id: string;
@@ -38,6 +49,8 @@ export default function MutuelleManagementTab() {
     montant_patronal: 0,
     part_patronale_soumise_a_csg: true,
     is_active: true,
+    pack_couverture: null,
+    statut_categoriel: 'tous',
     employee_ids: [],
   });
   const [employees, setEmployees] = useState<SimpleEmployee[]>([]);
@@ -85,7 +98,9 @@ export default function MutuelleManagementTab() {
         montant_salarial: mutuelle.montant_salarial,
         montant_patronal: mutuelle.montant_patronal,
         part_patronale_soumise_a_csg: mutuelle.part_patronale_soumise_a_csg,
-        is_active: true, // Non utilisé dans le formulaire, mais gardé pour la structure
+        is_active: true,
+        pack_couverture: mutuelle.pack_couverture ?? null,
+        statut_categoriel: mutuelle.statut_categoriel ?? 'tous',
         employee_ids: mutuelle.employee_ids || [],
       });
     } else {
@@ -95,7 +110,9 @@ export default function MutuelleManagementTab() {
         montant_salarial: 0,
         montant_patronal: 0,
         part_patronale_soumise_a_csg: true,
-        is_active: true, // Toujours true par défaut lors de la création
+        is_active: true,
+        pack_couverture: null,
+        statut_categoriel: 'tous',
         employee_ids: [],
       });
     }
@@ -254,6 +271,8 @@ export default function MutuelleManagementTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>Libellé</TableHead>
+                <TableHead>Pack</TableHead>
+                <TableHead>Catégorie</TableHead>
                 <TableHead>Montant Salarial (€)</TableHead>
                 <TableHead>Montant Patronal (€)</TableHead>
                 <TableHead>Part Patronale CSG</TableHead>
@@ -265,6 +284,14 @@ export default function MutuelleManagementTab() {
               {mutuelles.map((mutuelle) => (
                 <TableRow key={mutuelle.id}>
                   <TableCell className="font-medium">{mutuelle.libelle}</TableCell>
+                  <TableCell>
+                    {mutuelle.pack_couverture
+                      ? PACK_COUVERTURE_LABELS[mutuelle.pack_couverture] ?? mutuelle.pack_couverture
+                      : '—'}
+                  </TableCell>
+                  <TableCell>
+                    {STATUT_CATEGORIEL_LABELS[mutuelle.statut_categoriel ?? 'tous']}
+                  </TableCell>
                   <TableCell>{mutuelle.montant_salarial.toFixed(2)}</TableCell>
                   <TableCell>{mutuelle.montant_patronal.toFixed(2)}</TableCell>
                   <TableCell>
@@ -345,6 +372,47 @@ export default function MutuelleManagementTab() {
                 onChange={(e) => setFormData({ ...formData, libelle: e.target.value })}
                 placeholder="Ex: Mutuelle Collaborateur Seul"
               />
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <Label>Pack de couverture</Label>
+                <Select
+                  value={formData.pack_couverture ?? '__none__'}
+                  onValueChange={(v) =>
+                    setFormData({
+                      ...formData,
+                      pack_couverture: v === '__none__' ? null : (v as MutuelleTypeCreate['pack_couverture']),
+                    })
+                  }
+                >
+                  <SelectTrigger><SelectValue placeholder="Non précisé" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Non précisé</SelectItem>
+                    {Object.entries(PACK_COUVERTURE_LABELS).map(([k, label]) => (
+                      <SelectItem key={k} value={k}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Catégorie salariale</Label>
+                <Select
+                  value={formData.statut_categoriel ?? 'tous'}
+                  onValueChange={(v) =>
+                    setFormData({
+                      ...formData,
+                      statut_categoriel: v as MutuelleTypeCreate['statut_categoriel'],
+                    })
+                  }
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(STATUT_CATEGORIEL_LABELS).map(([k, label]) => (
+                      <SelectItem key={k} value={k}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>

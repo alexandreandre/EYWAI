@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, PlusCircle, Trash2 } from "lucide-react";
+import { Loader2, PlusCircle, Sparkles, Trash2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -17,6 +17,7 @@ import {
 import { log } from '@/lib/logger';
 import { SaisieModal } from "@/components/SaisieModal";
 import * as saisiesApi from '@/api/saisies';
+import { generatePayrollVariables } from '@/api/payrollVariables';
 import apiClient from '@/api/apiClient';
 
 // --- Types & Interfaces ---
@@ -37,6 +38,7 @@ export function PrimesTab({ selectedYear, selectedMonth, onYearChange, onMonthCh
   const [monthlyInputs, setMonthlyInputs] = useState<MonthlyInput[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Helper pour générer les listes des sélecteurs
   const yearOptions = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
@@ -102,6 +104,27 @@ export function PrimesTab({ selectedYear, selectedMonth, onYearChange, onMonthCh
     }
   };
 
+  const handleGenerateVariables = async () => {
+    setIsGenerating(true);
+    try {
+      const result = await generatePayrollVariables(selectedYear, selectedMonth, false);
+      toast({
+        title: "Variables générées",
+        description: `${result.written_count} saisie(s) créée(s) pour ${monthOptions[selectedMonth - 1]?.label} ${selectedYear}.`,
+      });
+      fetchData();
+    } catch (error) {
+      log.error(error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de générer les variables du mois.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Sélecteurs de date */}
@@ -145,9 +168,24 @@ export function PrimesTab({ selectedYear, selectedMonth, onYearChange, onMonthCh
           </div>
         </div>
         
-        <Button onClick={() => setModalOpen(true)} className="w-full md:w-auto">
-          <PlusCircle className="mr-2 h-4 w-4" /> Nouvelle saisie
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+          <Button
+            variant="outline"
+            onClick={handleGenerateVariables}
+            disabled={isGenerating}
+            className="w-full md:w-auto"
+          >
+            {isGenerating ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="mr-2 h-4 w-4" />
+            )}
+            Préparer variables du mois
+          </Button>
+          <Button onClick={() => setModalOpen(true)} className="w-full md:w-auto">
+            <PlusCircle className="mr-2 h-4 w-4" /> Nouvelle saisie
+          </Button>
+        </div>
       </div>
 
       <Card>

@@ -37,6 +37,7 @@ export interface PayslipSyntheseNet {
     montant?: number | null;
   } | null;
   remboursement_transport?: number | null;
+  indemnite_transport_fixe?: number | null;
   acompte_verse?: number | null;
   ijss_subrogees?: number;
   maintien_employeur?: number;

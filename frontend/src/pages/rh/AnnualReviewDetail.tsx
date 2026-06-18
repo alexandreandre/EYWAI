@@ -47,6 +47,7 @@ import {
   updateAnnualReview,
   markAsCompleted,
   downloadAnnualReviewPdf,
+  downloadConvocationPdf,
   sendForSignature,
   INTERVIEW_TYPE_LABELS,
   type InterviewType,
@@ -65,10 +66,15 @@ import {
 } from "@/components/ui/select";
 import apiClient from "@/api/apiClient";
 import {
+  canAccessConvocation,
   formatAnnualReviewDate,
   employeeAcceptanceShortLabel,
   getReviewDateDisplay,
 } from "@/lib/annualReviewLabels";
+import {
+  downloadConvocationPdfFile,
+  previewConvocationPdf,
+} from "@/lib/annualReviewPdf";
 import { annualReviewFormCompletionPercent } from "@/lib/annualReviewFormUtils";
 import {
   Loader2,
@@ -379,6 +385,45 @@ export default function AnnualReviewDetail() {
     }
   };
 
+  const handleViewConvocation = async () => {
+    if (!reviewId) return;
+    try {
+      const blob = await downloadConvocationPdf(reviewId);
+      previewConvocationPdf(blob, reviewId);
+    } catch (error: unknown) {
+      const detail =
+        error &&
+        typeof error === "object" &&
+        "response" in error &&
+        (error as { response?: { data?: { detail?: string } } }).response?.data?.detail;
+      toast({
+        title: "Erreur",
+        description: detail || "Impossible d'ouvrir la convocation.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDownloadConvocation = async () => {
+    if (!reviewId) return;
+    try {
+      const blob = await downloadConvocationPdf(reviewId);
+      downloadConvocationPdfFile(blob, reviewId);
+      toast({ title: "Convocation téléchargée" });
+    } catch (error: unknown) {
+      const detail =
+        error &&
+        typeof error === "object" &&
+        "response" in error &&
+        (error as { response?: { data?: { detail?: string } } }).response?.data?.detail;
+      toast({
+        title: "Erreur",
+        description: detail || "Impossible de télécharger la convocation.",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (isLoading) {
     return <SharkFinLoader variant="fullPage" label="Chargement de l'entretien…" />;
   }
@@ -446,6 +491,7 @@ export default function AnnualReviewDetail() {
     review.status === "en_attente_acceptation" ||
     review.status === "accepte";
   const canDownloadPdf = review.status === "cloture";
+  const canDownloadConvocation = canAccessConvocation(review.status);
   const sigStatus = review.signature_status;
   const canSendForSignature =
     review.status === "cloture" &&
@@ -557,6 +603,12 @@ export default function AnnualReviewDetail() {
               Envoyer pour signature
             </Button>
           )}
+          {canDownloadConvocation && (
+            <Button variant="outline" onClick={handleViewConvocation}>
+              <FileText className="mr-2 h-4 w-4" />
+              Convocation
+            </Button>
+          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -573,6 +625,19 @@ export default function AnnualReviewDetail() {
                 <TrendingUp className="mr-2 h-4 w-4" />
                 Créer une promotion
               </DropdownMenuItem>
+              {canDownloadConvocation && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleViewConvocation}>
+                    <Eye className="mr-2 h-4 w-4" />
+                    Voir la convocation
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleDownloadConvocation}>
+                    <FileDown className="mr-2 h-4 w-4" />
+                    Télécharger la convocation
+                  </DropdownMenuItem>
+                </>
+              )}
               {canDownloadPdf && (
                 <>
                   <DropdownMenuSeparator />

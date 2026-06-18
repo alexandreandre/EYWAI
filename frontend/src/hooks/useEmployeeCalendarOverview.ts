@@ -11,6 +11,7 @@ import {
   type DayPatch,
 } from '@/lib/schedulesOverview';
 import { invalidateRhSidebarBadges } from '@/lib/invalidateRhSidebarBadges';
+import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
 
 export function useEmployeeCalendarOverview(
   employees: SchedulesEmployeeInput[],
@@ -18,6 +19,7 @@ export function useEmployeeCalendarOverview(
   month: number
 ) {
   const queryClient = useQueryClient();
+  const { observedHolidayIds } = useObservedPublicHolidays();
   const [rows, setRows] = useState<EmployeeCalendarOverviewRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadErrors, setLoadErrors] = useState(0);
@@ -31,13 +33,19 @@ export function useEmployeeCalendarOverview(
     }
     setIsLoading(true);
     try {
-      const result = await fetchAllEmployeesOverview(employees, year, month);
+      const result = await fetchAllEmployeesOverview(
+        employees,
+        year,
+        month,
+        5,
+        observedHolidayIds
+      );
       setRows(result);
       setLoadErrors(result.filter((r) => r.loadError).length);
     } finally {
       setIsLoading(false);
     }
-  }, [employees, year, month]);
+  }, [employees, year, month, observedHolidayIds]);
 
   useEffect(() => {
     void load();

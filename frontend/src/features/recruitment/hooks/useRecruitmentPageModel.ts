@@ -99,6 +99,7 @@ export function useRecruitmentPageModel() {
   } | null>(null);
   const [hireSuccessInfo, setHireSuccessInfo] = useState<{
     employeeId: string;
+    jobId?: string;
     username?: string;
     email?: string;
     generatedPassword?: string;
@@ -393,12 +394,16 @@ export function useRecruitmentPageModel() {
       }
       queryClient.invalidateQueries({ queryKey: ["recruitment"] });
       setShowHireModal(false);
+      const hiredCandidate = hireCandidateId
+        ? candidates.find((c) => c.id === hireCandidateId)
+        : undefined;
       setHireCandidateId(null);
       setHireData(createInitialHireData());
       toast({ title: "Embauche finalisée", description: res.message });
       if (res.employee_id) {
         setHireSuccessInfo({
           employeeId: res.employee_id,
+          jobId: hiredCandidate?.job_id,
           username: res.username,
           email: res.email,
           generatedPassword: res.generated_password,

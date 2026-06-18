@@ -6,11 +6,12 @@ import {
   Download,
   LayoutTemplate,
   Loader2,
-  Calculator,
   CopyCheck,
   Undo2,
+  ScanLine,
 } from 'lucide-react';
 import * as calendarApi from '@/api/calendar';
+import { useCompany } from '@/contexts/CompanyContext';
 import { runWithConcurrency } from '@/lib/concurrency';
 import { useToast } from '@/components/ui/use-toast';
 import { exportOverviewCsv } from '@/lib/schedulesOverview';
@@ -44,6 +45,8 @@ export function CalendarBulkActionsBar({
   onActionComplete,
 }: CalendarBulkActionsBarProps) {
   const { toast } = useToast();
+  const { activeCompany } = useCompany();
+  const companyId = activeCompany?.id ?? '';
   const [busy, setBusy] = useState<string | null>(null);
 
   const selectedRows = overviewRows.filter((r) =>
@@ -178,21 +181,40 @@ export function CalendarBulkActionsBar({
     }
   };
 
-  const calculatePayrollSelected = async () => {
-    setBusy('payroll');
-    try {
-      const tasks = selectedEmployeeIds.map((id) => () =>
-        calendarApi.calculatePayrollEvents(id, year, month)
-      );
-      await runWithConcurrency(tasks, 5);
+  const importFromBadgeuse = async () => {
+    if (!companyId) {
       toast({
-        title: 'Calcul paie lancé',
-        description: `${selectedEmployeeIds.length} employé(s) traité(s).`,
+        title: 'Erreur',
+        description: 'Aucune entreprise active.',
+        variant: 'destructive',
       });
+      return;
+    }
+    setBusy('badgeuse');
+    try {
+      const res = await calendarApi.importBadgeuseActualHoursBulk(
+        companyId,
+        selectedEmployeeIds,
+        year,
+        month
+      );
+      const payload = res.data;
+      toast({
+        title: 'Badgeuse importée',
+        description: `${payload.total_days_updated} jour(s) mis à jour pour ${payload.employees_processed} employé(s).`,
+      });
+      if (payload.errors?.length) {
+        toast({
+          title: 'Certains employés ignorés',
+          description: payload.errors.map((e) => e.message).join(' '),
+          variant: 'destructive',
+        });
+      }
+      onActionComplete();
     } catch {
       toast({
         title: 'Erreur',
-        description: 'Certains calculs paie ont échoué.',
+        description: "Impossible d'importer depuis la badgeuse.",
         variant: 'destructive',
       });
     } finally {
@@ -208,12 +230,18 @@ export function CalendarBulkActionsBar({
   if (selectedCount === 0) return null;
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[min(96vw,900px)] bg-card border rounded-xl shadow-2xl p-3 flex flex-wrap items-center gap-2">
-      <p className="text-sm font-medium pr-2 border-r mr-1">
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[min(98vw,1280px)] bg-card border rounded-xl shadow-2xl px-3 py-2 flex flex-nowrap items-center gap-1.5 overflow-x-auto">
+      <p className="text-sm font-medium pr-2 border-r mr-1 shrink-0 whitespace-nowrap">
         {selectedCount} sélectionné{selectedCount > 1 ? 's' : ''}
       </p>
 
-      <Button size="sm" variant="outline" onClick={onOpenApplyModel} disabled={!!busy}>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={onOpenApplyModel}
+        disabled={!!busy}
+        className="shrink-0 whitespace-nowrap"
+      >
         <LayoutTemplate className="mr-1.5 h-4 w-4" />
         Appliquer modèle
       </Button>
@@ -222,6 +250,7 @@ export function CalendarBulkActionsBar({
         variant="outline"
         onClick={() => void copyPreviousMonth()}
         disabled={!!busy}
+        className="shrink-0 whitespace-nowrap"
       >
         {busy === 'copy' ? (
           <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
@@ -235,6 +264,7 @@ export function CalendarBulkActionsBar({
         variant="outline"
         onClick={() => void copyPlannedToActual()}
         disabled={!!busy}
+        className="shrink-0 whitespace-nowrap"
       >
         {busy === 'equal' ? (
           <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
@@ -246,21 +276,33 @@ export function CalendarBulkActionsBar({
       <Button
         size="sm"
         variant="outline"
-        onClick={() => void calculatePayrollSelected()}
-        disabled={!!busy}
+        onClick={() => void importFromBadgeuse()}
+        disabled={!!busy || !companyId}
+        className="shrink-0 whitespace-nowrap"
       >
-        {busy === 'payroll' ? (
+        {busy === 'badgeuse' ? (
           <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
         ) : (
-          <Calculator className="mr-1.5 h-4 w-4" />
+          <ScanLine className="mr-1.5 h-4 w-4" />
         )}
-        Calcul paie
+        Réel depuis badgeuse
       </Button>
-      <Button size="sm" variant="outline" onClick={handleExport} disabled={!!busy}>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={handleExport}
+        disabled={!!busy}
+        className="shrink-0 whitespace-nowrap"
+      >
         <Download className="mr-1.5 h-4 w-4" />
         Export CSV
       </Button>
-      <Button size="sm" variant="ghost" onClick={onClearSelection} className="ml-auto">
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={onClearSelection}
+        className="ml-auto shrink-0 whitespace-nowrap"
+      >
         Annuler
       </Button>
     </div>

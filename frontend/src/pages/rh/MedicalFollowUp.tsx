@@ -62,6 +62,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   getObligations,
   getKPIs,
+  getMedicalSettings,
   markPlanified,
   markCompleted,
   createOnDemand,
@@ -73,6 +74,7 @@ import {
   type KPIs,
   type ComplianceReport,
 } from "@/api/medicalFollowUp";
+import { OccupationalHealthContactCard } from "@/components/medical-follow-up/OccupationalHealthContactCard";
 import apiClient from "@/api/apiClient";
 import {
   Loader2,
@@ -101,6 +103,7 @@ import {
   countMedicalObligations,
   obligationMessage,
 } from "@/lib/medicalFollowUpLabels";
+import { hasOccupationalHealthContact } from "@/lib/occupationalHealthContact";
 
 const ALL_FILTER = "__all__";
 
@@ -726,6 +729,13 @@ export default function MedicalFollowUp() {
     queryFn: getComplianceReport,
   });
 
+  const medicalSettingsQuery = useQuery({
+    queryKey: ["medical-follow-up", "settings"],
+    queryFn: getMedicalSettings,
+  });
+
+  const spstContact = medicalSettingsQuery.data?.occupational_health_contact;
+
   const overdueQuery = useQuery({
     queryKey: ["medical-follow-up", "obligations", "overdue"],
     queryFn: getOverdueObligations,
@@ -1037,6 +1047,24 @@ export default function MedicalFollowUp() {
             </DropdownMenu>
           </div>
         </div>
+
+        {hasOccupationalHealthContact(spstContact) ? (
+          <div className="space-y-2">
+            <OccupationalHealthContactCard contact={spstContact} compact />
+            <p className="text-xs text-muted-foreground">
+              <Link to="/company?tab=identite" className="text-primary hover:underline">
+                Modifier les coordonnées → Mon Entreprise
+              </Link>
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+            Coordonnées du service de santé au travail non renseignées.{" "}
+            <Link to="/company?tab=identite" className="text-primary hover:underline">
+              Les ajouter dans Mon Entreprise
+            </Link>
+          </div>
+        )}
 
         <Tabs
           value={medTab}

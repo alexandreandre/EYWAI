@@ -534,3 +534,15 @@ export async function getRecruitmentAnalytics(
   );
   return res.data;
 }
+
+export async function downloadJobFichePostePdf(
+  jobId: string,
+  templateId?: string | null
+): Promise<Blob> {
+  const res = await apiClient.post(
+    `/api/recruitment/jobs/${jobId}/fiche-poste`,
+    templateId ? { template_id: templateId } : {},
+    { responseType: 'blob' }
+  );
+  return res.data;
+}

@@ -84,7 +84,10 @@ export const createEmployeeFormSchema = z.object({
       is_personnalise: z.boolean(),
       taux: z.coerce.number().min(0).max(100).optional(),
     }),
-    transport: z.object({ abonnement_mensuel_total: z.coerce.number().min(0) }),
+    transport: z.object({
+      abonnement_mensuel_total: z.coerce.number().min(0),
+      indemnite_mensuelle_nette: z.coerce.number().min(0).optional().default(0),
+    }),
     titres_restaurant: z.object({
       beneficie: z.boolean(),
       nombre_par_mois: z.coerce.number().int().min(0),

@@ -119,10 +119,36 @@ export default function Employees() {
   });
   const virtualRows = rowVirtualizer.getVirtualItems();
 
+  const overdueContractEndCount = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return employees.filter((emp) => {
+      const status = emp.employment_status || 'actif';
+      if (status !== 'actif' && status !== 'active') return false;
+      if (!emp.contract_end_date) return false;
+      const end = new Date(emp.contract_end_date);
+      end.setHours(0, 0, 0, 0);
+      return end < today;
+    }).length;
+  }, [employees]);
+
   return (
     <>
       <PageFetchIndicator isFetching={employeesQuery.isFetching} />
       <div className="space-y-6">
+      {overdueContractEndCount > 0 && !deadlinesFilter && !trialEndingFilter && (
+        <Card className="border-amber-200 bg-amber-50/50">
+          <CardHeader className="py-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <AlertTriangle className="h-4 w-4 text-amber-700" />
+              {overdueContractEndCount} collaborateur(s) avec une fin de contrat dépassée
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pb-3 pt-0 text-sm text-muted-foreground">
+            Vérifiez leur statut ou ouvrez un départ depuis la page Départs salariés.
+          </CardContent>
+        </Card>
+      )}
       {trialEndingFilter && (
         <Card className="border-amber-200 bg-amber-50/50">
           <CardHeader className="py-3">

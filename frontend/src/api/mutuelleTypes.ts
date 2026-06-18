@@ -10,7 +10,13 @@ export interface MutuelleType {
   montant_patronal: number;
   part_patronale_soumise_a_csg: boolean;
   is_active: boolean;
-  employee_ids?: string[]; // IDs des employés qui souscrivent à cette mutuelle
+  pack_couverture?: 'isole' | 'famille' | 'duo' | 'autre' | null;
+  statut_categoriel?: 'cadre' | 'non_cadre' | 'tous';
+  code_option_dsn?: string | null;
+  code_organisme_dsn?: string | null;
+  reference_contrat_dsn?: string | null;
+  source?: 'manual' | 'dsn_import';
+  employee_ids?: string[];
   created_at?: string;
   updated_at?: string;
   created_by?: string;
@@ -22,7 +28,12 @@ export interface MutuelleTypeCreate {
   montant_patronal: number;
   part_patronale_soumise_a_csg?: boolean;
   is_active?: boolean;
-  employee_ids?: string[]; // IDs des employés qui souscrivent à cette mutuelle
+  pack_couverture?: 'isole' | 'famille' | 'duo' | 'autre' | null;
+  statut_categoriel?: 'cadre' | 'non_cadre' | 'tous';
+  code_option_dsn?: string | null;
+  code_organisme_dsn?: string | null;
+  reference_contrat_dsn?: string | null;
+  employee_ids?: string[];
 }
 
 export interface MutuelleTypeUpdate {
@@ -31,7 +42,12 @@ export interface MutuelleTypeUpdate {
   montant_patronal?: number;
   part_patronale_soumise_a_csg?: boolean;
   is_active?: boolean;
-  employee_ids?: string[]; // IDs des employés qui souscrivent à cette mutuelle
+  pack_couverture?: 'isole' | 'famille' | 'duo' | 'autre' | null;
+  statut_categoriel?: 'cadre' | 'non_cadre' | 'tous';
+  code_option_dsn?: string | null;
+  code_organisme_dsn?: string | null;
+  reference_contrat_dsn?: string | null;
+  employee_ids?: string[];
 }
 
 export const mutuelleTypesApi = {

@@ -14,7 +14,8 @@ import {
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { Calendar, Clock, Copy } from 'lucide-react';
-import { isFrenchPublicHoliday } from '@/lib/frenchPublicHolidays';
+import { shouldShowHolidayHint } from '@/lib/companyCalendarHolidays';
+import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
 import {
   CALENDAR_TYPE_BAR_COLORS,
   getCalendarTypeLabel,
@@ -195,6 +196,7 @@ export function CalendarDayCell({
   isForfaitJour = false,
   onCopyPlannedToActual,
 }: CalendarDayCellProps) {
+  const { observedHolidayIds } = useObservedPublicHolidays();
   const dayNumber = arg.date.getDate();
   const cellRef = useRef<HTMLDivElement>(null);
   const plannedInputRef = useRef<HTMLInputElement>(null);
@@ -212,11 +214,16 @@ export function CalendarDayCell({
 
   const isToday = arg.isToday;
   const isSelected = isCurrentMonth && selectedDays.includes(dayNumber);
-  const isHoliday = isFrenchPublicHoliday(
-    selectedDate.year,
-    selectedDate.month,
-    dayNumber
-  );
+  const showHolidayHint =
+    isCurrentMonth &&
+    plannedDay != null &&
+    shouldShowHolidayHint(
+      selectedDate.year,
+      selectedDate.month,
+      dayNumber,
+      plannedDay.type,
+      observedHolidayIds
+    );
 
   const hasHourValues =
     (plannedDay?.heures_prevues !== null && plannedDay?.heures_prevues !== undefined) ||
@@ -365,7 +372,7 @@ export function CalendarDayCell({
               }}
             >
               {getCalendarTypeLabel(plannedDay.type)}
-              {isHoliday && plannedDay.type !== 'ferie' && (
+              {showHolidayHint && (
                 <span className="text-purple-600 ml-0.5">(férié)</span>
               )}
             </button>

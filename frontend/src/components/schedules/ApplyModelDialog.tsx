@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -29,7 +29,26 @@ import {
   restorePlannedSnapshots,
   type PlannedSnapshot,
 } from '@/lib/calendarBulkUndo';
+import { loadSavedWeekTemplates, saveWeekTemplate, type SavedWeekTemplate } from '@/lib/weekTemplateStorage';
+import { listWeekTemplates, type WeekScheduleTemplate } from '@/api/modulation';
+import { useCompany } from '@/contexts/CompanyContext';
 import type { DayConfig, WeekConfig, WeekNumber } from './types';
+
+const DAY_KEYS = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+] as const;
+
+const TIER_LABELS: Record<string, string> = {
+  high: '37h',
+  low: '32h',
+  neutral: 'Neutre',
+};
 
 const INITIAL_DAY: DayConfig = { type: 'travail', hours: 8 };
 const WEEKEND_DAY: DayConfig = { type: 'weekend', hours: 0 };
@@ -43,6 +62,24 @@ const createInitialWeek = (): WeekConfig => ({
   saturday: { ...WEEKEND_DAY },
   sunday: { ...WEEKEND_DAY },
 });
+
+function templateToWeekConfig(template: WeekScheduleTemplate): WeekConfig {
+  const week = createInitialWeek();
+  for (const cfg of template.day_configs || []) {
+    const dayNum = Number(cfg.day);
+    if (dayNum >= 1 && dayNum <= 7) {
+      const key = DAY_KEYS[dayNum - 1];
+      const hours = Number(cfg.hours) || 0;
+      const dayType = String(cfg.type || 'travail');
+      if (dayType === 'repos' || hours <= 0) {
+        week[key] = { type: 'weekend', hours: 0 };
+      } else {
+        week[key] = { type: 'travail', hours };
+      }
+    }
+  }
+  return week;
+}
 
 interface ApplyModelDialogProps {
   open: boolean;
@@ -62,6 +99,8 @@ export function ApplyModelDialog({
   onApplied,
 }: ApplyModelDialogProps) {
   const { toast } = useToast();
+  const { activeCompany } = useCompany();
+  const companyId = activeCompany?.company_id ?? '';
   const [useForAllWeeks, setUseForAllWeeks] = useState(true);
   const [activeWeekTab, setActiveWeekTab] = useState<WeekNumber>(1);
   const [weekConfigs, setWeekConfigs] = useState<Record<WeekNumber, WeekConfig>>({
@@ -72,6 +111,46 @@ export function ApplyModelDialog({
     5: createInitialWeek(),
   });
   const [isApplying, setIsApplying] = useState(false);
+  const [savedTemplates, setSavedTemplates] = useState<SavedWeekTemplate[]>([]);
+  const [templateName, setTemplateName] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    listWeekTemplates()
+      .then((rows) => {
+        if (cancelled) return;
+        setSavedTemplates(
+          rows.map((t) => ({
+            id: t.id,
+            name: t.name,
+            template: {},
+            modulation_tier: t.modulation_tier,
+            weekConfig: templateToWeekConfig(t),
+          })),
+        );
+      })
+      .catch(() => {
+        if (!companyId) return;
+        loadSavedWeekTemplates(companyId).then((local) => {
+          if (!cancelled) setSavedTemplates(local);
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, companyId]);
+
+  const applySavedTemplate = (tpl: SavedWeekTemplate & { weekConfig?: WeekConfig }) => {
+    const config = tpl.weekConfig ?? createInitialWeek();
+    setWeekConfigs({
+      1: config,
+      2: config,
+      3: config,
+      4: config,
+      5: config,
+    });
+  };
 
   const updateDayConfig = (
     week: WeekNumber,
@@ -201,6 +280,33 @@ export function ApplyModelDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {savedTemplates.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">
+                Modèles entreprise (bibliothèque)
+              </Label>
+              <div className="flex flex-wrap gap-1">
+                {savedTemplates.map((tpl) => (
+                  <Button
+                    key={tpl.id ?? tpl.name}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => applySavedTemplate(tpl as SavedWeekTemplate & { weekConfig?: WeekConfig })}
+                  >
+                    {tpl.name}
+                    {tpl.modulation_tier && tpl.modulation_tier !== 'neutral' && (
+                      <span className="ml-1 text-muted-foreground">
+                        ({TIER_LABELS[tpl.modulation_tier] ?? tpl.modulation_tier})
+                      </span>
+                    )}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center gap-2">
             <Checkbox
               checked={useForAllWeeks}
@@ -267,6 +373,38 @@ export function ApplyModelDialog({
                 </div>
               );
             })}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+            <Input
+              className="h-8 w-40 text-xs"
+              placeholder="Nom du modèle"
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs"
+              disabled={!templateName.trim()}
+              onClick={async () => {
+                const config = weekConfigs[useForAllWeeks ? 1 : activeWeekTab];
+                const template = {
+                  1: config.monday.hours,
+                  2: config.tuesday.hours,
+                  3: config.wednesday.hours,
+                  4: config.thursday.hours,
+                  5: config.friday.hours,
+                };
+                const next = await saveWeekTemplate(companyId, templateName, template);
+                setSavedTemplates(next);
+                setTemplateName('');
+                toast({ title: 'Modèle enregistré' });
+              }}
+            >
+              Mémoriser en bibliothèque
+            </Button>
           </div>
         </div>
 

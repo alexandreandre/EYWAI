@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/api/apiClient';
 import { uploadEmployeeContract } from '@/api/employees';
@@ -40,6 +40,7 @@ import { countRhDetailFolderItems } from '@/components/documents/employeeDocumen
 import { matchesFileSemantic } from '@/components/documents/companyDocumentsExplorerUtils';
 import type { GeneratedDocument } from '@/api/documents';
 import { rhEmployeeDocumentsAccessMessage } from '@/lib/employeeExitDocumentsAccess';
+import { parseEmployeeDocumentDeepLink } from '@/lib/documentGenerationConfig';
 
 interface ContractUrlResponse {
   url: string | null;
@@ -91,6 +92,7 @@ export function EmployeeDetailDocumentsTab({
   employee,
 }: EmployeeDetailDocumentsTabProps) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const contractUploadInputRef = useRef<HTMLInputElement>(null);
   const [transmitDialogOpen, setTransmitDialogOpen] = useState(false);
@@ -154,6 +156,11 @@ export function EmployeeDetailDocumentsTab({
   const credentialsPdfUrl = credentialsPdfQuery.data?.downloadUrl ?? null;
   const credentialsPdfPreviewUrl = credentialsPdfQuery.data?.previewUrl ?? null;
 
+  const deepLink = useMemo(
+    () => parseEmployeeDocumentDeepLink(searchParams.toString()),
+    [searchParams]
+  );
+
   const {
     rows: generatedRows,
     isLoading: generatedLoading,
@@ -162,7 +169,11 @@ export function EmployeeDetailDocumentsTab({
     eywaiBanner,
     handlers,
     dialogs,
-  } = useEmployeeDocumentGeneration(employeeId, employee);
+  } = useEmployeeDocumentGeneration(
+    employeeId,
+    employee,
+    deepLink.generate ? deepLink : undefined
+  );
 
   const contractQuery = useQuery({
     queryKey: ['employee', employeeId, 'contract-url'],
@@ -552,7 +563,7 @@ export function EmployeeDetailDocumentsTab({
     }
   };
 
-  const manageTemplates = () => navigate('/company#bibliotheque');
+  const manageTemplates = () => navigate('/company?tab=modeles');
 
   return (
     <div className="space-y-4">

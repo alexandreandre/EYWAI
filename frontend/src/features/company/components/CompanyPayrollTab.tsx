@@ -10,6 +10,14 @@ import WorkMedalSettingsCard from "@/features/company/components/WorkMedalSettin
 import { DsnSyncModeCard } from "@/features/dsn-import/components/DsnSyncModeCard";
 import { WorkMedalCasesList } from "@/features/work-medals/components/WorkMedalCasesList";
 import OethSettingsCard from "@/features/company/components/OethSettingsCard";
+import OvertimeContingentSettingsCard from "@/features/company/components/OvertimeContingentSettingsCard";
+import LeaveSettingsCard from "@/features/company/components/LeaveSettingsCard";
+import CetSettingsCard from "@/features/company/components/CetSettingsCard";
+import CpFractionnementSettingsCard from "@/features/company/components/CpFractionnementSettingsCard";
+import CpSenioritySettingsCard from "@/features/company/components/CpSenioritySettingsCard";
+import ModulationSettingsCard from "@/features/company/components/ModulationSettingsCard";
+import PayrollVariableRulesCard from "@/features/company/components/PayrollVariableRulesCard";
+import PublicHolidaysSettingsCard from "@/features/company/components/PublicHolidaysSettingsCard";
 import NetEntreprisesConfigCard from "@/features/net-entreprises/components/NetEntreprisesConfigCard";
 import type { ComplianceAnchor } from "@/features/company/components/CompanyComplianceBand";
 import { formatCollectiveAgreementLabel } from "@/features/company/lib/companyPageTabs";
@@ -238,6 +246,26 @@ export function CompanyPayrollTab({
       <section className="space-y-3">
         <SectionHeading>OETH / DOETH</SectionHeading>
         <OethSettingsCard />
+      </section>
+
+      <section
+        className="space-y-3"
+        id="contingent-hs"
+        ref={setAnchorRef("contingent-hs")}
+      >
+        <SectionHeading>Temps de travail</SectionHeading>
+        <PublicHolidaysSettingsCard />
+        <LeaveSettingsCard />
+        <CpSenioritySettingsCard />
+        <CpFractionnementSettingsCard />
+        <ModulationSettingsCard />
+        <OvertimeContingentSettingsCard scrollAnchor="contingent-hs" />
+        <CetSettingsCard />
+      </section>
+
+      <section className="space-y-3">
+        <SectionHeading>Variables de paie</SectionHeading>
+        <PayrollVariableRulesCard />
       </section>
 
       <section className="space-y-3">

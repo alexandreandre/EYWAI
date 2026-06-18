@@ -87,7 +87,7 @@ function getTooltipMessage(data: TrialPeriodData): string | null {
     return endLabel ? `Embauche confirmée (essai jusqu'au ${endLabel})` : "Embauche confirmée";
   }
   if (status === "to_complete") {
-    return "Renseignez la durée de la période d'essai sur la fiche contrat.";
+    return "Renseignez la durée ; la fin sera calculée à partir de la date d'entrée.";
   }
   if (endLabel && days != null) {
     if (days < 0) return `Période d'essai terminée le ${endLabel}`;

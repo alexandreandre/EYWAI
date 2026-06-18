@@ -10,6 +10,7 @@ import {
 } from '@/components/employee/EmployeePageHeader';
 import { AbsenceRequestModal } from '@/components/AbsenceRequestModal';
 import { EmployeeAbsenceBalanceRow } from '@/components/employee-absences/EmployeeAbsenceBalanceRow';
+import { EmployeeCetPanel } from '@/components/cet/EmployeeCetPanel';
 import { EmployeeAbsenceDaySheet } from '@/components/employee-absences/EmployeeAbsenceDaySheet';
 import { EmployeeAbsenceRequestsSection } from '@/components/employee-absences/EmployeeAbsenceRequestsSection';
 import { EmployeeAbsencesPageSkeleton } from '@/components/skeletons/EmployeeAbsencesPageSkeleton';
@@ -253,6 +254,9 @@ export default function AbsencesPage() {
                   />
                 ))
               )}
+              <div className="pt-3 border-t">
+                <EmployeeCetPanel variant="card" />
+              </div>
             </CardContent>
           </Card>
 

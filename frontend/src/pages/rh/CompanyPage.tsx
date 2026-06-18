@@ -20,7 +20,6 @@ import {
 } from "@/api/company";
 import { useAuth } from "@/contexts/AuthContext";
 import { useActiveCompanyId } from "@/hooks/queries/useCompanyId";
-import { useCompanyPlan } from "@/hooks/useCompanyPlan";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -50,6 +49,38 @@ import {
   type CompanyPageTab,
 } from "@/features/company/lib/companyPageTabs";
 
+function trimOrNull(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function normalizeCompanyDetailsUpdate(draft: CompanyDetailsUpdate): CompanyDetailsUpdate {
+  return {
+    ...draft,
+    company_name: draft.company_name?.trim() || undefined,
+    raison_sociale: trimOrNull(draft.raison_sociale),
+    siren: trimOrNull(draft.siren),
+    siret: trimOrNull(draft.siret),
+    legal_form: trimOrNull(draft.legal_form),
+    phone: trimOrNull(draft.phone),
+    email: trimOrNull(draft.email),
+    website: trimOrNull(draft.website),
+    adresse_rue: trimOrNull(draft.adresse_rue),
+    adresse_code_postal: trimOrNull(draft.adresse_code_postal),
+    adresse_ville: trimOrNull(draft.adresse_ville),
+    nom_signataire_rh: trimOrNull(draft.nom_signataire_rh),
+    qualite_signataire_rh: trimOrNull(draft.qualite_signataire_rh),
+    service_sante_travail_nom: trimOrNull(draft.service_sante_travail_nom),
+    service_sante_travail_adresse_rue: trimOrNull(draft.service_sante_travail_adresse_rue),
+    service_sante_travail_adresse_code_postal: trimOrNull(
+      draft.service_sante_travail_adresse_code_postal,
+    ),
+    service_sante_travail_adresse_ville: trimOrNull(draft.service_sante_travail_adresse_ville),
+    service_sante_travail_telephone: trimOrNull(draft.service_sante_travail_telephone),
+    service_sante_travail_email: trimOrNull(draft.service_sante_travail_email),
+  };
+}
+
 export default function CompanyPage() {
   const { user } = useAuth();
   const companyId = useActiveCompanyId();
@@ -58,7 +89,6 @@ export default function CompanyPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { period, setPeriod, periodBounds } = useCompanyPeriod();
-  const { isPremium } = useCompanyPlan();
 
   const [activeTab, setActiveTab] = useState<CompanyPageTab>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -163,6 +193,14 @@ export default function CompanyPage() {
       adresse_ville: company.adresse_ville ?? undefined,
       nom_signataire_rh: company.nom_signataire_rh ?? undefined,
       qualite_signataire_rh: company.qualite_signataire_rh ?? undefined,
+      service_sante_travail_nom: company.service_sante_travail_nom ?? undefined,
+      service_sante_travail_adresse_rue: company.service_sante_travail_adresse_rue ?? undefined,
+      service_sante_travail_adresse_code_postal:
+        company.service_sante_travail_adresse_code_postal ?? undefined,
+      service_sante_travail_adresse_ville:
+        company.service_sante_travail_adresse_ville ?? undefined,
+      service_sante_travail_telephone: company.service_sante_travail_telephone ?? undefined,
+      service_sante_travail_email: company.service_sante_travail_email ?? undefined,
     });
   }, [company]);
 
@@ -177,7 +215,7 @@ export default function CompanyPage() {
   const handleSaveIdentity = async () => {
     try {
       setSaving(true);
-      await patchCompanyDetails(draft);
+      await patchCompanyDetails(normalizeCompanyDetailsUpdate(draft));
       await queryClient.invalidateQueries({ queryKey: ["company-details", companyId] });
       toast({ title: "Enregistré", description: "Identité mise à jour." });
       setEditOpen(false);
@@ -250,7 +288,6 @@ export default function CompanyPage() {
     <div className="space-y-6 animate-fade-in pb-8">
       <CompanyPageHeader
         company={company}
-        isPremium={isPremium}
         onExport={handleExport}
         exporting={exporting}
         onGoToPayrollTab={() => goToPayrollTab("convention-collective")}
@@ -282,8 +319,8 @@ export default function CompanyPage() {
             className="col-span-2 flex items-center gap-2 text-xs sm:col-span-1 sm:text-sm"
           >
             <BookOpen className="h-4 w-4 shrink-0" />
-            <span className="hidden sm:inline">Modèles documents</span>
-            <span className="sm:hidden">Modèles</span>
+            <span className="hidden sm:inline">Bibliothèque de documents</span>
+            <span className="sm:hidden">Biblio</span>
           </TabsTrigger>
         </TabsList>
 

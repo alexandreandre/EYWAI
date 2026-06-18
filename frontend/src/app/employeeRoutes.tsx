@@ -59,6 +59,7 @@ export const employeeCollaboratorRoutes = (
     <Route path="/salary-advances" element={<Pages.SalaryAdvancesPage />} />
     <Route path="/employee-loans" element={<Pages.EmployeeLoansPage />} />
     <Route path="/employee/documents" element={<Pages.EmployeeCollaboratorDocumentsPage />} />
+    <Route path="/employee/participation" element={<Pages.EmployeeParticipationPage />} />
     <Route path="/documents" element={<Navigate to="/employee/documents" replace />} />
     <Route path="/medical-follow-up" element={<Pages.EmployeeMedicalFollowUp />} />
     <Route path="/cse/meetings/:meetingId" element={<Pages.MeetingDetailPage />} />

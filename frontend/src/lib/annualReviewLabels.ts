@@ -36,6 +36,36 @@ export function canRhDeleteAnnualReview(status: AnnualReviewStatus): boolean {
   return status === "planifie" || status === "en_attente_acceptation";
 }
 
+/** Convocation disponible une fois l'entretien transmis au salarié. */
+export function canAccessConvocation(status: AnnualReviewStatus): boolean {
+  return (
+    status === "en_attente_acceptation" ||
+    status === "accepte" ||
+    status === "refuse" ||
+    status === "realise" ||
+    status === "cloture"
+  );
+}
+
+/** Texte d'introduction pour l'encart convocation (signataire issu de la fiche entreprise). */
+export function convocationSignatoryNotice(
+  qualite: string | null | undefined,
+  nom: string | null | undefined,
+): string {
+  const q = qualite?.trim();
+  const n = nom?.trim();
+  if (n && q) {
+    return `Ce document est signé par ${n}, ${q}.`;
+  }
+  if (q) {
+    return `Ce document est signé par ${q}.`;
+  }
+  if (n) {
+    return `Ce document est signé par ${n}, représentant(e) de l'employeur.`;
+  }
+  return "Ce document est signé par le représentant de l'employeur.";
+}
+
 export function formatAnnualReviewDate(value: string | null | undefined): string {
   if (!value) return "—";
   try {
@@ -55,7 +85,9 @@ const INTERVIEW_TYPE_SHORT_LABELS: Record<InterviewType, string> = {
   annual_performance: "Annuel",
   professional_2ans: "Pro. 2 ans",
   competency_6ans: "Comp. 6 ans",
-  return_absence: "Retour abs.",
+  annual_cadres: "Cadres",
+  annual_forfait_jour: "Forfait jour",
+  return_absence: "Reprise abs.",
   mid_year: "Mi-année",
   other: "Autre",
 };

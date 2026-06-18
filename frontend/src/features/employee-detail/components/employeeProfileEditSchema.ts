@@ -51,6 +51,7 @@ export const employeeProfileEditSchema = z
       }),
       transport: z.object({
         abonnement_mensuel_total: z.coerce.number().min(0),
+        indemnite_mensuelle_nette: z.coerce.number().min(0).optional().default(0),
       }),
       titres_restaurant: z.object({
         beneficie: z.boolean(),

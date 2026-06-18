@@ -49,13 +49,17 @@ export function WeekTemplateForm({
   companyId,
   daysInMonth,
 }: WeekTemplateFormProps) {
-  const [savedTemplates, setSavedTemplates] = useState<SavedWeekTemplate[]>(() =>
-    loadSavedWeekTemplates(companyId)
-  );
+  const [savedTemplates, setSavedTemplates] = useState<SavedWeekTemplate[]>([]);
   const [saveTemplateName, setSaveTemplateName] = useState("");
 
   useEffect(() => {
-    setSavedTemplates(loadSavedWeekTemplates(companyId));
+    let cancelled = false;
+    loadSavedWeekTemplates(companyId).then((templates) => {
+      if (!cancelled) setSavedTemplates(templates);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [companyId]);
   const days = [
     { label: 'Lundi', key: 1 }, { label: 'Mardi', key: 2 }, { label: 'Mercredi', key: 3 },
@@ -188,10 +192,11 @@ export function WeekTemplateForm({
             size="sm"
             className="h-8 text-xs"
             disabled={!saveTemplateName.trim()}
-            onClick={() => {
-              setSavedTemplates(saveWeekTemplate(companyId, saveTemplateName, template));
+            onClick={async () => {
+              const next = await saveWeekTemplate(companyId, saveTemplateName, template);
+              setSavedTemplates(next);
               setSaveTemplateName("");
-              toast({ title: "Modèle enregistré", description: "Jusqu'à 3 modèles par société." });
+              toast({ title: "Modèle enregistré", description: "Synchronisé avec la bibliothèque entreprise." });
             }}
           >
             Mémoriser

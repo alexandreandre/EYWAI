@@ -19,7 +19,10 @@ export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   attestation_location: 'Attestation employeur pour location',
   attestation_pret: 'Attestation pour prêt bancaire',
   attestation_retraite: 'Attestation retraite',
+  fiche_poste: 'Fiche de poste',
   document_transmis: 'Document transmis',
+  bulletin_participation: "Bulletin d'option participation",
+  bulletin_interessement: "Bulletin d'option intéressement",
 };
 
 export interface DocumentTemplateVersion {
@@ -32,6 +35,19 @@ export interface DocumentTemplateVersion {
   file_size: number | null;
   uploaded_by: string | null;
   created_at: string;
+  unknown_variables?: string[];
+}
+
+export interface DocumentVariableItem {
+  key: string;
+  label: string;
+  category: string;
+  example: string;
+}
+
+export interface ValidateTemplateFileResult {
+  unknown_variables: string[];
+  preview_available: boolean;
 }
 
 export interface DocumentTemplate {
@@ -73,6 +89,35 @@ export async function getTemplate(id: string): Promise<DocumentTemplate> {
 export async function getMissingTypes(): Promise<string[]> {
   const response = await apiClient.get<string[]>('/api/document-library/missing-types');
   return response.data;
+}
+
+export async function getDocumentVariables(): Promise<DocumentVariableItem[]> {
+  const response = await apiClient.get<{ variables: DocumentVariableItem[] }>(
+    '/api/document-library/variables'
+  );
+  return response.data.variables;
+}
+
+export async function validateTemplateFile(file: File): Promise<ValidateTemplateFileResult> {
+  const form = new FormData();
+  form.append('file', file);
+  const response = await apiClient.post<ValidateTemplateFileResult>(
+    '/api/document-library/validate-file',
+    form
+  );
+  return response.data;
+}
+
+export async function downloadFichePosteExample(): Promise<void> {
+  const response = await apiClient.get('/api/document-library/examples/fiche_poste', {
+    responseType: 'blob',
+  });
+  const url = URL.createObjectURL(response.data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'fiche_poste_exemple.docx';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export async function createTemplate(data: DocumentTemplateCreate): Promise<DocumentTemplate> {

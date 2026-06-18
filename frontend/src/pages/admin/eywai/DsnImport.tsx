@@ -28,8 +28,10 @@ export default function DsnImport() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [launchConfig, setLaunchConfig] = useState<DsnImportLaunchConfig | null>(null);
   const [initialFiles, setInitialFiles] = useState<File[] | undefined>();
+  const [sessionKey, setSessionKey] = useState<string | null>(null);
 
   const openSheet = useCallback((config: DsnImportLaunchConfig, files?: File[]) => {
+    setSessionKey(crypto.randomUUID());
     setLaunchConfig(config);
     setInitialFiles(files);
     setSheetOpen(true);
@@ -63,6 +65,16 @@ export default function DsnImport() {
       openSheet({ mode: 'monthly', targetCompanyId: companyId });
       setSearchParams({}, { replace: true });
     }
+  }, [searchParams, openSheet, setSearchParams]);
+
+  useEffect(() => {
+    const resumeBatch = searchParams.get('resumeBatch');
+    if (!resumeBatch) return;
+    openSheet({
+      mode: 'monthly',
+      resumeBatchId: resumeBatch,
+    });
+    setSearchParams({}, { replace: true });
   }, [searchParams, openSheet, setSearchParams]);
 
   const handleStripAnalyze = useCallback(
@@ -163,6 +175,7 @@ export default function DsnImport() {
         }}
         launchConfig={launchConfig}
         initialFiles={initialFiles}
+        sessionKey={sessionKey}
       />
     </div>
   );

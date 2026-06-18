@@ -140,6 +140,30 @@ export function CompanyIdentityTab({
                 Apparaît sur les contrats, attestations et documents générés automatiquement.
               </p>
             </dl>
+            <dl>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                Service de santé au travail
+              </p>
+              <DlRow label="Nom du service" value={company.service_sante_travail_nom} />
+              <DlRow
+                label="Adresse"
+                value={
+                  company.service_sante_travail_adresse_rue ? (
+                    <address className="not-italic">
+                      {company.service_sante_travail_adresse_rue}
+                      <br />
+                      {company.service_sante_travail_adresse_code_postal}{" "}
+                      {company.service_sante_travail_adresse_ville}
+                    </address>
+                  ) : null
+                }
+              />
+              <DlRow label="Téléphone" value={company.service_sante_travail_telephone} />
+              <DlRow label="Email" value={company.service_sante_travail_email} />
+              <p className="text-xs text-muted-foreground mt-2">
+                Coordonnées affichées aux salariés sur leur page de suivi médical.
+              </p>
+            </dl>
           </div>
         </CardContent>
       </Card>
@@ -279,6 +303,88 @@ export function CompanyIdentityTab({
                   value={draft.qualite_signataire_rh ?? ""}
                   onChange={(e) =>
                     onDraftChange({ ...draft, qualite_signataire_rh: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div className="border-t pt-4 space-y-4">
+              <p className="text-sm font-medium">Service de santé au travail</p>
+              <p className="text-xs text-muted-foreground">
+                Coordonnées affichées aux salariés sur leur page de suivi médical.
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="service_sante_travail_nom">Nom du service</Label>
+                <Input
+                  id="service_sante_travail_nom"
+                  placeholder="Ex. SPSTI Atlantique"
+                  value={draft.service_sante_travail_nom ?? ""}
+                  onChange={(e) =>
+                    onDraftChange({ ...draft, service_sante_travail_nom: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="service_sante_travail_adresse_rue">Rue</Label>
+                <Input
+                  id="service_sante_travail_adresse_rue"
+                  value={draft.service_sante_travail_adresse_rue ?? ""}
+                  onChange={(e) =>
+                    onDraftChange({
+                      ...draft,
+                      service_sante_travail_adresse_rue: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="service_sante_travail_cp">Code postal</Label>
+                  <Input
+                    id="service_sante_travail_cp"
+                    value={draft.service_sante_travail_adresse_code_postal ?? ""}
+                    onChange={(e) =>
+                      onDraftChange({
+                        ...draft,
+                        service_sante_travail_adresse_code_postal: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="service_sante_travail_ville">Ville</Label>
+                  <Input
+                    id="service_sante_travail_ville"
+                    value={draft.service_sante_travail_adresse_ville ?? ""}
+                    onChange={(e) =>
+                      onDraftChange({
+                        ...draft,
+                        service_sante_travail_adresse_ville: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="service_sante_travail_telephone">Téléphone</Label>
+                <Input
+                  id="service_sante_travail_telephone"
+                  value={draft.service_sante_travail_telephone ?? ""}
+                  onChange={(e) =>
+                    onDraftChange({
+                      ...draft,
+                      service_sante_travail_telephone: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="service_sante_travail_email">Email</Label>
+                <Input
+                  id="service_sante_travail_email"
+                  type="email"
+                  value={draft.service_sante_travail_email ?? ""}
+                  onChange={(e) =>
+                    onDraftChange({ ...draft, service_sante_travail_email: e.target.value })
                   }
                 />
               </div>

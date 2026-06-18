@@ -11,6 +11,7 @@ import {
 } from "@/api/badgeuse";
 import { BadgeCardExport } from "@/components/badgeuse/rh/BadgeCardExport";
 import { EmployeeBadgeuseDayDetail } from "@/components/badgeuse/rh/EmployeeBadgeuseDayDetail";
+import { RhCetPendingPanel } from "@/components/cet/EmployeeCetPanel";
 import { formatSecondsToHoursMinutes } from "@/lib/badgeuseFormat";
 import {
   apiErrorDetail,
@@ -180,6 +181,7 @@ export function EmployeeDetailBadgeuseSection({
 
   return (
     <div className="space-y-4">
+      <RhCetPendingPanel employeeId={employeeId} companyId={companyId} />
       {schemaMissing && (
         <Alert variant="destructive">
           <AlertTitle>Base de données badgeuse non configurée</AlertTitle>
@@ -393,7 +395,11 @@ function DayRow({
         )}
       </span>
       <span className="tabular-nums text-xs text-muted-foreground">
-        {formatSecondsToHoursMinutes(day.total_seconds)}
+        {formatSecondsToHoursMinutes(day.computed_seconds ?? day.total_seconds)}
+        {day.has_override &&
+          day.effective_seconds !== (day.computed_seconds ?? day.total_seconds) && (
+            <> → {formatSecondsToHoursMinutes(day.effective_seconds)}</>
+          )}
       </span>
     </button>
   );

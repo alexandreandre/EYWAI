@@ -6,8 +6,9 @@ import { useToast } from "@/components/ui/use-toast";
 import * as calendarApi from '@/api/calendar';
 import { DayData } from '@/components/ScheduleModal';
 import { isForfaitJour } from '@/utils/employeeUtils';
-import { getFrenchPublicHolidayDayNumbers } from '@/lib/frenchPublicHolidays';
+import { applyHolidayHints } from '@/lib/companyCalendarHolidays';
 import { computeMonthCompletionStatus } from '@/lib/calendarStats';
+import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
 
 type PlannedEventData = calendarApi.PlannedEventData;
 type ActualHoursData = calendarApi.ActualHoursData;
@@ -19,30 +20,6 @@ export type WeekTemplate = {
   [key: number]: string;
 };
 
-function applyHolidayHints(
-  baseCalendar: PlannedEventData[],
-  plannedDataFromApi: PlannedEventData[],
-  year: number,
-  month: number
-): PlannedEventData[] {
-  const holidayDays = getFrenchPublicHolidayDayNumbers(year, month);
-
-  return baseCalendar.map((defaultDay) => {
-    const apiDay = plannedDataFromApi.find((p) => p.jour === defaultDay.jour);
-    let merged = apiDay ? { ...defaultDay, ...apiDay } : defaultDay;
-
-    if (holidayDays.has(defaultDay.jour)) {
-      const date = new Date(year, month - 1, defaultDay.jour);
-      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-      if (!isWeekend && !apiDay) {
-        merged = { ...merged, type: 'ferie', heures_prevues: null };
-      }
-    }
-
-    return merged;
-  });
-}
-
 export function useCalendar(
   employeeId: string | undefined,
   employeeStatut?: string,
@@ -50,6 +27,7 @@ export function useCalendar(
 ) {
   const fetchEnabled = options?.enabled !== false;
   const isForfaitJourMode = useMemo(() => isForfaitJour(employeeStatut), [employeeStatut]);
+  const { observedHolidayIds } = useObservedPublicHolidays();
 
   const getInitialWeekTemplate = (forfaitJour: boolean): WeekTemplate =>
     forfaitJour
@@ -130,7 +108,8 @@ export function useCalendar(
         baseCalendar,
         plannedDataFromApi,
         year,
-        month
+        month,
+        observedHolidayIds
       );
 
       const finalActualHours = finalPlannedCalendar.map((plannedDay) => {
@@ -144,7 +123,7 @@ export function useCalendar(
 
       return { finalPlannedCalendar, finalActualHours };
     },
-    [isForfaitJourMode]
+    [isForfaitJourMode, observedHolidayIds]
   );
 
   const fetchAllCalendarData = useCallback(async () => {

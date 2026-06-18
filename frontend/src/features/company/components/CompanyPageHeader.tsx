@@ -7,7 +7,6 @@ import { formatCollectiveAgreementLabel } from "@/features/company/lib/companyPa
 
 type CompanyPageHeaderProps = {
   company: CompanyDetails;
-  isPremium?: boolean;
   onExport: () => void;
   exporting?: boolean;
   onGoToPayrollTab: () => void;
@@ -15,7 +14,6 @@ type CompanyPageHeaderProps = {
 
 export function CompanyPageHeader({
   company,
-  isPremium,
   onExport,
   exporting,
   onGoToPayrollTab,
@@ -35,11 +33,6 @@ export function CompanyPageHeader({
       }
       afterDescription={
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
-          {isPremium ? (
-            <Badge variant="secondary" className="shrink-0">
-              Premium
-            </Badge>
-          ) : null}
           {company.raison_sociale ? (
             <span className="inline-flex items-center gap-1">
               <Building2 className="h-3.5 w-3.5 shrink-0" aria-hidden />

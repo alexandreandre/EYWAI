@@ -9,7 +9,8 @@ type ComplianceAnchor =
   | "jei"
   | "taux-at-mp"
   | "taux-vm"
-  | "cse";
+  | "cse"
+  | "contingent-hs";
 
 const COMPLIANCE_ANCHORS: ComplianceAnchor[] = [
   "convention-collective",
@@ -17,6 +18,7 @@ const COMPLIANCE_ANCHORS: ComplianceAnchor[] = [
   "taux-at-mp",
   "taux-vm",
   "cse",
+  "contingent-hs",
 ];
 
 export function isComplianceAnchor(value: string | null | undefined): value is ComplianceAnchor {

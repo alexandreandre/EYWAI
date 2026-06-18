@@ -8,6 +8,7 @@ import {
 } from "@/components/employee/EmployeePageHeader";
 import { BadgeQrDisplay } from "@/components/badgeuse/BadgeQrDisplay";
 import { BadgeuseDayTimeline } from "@/components/badgeuse/employee/BadgeuseDayTimeline";
+import { EmployeeCetPanel } from "@/components/cet/EmployeeCetPanel";
 import { formatSecondsToHoursMinutes } from "@/lib/badgeuseFormat";
 import { todayIso } from "@/lib/badgeuseApiUtils";
 import { Card } from "@/components/ui/card";
@@ -139,6 +140,11 @@ export function EmployeeBadgeusePanel() {
             <p className="text-4xl font-bold tabular-nums tracking-tight mt-1">
               {totalLabel}
             </p>
+            {isToday ? (
+              <div className="mt-2">
+                <EmployeeCetPanel />
+              </div>
+            ) : null}
           </div>
           <Badge
             variant="outline"

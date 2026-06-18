@@ -15,7 +15,8 @@ import type { EmployeeCalendarOverviewRow, DayPatch } from '@/lib/schedulesOverv
 import { PlanningDayEditor } from './PlanningDayEditor';
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
-import { isFrenchPublicHoliday } from '@/lib/frenchPublicHolidays';
+import { isObservedHolidayHeaderDay } from '@/lib/companyCalendarHolidays';
+import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
 
 const TYPE_BG: Record<string, string> = {
   travail: 'bg-sky-50 hover:bg-sky-100 border-sky-200/60',
@@ -94,6 +95,7 @@ export function TeamPlanningView({
   onOpenEmployee,
 }: TeamPlanningViewProps) {
   const { toast } = useToast();
+  const { observedHolidayIds } = useObservedPublicHolidays();
   const weeks = useMemo(() => computeWeeks(year, month), [year, month]);
   const [weekIndex, setWeekIndex] = useState(0);
   const [openEditor, setOpenEditor] = useState<{ employeeId: string; day: number } | null>(null);
@@ -228,7 +230,12 @@ export function TeamPlanningView({
               }
               const date = new Date(year, month - 1, day);
               const isToday = date.toDateString() === todayIso;
-              const isHoliday = isFrenchPublicHoliday(year, month, day);
+              const isHoliday = isObservedHolidayHeaderDay(
+                year,
+                month,
+                day,
+                observedHolidayIds
+              );
               return (
                 <div
                   key={day}

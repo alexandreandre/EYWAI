@@ -18,6 +18,7 @@ import {
   acceptReview,
   refuseReview,
   downloadAnnualReviewPdf,
+  downloadConvocationPdf,
 } from "@/api/annualReviews";
 import type { AnnualReviewStatus } from "@/api/annualReviews";
 import {
@@ -39,7 +40,9 @@ import {
   Eye,
   RefreshCw,
 } from "lucide-react";
-import { downloadAnnualReviewPdfFile, previewAnnualReviewPdf } from '@/lib/annualReviewPdf';
+import { downloadAnnualReviewPdfFile, previewAnnualReviewPdf, previewConvocationPdf, downloadConvocationPdfFile } from '@/lib/annualReviewPdf';
+import { canAccessConvocation, convocationSignatoryNotice } from "@/lib/annualReviewLabels";
+import { fetchCompanyDetails } from "@/api/company";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -94,6 +97,19 @@ export default function EmployeeAnnualReviewDetail() {
       }
     },
     enabled: !!reviewId,
+  });
+
+  const canShowConvocationEarly = review ? canAccessConvocation(review.status) : false;
+
+  const companySignatoryQuery = useQuery({
+    queryKey: ["company-details", "convocation-signatory"],
+    queryFn: fetchCompanyDetails,
+    enabled: canShowConvocationEarly,
+    staleTime: 5 * 60 * 1000,
+    select: (payload) => ({
+      nom: payload.company_data.nom_signataire_rh,
+      qualite: payload.company_data.qualite_signataire_rh,
+    }),
   });
 
   const updateMutation = useMutation({
@@ -291,6 +307,46 @@ export default function EmployeeAnnualReviewDetail() {
   const canEditNotes = review.status === "accepte";
   const hasNotesChanged = localNotes !== (review.employee_preparation_notes ?? "");
   const canDownloadPdf = review.status === "cloture";
+  const canShowConvocation = canAccessConvocation(review.status);
+
+  const handleViewConvocation = async () => {
+    if (!reviewId) return;
+    try {
+      const blob = await downloadConvocationPdf(reviewId);
+      previewConvocationPdf(blob, reviewId);
+    } catch (error: unknown) {
+      const detail =
+        error &&
+        typeof error === "object" &&
+        "response" in error &&
+        (error as { response?: { data?: { detail?: string } } }).response?.data?.detail;
+      toast({
+        title: "Erreur",
+        description: typeof detail === "string" ? detail : "Impossible d'ouvrir la convocation.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDownloadConvocation = async () => {
+    if (!reviewId) return;
+    try {
+      const blob = await downloadConvocationPdf(reviewId);
+      downloadConvocationPdfFile(blob, reviewId);
+      toast({ title: "Convocation téléchargée" });
+    } catch (error: unknown) {
+      const detail =
+        error &&
+        typeof error === "object" &&
+        "response" in error &&
+        (error as { response?: { data?: { detail?: string } } }).response?.data?.detail;
+      toast({
+        title: "Erreur",
+        description: typeof detail === "string" ? detail : "Impossible de télécharger la convocation.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleViewPdf = async () => {
     if (!reviewId) return;
@@ -415,6 +471,34 @@ export default function EmployeeAnnualReviewDetail() {
                 </p>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {canShowConvocation && (
+        <Card className="border-l-4 border-l-primary">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <FileText className="h-5 w-5" />
+              Lettre de convocation
+            </CardTitle>
+            <CardDescription>
+              Consultez votre convocation officielle avant de répondre.{" "}
+              {convocationSignatoryNotice(
+                companySignatoryQuery.data?.qualite,
+                companySignatoryQuery.data?.nom,
+              )}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 sm:flex-row">
+            <Button variant="outline" onClick={() => void handleViewConvocation()}>
+              <Eye className="mr-2 h-4 w-4" />
+              Consulter la convocation
+            </Button>
+            <Button variant="secondary" onClick={() => void handleDownloadConvocation()}>
+              <FileDown className="mr-2 h-4 w-4" />
+              Télécharger
+            </Button>
           </CardContent>
         </Card>
       )}

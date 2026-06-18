@@ -17,6 +17,11 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, PlusCircle, Loader2, Upload, FileText, Trash2 } from "lucide-react";
 import { mutuelleTypesApi, MutuelleType } from "@/api/mutuelleTypes";
+import {
+  filterMutuellesForEmployee,
+  formatMutuelleOptionLabel,
+  PACK_COUVERTURE_LABELS,
+} from "@/lib/mutuelleUtils";
 import * as collectiveAgreementsApi from "@/api/collectiveAgreements";
 import { getTeams } from "@/api/teams";
 import {
@@ -151,6 +156,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
         },
         transport: {
           abonnement_mensuel_total: 0,
+          indemnite_mensuelle_nette: 0,
         },
         titres_restaurant: {
           beneficie: true,
@@ -254,6 +260,8 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
   });
 
   const isCadre = form.watch("statut")?.toLowerCase() === 'cadre';
+  const employeeStatut = form.watch("statut");
+  const filteredMutuelles = filterMutuellesForEmployee(availableMutuelles, employeeStatut);
 
   const queryClient = useQueryClient();
 
@@ -1493,6 +1501,22 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                 <FormItem>
                                   <FormLabel>Abonnement transport mensuel total (€)</FormLabel>
                                   <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                                  <p className="text-xs text-muted-foreground">
+                                    Remboursement URSSAF : 50 % ajouté au net à payer.
+                                  </p>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="specificites_paie.transport.indemnite_mensuelle_nette"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Indemnité transport contractuelle (€ net/mois)</FormLabel>
+                                  <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                                  <p className="text-xs text-muted-foreground">
+                                    Montant fixe au contrat, versé en net chaque mois.
+                                  </p>
                                 </FormItem>
                               )}
                             />
@@ -1520,35 +1544,36 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                 <p className="text-sm text-muted-foreground text-center">
                                   Aucune formule de mutuelle disponible. Veuillez en créer dans l'onglet "Mutuelle" de la page "Mon Entreprise".
                                 </p>
+                              ) : filteredMutuelles.length === 0 ? (
+                                <p className="text-sm text-muted-foreground text-center">
+                                  Aucune formule compatible avec le statut {employeeStatut ?? 'sélectionné'}.
+                                </p>
                               ) : (
                                 <FormField
                                   control={form.control}
                                   name="specificites_paie.mutuelle.mutuelle_type_ids"
                                   render={({ field }) => (
                                     <FormItem>
-                                      <FormLabel>Sélectionner les formules de mutuelle</FormLabel>
+                                      <FormLabel>Sélectionner la formule de mutuelle (pack)</FormLabel>
                                       <div className="space-y-2 mt-2">
-                                        {availableMutuelles.map((mutuelle) => (
+                                        {filteredMutuelles.map((mutuelle) => (
                                           <div key={mutuelle.id} className="flex items-center space-x-2 p-2 border rounded-md hover:bg-muted/50">
                                             <Checkbox
                                               checked={field.value?.includes(mutuelle.id) || false}
                                               onCheckedChange={(checked) => {
-                                                const currentIds = field.value || [];
-                                                if (checked) {
-                                                  field.onChange([...currentIds, mutuelle.id]);
-                                                } else {
-                                                  field.onChange(currentIds.filter((id: string) => id !== mutuelle.id));
-                                                }
+                                                field.onChange(checked ? [mutuelle.id] : []);
                                               }}
                                             />
                                             <div className="flex-1">
-                                              <div className="font-medium">{mutuelle.libelle}</div>
+                                              <div className="font-medium">{formatMutuelleOptionLabel(mutuelle)}</div>
                                               <div className="text-sm text-muted-foreground">
                                                 Salarial: {mutuelle.montant_salarial.toFixed(2)} € | 
                                                 Patronal: {mutuelle.montant_patronal.toFixed(2)} €
-                                                {mutuelle.part_patronale_soumise_a_csg && (
-                                                  <span className="ml-2 text-xs">(Part patronale soumise à CSG)</span>
-                                                )}
+                                                {mutuelle.pack_couverture ? (
+                                                  <span className="ml-2 text-xs">
+                                                    ({PACK_COUVERTURE_LABELS[mutuelle.pack_couverture]})
+                                                  </span>
+                                                ) : null}
                                               </div>
                                             </div>
                                           </div>

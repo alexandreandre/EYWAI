@@ -27,7 +27,12 @@ export function resolveNotificationNavContext(
   return 'rh';
 }
 
-export const DOCUMENT_ALERT_NOTIFICATION_TYPES = ['nouveau_document', 'nouveau_bulletin'] as const;
+export const DOCUMENT_ALERT_NOTIFICATION_TYPES = [
+  'nouveau_document',
+  'nouveau_bulletin',
+  'bulletin_participation_a_repondre',
+  'bulletin_participation_rappel',
+] as const;
 
 export type DocumentAlertNotificationType =
   typeof DOCUMENT_ALERT_NOTIFICATION_TYPES[number];
@@ -58,6 +63,10 @@ const TYPE_LABELS: Record<string, string> = {
   avenant_signe: 'Document signé',
   nouveau_document: 'Nouveau document',
   nouveau_bulletin: 'Nouveau bulletin',
+  bulletin_participation_a_repondre: 'Bulletin participation',
+  bulletin_participation_rappel: 'Rappel participation',
+  bulletin_participation_retard_rh: 'Participation — retard',
+  bulletin_participation_defaut_pee: 'Participation — défaut PEE',
   rappel_medical: 'Suivi médical',
   absence_soumise: 'Absence',
   absence_approuvee: 'Absence validée',
@@ -76,6 +85,8 @@ export function getNotificationIcon(type: string): LucideIcon {
     case 'nouveau_document':
       return FileText;
     case 'nouveau_bulletin':
+    case 'bulletin_participation_a_repondre':
+    case 'bulletin_participation_rappel':
       return Euro;
     case 'rappel_medical':
       return Stethoscope;
@@ -139,6 +150,12 @@ export function getNotificationHref(
       if (ctx === 'manager') return '/leave-requests';
       if (ctx === 'rh') return '/leaves';
       return null;
+    case 'bulletin_participation_a_repondre':
+    case 'bulletin_participation_rappel':
+      return ctx === 'employee' ? '/employee/participation' : '/saisies';
+    case 'bulletin_participation_retard_rh':
+    case 'bulletin_participation_defaut_pee':
+      return ctx === 'rh' ? '/saisies' : null;
     default:
       return null;
   }

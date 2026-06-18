@@ -11,7 +11,10 @@ import {
   detectAbsenceConflictDays,
   validatedAbsenceDaysInMonth,
 } from '@/lib/schedulesAbsenceConflict';
-import { getFrenchPublicHolidayDayNumbers } from '@/lib/frenchPublicHolidays';
+import {
+  buildBasePlannedCalendarWithHolidays,
+} from '@/lib/companyCalendarHolidays';
+import type { FrenchPublicHolidayId } from '@/lib/frenchPublicHolidays';
 import { isForfaitJour } from '@/utils/employeeUtils';
 import { downloadBlob } from '@/lib/downloadBlob';
 
@@ -47,27 +50,15 @@ export interface EmployeeCalendarOverviewRow {
 function buildBasePlannedCalendar(
   year: number,
   month: number,
-  isForfaitJourMode: boolean
+  isForfaitJourMode: boolean,
+  observedHolidayIds?: readonly FrenchPublicHolidayId[] | null
 ): PlannedEventData[] {
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const holidayDays = getFrenchPublicHolidayDayNumbers(year, month);
-  const base: PlannedEventData[] = [];
-
-  for (let i = 1; i <= daysInMonth; i++) {
-    const date = new Date(year, month - 1, i);
-    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-    const defaultHeuresPrevues = isForfaitJourMode ? (isWeekend ? 0 : 1) : null;
-    let type = isWeekend ? 'weekend' : 'travail';
-    let heures_prevues: number | null = defaultHeuresPrevues;
-
-    if (holidayDays.has(i) && !isWeekend) {
-      type = 'ferie';
-      heures_prevues = null;
-    }
-
-    base.push({ jour: i, type, heures_prevues });
-  }
-  return base;
+  return buildBasePlannedCalendarWithHolidays(
+    year,
+    month,
+    isForfaitJourMode,
+    observedHolidayIds
+  );
 }
 
 function mergePlannedCalendar(
@@ -83,7 +74,8 @@ function mergePlannedCalendar(
 async function fetchEmployeeOverview(
   employee: SchedulesEmployeeInput,
   year: number,
-  month: number
+  month: number,
+  observedHolidayIds?: readonly FrenchPublicHolidayId[] | null
 ): Promise<EmployeeCalendarOverviewRow> {
   const forfait = isForfaitJour(employee.statut);
 
@@ -99,7 +91,7 @@ async function fetchEmployeeOverview(
     const actualFromApi: ActualHoursData[] =
       actualRes.data.calendrier_reel ?? [];
 
-    const base = buildBasePlannedCalendar(year, month, forfait);
+    const base = buildBasePlannedCalendar(year, month, forfait, observedHolidayIds);
     const planned = mergePlannedCalendar(base, plannedFromApi);
 
     const actual: ActualHoursData[] = planned.map((plannedDay) => {
@@ -145,7 +137,7 @@ async function fetchEmployeeOverview(
   } catch {
     return {
       employee,
-      planned: buildBasePlannedCalendar(year, month, forfait),
+      planned: buildBasePlannedCalendar(year, month, forfait, observedHolidayIds),
       actual: [],
       heuresPrevues: 0,
       heuresFaites: 0,
@@ -162,10 +154,11 @@ export async function fetchAllEmployeesOverview(
   employees: SchedulesEmployeeInput[],
   year: number,
   month: number,
-  concurrency = 5
+  concurrency = 5,
+  observedHolidayIds?: readonly FrenchPublicHolidayId[] | null
 ): Promise<EmployeeCalendarOverviewRow[]> {
   const tasks = employees.map(
-    (emp) => () => fetchEmployeeOverview(emp, year, month)
+    (emp) => () => fetchEmployeeOverview(emp, year, month, observedHolidayIds)
   );
   return runWithConcurrency(tasks, concurrency);
 }

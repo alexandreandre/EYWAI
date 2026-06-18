@@ -15,7 +15,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { AbsenceRequestModal } from "@/components/AbsenceRequestModal";
-import { Loader2, Check, X, Clock, Info, Download, Eye, FilePlus } from "lucide-react";
+import { Loader2, Check, X, Clock, Info, Download, Eye, FilePlus, ExternalLink } from "lucide-react";
+import { Link } from "react-router-dom";
 import type * as absencesApi from '@/api/absences'; // <-- CHANGER en 'import type'
 import * as absencesApiFunctions from '@/api/absences';
 import { isPlatformAdmin } from '@/lib/platformAdmin';
@@ -24,6 +25,8 @@ import {
   MaintenancePreviewBlock,
   ABSENCE_TYPES_MAINTIEN_PREVIEW,
 } from '@/components/absences/MaintenancePreviewBlock';
+import { LeaveBalancesRhSection } from '@/features/absences/components/LeaveBalancesRhSection';
+import { RttYearEndRhSection } from '@/features/absences/components/RttYearEndRhSection';
 
 type AbsenceRequest = absencesApi.AbsenceRequestWithEmployee;
 type AbsenceType = AbsenceRequest['type'];
@@ -158,8 +161,9 @@ export default function AbsencesPage() {
   
   // Composant pour afficher le solde restant (inchangé)
   const renderRemainingBalance = (req: AbsenceRequest) => {
-    const requestTypeLabel = typeLabels[req.type];
-    const balance = req.employee.balances.find(b => b.type === requestTypeLabel);
+    const balanceType =
+      req.type === 'conge_paye' ? 'Congés Payés' : typeLabels[req.type];
+    const balance = req.employee.balances.find((b) => b.type === balanceType);
 
     if (!balance || balance.remaining === 'N/A' || balance.remaining === 'selon événement') return <span className="text-muted-foreground">{balance?.remaining ?? 'N/A'}</span>;
 
@@ -352,7 +356,7 @@ export default function AbsencesPage() {
             </TableCell>
             <TableCell>
               {req.status === 'validated' && requiresCertificate(req.type) && (
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 items-center">
                   {loadingCertificates.has(req.id) ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : certificates[req.id] ? (
@@ -411,6 +415,12 @@ export default function AbsencesPage() {
                       </Tooltip>
                     </TooltipProvider>
                   )}
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/suivi-ijss">
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Suivi IJSS
+                    </Link>
+                  </Button>
                 </div>
               )}
             </TableCell>
@@ -465,6 +475,10 @@ export default function AbsencesPage() {
         }}
         showEmployeeSelector
       />
+      <div className="space-y-4">
+        <RttYearEndRhSection />
+        <LeaveBalancesRhSection />
+      </div>
       <Tabs defaultValue="pending">
         <TabsList>
           <TabsTrigger value="pending"><Clock className="mr-2 h-4 w-4" /> Demandes en attente <Badge className="ml-2">{pending.length}</Badge></TabsTrigger>

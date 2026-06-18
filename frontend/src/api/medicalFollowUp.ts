@@ -31,8 +31,22 @@ export interface KPIs {
   completed_this_month: number;
 }
 
-export async function getMedicalSettings(): Promise<{ enabled: boolean }> {
-  const res = await apiClient.get<{ enabled: boolean }>("/api/medical-follow-up/settings");
+export interface OccupationalHealthContact {
+  nom?: string | null;
+  adresse_rue?: string | null;
+  adresse_code_postal?: string | null;
+  adresse_ville?: string | null;
+  telephone?: string | null;
+  email?: string | null;
+}
+
+export interface MedicalSettings {
+  enabled: boolean;
+  occupational_health_contact?: OccupationalHealthContact | null;
+}
+
+export async function getMedicalSettings(): Promise<MedicalSettings> {
+  const res = await apiClient.get<MedicalSettings>("/api/medical-follow-up/settings");
   return res.data;
 }
 

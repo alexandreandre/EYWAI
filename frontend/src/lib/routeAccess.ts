@@ -15,6 +15,7 @@ const EMPLOYEE_ONLY_PREFIXES = [
   '/employee/formation',
   '/employee/planning',
   '/employee/documents',
+  '/employee/participation',
   '/employee/onboarding',
   '/employee/payslips',
 ] as const;

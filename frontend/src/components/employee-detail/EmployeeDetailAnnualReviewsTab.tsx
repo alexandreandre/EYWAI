@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createAnnualReview,
@@ -310,6 +310,8 @@ export function EmployeeDetailAnnualReviewsTab({
   const [planningTemplateId, setPlanningTemplateId] = useState("");
   const [planningRhNotes, setPlanningRhNotes] = useState("");
   const [deletingReviewId, setDeletingReviewId] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const planTypeHandled = useRef(false);
 
   const planningTargetYear = useMemo(() => {
     if (planningDate) return new Date(planningDate).getFullYear();
@@ -339,11 +341,32 @@ export function EmployeeDetailAnnualReviewsTab({
     [templatesQuery.data, planningInterviewType],
   );
 
+  useEffect(() => {
+    const planType = searchParams.get("planType");
+    if (!planType || planTypeHandled.current) return;
+    if (!(planType in INTERVIEW_TYPE_LABELS)) return;
+    planTypeHandled.current = true;
+    setPlanningInterviewType(planType as InterviewType);
+    setPlanningModalOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("planType");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!planningModalOpen || templatesForType.length !== 1) return;
+    const only = templatesForType[0];
+    if (only && planningTemplateId !== only.id) {
+      setPlanningTemplateId(only.id);
+    }
+  }, [planningModalOpen, templatesForType, planningTemplateId]);
+
   const invalidate = () => {
     void queryClient.invalidateQueries({
       queryKey: annualReviewsEmployeeQueryKey(employeeId),
     });
     void queryClient.invalidateQueries({ queryKey: ["annual-reviews"] });
+    void queryClient.invalidateQueries({ queryKey: ["annual-reviews", "planning-suggestions"] });
   };
 
   const createMutation = useMutation({

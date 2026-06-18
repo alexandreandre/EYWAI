@@ -95,8 +95,9 @@ function NextVisitContent({ obligation }: { obligation: ObligationListItem }) {
       )}
 
       <p className="text-xs text-muted-foreground border-t pt-3">
-        La planification des visites est gérée par votre employeur et la médecine du travail.
-        Contactez les RH pour toute question.
+        La planification des visites est gérée par votre employeur et le service de santé au
+        travail. Consultez les coordonnées du service ci-dessus ou contactez les RH pour toute
+        question.
       </p>
     </div>
   );

@@ -202,6 +202,7 @@ export function RecruitmentPage() {
         createJobMutation={model.createJobMutation}
         showEditJob={model.showEditJob}
         setShowEditJob={model.setShowEditJob}
+        editJobTargetId={model.editJobTargetId}
         editJob={model.editJob}
         setEditJob={model.setEditJob}
         updateJobMutation={model.updateJobMutation}

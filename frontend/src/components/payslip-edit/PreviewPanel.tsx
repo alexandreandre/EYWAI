@@ -352,6 +352,15 @@ export default function PreviewPanel({ data, pdfNotes, cumuls }: PreviewPanelPro
                   </span>
                 </div>
               )}
+
+              {data.synthese_net?.indemnite_transport_fixe && data.synthese_net.indemnite_transport_fixe > 0 && (
+                <div className="flex justify-between py-2 border-b text-green-600 font-medium">
+                  <span>Indemnité transport contractuelle:</span>
+                  <span className="font-medium">
+                    + {formatCurrency(data.synthese_net.indemnite_transport_fixe)}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-between text-2xl font-bold text-green-600 py-4 border-t-4 border-green-600 mt-4">

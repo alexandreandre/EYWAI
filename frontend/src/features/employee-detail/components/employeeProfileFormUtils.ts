@@ -45,7 +45,10 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
   const mutuelle = spec.mutuelle as { mutuelle_type_ids?: string[] } | undefined;
   const prevoyance = spec.prevoyance as { adhesion?: boolean } | undefined;
   const pas = spec.prelevement_a_la_source as { is_personnalise?: boolean; taux?: number } | undefined;
-  const transport = spec.transport as { abonnement_mensuel_total?: number } | undefined;
+  const transport = spec.transport as {
+    abonnement_mensuel_total?: number;
+    indemnite_mensuelle_nette?: number;
+  } | undefined;
   const tr = spec.titres_restaurant as { beneficie?: boolean; nombre_par_mois?: number } | undefined;
   const classification = (employee as Employee & { classification_conventionnelle?: EmployeeProfileEditFormValues['classification_conventionnelle'] }).classification_conventionnelle;
 
@@ -93,6 +96,7 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
       },
       transport: {
         abonnement_mensuel_total: transport?.abonnement_mensuel_total ?? 0,
+        indemnite_mensuelle_nette: transport?.indemnite_mensuelle_nette ?? 0,
       },
       titres_restaurant: {
         beneficie: tr?.beneficie ?? true,

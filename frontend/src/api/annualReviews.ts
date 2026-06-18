@@ -7,15 +7,20 @@ export type InterviewType =
   | "annual_performance"
   | "professional_2ans"
   | "competency_6ans"
+  | "annual_cadres"
+  | "annual_forfait_jour"
   | "return_absence"
   | "mid_year"
   | "other";
 
 export const INTERVIEW_TYPE_LABELS: Record<InterviewType, string> = {
-  annual_performance: "Entretien annuel de performance",
+  annual_performance: "Entretien annuel",
   professional_2ans: "Entretien professionnel (2 ans)",
   competency_6ans: "Bilan de compétences (6 ans)",
-  return_absence: "Entretien de retour d'absence",
+  annual_cadres: "Entretien annuel des cadres",
+  annual_forfait_jour: "Entretien annuel de suivi forfait jour",
+  return_absence:
+    "Entretien professionnel de reprise d'activité suite à absence longue durée",
   mid_year: "Entretien de mi-année",
   other: "Autre",
 };
@@ -261,5 +266,32 @@ export const downloadAnnualReviewPdf = async (reviewId: string) => {
   const response = await apiClient.get(`/api/annual-reviews/${reviewId}/pdf`, {
     responseType: 'blob',
   });
+  return response.data;
+};
+
+export type PlanningSuggestionUrgency = "due" | "overdue";
+
+export interface PlanningSuggestion {
+  employee_id: string;
+  employee_name: string;
+  interview_type: InterviewType | string;
+  interview_type_label: string;
+  reason: string;
+  urgency: PlanningSuggestionUrgency;
+  year: number;
+}
+
+export const getPlanningSuggestions = (year?: number) => {
+  const qs = year != null ? `?year=${year}` : "";
+  return apiClient.get<PlanningSuggestion[]>(
+    `/api/annual-reviews/planning-suggestions${qs}`
+  );
+};
+
+export const downloadConvocationPdf = async (reviewId: string) => {
+  const response = await apiClient.get(
+    `/api/annual-reviews/${reviewId}/convocation-pdf`,
+    { responseType: "blob" },
+  );
   return response.data;
 };

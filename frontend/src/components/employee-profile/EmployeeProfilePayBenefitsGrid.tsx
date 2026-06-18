@@ -9,6 +9,7 @@ import {
   getSocialLineAmount,
   type EmployeeProfileData,
 } from '@/lib/employeeProfileUtils';
+import { PACK_COUVERTURE_LABELS } from '@/lib/mutuelleUtils';
 
 interface EmployeeProfilePayBenefitsGridProps {
   profile: EmployeeProfileData;
@@ -36,6 +37,7 @@ export function EmployeeProfilePayBenefitsGrid({
     || false;
   const mutuelleLine = getFirstSocialLine(profile, 'mutuelle');
   const prevoyanceLine = getFirstSocialLine(profile, 'prevoyance');
+  const mutuellePack = profile.specificites_paie?.mutuelle?.pack_couverture;
   const mutuelleAmount = mutuelleLine
     ? formatProfileCurrency(getSocialLineAmount(mutuelleLine, 'mutuelle'))
     : null;
@@ -80,6 +82,14 @@ export function EmployeeProfilePayBenefitsGrid({
             <>
               <Label>Part salariale</Label>
               <p className="font-semibold tabular-nums">{mutuelleAmount}</p>
+            </>
+          ) : null}
+          {mutuellePack ? (
+            <>
+              <Label>Pack souscrit</Label>
+              <p className="font-semibold">
+                {PACK_COUVERTURE_LABELS[mutuellePack] ?? mutuellePack}
+              </p>
             </>
           ) : null}
         </CardContent>

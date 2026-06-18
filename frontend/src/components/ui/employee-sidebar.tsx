@@ -15,6 +15,7 @@ import {
   LifeBuoy,
   GraduationCap,
   FileText,
+  Megaphone,
   ScanLine,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -63,6 +64,7 @@ const coreNavItems: NavItem[] = [
   { to: "/salary-advances", label: "Avances & acomptes", icon: Wallet },
   { to: "/employee-loans", label: "Prêts employeur", icon: Landmark },
   { to: "/employee/documents", label: "Mes documents", icon: FileText },
+  { to: "/employee/participation", label: "Participation", icon: Megaphone },
   { to: "/employee/formation", label: "Ma formation", icon: GraduationCap },
 ];
 
@@ -86,6 +88,9 @@ function isNavActive(path: string, currentPath: string): boolean {
   }
   if (path === "/employee/documents") {
     return currentPath.startsWith("/employee/documents");
+  }
+  if (path === "/employee/participation") {
+    return currentPath.startsWith("/employee/participation");
   }
   if (path === "/calendar") {
     return currentPath === "/calendar" || currentPath.startsWith("/employee/planning");

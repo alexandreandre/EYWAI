@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, useEffect, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
@@ -21,7 +21,14 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
+import {
+  CONTRACT_TYPES,
+  AVENANT_TYPES,
+  ATTESTATION_COURANTE_TYPES,
+  type DocumentGenMode,
+} from '@/lib/documentGenerationConfig';
 import {
   deleteDocument,
   downloadDocument,
@@ -51,26 +58,7 @@ import {
 export const QK_EMPLOYEE_GENERATED_DOCS = (employeeId: string) =>
   ['employee-generated-documents', employeeId] as const;
 
-const CONTRACT_TYPES = ['cdi', 'cdd', 'convention_stage', 'contrat_alternance'] as const;
-const AVENANT_TYPES = [
-  'avenant_salaire',
-  'avenant_poste',
-  'avenant_temps',
-  'avenant_lieu',
-  'avenant_general',
-] as const;
-
-const ATTESTATION_COURANTE_TYPES = [
-  'attestation_emploi',
-  'attestation_presence',
-  'attestation_anciennete',
-  'attestation_poste',
-  'attestation_salaire',
-  'attestation_revenus',
-  'attestation_location',
-  'attestation_pret',
-  'attestation_retraite',
-] as const;
+const QK_FICHE_POSTE_TEMPLATES = ['document-library', 'templates', 'fiche_poste'] as const;
 
 export function documentStatusBadge(status: string) {
   const map: Record<string, { className: string; label: string }> = {
@@ -123,12 +111,14 @@ export interface EmployeeDetailDocumentsRhEmployee {
   exit_last_working_day?: string | null;
 }
 
-type GenMode = 'contrat' | 'avenant' | 'attestation' | null;
+type GenMode = DocumentGenMode;
 
 export interface EmployeeDocumentGenerationHandlers {
   openContrat: () => void;
   openAvenant: (preset?: { document_type: string; template_id: string | null }) => void;
   openAttestation: () => void;
+  openFichePoste: (options?: { jobId?: string; missions?: string }) => void;
+  hasFichePosteTemplate: boolean;
   handleView: (id: string) => Promise<void>;
   handleDownload: (id: string, fileName?: string | null) => Promise<void>;
   handleDelete: (id: string) => void;
@@ -140,7 +130,8 @@ export interface EmployeeDocumentGenerationHandlers {
 
 export function useEmployeeDocumentGeneration(
   employeeId: string,
-  employee: EmployeeDetailDocumentsRhEmployee
+  employee: EmployeeDetailDocumentsRhEmployee,
+  deepLink?: { generate?: 'fiche_poste'; jobId?: string }
 ) {
   const queryClient = useQueryClient();
   const displayName = `${employee.last_name} ${employee.first_name}`.trim();
@@ -150,6 +141,9 @@ export function useEmployeeDocumentGeneration(
   const [genTemplate, setGenTemplate] = useState('__eywai__');
   const [genDateEffet, setGenDateEffet] = useState('');
   const [genMotif, setGenMotif] = useState('');
+  const [genMissions, setGenMissions] = useState('');
+  const [genManager, setGenManager] = useState('');
+  const [genRecruitmentJobId, setGenRecruitmentJobId] = useState<string | undefined>();
   const [eywaiBanner, setEywaiBanner] = useState(false);
   const [loadingAction, setLoadingAction] = useState<{
     id: string;
@@ -160,6 +154,27 @@ export function useEmployeeDocumentGeneration(
     queryKey: QK_EMPLOYEE_GENERATED_DOCS(employeeId),
     queryFn: () => getDocuments({ employee_id: employeeId }),
   });
+
+  const { data: fichePosteTemplates = [] } = useQuery({
+    queryKey: [...QK_FICHE_POSTE_TEMPLATES],
+    queryFn: () => getTemplates('active'),
+  });
+
+  const hasFichePosteTemplate = useMemo(
+    () =>
+      fichePosteTemplates.some(
+        (t) =>
+          t.document_type === 'fiche_poste' &&
+          t.status === 'active' &&
+          t.current_version != null
+      ),
+    [fichePosteTemplates]
+  );
+
+  const fichePosteTemplatesForType = useMemo(
+    () => fichePosteTemplates.filter((t) => t.document_type === 'fiche_poste' && t.status === 'active'),
+    [fichePosteTemplates]
+  );
 
   const docTypeForTemplates = genDocType || '';
   const { data: templates = [] } = useQuery({
@@ -231,6 +246,9 @@ export function useEmployeeDocumentGeneration(
       setGenTemplate('__eywai__');
       setGenDateEffet('');
       setGenMotif('');
+      setGenMissions('');
+      setGenManager('');
+      setGenRecruitmentJobId(undefined);
       toast({
         title: 'Document généré',
         description: doc.file_name ? `Fichier : ${doc.file_name}` : 'Enregistré.',
@@ -272,6 +290,46 @@ export function useEmployeeDocumentGeneration(
     setGenDateEffet('');
     setGenMotif('');
     setEywaiBanner(false);
+  };
+
+  const openFichePoste = (options?: { jobId?: string; missions?: string }) => {
+    setGenMode('fiche_poste');
+    setGenDocType('fiche_poste');
+    const firstTpl = fichePosteTemplatesForType[0];
+    setGenTemplate(firstTpl?.id ?? '');
+    setGenMissions(options?.missions ?? '');
+    setGenManager('');
+    setGenRecruitmentJobId(options?.jobId);
+    setEywaiBanner(false);
+  };
+
+  useEffect(() => {
+    if (deepLink?.generate === 'fiche_poste' && hasFichePosteTemplate) {
+      openFichePoste({ jobId: deepLink.jobId });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ouverture unique au chargement
+  }, [deepLink?.generate, deepLink?.jobId, hasFichePosteTemplate]);
+
+  const submitFichePoste = () => {
+    if (!genTemplate) {
+      toast({
+        title: 'Modèle requis',
+        description: 'Configurez une fiche de poste dans la bibliothèque.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const custom_fields: Record<string, string> = {};
+    if (genMissions.trim()) custom_fields.missions = genMissions.trim();
+    if (genManager.trim()) custom_fields.manager = genManager.trim();
+    genMut.mutate({
+      employee_id: employeeId,
+      document_type: 'fiche_poste',
+      category: 'attestation_courante',
+      template_id: genTemplate,
+      custom_fields: Object.keys(custom_fields).length ? custom_fields : null,
+      recruitment_job_id: genRecruitmentJobId ?? null,
+    });
   };
 
   const submitGen = () => {
@@ -342,11 +400,14 @@ export function useEmployeeDocumentGeneration(
   const canSubmitContrat = genMode === 'contrat' && !!genDocType && !!genDateEffet;
   const canSubmitAvenant = genMode === 'avenant' && !!genDocType && !!genDateEffet;
   const canSubmitAttestation = genMode === 'attestation' && !!genDocType;
+  const canSubmitFichePoste = genMode === 'fiche_poste' && !!genTemplate;
 
   const handlers: EmployeeDocumentGenerationHandlers = {
     openContrat,
     openAvenant,
     openAttestation,
+    openFichePoste,
+    hasFichePosteTemplate,
     handleView,
     handleDownload,
     handleDelete,
@@ -524,6 +585,64 @@ export function useEmployeeDocumentGeneration(
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={genMode === 'fiche_poste'} onOpenChange={(o) => !o && setGenMode(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Générer une fiche de poste</DialogTitle>
+            <DialogDescription>{displayName}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-2">
+              <Label>Modèle</Label>
+              <Select value={genTemplate || undefined} onValueChange={setGenTemplate}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choisir un modèle…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {fichePosteTemplatesForType.map((tpl) => (
+                    <SelectItem key={tpl.id} value={tpl.id}>
+                      {tpl.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground space-y-1">
+              <p>
+                <span className="font-medium text-foreground">Poste :</span>{' '}
+                {employee.job_title || employee.poste || '— non renseigné'}
+              </p>
+              <p>
+                <span className="font-medium text-foreground">Nom :</span> {employee.first_name}{' '}
+                {employee.last_name}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Missions (optionnel)</Label>
+              <Textarea
+                value={genMissions}
+                onChange={(e) => setGenMissions(e.target.value)}
+                rows={3}
+                placeholder="Description des missions…"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Manager (optionnel)</Label>
+              <Input value={genManager} onChange={(e) => setGenManager(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGenMode(null)}>
+              Annuler
+            </Button>
+            <Button onClick={submitFichePoste} disabled={!canSubmitFichePoste || genMut.isPending}>
+              {genMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Générer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 
@@ -581,10 +700,21 @@ export function EmployeeDocumentAddMenu({
         <DropdownMenuItem onClick={handlers.openContrat}>Générer un contrat</DropdownMenuItem>
         <DropdownMenuItem onClick={() => handlers.openAvenant()}>Générer un avenant</DropdownMenuItem>
         <DropdownMenuItem onClick={handlers.openAttestation}>Générer une attestation</DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={!handlers.hasFichePosteTemplate}
+          onClick={() => handlers.openFichePoste()}
+        >
+          Générer une fiche de poste
+        </DropdownMenuItem>
+        {!handlers.hasFichePosteTemplate ? (
+          <p className="px-2 pb-1 text-xs text-muted-foreground">
+            Importez un modèle dans la bibliothèque.
+          </p>
+        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={onManageTemplates}>
           <Settings2 className="mr-2 h-4 w-4" />
-          Gérer les modèles
+          Gérer la bibliothèque
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -604,7 +734,7 @@ export function EmployeeDetailDocumentsRhSection({
 
   return (
     <div className="space-y-4">
-      <EmployeeDocumentAddMenu handlers={handlers} onManageTemplates={() => navigate('/company#bibliotheque')} />
+      <EmployeeDocumentAddMenu handlers={handlers} onManageTemplates={() => navigate('/company?tab=modeles')} />
       {eywaiBanner && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
           Générée avec le modèle standard EYWAI.

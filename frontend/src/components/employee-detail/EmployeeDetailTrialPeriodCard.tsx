@@ -18,6 +18,10 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/use-toast";
 import type { Employee } from "@/features/employee-detail/types";
+import {
+  formatHireDateLong,
+  formatTrialPeriodEndPreview,
+} from "@/lib/trialPeriodUtils";
 
 type PeriodeEssaiForm = {
   enabled: boolean;
@@ -100,7 +104,26 @@ export function EmployeeDetailTrialPeriodCard({
       employee.trial_period_status === "ended" ||
       employee.trial_period_status === "in_progress");
 
+  const endPreview =
+    form.enabled && employee.hire_date
+      ? formatTrialPeriodEndPreview(
+          employee.hire_date,
+          form.duree_initiale,
+          form.unite,
+        )
+      : null;
+
   const handleSave = async () => {
+    if (form.enabled && !employee.hire_date) {
+      toast({
+        title: "Date d'entrée requise",
+        description:
+          "Renseignez d'abord la date d'entrée sur la fiche contrat pour calculer la fin de période d'essai.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = form.enabled
@@ -167,6 +190,17 @@ export function EmployeeDetailTrialPeriodCard({
         <TrialPeriodBadge data={trialData} />
       </CardHeader>
       <CardContent className="space-y-4">
+        {employee.hire_date ? (
+          <p className="text-sm text-muted-foreground">
+            Date d&apos;entrée : {formatHireDateLong(employee.hire_date)}
+          </p>
+        ) : (
+          <p className="text-sm text-amber-700">
+            Renseignez d&apos;abord la date d&apos;entrée sur la fiche contrat pour calculer la
+            fin de période d&apos;essai.
+          </p>
+        )}
+
         {employee.trial_period_end_date && employee.trial_period_status !== "to_complete" ? (
           <p className="text-sm text-muted-foreground">
             Fin prévue le {formatEndDate(employee.trial_period_end_date)}
@@ -241,6 +275,9 @@ export function EmployeeDetailTrialPeriodCard({
               </div>
             </div>
           )}
+          {endPreview ? (
+            <p className="text-sm text-muted-foreground">{endPreview}</p>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap gap-2">

@@ -18,6 +18,7 @@ export type EmployeeListItem = {
   trial_period_status?: TrialPeriodStatus | null;
   trial_period_end_date?: string | null;
   trial_period_days_remaining?: number | null;
+  contract_end_date?: string | null;
   profile_complete?: boolean | null;
   missing_payroll_fields?: string[] | null;
   payroll_eligible?: boolean | null;

@@ -28,6 +28,11 @@ import {
 } from '@/components/ui/select';
 import { normalizeNir } from '@/features/employee-detail/components/employeeProfileFormUtils';
 import type { EmployeeProfileEditFormValues } from '@/features/employee-detail/components/employeeProfileEditSchema';
+import {
+  filterMutuellesForEmployee,
+  formatMutuelleOptionLabel,
+  PACK_COUVERTURE_LABELS,
+} from '@/lib/mutuelleUtils';
 import { EmployeeContractConfigFormFields } from '@/features/employees/components/EmployeeContractConfigFields';
 import { getCollectiveAgreementLabel } from '@/lib/employeeDisplayUtils';
 
@@ -59,6 +64,7 @@ export function EmployeeProfileEditForm({
   const isPasPerso = useWatch({ control, name: 'specificites_paie.prelevement_a_la_source.is_personnalise' });
   const isResidencePermit = useWatch({ control, name: 'is_subject_to_residence_permit' });
   const isCadre = statut?.toLowerCase() === 'cadre';
+  const filteredMutuelles = filterMutuellesForEmployee(availableMutuelles, statut);
   const companyId = useActiveCompanyId();
   const { data: jeiSettings } = useQuery({
     queryKey: ['jei-settings', companyId],
@@ -426,6 +432,10 @@ export function EmployeeProfileEditForm({
               <p className="text-sm text-muted-foreground">
                 Aucune formule configurée dans Mon Entreprise.
               </p>
+            ) : filteredMutuelles.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Aucune formule compatible avec le statut {statut ?? 'du salarié'}.
+              </p>
             ) : (
               <FormField
                 control={control}
@@ -433,18 +443,21 @@ export function EmployeeProfileEditForm({
                 render={({ field }) => (
                   <FormItem>
                     <div className="space-y-2">
-                      {availableMutuelles.map((m) => (
+                      {filteredMutuelles.map((m) => (
                         <div key={m.id} className="flex items-center gap-2 rounded-md border p-2">
                           <Checkbox
                             checked={field.value?.includes(m.id) ?? false}
                             onCheckedChange={(checked) => {
-                              const ids = field.value ?? [];
-                              field.onChange(
-                                checked ? [...ids, m.id] : ids.filter((id) => id !== m.id),
-                              );
+                              field.onChange(checked ? [m.id] : []);
                             }}
                           />
-                          <span className="text-sm">{m.libelle}</span>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium">{formatMutuelleOptionLabel(m)}</span>
+                            <span className="text-xs text-muted-foreground">
+                              Salarial {m.montant_salarial.toFixed(2)} € · Patronal {m.montant_patronal.toFixed(2)} €
+                              {m.pack_couverture ? ` · ${PACK_COUVERTURE_LABELS[m.pack_couverture]}` : ''}
+                            </span>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -536,6 +549,31 @@ export function EmployeeProfileEditForm({
                       onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
                     />
                   </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Remboursement URSSAF : 50 % du montant ajouté au net à payer.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name="specificites_paie.transport.indemnite_mensuelle_nette"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Indemnité transport contractuelle (€ net/mois)</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Montant fixe prévu au contrat, versé en net (hors cotisations).
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}

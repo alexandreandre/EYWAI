@@ -72,7 +72,15 @@ export interface PunchCandidate {
   next_action: "ENTREE" | "SORTIE";
 }
 
-export interface DaySummary {
+export interface DayAccountingFields {
+  computed_seconds: number;
+  accounted_seconds: number | null;
+  effective_seconds: number;
+  has_override: boolean;
+  override_differs_from_computed?: boolean;
+}
+
+export interface DaySummary extends DayAccountingFields {
   date: string;
   status: string;
   total_seconds: number;
@@ -83,7 +91,7 @@ export interface DaySummary {
   employee_name?: string;
 }
 
-export interface DayDetail {
+export interface DayDetail extends DayAccountingFields {
   date: string;
   status: string;
   total_seconds: number;
@@ -234,6 +242,7 @@ export const getCompanyBadgeuseSummary = async (
   {
     employee_id: string;
     total_seconds: number;
+    total_effective_seconds: number;
     days_with_anomalies: number;
     employee_name?: string;
   }[]
@@ -257,6 +266,7 @@ export const getCompanyBadgeuseSummary = async (
   const summary: {
     employee_id: string;
     total_seconds: number;
+    total_effective_seconds: number;
     days_with_anomalies: number;
   }[] = summaryRes.data ?? [];
 
@@ -332,4 +342,30 @@ export const deleteBadgeuseEvent = async (
     company_id: companyId,
   });
   await apiClient.delete(`/api/badgeuse/events/${eventId}?${params.toString()}`);
+};
+
+export const setEmployeeDayAccountedHours = async (
+  employeeId: string,
+  companyId: string,
+  day: string,
+  accountedSeconds: number
+): Promise<DayDetail> => {
+  const params = new URLSearchParams({ company_id: companyId });
+  const response = await apiClient.patch(
+    `/api/badgeuse/employees/${employeeId}/days/${day}/accounted-hours?${params.toString()}`,
+    { accounted_seconds: accountedSeconds }
+  );
+  return response.data;
+};
+
+export const clearEmployeeDayAccountedHours = async (
+  employeeId: string,
+  companyId: string,
+  day: string
+): Promise<DayDetail> => {
+  const params = new URLSearchParams({ company_id: companyId });
+  const response = await apiClient.delete(
+    `/api/badgeuse/employees/${employeeId}/days/${day}/accounted-hours?${params.toString()}`
+  );
+  return response.data;
 };

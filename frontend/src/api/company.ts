@@ -1,6 +1,7 @@
 import apiClient from "@/api/apiClient";
 import { downloadBlob } from '@/lib/downloadBlob';
 import type { DsnCoverage, DsnSyncMode } from '@/api/dsnImport';
+import type { FrenchPublicHolidayId } from '@/lib/frenchPublicHolidays';
 
 export interface MonthlyEvolution {
   month: string;
@@ -57,7 +58,18 @@ export interface CompanyDetails {
   adresse_ville: string | null;
   nom_signataire_rh: string | null;
   qualite_signataire_rh: string | null;
-  settings?: { medical_follow_up_enabled?: boolean };
+  service_sante_travail_nom: string | null;
+  service_sante_travail_adresse_rue: string | null;
+  service_sante_travail_adresse_code_postal: string | null;
+  service_sante_travail_adresse_ville: string | null;
+  service_sante_travail_telephone: string | null;
+  service_sante_travail_email: string | null;
+  settings?: {
+    medical_follow_up_enabled?: boolean;
+    public_holidays?: {
+      observed_holiday_ids?: FrenchPublicHolidayId[];
+    };
+  };
   dsn_sync_mode?: DsnSyncMode | null;
 }
 
@@ -142,6 +154,12 @@ export type CompanyDetailsUpdate = Partial<
     | "adresse_ville"
     | "nom_signataire_rh"
     | "qualite_signataire_rh"
+    | "service_sante_travail_nom"
+    | "service_sante_travail_adresse_rue"
+    | "service_sante_travail_adresse_code_postal"
+    | "service_sante_travail_adresse_ville"
+    | "service_sante_travail_telephone"
+    | "service_sante_travail_email"
   >
 > & {
   dsn_sync_mode?: DsnSyncMode;
@@ -170,4 +188,33 @@ export async function downloadCompanyExport(): Promise<void> {
   });
   const blob = new Blob([response.data], { type: "text/csv;charset=utf-8" });
   downloadBlob(blob, "mon_entreprise.csv");
+}
+
+export interface CompanySettingsResponse {
+  medical_follow_up_enabled: boolean;
+  settings: Record<string, unknown>;
+}
+
+export interface PublicHolidaysSettingsUpdate {
+  observed_holiday_ids: FrenchPublicHolidayId[];
+}
+
+export interface CompanySettingsUpdate {
+  medical_follow_up_enabled?: boolean;
+  public_holidays?: PublicHolidaysSettingsUpdate;
+}
+
+export async function getCompanySettings(): Promise<CompanySettingsResponse> {
+  const { data } = await apiClient.get<CompanySettingsResponse>('/api/company/settings');
+  return data;
+}
+
+export async function patchCompanySettings(
+  body: CompanySettingsUpdate
+): Promise<CompanySettingsResponse> {
+  const { data } = await apiClient.patch<CompanySettingsResponse>(
+    '/api/company/settings',
+    body
+  );
+  return data;
 }

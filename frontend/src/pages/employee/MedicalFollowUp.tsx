@@ -2,17 +2,21 @@
 
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, LifeBuoy, RefreshCw, Stethoscope } from 'lucide-react';
 import { EmployeeMedicalKpiBand } from '@/components/medical-follow-up/EmployeeMedicalKpiBand';
 import { EmployeeMedicalNextVisitCard } from '@/components/medical-follow-up/EmployeeMedicalNextVisitCard';
 import { EmployeeMedicalObligationsList } from '@/components/medical-follow-up/EmployeeMedicalObligationsList';
+import { OccupationalHealthContactCard } from '@/components/medical-follow-up/OccupationalHealthContactCard';
 import { EmployeeMedicalFollowUpSkeleton } from '@/components/skeletons/EmployeeMedicalFollowUpSkeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { getMedicalSettings } from '@/api/medicalFollowUp';
 import { useEmployeeMedicalObligationsQuery } from '@/hooks/queries/useEmployeeMedicalObligationsQuery';
 import { getMedicalFollowUpErrorMessage } from '@/lib/employeeMedicalFollowUp';
 import { countMedicalObligations } from '@/lib/medicalFollowUpLabels';
+import { hasOccupationalHealthContact } from '@/lib/occupationalHealthContact';
 import {
   EmployeePageHeader,
   EmployeePageShell,
@@ -51,6 +55,14 @@ export default function EmployeeMedicalFollowUp() {
   const { data: obligations = [], isLoading, isError, error, refetch, isFetching } =
     useEmployeeMedicalObligationsQuery();
 
+  const { data: medicalSettings } = useQuery({
+    queryKey: ['medical-follow-up', 'settings'],
+    queryFn: () => getMedicalSettings(),
+  });
+
+  const occupationalHealthContact = medicalSettings?.occupational_health_contact;
+  const hasSpstContact = hasOccupationalHealthContact(occupationalHealthContact);
+
   const counts = useMemo(() => countMedicalObligations(obligations), [obligations]);
   const upcomingCount = Math.max(0, counts.active - counts.overdue);
 
@@ -87,10 +99,14 @@ export default function EmployeeMedicalFollowUp() {
             {counts.overdue === 1
               ? 'Vous avez 1 visite médicale en retard.'
               : `Vous avez ${counts.overdue} visites médicales en retard.`}{' '}
-            Contactez les RH ou la médecine du travail pour planifier votre passage.
+            {hasSpstContact
+              ? 'Contactez le service de santé au travail ci-dessous pour planifier votre passage.'
+              : 'Contactez les RH ou la médecine du travail pour planifier votre passage.'}
           </AlertDescription>
         </Alert>
       )}
+
+      <OccupationalHealthContactCard contact={occupationalHealthContact} />
 
       {obligations.length === 0 ? (
         <Card>

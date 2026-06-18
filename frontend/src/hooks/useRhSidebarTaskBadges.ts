@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "react-router-dom";
 import { invalidateRhSidebarBadges } from "@/lib/invalidateRhSidebarBadges";
 import apiClient from "@/api/apiClient";
+import { getRttYearEndOverview } from '@/api/leaveSettings';
 import { getMedicalSettings, getKPIs } from "@/api/medicalFollowUp";
 import { getRibAlerts } from "@/api/ribAlerts";
 import {
@@ -187,6 +188,13 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
     staleTime: 30_000,
   });
 
+  const rttYearEndQuery = useQuery({
+    queryKey: ["rtt-year-end", "sidebar-badges"],
+    queryFn: () => getRttYearEndOverview(),
+    enabled,
+    staleTime: 60_000,
+  });
+
   const schedulesBadgeQuery = useQuery({
     queryKey: ["schedules", "sidebar-badges", schedulesYear, schedulesMonth],
     queryFn: async () => {
@@ -219,6 +227,14 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
       schedulesBadgeQuery.data,
       workMedalsDue,
     );
+    if (rttYearEndQuery.data?.reminder_active) {
+      const closable = rttYearEndQuery.data.employees.filter(
+        (e) => e.closure_required,
+      ).length;
+      if (closable > 0) {
+        base["/leaves"] = (base["/leaves"] ?? 0) + closable;
+      }
+    }
     return base;
   }, [
     dashboardQuery.data,
@@ -230,6 +246,7 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
     recruitmentCandidatesQuery.data,
     schedulesBadgeQuery.data,
     workMedalsQuery.data?.awaiting_rh,
+    rttYearEndQuery.data,
   ]);
 
   const totalRhPending = useMemo(() => {

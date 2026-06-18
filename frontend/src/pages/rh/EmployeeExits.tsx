@@ -57,6 +57,8 @@ const EmployeeExitsPage = () => {
 
   const createPrefillEmployeeId = searchParams.get('employeeId') ?? undefined;
   const createPrefillExitType = searchParams.get('exitType') as ExitType | null;
+  const returnTo = searchParams.get('returnTo');
+  const returnBatchId = searchParams.get('batchId');
 
   const invalidateEmployeesCache = useCallback(
     (employeeId?: string) => {
@@ -332,6 +334,8 @@ const EmployeeExitsPage = () => {
             next.delete('create');
             next.delete('employeeId');
             next.delete('exitType');
+            next.delete('returnTo');
+            next.delete('batchId');
             setSearchParams(next, { replace: true });
           }
         }}
@@ -340,6 +344,14 @@ const EmployeeExitsPage = () => {
         onSuccess={() => {
           invalidateEmployeesCache(createPrefillEmployeeId);
           void fetchExits();
+          if (returnTo === 'dsn-import') {
+            toast.success('Départ créé. Vous pouvez reprendre l’import DSN.');
+            if (returnBatchId) {
+              navigate(`/super-admin/dsn-import?resumeBatch=${returnBatchId}`);
+            } else {
+              navigate('/super-admin/dsn-import');
+            }
+          }
         }}
       />
 

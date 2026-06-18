@@ -24,13 +24,19 @@ export default function SyntheseNetSection({ data, netAPayer, totalExonerations,
     const netSocial = parseFloat(data?.net_social_avant_impot || 0);
     const impot = parseFloat(data?.impot_prelevement_a_la_source?.montant || 0);
     const transport = parseFloat(data?.remboursement_transport || 0);
+    const indemniteTransport = parseFloat(data?.indemnite_transport_fixe || 0);
 
-    const calculatedNet = netSocial - impot + transport;
+    const calculatedNet = netSocial - impot + transport + indemniteTransport;
 
     if (calculatedNet !== netAPayer) {
       onChange(data, calculatedNet);
     }
-  }, [data?.net_social_avant_impot, data?.impot_prelevement_a_la_source?.montant, data?.remboursement_transport]);
+  }, [
+    data?.net_social_avant_impot,
+    data?.impot_prelevement_a_la_source?.montant,
+    data?.remboursement_transport,
+    data?.indemnite_transport_fixe,
+  ]);
 
   const handleFieldChange = (field: string, value: any) => {
     const newData = JSON.parse(JSON.stringify(data));
@@ -163,6 +169,20 @@ export default function SyntheseNetSection({ data, netAPayer, totalExonerations,
               step="0.01"
               value={data?.remboursement_transport || 0}
               onChange={(e) => handleFieldChange('remboursement_transport', parseFloat(e.target.value) || 0)}
+              className="h-8 mt-1"
+            />
+          </div>
+
+          <div className="py-2 border-b">
+            <Label htmlFor="indemnite_transport" className="text-xs text-green-600">
+              Indemnité transport contractuelle
+            </Label>
+            <Input
+              id="indemnite_transport"
+              type="number"
+              step="0.01"
+              value={data?.indemnite_transport_fixe || 0}
+              onChange={(e) => handleFieldChange('indemnite_transport_fixe', parseFloat(e.target.value) || 0)}
               className="h-8 mt-1"
             />
           </div>

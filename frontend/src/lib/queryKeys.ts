@@ -39,6 +39,68 @@ export const queryKeys = {
     companyQueryKey(companyId, 'onboarding', 'hub', 'dashboard'),
   absences: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'absences'),
+  leaveSettings: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'leave-settings'),
+  leaveBalancesOverview: (companyId: string | undefined, year?: number) =>
+    companyQueryKey(companyId, 'leave-balances-overview', year ?? 'current'),
+  rttYearEndOverview: (companyId: string | undefined, year?: number) =>
+    companyQueryKey(companyId, 'rtt-year-end-overview', year ?? 'current'),
+  overtimeContingentSettings: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'overtime-contingent', 'settings'),
+  overtimeContingentOverview: (
+    companyId: string | undefined,
+    year: number,
+    referenceDate: string,
+  ) => companyQueryKey(companyId, 'overtime-contingent', 'overview', year, referenceDate),
+  overtimeContingentDetail: (
+    companyId: string | undefined,
+    employeeId: string,
+    year: number,
+    referenceDate: string,
+  ) =>
+    companyQueryKey(
+      companyId,
+      'overtime-contingent',
+      'detail',
+      employeeId,
+      year,
+      referenceDate,
+    ),
+  cetSettings: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'cet', 'settings'),
+  fractionnementSettings: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'fractionnement', 'settings'),
+  fractionnementPreview: (companyId: string | undefined, grantYear: number) =>
+    companyQueryKey(companyId, 'fractionnement', 'preview', grantYear),
+  cpSenioritySettings: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'cpSeniority', 'settings'),
+  cpSeniorityPreview: (companyId: string | undefined, grantYear: number) =>
+    companyQueryKey(companyId, 'cpSeniority', 'preview', grantYear),
+  modulationSettings: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'modulation', 'settings'),
+  modulationOverview: (companyId: string | undefined, year: number) =>
+    companyQueryKey(companyId, 'modulation', 'overview', year),
+  payrollVariableRules: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'payroll-variables', 'rules'),
+  employeeCetSummary: (
+    userId: string | undefined,
+    year?: number,
+    month?: number,
+  ) => ['employee', userId ?? 'none', 'cet', 'summary', year ?? 'cur', month ?? 'cur'] as const,
+  employeeCetRhSummary: (
+    companyId: string | undefined,
+    employeeId: string,
+    year?: number,
+    month?: number,
+  ) =>
+    companyQueryKey(
+      companyId,
+      'cet',
+      'employee',
+      employeeId,
+      year ?? 'cur',
+      month ?? 'cur',
+    ),
   planning: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'planning'),
   planningWeek: (companyId: string | undefined, weekStart: string) =>
@@ -82,4 +144,6 @@ export const queryKeys = {
     companyQueryKey(companyId, 'formation', 'dashboard', 'achievement', year),
   payrollPreflight: (companyId: string | undefined, year: number, month: number) =>
     companyQueryKey(companyId, 'payroll', 'preflight-anomalies', year, month),
+  companySettings: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'company-settings'),
 } as const;

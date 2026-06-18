@@ -564,11 +564,20 @@ export default function InterviewTemplatesTab() {
 
   return (
     <div className="space-y-4">
+      <div className="rounded-md border border-blue-200 bg-blue-50/80 px-4 py-3 text-sm text-blue-950 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
+        <p className="font-medium">Paramétrage recommandé</p>
+        <p className="mt-1 text-blue-900/90 dark:text-blue-100/90">
+          Créez un modèle <strong>actif</strong> par type d&apos;entretien (cadres, forfait jour,
+          entretien pro 2 ans, bilan 6 ans, reprise d&apos;absence…). Lors de la planification, le
+          modèle correspondant est proposé automatiquement. Recopiez le contenu de vos documents Word
+          existants section par section.
+        </p>
+      </div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Modèles de trames</h2>
           <p className="text-sm text-muted-foreground">
-            Créez des trames réutilisables pour vos entretiens (Ticket 12 intégrera cet onglet).
+            Trames réutilisables pour préparer et conduire les entretiens.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 justify-end">

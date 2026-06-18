@@ -45,6 +45,7 @@ import {
   UserRoundPlus,
 } from 'lucide-react';
 import { CSEDashboardBlock } from '@/components/CSEDashboardBlock';
+import { RhParticipationCampaignWidget } from '@/components/dashboard/RhParticipationCampaignWidget';
 import { PendingSignaturesWidget } from '@/components/dashboard/PendingSignaturesWidget';
 import TeamAnalyticsSection from '@/components/dashboard/TeamAnalyticsSection';
 import { ANNUAL_REVIEW_PRIORITY_WINDOW_DAYS } from '@/api/annualReviews';
@@ -486,6 +487,7 @@ export default function Dashboard() {
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <PendingSignaturesWidget mode="rh" />
+            <RhParticipationCampaignWidget />
             <RibAlertsCard
               alerts={ribAlerts}
               loading={ribAlertsLoading}

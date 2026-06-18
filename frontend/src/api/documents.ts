@@ -55,6 +55,8 @@ export interface GenerateDocumentPayload {
   nouvelle_duree?: string | null;
   ancien_lieu?: string | null;
   nouveau_lieu?: string | null;
+  custom_fields?: Record<string, string> | null;
+  recruitment_job_id?: string | null;
 }
 
 export interface ExplorerPayslipItem {
