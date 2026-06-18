@@ -51,6 +51,7 @@ export type UpdateEmployeePayload = {
     coefficient?: number;
   };
   team_id?: string | null;
+  time_tracking_id?: string | null;
   is_subject_to_residence_permit?: boolean;
   residence_permit_expiry_date?: string | null;
   residence_permit_type?: string | null;

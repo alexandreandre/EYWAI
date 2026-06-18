@@ -133,28 +133,31 @@ export function AssistedFillDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Remplissage par IA — {periodLabel}
+      <DialogContent
+        className={cn(
+          'flex h-[90dvh] max-h-[90dvh] w-full max-w-3xl translate-y-0 flex-col gap-0 overflow-hidden p-0 top-[5dvh]',
+          proposal && 'max-w-4xl',
+        )}
+      >
+        <DialogHeader className="shrink-0 space-y-1 border-b px-5 py-3">
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Sparkles className="h-4 w-4 text-primary" />
+            {proposal
+              ? `Revue — ${periodLabel}`
+              : `Remplissage par IA — ${periodLabel}`}
           </DialogTitle>
-          <DialogDescription>
-            {targetName ? (
-              <>
-                Dictez ou écrivez les heures de {targetName}. Inutile de répéter son
-                nom : tout sera attribué à ce collaborateur. L&apos;IA distingue les
-                heures prévues des heures faites, vous validez avant enregistrement.
-              </>
-            ) : (
-              <>
-                Dictez ou écrivez vos consignes de planning. L&apos;IA distingue les heures
-                prévues des heures faites, vous validez avant enregistrement.
-              </>
-            )}
-          </DialogDescription>
+          {!proposal && (
+            <DialogDescription className="text-xs">
+              {targetName ? (
+                <>Consigne pour {targetName} — validation avant enregistrement.</>
+              ) : (
+                <>Consigne collective ou individuelle — validation avant enregistrement.</>
+              )}
+            </DialogDescription>
+          )}
         </DialogHeader>
 
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-3">
         {proposal ? (
           <AssistedFillReview
             proposal={proposal}
@@ -163,7 +166,7 @@ export function AssistedFillDialog({
             onBack={() => setProposal(null)}
           />
         ) : (
-          <div className="space-y-2 pt-1">
+          <div className="max-h-full space-y-2 overflow-y-auto pr-1">
             {targetSummary && targetSummary.count > 0 && !singleEmployee && (
               <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5 text-sm">
                 <p className="flex items-center gap-1.5 font-medium text-foreground">
@@ -290,6 +293,7 @@ export function AssistedFillDialog({
             )}
           </div>
         )}
+        </div>
       </DialogContent>
     </Dialog>
   );

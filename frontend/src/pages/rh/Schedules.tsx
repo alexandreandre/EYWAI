@@ -71,6 +71,8 @@ export default function Schedules() {
   const [assistedFillOpen, setAssistedFillOpen] = useState(false);
   const [aiTargetIds, setAiTargetIds] = useState<string[] | null>(null);
   const [pointageImportOpen, setPointageImportOpen] = useState(false);
+  const [planningFocusWeek, setPlanningFocusWeek] = useState<number | null>(null);
+  const [planningHighlightDays, setPlanningHighlightDays] = useState<number[]>([]);
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
 
@@ -201,6 +203,8 @@ export default function Schedules() {
         id: e.id,
         first_name: e.first_name,
         last_name: e.last_name,
+        time_tracking_id:
+          (e as { time_tracking_id?: string | null }).time_tracking_id ?? null,
       })),
     [employees]
   );
@@ -370,6 +374,8 @@ export default function Schedules() {
           unfilteredRowCount={rows.length}
           onApplyDayPatch={applyAndPersistDayPatch}
           onOpenEmployee={setDrawerEmployeeId}
+          initialWeekIndex={planningFocusWeek}
+          highlightDays={planningHighlightDays}
         />
       )}
 
@@ -427,7 +433,24 @@ export default function Schedules() {
         year={selectedYear}
         month={selectedMonth}
         roster={assistedFillRoster}
-        onApplied={refreshCalendars}
+        onApplied={(meta) => {
+          refreshCalendars();
+          if (meta?.focusWeekIndex != null) {
+            setPlanningFocusWeek(meta.focusWeekIndex);
+            if (viewMode !== 'team') setViewMode('team');
+          }
+          if (meta?.highlightDays?.length) {
+            setPlanningHighlightDays(meta.highlightDays);
+          }
+        }}
+        onNavigateToMonth={(y, m) => {
+          setSelectedYear(y);
+          setSelectedMonth(m);
+        }}
+        onFocusPlanningWeek={(weekIndex) => {
+          setPlanningFocusWeek(weekIndex);
+          if (viewMode !== 'team') setViewMode('team');
+        }}
       />
     </div>
   );

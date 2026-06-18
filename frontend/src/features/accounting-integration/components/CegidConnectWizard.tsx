@@ -31,6 +31,8 @@ const CEGID_DOC_LOOP_HUB =
 
 type WizardPhase = 'intro' | 'guide' | 'paste';
 
+type WizardMode = 'full' | 'cabinet' | 'dossier' | 'dedicated';
+
 type CegidConnectWizardProps = {
   loopApiKey: string;
   apimSubscriptionKey: string;
@@ -44,6 +46,8 @@ type CegidConnectWizardProps = {
   onFinalize: () => void;
   isSaving: boolean;
   isTesting: boolean;
+  /** full = tout ; cabinet = clés groupe ; dossier = codeIbs seul ; dedicated = clés + codeIbs filiale */
+  wizardMode?: WizardMode;
   /** Reprendre directement au collage des identifiants (ex. modification). */
   initialPhase?: WizardPhase;
   /** Masquer les boutons Retour/Annuler (ex. panneau super-admin embarqué). */
@@ -102,10 +106,19 @@ export function CegidConnectWizard({
   onFinalize,
   isSaving,
   isTesting,
+  wizardMode = 'full',
   initialPhase = 'intro',
   hideBackActions = false,
 }: CegidConnectWizardProps) {
-  const [phase, setPhase] = useState<WizardPhase>(initialPhase);
+  const showCabinetKeys = wizardMode === 'full' || wizardMode === 'cabinet' || wizardMode === 'dedicated';
+  const showCodeDossier = wizardMode === 'full' || wizardMode === 'dossier' || wizardMode === 'dedicated';
+  const guideSteps = GUIDE_STEPS.filter((s) => showCodeDossier || s.id !== 'dossier');
+  const startPhase: WizardPhase =
+    wizardMode === 'cabinet' || wizardMode === 'dossier' || wizardMode === 'dedicated'
+      ? 'paste'
+      : initialPhase;
+
+  const [phase, setPhase] = useState<WizardPhase>(startPhase);
   const [checkedSteps, setCheckedSteps] = useState<Record<string, boolean>>({});
 
   const apiKeyFormatValid = (() => {
@@ -116,16 +129,15 @@ export function CegidConnectWizard({
   })();
 
   const canFinalize =
-    loopApiKey.trim().length > 0 &&
-    apiKeyFormatValid &&
-    apimSubscriptionKey.trim().length > 0 &&
-    codeDossier.trim().length > 0;
+    (!showCabinetKeys ||
+      (loopApiKey.trim().length > 0 && apiKeyFormatValid && apimSubscriptionKey.trim().length > 0)) &&
+    (!showCodeDossier || codeDossier.trim().length > 0);
 
   const toggleCheck = (id: string) => {
     setCheckedSteps((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  if (phase === 'intro') {
+  if (phase === 'intro' && wizardMode === 'full') {
     return (
       <div className="space-y-5 rounded-lg border bg-muted/20 p-5">
         <div className="flex items-start gap-4">
@@ -164,7 +176,7 @@ export function CegidConnectWizard({
     );
   }
 
-  if (phase === 'guide') {
+  if (phase === 'guide' && wizardMode === 'full') {
     return (
       <div className="space-y-5 rounded-lg border bg-muted/20 p-5">
         <div className="flex items-center gap-3">
@@ -187,7 +199,7 @@ export function CegidConnectWizard({
         </Button>
 
         <ol className="space-y-3">
-          {GUIDE_STEPS.map((item, index) => (
+          {guideSteps.map((item, index) => (
             <li
               key={item.id}
               className={cn(
@@ -262,14 +274,26 @@ export function CegidConnectWizard({
       <div className="flex items-center gap-3">
         <ProviderLogo providerKey="cegid_quadra" size="md" />
         <div>
-          <p className="font-medium">Étape 2 — Coller vos identifiants</p>
+          <p className="font-medium">
+            {wizardMode === 'cabinet'
+              ? 'Clés cabinet du groupe'
+              : wizardMode === 'dossier'
+                ? 'Code dossier de la filiale'
+                : wizardMode === 'dedicated'
+                  ? 'Clés dédiées à cette filiale'
+                  : 'Étape 2 — Coller vos identifiants'}
+          </p>
           <p className="text-muted-foreground text-xs">
-            Ces informations ne seront plus affichées après enregistrement (stockage sécurisé).
+            {wizardMode === 'dossier'
+              ? 'Identifie le dossier comptable Cegid Loop pour cette entreprise.'
+              : 'Ces informations ne seront plus affichées après enregistrement (stockage sécurisé).'}
           </p>
         </div>
       </div>
 
       <div className="space-y-4">
+        {showCabinetKeys ? (
+          <>
         <div className="space-y-1.5">
           <Label htmlFor="cegid-loop-apikey" className="flex items-center gap-1.5">
             <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
@@ -307,7 +331,10 @@ export function CegidConnectWizard({
             Depuis Cegid Developers → Subscription
           </p>
         </div>
+          </>
+        ) : null}
 
+        {showCodeDossier ? (
         <div className="space-y-1.5">
           <Label htmlFor="cegid-code-dossier">Code dossier comptable</Label>
           <Input
@@ -320,7 +347,9 @@ export function CegidConnectWizard({
             Fourni par votre expert-comptable ou visible dans Loop
           </p>
         </div>
+        ) : null}
 
+        {showCabinetKeys ? (
         <Collapsible>
           <CollapsibleTrigger asChild>
             <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs">
@@ -340,6 +369,7 @@ export function CegidConnectWizard({
             </div>
           </CollapsibleContent>
         </Collapsible>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap gap-2 border-t pt-4">
@@ -348,11 +378,13 @@ export function CegidConnectWizard({
           disabled={!canFinalize || isSaving || isTesting}
           onClick={onFinalize}
         >
-          {isTesting ? 'Connexion en cours…' : 'Finaliser la connexion'}
+          {isTesting ? 'Connexion en cours…' : wizardMode === 'cabinet' ? 'Enregistrer les clés cabinet' : 'Finaliser la connexion'}
         </Button>
+        {wizardMode === 'full' ? (
         <Button type="button" variant="outline" onClick={() => setPhase('guide')}>
           Revoir le guide
         </Button>
+        ) : null}
         {!hideBackActions ? (
           <Button type="button" variant="ghost" onClick={onBack}>
             Annuler

@@ -254,8 +254,7 @@ export default function AccountingIntegrations() {
         <CardHeader>
           <CardTitle className="text-base">Catalogue fournisseurs</CardTitle>
           <CardDescription>
-            Activez les connecteurs pour les entreprises. La connexion Cegid se configure par
-            entreprise (clés du cabinet comptable).
+            Activez les connecteurs pour les entreprises. Clés cabinet une fois, code dossier par filiale (ou connexion dédiée par entreprise).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -281,7 +280,7 @@ export default function AccountingIntegrations() {
                   footer={p.last_test_message ?? undefined}
                 >
                   {p.provider_key === 'cegid_quadra' ? (
-                    <CegidAdminConnectPanel providerEnabled={p.enabled} />
+                    <CegidAdminConnectPanel providerEnabled={p.enabled} platformProvider={p} />
                   ) : p.provider_key !== 'manual' ? (
                     <div className="space-y-2">
                       <Label className="text-xs">Clé API plateforme (optionnel)</Label>

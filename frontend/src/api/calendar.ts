@@ -134,6 +134,7 @@ export interface RosterEmployee {
   id: string;
   first_name: string;
   last_name: string;
+  time_tracking_id?: string | null;
 }
 
 export type DayNature = 'prevu' | 'reel';
@@ -146,15 +147,46 @@ export interface AiDayEntry {
 }
 
 export type AiMatchConfidence = 'high' | 'medium' | 'none';
+export type ReviewStatus = 'ok' | 'warning' | 'error' | 'empty';
+export type MatchMethod = 'matricule' | 'name_exact' | 'name_fuzzy' | 'none';
+export type QualityLevel = 'ok' | 'warning' | 'error' | 'info';
+
+export interface TimesheetQualityCheck {
+  level: QualityLevel;
+  code: string;
+  message: string;
+  employee_raw_name?: string | null;
+  matricule?: string | null;
+}
+
+export interface AffectedMonth {
+  year: number;
+  month: number;
+  days: number[];
+}
 
 export interface AiEmployeeProposal {
   raw_name: string;
   employee_id: string | null;
   matched_name: string | null;
   match_confidence: AiMatchConfidence;
+  match_method?: MatchMethod;
+  time_tracking_id?: string | null;
+  review_status?: ReviewStatus;
   days: AiDayEntry[];
   warnings: string[];
+  weekly_total_pdf?: number | null;
+  weekly_total_imported?: number | null;
+  weekly_total_gap?: number | null;
+  days_expected_count?: number | null;
+  days_imported_count?: number | null;
+  coverage_ratio?: number | null;
+  quality_issue?: string | null;
 }
+
+export type TimesheetScope = 'weekly' | 'monthly' | 'unknown';
+export type TimesheetConfidence = 'high' | 'medium' | 'low';
+export type DocumentScopeInput = 'auto' | 'weekly' | 'monthly';
 
 export interface AiCalendarProposal {
   year: number;
@@ -162,6 +194,94 @@ export interface AiCalendarProposal {
   source: string;
   employees: AiEmployeeProposal[];
   warnings: string[];
+  detected_scope?: TimesheetScope;
+  detected_period_start?: string | null;
+  detected_period_end?: string | null;
+  period_confidence?: TimesheetConfidence;
+  period_warnings?: string[];
+  detected_days_count?: number;
+  suggested_year?: number | null;
+  suggested_month?: number | null;
+  month_auto_corrected?: boolean;
+  requested_year?: number | null;
+  requested_month?: number | null;
+  month_correction_message?: string | null;
+  quality_checks?: TimesheetQualityCheck[];
+  detected_format?: string | null;
+  parse_confidence?: number | null;
+  focus_week_index?: number | null;
+  affected_months?: AffectedMonth[];
+  roster_not_in_document_count?: number;
+  review_summary?: {
+    ready: number;
+    warning: number;
+    error: number;
+    empty: number;
+    incomplete?: number;
+    gap?: number;
+    total: number;
+  } | null;
+  extraction_method?: string | null;
+  extraction_warnings?: string[];
+  extraction_pages_total?: number | null;
+  extraction_pages_processed?: number | null;
+  extraction_truncated?: boolean;
+  extraction_mode?: string | null;
+  consensus_conflicts?: number | null;
+}
+
+export type TimesheetExtractJobStatus =
+  | 'queued'
+  | 'extracting'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export interface TimesheetExtractProgress {
+  phase: string;
+  pages_total: number;
+  pages_done: number;
+  current_page: number;
+}
+
+export interface TimesheetExtractStartResponse {
+  job_id: string;
+  status: 'queued' | 'extracting';
+}
+
+export interface TimesheetExtractJobResponse {
+  job_id: string;
+  status: TimesheetExtractJobStatus;
+  progress: TimesheetExtractProgress;
+  proposal?: AiCalendarProposal | null;
+  error_message?: string | null;
+  extraction_warnings?: string[];
+}
+
+export interface PersistTimesheetEmployeePayload {
+  employee_id: string;
+  days: AiDayEntry[];
+}
+
+export interface PersistTimesheetResponse {
+  year: number;
+  month: number;
+  employees_processed: number;
+  total_days_written: number;
+  results: Array<{
+    employee_id: string;
+    days_written: number;
+    success: boolean;
+    error?: string | null;
+  }>;
+  errors: Array<{ employee_id: string; message: string }>;
+}
+
+export interface ExtractTimesheetOptions {
+  singleEmployee?: boolean;
+  documentScope?: DocumentScopeInput;
+  weekAnchorDate?: string | null;
+  onProgress?: (progress: TimesheetExtractProgress) => void;
 }
 
 /**
@@ -191,26 +311,128 @@ export const parseScheduleInstruction = async (
 };
 
 /**
- * Analyse un relevé de pointeuse (PDF / image) et renvoie une proposition
- * d'heures réelles (non persistée).
+ * Lance l'extraction hybride IA en arrière-plan (vision + OCR par page).
  */
-export const extractTimesheet = async (
+export const startTimesheetExtract = async (
   file: File,
   year: number,
   month: number,
   employees: RosterEmployee[],
-  singleEmployee = false,
-): Promise<AiCalendarProposal> => {
+  options: ExtractTimesheetOptions = {},
+): Promise<TimesheetExtractStartResponse> => {
+  const {
+    singleEmployee = false,
+    documentScope = 'auto',
+    weekAnchorDate = null,
+  } = options;
   const formData = new FormData();
   formData.append('file', file);
   formData.append('year', String(year));
   formData.append('month', String(month));
   formData.append('employees', JSON.stringify(employees));
   formData.append('single_employee', String(singleEmployee));
+  formData.append('document_scope', documentScope);
+  if (weekAnchorDate) {
+    formData.append('week_anchor_date', weekAnchorDate);
+  }
+  const { data } = await apiClient.post<TimesheetExtractStartResponse>(
+    '/api/schedules/assisted-fill/extract-timesheet/start',
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return data;
+};
+
+export const getTimesheetExtractJob = async (
+  jobId: string,
+): Promise<TimesheetExtractJobResponse> => {
+  const { data } = await apiClient.get<TimesheetExtractJobResponse>(
+    `/api/schedules/assisted-fill/extract-timesheet/jobs/${jobId}`,
+  );
+  return data;
+};
+
+const POLL_INTERVAL_MS = 2000;
+const POLL_MAX_ATTEMPTS = 300;
+
+/**
+ * Attend la fin d'un job d'extraction (polling ~2 s).
+ */
+export const waitForTimesheetExtractJob = async (
+  jobId: string,
+  onProgress?: (progress: TimesheetExtractProgress) => void,
+): Promise<AiCalendarProposal> => {
+  for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt += 1) {
+    const job = await getTimesheetExtractJob(jobId);
+    onProgress?.(job.progress);
+    if (job.status === 'completed' && job.proposal) {
+      return job.proposal;
+    }
+    if (job.status === 'failed') {
+      throw new Error(job.error_message ?? "L'analyse du relevé a échoué.");
+    }
+    if (job.status === 'cancelled') {
+      throw new Error("L'import a été annulé.");
+    }
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+  }
+  throw new Error("Délai d'attente dépassé (extraction trop longue).");
+};
+
+/**
+ * Analyse un relevé de pointeuse (PDF / image) et renvoie une proposition
+ * d'heures réelles (non persistée) — chemin async hybride IA.
+ */
+export const extractTimesheet = async (
+  file: File,
+  year: number,
+  month: number,
+  employees: RosterEmployee[],
+  options: ExtractTimesheetOptions = {},
+): Promise<AiCalendarProposal> => {
+  const started = await startTimesheetExtract(file, year, month, employees, options);
+  return waitForTimesheetExtractJob(started.job_id, options.onProgress);
+};
+
+/** @deprecated Sync endpoint — préférer extractTimesheet (async). */
+export const extractTimesheetSync = async (
+  file: File,
+  year: number,
+  month: number,
+  employees: RosterEmployee[],
+  options: ExtractTimesheetOptions = {},
+): Promise<AiCalendarProposal> => {
+  const {
+    singleEmployee = false,
+    documentScope = 'auto',
+    weekAnchorDate = null,
+  } = options;
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('year', String(year));
+  formData.append('month', String(month));
+  formData.append('employees', JSON.stringify(employees));
+  formData.append('single_employee', String(singleEmployee));
+  formData.append('document_scope', documentScope);
+  if (weekAnchorDate) {
+    formData.append('week_anchor_date', weekAnchorDate);
+  }
   const { data } = await apiClient.post<AiCalendarProposal>(
     '/api/schedules/assisted-fill/extract-timesheet',
     formData,
     { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return data;
+};
+
+export const persistTimesheetBatch = async (
+  year: number,
+  month: number,
+  employees: PersistTimesheetEmployeePayload[],
+): Promise<PersistTimesheetResponse> => {
+  const { data } = await apiClient.post<PersistTimesheetResponse>(
+    '/api/schedules/assisted-fill/persist-timesheet',
+    { year, month, employees },
   );
   return data;
 };

@@ -76,6 +76,10 @@ export function AccountingIntegrationPanel() {
   const [defaultFormat, setDefaultFormat] = useState('csv');
   const [forceManual, setForceManual] = useState(false);
   const [cegidWizardMode, setCegidWizardMode] = useState<'new' | 'edit'>('new');
+  const [cegidAuthMode, setCegidAuthMode] = useState<'shared' | 'dedicated'>('shared');
+
+  const useSharedCabinetKeys =
+    Boolean(config?.has_platform_cegid_credentials) && cegidAuthMode === 'shared';
 
   const { data: config, isLoading, isFetching } = useQuery({
     queryKey: ['accounting-integration-config', companyId],
@@ -109,6 +113,8 @@ export function AccountingIntegrationPanel() {
     setRecipients((c.recipients_compta ?? []).join(', '));
     setDefaultFormat(c.default_format || 'csv');
     setForceManual(c.force_manual);
+    setCodeDossier(c.code_dossier_cegid ?? '');
+    setCegidAuthMode(c.cegid_auth_mode ?? 'shared');
     if (c.enabled && c.provider !== 'manual') {
       if (c.provider === 'cegid_quadra' && c.connection_state !== 'connected') {
         setStep('cegid_connect');
@@ -154,7 +160,35 @@ export function AccountingIntegrationPanel() {
 
   const handleTestAndActivateCegid = async () => {
     const p = providers.find((x) => x.key === 'cegid_quadra');
-    if (!p || !loopApiKey || !apimSubscriptionKey || !codeDossier) {
+    if (!p) return;
+
+    if (useSharedCabinetKeys) {
+      if (!codeDossier.trim()) {
+        toast({
+          title: 'Champs requis',
+          description: 'Renseignez le code dossier (codeIbs) de cette filiale.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      try {
+        await saveMutation.mutateAsync({
+          enabled: true,
+          provider: 'cegid_quadra',
+          mode: p.mode as AccountingConfigUpdate['mode'],
+          code_dossier_cegid: codeDossier.trim(),
+          cegid_auth_mode: 'shared',
+          clear_company_credentials: true,
+          default_format: 'fec',
+        });
+        testMutation.mutate();
+      } catch {
+        /* toast géré par saveMutation */
+      }
+      return;
+    }
+
+    if (!loopApiKey || !apimSubscriptionKey || !codeDossier) {
       toast({
         title: 'Champs requis',
         description: 'Renseignez APIKey, subscription key et code dossier.',
@@ -167,6 +201,8 @@ export function AccountingIntegrationPanel() {
         enabled: true,
         provider: 'cegid_quadra',
         mode: p.mode as AccountingConfigUpdate['mode'],
+        cegid_auth_mode: 'dedicated',
+        code_dossier_cegid: codeDossier,
         credentials: {
           loop_apikey: loopApiKey,
           apim_subscription_key: apimSubscriptionKey,
@@ -322,21 +358,57 @@ export function AccountingIntegrationPanel() {
             )}
 
             {step === 'cegid_connect' && (
-              <CegidConnectWizard
-                loopApiKey={loopApiKey}
-                apimSubscriptionKey={apimSubscriptionKey}
-                codeDossier={codeDossier}
-                cegidBaseUrl={cegidBaseUrl}
-                onLoopApiKeyChange={setLoopApiKey}
-                onApimSubscriptionKeyChange={setApimSubscriptionKey}
-                onCodeDossierChange={setCodeDossier}
-                onCegidBaseUrlChange={setCegidBaseUrl}
-                onBack={() => setStep('choose')}
-                onFinalize={handleTestAndActivateCegid}
-                isSaving={saveMutation.isPending}
-                isTesting={testMutation.isPending}
-                initialPhase={cegidWizardMode === 'edit' ? 'paste' : 'intro'}
-              />
+              <div className="space-y-4">
+                {config?.has_platform_cegid_credentials ? (
+                  <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+                    <Label>Mode de connexion Cegid</Label>
+                    <Select
+                      value={cegidAuthMode}
+                      onValueChange={(v: 'shared' | 'dedicated') => setCegidAuthMode(v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="shared">
+                          Clés cabinet du groupe (code dossier uniquement)
+                        </SelectItem>
+                        <SelectItem value="dedicated">
+                          Clés dédiées à cette filiale
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {useSharedCabinetKeys ? (
+                      <p className="text-muted-foreground text-xs">
+                        Les clés cabinet sont configurées par l&apos;administrateur. Indiquez
+                        seulement le code dossier de cette entreprise.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+                <CegidConnectWizard
+                  loopApiKey={loopApiKey}
+                  apimSubscriptionKey={apimSubscriptionKey}
+                  codeDossier={codeDossier}
+                  cegidBaseUrl={cegidBaseUrl}
+                  onLoopApiKeyChange={setLoopApiKey}
+                  onApimSubscriptionKeyChange={setApimSubscriptionKey}
+                  onCodeDossierChange={setCodeDossier}
+                  onCegidBaseUrlChange={setCegidBaseUrl}
+                  onBack={() => setStep('choose')}
+                  onFinalize={handleTestAndActivateCegid}
+                  isSaving={saveMutation.isPending}
+                  isTesting={testMutation.isPending}
+                  wizardMode={
+                    useSharedCabinetKeys
+                      ? 'dossier'
+                      : cegidAuthMode === 'dedicated'
+                        ? 'dedicated'
+                        : 'full'
+                  }
+                  initialPhase={cegidWizardMode === 'edit' ? 'paste' : 'intro'}
+                />
+              </div>
             )}
 
             {step === 'credentials' && (

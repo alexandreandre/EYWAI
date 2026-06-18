@@ -12,6 +12,7 @@ export interface PlatformProviderEntry {
   logo_key: string;
   enabled: boolean;
   has_platform_credentials: boolean;
+  has_platform_cegid_credentials: boolean;
   settings: Record<string, unknown>;
   last_test_at: string | null;
   last_test_status: string | null;
@@ -106,6 +107,33 @@ export async function adminTestCompanyAccountingConnection(
   const { data } = await apiClient.post<{ success: boolean; status: string; message: string }>(
     `/api/super-admin/accounting-integrations/companies/${companyId}/test-connection`,
     {},
+  );
+  return data;
+}
+
+export async function adminTestPlatformAccountingConnection(
+  providerKey: string,
+): Promise<{ success: boolean; status: string; message: string }> {
+  const { data } = await apiClient.post<{ success: boolean; status: string; message: string }>(
+    `/api/super-admin/accounting-integrations/catalog/${providerKey}/test-connection`,
+    {},
+  );
+  return data;
+}
+
+export interface BulkCegidDossierEntry {
+  company_id: string;
+  code_dossier_cegid: string;
+  enabled?: boolean;
+  cegid_auth_mode?: 'shared' | 'dedicated';
+}
+
+export async function adminBulkUpdateCegidDossiers(
+  entries: BulkCegidDossierEntry[],
+): Promise<{ updated: number; failed: string[] }> {
+  const { data } = await apiClient.post<{ updated: number; failed: string[] }>(
+    '/api/super-admin/accounting-integrations/companies/bulk-cegid-dossiers',
+    { entries },
   );
   return data;
 }

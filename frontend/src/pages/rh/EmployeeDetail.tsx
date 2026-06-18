@@ -38,6 +38,7 @@ import { assignEmployeeTeam, getTeams } from "@/api/teams";
 import { EmployeeDetailDocumentsTab } from "@/components/employee-detail/EmployeeDetailDocumentsTab";
 import { EmployeeBoethCard } from "@/features/employee-detail/components/EmployeeBoethCard";
 import { EmployeePasSettingsCard } from "@/features/employee-detail/components/EmployeePasSettingsCard";
+import { EmployeeTimeTrackingCard } from "@/features/employee-detail/components/EmployeeTimeTrackingCard";
 import {
   diffWatchedSnapshots,
   extractWatchedSnapshot,
@@ -630,6 +631,12 @@ export default function EmployeeDetail() {
         <TabsContent value="saisie" className="mt-4 space-y-4">
           {employeeId && employee ? (
             <>
+              <EmployeeTimeTrackingCard
+                employeeId={employeeId}
+                employee={employee}
+                canEdit={canEditEmployeePaySettings}
+                onEmployeeUpdated={(updated) => updateEmployeeCache(employeeId, updated)}
+              />
               <EmployeePasSettingsCard
                 employeeId={employeeId}
                 employee={employee}

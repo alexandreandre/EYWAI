@@ -38,6 +38,7 @@ export interface Employee {
   exit_status?: string | null;
   profile_complete?: boolean | null;
   missing_payroll_fields?: string[] | null;
+  time_tracking_id?: string | null;
   // Titre de séjour (données calculées par le backend)
   is_subject_to_residence_permit?: boolean | null;
   residence_permit_status?: "valid" | "to_renew" | "expired" | "to_complete" | null;

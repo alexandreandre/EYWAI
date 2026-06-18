@@ -24,6 +24,9 @@ export type TransmissionStatus =
   | 'manual'
   | 'failed';
 
+export type CegidAuthMode = 'shared' | 'dedicated';
+export type CegidAuthSource = 'shared' | 'dedicated' | 'incomplete';
+
 export interface AccountingConfig {
   enabled: boolean;
   mode: AccountingMode;
@@ -32,6 +35,10 @@ export interface AccountingConfig {
   recipients_compta: string[];
   has_credentials: boolean;
   cegid_credentials_complete: boolean;
+  has_platform_cegid_credentials: boolean;
+  code_dossier_cegid: string | null;
+  cegid_auth_mode: CegidAuthMode;
+  cegid_auth_source: CegidAuthSource;
   force_manual: boolean;
   last_transmission_at: string | null;
   last_test_at: string | null;
@@ -47,6 +54,9 @@ export interface AccountingConfigUpdate {
   default_format?: string;
   recipients_compta?: string[];
   credentials?: Record<string, string>;
+  code_dossier_cegid?: string;
+  cegid_auth_mode?: CegidAuthMode;
+  clear_company_credentials?: boolean;
   force_manual?: boolean;
 }
 

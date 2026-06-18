@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -59,6 +59,8 @@ interface TeamPlanningViewProps {
     patch: DayPatch
   ) => Promise<boolean>;
   onOpenEmployee: (employeeId: string) => void;
+  initialWeekIndex?: number | null;
+  highlightDays?: number[];
 }
 
 /** Calcule les semaines du mois sous forme de chunks de 7 jours, alignés sur le lundi. */
@@ -93,12 +95,28 @@ export function TeamPlanningView({
   unfilteredRowCount = 0,
   onApplyDayPatch,
   onOpenEmployee,
+  initialWeekIndex = null,
+  highlightDays = [],
 }: TeamPlanningViewProps) {
   const { toast } = useToast();
   const { observedHolidayIds } = useObservedPublicHolidays();
   const weeks = useMemo(() => computeWeeks(year, month), [year, month]);
   const [weekIndex, setWeekIndex] = useState(0);
   const [openEditor, setOpenEditor] = useState<{ employeeId: string; day: number } | null>(null);
+  const [flashDays, setFlashDays] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (initialWeekIndex != null && initialWeekIndex >= 0) {
+      setWeekIndex(Math.min(initialWeekIndex, weeks.length - 1));
+    }
+  }, [initialWeekIndex, year, month, weeks.length]);
+
+  useEffect(() => {
+    if (highlightDays.length === 0) return;
+    setFlashDays(highlightDays);
+    const t = window.setTimeout(() => setFlashDays([]), 5000);
+    return () => window.clearTimeout(t);
+  }, [highlightDays]);
 
   const todayIso = new Date().toDateString();
 
@@ -179,8 +197,6 @@ export function TeamPlanningView({
     }
   };
 
-  const isOversized = rows.length > 80;
-
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -205,12 +221,6 @@ export function TeamPlanningView({
           Cliquez sur une cellule pour éditer · sur le nom pour ouvrir le calendrier complet
         </p>
       </div>
-
-      {isOversized && (
-        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2">
-          Plus de 80 collaborateurs : la vue planning peut devenir lente, pensez à filtrer.
-        </p>
-      )}
 
       <ScrollArea className="w-full rounded-md border">
         <div className="min-w-[760px]">
@@ -347,6 +357,8 @@ export function TeamPlanningView({
                             'group relative border-b border-r last:border-r-0 min-h-[3.25rem] px-1 py-1 text-left transition-all',
                             TYPE_BG[type] ?? 'bg-gray-50 hover:bg-gray-100',
                             isToday && 'ring-1 ring-primary/40',
+                            flashDays.includes(day) &&
+                              'ring-2 ring-emerald-400/80 bg-emerald-50/80',
                             isOpen && 'ring-2 ring-primary z-10',
                             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary'
                           )}

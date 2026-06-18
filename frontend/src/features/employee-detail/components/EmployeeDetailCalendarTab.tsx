@@ -365,6 +365,7 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
         roster={roster}
         singleEmployee
         onApplied={reloadCalendar}
+        onNavigateToMonth={(y, m) => setSelectedDate({ year: y, month: m })}
       />
     </>
   );
