@@ -92,12 +92,13 @@ export default function DsnImport() {
   );
 
   const handleCellClick = useCallback(
-    (companyId: string, period: string) => {
+    (companyId: string, period: string, state: 'covered' | 'missing' | 'future' | 'preview') => {
       setStripCompanyId(companyId);
       openSheet({
         mode: 'monthly',
         targetCompanyId: companyId,
         suggestedPeriod: period,
+        reimport: state === 'covered',
       });
     },
     [openSheet],
@@ -136,7 +137,7 @@ export default function DsnImport() {
     <div className="space-y-4">
       <AdminPageHeader
         title="Import DSN"
-        description="Vue mensuelle par entreprise — chaque case verte indique une DSN importée avec succès."
+        description="Vue mensuelle par entreprise — case verte = DSN importée (cliquable pour réimporter), ambre = mois manquant."
         actions={
           <div className="flex items-center gap-2">
             {yearSelector}

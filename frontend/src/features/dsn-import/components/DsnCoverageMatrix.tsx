@@ -57,29 +57,45 @@ function companyDisplayStatus(company: DsnCoverageMatrixCompany) {
   return { label: dsnStatusLabel(status), variant: dsnStatusVariant(status) };
 }
 
+function formatPeriodTooltip(period: string): string {
+  const [y, m] = period.split('-');
+  const mi = parseInt(m, 10);
+  if (!y || !mi || mi < 1 || mi > 12) return period;
+  return `${MONTH_FULL[mi - 1]} ${y}`;
+}
+
 function MatrixMonthCell({
   month,
-  onClickMissing,
+  onCellClick,
   companyId,
 }: {
   month: DsnCoverageTimelineMonth;
-  onClickMissing?: (companyId: string, period: string) => void;
+  onCellClick?: (
+    companyId: string,
+    period: string,
+    state: DsnCoverageTimelineMonth['state'],
+  ) => void;
   companyId: string;
 }) {
   const letter = MONTH_SHORT[month.month - 1] ?? '?';
-  const clickable = month.state === 'missing' && Boolean(onClickMissing);
+  const clickable =
+    Boolean(onCellClick) && (month.state === 'missing' || month.state === 'covered');
 
   const content = (
     <div
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
-      onClick={clickable ? () => onClickMissing!(companyId, month.period) : undefined}
+      onClick={
+        clickable
+          ? () => onCellClick!(companyId, month.period, month.state)
+          : undefined
+      }
       onKeyDown={
         clickable
           ? (e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                onClickMissing!(companyId, month.period);
+                onCellClick!(companyId, month.period, month.state);
               }
             }
           : undefined
@@ -118,7 +134,14 @@ function MatrixMonthCell({
           {MONTH_FULL[month.month - 1]} {month.period.split('-')[0]}
         </p>
         <p className="text-xs text-muted-foreground">{STATE_LABELS[month.state] ?? month.state}</p>
-        {clickable && <p className="mt-1 text-xs text-primary">Cliquer pour importer ce mois</p>}
+        {clickable && month.state === 'missing' && (
+          <p className="mt-1 text-xs text-primary">Cliquer pour importer ce mois</p>
+        )}
+        {clickable && month.state === 'covered' && (
+          <p className="mt-1 text-xs text-primary">
+            Cliquer pour réimporter la DSN de {formatPeriodTooltip(month.period)}
+          </p>
+        )}
       </TooltipContent>
     </Tooltip>
   );
@@ -129,7 +152,7 @@ function CoverageLegend() {
     {
       className: 'border-emerald-600 bg-emerald-500',
       icon: <Check className="h-3 w-3 text-white" strokeWidth={3} />,
-      label: 'Importé',
+      label: 'Importé (cliquable pour réimporter)',
     },
     {
       className: 'border-amber-500 bg-amber-100 dark:bg-amber-950/50',
@@ -165,7 +188,11 @@ function CompanyCoverageRow({
   onImportCompany,
 }: {
   company: DsnCoverageMatrixCompany;
-  onCellClick?: (companyId: string, period: string) => void;
+  onCellClick?: (
+    companyId: string,
+    period: string,
+    state: DsnCoverageTimelineMonth['state'],
+  ) => void;
   onImportCompany?: (companyId: string) => void;
 }) {
   const { covered, expected, pct } = countCoverage(company);
@@ -247,7 +274,7 @@ function CompanyCoverageRow({
                 key={m.period}
                 month={m}
                 companyId={company.company_id}
-                onClickMissing={onCellClick}
+                onCellClick={onCellClick}
               />
             ))}
           </div>
@@ -259,7 +286,11 @@ function CompanyCoverageRow({
 
 type Props = {
   year: number;
-  onCellClick?: (companyId: string, period: string) => void;
+  onCellClick?: (
+    companyId: string,
+    period: string,
+    state: DsnCoverageTimelineMonth['state'],
+  ) => void;
   onImportCompany?: (companyId: string) => void;
 };
 
@@ -301,7 +332,7 @@ export function DsnCoverageMatrix({ year, onCellClick, onImportCompany }: Props)
         <div>
           <CardTitle className="text-lg">Couverture DSN {year}</CardTitle>
           <CardDescription>
-            Toutes les entreprises — vert = importé, ambre = manquant, gris = futur.
+            Toutes les entreprises — vert = importé (cliquable pour réimporter), ambre = manquant, gris = futur.
           </CardDescription>
         </div>
 

@@ -12,8 +12,10 @@ export const DSN_IMPORT_ISSUE_HINTS: Record<string, string> = {
     "Vérifiez que le salarié est bien importé avant les cumuls du mois.",
   workforce_reconciliation_required:
     "Chaque écart effectif doit avoir une décision avant validation de l'import.",
+  employee_new_hire_not_in_dsn:
+    "Embauche récente absente de la DSN — normal si la première paie n'est pas encore dans le fichier. Confirmez pour poursuivre.",
   employee_missing_from_dsn:
-    "Le salarié est actif en base mais absent de la DSN — clôturez le départ ou ignorez si la DSN est incomplète.",
+    "Le salarié était en poste ce mois-là mais absent de la DSN — clôturez le départ ou ignorez si la DSN est incomplète.",
   employee_contract_end_in_dsn:
     "Une fin de contrat est indiquée dans la DSN — clôturez le départ ou ouvrez le parcours complet.",
   workforce_active_without_nir:

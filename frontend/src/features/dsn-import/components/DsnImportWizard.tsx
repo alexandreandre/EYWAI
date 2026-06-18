@@ -384,6 +384,7 @@ export function DsnImportWizard({
   const importMode: DsnImportMode = launchConfig?.mode ?? 'onboarding';
   const lockedTargetCompanyId = importMode === 'monthly' ? launchConfig?.targetCompanyId ?? null : null;
   const isResumeLaunch = Boolean(launchConfig?.resumeBatchId);
+  const isReimportLaunch = Boolean(launchConfig?.reimport);
   const { toast } = useToast();
   const [step, setStep] = useState<Step>('upload');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -407,7 +408,9 @@ export function DsnImportWizard({
   const [targetCompanyId, setTargetCompanyId] = useState<string | null>(
     lockedTargetCompanyId ?? launchConfig?.targetCompanyId ?? null,
   );
-  const [replaceExistingPeriods, setReplaceExistingPeriods] = useState(false);
+  const [replaceExistingPeriods, setReplaceExistingPeriods] = useState(
+    () => Boolean(launchConfig?.reimport),
+  );
   const [workforceResolutions, setWorkforceResolutions] = useState<Record<string, WorkforceResolution>>({});
   const [acknowledgedWarnings, setAcknowledgedWarnings] = useState<Record<string, boolean>>({});
   const [resumeBatchId, setResumeBatchId] = useState<string | null>(
@@ -453,7 +456,12 @@ export function DsnImportWizard({
       } else if (!data.summary?.target_company_id) {
         setTargetCompanyId(null);
       }
-      setReplaceExistingPeriods(Boolean((data.summary?.duplicate_periods as string[] | undefined)?.length));
+      setReplaceExistingPeriods(
+        Boolean(
+          launchConfig?.reimport
+            || (data.summary?.duplicate_periods as string[] | undefined)?.length,
+        ),
+      );
       const wfStored = (data.summary?.workforce_reconciliation as WorkforceReconciliationSummary | undefined)
         ?.resolutions;
       setWorkforceResolutions(wfStored ? { ...wfStored } : {});
@@ -1146,6 +1154,22 @@ export function DsnImportWizard({
           showReconciliation={hasWorkforceGaps}
         />
 
+        {isReimportLaunch && (step === 'upload' || step === 'preview' || step === 'reconciliation') && (
+          <div className="rounded-lg border border-sky-200 bg-sky-50/80 px-4 py-3 text-sm text-sky-950 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100">
+            <p className="font-medium">Réimport d&apos;un mois déjà importé</p>
+            <p className="mt-1 text-xs text-sky-900/80 dark:text-sky-200/80">
+              Les cumuls de{' '}
+              {launchConfig?.suggestedPeriod ? (
+                <strong>{launchConfig.suggestedPeriod}</strong>
+              ) : (
+                'ce mois'
+              )}{' '}
+              seront remplacés. La réconciliation effectifs sera relancée. Les fiches salariés
+              existantes ne sont pas supprimées.
+            </p>
+          </div>
+        )}
+
         {step === 'committing' && (
           <Card>
             <CardHeader>
@@ -1209,12 +1233,16 @@ export function DsnImportWizard({
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Upload className="h-5 w-5" />
                 {importMode === 'monthly'
-                  ? `Import DSN mensuel${lockedCompanyName ? ` — ${lockedCompanyName}` : ''}`
+                  ? isReimportLaunch
+                    ? `Réimporter${lockedCompanyName ? ` — ${lockedCompanyName}` : ''}${launchConfig?.suggestedPeriod ? ` (${launchConfig.suggestedPeriod})` : ''}`
+                    : `Import DSN mensuel${lockedCompanyName ? ` — ${lockedCompanyName}` : ''}`
                   : 'Constituer le dossier paie'}
               </CardTitle>
               <CardDescription>
                 {importMode === 'monthly'
-                  ? 'Le mois est lu automatiquement dans le fichier DSN — aucune sélection manuelle requise.'
+                  ? isReimportLaunch
+                    ? 'Déposez la nouvelle DSN du même mois. Les cumuls seront remplacés après validation.'
+                    : 'Le mois est lu automatiquement dans le fichier DSN — aucune sélection manuelle requise.'
                   : 'Pour un dossier fiable, importez toutes les DSN de l\u2019année depuis janvier jusqu\u2019au dernier mois de paie clôturé. Vous pouvez déposer plusieurs fichiers en une fois.'}
               </CardDescription>
             </CardHeader>
@@ -1703,24 +1731,6 @@ export function DsnImportWizard({
               blockReason={commitBlockReason}
               primaryLabel={hasWorkforceGaps ? 'Réconcilier les effectifs' : "Valider l'import"}
             />
-
-            <CommitConfirmDialog
-              open={confirmOpen}
-              onOpenChange={setConfirmOpen}
-              onConfirm={() => commitMutation.mutate()}
-              loading={commitMutation.isPending}
-              summary={parseResult.summary}
-              actionsSummary={actionsSummary}
-              employeeCount={parseResult.summary.employee_count as number}
-              reviewCount={reviewCount}
-              reviewReasonCounts={reviewReasonCounts}
-              existingCount={existingCount}
-              updateExisting={updateExisting}
-              periodLabel={detectedPeriodLabel}
-              duplicatePeriods={duplicatePeriods}
-              replaceExistingPeriods={replaceExistingPeriods}
-              onReplaceExistingPeriodsChange={setReplaceExistingPeriods}
-            />
           </>
         )}
 
@@ -1739,6 +1749,27 @@ export function DsnImportWizard({
             blockReason={commitBlockReason}
             saving={saveWorkforceMutation.isPending}
             committing={commitMutation.isPending}
+          />
+        )}
+
+        {parseResult && (step === 'preview' || step === 'reconciliation') && (
+          <CommitConfirmDialog
+            open={confirmOpen}
+            onOpenChange={setConfirmOpen}
+            onConfirm={() => commitMutation.mutate()}
+            loading={commitMutation.isPending}
+            summary={parseResult.summary}
+            actionsSummary={actionsSummary}
+            employeeCount={parseResult.summary.employee_count as number}
+            reviewCount={reviewCount}
+            reviewReasonCounts={reviewReasonCounts}
+            existingCount={existingCount}
+            updateExisting={updateExisting}
+            periodLabel={detectedPeriodLabel}
+            duplicatePeriods={duplicatePeriods}
+            replaceExistingPeriods={replaceExistingPeriods}
+            onReplaceExistingPeriodsChange={setReplaceExistingPeriods}
+            reimport={isReimportLaunch}
           />
         )}
 
@@ -1819,6 +1850,12 @@ export function DsnImportWizard({
                         {commitReport.workforce_reconciliation.ignored.length} écart(s) ignoré(s).
                       </p>
                     )}
+                    {(commitReport.workforce_reconciliation.acknowledged_new_hires?.length ?? 0) > 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        {commitReport.workforce_reconciliation.acknowledged_new_hires.length}{' '}
+                        embauche(s) récente(s) confirmée(s).
+                      </p>
+                    )}
                     {(commitReport.workforce_reconciliation.open_exit_deferred?.length ?? 0) > 0 && (
                       <div className="space-y-1">
                         <p className="text-sm">
@@ -1873,6 +1910,7 @@ function CommitConfirmDialog({
   duplicatePeriods = [],
   replaceExistingPeriods = false,
   onReplaceExistingPeriodsChange,
+  reimport = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1889,17 +1927,25 @@ function CommitConfirmDialog({
   duplicatePeriods?: string[];
   replaceExistingPeriods?: boolean;
   onReplaceExistingPeriodsChange?: (value: boolean) => void;
+  reimport?: boolean;
 }) {
   const create = actionsSummary?.totals.create ?? 0;
   const update = actionsSummary?.totals.update ?? 0;
+  const showReplaceBlock = reimport || duplicatePeriods.length > 0;
+  const periodsToReplace =
+    duplicatePeriods.length > 0 ? duplicatePeriods.join(', ') : periodLabel;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Confirmer l&apos;import DSN</DialogTitle>
+          <DialogTitle>
+            {reimport ? 'Confirmer le réimport DSN' : "Confirmer l'import DSN"}
+          </DialogTitle>
           <DialogDescription>
-            Cette action est irréversible : elle créera ou mettra à jour le dossier paie en base.
+            {reimport
+              ? 'Les cumuls du mois seront remplacés. Les fiches salariés existantes ne sont pas supprimées.'
+              : 'Cette action est irréversible : elle créera ou mettra à jour le dossier paie en base.'}
           </DialogDescription>
         </DialogHeader>
         <ul className="space-y-2 text-sm">
@@ -1938,11 +1984,13 @@ function CommitConfirmDialog({
               </ul>
             </li>
           )}
-          {duplicatePeriods.length > 0 && (
+          {showReplaceBlock && (
             <li className="space-y-2 rounded-md border border-amber-200 bg-amber-50/80 p-3 text-amber-950">
               <p className="flex items-start gap-2">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                Remplacer les cumuls de {duplicatePeriods.join(', ')} ?
+                {reimport
+                  ? `Les cumuls de ${periodsToReplace} seront remplacés.`
+                  : `Remplacer les cumuls de ${periodsToReplace} ?`}
               </p>
               <label className="flex cursor-pointer items-center gap-2 text-sm">
                 <input
@@ -1951,7 +1999,7 @@ function CommitConfirmDialog({
                   onChange={(e) => onReplaceExistingPeriodsChange?.(e.target.checked)}
                   className="rounded border-input"
                 />
-                Écraser les cumuls existants pour ces mois
+                Écraser les cumuls existants pour {periodsToReplace}
               </label>
             </li>
           )}

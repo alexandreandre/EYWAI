@@ -5,7 +5,10 @@ export type WorkforceGap = {
   employee_id: string;
   employee_name: string;
   nir_masked: string;
-  gap_type: 'missing_from_dsn' | 'contract_end_in_dsn';
+  gap_type: 'missing_from_dsn' | 'new_hire_not_in_dsn' | 'contract_end_in_dsn';
+  hire_date?: string | null;
+  period?: string | null;
+  likely_scenario?: 'new_hire' | 'departure' | 'unknown' | null;
   suggested_last_working_day?: string | null;
   contract_end_date?: string | null;
   resolution?: WorkforceResolution | null;
@@ -21,17 +24,24 @@ export type WorkforceReconciliationSummary = {
   active_without_nir_count?: number;
   dsn_employee_count?: number;
   active_db_count?: number;
+  excluded_out_of_scope_count?: number;
+  gap_counts_by_type?: {
+    new_hire_not_in_dsn?: number;
+    missing_from_dsn?: number;
+    contract_end_in_dsn?: number;
+  };
   resolutions?: Record<string, WorkforceResolution>;
 };
 
 export type WorkforceResolution = {
   gap_id: string;
   employee_id: string;
-  action: 'open_exit' | 'close_departure' | 'ignore';
+  action: 'open_exit' | 'close_departure' | 'ignore' | 'acknowledge_new_hire';
   exit_type?: string | null;
   last_working_day?: string | null;
   exit_reason?: string | null;
   ignore_reason?: string | null;
+  hire_date?: string | null;
 };
 
 export type WorkforceReconciliationReport = {
@@ -42,6 +52,11 @@ export type WorkforceReconciliationReport = {
     employee_id: string;
     exit_type?: string;
     last_working_day?: string;
+  }>;
+  acknowledged_new_hires?: Array<{
+    gap_id: string;
+    employee_id: string;
+    hire_date?: string | null;
   }>;
   failed?: Array<{ gap_id: string; employee_id: string; error: string }>;
 };
@@ -242,6 +257,8 @@ export type DsnImportLaunchConfig = {
   targetCompanyId?: string | null;
   resumeBatchId?: string | null;
   suggestedPeriod?: string | null;
+  /** true si clic sur un mois déjà importé (case verte) */
+  reimport?: boolean;
 };
 
 export type ActivateImportedEmployeeResponse = {

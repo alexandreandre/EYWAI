@@ -527,7 +527,7 @@ export default function DocumentLibraryTab() {
         </Card>
       )}
 
-      {!isLoading && !isError && filtered.length === 0 && (
+      {!isLoading && !isError && filtered.length === 0 && category !== 'fiches_poste' && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center gap-2 py-16 text-center text-muted-foreground">
             <BookOpen className="h-10 w-10 opacity-40" />

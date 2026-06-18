@@ -13,9 +13,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { WorkforceGap, WorkforceResolution } from '@/api/dsnImport';
+import { WorkforceNewHireGapRow } from './WorkforceNewHireGapRow';
 
-const GAP_TYPE_LABELS: Record<WorkforceGap['gap_type'], string> = {
-  missing_from_dsn: 'Absent de la DSN',
+const DEPARTURE_GAP_LABELS: Record<'missing_from_dsn' | 'contract_end_in_dsn', string> = {
+  missing_from_dsn: 'Départ probable — absent de la DSN',
   contract_end_in_dsn: 'Fin de contrat dans la DSN',
 };
 
@@ -40,14 +41,21 @@ type Props = {
   onResolutionChange: (resolution: WorkforceResolution) => void;
 };
 
-export function WorkforceGapRow({ gap, batchId, resolution, onResolutionChange }: Props) {
+function WorkforceDepartureGapRow({ gap, batchId, resolution, onResolutionChange }: Props) {
   const defaultDate =
     gap.suggested_last_working_day?.slice(0, 10)
     ?? gap.contract_end_date?.slice(0, 10)
     ?? '';
   const [exitType, setExitType] = useState(resolution?.exit_type ?? 'demission');
-  const [lastWorkingDay, setLastWorkingDay] = useState(resolution?.last_working_day?.slice(0, 10) ?? defaultDate);
+  const [lastWorkingDay, setLastWorkingDay] = useState(
+    resolution?.last_working_day?.slice(0, 10) ?? defaultDate,
+  );
   const [ignoreReason, setIgnoreReason] = useState(resolution?.ignore_reason ?? 'dsn_incomplete');
+
+  const gapLabel =
+    gap.gap_type === 'missing_from_dsn' || gap.gap_type === 'contract_end_in_dsn'
+      ? DEPARTURE_GAP_LABELS[gap.gap_type]
+      : 'Écart effectif';
 
   const applyResolution = useCallback(
     (action: WorkforceResolution['action']) => {
@@ -66,11 +74,11 @@ export function WorkforceGapRow({ gap, batchId, resolution, onResolutionChange }
         last_working_day: lastWorkingDay || defaultDate,
         exit_reason:
           action === 'close_departure'
-            ? `Réconciliation DSN — ${GAP_TYPE_LABELS[gap.gap_type]}`
+            ? `Réconciliation DSN — ${gapLabel}`
             : undefined,
       });
     },
-    [gap, exitType, lastWorkingDay, defaultDate, ignoreReason, onResolutionChange],
+    [gap, exitType, lastWorkingDay, defaultDate, ignoreReason, onResolutionChange, gapLabel],
   );
 
   const exitDeepLink = `/employee-exits?create=1&employeeId=${encodeURIComponent(gap.employee_id)}&exitType=${encodeURIComponent(exitType)}&returnTo=dsn-import&batchId=${encodeURIComponent(batchId)}`;
@@ -82,7 +90,7 @@ export function WorkforceGapRow({ gap, batchId, resolution, onResolutionChange }
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-medium">{gap.employee_name}</p>
             <Badge variant="outline" className="text-xs">
-              {GAP_TYPE_LABELS[gap.gap_type]}
+              {gapLabel}
             </Badge>
             {resolution && (
               <Badge variant="secondary" className="text-xs">
@@ -92,6 +100,7 @@ export function WorkforceGapRow({ gap, batchId, resolution, onResolutionChange }
           </div>
           <p className="text-xs text-muted-foreground">
             NIR {gap.nir_masked}
+            {gap.period && <> · DSN : {gap.period}</>}
             {defaultDate && (
               <>
                 {' '}
@@ -179,4 +188,17 @@ export function WorkforceGapRow({ gap, batchId, resolution, onResolutionChange }
       </div>
     </div>
   );
+}
+
+export function WorkforceGapRow(props: Props) {
+  if (props.gap.gap_type === 'new_hire_not_in_dsn') {
+    return (
+      <WorkforceNewHireGapRow
+        gap={props.gap}
+        resolution={props.resolution}
+        onResolutionChange={props.onResolutionChange}
+      />
+    );
+  }
+  return <WorkforceDepartureGapRow {...props} />;
 }
