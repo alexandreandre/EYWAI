@@ -7,7 +7,7 @@ conversion ScheduleAppError -> HTTPException, retour HTTP. Comportement identiqu
 
 import json
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 
 from app.core.security import get_current_user
 from app.modules.schedules.application import ai_fill, commands, queries
@@ -27,6 +27,13 @@ from app.modules.schedules.schemas import (
     ParseInstructionRequest,
     PlannedCalendarRequest,
     RosterEmployee,
+    TimesheetExtractJobResponse,
+    TimesheetExtractProgress,
+    TimesheetExtractStartResponse,
+)
+from app.modules.schedules.schemas.persist import (
+    PersistTimesheetRequest,
+    PersistTimesheetResponse,
 )
 from app.modules.users.schemas.responses import User
 
@@ -246,6 +253,8 @@ async def assisted_fill_extract_timesheet(
     month: int = Form(...),
     employees: str = Form("[]"),
     single_employee: bool = Form(False),
+    document_scope: str = Form("auto"),
+    week_anchor_date: str | None = Form(None),
     current_user: User = Depends(get_current_user),
 ):
     """Analyse un relevé de pointeuse (PDF/image) en proposition d'heures réelles.
@@ -253,7 +262,12 @@ async def assisted_fill_extract_timesheet(
     `employees` est une chaîne JSON [{id, first_name, last_name}] pour la
     résolution des noms. `single_employee` force l'attribution à l'unique
     employé du roster (mode fiche collaborateur). Ne persiste rien.
+
+    `document_scope` : auto | weekly | monthly.
+    `week_anchor_date` : date ISO (YYYY-MM-DD) de début de semaine si relevé ambigu.
     """
+    from datetime import date as date_type
+
     _ = current_user
     content = await file.read()
     if not content:
@@ -267,6 +281,18 @@ async def assisted_fill_extract_timesheet(
         roster = [RosterEmployee(**item) for item in raw_roster]
     except (json.JSONDecodeError, TypeError, ValueError):
         roster = []
+
+    parsed_anchor: date_type | None = None
+    if week_anchor_date and week_anchor_date.strip():
+        try:
+            parsed_anchor = date_type.fromisoformat(week_anchor_date.strip())
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="week_anchor_date invalide (format attendu : YYYY-MM-DD).",
+            ) from None
+
+    scope = document_scope if document_scope in ("auto", "weekly", "monthly") else "auto"
     try:
         return ai_fill.extract_timesheet(
             year=year,
@@ -275,7 +301,148 @@ async def assisted_fill_extract_timesheet(
             filename=file.filename or "",
             roster=roster,
             single_employee=single_employee,
+            document_scope=scope,
+            week_anchor_date=parsed_anchor,
+            company_id=current_user.active_company_id,
+            user_id=current_user.id,
         )
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+
+@router_rh.post(
+    "/assisted-fill/extract-timesheet/start",
+    response_model=TimesheetExtractStartResponse,
+)
+async def assisted_fill_extract_timesheet_start(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    year: int = Form(...),
+    month: int = Form(...),
+    employees: str = Form("[]"),
+    single_employee: bool = Form(False),
+    document_scope: str = Form("auto"),
+    week_anchor_date: str | None = Form(None),
+    current_user: User = Depends(get_current_user),
+):
+    """Lance l'extraction hybride IA en arrière-plan ; le front interroge GET /jobs/{id}."""
+    from app.modules.schedules.application.timesheet_import_service import (
+        create_import_job,
+        run_timesheet_extraction_job,
+    )
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Le fichier est vide.")
+    if len(content) > _MAX_TIMESHEET_BYTES:
+        raise HTTPException(
+            status_code=400, detail="Fichier trop volumineux (max 15 Mo)."
+        )
+    try:
+        raw_roster = json.loads(employees or "[]")
+        roster = [RosterEmployee(**item) for item in raw_roster]
+    except (json.JSONDecodeError, TypeError, ValueError):
+        roster = []
+
+    scope = document_scope if document_scope in ("auto", "weekly", "monthly") else "auto"
+    request_json = {
+        "year": year,
+        "month": month,
+        "employees": [r.model_dump() for r in roster],
+        "single_employee": single_employee,
+        "document_scope": scope,
+        "week_anchor_date": week_anchor_date.strip() if week_anchor_date else None,
+    }
+
+    try:
+        job = create_import_job(
+            company_id=str(current_user.active_company_id),
+            user_id=str(current_user.id),
+            filename=file.filename or "document.pdf",
+            file_content=content,
+            request_json=request_json,
+        )
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+    job_id = str(job["id"])
+    background_tasks.add_task(run_timesheet_extraction_job, job_id, content)
+
+    return TimesheetExtractStartResponse(job_id=job_id, status="extracting")
+
+
+@router_rh.get(
+    "/assisted-fill/extract-timesheet/jobs/{job_id}",
+    response_model=TimesheetExtractJobResponse,
+)
+async def assisted_fill_extract_timesheet_job(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Statut et proposition d'un job d'extraction de relevé."""
+    from app.modules.schedules.application.timesheet_import_service import get_import_job
+
+    job = get_import_job(job_id, company_id=str(current_user.active_company_id))
+    if not job:
+        raise HTTPException(status_code=404, detail="Job introuvable.")
+
+    progress_raw = job.get("progress_json") or {}
+    progress = TimesheetExtractProgress(
+        phase=str(progress_raw.get("phase") or job.get("status") or "queued"),
+        pages_total=int(progress_raw.get("pages_total") or 0),
+        pages_done=int(progress_raw.get("pages_done") or 0),
+        current_page=int(progress_raw.get("current_page") or 0),
+    )
+
+    proposal = None
+    if job.get("status") == "completed" and job.get("proposal_json"):
+        proposal = AiCalendarProposalResponse.model_validate(job["proposal_json"])
+
+    extraction_warnings: list[str] = []
+    if proposal:
+        extraction_warnings = list(proposal.extraction_warnings or [])
+
+    return TimesheetExtractJobResponse(
+        job_id=job_id,
+        status=job.get("status") or "queued",
+        progress=progress,
+        proposal=proposal,
+        error_message=job.get("error_message"),
+        extraction_warnings=extraction_warnings,
+    )
+
+
+@router_rh.delete("/assisted-fill/extract-timesheet/jobs/{job_id}")
+async def assisted_fill_cancel_extract_timesheet_job(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Annulation best-effort d'un job en cours."""
+    from app.modules.schedules.application.timesheet_import_service import cancel_import_job
+
+    ok = cancel_import_job(job_id, company_id=str(current_user.active_company_id))
+    if not ok:
+        raise HTTPException(status_code=404, detail="Job introuvable.")
+    return {"status": "cancelled", "job_id": job_id}
+
+
+@router_rh.post(
+    "/assisted-fill/persist-timesheet", response_model=PersistTimesheetResponse
+)
+def assisted_fill_persist_timesheet(
+    payload: PersistTimesheetRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Enregistre en batch les jours proposés (merge prevu/réel par employé)."""
+    from app.modules.schedules.application.persist_timesheet import (
+        run_persist_timesheet_batch,
+    )
+
+    _ = current_user
+    try:
+        return run_persist_timesheet_batch(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except ScheduleAppError as e:
         _handle_schedule_error(e)
 

@@ -5,6 +5,9 @@ from .ai import (
     AiEmployeeProposal,
     ParseInstructionRequest,
     RosterEmployee,
+    TimesheetExtractJobResponse,
+    TimesheetExtractProgress,
+    TimesheetExtractStartResponse,
 )
 from .requests import (
     ActualHoursEntry,
@@ -44,5 +47,8 @@ __all__ = [
     "PlannedCalendarEntry",
     "PlannedCalendarRequest",
     "RosterEmployee",
+    "TimesheetExtractJobResponse",
+    "TimesheetExtractProgress",
+    "TimesheetExtractStartResponse",
     "WeekConfigModel",
 ]

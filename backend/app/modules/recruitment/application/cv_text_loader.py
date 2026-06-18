@@ -62,7 +62,7 @@ def load_cv_text(cv_url: str | None) -> tuple[str, str | None]:
         return "", "CV joint mais format non analysable (PDF ou image attendu)"
 
     try:
-        text, method = extract_document_text(content, filename)
+        text, method, _meta = extract_document_text(content, filename)
     except DocumentExtractionError as exc:
         logger.warning("Extraction CV impossible: %s", exc)
         return "", f"CV joint mais texte non extractible ({exc})"

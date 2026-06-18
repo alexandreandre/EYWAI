@@ -16,11 +16,14 @@ from __future__ import annotations
 
 import calendar as cal_mod
 import logging
+import re
 import unicodedata
-from typing import Any, Dict, List
+from datetime import date, timedelta
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.modules.schedules.application.exceptions import ScheduleAppError
 from app.modules.schedules.schemas.ai import (
+    AffectedMonth,
     AiCalendarProposalResponse,
     AiDayEntry,
     AiEmployeeProposal,
@@ -160,6 +163,345 @@ def _build_system_prompt(
     )
 
 
+def _build_timesheet_system_prompt(
+    year: int,
+    month: int,
+    default_nature: str,
+    single_employee_name: str | None = None,
+    period_context: str = "",
+    week_anchor_context: str = "",
+) -> str:
+    """Prompt spécialisé relevé de pointeuse (hebdo ou mensuel partiel)."""
+    base = _build_system_prompt(
+        year, month, default_nature, single_employee_name
+    )
+    extra = (
+        "\n\nRELEVÉ DE POINTEUSE — règles additionnelles :\n"
+        "- Le document peut couvrir une semaine seule ou une partie du mois.\n"
+        "- N'extraire que les jours effectivement présents dans le relevé.\n"
+        "- Priorité absolue aux dates explicites (JJ/MM, JJ/MM/AAAA) pour "
+        "déterminer le champ `jour` du mois cible.\n"
+        "- Ne pas mapper les colonnes Lun–Mar–Mer sur les jours 1–2–3 du mois "
+        "sauf si aucune date n'est lisible et qu'un ancrage hebdomadaire est fourni.\n"
+        "- Si la période du relevé ne correspond pas au mois cible, l'indiquer "
+        "dans warnings (en français).\n"
+        "- Tous les messages warnings en français.\n"
+        "- Ne pas alerter pour les salariés absents du relevé (hors document).\n"
+        "- Jour férié sans pointage → type ferie (pas absence).\n"
+    )
+    if period_context:
+        extra += f"\n{period_context}\n"
+    if week_anchor_context:
+        extra += f"\n{week_anchor_context}\n"
+    return base + extra
+
+
+def _filter_timesheet_warnings(
+    warnings: List[str], document_text: str = ""
+) -> List[str]:
+    """Supprime le bruit LLM (alertes techniques, commentaires PDF, salariés hors relevé)."""
+    from app.modules.schedules.application.timesheet_warning_filter import (
+        filter_timesheet_warnings,
+    )
+
+    _ = document_text
+    return filter_timesheet_warnings(warnings)
+
+
+def _compute_affected_months_from_period(
+    *,
+    year: int,
+    month: int,
+    period_start: date | None,
+    period_end: date | None,
+    employees: List[AiEmployeeProposal],
+) -> List[AffectedMonth]:
+    """Mois touchés par le relevé (semaine à cheval sur 2 mois)."""
+    months_map: Dict[Tuple[int, int], set[int]] = {}
+    if period_start and period_end:
+        current = period_start
+        while current <= period_end:
+            key = (current.year, current.month)
+            months_map.setdefault(key, set()).add(current.day)
+            current += timedelta(days=1)
+    target_days = {d.jour for emp in employees for d in emp.days}
+    if target_days:
+        months_map[(year, month)] = months_map.get((year, month), set()) | target_days
+    return [
+        AffectedMonth(year=y, month=m, days=sorted(days))
+        for (y, m), days in sorted(months_map.items())
+    ]
+
+
+def _compute_review_summary(
+    employees: List[AiEmployeeProposal],
+) -> dict[str, int]:
+    ready = warning = error = empty = incomplete = gap = 0
+    for emp in employees:
+        if emp.review_status == "empty":
+            empty += 1
+        elif emp.review_status == "error" or not emp.employee_id:
+            error += 1
+        elif emp.quality_issue == "extraction_incomplete":
+            incomplete += 1
+        elif emp.quality_issue == "weekly_total_gap":
+            gap += 1
+        elif emp.review_status == "warning" or emp.match_confidence == "medium":
+            warning += 1
+        else:
+            ready += 1
+    return {
+        "ready": ready,
+        "warning": warning,
+        "error": error,
+        "empty": empty,
+        "incomplete": incomplete,
+        "gap": gap,
+        "total": len(employees),
+    }
+
+
+def _build_proposal_from_cegid(
+    *,
+    year: int,
+    month: int,
+    source: str,
+    parse_result,
+    roster: List[RosterEmployee],
+    default_nature: str,
+) -> AiCalendarProposalResponse:
+    from app.modules.schedules.application.employee_match import (
+        resolve_employee_for_timesheet,
+    )
+
+    employees_out: List[AiEmployeeProposal] = []
+    for block in parse_result.employees:
+        proposal = resolve_employee_for_timesheet(
+            raw_name=block.raw_name,
+            matricule=block.matricule,
+            roster=roster,
+        )
+        if block.empty_week:
+            proposal.review_status = "empty"
+        days: List[AiDayEntry] = []
+        for d in block.days:
+            days.append(
+                AiDayEntry(
+                    jour=d.jour,
+                    heures=d.heures,
+                    type="travail",
+                    nature=default_nature,
+                )
+            )
+        proposal.days = days
+        proposal.weekly_total_pdf = block.weekly_total_hours
+        proposal.days_expected_count = block.days_expected_count
+        proposal.days_imported_count = block.days_parsed_count
+        proposal.coverage_ratio = block.coverage_ratio
+        if block.parse_warnings:
+            proposal.warnings.extend(block.parse_warnings)
+        if not days and not block.empty_week:
+            proposal.warnings.append("Aucun jour exploitable détecté pour cet employé.")
+        employees_out.append(proposal)
+
+    global_warnings = list(parse_result.parse_warnings)
+    if not employees_out:
+        global_warnings.append(
+            "Aucune donnée exploitable n'a été extraite du relevé Cegid."
+        )
+
+    return AiCalendarProposalResponse(
+        year=year,
+        month=month,
+        source=source,
+        employees=employees_out,
+        warnings=global_warnings,
+        detected_format="cegid_weekly",
+        parse_confidence=parse_result.confidence,
+    )
+
+
+def _build_single_employee_from_cegid(
+    *,
+    year: int,
+    month: int,
+    source: str,
+    parse_result,
+    target: RosterEmployee,
+    default_nature: str,
+) -> AiCalendarProposalResponse:
+    """Fast path Cegid pour import fiche collaborateur (un seul bloc PDF)."""
+    block = parse_result.employees[0]
+    full_name = f"{target.first_name} {target.last_name}"
+    days: List[AiDayEntry] = [
+        AiDayEntry(jour=d.jour, heures=d.heures, type="travail", nature=default_nature)
+        for d in block.days
+    ]
+    proposal = AiEmployeeProposal(
+        raw_name=full_name,
+        employee_id=target.id,
+        matched_name=full_name,
+        match_confidence="high",
+        match_method="matricule" if block.matricule else "name_exact",
+        time_tracking_id=block.matricule or target.time_tracking_id,
+        days=days,
+        weekly_total_pdf=block.weekly_total_hours,
+        days_expected_count=block.days_expected_count,
+        days_imported_count=block.days_parsed_count,
+        coverage_ratio=block.coverage_ratio,
+    )
+    if block.empty_week:
+        proposal.review_status = "empty"
+    if block.parse_warnings:
+        proposal.warnings.extend(block.parse_warnings)
+    return AiCalendarProposalResponse(
+        year=year,
+        month=month,
+        source=source,
+        employees=[proposal],
+        warnings=list(parse_result.parse_warnings),
+        detected_format="cegid_weekly",
+        parse_confidence=parse_result.confidence,
+    )
+
+
+def _finalize_timesheet_proposal(
+    response: AiCalendarProposalResponse,
+    *,
+    roster: List[RosterEmployee],
+    company_id: str | None,
+    period_detection,
+    month_auto_corrected: bool = False,
+    requested_year: int | None = None,
+    requested_month: int | None = None,
+    month_correction_message: str | None = None,
+    detected_format: str | None = None,
+    parse_confidence: float | None = None,
+    extraction_method: str | None = None,
+    extraction_warnings: List[str] | None = None,
+    extraction_pages_total: int | None = None,
+    extraction_pages_processed: int | None = None,
+    extraction_truncated: bool = False,
+) -> AiCalendarProposalResponse:
+    from app.modules.schedules.application.parsers.cegid_weekly import (
+        focus_week_index_for_period,
+    )
+    from app.modules.schedules.application.timesheet_enrichment import (
+        enrich_proposal_employees,
+    )
+    from app.modules.schedules.application.timesheet_quality import run_quality_checks
+
+    fmt = detected_format or response.detected_format
+    conf = parse_confidence if parse_confidence is not None else response.parse_confidence
+
+    enriched = enrich_proposal_employees(
+        response.employees,
+        year=response.year,
+        month=response.month,
+        company_id=company_id,
+    )
+    enriched, quality_checks, roster_not_in_doc = run_quality_checks(
+        enriched,
+        roster,
+        parse_confidence=conf,
+        detected_format=fmt,
+    )
+
+    response = response.model_copy(
+        update={
+            "employees": enriched,
+            "quality_checks": quality_checks,
+            "roster_not_in_document_count": roster_not_in_doc,
+            "review_summary": _compute_review_summary(enriched),
+            "warnings": _filter_timesheet_warnings(
+                list(response.warnings) + (extraction_warnings or [])
+            ),
+            "extraction_method": extraction_method,
+            "extraction_warnings": extraction_warnings or [],
+            "extraction_pages_total": extraction_pages_total,
+            "extraction_pages_processed": extraction_pages_processed,
+            "extraction_truncated": extraction_truncated,
+        }
+    )
+
+    if period_detection.start_date and period_detection.end_date:
+        if (
+            period_detection.start_date.month != period_detection.end_date.month
+            or period_detection.start_date.year != period_detection.end_date.year
+        ):
+            response = response.model_copy(
+                update={
+                    "affected_months": _compute_affected_months_from_period(
+                        year=response.year,
+                        month=response.month,
+                        period_start=period_detection.start_date,
+                        period_end=period_detection.end_date,
+                        employees=enriched,
+                    )
+                }
+            )
+
+    focus_idx = focus_week_index_for_period(
+        response.year,
+        response.month,
+        period_detection.start_date,
+    )
+    if focus_idx is not None:
+        response = response.model_copy(update={"focus_week_index": focus_idx})
+
+    return _attach_period_metadata(
+        response,
+        period_detection,
+        month_auto_corrected=month_auto_corrected,
+        requested_year=requested_year,
+        requested_month=requested_month,
+        month_correction_message=month_correction_message,
+    )
+
+
+def _attach_period_metadata(
+    response: AiCalendarProposalResponse,
+    detection,
+    *,
+    month_auto_corrected: bool = False,
+    requested_year: int | None = None,
+    requested_month: int | None = None,
+    month_correction_message: str | None = None,
+) -> AiCalendarProposalResponse:
+    from app.modules.schedules.application.timesheet_period import (
+        suggested_target_month,
+    )
+
+    days_count = sum(len(emp.days) for emp in response.employees)
+    suggested = suggested_target_month(detection)
+    merged_warnings = list(response.warnings)
+    for w in detection.warnings:
+        if w not in merged_warnings:
+            merged_warnings.append(w)
+
+    period_warnings = list(detection.warnings)
+    if month_auto_corrected and month_correction_message:
+        period_warnings = [month_correction_message]
+
+    return response.model_copy(
+        update={
+            "detected_scope": detection.scope,
+            "detected_period_start": detection.start_date,
+            "detected_period_end": detection.end_date,
+            "period_confidence": detection.confidence,
+            "period_warnings": period_warnings,
+            "detected_days_count": days_count,
+            "warnings": merged_warnings,
+            "suggested_year": suggested[0] if suggested else None,
+            "suggested_month": suggested[1] if suggested else None,
+            "month_auto_corrected": month_auto_corrected,
+            "requested_year": requested_year,
+            "requested_month": requested_month,
+            "month_correction_message": month_correction_message,
+        }
+    )
+
+
 def _roster_hint_for_text(roster: List[RosterEmployee], limit: int = 30) -> str:
     """Liste compacte d'employés pour le LLM (résolution finale côté serveur)."""
     return "; ".join(f"{e.first_name} {e.last_name}" for e in roster[:limit])
@@ -186,53 +528,25 @@ def _roster_matching_document(
     return matched if matched else roster[:limit]
 
 
-_MAX_TIMESHEET_TEXT_CHARS = 14_000
+_MAX_LLM_TEXT_CHARS = 14_000
+_CEGID_CONFIDENCE_THRESHOLD = 0.75
+
+
+def _resolve_employee_from_match(
+    raw_name: str, roster: List[RosterEmployee]
+) -> AiEmployeeProposal:
+    from app.modules.schedules.application.employee_match import (
+        resolve_employee_for_timesheet,
+    )
+
+    return resolve_employee_for_timesheet(
+        raw_name=raw_name, matricule=None, roster=roster
+    )
 
 
 def _resolve_employee(raw_name: str, roster: List[RosterEmployee]) -> AiEmployeeProposal:
     """Associe un nom brut à un employé du roster (matching déterministe)."""
-    proposal = AiEmployeeProposal(raw_name=raw_name)
-    norm_raw = _normalize(raw_name)
-    if not norm_raw or not roster:
-        return proposal
-
-    raw_tokens = set(norm_raw.split())
-
-    exact_matches = []
-    partial_matches = []
-    for emp in roster:
-        full_a = _normalize(f"{emp.first_name} {emp.last_name}")
-        full_b = _normalize(f"{emp.last_name} {emp.first_name}")
-        if norm_raw in (full_a, full_b):
-            exact_matches.append(emp)
-            continue
-        emp_tokens = set(full_a.split())
-        if raw_tokens and raw_tokens.issubset(emp_tokens):
-            partial_matches.append(emp)
-        elif emp_tokens & raw_tokens:
-            # au moins un token (nom ou prénom) en commun
-            partial_matches.append(emp)
-
-    if len(exact_matches) == 1:
-        emp = exact_matches[0]
-        proposal.employee_id = emp.id
-        proposal.matched_name = f"{emp.first_name} {emp.last_name}"
-        proposal.match_confidence = "high"
-    elif len(partial_matches) == 1:
-        emp = partial_matches[0]
-        proposal.employee_id = emp.id
-        proposal.matched_name = f"{emp.first_name} {emp.last_name}"
-        proposal.match_confidence = "medium"
-    else:
-        if len(exact_matches) > 1 or len(partial_matches) > 1:
-            proposal.warnings.append(
-                f"Plusieurs employés correspondent à « {raw_name} », à confirmer."
-            )
-        else:
-            proposal.warnings.append(
-                f"Aucun employé reconnu pour « {raw_name} »."
-            )
-    return proposal
+    return _resolve_employee_from_match(raw_name, roster)
 
 
 def _coerce_days(
@@ -285,7 +599,7 @@ def _build_proposal(
         raw_name = str(raw_emp.get("name") or "").strip()
         if not raw_name:
             continue
-        proposal = _resolve_employee(raw_name, roster)
+        proposal = _resolve_employee_from_match(raw_name, roster)
         proposal.days = _coerce_days(
             raw_emp.get("days", []), num_days, default_nature
         )
@@ -293,7 +607,9 @@ def _build_proposal(
             proposal.warnings.append("Aucun jour exploitable détecté pour cet employé.")
         employees_out.append(proposal)
 
-    global_warnings = [str(w) for w in (extracted.get("warnings") or []) if str(w).strip()]
+    global_warnings = _filter_timesheet_warnings(
+        [str(w) for w in (extracted.get("warnings") or []) if str(w).strip()]
+    )
     if not employees_out:
         global_warnings.append(
             "Aucune donnée exploitable n'a été extraite. Reformulez ou vérifiez le document."
@@ -572,6 +888,159 @@ def parse_instruction(
     )
 
 
+def _extract_timesheet_hybrid_path(
+    *,
+    year: int,
+    month: int,
+    file_content: bytes,
+    filename: str,
+    roster: List[RosterEmployee],
+    single_employee: bool,
+    document_scope: str,
+    week_anchor_date: date | None,
+    company_id: str | None,
+    user_id: str | None,
+    import_job_id: str | None,
+    on_progress: Any | None,
+    skip_audit: bool,
+) -> AiCalendarProposalResponse:
+    from app.modules.schedules.application.schedule_import_audit import (
+        record_schedule_import_run,
+    )
+    from app.modules.schedules.application.timesheet_hybrid_extract import (
+        extract_timesheet_hybrid,
+    )
+    from app.modules.schedules.application.timesheet_period import (
+        align_period_warnings,
+        detect_timesheet_period,
+        resolve_effective_target_month,
+    )
+
+    known_mats = [
+        e.time_tracking_id for e in roster if (e.time_tracking_id or "").strip()
+    ]
+    try:
+        hybrid = extract_timesheet_hybrid(
+            file_content=file_content,
+            filename=filename,
+            year=year,
+            month=month,
+            known_matricules=known_mats,
+            on_progress=on_progress,
+        )
+    except DocumentExtractionError as e:
+        raise ScheduleAppError("validation", str(e), status_code=400) from e
+
+    text = hybrid.full_ocr_text
+    method = hybrid.extraction_method
+    extraction_warnings = list(hybrid.warnings)
+
+    scope_input = document_scope if document_scope in ("auto", "weekly", "monthly") else "auto"
+    requested_year, requested_month = year, month
+    period_detection = detect_timesheet_period(
+        text,
+        target_year=requested_year,
+        target_month=requested_month,
+        document_scope=scope_input,
+    )
+    eff_year, eff_month, month_auto_corrected, correction_msg = (
+        resolve_effective_target_month(
+            period_detection, requested_year, requested_month
+        )
+    )
+    if month_auto_corrected:
+        year, month = eff_year, eff_month
+        align_period_warnings(period_detection, year, month)
+
+    parse_result = hybrid.parse_result
+    if parse_result.format_detected and parse_result.confidence >= 0.5:
+        period_detection.scope = "weekly"
+        if parse_result.period_start:
+            period_detection.start_date = parse_result.period_start
+        if parse_result.period_end:
+            period_detection.end_date = parse_result.period_end
+        if parse_result.confidence >= _CEGID_CONFIDENCE_THRESHOLD:
+            period_detection.confidence = "high"
+
+    default_nature = "reel"
+    detected_format = "hybrid_vision_ocr"
+    if hybrid.used_cegid_fallback:
+        detected_format = "cegid_weekly"
+
+    source_label = (
+        f"relevé IA hybride ({method})"
+        if not hybrid.used_cegid_fallback
+        else f"relevé Cegid repli ({method})"
+    )
+
+    use_single = (
+        single_employee
+        and parse_result.employees
+        and len(parse_result.employees) == 1
+        and roster
+    )
+    if use_single:
+        response = _build_single_employee_from_cegid(
+            year=year,
+            month=month,
+            source=source_label,
+            parse_result=parse_result,
+            target=roster[0],
+            default_nature=default_nature,
+        )
+    else:
+        response = _build_proposal_from_cegid(
+            year=year,
+            month=month,
+            source=source_label,
+            parse_result=parse_result,
+            roster=roster,
+            default_nature=default_nature,
+        )
+        response = response.model_copy(update={"detected_format": detected_format})
+
+    final = _finalize_timesheet_proposal(
+        response,
+        roster=roster,
+        company_id=company_id,
+        period_detection=period_detection,
+        month_auto_corrected=month_auto_corrected,
+        requested_year=requested_year if month_auto_corrected else None,
+        requested_month=requested_month if month_auto_corrected else None,
+        month_correction_message=correction_msg,
+        detected_format=detected_format,
+        parse_confidence=parse_result.confidence,
+        extraction_method=method,
+        extraction_warnings=extraction_warnings,
+        extraction_pages_total=hybrid.pages_total or None,
+        extraction_pages_processed=hybrid.pages_processed or None,
+        extraction_truncated=hybrid.truncated,
+    )
+    final = final.model_copy(
+        update={
+            "extraction_mode": "hybrid",
+            "consensus_conflicts": hybrid.consensus_conflicts,
+        }
+    )
+
+    if company_id and not skip_audit:
+        record_schedule_import_run(
+            company_id=company_id,
+            user_id=user_id,
+            filename=filename,
+            proposal=final,
+            file_content=file_content,
+            extraction_method=method,
+            raw_ocr_text=text,
+            import_job_id=import_job_id,
+            extraction_mode="hybrid",
+            page_count=hybrid.pages_processed,
+            consensus_conflicts=hybrid.consensus_conflicts,
+        )
+
+    return final
+
+
 def extract_timesheet(
     *,
     year: int,
@@ -580,90 +1049,299 @@ def extract_timesheet(
     filename: str,
     roster: List[RosterEmployee],
     single_employee: bool = False,
+    document_scope: str = "auto",
+    week_anchor_date: date | None = None,
+    company_id: str | None = None,
+    user_id: str | None = None,
+    import_job_id: str | None = None,
+    on_progress: Any | None = None,
+    skip_audit: bool = False,
 ) -> AiCalendarProposalResponse:
-    """Lit un relevé de pointeuse (PDF/image) et en extrait une proposition.
+    """Lit un relevé de pointeuse (PDF/image) et en extrait une proposition."""
+    from app.modules.schedules.application.parsers.cegid_weekly import (
+        try_parse_cegid_weekly,
+    )
+    from app.modules.schedules.application.roster_enrichment import (
+        enrich_roster_time_tracking_ids,
+    )
+    from app.modules.schedules.application.schedule_import_audit import (
+        record_schedule_import_run,
+    )
+    from app.modules.schedules.application.timesheet_extract_config import (
+        timesheet_extract_mode,
+    )
+    from app.modules.schedules.application.timesheet_period import (
+        align_period_warnings,
+        detect_timesheet_period,
+        format_period_context,
+        format_week_anchor_context,
+        resolve_effective_target_month,
+    )
 
-    Si `single_employee` est vrai, toutes les heures lues sont rattachées à
-    l'unique employé du roster (mode fiche collaborateur).
-    """
-    if not is_llm_configured():
-        raise ScheduleAppError(
-            "validation",
-            "L'assistant IA n'est pas configuré sur ce serveur.",
-            status_code=503,
+    extract_mode = timesheet_extract_mode()
+    roster = enrich_roster_time_tracking_ids(roster, company_id)
+
+    if extract_mode == "hybrid":
+        return _extract_timesheet_hybrid_path(
+            year=year,
+            month=month,
+            file_content=file_content,
+            filename=filename,
+            roster=roster,
+            single_employee=single_employee,
+            document_scope=document_scope,
+            week_anchor_date=week_anchor_date,
+            company_id=company_id,
+            user_id=user_id,
+            import_job_id=import_job_id,
+            on_progress=on_progress,
+            skip_audit=skip_audit,
         )
 
     try:
-        text, method = extract_document_text(file_content, filename)
+        text, method, extraction_meta = extract_document_text(file_content, filename)
     except DocumentExtractionError as e:
         raise ScheduleAppError("validation", str(e), status_code=400) from e
 
-    if len(text) > _MAX_TIMESHEET_TEXT_CHARS:
-        text = text[:_MAX_TIMESHEET_TEXT_CHARS] + "\n…(document tronqué)"
+    extraction_warnings = list(extraction_meta.warnings)
 
-    target = roster[0] if (single_employee and roster) else None
-
-    if target is not None:
-        full_name = f"{target.first_name} {target.last_name}"
-        user_prompt = (
-            "Texte extrait d'un relevé de pointeuse (heures FAITES, nature='reel' "
-            "sauf mention explicite de planning).\n\n"
-            f"Le relevé concerne uniquement le salarié : {full_name}.\n"
-            "Attribue toutes les heures à ce salarié.\n\n"
-            "--- RELEVÉ ---\n"
-            f"{text}"
+    scope_input = document_scope if document_scope in ("auto", "weekly", "monthly") else "auto"
+    requested_year, requested_month = year, month
+    period_detection = detect_timesheet_period(
+        text,
+        target_year=requested_year,
+        target_month=requested_month,
+        document_scope=scope_input,
+    )
+    eff_year, eff_month, month_auto_corrected, correction_msg = (
+        resolve_effective_target_month(
+            period_detection, requested_year, requested_month
         )
-        system_prompt_name = full_name
-    else:
-        filtered_roster = _roster_matching_document(text, roster)
-        roster_hint = _roster_hint_for_text(filtered_roster, limit=40)
-        user_prompt = (
-            "Texte extrait d'un relevé de pointeuse (heures FAITES, nature='reel' "
-            "sauf mention explicite de planning).\n\n"
-            "Employés à rapprocher :\n"
-            f"{roster_hint or '(non fourni)'}\n\n"
-            "--- RELEVÉ ---\n"
-            f"{text}"
-        )
-        system_prompt_name = None
+    )
+    if month_auto_corrected:
+        year, month = eff_year, eff_month
+        align_period_warnings(period_detection, year, month)
 
-    # Un relevé de pointeuse est par nature un réalisé.
+    cegid_result = try_parse_cegid_weekly(
+        text, target_year=year, target_month=month
+    )
+    use_cegid = (
+        cegid_result.format_detected
+        and cegid_result.confidence >= _CEGID_CONFIDENCE_THRESHOLD
+        and cegid_result.employees
+    )
+    use_cegid_single = (
+        single_employee
+        and cegid_result.format_detected
+        and cegid_result.confidence >= 0.5
+        and len(cegid_result.employees) == 1
+        and roster
+    )
+
+    if cegid_result.format_detected and cegid_result.confidence >= 0.5:
+        period_detection.scope = "weekly"
+        if cegid_result.period_start:
+            period_detection.start_date = cegid_result.period_start
+        if cegid_result.period_end:
+            period_detection.end_date = cegid_result.period_end
+        if cegid_result.confidence >= _CEGID_CONFIDENCE_THRESHOLD:
+            period_detection.confidence = "high"
+
     default_nature = "reel"
-    result = extract_structured_json(
-        system_prompt=_build_system_prompt(
-            year, month, default_nature, system_prompt_name
-        ),
-        user_prompt=user_prompt,
-        json_schema=_PROPOSAL_JSON_SCHEMA,
-        schema_name="timesheet_extraction",
-        model=MODEL_TIMESHEET_EXTRACTION,
-        max_tokens=8192,
-    )
-    if result is None:
-        raise ScheduleAppError(
-            "error",
-            "L'analyse du relevé a échoué. Vérifiez la lisibilité du document.",
-            status_code=502,
-        )
+    detected_format: str | None = None
+    parse_confidence: float | None = None
 
-    if target is not None:
-        return _build_single_employee_proposal(
-            year=year,
-            month=month,
-            source=f"relevé ({method})",
-            extracted=result.data,
-            target=target,
-            default_nature=default_nature,
-        )
+    if (use_cegid and not single_employee) or use_cegid_single:
+        if use_cegid_single:
+            response = _build_single_employee_from_cegid(
+                year=year,
+                month=month,
+                source=f"relevé Cegid ({method})",
+                parse_result=cegid_result,
+                target=roster[0],
+                default_nature=default_nature,
+            )
+        else:
+            response = _build_proposal_from_cegid(
+                year=year,
+                month=month,
+                source=f"relevé Cegid ({method})",
+                parse_result=cegid_result,
+                roster=roster,
+                default_nature=default_nature,
+            )
+        detected_format = "cegid_weekly"
+        parse_confidence = cegid_result.confidence
+    else:
+        if not is_llm_configured():
+            if cegid_result.format_detected and cegid_result.employees:
+                response = _build_proposal_from_cegid(
+                    year=year,
+                    month=month,
+                    source=f"relevé Cegid ({method})",
+                    parse_result=cegid_result,
+                    roster=roster,
+                    default_nature=default_nature,
+                )
+                detected_format = "cegid_weekly"
+                parse_confidence = cegid_result.confidence
+            else:
+                raise ScheduleAppError(
+                    "validation",
+                    "L'assistant IA n'est pas configuré sur ce serveur.",
+                    status_code=503,
+                )
+        else:
+            llm_text = text
+            if len(llm_text) > _MAX_LLM_TEXT_CHARS:
+                llm_text = llm_text[:_MAX_LLM_TEXT_CHARS] + "\n…(document tronqué)"
+                extraction_meta.truncated = True
+                extraction_warnings.append(
+                    f"Document tronqué à {_MAX_LLM_TEXT_CHARS} caractères "
+                    "pour l'analyse IA (repli LLM)."
+                )
 
-    return _build_proposal(
-        year=year,
-        month=month,
-        source=f"relevé ({method})",
-        extracted=result.data,
+            period_context = format_period_context(period_detection, year, month)
+            week_anchor_context = ""
+            if week_anchor_date is not None:
+                week_anchor_context = format_week_anchor_context(
+                    week_anchor_date, year, month
+                )
+            elif scope_input == "weekly" and period_detection.confidence == "low":
+                period_detection.warnings.append(
+                    "Relevé hebdomadaire sans ancrage de date : vérifiez les numéros "
+                    "de jour à l'étape de revue."
+                )
+
+            target = roster[0] if (single_employee and roster) else None
+            matricule_hint = ""
+            known_mats = [
+                e.time_tracking_id
+                for e in roster
+                if (e.time_tracking_id or "").strip()
+            ]
+            if known_mats:
+                matricule_hint = (
+                    "\nMatricules GTA connus : "
+                    + ", ".join(sorted(set(known_mats))[:30])
+                    + ".\n"
+                )
+
+            if target is not None:
+                full_name = f"{target.first_name} {target.last_name}"
+                user_prompt = (
+                    "Texte extrait d'un relevé de pointeuse (heures FAITES, nature='reel' "
+                    "sauf mention explicite de planning).\n\n"
+                    f"{period_context}\n\n"
+                    f"Le relevé concerne uniquement le salarié : {full_name}.\n"
+                    "Attribue toutes les heures à ce salarié.\n\n"
+                    "--- RELEVÉ ---\n"
+                    f"{llm_text}"
+                )
+                system_prompt_name = full_name
+            else:
+                filtered_roster = _roster_matching_document(llm_text, roster)
+                roster_hint = _roster_hint_for_text(filtered_roster, limit=40)
+                user_prompt = (
+                    "Texte extrait d'un relevé de pointeuse (heures FAITES, nature='reel' "
+                    "sauf mention explicite de planning).\n\n"
+                    f"{period_context}\n"
+                    f"{matricule_hint}\n"
+                    "Employés à rapprocher :\n"
+                    f"{roster_hint or '(non fourni)'}\n\n"
+                    "--- RELEVÉ ---\n"
+                    f"{llm_text}"
+                )
+                system_prompt_name = None
+
+            result = extract_structured_json(
+                system_prompt=_build_timesheet_system_prompt(
+                    year,
+                    month,
+                    default_nature,
+                    system_prompt_name,
+                    period_context=period_context,
+                    week_anchor_context=week_anchor_context,
+                ),
+                user_prompt=user_prompt,
+                json_schema=_PROPOSAL_JSON_SCHEMA,
+                schema_name="timesheet_extraction",
+                model=MODEL_TIMESHEET_EXTRACTION,
+                max_tokens=8192,
+            )
+            if result is None:
+                if cegid_result.format_detected and cegid_result.employees:
+                    response = _build_proposal_from_cegid(
+                        year=year,
+                        month=month,
+                        source=f"relevé Cegid ({method})",
+                        parse_result=cegid_result,
+                        roster=roster,
+                        default_nature=default_nature,
+                    )
+                    detected_format = "cegid_weekly"
+                    parse_confidence = cegid_result.confidence
+                else:
+                    raise ScheduleAppError(
+                        "error",
+                        "L'analyse du relevé a échoué. Vérifiez la lisibilité du document.",
+                        status_code=502,
+                    )
+            elif target is not None:
+                response = _build_single_employee_proposal(
+                    year=year,
+                    month=month,
+                    source=f"relevé ({method})",
+                    extracted=result.data,
+                    target=target,
+                    default_nature=default_nature,
+                )
+                detected_format = "llm"
+            else:
+                response = _build_proposal(
+                    year=year,
+                    month=month,
+                    source=f"relevé ({method})",
+                    extracted=result.data,
+                    roster=roster,
+                    default_nature=default_nature,
+                )
+                detected_format = "llm"
+
+    final = _finalize_timesheet_proposal(
+        response,
         roster=roster,
-        default_nature=default_nature,
+        company_id=company_id,
+        period_detection=period_detection,
+        month_auto_corrected=month_auto_corrected,
+        requested_year=requested_year if month_auto_corrected else None,
+        requested_month=requested_month if month_auto_corrected else None,
+        month_correction_message=correction_msg,
+        detected_format=detected_format,
+        parse_confidence=parse_confidence,
+        extraction_method=method,
+        extraction_warnings=extraction_warnings,
+        extraction_pages_total=extraction_meta.ocr_pages_total or None,
+        extraction_pages_processed=extraction_meta.ocr_pages_processed or None,
+        extraction_truncated=extraction_meta.truncated,
     )
+
+    if company_id and not skip_audit:
+        record_schedule_import_run(
+            company_id=company_id,
+            user_id=user_id,
+            filename=filename,
+            proposal=final,
+            file_content=file_content,
+            extraction_method=method,
+            raw_ocr_text=text,
+            import_job_id=import_job_id,
+            extraction_mode=timesheet_extract_mode()
+            if timesheet_extract_mode() != "hybrid"
+            else None,
+        )
+
+    return final
 
 
 __all__ = ["extract_timesheet", "parse_instruction"]

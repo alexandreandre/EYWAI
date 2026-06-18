@@ -93,6 +93,7 @@ class UpdateEmployee(BaseModel):
     residence_permit_expiry_date: date | None = None
     residence_permit_type: str | None = None
     residence_permit_number: str | None = None
+    time_tracking_id: str | None = None
 
 
 __all__ = ["NewFullEmployee", "UpdateEmployee"]

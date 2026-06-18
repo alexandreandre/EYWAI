@@ -59,7 +59,7 @@ def get_planned_calendar(employee_id: str, year: int, month: int) -> Dict[str, A
             planned_calendar
         )
         if planned_calendar is None:
-            logger.warning('AVERTISSEMENT (planned): La réponse de Supabase est None. On retourne un calendrier vide.')
+            log_app_debug(logger, 'Calendrier prévu absent en base — retour vide.')
         return {"year": year, "month": month, "calendrier_prevu": calendrier_prevu}
     except Exception as e:
         logger.exception("Exception")
@@ -79,7 +79,7 @@ def get_actual_hours(employee_id: str, year: int, month: int) -> Dict[str, Any]:
 
         calendrier_reel = extract_calendrier_reel_from_actual_hours(actual_hours)
         if actual_hours is None:
-            logger.warning('AVERTISSEMENT (actual): La réponse de Supabase est None. On retourne un calendrier vide.')
+            log_app_debug(logger, 'Calendrier réel absent en base — retour vide.')
         return {"year": year, "month": month, "calendrier_reel": calendrier_reel}
     except Exception as e:
         logger.exception("Exception")

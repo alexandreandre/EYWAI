@@ -25,6 +25,9 @@ MODEL_SCHEDULE_NL_FILL = "google/gemini-2.5-flash"
 # - Relevé de pointeuse (PDF/image OCR) -> heures par jour : Gemini pour
 #   les tableaux denses multi-employés
 MODEL_TIMESHEET_EXTRACTION = "google/gemini-2.5-flash"
+# - Extraction hybride par page (vision + texte OCR)
+MODEL_TIMESHEET_VISION = "google/gemini-2.5-flash"
+MODEL_TIMESHEET_PAGE_TEXT = "google/gemini-2.5-flash"
 
 # --- Scripts de scraping ---
 

@@ -163,6 +163,8 @@ class FullEmployee(BaseModel):
     # Complétude fiche paie (calculé à la lecture — onboarding)
     profile_complete: bool | None = None
     missing_payroll_fields: List[str] | None = None
+    # Matricule badgeuse / GTA (import pointages Cegid)
+    time_tracking_id: str | None = None
 
 class NewEmployeeResponse(FullEmployee):
     """Modèle de réponse pour la création d'un employé, incluant le mot de passe généré."""
