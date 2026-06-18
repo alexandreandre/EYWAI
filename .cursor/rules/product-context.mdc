@@ -1,0 +1,30 @@
+---
+description: Contexte produit EYWAI — SIRH généraliste, client de référence = le groupe
+alwaysApply: true
+---
+
+# Contexte produit EYWAI
+
+## Positionnement
+
+- **EYWAI est un SIRH généraliste** : l’architecture, l’UI et les règles métier doivent rester **réutilisables** pour d’autres clients futurs.
+- **Ne pas sur-spécialiser** le code pour une filiale ou un cas isolé sans le paramétrer (entreprise, groupe, CCN, paramètres).
+
+## Client de référence (développement actuel)
+
+- On développe et valide **pour un seul client opérationnel** : **le groupe** qui détient **toutes les entreprises** de l’instance (holding + filiales).
+- Les retours terrain (client, paie, RH) concernent en pratique **l’ensemble du groupe**, pas une seule société — sauf mention explicite contraire.
+- Les dossiers/fichiers métier par filiale (ex. CARTOL, LEWIS) servent de **jeux de données et recettes**, pas de modèle d’architecture « une app par société ».
+
+## Conséquences pour le dev et l’analyse
+
+| Situation | Attitude |
+|-----------|----------|
+| Demande « pour CARTOL seulement » | Vérifier si c’est un paramètre groupe/entreprise/CCN ; éviter le hardcode filiale |
+| Retour utilisateur sur une page | Traiter comme retour **produit généraliste**, contextualisé par les règles du groupe |
+| Nouvelle fonctionnalité | Préférer tables de paramètres (`company_*`, `leave_settings`, CCN…) plutôt qu’exceptions par nom d’entreprise |
+| Tests et recette | Couvrir plusieurs filiales du groupe quand les règles divergent (CCN, forfait jours, etc.) |
+
+## Rappel
+
+Le produit vise **tous les clients** ; la **priorité de mise en œuvre** et la **validation métier** passent par le **groupe unique** actuellement déployé.

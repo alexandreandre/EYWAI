@@ -9,7 +9,7 @@ Cocher chaque table présente dans `DATABASE_SCHEMA_AGENT` et `DATABASE_SCHEMA_T
 |-------|-------------|----------------------------|
 | `employees` | ✅ | id, company_id, first_name, last_name, email, hire_date, date_naissance, contract_type, statut (Cadre/Non-Cadre/parti/en_onboarding), job_title, is_temps_partiel, duree_hebdomadaire, salaire_de_base (jsonb), adresse, coordonnees_bancaires, classification_conventionnelle, specificites_paie, periode_essai, avantages_en_nature |
 | `profiles` | ✅ | id, role (rh/collaborateur/collaborateur_rh), first_name, last_name |
-| `companies` | ✅ | id, company_name, is_active, modules activés si colonnes existent |
+| `companies` | ✅ | id, company_name, is_active, nom_signataire_rh, qualite_signataire_rh (documents PDF RH), service_sante_travail_* (coordonnées SPST), dsn_sync_mode, modules activés si colonnes existent |
 | `user_company_accesses` | optionnel | Accès multi-entreprises RH |
 | `teams` | ✅ | id, company_id, name, manager_id |
 | `salary_history` | ✅ | employee_id, effective_date, montant, motif |
@@ -22,6 +22,7 @@ Cocher chaque table présente dans `DATABASE_SCHEMA_AGENT` et `DATABASE_SCHEMA_T
 | `payslips` | ✅ | employee_id, month, year, payslip_data (jsonb : salaire_brut, net_a_payer, cout_total_employeur, synthese_net) |
 | `employee_schedules` | ✅ | employee_id, year, month, cumuls, planned_calendar, actual_hours (jsonb) |
 | `monthly_inputs` | ✅ | employee_id, year, month, name, amount, is_socially_taxed, is_taxable |
+| `company_bonus_types` | ✅ | company_id, libelle, type (montant_fixe/selon_heures), montant, seuil_heures, soumise_a_cotisations, soumise_a_impot — catalogue primes entreprise |
 | `salary_advances` | ✅ | employee_id, amount, status, request_date, type (si migration types) |
 | `employee_loans` | ✅ | employee_id, principal, status, start_date |
 | `employee_loan_installments` | optionnel | loan_id, due_date, amount, status |
@@ -31,8 +32,21 @@ Cocher chaque table présente dans `DATABASE_SCHEMA_AGENT` et `DATABASE_SCHEMA_T
 
 | Table | Obligatoire | Colonnes clés |
 |-------|-------------|---------------|
-| `absence_requests` | ✅ | employee_id, type (conge_paye/rtt/maladie/sans_solde…), status, selected_days (array) |
-| `employee_time_entries` | optionnel | employee_id, clock_in, clock_out (badgeuse) |
+| `absence_requests` | ✅ | employee_id, type (conge_paye/rtt/maladie/sans_solde…), status, selected_days (array), arret_type, subrogation_active |
+| `company_leave_settings` | ✅ | company_id, cp_counting_unit, rtt_annual_days, rtt_use_calendar_formula, rtt_use_forfait_jours_formula, rtt_forfait_annual_days, rtt_forfait_cp_ouvres_deduction, rtt_year_end_reminder_enabled |
+| `employee_leave_adjustments` | optionnel | employee_id, year, cp_n1_opening_balance, cp_n_opening_balance, rtt_opening_balance |
+| `company_cp_fractionnement_settings` | optionnel | company_id, fractionnement_enabled, cp_unit, ouvres_to_ouvrables_ratio, fifth_week_deduction_ouvres |
+| `employee_cp_fractionnement_inputs` | optionnel | employee_id, grant_year, cp_reported_june_ouvres, cp_seniority_deduction_ouvres |
+| `employee_cp_fractionnement_grants` | optionnel | employee_id, grant_year, payroll_month (11), days_granted, calculation_snapshot |
+| `salary_certificates` | ✅ | absence_request_id, employee_id, transmitted_to_cpam, transmission_date |
+| `ijss_tracking_periods` | ✅ | company_id, period_year, period_month, status (open/partial/reconciled/closed), expected_total, received_cpam_total, received_bank_total |
+| `ijss_expected_lines` | ✅ | period_id, employee_id, absence_request_id, payslip_id, ijss_theorique, ijss_subrogees_bulletin, line_status |
+| `ijss_received_lines` | ✅ | period_id, source (cpam_decompte/bank_transfer/manual), amount, employee_id, match_status |
+| `ijss_import_batches` | optionnel | batch_type (bank_recap/cpam_decompte_file/cpam_api_sync), status, file_hash |
+| `company_ijss_import_profiles` | optionnel | column_mapping jsonb pour imports récurrents |
+| `employee_time_entries` | optionnel | employee_id, company_id, timestamp, event_type (ENTREE/SORTIE), source (EMPLOYE/RH/QR_SCAN) — pointages bruts |
+| `employee_time_entries_validations` | optionnel | employee_id, company_id, day, validated_by — validation RH d'une journée |
+| `employee_time_day_accounting` | optionnel | employee_id, company_id, day, accounted_seconds, updated_by — **heures comptabilisées** (override RH du brut) |
 | `shifts` / `shift_types` | optionnel | Planning équipes |
 
 ## Notes de frais & dépenses
@@ -111,8 +125,10 @@ Table 'employees': Fiche salarié — source principale effectifs et contrat.
   - statut (text: 'Cadre', 'Non-Cadre', 'parti', 'en_onboarding')
   - salaire_de_base (jsonb): {"valeur": 2500.00}
     Usage: (salaire_de_base->>'valeur')::numeric
-  - specificites_paie (jsonb): mutuelle, prevoyance, prelevement_a_la_source
-    Usage: (specificites_paie->'prelevement_a_la_source'->>'taux')::numeric
+  - specificites_paie (jsonb): mutuelle, prevoyance, prelevement_a_la_source, transport
+    Usage PAS: (specificites_paie->'prelevement_a_la_source'->>'taux')::numeric
+    Usage transport abonnement 50%: (specificites_paie->'transport'->>'abonnement_mensuel_total')::numeric
+    Usage IND transport contractuelle (net): (specificites_paie->'transport'->>'indemnite_mensuelle_nette')::numeric
 ```
 
 ## Jointures fréquentes (inclure dans le schéma)
@@ -130,6 +146,13 @@ WHERE e.company_id = '<company_id>'
   AND ar.status = 'validated'
   AND '<date>'::date = ANY(ar.selected_days)
 ```
+
+## Badgeuse → calendrier paie (parcours RH)
+
+1. **Pointages bruts** : `employee_time_entries` (ENTREE/SORTIE).
+2. **Heures comptabilisées** : override optionnel dans `employee_time_day_accounting.accounted_seconds` (saisie RH, ex. retrait pause déjeuner sans modifier les pointages).
+3. **Heures effectives** : override si présent, sinon somme des pointages du jour.
+4. **Calendrier paie** : `employee_schedules.actual_hours.calendrier_reel[].heures_faites` — alimenté via action « Appliquer au calendrier » / « Réel depuis badgeuse » (import API), pas automatiquement.
 
 ## Vérification complétude
 
