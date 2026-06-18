@@ -356,6 +356,12 @@ sa-key.json
 # ===================================
 # Project specific
 # ===================================
+# Données client CARTOL (fichiers Excel, PDF locaux)
+CARTOL/
+
+# Données client LEWIS
+LEWIS/
+
 # Documentation temporaire (décommentez si nécessaire)
 # DESCRIPTION_MODULE_EMPLOYES.md
 # SPECIFICATION_METIER_TITRES_SEJOUR.md

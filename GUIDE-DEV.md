@@ -35,6 +35,14 @@ uvicorn app.main:app --reload
 
 *(Si ton environnement Python est ailleurs, adapte la ligne `source …` comme d’habitude sur ta machine.)*
 
+**Schéma Supabase (Mon Entreprise)** — après un `git pull` qui ajoute des migrations, ou si l’enregistrement de la fiche entreprise affiche « Erreur base de données », vérifie les colonnes `companies` :
+
+```bash
+cd backend && source venv/bin/activate && python scripts/check_companies_schema.py
+```
+
+Exit code `0` = OK ; `1` = migration(s) à appliquer (voir le chemin affiché dans `supabase/migrations/`).
+
 ---
 
 ## 3. Fin de session (A FAIRE A CHAQUE FIN DE SESSION) : pousser ton travail avec `/push`
