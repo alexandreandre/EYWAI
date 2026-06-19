@@ -36,6 +36,17 @@ def _prorata_config(regles_prime: dict[str, Any], resolved: dict[str, Any]) -> d
     }
 
 
+def _resolve_date_entree(contexte: ContextePaie | Any) -> str:
+    """Date d'entrée — property ContextePaie ou chemin contrat (mocks legacy)."""
+    direct = getattr(contexte, "date_entree", None)
+    if direct:
+        return str(direct)
+    contrat = getattr(contexte, "contrat", None) or {}
+    if isinstance(contrat, dict):
+        return contrat.get("contrat", {}).get("date_entree") or ""
+    return ""
+
+
 def calculer_ligne_prime_anciennete(
     contexte: ContextePaie,
     *,
@@ -46,7 +57,7 @@ def calculer_ligne_prime_anciennete(
     actual_hours_raw: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any] | None:
     """Calcule la ligne bulletin prime d'ancienneté (avec prorata si activé)."""
-    date_entree = contexte.date_entree
+    date_entree = _resolve_date_entree(contexte)
     if not date_entree:
         return None
 
