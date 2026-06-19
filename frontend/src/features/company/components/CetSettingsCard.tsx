@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PiggyBank } from 'lucide-react';
+import { ExternalLink, PiggyBank } from 'lucide-react';
 import {
   getCetSettings,
   updateCetSettings,
@@ -192,7 +193,7 @@ export default function CetSettingsCard() {
                 <Select
                   disabled={!canEdit}
                   value={form.validation_mode}
-                  onValueChange={(v: 'auto' | 'rh') =>
+                  onValueChange={(v: CetSettings['validation_mode']) =>
                     setForm({ ...form, validation_mode: v })
                   }
                 >
@@ -200,10 +201,31 @@ export default function CetSettingsCard() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="manager">Directeur / manager d&apos;équipe</SelectItem>
+                    <SelectItem value="manager_then_rh">Manager puis RH</SelectItem>
                     <SelectItem value="rh">Validation RH</SelectItem>
                     <SelectItem value="auto">Automatique</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cet-max-balance">Plafond solde compte (jours)</Label>
+                <Input
+                  id="cet-max-balance"
+                  type="number"
+                  min={0}
+                  step="0.5"
+                  disabled={!canEdit}
+                  placeholder="Non limité"
+                  value={form.max_account_balance_days ?? ''}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      max_account_balance_days:
+                        e.target.value === '' ? null : Number(e.target.value),
+                    })
+                  }
+                />
               </div>
             </div>
 
@@ -282,6 +304,40 @@ export default function CetSettingsCard() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-2">
+                    <Label>Ratio ouvrés → ouvrables</Label>
+                    <Input
+                      type="number"
+                      min={0.1}
+                      step="0.1"
+                      disabled={!canEdit}
+                      value={form.ouvres_to_ouvrables_ratio}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          ouvres_to_ouvrables_ratio: Number(e.target.value),
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label>Débit HS épargnées</Label>
+                    <Select
+                      disabled={!canEdit}
+                      value={form.hs_debit_timing}
+                      onValueChange={(v: 'on_validation' | 'on_payroll') =>
+                        setForm({ ...form, hs_debit_timing: v })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="on_validation">À la validation</SelectItem>
+                        <SelectItem value="on_payroll">À la paie du mois</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="space-y-2 sm:col-span-2">
                     <Label>Débit du solde CP</Label>
                     <Select
@@ -307,13 +363,23 @@ export default function CetSettingsCard() {
         ) : null}
 
         {canEdit ? (
-          <Button
-            type="button"
-            onClick={handleSave}
-            disabled={mutation.isPending}
-          >
-            {mutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              onClick={handleSave}
+              disabled={mutation.isPending}
+            >
+              {mutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
+            </Button>
+            {form.cet_enabled ? (
+              <Button type="button" variant="outline" asChild>
+                <Link to="/suivi-cet">
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Ouvrir le suivi CET
+                </Link>
+              </Button>
+            ) : null}
+          </div>
         ) : null}
       </CardContent>
     </Card>

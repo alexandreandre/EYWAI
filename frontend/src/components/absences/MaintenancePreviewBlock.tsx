@@ -146,7 +146,7 @@ function MaintenancePreviewBody({
   subrogationOverride: boolean | undefined;
   onSubrogationSelect: (v: boolean) => void;
 }) {
-  const mode = data.subrogation_mode ?? "automatic";
+  const mode = data.subrogation_mode ?? "when_maintien";
   const carence = data.carence;
   const ijss = data.ijss;
   const maintien = data.maintien;
@@ -154,6 +154,8 @@ function MaintenancePreviewBody({
   const subrogationSelectValue = (subrogationOverride ?? data.subrogation_active)
     ? "oui"
     : "non";
+  const subrogationReadOnly =
+    mode === "when_maintien" || mode === "automatic" || mode === "at_mp_only";
 
   return (
     <>
@@ -217,12 +219,25 @@ function MaintenancePreviewBody({
               <SelectValue placeholder="Subrogation" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="oui">Oui</SelectItem>
-              <SelectItem value="non">Non</SelectItem>
+              <SelectItem value="oui">Oui — CPAM verse l&apos;employeur</SelectItem>
+              <SelectItem value="non">Non — CPAM verse le salarié</SelectItem>
             </SelectContent>
           </Select>
         ) : (
-          <p>Subrogation : {data.subrogation_active ? "Oui" : "Non"}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            {data.subrogation_active ? (
+              <Badge className="bg-emerald-600 hover:bg-emerald-600">
+                Subrogation demandée
+              </Badge>
+            ) : (
+              <Badge variant="secondary">CPAM verse directement le salarié</Badge>
+            )}
+            {subrogationReadOnly ? (
+              <span className="text-xs text-muted-foreground">
+                Déduit du maintien applicable
+              </span>
+            ) : null}
+          </div>
         )}
       </section>
 

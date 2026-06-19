@@ -3,6 +3,7 @@
 import { log } from '@/lib/logger';
 import { RhPageHeader } from '@/components/layout';
 import { useState, useEffect, useMemo } from 'react';
+import { useQueries } from '@tanstack/react-query';
 import { useAbsencesQueries } from '@/hooks/queries/useAbsencesQuery';
 import { TableSkeleton } from '@/components/skeletons/TableSkeleton';
 import { PageFetchIndicator } from '@/components/skeletons/PageFetchIndicator';
@@ -15,8 +16,23 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { AbsenceRequestModal } from "@/components/AbsenceRequestModal";
-import { Loader2, Check, X, Clock, Info, Download, Eye, FilePlus, ExternalLink } from "lucide-react";
+import { Loader2, Check, X, Clock, Info, Download, Eye, FilePlus, ExternalLink, ChevronDown } from "lucide-react";
 import { Link } from "react-router-dom";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type * as absencesApi from '@/api/absences'; // <-- CHANGER en 'import type'
 import * as absencesApiFunctions from '@/api/absences';
 import { isPlatformAdmin } from '@/lib/platformAdmin';
@@ -25,7 +41,12 @@ import {
   MaintenancePreviewBlock,
   ABSENCE_TYPES_MAINTIEN_PREVIEW,
 } from '@/components/absences/MaintenancePreviewBlock';
+import { AbsenceCertificateStatusBadge } from '@/components/absences/AbsenceCertificateStatusBadge';
+import { AbsenceIjssStatusBadge } from '@/components/absences/AbsenceIjssStatusBadge';
+import { getAbsenceIjssStatus } from '@/api/ijssTracking';
+import { requiresSalaryCertificate } from '@/lib/employeeAbsencesUtils';
 import { LeaveBalancesRhSection } from '@/features/absences/components/LeaveBalancesRhSection';
+import { LeaveCampaignSection } from '@/features/absences/components/LeaveCampaignSection';
 import { RttYearEndRhSection } from '@/features/absences/components/RttYearEndRhSection';
 
 type AbsenceRequest = absencesApi.AbsenceRequestWithEmployee;
@@ -85,6 +106,32 @@ export default function AbsencesPage() {
   const fetchData = absencesQuery.refetch;
   const [certificates, setCertificates] = useState<Record<string, absencesApi.SalaryCertificate>>({});
   const [loadingCertificates, setLoadingCertificates] = useState<Set<string>>(new Set());
+  const [pendingSubrogation, setPendingSubrogation] = useState<Record<string, boolean | undefined>>({});
+  const [certConfirmId, setCertConfirmId] = useState<string | null>(null);
+
+  const ijssAbsenceIds = useMemo(() => {
+    const all = [...pending, ...processed];
+    return all
+      .filter((r) => r.status === 'validated' && requiresSalaryCertificate(r.type))
+      .map((r) => r.id);
+  }, [pending, processed]);
+
+  const ijssStatusQueries = useQueries({
+    queries: ijssAbsenceIds.map((id) => ({
+      queryKey: ['absence-ijss-status', id],
+      queryFn: () => getAbsenceIjssStatus(id),
+      staleTime: 30_000,
+    })),
+  });
+
+  const ijssStatusMap = useMemo(() => {
+    const map: Record<string, (typeof ijssStatusQueries)[number]['data']> = {};
+    ijssAbsenceIds.forEach((id, index) => {
+      const data = ijssStatusQueries[index]?.data;
+      if (data) map[id] = data;
+    });
+    return map;
+  }, [ijssAbsenceIds, ijssStatusQueries]);
 
   // Charger les attestations existantes après le chargement des données
   useEffect(() => {
@@ -99,9 +146,13 @@ export default function AbsencesPage() {
   }, [processed]); // Se déclenche quand les demandes traitées changent
   
 
-  const handleUpdateStatus = async (id: string, status: 'validated' | 'rejected') => {
+  const handleUpdateStatus = async (
+    id: string,
+    status: 'validated' | 'rejected',
+    subrogationActive?: boolean,
+  ) => {
     try {
-      await absencesApiFunctions.updateAbsenceRequestStatus(id, status);
+      await absencesApiFunctions.updateAbsenceRequestStatus(id, status, subrogationActive);
       toast({ title: "Succès", description: "La demande a été mise à jour." });
       fetchData();
     } catch (error) {
@@ -112,7 +163,8 @@ export default function AbsencesPage() {
     'conge_paye': 'Congé Payé', 
     'rtt': 'RTT', 
     'sans_solde': 'Congé sans solde', 
-    'repos_compensateur': 'Repos compensateur', 
+    'repos_compensateur': 'Repos compensateur',
+    'recuperation_modulation': 'Récupération modulation',
     'evenement_familial': 'Événement familial',
     'arret_maladie': 'Arrêt maladie',
     'arret_at': 'Accident du travail',
@@ -355,7 +407,22 @@ export default function AbsencesPage() {
               )}
             </TableCell>
             <TableCell>
-              {req.status === 'validated' && requiresCertificate(req.type) && (
+              {requiresCertificate(req.type) && (
+                <div className="flex flex-col gap-2">
+                  {(req.status === 'validated' || req.certificate_status) && (
+                    <div className="flex flex-wrap gap-1">
+                      <AbsenceCertificateStatusBadge
+                        certificateStatus={req.certificate_status}
+                        absenceType={req.type}
+                        absenceStatus={req.status}
+                        hasCertificateFile={Boolean(certificates[req.id])}
+                      />
+                      {req.status === 'validated' && ijssStatusMap[req.id] && (
+                        <AbsenceIjssStatusBadge status={ijssStatusMap[req.id]!} />
+                      )}
+                    </div>
+                  )}
+                  {req.status === 'validated' && (
                 <div className="flex flex-wrap gap-2 items-center">
                   {loadingCertificates.has(req.id) ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -403,7 +470,7 @@ export default function AbsencesPage() {
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => handleGenerateCertificate(req.id)}
+                            onClick={() => setCertConfirmId(req.id)}
                             title="Générer l'attestation de salaire"
                           >
                             <FilePlus className="h-4 w-4" />
@@ -422,22 +489,47 @@ export default function AbsencesPage() {
                     </Link>
                   </Button>
                 </div>
+                  )}
+                </div>
               )}
             </TableCell>
             <TableCell className="text-right align-top">
               <div className="flex flex-col items-end gap-3">
                 {ABSENCE_TYPES_MAINTIEN_PREVIEW.has(req.type) ? (
-                  <div className="w-full max-w-md text-left">
-                    <MaintenancePreviewBlock
-                      absenceId={req.id}
-                      arretType={req.arret_type ?? null}
-                    />
-                  </div>
+                  <Collapsible
+                    defaultOpen={req.status === 'pending'}
+                    className="w-full max-w-md text-left"
+                  >
+                    <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted/50">
+                      Maintien &amp; subrogation
+                      <ChevronDown className="h-4 w-4" />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-2">
+                      <MaintenancePreviewBlock
+                        absenceId={req.id}
+                        arretType={req.arret_type ?? null}
+                        onSubrogationChange={(v) =>
+                          setPendingSubrogation((prev) => ({ ...prev, [req.id]: v }))
+                        }
+                      />
+                    </CollapsibleContent>
+                  </Collapsible>
                 ) : null}
                 {req.status === 'pending' ? (
                   <div className="flex gap-2 justify-end">
                     <Button size="sm" variant="outline" onClick={() => handleUpdateStatus(req.id, 'rejected')}><X className="mr-2 h-4 w-4" /> Rejeter</Button>
-                    <Button size="sm" onClick={() => handleUpdateStatus(req.id, 'validated')}><Check className="mr-2 h-4 w-4" /> Approuver</Button>
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        handleUpdateStatus(
+                          req.id,
+                          'validated',
+                          pendingSubrogation[req.id],
+                        )
+                      }
+                    >
+                      <Check className="mr-2 h-4 w-4" /> Approuver
+                    </Button>
                   </div>
                 ) : (
                   <Badge variant={req.status === 'validated' ? 'success' : 'destructive'} className="justify-end">
@@ -476,6 +568,7 @@ export default function AbsencesPage() {
         showEmployeeSelector
       />
       <div className="space-y-4">
+        <LeaveCampaignSection />
         <RttYearEndRhSection />
         <LeaveBalancesRhSection />
       </div>
@@ -487,6 +580,30 @@ export default function AbsencesPage() {
         <TabsContent value="pending"><Card><CardHeader><CardTitle>Demandes à valider</CardTitle></CardHeader><CardContent>{isLoading ? <TableSkeleton rows={5} columns={5} /> : renderRequestsTable(pending)}</CardContent></Card></TabsContent>
         <TabsContent value="processed"><Card><CardHeader><CardTitle>Demandes traitées</CardTitle></CardHeader><CardContent>{isLoading ? <TableSkeleton rows={5} columns={5} /> : renderRequestsTable(processed)}</CardContent></Card></TabsContent>
       </Tabs>
+      <AlertDialog open={Boolean(certConfirmId)} onOpenChange={(o) => !o && setCertConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Générer l&apos;attestation de salaire</AlertDialogTitle>
+            <AlertDialogDescription>
+              Confirmez la génération de l&apos;attestation Cerfa pour la CPAM. La subrogation
+              enregistrée sur l&apos;arrêt sera utilisée pour la suite du circuit IJSS.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (certConfirmId) {
+                  void handleGenerateCertificate(certConfirmId);
+                  setCertConfirmId(null);
+                }
+              }}
+            >
+              Générer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

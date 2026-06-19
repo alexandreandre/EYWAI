@@ -1,12 +1,13 @@
 import apiClient from '@/api/apiClient';
 
-export type SubrogationMode = 'automatic' | 'at_mp_only' | 'per_case';
+export type SubrogationMode = 'when_maintien' | 'automatic' | 'at_mp_only' | 'per_case';
 
 export interface MaintenanceSettings {
   id: string | null;
   company_id: string;
   apply_legal_maintenance: boolean;
   min_seniority_months: number;
+  min_seniority_months_at_mp: number;
   employer_waiting_days: number;
   seniority_extension_enabled: boolean;
   remove_employer_waiting: boolean;

@@ -242,6 +242,9 @@ export interface TimesheetExtractProgress {
   pages_total: number;
   pages_done: number;
   current_page: number;
+  batch_id?: string;
+  files_total?: number;
+  files_done?: number;
 }
 
 export interface TimesheetExtractStartResponse {
@@ -429,10 +432,144 @@ export const persistTimesheetBatch = async (
   year: number,
   month: number,
   employees: PersistTimesheetEmployeePayload[],
+  options?: { batchId?: string; allowPartial?: boolean; recalculatePayroll?: boolean },
 ): Promise<PersistTimesheetResponse> => {
   const { data } = await apiClient.post<PersistTimesheetResponse>(
     '/api/schedules/assisted-fill/persist-timesheet',
-    { year, month, employees },
+    {
+      year,
+      month,
+      employees,
+      batch_id: options?.batchId ?? null,
+      allow_partial: options?.allowPartial ?? false,
+      recalculate_payroll: options?.recalculatePayroll ?? false,
+    },
   );
   return data;
 };
+
+export interface ColumnDetectionResult {
+  headers: string[];
+  sample_rows: Record<string, string | null>[];
+  suggested_mapping: Record<string, string>;
+  source_type: string;
+}
+
+export const detectTimesheetColumns = async (file: File): Promise<ColumnDetectionResult> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const { data } = await apiClient.post<ColumnDetectionResult>(
+    '/api/schedules/timesheet-import/detect-columns',
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return data;
+};
+
+export interface TimesheetImportParseResult {
+  batch_id: string;
+  status: string;
+  preview: AiCalendarProposal;
+  parser_key?: string | null;
+  file_hash?: string | null;
+}
+
+export const parseStructuredTimesheet = async (
+  file: File,
+  year: number,
+  month: number,
+  employees: RosterEmployee[],
+  columnMapping?: Record<string, string>,
+): Promise<TimesheetImportParseResult> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('year', String(year));
+  formData.append('month', String(month));
+  formData.append('employees', JSON.stringify(employees));
+  formData.append('column_mapping', JSON.stringify(columnMapping ?? {}));
+  const { data } = await apiClient.post<TimesheetImportParseResult>(
+    '/api/schedules/timesheet-import/parse',
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return data;
+};
+
+export type TimesheetImportBatchStatus =
+  | 'parsed'
+  | 'previewed'
+  | 'committing'
+  | 'committed'
+  | 'failed'
+  | 'cancelled';
+
+export interface TimesheetImportBatchResponse {
+  batch_id: string;
+  status: TimesheetImportBatchStatus;
+  preview?: AiCalendarProposal | null;
+  parser_key?: string | null;
+  error_message?: string | null;
+}
+
+export const getTimesheetImportBatch = async (
+  batchId: string,
+): Promise<TimesheetImportBatchResponse> => {
+  const { data } = await apiClient.get<TimesheetImportBatchResponse>(
+    `/api/schedules/timesheet-import/batches/${batchId}`,
+  );
+  return data;
+};
+
+const BATCH_POLL_MS = 1500;
+const BATCH_POLL_MAX = 120;
+
+export const waitForTimesheetImportBatchCommitted = async (
+  batchId: string,
+): Promise<TimesheetImportBatchResponse> => {
+  for (let i = 0; i < BATCH_POLL_MAX; i += 1) {
+    const batch = await getTimesheetImportBatch(batchId);
+    if (batch.status === 'committed') return batch;
+    if (batch.status === 'failed') {
+      throw new Error(batch.error_message ?? "L'enregistrement a échoué.");
+    }
+    await new Promise((r) => setTimeout(r, BATCH_POLL_MS));
+  }
+  throw new Error("Délai d'attente dépassé (commit import).");
+};
+
+export const startTimesheetExtractBatch = async (
+  files: File[],
+  year: number,
+  month: number,
+  employees: RosterEmployee[],
+  options: ExtractTimesheetOptions = {},
+): Promise<{ job_id: string; file_count: number }> => {
+  const formData = new FormData();
+  files.forEach((f) => formData.append('files', f));
+  formData.append('year', String(year));
+  formData.append('month', String(month));
+  formData.append('employees', JSON.stringify(employees));
+  formData.append('single_employee', String(options.singleEmployee ?? false));
+  formData.append('document_scope', options.documentScope ?? 'auto');
+  const { data } = await apiClient.post<{ job_id: string; file_count: number }>(
+    '/api/schedules/timesheet-import/extract-timesheet/start-batch',
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return data;
+};
+
+export interface TimesheetImportProfile {
+  id?: string;
+  profile_name: string;
+  source_type: string;
+  parser_key: string;
+  column_mapping: Record<string, string>;
+  options: Record<string, unknown>;
+}
+
+export const getTimesheetImportProfiles = () =>
+  apiClient.get<TimesheetImportProfile[]>('/api/schedules/timesheet-import/profiles');
+
+export const saveTimesheetImportProfile = (profile: Omit<TimesheetImportProfile, 'id'>) =>
+  apiClient.put<TimesheetImportProfile>('/api/schedules/timesheet-import/profiles', profile);

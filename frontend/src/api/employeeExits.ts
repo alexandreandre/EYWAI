@@ -227,6 +227,21 @@ export interface ChecklistItem {
   updated_at: string;
 }
 
+export interface IccpDetails {
+  methode_retenue?: string;
+  indemnite_maintien?: number;
+  indemnite_dixieme?: number;
+  iccp_l1243_8?: number | null;
+  taux_journalier?: number;
+  base_reference_dixieme?: number;
+  prime_precarite_incluse?: number;
+  periode_reference?: string;
+  source_solde?: string;
+  conges_acquis?: number;
+  conges_pris?: number;
+  alertes?: string[];
+}
+
 export interface ExitIndemnityCalculation {
   exit_id: string;
   employee_id: string;
@@ -245,6 +260,8 @@ export interface ExitIndemnityCalculation {
     montant: number;
     description: string;
     calcul: string;
+    jours_restants?: number;
+    details?: IccpDetails;
   };
   indemnite_licenciement?: {
     montant: number;

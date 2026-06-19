@@ -27,6 +27,9 @@ import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import {
   extractTimesheet,
+  parseStructuredTimesheet,
+  startTimesheetExtractBatch,
+  waitForTimesheetExtractJob,
   type AiCalendarProposal,
   type AiEmployeeProposal,
   type DocumentScopeInput,
@@ -43,7 +46,12 @@ const MONTHS = [
   'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
 ];
 
-const ACCEPTED = '.pdf,.jpg,.jpeg,.png,.webp,.tif,.tiff';
+const ACCEPTED = '.pdf,.jpg,.jpeg,.png,.webp,.tif,.tiff,.csv,.xlsx,.xls';
+
+function isStructuredFile(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower.endsWith('.csv') || lower.endsWith('.xlsx') || lower.endsWith('.xls');
+}
 
 function mergeEmployeeProposals(
   existing: AiEmployeeProposal[],
@@ -149,6 +157,7 @@ export function PointageImportDialog({
     phase: string;
   } | null>(null);
   const [proposal, setProposal] = useState<AiCalendarProposal | null>(null);
+  const [batchId, setBatchId] = useState<string | null>(null);
   const [documentScope, setDocumentScope] = useState<DocumentScopeInput>('auto');
   const [weekAnchorDate, setWeekAnchorDate] = useState('');
   const [helpOpen, setHelpOpen] = useState(false);
@@ -163,6 +172,7 @@ export function PointageImportDialog({
   const reset = () => {
     setFiles([]);
     setProposal(null);
+    setBatchId(null);
     setIsAnalyzing(false);
     setQueueProgress(0);
     setPageProgress(null);
@@ -230,23 +240,54 @@ export function PointageImportDialog({
     setPageProgress(null);
     try {
       const results: AiCalendarProposal[] = [];
-      for (let i = 0; i < files.length; i++) {
-        const result = await extractTimesheet(files[i], year, month, roster, {
+      let lastBatchId: string | null = null;
+      const allDocuments = files.every((f) => !isStructuredFile(f.name));
+
+      if (files.length > 1 && allDocuments) {
+        const started = await startTimesheetExtractBatch(files, year, month, roster, {
           singleEmployee,
           documentScope,
-          weekAnchorDate: weekAnchorDate || null,
-          onProgress: (p) => {
-            setPageProgress({
-              pages_done: p.pages_done,
-              pages_total: p.pages_total,
-              phase: p.phase,
-            });
-          },
         });
+        const jobResult = await waitForTimesheetExtractJob(started.job_id, (p) => {
+          setPageProgress({
+            pages_done: p.files_done ?? p.pages_done,
+            pages_total: p.files_total ?? p.pages_total,
+            phase: p.phase,
+          });
+          if (p.batch_id) lastBatchId = p.batch_id;
+        });
+        setBatchId(lastBatchId);
+        showProposal(jobResult, files.length);
+        return;
+      }
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        let result: AiCalendarProposal;
+        if (isStructuredFile(file.name)) {
+          const parsed = await parseStructuredTimesheet(file, year, month, roster);
+          result = parsed.preview;
+          lastBatchId = parsed.batch_id;
+        } else {
+          result = await extractTimesheet(file, year, month, roster, {
+            singleEmployee,
+            documentScope,
+            weekAnchorDate: weekAnchorDate || null,
+            onProgress: (p) => {
+              setPageProgress({
+                pages_done: p.pages_done,
+                pages_total: p.pages_total,
+                phase: p.phase,
+              });
+              if (p.batch_id) lastBatchId = p.batch_id;
+            },
+          });
+        }
         results.push(result);
         setQueueProgress(Math.round(((i + 1) / files.length) * 100));
         setPageProgress(null);
       }
+      setBatchId(lastBatchId);
       const merged = results.length === 1 ? results[0] : mergeProposals(results);
       showProposal(merged, files.length);
     } catch (e) {
@@ -308,6 +349,7 @@ export function PointageImportDialog({
               roster={roster}
               onApplied={handleApplied}
               onBack={() => setProposal(null)}
+              batchId={batchId}
             />
           ) : (
             <div className="max-h-full space-y-3 overflow-y-auto pr-1">

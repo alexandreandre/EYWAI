@@ -1,5 +1,7 @@
 // frontend/src/components/exit-document-edit/SoldeToutCompteSection.tsx
 
+import IccpArbitrageDetail from '@/features/employee-exits/IccpArbitrageDetail';
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -200,6 +202,13 @@ export default function SoldeToutCompteSection({ data, onChange }: SoldeToutComp
                   />
                 </div>
               </div>
+              <IccpArbitrageDetail
+                montant={indemnities.indemnite_conges.montant}
+                joursRestants={indemnities.indemnite_conges.jours_restants}
+                calcul={indemnities.indemnite_conges.calcul}
+                details={indemnities.indemnite_conges.details}
+                compact
+              />
             </div>
           )}
 

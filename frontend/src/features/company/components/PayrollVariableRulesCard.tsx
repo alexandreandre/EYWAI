@@ -35,7 +35,7 @@ const RULE_TYPE_LABELS: Record<string, string> = {
   fixed_monthly: 'Montant fixe mensuel',
   per_astreinte_week: 'Par semaine d\'astreinte',
   per_shift_type: 'Par type de poste',
-  per_modulation_payout: 'Heures modulation',
+  per_modulation_payout: 'Prime liquidation modulation',
   per_night_hour: 'Par heure de nuit',
 };
 

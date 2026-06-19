@@ -74,6 +74,10 @@ export interface LeaveBalanceOverviewItem {
   cp_n1_remaining: number;
   cp_n_remaining: number;
   cp_total_remaining: number;
+  cp_legal_days?: number;
+  cp_seniority_days?: number;
+  fractionnement_days?: number;
+  cp_seniority_status?: string | null;
   rtt_remaining: number;
   adjustment_note: string | null;
 }

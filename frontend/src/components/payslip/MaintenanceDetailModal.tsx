@@ -157,6 +157,19 @@ export function MaintenanceDetailModal({
             </section>
           ) : null}
 
+          <section className="space-y-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Subrogation
+            </h3>
+            {maintien.subrogation_active ? (
+              <Badge className="bg-emerald-600 hover:bg-emerald-600">
+                Subrogation active — CPAM verse l&apos;employeur
+              </Badge>
+            ) : (
+              <Badge variant="secondary">CPAM verse directement le salarié</Badge>
+            )}
+          </section>
+
           {maintien.alertes?.length ? (
             <section className="space-y-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

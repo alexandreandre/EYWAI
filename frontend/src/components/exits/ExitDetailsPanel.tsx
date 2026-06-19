@@ -3,6 +3,7 @@
  * Avec onglets : Vue d'ensemble, Checklist, Documents, Indemnités
  */
 
+import IccpArbitrageDetail from '@/features/employee-exits/IccpArbitrageDetail';
 import { log } from '@/lib/logger';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -185,10 +186,19 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
       const result = await calculateExitIndemnities(exitId);
       setIndemnities(result);
 
-      toast({
-        title: 'Succès',
-        description: 'Indemnités calculées avec succès',
-      });
+      const alertes = result.indemnite_conges?.details?.alertes;
+      if (alertes && alertes.length > 0) {
+        toast({
+          title: 'Calcul effectué avec réserves',
+          description: alertes[0],
+          variant: 'default',
+        });
+      } else {
+        toast({
+          title: 'Succès',
+          description: 'Indemnités calculées avec succès',
+        });
+      }
 
       fetchExitDetails();
     } catch (error: any) {
@@ -710,6 +720,12 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                       <Calculator className="mr-2 h-4 w-4" />
                       Calculer les indemnités
                     </Button>
+                    {exitDetails?.last_working_day && !indemnities && (
+                      <p className="text-xs text-muted-foreground mt-3 max-w-md mx-auto">
+                        Calculez les indemnités avant de générer le solde de tout compte
+                        (arbitrage maintien / 1/10e des congés payés).
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -738,19 +754,20 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                       {indemnities.indemnite_conges && (
                         <div className="p-4 border rounded-lg">
                           <div className="flex justify-between items-start mb-2">
-                            <div>
+                            <div className="flex-1 pr-4">
                               <p className="font-medium">Indemnité de congés payés</p>
-                              <p className="text-sm text-muted-foreground">
-                                {indemnities.indemnite_conges.description}
-                              </p>
+                              <IccpArbitrageDetail
+                                montant={indemnities.indemnite_conges.montant}
+                                joursRestants={indemnities.indemnite_conges.jours_restants}
+                                calcul={indemnities.indemnite_conges.calcul}
+                                description={indemnities.indemnite_conges.description}
+                                details={indemnities.indemnite_conges.details}
+                              />
                             </div>
-                            <p className="font-bold text-lg">
+                            <p className="font-bold text-lg shrink-0">
                               {formatCurrency(indemnities.indemnite_conges.montant)}
                             </p>
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            {indemnities.indemnite_conges.calcul}
-                          </p>
                         </div>
                       )}
 

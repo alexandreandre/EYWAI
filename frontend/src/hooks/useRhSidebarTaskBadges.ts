@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "react-router-dom";
+import { getCetPending } from "@/api/cet";
 import { invalidateRhSidebarBadges } from "@/lib/invalidateRhSidebarBadges";
 import apiClient from "@/api/apiClient";
 import { getRttYearEndOverview } from '@/api/leaveSettings';
@@ -20,6 +21,7 @@ import {
   fetchAllEmployeesOverview,
   type SchedulesEmployeeInput,
 } from "@/lib/schedulesOverview";
+import { getModulationWorkflowStatus } from '@/api/modulation';
 import { getWorkMedalSummary } from "@/api/workMedals";
 
 /** Données utiles à la sidebar (sous-ensemble de GET /api/dashboard/all). */
@@ -208,6 +210,20 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
     staleTime: 30_000,
   });
 
+  const modulationWorkflowQuery = useQuery({
+    queryKey: ["modulation", "workflow-status", "sidebar-badges"],
+    queryFn: getModulationWorkflowStatus,
+    enabled,
+    staleTime: 30_000,
+  });
+
+  const cetPendingQuery = useQuery({
+    queryKey: ["cet", "pending", "sidebar-badges"],
+    queryFn: getCetPending,
+    enabled,
+    staleTime: 30_000,
+  });
+
   const counts = useMemo(() => {
     const medicalDue =
       medicalSettingsQuery.data?.enabled && medicalKpisQuery.data
@@ -235,6 +251,14 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
         base["/leaves"] = (base["/leaves"] ?? 0) + closable;
       }
     }
+    const modAlerts = modulationWorkflowQuery.data?.alert_count ?? 0;
+    if (modAlerts > 0) {
+      base["/suivi-modulation"] = modAlerts;
+    }
+    const cetPending = cetPendingQuery.data?.length ?? 0;
+    if (cetPending > 0) {
+      base["/suivi-cet"] = cetPending;
+    }
     return base;
   }, [
     dashboardQuery.data,
@@ -247,6 +271,8 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
     schedulesBadgeQuery.data,
     workMedalsQuery.data?.awaiting_rh,
     rttYearEndQuery.data,
+    modulationWorkflowQuery.data?.alert_count,
+    cetPendingQuery.data,
   ]);
 
   const totalRhPending = useMemo(() => {
@@ -273,7 +299,8 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
         queryInFlight(recruitmentCandidatesQuery)) ||
       (medicalSettingsQuery.data?.enabled === true && queryInFlight(medicalKpisQuery)) ||
       queryInFlight(schedulesBadgeQuery) ||
-      queryInFlight(workMedalsQuery));
+      queryInFlight(workMedalsQuery) ||
+      queryInFlight(modulationWorkflowQuery));
 
   /** Parcours paie (calendriers, congés, frais) : gris tant que ces compteurs ne sont pas stabilisés. */
   const isPayrollPipelineLoading =

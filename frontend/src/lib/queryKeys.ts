@@ -68,6 +68,17 @@ export const queryKeys = {
     ),
   cetSettings: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'cet', 'settings'),
+  cetOverview: (companyId: string | undefined, year: number) =>
+    companyQueryKey(companyId, 'cet', 'overview', year),
+  cetMovements: (
+    companyId: string | undefined,
+    employeeId: string,
+    year?: number,
+  ) => companyQueryKey(companyId, 'cet', 'movements', employeeId, year ?? 'all'),
+  cetPendingQueue: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'cet', 'pending'),
+  cetPendingManager: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'cet', 'pending-manager'),
   fractionnementSettings: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'fractionnement', 'settings'),
   fractionnementPreview: (companyId: string | undefined, grantYear: number) =>
@@ -76,10 +87,19 @@ export const queryKeys = {
     companyQueryKey(companyId, 'cpSeniority', 'settings'),
   cpSeniorityPreview: (companyId: string | undefined, grantYear: number) =>
     companyQueryKey(companyId, 'cpSeniority', 'preview', grantYear),
+  leaveCampaignDashboard: (companyId: string | undefined, grantYear: number) =>
+    companyQueryKey(companyId, 'leaveCampaign', 'dashboard', grantYear),
   modulationSettings: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'modulation', 'settings'),
   modulationOverview: (companyId: string | undefined, year: number) =>
     companyQueryKey(companyId, 'modulation', 'overview', year),
+  modulationMovements: (
+    companyId: string | undefined,
+    employeeId: string,
+    year: number,
+  ) => companyQueryKey(companyId, 'modulation', 'movements', employeeId, year),
+  modulationWorkflowStatus: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'modulation', 'workflow-status'),
   payrollVariableRules: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'payroll-variables', 'rules'),
   employeeCetSummary: (

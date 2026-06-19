@@ -108,9 +108,13 @@ export function EmployeeCetPanel({ variant = 'inline', year, month }: Props) {
       toast({
         title: 'Demande envoyée',
         description:
-          data?.settings.validation_mode === 'rh'
-            ? 'Transfert CP en attente de validation RH.'
-            : 'Transfert CP enregistré.',
+          data?.settings.validation_mode === 'auto'
+            ? 'Transfert CP enregistré.'
+            : data?.settings.validation_mode === 'manager'
+              ? 'Transfert CP en attente de validation manager.'
+              : data?.settings.validation_mode === 'manager_then_rh'
+                ? 'Transfert CP en attente manager puis RH.'
+                : 'Transfert CP en attente de validation RH.',
       });
       setDepositCpOpen(false);
       setDaysInput('');
@@ -311,6 +315,14 @@ export function EmployeeCetPanel({ variant = 'inline', year, month }: Props) {
             {data.settings.validation_mode === 'rh' ? (
               <p className="text-xs text-muted-foreground">
                 La demande sera soumise à validation RH avant crédit du solde CET.
+              </p>
+            ) : data.settings.validation_mode === 'manager' ? (
+              <p className="text-xs text-muted-foreground">
+                La demande sera soumise à votre directeur / manager d&apos;équipe.
+              </p>
+            ) : data.settings.validation_mode === 'manager_then_rh' ? (
+              <p className="text-xs text-muted-foreground">
+                Validation manager puis RH.
               </p>
             ) : null}
           </div>

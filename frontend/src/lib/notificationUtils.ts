@@ -150,6 +150,16 @@ export function getNotificationHref(
       if (ctx === 'manager') return '/leave-requests';
       if (ctx === 'rh') return '/leaves';
       return null;
+    case 'cet_a_valider':
+      if (ctx === 'manager') return '/cet-requests';
+      if (ctx === 'rh') return '/suivi-cet';
+      return null;
+    case 'cet_demande_soumise':
+    case 'cet_approuve':
+    case 'cet_refuse':
+    case 'cet_approuve_manager':
+    case 'cet_refuse_manager':
+      return ctx === 'employee' ? '/mon-cet' : '/suivi-cet';
     case 'bulletin_participation_a_repondre':
     case 'bulletin_participation_rappel':
       return ctx === 'employee' ? '/employee/participation' : '/saisies';

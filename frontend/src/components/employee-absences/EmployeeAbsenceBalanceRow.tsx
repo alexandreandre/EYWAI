@@ -1,6 +1,6 @@
 import type { AbsenceBalance } from '@/api/absences';
 import { EvenementFamilialBalanceDialog } from '@/components/dashboard/EvenementFamilialBalanceDialog';
-import { formatBalanceRemaining } from '@/lib/employeeAbsencesUtils';
+import { formatBalanceRemaining, balanceUsesHours } from '@/lib/employeeAbsencesUtils';
 
 const EVENEMENT_FAMILIAL_TYPE = 'Événement familial';
 
@@ -15,10 +15,11 @@ export function EmployeeAbsenceBalanceRow({
   showAcquired = false,
 }: EmployeeAbsenceBalanceRowProps) {
   const isFamilial = balance.type === EVENEMENT_FAMILIAL_TYPE;
-  const remainingDisplay = formatBalanceRemaining(balance.remaining);
+  const unit = balanceUsesHours(balance.type) ? 'h' : 'j';
+  const remainingDisplay = formatBalanceRemaining(balance.remaining, unit);
   const acquiredDisplay =
     typeof balance.acquired === 'number'
-      ? `${balance.acquired.toFixed(1)} j`
+      ? `${balance.acquired.toFixed(1)} ${unit}`
       : '—';
 
   return (
@@ -26,14 +27,14 @@ export function EmployeeAbsenceBalanceRow({
       <p className="text-sm font-medium">{balance.type || 'Type inconnu'}</p>
       {showAcquired && !isFamilial && (
         <p className="text-xs text-muted-foreground">
-          Acquis : {acquiredDisplay} · Pris : {balance.taken} j · Restant :{' '}
+          Acquis : {acquiredDisplay} · Pris : {balance.taken} {unit} · Restant :{' '}
           <span className="font-medium text-foreground">{remainingDisplay}</span>
         </p>
       )}
       <div className="flex items-baseline justify-between gap-2">
         {!showAcquired && (
           <span className="text-xs text-muted-foreground">
-            Pris : {balance.taken} j
+            Pris : {balance.taken} {unit}
           </span>
         )}
         {isFamilial ? (

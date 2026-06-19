@@ -25,12 +25,26 @@ export interface IjssDashboardRow {
   received_bank: number;
   line_status: IjssLineStatus;
   subrogation_active: boolean;
+  ijss_brut_validated?: number | null;
+  validation_source?: string | null;
+  applied_to_payslip_at?: string | null;
+  applied_ijss_brut?: number | null;
 }
 
 export interface IjssPeriodDashboard {
   period: IjssPeriod;
   summary: { ok: number; variance: number; pending: number };
   rows: IjssDashboardRow[];
+  unmatched_received?: IjssUnmatchedReceivedLine[];
+}
+
+export interface IjssUnmatchedReceivedLine {
+  id: string;
+  source: string;
+  amount: number;
+  employee_name_raw?: string | null;
+  employee_nir?: string | null;
+  payment_date?: string | null;
 }
 
 export interface IjssAbsenceStatus {
@@ -38,7 +52,18 @@ export interface IjssAbsenceStatus {
   absence_request_id: string;
   expected_line_id?: string | null;
   ijss_subrogees_bulletin?: number;
+  ijss_brut_validated?: number | null;
+  applied_to_payslip_at?: string | null;
+  applied_ijss_brut?: number | null;
 }
+
+export const IJSS_ABSENCE_STATUS_LABELS: Record<string, string> = {
+  pending: 'IJSS en attente CPAM',
+  ok: 'IJSS rapprochée',
+  justified: 'IJSS justifiée',
+  variance: 'IJSS — écart',
+  partial: 'IJSS partiel',
+};
 
 export async function getIjssPeriodDashboard(
   year: number,
@@ -109,9 +134,50 @@ export async function justifyIjssVariance(
   return data;
 }
 
+export async function validateIjssExpectedLine(
+  expectedLineId: string,
+  amount?: number,
+  source?: 'cpam_decompte' | 'bank_transfer' | 'manual',
+) {
+  const { data } = await apiClient.post(
+    `/api/ijss-tracking/expected-lines/${expectedLineId}/validate`,
+    { amount: amount ?? null, source: source ?? null },
+  );
+  return data;
+}
+
+export async function applyIjssToPayslip(expectedLineId: string) {
+  const { data } = await apiClient.post(
+    `/api/ijss-tracking/expected-lines/${expectedLineId}/apply-to-payslip`,
+  );
+  return data;
+}
+
+export async function applyAllValidatedIjss(periodId: string) {
+  const { data } = await apiClient.post(
+    `/api/ijss-tracking/periods/${periodId}/apply-validated`,
+  );
+  return data;
+}
+
 export async function getAbsenceIjssStatus(absenceId: string): Promise<IjssAbsenceStatus> {
   const { data } = await apiClient.get<IjssAbsenceStatus>(
     `/api/ijss-tracking/absences/${absenceId}/ijss`,
+  );
+  return data;
+}
+
+export async function matchIjssReceivedLine(
+  lineId: string,
+  employeeId: string,
+  expectedLineId?: string,
+) {
+  const { data } = await apiClient.patch(
+    `/api/ijss-tracking/received-lines/${lineId}/match`,
+    {
+      employee_id: employeeId,
+      expected_line_id: expectedLineId ?? null,
+    },
   );
   return data;
 }

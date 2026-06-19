@@ -42,6 +42,7 @@ import apiClient from "@/api/apiClient";
 import * as saisiesApi from "@/api/saisies";
 import * as bonusTypesApi from "@/api/bonusTypes";
 import * as calendarApi from "@/api/calendar";
+import { reverseCalculation } from "@/api/simulation";
 import type { BonusType } from "@/api/bonusTypes";
 
 // --- Types & Interfaces ---
@@ -96,6 +97,8 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
   const [showCreatePrimeForm, setShowCreatePrimeForm] = useState(false);
   const [primeForm, setPrimeForm] = useState(initialPrimeForm);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [isReverseCalculating, setIsReverseCalculating] = useState(false);
+  const [netTarget, setNetTarget] = useState<number | "">("");
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [employeePopoverOpen, setEmployeePopoverOpen] = useState(false);
 
@@ -133,6 +136,57 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
       }
     }
   }, [isOpen, employeeScopeId]);
+
+  const handleReverseNetToBrut = async () => {
+    const targetEmployeeId =
+      employeeScopeId ??
+      (formData.selectedEmployees.length === 1 ? formData.selectedEmployees[0] : null);
+    if (!targetEmployeeId) {
+      toast({
+        title: "Employé requis",
+        description: "Sélectionnez un seul employé pour le calcul net → brut.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!netTarget || Number(netTarget) <= 0) {
+      toast({
+        title: "Net cible invalide",
+        description: "Indiquez un montant net cible positif.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const payYear = year ?? new Date().getFullYear();
+    const payMonth = month ?? new Date().getMonth() + 1;
+    setIsReverseCalculating(true);
+    try {
+      const result = await reverseCalculation({
+        employee_id: targetEmployeeId,
+        net_target: Number(netTarget),
+        net_type: "net_a_payer",
+        month: payMonth,
+        year: payYear,
+      });
+      setFormData((p) => ({
+        ...p,
+        amount: Math.round(result.brut_calcule * 100) / 100,
+      }));
+      toast({
+        title: "Brut calculé",
+        description: `Montant brut estimé : ${result.brut_calcule.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}`,
+      });
+    } catch (error) {
+      log.error("Erreur calcul net → brut:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de calculer le brut depuis le net cible.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsReverseCalculating(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!formData.name || formData.amount === "" || formData.selectedEmployees.length === 0) {
@@ -616,6 +670,33 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                   onChange={e => setFormData(p => ({ ...p, amount: e.target.value ? parseFloat(e.target.value) : '' }))}
                   disabled={isCalculating || (selectedBonusTypeId && bonusTypes.find(bt => bt.id === selectedBonusTypeId)?.type === "selon_heures")}
                 />
+                <div className="flex flex-col gap-2 rounded-md border border-dashed p-3 sm:flex-row sm:items-end">
+                  <div className="grid flex-1 gap-1.5">
+                    <Label htmlFor="net_target" className="text-xs text-muted-foreground">
+                      Net cible (€) — calcul inverse
+                    </Label>
+                    <Input
+                      id="net_target"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={netTarget}
+                      onChange={(e) =>
+                        setNetTarget(e.target.value ? parseFloat(e.target.value) : "")
+                      }
+                      placeholder="Ex. 100"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={isReverseCalculating}
+                    onClick={handleReverseNetToBrut}
+                  >
+                    {isReverseCalculating ? "Calcul…" : "Calculer le brut depuis net"}
+                  </Button>
+                </div>
                 {selectedBonusTypeId && bonusTypes.find(bt => bt.id === selectedBonusTypeId)?.type === "selon_heures" && (
                   <p className="text-xs text-muted-foreground">
                     Le montant est calculé automatiquement selon les heures faites.

@@ -5,6 +5,7 @@ export const ABSENCE_TYPE_LABELS: Record<AbsenceRequest['type'], string> = {
   rtt: 'RTT',
   sans_solde: 'Congé sans solde',
   repos_compensateur: 'Repos compensateur',
+  recuperation_modulation: 'Récupération modulation',
   evenement_familial: 'Événement familial',
   arret_maladie: 'Arrêt maladie',
   arret_at: 'Accident du travail',
@@ -123,6 +124,7 @@ export const EMPLOYEE_REQUESTABLE_ABSENCE_TYPES = [
   'conge_paye',
   'rtt',
   'repos_compensateur',
+  'recuperation_modulation',
   'evenement_familial',
 ] as const;
 
@@ -170,12 +172,18 @@ export function formatCongePayeInsufficientMessage(
 }
 
 export function formatBalanceRemaining(
-  remaining: number | string
+  remaining: number | string,
+  unit: 'j' | 'h' = 'j',
 ): string {
   if (typeof remaining === 'number') {
-    return `${remaining.toFixed(1)} j`;
+    return `${remaining.toFixed(1)} ${unit}`;
   }
   if (remaining === 'N/A') return 'Non applicable';
   if (remaining === 'selon événement') return 'Selon événement';
   return String(remaining);
+}
+
+/** Soldes exprimés en heures (compte modulation, repos compensateur). */
+export function balanceUsesHours(balanceType: string): boolean {
+  return balanceType === 'Compte modulation' || balanceType === 'Repos compensateur';
 }

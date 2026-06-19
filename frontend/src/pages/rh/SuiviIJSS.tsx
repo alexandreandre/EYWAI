@@ -11,6 +11,9 @@ import {
   importCpamDecompte,
   justifyIjssVariance,
   syncCpamDecomptes,
+  applyAllValidatedIjss,
+  applyIjssToPayslip,
+  validateIjssExpectedLine,
   syncIjssExpected,
   type IjssDashboardRow,
   type IjssLineStatus,
@@ -48,6 +51,7 @@ import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { useToast } from '@/hooks/use-toast';
 import { downloadBlob } from '@/lib/downloadBlob';
 import { cn } from '@/lib/utils';
+import { IjssUnmatchedReceivedPanel } from '@/features/ijss/components/IjssUnmatchedReceivedPanel';
 import {
   AlertCircle,
   CheckCircle2,
@@ -105,14 +109,19 @@ function DetailPanel({
   open,
   onClose,
   onJustified,
+  periodClosed,
+  onUpdated,
 }: {
   row: IjssDashboardRow | null;
   open: boolean;
   onClose: () => void;
   onJustified: () => void;
+  periodClosed: boolean;
+  onUpdated: () => void;
 }) {
   const { toast } = useToast();
   const [note, setNote] = useState('');
+  const [manualBrut, setManualBrut] = useState('');
   const justifyMut = useMutation({
     mutationFn: () => justifyIjssVariance(row!.expected_line_id!, note),
     onSuccess: () => {
@@ -120,6 +129,25 @@ function DetailPanel({
       setNote('');
       onJustified();
       onClose();
+    },
+    onError: (e: Error) => toast({ variant: 'destructive', title: e.message }),
+  });
+  const validateMut = useMutation({
+    mutationFn: () => {
+      const amt = manualBrut.trim() ? Number(manualBrut.replace(',', '.')) : undefined;
+      return validateIjssExpectedLine(row!.expected_line_id!, amt, amt !== undefined ? 'manual' : undefined);
+    },
+    onSuccess: () => {
+      toast({ title: 'Montant brut validé' });
+      onUpdated();
+    },
+    onError: (e: Error) => toast({ variant: 'destructive', title: e.message }),
+  });
+  const applyMut = useMutation({
+    mutationFn: () => applyIjssToPayslip(row!.expected_line_id!),
+    onSuccess: () => {
+      toast({ title: 'Montant appliqué sur le bulletin' });
+      onUpdated();
     },
     onError: (e: Error) => toast({ variant: 'destructive', title: e.message }),
   });
@@ -150,7 +178,63 @@ function DetailPanel({
             <dt className="text-muted-foreground">Virement banque</dt>
             <dd className="font-medium tabular-nums">{eur(row.received_bank)}</dd>
           </div>
+          <div className="flex justify-between">
+            <dt className="text-muted-foreground">Brut validé</dt>
+            <dd className="font-medium tabular-nums">
+              {row.ijss_brut_validated != null ? eur(row.ijss_brut_validated) : '—'}
+            </dd>
+          </div>
+          {row.applied_to_payslip_at ? (
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Appliqué bulletin</dt>
+              <dd className="font-medium tabular-nums">
+                {row.applied_ijss_brut != null ? eur(row.applied_ijss_brut) : 'Oui'}
+              </dd>
+            </div>
+          ) : null}
         </dl>
+        {!periodClosed && row.expected_line_id && (
+          <div className="mt-6 space-y-3">
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Montant brut manuel (optionnel)</p>
+              <input
+                type="text"
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                placeholder={String(row.received_cpam || row.received_bank || '')}
+                value={manualBrut}
+                onChange={(e) => setManualBrut(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={validateMut.isPending}
+                onClick={() => validateMut.mutate()}
+              >
+                Valider le brut CPAM
+              </Button>
+              <Button
+                size="sm"
+                disabled={
+                  applyMut.isPending ||
+                  row.ijss_brut_validated == null && !manualBrut.trim()
+                }
+                onClick={() => {
+                  if (row.ijss_brut_validated == null && manualBrut.trim()) {
+                    validateMut.mutate(undefined, {
+                      onSuccess: () => applyMut.mutate(),
+                    });
+                  } else {
+                    applyMut.mutate();
+                  }
+                }}
+              >
+                Appliquer sur le bulletin
+              </Button>
+            </div>
+          </div>
+        )}
         {row.line_status === 'variance' && row.expected_line_id && (
           <div className="mt-6 space-y-2">
             <p className="text-sm font-medium">Justifier l&apos;écart</p>
@@ -260,7 +344,17 @@ export default function SuiviIJSSPage() {
     },
   });
 
+  const applyAllMut = useMutation({
+    mutationFn: () => applyAllValidatedIjss(periodId!),
+    onSuccess: (res: { applied_count?: number }) => {
+      toast({ title: `${res.applied_count ?? 0} bulletin(s) mis à jour` });
+      invalidate();
+    },
+    onError: (e: Error) => toast({ variant: 'destructive', title: e.message }),
+  });
+
   const rows = dashboardQuery.data?.rows ?? [];
+  const unmatchedReceived = dashboardQuery.data?.unmatched_received ?? [];
   const summary = dashboardQuery.data?.summary ?? { ok: 0, variance: 0, pending: 0 };
   const periodClosed = dashboardQuery.data?.period?.status === 'closed';
 
@@ -353,6 +447,14 @@ export default function SuiviIJSSPage() {
             Export audit
           </Button>
           <Button
+            variant="outline"
+            size="sm"
+            disabled={!periodId || applyAllMut.isPending || periodClosed}
+            onClick={() => applyAllMut.mutate()}
+          >
+            Appliquer validés
+          </Button>
+          <Button
             size="sm"
             disabled={!periodId || closeMut.isPending || periodClosed}
             onClick={() => closeMut.mutate()}
@@ -419,6 +521,8 @@ export default function SuiviIJSSPage() {
                   <TableHead className="text-right">Théorique</TableHead>
                   <TableHead className="text-right">Décompte CPAM</TableHead>
                   <TableHead className="text-right">Virement</TableHead>
+                  <TableHead className="text-right">Brut validé</TableHead>
+                  <TableHead>Appliqué</TableHead>
                   <TableHead>Statut</TableHead>
                 </TableRow>
               </TableHeader>
@@ -435,6 +539,16 @@ export default function SuiviIJSSPage() {
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{eur(row.received_cpam)}</TableCell>
                     <TableCell className="text-right tabular-nums">{eur(row.received_bank)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {row.ijss_brut_validated != null ? eur(row.ijss_brut_validated) : '—'}
+                    </TableCell>
+                    <TableCell>
+                      {row.applied_to_payslip_at ? (
+                        <Badge variant="default">Oui</Badge>
+                      ) : (
+                        <Badge variant="outline">Non</Badge>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={statusVariant(row.line_status)}>
                         {IJSS_LINE_STATUS_LABELS[row.line_status]}
@@ -448,14 +562,21 @@ export default function SuiviIJSSPage() {
         </CardContent>
       </Card>
 
+      <IjssUnmatchedReceivedPanel
+        lines={unmatchedReceived}
+        dashboardRows={rows}
+        periodClosed={periodClosed}
+        onMatched={invalidate}
+      />
+
       <Card className="border-dashed">
         <CardContent className="pt-6 text-sm text-muted-foreground space-y-2">
-          <p className="font-medium text-foreground">Process en 4 étapes</p>
+          <p className="font-medium text-foreground">Process mensuel</p>
           <ol className="list-decimal list-inside space-y-1">
-            <li>Valider les arrêts et générer les bulletins de paie.</li>
-            <li>Synchroniser les montants théoriques (« Sync bulletins »).</li>
-            <li>Importer le récap virements CPAM (compta) et/ou synchroniser les décomptes Net-Entreprises.</li>
-            <li>Contrôler les écarts, justifier si besoin, puis clôturer le mois.</li>
+            <li>Sync bulletins (montants théoriques).</li>
+            <li>Import décompte CPAM et récap virements (Marie).</li>
+            <li>Valider le brut CPAM ligne par ligne.</li>
+            <li>Appliquer sur le(s) bulletin(s), puis clôturer le mois.</li>
           </ol>
         </CardContent>
       </Card>
@@ -465,6 +586,11 @@ export default function SuiviIJSSPage() {
         open={Boolean(selectedRow)}
         onClose={() => setSelectedRow(null)}
         onJustified={invalidate}
+        periodClosed={periodClosed}
+        onUpdated={() => {
+          invalidate();
+          setSelectedRow(null);
+        }}
       />
     </div>
   );

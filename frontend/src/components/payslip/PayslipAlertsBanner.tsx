@@ -3,6 +3,21 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { PayslipBulletinData } from '@/api/payslips';
 import { NET_SUPERIEUR_BRUT_LABEL } from '@/lib/payslipNetBrutAlert';
 
+const PRIME_ANCIENNETE_ALERT_LABELS: Record<string, string> = {
+  prime_anciennete_classification_manquante:
+    'Prime d\'ancienneté : classification conventionnelle (classe) manquante sur la fiche salarié.',
+  prime_anciennete_vp_zone_introuvable:
+    'Prime d\'ancienneté : valeur du point introuvable pour la zone géographique de l\'établissement.',
+  prime_anciennete_prorata_zero:
+    'Prime d\'ancienneté nulle : temps de travail du mois insuffisant (sans maintien de salaire).',
+  prime_anciennete_non_applicable_cadre:
+    'Prime d\'ancienneté non applicable : statut cadre exclu par la convention collective.',
+  prime_anciennete_sans_pointage:
+    'Prime d\'ancienneté : mois sans pointage — prorata appliqué selon la politique entreprise.',
+  prime_anciennete_non_eligible:
+    'Prime d\'ancienneté non applicable pour ce salarié (ancienneté ou statut).',
+};
+
 type EngineAlert = {
   code?: string;
   message?: string;
@@ -24,7 +39,8 @@ function collectAlerts(data: PayslipBulletinData | null | undefined): Array<{
     const message =
       code === 'net_superieur_brut'
         ? NET_SUPERIEUR_BRUT_LABEL
-        : String(raw.message ?? '').trim();
+        : PRIME_ANCIENNETE_ALERT_LABELS[code] ??
+          String(raw.message ?? '').trim();
     if (!message) continue;
     out.push({
       id: `bareme-${code || out.length}`,
@@ -39,6 +55,16 @@ function collectAlerts(data: PayslipBulletinData | null | undefined): Array<{
     out.push({
       id: `maintien-${out.length}`,
       message,
+      critical: false,
+    });
+  }
+
+  const sn = data.synthese_net;
+  if (sn?.subrogation_active && sn.ijss_source === 'theorique') {
+    out.push({
+      id: 'ijss-theorique',
+      message:
+        'IJSS théoriques sur ce bulletin — validez le montant CPAM dans Suivi IJSS avant clôture paie.',
       critical: false,
     });
   }

@@ -108,6 +108,10 @@ export default function CongesAbsencesSection({
   );
   const sn = syntheseNet ?? {};
   const ijssSub = Number(sn.ijss_subrogees ?? 0);
+  const ijssBrut = Number(sn.ijss_brut ?? ijssSub);
+  const ijssCsg = Number(sn.ijss_csg_total ?? 0);
+  const ijssNet = Number(sn.ijss_net ?? 0);
+  const ijssSource = sn.ijss_source as string | undefined;
   const maintienEmp = Number(sn.maintien_employeur ?? 0);
   const complementEmp = Number(sn.complement_employeur ?? 0);
   const subrogationActive = Boolean(sn.subrogation_active);
@@ -130,10 +134,29 @@ export default function CongesAbsencesSection({
   if (subrogationActive && ijssSub !== 0) {
     maintienRows.push({
       key: 'ijss',
-      element: 'IJSS subrogées',
-      montant: ijssSub,
-      commentaire: 'IJSS avancées par l’entreprise',
+      element: 'IJSS subrogées (brut CPAM)',
+      montant: ijssBrut,
+      commentaire:
+        ijssSource === 'cpam_validated'
+          ? 'Montant validé Suivi IJSS'
+          : 'Montant théorique — valider dans Suivi IJSS',
     });
+    if (ijssCsg > 0) {
+      maintienRows.push({
+        key: 'ijss-csg',
+        element: 'CSG/CRDS IJSS',
+        montant: -ijssCsg,
+        commentaire: 'Calcul automatique',
+      });
+    }
+    if (ijssNet > 0) {
+      maintienRows.push({
+        key: 'ijss-net',
+        element: 'Net IJSS versé',
+        montant: ijssNet,
+        commentaire: 'Lecture seule',
+      });
+    }
   }
   if (maintienEmp !== 0) {
     const tauxPct =
@@ -391,7 +414,11 @@ export default function CongesAbsencesSection({
             ) : null}
             {subrogationActive && ijssSub !== 0 ? (
               <Button variant="link" size="sm" className="px-0 h-auto" asChild>
-                <Link to="/suivi-ijss">IJSS théoriques — voir suivi CPAM</Link>
+                <Link to="/suivi-ijss">
+                  {ijssSource === 'cpam_validated'
+                    ? 'Voir Suivi IJSS (montant validé)'
+                    : 'IJSS théoriques — valider dans Suivi IJSS'}
+                </Link>
               </Button>
             ) : null}
           </div>

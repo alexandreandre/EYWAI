@@ -4,8 +4,10 @@ import { CalendarRange } from 'lucide-react';
 import {
   getFractionnementPreview,
   getFractionnementSettings,
+  resetFractionnementInputAuto,
   updateFractionnementInput,
   updateFractionnementSettings,
+  validateFractionnementGrants,
   type FractionnementSettings,
   type FractionnementSettingsUpdate,
 } from '@/api/cpFractionnement';
@@ -25,8 +27,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useToast } from '@/hooks/use-toast';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { queryKeys } from '@/lib/queryKeys';
+import { useToast } from '@/hooks/use-toast';
 
 type RowDrafts = Record<
   string,
@@ -39,7 +48,8 @@ export default function CpFractionnementSettingsCard() {
   const activeCompanyId = activeCompany?.company_id ?? '';
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const grantYear = new Date().getFullYear();
+  const [grantYearState, setGrantYearState] = useState(new Date().getFullYear());
+  const grantYear = grantYearState;
 
   const canEdit = useMemo(() => {
     const r = user?.role;
@@ -105,10 +115,32 @@ export default function CpFractionnementSettingsCard() {
         grant_year: grantYear,
         cp_reported_june_ouvres: reportJune,
         cp_seniority_deduction_ouvres: seniority,
+        report_june_manual_override: true,
+        seniority_manual_override: true,
       }),
     onSuccess: () => {
       void previewQuery.refetch();
       toast({ title: 'Enregistré', description: 'Saisies salarié mises à jour.' });
+    },
+  });
+
+  const resetRowAuto = useMutation({
+    mutationFn: (employeeId: string) =>
+      resetFractionnementInputAuto(employeeId, grantYear),
+    onSuccess: () => {
+      void previewQuery.refetch();
+      toast({ title: 'Réinitialisé', description: 'Valeurs auto restaurées.' });
+    },
+  });
+
+  const validateAll = useMutation({
+    mutationFn: () => validateFractionnementGrants(grantYear),
+    onSuccess: (res) => {
+      void previewQuery.refetch();
+      toast({
+        title: 'Fractionnement validé',
+        description: `${res.validated_count} salarié(s).`,
+      });
     },
   });
 
@@ -161,7 +193,27 @@ export default function CpFractionnementSettingsCard() {
         </div>
 
         {form.fractionnement_enabled ? (
-          <div className="grid gap-4 sm:grid-cols-2 border-t pt-4">
+          <div className="grid gap-4 sm:grid-cols-3 border-t pt-4">
+            <div className="space-y-2">
+              <Label>Méthode de calcul</Label>
+              <Select
+                value={form.calculation_method ?? 'mbc'}
+                disabled={!canEdit}
+                onValueChange={(v) =>
+                  setForm({
+                    ...form,
+                    calculation_method: v as FractionnementSettings['calculation_method'],
+                  })
+                }
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mbc">MBC (solde 31/10)</SelectItem>
+                  <SelectItem value="legal">Légale (absences)</SelectItem>
+                  <SelectItem value="manual">Manuelle</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2">
               <Label>Retrait 5ème semaine (j. ouvrés)</Label>
               <Input
@@ -210,8 +262,30 @@ export default function CpFractionnementSettingsCard() {
         {form.fractionnement_enabled && previewQuery.data && previewQuery.data.length > 0 ? (
           <div className="border-t pt-4 space-y-3 overflow-x-auto">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm font-medium">Prévision {grantYear} (au 31/10)</p>
               <div className="flex items-center gap-2">
+                <Label htmlFor="frac-year" className="text-sm">Année</Label>
+                <Input
+                  id="frac-year"
+                  type="number"
+                  className="w-24 h-8"
+                  value={grantYearState}
+                  onChange={(e) => setGrantYearState(Number(e.target.value) || grantYearState)}
+                />
+                <p className="text-sm font-medium">Prévision au 31/10</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {canEdit ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() =>
+                      validateAll.mutate()
+                    }
+                  >
+                    Valider tout
+                  </Button>
+                ) : null}
                 <Switch
                   id="frac-detail"
                   checked={showCalcDetail}
@@ -306,20 +380,30 @@ export default function CpFractionnementSettingsCard() {
                       </TableCell>
                       <TableCell>
                         {canEdit ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              saveRowInput.mutate({
-                                employeeId: row.employee_id,
-                                reportJune: Number(draft.reportJune || 0),
-                                seniority: Number(draft.seniority || 0),
-                              })
-                            }
-                          >
-                            OK
-                          </Button>
+                          <div className="flex gap-1">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                saveRowInput.mutate({
+                                  employeeId: row.employee_id,
+                                  reportJune: Number(draft.reportJune || 0),
+                                  seniority: Number(draft.seniority || 0),
+                                })
+                              }
+                            >
+                              OK
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => resetRowAuto.mutate(row.employee_id)}
+                            >
+                              Auto
+                            </Button>
+                          </div>
                         ) : null}
                       </TableCell>
                     </TableRow>

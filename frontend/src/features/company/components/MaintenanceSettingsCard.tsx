@@ -34,6 +34,7 @@ function toUpdatePayload(form: MaintenanceSettings): MaintenanceSettingsUpdate {
   return {
     apply_legal_maintenance: form.apply_legal_maintenance,
     min_seniority_months: form.min_seniority_months,
+    min_seniority_months_at_mp: form.min_seniority_months_at_mp,
     employer_waiting_days: form.employer_waiting_days,
     seniority_extension_enabled: form.seniority_extension_enabled,
     remove_employer_waiting: form.remove_employer_waiting,
@@ -204,7 +205,7 @@ export default function MaintenanceSettingsCard() {
               />
             </div>
             <div className="grid gap-2 max-w-xs">
-              <Label htmlFor="min_seniority_months">Ancienneté minimale (mois)</Label>
+              <Label htmlFor="min_seniority_months">Ancienneté minimale maladie (mois)</Label>
               <Input
                 id="min_seniority_months"
                 type="number"
@@ -212,6 +213,18 @@ export default function MaintenanceSettingsCard() {
                 max={120}
                 value={form.min_seniority_months}
                 onChange={(e) => setNum('min_seniority_months', e.target.value)}
+                disabled={readOnly}
+              />
+            </div>
+            <div className="grid gap-2 max-w-xs">
+              <Label htmlFor="min_seniority_months_at_mp">Ancienneté minimale AT/MP (mois)</Label>
+              <Input
+                id="min_seniority_months_at_mp"
+                type="number"
+                min={0}
+                max={120}
+                value={form.min_seniority_months_at_mp}
+                onChange={(e) => setNum('min_seniority_months_at_mp', e.target.value)}
                 disabled={readOnly}
               />
             </div>
@@ -304,9 +317,10 @@ export default function MaintenanceSettingsCard() {
                   <SelectValue placeholder="Choisir" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="automatic">Automatique</SelectItem>
-                  <SelectItem value="at_mp_only">Uniquement AT/MP</SelectItem>
+                  <SelectItem value="when_maintien">Automatique si maintien applicable</SelectItem>
                   <SelectItem value="per_case">Au cas par cas</SelectItem>
+                  <SelectItem value="at_mp_only">Avancé — AT/MP uniquement</SelectItem>
+                  <SelectItem value="automatic">Legacy — toujours oui</SelectItem>
                 </SelectContent>
               </Select>
             </div>

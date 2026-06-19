@@ -12,6 +12,7 @@ import {
 } from '@/api/cpSeniority';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -163,11 +164,31 @@ export default function CpSenioritySettingsCard() {
           CP ancienneté (congés supplémentaires)
         </CardTitle>
         <CardDescription>
-          Jours conventionnels en plus du CP légal. Éditeur de règles générique avec presets
-          (plasturgie, accord LEWIS).
+          Jours conventionnels en plus du CP légal. Presets plasturgie, métallurgie (3248) ou règles personnalisées.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {data?.recommended_preset && !data.configured ? (
+          <Alert>
+            <AlertDescription className="flex flex-wrap items-center gap-2">
+              Convention suggérée : preset {data.recommended_preset}.
+              {canEdit ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={applyPreset.isPending}
+                  onClick={() => applyPreset.mutate(data.recommended_preset!)}
+                >
+                  Appliquer le barème suggéré
+                </Button>
+              ) : null}
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        {data?.rules_source ? (
+          <p className="text-xs text-muted-foreground">Source barème : {data.rules_source}</p>
+        ) : null}
         <div className="flex flex-wrap items-center gap-3">
           <Switch
             id="cp-seniority-enabled"
@@ -186,6 +207,15 @@ export default function CpSenioritySettingsCard() {
                 onClick={() => applyPreset.mutate('plasturgie_idcc_0292')}
               >
                 Preset plasturgie
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={applyPreset.isPending}
+                onClick={() => applyPreset.mutate('metallurgie_idcc_3248')}
+              >
+                Preset métallurgie
               </Button>
               <Button
                 type="button"

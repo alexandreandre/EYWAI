@@ -45,6 +45,7 @@ export const employeeCollaboratorRoutes = (
         </Suspense>
       }
     />
+    <Route path="/mon-cet" element={<Pages.MonCet />} />
     <Route path="/employee/leaves/new" element={<Navigate to="/absences" replace />} />
     <Route path="/employee/planning" element={<Pages.EmployeePlanning />} />
     <Route

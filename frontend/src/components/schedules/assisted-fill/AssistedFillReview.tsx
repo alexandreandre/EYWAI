@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils';
 import { downloadBlob } from '@/lib/downloadBlob';
 import {
   persistTimesheetBatch,
+  waitForTimesheetImportBatchCommitted,
   type AiCalendarProposal,
   type AiEmployeeProposal,
   type DayNature,
@@ -87,6 +88,7 @@ interface AssistedFillReviewProps {
   roster: RosterEmployee[];
   onApplied: (meta?: AssistedFillApplyMeta) => void;
   onBack: () => void;
+  batchId?: string | null;
 }
 
 const MONTHS = [
@@ -164,7 +166,11 @@ function isNoiseWarning(message: string): boolean {
     ) ||
     /le total hebdomadaire pour .+ n'est pas visible|légère différence|le calcul des heures individuelles donne/i.test(
       text,
-    )
+    ) ||
+    /PDF de \d+ pages?, seules \d+ pages?|seules \d+ pages? (traitées|OCRisées)/i.test(
+      text,
+    ) ||
+    /cheval sur deux mois/i.test(text)
   );
 }
 
@@ -295,6 +301,7 @@ export function AssistedFillReview({
   roster,
   onApplied,
   onBack,
+  batchId = null,
 }: AssistedFillReviewProps) {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
@@ -496,7 +503,25 @@ export function AssistedFillReview({
             nature: d.nature,
           })),
         })),
+        { batchId: batchId ?? undefined },
       );
+
+      if (batchId && result.total_days_written === 0) {
+        const committed = await waitForTimesheetImportBatchCommitted(batchId);
+        const days = committed.preview?.employees.reduce(
+          (acc, e) => acc + e.days.length,
+          0,
+        ) ?? 0;
+        toast({
+          title: 'Heures enregistrées',
+          description: `${savableRows.length} salarié(s) · ${days} jour(s) mis à jour.`,
+        });
+        onApplied({
+          focusWeekIndex: proposal.focus_week_index,
+          highlightDays: savableRows.flatMap((r) => r.days.map((d) => d.jour)),
+        });
+        return;
+      }
       const failed = result.results.filter((r) => !r.success);
       if (failed.length > 0) {
         toast({
@@ -599,14 +624,6 @@ export function AssistedFillReview({
         {proposal.month_auto_corrected && proposal.month_correction_message && (
           <p className="mt-1.5 text-[11px] leading-snug text-sky-800">
             {proposal.month_correction_message}
-          </p>
-        )}
-        {proposal.extraction_truncated &&
-          proposal.extraction_pages_total != null &&
-          proposal.extraction_pages_processed != null && (
-          <p className="mt-1 text-[10px] font-medium text-destructive">
-            Relevé partiellement lu : {proposal.extraction_pages_processed}/
-            {proposal.extraction_pages_total} pages.
           </p>
         )}
         {!proposal.extraction_truncated &&

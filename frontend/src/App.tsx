@@ -197,6 +197,7 @@ function ProtectedRoutes() {
                   <Route path="/suivi-ijss" element={<Pages.SuiviIJSS />} />
                   <Route path="/suivi-contingent-hs" element={<Pages.SuiviContingentHs />} />
                   <Route path="/suivi-modulation" element={<Pages.SuiviModulation />} />
+                  <Route path="/suivi-cet" element={<Pages.SuiviCet />} />
                   <Route path="/employee/leaves/new" element={<Navigate to="/leaves" replace />} />
                   <Route
                     path="/planning"
@@ -222,6 +223,8 @@ function ProtectedRoutes() {
                   <Route path="/annual-reviews" element={<Pages.AnnualReviews />} />
                   <Route path="/annual-reviews/:reviewId" element={<Pages.AnnualReviewDetail />} />
                   <Route path="/leave-requests" element={<Pages.LeaveRequests />} />
+                  <Route path="/cet-requests" element={<Pages.CetRequests />} />
+                  <Route path="/approvals" element={<Pages.ManagerApprovals />} />
                   <Route path="/formation" element={<Pages.FormationPage />} />
                   <Route path="/documents" element={<Pages.RhDocumentsPage />} />
                   <Route path="/augmentations-et-promotions" element={<Pages.AugmentationsEtPromotions />} />

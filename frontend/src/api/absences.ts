@@ -27,7 +27,7 @@ export interface AbsenceRequest {
   id: string;
   created_at: string;
   employee_id: string;
-  type: 'conge_paye' | 'rtt' | 'sans_solde' | 'repos_compensateur' | 'evenement_familial' | 'arret_maladie' | 'arret_at' | 'arret_paternite' | 'arret_maternite' | 'arret_maladie_pro';
+  type: 'conge_paye' | 'rtt' | 'sans_solde' | 'repos_compensateur' | 'recuperation_modulation' | 'evenement_familial' | 'arret_maladie' | 'arret_at' | 'arret_paternite' | 'arret_maternite' | 'arret_maladie_pro';
   selected_days: string[]; // Tableau de dates au format 'YYYY-MM-DD'
   comment: string | null;
   status: 'pending' | 'validated' | 'rejected' | 'cancelled';
@@ -133,8 +133,16 @@ export const managerApproveAbsence = (
 /**
  * (POUR LES RH) Met à jour le statut d'une demande.
  */
-export const updateAbsenceRequestStatus = (id: string, status: 'validated' | 'rejected') => {
-  return apiClient.patch(`/api/absences/requests/${id}/status`, { status });
+export const updateAbsenceRequestStatus = (
+  id: string,
+  status: 'validated' | 'rejected',
+  subrogationActive?: boolean,
+) => {
+  const body: { status: string; subrogation_active?: boolean } = { status };
+  if (subrogationActive !== undefined) {
+    body.subrogation_active = subrogationActive;
+  }
+  return apiClient.patch(`/api/absences/requests/${id}/status`, body);
 };
 
 /**
@@ -149,7 +157,7 @@ export const getAbsencePageData = (year: number, month: number) => {
 // Interface pour la création d'une demande
 export interface AbsenceCreationPayload {
   employee_id: string;
-  type: 'conge_paye' | 'rtt' | 'repos_compensateur' | 'evenement_familial' | 'arret_maladie' | 'arret_at' | 'arret_paternite' | 'arret_maternite' | 'arret_maladie_pro';
+  type: 'conge_paye' | 'rtt' | 'repos_compensateur' | 'recuperation_modulation' | 'evenement_familial' | 'arret_maladie' | 'arret_at' | 'arret_paternite' | 'arret_maternite' | 'arret_maladie_pro';
   selected_days: string[]; // Les dates seront formatées en 'YYYY-MM-DD'
   comment?: string | null;
   attachment_url?: string | null;
@@ -259,7 +267,11 @@ export const downloadSalaryCertificate = async (absenceId: string): Promise<Blob
 // APERÇU MAINTIEN DE SALAIRE
 // =====================================================
 
-export type MaintenanceSubrogationMode = 'automatic' | 'at_mp_only' | 'per_case';
+export type MaintenanceSubrogationMode =
+  | 'when_maintien'
+  | 'automatic'
+  | 'at_mp_only'
+  | 'per_case';
 
 export interface MaintenancePreview {
   qualification: {
@@ -312,6 +324,7 @@ export interface MaintenancePreview {
   est_cadre?: boolean;
   /** Renseigné par l’API pour l’UI (paramétrage entreprise). */
   subrogation_mode?: MaintenanceSubrogationMode;
+  maintien_eligible_seniority?: boolean;
 }
 
 /**

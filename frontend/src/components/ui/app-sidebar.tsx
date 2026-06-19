@@ -36,6 +36,7 @@ import {
   BarChart2,
   ScanLine,
   Clock,
+  PiggyBank,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext"; // <-- IMPORTATION
 import { isPlatformAdmin } from "@/lib/platformAdmin";
@@ -206,6 +207,7 @@ const RH_PAIE_GROUPS: SidebarLinkGroup[] = [
       { title: "Suivi IJSS / CPAM", url: "/suivi-ijss", icon: FileCheck },
       { title: "Contingent HS", url: "/suivi-contingent-hs", icon: Clock },
       { title: "Modulation", url: "/suivi-modulation", icon: Clock },
+      { title: "Suivi CET", url: "/suivi-cet", icon: PiggyBank },
       { title: "Notes de frais", url: "/expenses", icon: Notebook },
       { title: "Primes", url: "/saisies", icon: ClipboardEdit },
       { title: "Saisies sur salaire", url: "/salary-seizures", icon: Scale },
@@ -324,8 +326,9 @@ const menuItems = {
     ...rhPaieNavItems,
   ] satisfies SidebarLinkItem[],
   manager: [
-    { title: "Mon Équipe", url: "/team", icon: UsersRound },
-    { title: "Demandes à valider", url: "/leave-requests", icon: ClipboardCheck },
+    { title: "Validations", url: "/approvals", icon: ClipboardCheck },
+    { title: "Congés à valider", url: "/leave-requests", icon: Plane },
+    { title: "CET à valider", url: "/cet-requests", icon: PiggyBank },
   ],
   employee: [
     { title: "Tableau de Bord", url: "/", icon: Home },
@@ -333,6 +336,7 @@ const menuItems = {
     { title: "Ma formation", url: "/employee/formation", icon: GraduationCap },
     { title: "Calendrier et planning", url: "/calendar", icon: Calendar },
     { title: "Congés & Absences", url: "/absences", icon: Plane },
+    { title: "Mon CET", url: "/mon-cet", icon: PiggyBank },
     { title: "Notes de Frais", url: "/expenses", icon: Notebook },
     { title: "Avances & acomptes", url: "/salary-advances", icon: Wallet },
     { title: "Prêts employeur", url: "/employee-loans", icon: Landmark },

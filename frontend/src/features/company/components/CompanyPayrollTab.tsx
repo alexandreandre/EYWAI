@@ -5,6 +5,7 @@ import type { CompanyDetails } from "@/api/company";
 import type { DsnCoverage } from "@/api/dsnImport";
 import CollectiveAgreementCard from "@/components/CollectiveAgreementCard";
 import MaintenanceSettingsCard from "@/features/company/components/MaintenanceSettingsCard";
+import PrimeAncienneteSettingsCard from "@/features/company/components/PrimeAncienneteSettingsCard";
 import JeiSettingsCard from "@/features/company/components/JeiSettingsCard";
 import WorkMedalSettingsCard from "@/features/company/components/WorkMedalSettingsCard";
 import { DsnSyncModeCard } from "@/features/dsn-import/components/DsnSyncModeCard";
@@ -16,6 +17,7 @@ import CetSettingsCard from "@/features/company/components/CetSettingsCard";
 import CpFractionnementSettingsCard from "@/features/company/components/CpFractionnementSettingsCard";
 import CpSenioritySettingsCard from "@/features/company/components/CpSenioritySettingsCard";
 import ModulationSettingsCard from "@/features/company/components/ModulationSettingsCard";
+import TimesheetImportSettingsCard from "@/features/company/components/TimesheetImportSettingsCard";
 import PayrollVariableRulesCard from "@/features/company/components/PayrollVariableRulesCard";
 import PublicHolidaysSettingsCard from "@/features/company/components/PublicHolidaysSettingsCard";
 import NetEntreprisesConfigCard from "@/features/net-entreprises/components/NetEntreprisesConfigCard";
@@ -120,6 +122,7 @@ export function CompanyPayrollTab({
         <div id="convention-collective" ref={setAnchorRef("convention-collective")}>
           <CollectiveAgreementCard companyId={company.id} companyName={company.company_name} />
         </div>
+        <PrimeAncienneteSettingsCard />
       </section>
 
       <section
@@ -261,6 +264,7 @@ export function CompanyPayrollTab({
         <ModulationSettingsCard />
         <OvertimeContingentSettingsCard scrollAnchor="contingent-hs" />
         <CetSettingsCard />
+        <TimesheetImportSettingsCard />
       </section>
 
       <section className="space-y-3">

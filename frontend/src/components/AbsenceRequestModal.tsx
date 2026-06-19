@@ -315,8 +315,13 @@ export function AbsenceRequestModal({
     conge_paye: 'Congé Payé',
     rtt: 'RTT',
     repos_compensateur: 'Repos Compensateur',
+    recuperation_modulation: 'Récupération modulation',
     evenement_familial: 'Événement Familial',
   };
+
+  const modBalance = balances.find((b) => b.type === 'Compte modulation');
+  const modRestant =
+    typeof modBalance?.remaining === 'number' ? modBalance.remaining : 0;
 
   const absenceTypeOptions: { value: AbsenceTypeValue; label: string }[] = showEmployeeSelector
     ? [
@@ -330,7 +335,10 @@ export function AbsenceRequestModal({
         { value: 'arret_maternite', label: 'Congé Maternité' },
         { value: 'arret_maladie_pro', label: 'Maladie Professionnelle' },
       ]
-    : EMPLOYEE_REQUESTABLE_ABSENCE_TYPES.map((value) => ({
+    : EMPLOYEE_REQUESTABLE_ABSENCE_TYPES.filter(
+        (value) =>
+          value !== 'recuperation_modulation' || modRestant > 0,
+      ).map((value) => ({
         value,
         label: employeeAbsenceTypeLabels[value],
       }));

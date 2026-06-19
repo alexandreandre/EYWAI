@@ -4,7 +4,7 @@ import type { AbsenceRequest, SalaryCertificate } from '@/api/absences';
 import * as absencesApi from '@/api/absences';
 import { log } from '@/lib/logger';
 import { requiresSalaryCertificate } from '@/lib/employeeAbsencesUtils';
-import { Badge } from '@/components/ui/badge';
+import { AbsenceCertificateStatusBadge } from '@/components/absences/AbsenceCertificateStatusBadge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -110,16 +110,12 @@ export function EmployeeAbsenceRequestActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {absence.certificate_status === 'pending' && (
-        <Badge className="shrink-0 border-0 bg-orange-500 text-white hover:bg-orange-500">
-          Attestation en cours
-        </Badge>
-      )}
-      {absence.certificate_status === 'generated' && (
-        <Badge className="shrink-0 border-0 bg-green-600 text-white hover:bg-green-600">
-          Attestation IJSS générée
-        </Badge>
-      )}
+      <AbsenceCertificateStatusBadge
+        certificateStatus={absence.certificate_status}
+        absenceType={absence.type}
+        absenceStatus={absence.status}
+        hasCertificateFile={Boolean(certificates[absence.id])}
+      />
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

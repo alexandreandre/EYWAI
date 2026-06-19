@@ -30,6 +30,7 @@ export const ResidencePermits = lazy(() => import('@/pages/rh/ResidencePermits')
 export const MedicalFollowUp = lazy(() => import('@/pages/rh/MedicalFollowUp'));
 export const SuiviContingentHs = lazy(() => import('@/pages/rh/SuiviContingentHs'));
 export const SuiviModulation = lazy(() => import('@/pages/rh/SuiviModulation'));
+export const SuiviCet = lazy(() => import('@/pages/rh/SuiviCet'));
 export const AnnualReviews = lazy(() => import('@/pages/rh/AnnualReviews'));
 export const AnnualReviewDetail = lazy(() => import('@/pages/rh/AnnualReviewDetail'));
 export const AugmentationsEtPromotions = lazy(() => import('@/pages/rh/AugmentationsEtPromotions'));
@@ -100,6 +101,9 @@ export const SupportConfirmationPage = lazy(() => import('@/pages/rh/support/Sup
 export const TicketsHistoryPage = lazy(() => import('@/pages/rh/support/TicketsHistoryPage'));
 export const FormationPage = lazy(() => import('@/pages/rh/formation/FormationPage'));
 export const LeaveRequests = lazy(() => import('@/pages/rh/manager/LeaveRequests'));
+export const CetRequests = lazy(() => import('@/pages/rh/manager/CetRequests'));
+export const ManagerApprovals = lazy(() => import('@/pages/rh/manager/ManagerApprovals'));
+export const MonCet = lazy(() => import('@/pages/employee/MonCet'));
 export const RhDocumentsPage = lazy(() => import('@/pages/rh/Documents'));
 export const MeetingDetailPage = lazy(() => import('@/pages/rh/cse/MeetingDetail'));
 export const AnalyticsPage = lazy(() => import('@/pages/rh/Analytics'));

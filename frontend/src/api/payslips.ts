@@ -40,6 +40,10 @@ export interface PayslipSyntheseNet {
   indemnite_transport_fixe?: number | null;
   acompte_verse?: number | null;
   ijss_subrogees?: number;
+  ijss_brut?: number;
+  ijss_net?: number;
+  ijss_csg_total?: number;
+  ijss_source?: 'theorique' | 'cpam_validated';
   maintien_employeur?: number;
   complement_employeur?: number;
   alertes_maintien?: string[];

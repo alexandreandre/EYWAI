@@ -302,6 +302,7 @@ export function prefetchRoute(queryClient: QueryClient, path: string, companyId?
     '/leaves': () => import('@/pages/rh/Absences'),
     '/suivi-contingent-hs': () => import('@/pages/rh/SuiviContingentHs'),
     '/suivi-modulation': () => import('@/pages/rh/SuiviModulation'),
+    '/suivi-cet': () => import('@/pages/rh/SuiviCet'),
     '/leave-requests': () => import('@/pages/rh/manager/LeaveRequests'),
     '/planning': () => {
       if (companyId) {

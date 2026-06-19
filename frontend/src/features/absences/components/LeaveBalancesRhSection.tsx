@@ -228,6 +228,7 @@ export function LeaveBalancesRhSection() {
                 <TableHead className="text-right">CP N</TableHead>
                 <TableHead className="text-right">CP total</TableHead>
                 <TableHead className="text-right">CP anc.</TableHead>
+                <TableHead className="text-right">Frac.</TableHead>
                 <TableHead className="text-right">RTT</TableHead>
                 <TableHead />
               </TableRow>
@@ -245,6 +246,9 @@ export function LeaveBalancesRhSection() {
                   </TableCell>
                   <TableCell className="text-right text-muted-foreground">
                     {(emp.cp_seniority_days ?? 0).toFixed(1)}
+                  </TableCell>
+                  <TableCell className="text-right text-muted-foreground">
+                    {(emp.fractionnement_days ?? 0).toFixed(1)}
                   </TableCell>
                   <TableCell className="text-right">{emp.rtt_remaining.toFixed(1)}</TableCell>
                   <TableCell className="text-right">
