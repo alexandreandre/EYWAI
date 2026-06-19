@@ -22,6 +22,15 @@ class ModulationSettingsResponse(BaseModel):
     pay_smoothed: bool = True
     weekly_cap_hours: float = 44.0
     theoretical_annual_hours: Optional[float] = None
+    hour_account_enabled: bool = False
+    hs_franchise_hours_per_period: Optional[float] = None
+    hs_franchise_period: Literal["month", "pay_period"] = "month"
+    max_account_balance_hours: Optional[float] = None
+    account_credit_source: Literal["overtime_only", "surplus_over_modulated"] = (
+        "overtime_only"
+    )
+    recovery_absence_enabled: bool = True
+    recovery_debit_timing: Literal["on_validation", "on_payroll"] = "on_validation"
 
 
 class ModulationSettingsUpdate(BaseModel):
@@ -36,6 +45,15 @@ class ModulationSettingsUpdate(BaseModel):
     pay_smoothed: Optional[bool] = None
     weekly_cap_hours: Optional[float] = Field(None, gt=0, le=48)
     theoretical_annual_hours: Optional[float] = Field(None, ge=0)
+    hour_account_enabled: Optional[bool] = None
+    hs_franchise_hours_per_period: Optional[float] = Field(None, ge=0, le=500)
+    hs_franchise_period: Optional[Literal["month", "pay_period"]] = None
+    max_account_balance_hours: Optional[float] = Field(None, ge=0, le=2000)
+    account_credit_source: Optional[
+        Literal["overtime_only", "surplus_over_modulated"]
+    ] = None
+    recovery_absence_enabled: Optional[bool] = None
+    recovery_debit_timing: Optional[Literal["on_validation", "on_payroll"]] = None
 
 
 class WeekTemplateSchema(BaseModel):
@@ -54,3 +72,42 @@ class ModulationOverviewRow(BaseModel):
     theoretical_hours: float = 0.0
     actual_hours: float = 0.0
     balance_hours: float = 0.0
+    account_balance_hours: float = 0.0
+    period_credited_hours: float = 0.0
+    period_paid_hours: float = 0.0
+
+
+class ModulationBalanceResponse(BaseModel):
+    employee_id: str
+    year: int
+    account_balance_hours: float = 0.0
+    acquired_hours: float = 0.0
+    taken_hours: float = 0.0
+    franchise_remaining_hours: float = 0.0
+
+
+class ModulationMovementSchema(BaseModel):
+    id: str
+    employee_id: str
+    year: int
+    month: Optional[int] = None
+    movement_type: str
+    hours: float
+    status: str
+    source: str
+    reference_id: Optional[str] = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    note: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class OpeningBalanceCreate(BaseModel):
+    hours: float = Field(..., gt=0, le=2000)
+    note: Optional[str] = None
+
+
+class ManualAdjustmentCreate(BaseModel):
+    employee_id: str
+    hours: float = Field(..., ge=-2000, le=2000)
+    note: Optional[str] = None
+    year: Optional[int] = None

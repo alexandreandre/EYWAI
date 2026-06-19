@@ -57,6 +57,9 @@ from app.modules.notifications.api.hr_deadline_reminders_router import (
     router as hr_deadline_reminders_router,
 )
 from app.modules.maintenance_settings.api.router import router as maintenance_settings_router
+from app.modules.prime_anciennete_settings.api.router import (
+    router as prime_anciennete_settings_router,
+)
 from app.modules.jei_settings.api.router import router as jei_settings_router
 from app.modules.work_medals.api.router import (
     router as work_medals_router,
@@ -141,6 +144,7 @@ router.include_router(monthly_inputs_router)
 router.include_router(notifications_router)
 router.include_router(hr_deadline_reminders_router)
 router.include_router(maintenance_settings_router)
+router.include_router(prime_anciennete_settings_router)
 router.include_router(jei_settings_router)
 router.include_router(work_medal_settings_router)
 router.include_router(work_medals_router)

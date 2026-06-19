@@ -133,25 +133,41 @@ Table 'employee_overtime_adjustments': Solde d'ouverture contingent HS par salar
   - employee_id (uuid), year (int), opening_balance_hours (numeric)
 
 ---
-Table 'company_modulation_settings': Paramètres modulation / annualisation.
+Table 'company_modulation_settings': Paramètres modulation / annualisation et compte d'heures.
   - company_id (uuid), enabled (boolean)
   - average_weekly_hours, weekly_high_hours, weekly_low_hours (numeric)
   - high_weeks_per_cycle, low_weeks_per_cycle (int)
+  - hour_account_enabled (boolean), hs_franchise_hours_per_period (numeric)
+  - hs_franchise_period (text: 'month', 'pay_period')
+  - max_account_balance_hours (numeric), recovery_absence_enabled (boolean)
 
 ---
-Table 'employee_modulation_counters': Compteurs modulation par salarié et année.
+Table 'employee_modulation_movements': Grand livre compte modulation (comme CET).
+  - employee_id (uuid), year (int), month (int)
+  - movement_type (text): 'credit_hs', 'debit_recovery', 'debit_payout', 'adjustment', 'opening_balance'
+  - hours (numeric), status (text): 'pending', 'validated', 'applied_payroll', 'cancelled'
+
+---
+Table 'employee_modulation_counters': Cache compteurs modulation par salarié et année.
   - employee_id (uuid), year (int)
   - theoretical_hours, actual_hours, balance_hours (numeric)
+  - account_balance_hours (numeric), period_credited_hours, period_paid_hours (numeric)
 
 ---
 Table 'company_cet_settings': Paramètres compte épargne-temps (CET).
-  - company_id (uuid), cet_enabled (boolean), validation_mode (text: 'auto', 'rh')
+  - company_id (uuid), cet_enabled (boolean)
+  - validation_mode (text): 'auto', 'rh', 'manager', 'manager_then_rh'
+  - allow_deposit_hs, allow_deposit_cp (boolean)
+  - max_cp_days_per_year, max_account_balance_days (numeric, nullable)
+  - cp_unit ('ouvres'|'ouvrables'), cp_debit_timing, hs_debit_timing
 
 ---
-Table 'employee_cet_movements': Mouvements CET (dépôt HS, retrait congé).
+Table 'employee_cet_movements': Mouvements CET (dépôt HS/CP, retrait, ajustement).
   - employee_id (uuid), year (int), month (int)
-  - movement_type (text): 'deposit_hs', 'withdraw_rest', 'adjustment'
-  - hours (numeric), status (text): 'pending', 'validated', 'rejected', 'applied_payroll'
+  - movement_type (text): 'deposit_hs', 'deposit_cp', 'withdraw_rest', 'adjustment'
+  - hours (numeric), days (numeric), status (text): 'pending', 'validated', 'rejected', 'applied_payroll'
+  - workflow_step (text): 'pending', 'pending_manager', 'approved_manager', 'rejected_manager', 'approved_rh', 'rejected_rh'
+  - manager_id, manager_approved_at, manager_rejected_at
 
 ---
 Table 'participation_campaigns': Campagnes bulletin d'option participation/intéressement.
@@ -385,17 +401,18 @@ Table 'company_overtime_contingent_settings': Contingent HS entreprise.
 Table 'employee_overtime_adjustments': Solde ouverture contingent HS.
   - employee_id, year, opening_balance_hours
 
-Table 'company_modulation_settings': Modulation temps de travail.
+Table 'company_modulation_settings': Modulation temps de travail et compte d'heures.
   - company_id, enabled, average_weekly_hours, weekly_high_hours, weekly_low_hours
+  - hour_account_enabled, hs_franchise_hours_per_period, recovery_absence_enabled
 
-Table 'employee_modulation_counters': Solde modulation par salarié.
-  - employee_id, year, balance_hours, theoretical_hours, actual_hours
+Table 'employee_modulation_counters': Cache modulation par salarié (annualisation + compte).
+  - employee_id, year, balance_hours, theoretical_hours, actual_hours, account_balance_hours
 
-Table 'company_cet_settings': Paramètres CET.
-  - company_id, cet_enabled, validation_mode
+Table 'company_cet_settings': Paramètres CET (HS/CP, plafonds, validation manager/RH).
+  - company_id, cet_enabled, validation_mode, allow_deposit_cp, max_cp_days_per_year
 
-Table 'employee_cet_movements': Mouvements CET.
-  - employee_id, year, month, movement_type, hours, status
+Table 'employee_cet_movements': Grand livre CET par salarié.
+  - employee_id, year, month, movement_type, days, hours, status, workflow_step
 
 Table 'participation_campaigns': Campagnes participation/intéressement.
   - company_id, year, status (draft/open/closed), deadline_at

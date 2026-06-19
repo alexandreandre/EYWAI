@@ -5,30 +5,16 @@ logger = get_logger("modules.payroll.engine.calcul_conges")
 
 from .contexte import ContextePaie
 from . import legal_constants as lc
+from .iccp_arbitrage import (
+    arbitrer_iccp_complet,
+    calculer_maintien_horaire,
+    lire_parametres_conges,
+)
+from .reference_remuneration import lire_brut_reference_depuis_cumuls
 from typing import Dict, Any
 
 
-def calculer_indemnite_conges(
-    contexte: ContextePaie, nombre_jours_conges: int, salaire_horaire_base: float
-) -> Dict[str, Any]:
-    """
-    Calcule l'indemnité de congés payés en comparant les deux méthodes
-    et en retournant la plus avantageuse pour le salarié, en tenant compte des HS structurelles.
-    """
-    log_payroll_debug(logger, "INFO: Démarrage du calcul de l'indemnité de congés payés...")
-
-    # --- Calcul des heures et montants pour le maintien de salaire ---
-    heures_normales_par_jour = lc.DUREE_LEGALE_HEBDO / 5
-    heures_supp_structurelles_par_jour = (
-        contexte.duree_hebdo_contrat - lc.DUREE_LEGALE_HEBDO
-    ) / 5
-
-    total_heures_normales_absence = nombre_jours_conges * heures_normales_par_jour
-    total_heures_supp_absence = nombre_jours_conges * heures_supp_structurelles_par_jour
-    total_heures_absence_global = (
-        total_heures_normales_absence + total_heures_supp_absence
-    )
-
+def _lire_majoration_hs(contexte: ContextePaie) -> float:
     majoration_hs = None
     if hasattr(contexte, "get_bareme_value"):
         majoration_hs = contexte.get_bareme_value(
@@ -48,59 +34,64 @@ def calculer_indemnite_conges(
             .get("taux")
         )
     if majoration_hs is None:
-        majoration_hs = 0.0
-    else:
-        majoration_hs = float(majoration_hs)
-    salaire_horaire_majore = salaire_horaire_base * (1 + majoration_hs)
+        return 0.0
+    return float(majoration_hs)
 
-    # Calcul des montants sans arrondi initial
-    indemnite_maintien_part_normale_raw = (
-        total_heures_normales_absence * salaire_horaire_base
-    )
-    indemnite_maintien_part_hs_raw = total_heures_supp_absence * salaire_horaire_majore
-    indemnite_maintien_total_raw = (
-        indemnite_maintien_part_normale_raw + indemnite_maintien_part_hs_raw
+
+def calculer_indemnite_conges(
+    contexte: ContextePaie, nombre_jours_conges: int, salaire_horaire_base: float
+) -> Dict[str, Any]:
+    """
+    Calcule l'indemnité de congés payés en comparant les deux méthodes
+    et en retournant la plus avantageuse pour le salarié, en tenant compte des HS structurelles.
+    """
+    log_payroll_debug(logger, "INFO: Démarrage du calcul de l'indemnité de congés payés...")
+
+    params = lire_parametres_conges(getattr(contexte, "baremes", None))
+    heures_normales_par_jour = lc.DUREE_LEGALE_HEBDO / 5
+    heures_supp_structurelles_par_jour = (
+        contexte.duree_hebdo_contrat - lc.DUREE_LEGALE_HEBDO
+    ) / 5
+    majoration_hs = _lire_majoration_hs(contexte)
+
+    maintien = calculer_maintien_horaire(
+        float(nombre_jours_conges),
+        salaire_horaire_base,
+        heures_normales_par_jour=heures_normales_par_jour,
+        heures_supp_par_jour=heures_supp_structurelles_par_jour,
+        majoration_hs=majoration_hs,
     )
 
-    # Correction de l'arrondi
-    indemnite_maintien_total = round(indemnite_maintien_total_raw, 2)
-    indemnite_maintien_part_hs = round(indemnite_maintien_part_hs_raw, 2)
-    indemnite_maintien_part_normale = (
-        indemnite_maintien_total - indemnite_maintien_part_hs
+    brut_reference_n_1 = lire_brut_reference_depuis_cumuls(contexte.cumuls)
+    resultat = arbitrer_iccp_complet(
+        float(nombre_jours_conges),
+        maintien_horaire=maintien,
+        base_reference_dixieme=brut_reference_n_1,
+        taux_dixieme=params["taux_dixieme"],
+        jours_reference_dixieme=params["jours_reference_dixieme"],
     )
 
-    # --- Méthode 2 : Règle du 1/10ème ---
-    brut_reference_n_1 = contexte.cumuls.get("cumuls", {}).get(
-        "brut_reference_n_1", 0.0
-    )
-    valeur_un_jour_conge_10eme = (
-        (brut_reference_n_1 * 0.10) / 30 if brut_reference_n_1 > 0 else 0
-    )
-    indemnite_10eme = round(nombre_jours_conges * valeur_un_jour_conge_10eme, 2)
-
-    # --- Arbitrage (inchangé) ---
-    indemnite_finale = max(indemnite_maintien_total, indemnite_10eme)
     methode_retenue = (
-        "1/10ème" if indemnite_finale > indemnite_maintien_total else "Maintien"
+        "1/10ème" if resultat.methode_retenue == "dixieme" else "Maintien"
     )
 
     log_payroll_debug(logger, '\n--- Arbitrage Indemnité Congés Payés ---')
-    log_payroll_debug(logger, f"\tMéthode 'Maintien de salaire'  : {indemnite_maintien_total:10.2f} €")
-    log_payroll_debug(logger, f"\tMéthode 'Règle du 1/10ème'     : {indemnite_10eme:10.2f} €")
+    log_payroll_debug(logger, f"\tMéthode 'Maintien de salaire'  : {resultat.indemnite_maintien:10.2f} €")
+    log_payroll_debug(logger, f"\tMéthode 'Règle du 1/10ème'     : {resultat.indemnite_dixieme:10.2f} €")
     log_payroll_debug(logger, '\t--------------------------------------------')
-    log_payroll_debug(logger, f'\tMontant retenu (plus avantageux) : {indemnite_finale:10.2f} € (Méthode: {methode_retenue})')
+    log_payroll_debug(logger, f'\tMontant retenu (plus avantageux) : {resultat.montant_final:10.2f} € (Méthode: {methode_retenue})')
     log_payroll_debug(logger, '----------------------------------------\n')
 
-    # --- Le dictionnaire de retour est enrichi avec le détail des heures ---
+    total_heures_absence_global = maintien.heures_normales + maintien.heures_hs
+
     return {
-        "montant_retenue": indemnite_maintien_total,
-        "montant_indemnite": indemnite_finale,
-        "indemnite_maintien_base": indemnite_maintien_part_normale,
-        "indemnite_maintien_hs": indemnite_maintien_part_hs,
+        "montant_retenue": resultat.indemnite_maintien,
+        "montant_indemnite": resultat.montant_final,
+        "indemnite_maintien_base": maintien.part_normale,
+        "indemnite_maintien_hs": maintien.part_hs,
         "nombre_jours": nombre_jours_conges,
         "methode_retenue": methode_retenue,
-        # NOUVEAU: On ajoute le détail des heures pour l'affichage
         "total_heures_absence": total_heures_absence_global,
-        "heures_base": total_heures_normales_absence,
-        "heures_hs": total_heures_supp_absence,
+        "heures_base": maintien.heures_normales,
+        "heures_hs": maintien.heures_hs,
     }

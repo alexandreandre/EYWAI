@@ -226,13 +226,27 @@ def compute_conges_section(
         if details_conges
         else "maintien"
     )
+    methode_labels = {
+        "maintien": "maintien de salaire",
+        "dixieme": "1/10e",
+        "l1243_8": "10 % contrat (CDD)",
+    }
     cp_acquis = details_conges.get("conges_acquis") if details_conges else None
     cp_pris = details_conges.get("conges_pris") if details_conges else None
+    ind_maintien = details_conges.get("indemnite_maintien") if details_conges else None
+    ind_dixieme = details_conges.get("indemnite_dixieme") if details_conges else None
 
     detail_conges_text = f"{jours_restants:.2f} jours restants"
     if cp_acquis is not None and cp_pris is not None:
         detail_conges_text += f" ({cp_acquis:.0f} acquis − {cp_pris:.0f} pris)"
-    detail_conges_text += f" — Méthode : {methode}"
+    detail_conges_text += f" — Méthode : {methode_labels.get(methode, methode)}"
+    if ind_maintien is not None and ind_dixieme is not None:
+        detail_conges_text += (
+            f" (maintien {ind_maintien:.2f} € / 1/10e {ind_dixieme:.2f} €)"
+        )
+    periode_ref = details_conges.get("periode_reference") if details_conges else None
+    if periode_ref:
+        detail_conges_text += f" — Réf. {periode_ref}"
     if jours_restants == 0 and montant_conges == 0:
         detail_conges_text = _NEANT
 

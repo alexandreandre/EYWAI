@@ -49,3 +49,28 @@ class TestPrimeCalculMetallurgie:
         assert result is not None
         _, montant, _ = result
         assert montant == 90.0
+
+    def test_non_cadre_non_exclu_par_regle_cadre(self):
+        regles = {
+            "bareme": [],
+            "base_de_calcul": {
+                "methode": "metallurgie_prime_anciennete",
+                "valeur": 5.7,
+            },
+            "taux_par_classe": {"4": 0.0195},
+            "eligibilite": {"min_annees": 3, "statuts_exclus": ["Cadre"]},
+        }
+        contrat = {
+            "remuneration": {
+                "classification_conventionnelle": {"classe_emploi": 4},
+            }
+        }
+        result = calculer_montant_prime_anciennete(
+            regles_prime=regles,
+            contrat=contrat,
+            anciennete_annees=7.0,
+            salaire_base_mensuel=2000.0,
+            minima_applicables=[],
+            statut="Non-cadre",
+        )
+        assert result is not None

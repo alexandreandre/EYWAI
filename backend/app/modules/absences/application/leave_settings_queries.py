@@ -21,7 +21,11 @@ from app.modules.absences.application.cp_seniority_queries import (
 )
 from app.modules.absences.application.queries import _cp_balance_extras
 from app.modules.absences.infrastructure.cp_seniority_repository import (
+    get_cp_seniority_grant,
     get_cp_seniority_settings,
+)
+from app.modules.absences.infrastructure.fractionnement_repository import (
+    get_fractionnement_grant,
 )
 from app.modules.absences.infrastructure.leave_settings_repository import (
     get_adjustments_by_employees_year,
@@ -167,6 +171,8 @@ def get_leave_balances_overview(
         cp = soldes["conges_payes"]
         n1 = soldes.get("conges_payes_n1") or {}
         n = soldes.get("conges_payes_n") or {}
+        cp_grant = get_cp_seniority_grant(eid, ref_year)
+        frac_grant = get_fractionnement_grant(eid, ref_year)
         items.append(
             EmployeeLeaveBalanceOverviewItem(
                 employee_id=eid,
@@ -178,6 +184,10 @@ def get_leave_balances_overview(
                 cp_total_remaining=max(0.0, float(cp.get("solde", 0))),
                 cp_legal_days=float(soldes.get("cp_legal_days") or 0),
                 cp_seniority_days=float(soldes.get("cp_seniority_days") or 0),
+                fractionnement_days=float(
+                    (frac_grant or {}).get("days_granted") or 0
+                ),
+                cp_seniority_status=(cp_grant or {}).get("status"),
                 rtt_remaining=max(0.0, float(soldes["rtt"].get("solde", 0))),
                 adjustment_note=adj.note if adj else None,
             )

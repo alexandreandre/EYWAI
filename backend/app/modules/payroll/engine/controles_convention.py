@@ -193,6 +193,120 @@ def controle_convention_collective(contexte, salaire_brut: float) -> List[Dict[s
     return alertes
 
 
+def controle_prime_anciennete(contexte) -> List[Dict[str, Any]]:
+    """Alertes non bloquantes liées à la prime d'ancienneté CCN."""
+    from app.modules.collective_agreements.rules.prime_calcul import (
+        check_eligibilite_prime_anciennete,
+        compute_anciennete_annees,
+        resolve_prime_anciennete_config,
+    )
+
+    cc = (
+        contexte.contrat.get("remuneration", {}).get("convention_collective", {}) or {}
+    )
+    idcc = str(cc.get("idcc") or "").strip()
+    if not idcc:
+        return []
+
+    regles_cc = contexte.baremes.get("conventions_collectives", {}).get(
+        f"idcc_{idcc}", {}
+    )
+    if not regles_cc and idcc.isdigit():
+        for variant in (idcc.zfill(4), idcc.lstrip("0") or "0"):
+            regles_cc = contexte.baremes.get("conventions_collectives", {}).get(
+                f"idcc_{variant}", {}
+            )
+            if regles_cc:
+                break
+
+    regles_prime = regles_cc.get("prime_anciennete") or {}
+    if not regles_prime:
+        return []
+
+    date_entree = contexte.date_entree
+    if not date_entree:
+        return []
+
+    from datetime import date as date_cls
+
+    ref = getattr(contexte, "date_fin_periode", None) or date_cls.today()
+    resolved = resolve_prime_anciennete_config(regles_prime, contexte.entreprise)
+    anciennete = compute_anciennete_annees(date_entree, ref, mode="floor")
+    eligible, motif = check_eligibilite_prime_anciennete(
+        regles_prime=regles_prime,
+        contrat=contexte.contrat,
+        anciennete_annees=anciennete,
+        statut=contexte.statut_salarie,
+        min_annees_override=resolved.get("min_annees_override"),
+    )
+
+    alertes: List[Dict[str, Any]] = []
+    if not eligible:
+        from app.modules.collective_agreements.rules.prime_calcul import (
+            _normalize_statut_label,
+        )
+
+        statuts_exclus = (regles_prime.get("eligibilite") or {}).get(
+            "statuts_exclus"
+        ) or []
+        statut_n = _normalize_statut_label(contexte.statut_salarie or "")
+        for exclu in statuts_exclus:
+            exclu_n = _normalize_statut_label(str(exclu))
+            if exclu_n == "cadre" and statut_n in ("cadre", "cadres"):
+                alertes.append(
+                    _alert(
+                        code="prime_anciennete_non_applicable_cadre",
+                        message=(
+                            "Prime d'ancienneté non applicable : statut cadre "
+                            "exclu par la convention collective."
+                        ),
+                    )
+                )
+                break
+        return alertes
+
+    regle_base = regles_prime.get("base_de_calcul") or {}
+    methode = regle_base.get("methode")
+    taux_par_classe = regles_prime.get("taux_par_classe") or {}
+    needs_vp = methode in ("metallurgie_prime_anciennete",) or (
+        methode == "valeur_du_point" and taux_par_classe
+    )
+
+    if needs_vp and resolved.get("valeur_point") is None:
+        cp = resolved.get("code_postal") or code_postal_from_entreprise(
+            contexte.entreprise
+        )
+        alertes.append(
+            _alert(
+                code="prime_anciennete_vp_zone_introuvable",
+                message=(
+                    f"Valeur du point prime d'ancienneté introuvable pour le "
+                    f"code postal {cp or 'inconnu'}."
+                ),
+            )
+        )
+
+    classification = (
+        contexte.contrat.get("remuneration", {}).get("classification_conventionnelle")
+        or {}
+    )
+    has_classe = any(
+        classification.get(k) is not None for k in ("classe_emploi", "classe", "coefficient")
+    )
+    if not has_classe:
+        alertes.append(
+            _alert(
+                code="prime_anciennete_classification_manquante",
+                message=(
+                    "Prime d'ancienneté : classification conventionnelle "
+                    "(classe) manquante sur la fiche salarié."
+                ),
+            )
+        )
+
+    return alertes
+
+
 def controle_net_superieur_brut(
     salaire_brut: float,
     net_a_payer: float,

@@ -35,6 +35,10 @@ from app.modules.schedules.schemas.persist import (
     PersistTimesheetRequest,
     PersistTimesheetResponse,
 )
+from app.modules.schedules.schemas.timesheet_import import (
+    TimesheetImportCommitRequest,
+    TimesheetImportProfileUpdate,
+)
 from app.modules.users.schemas.responses import User
 
 
@@ -393,6 +397,17 @@ async def assisted_fill_extract_timesheet_job(
         pages_done=int(progress_raw.get("pages_done") or 0),
         current_page=int(progress_raw.get("current_page") or 0),
     )
+    if progress_raw.get("batch_id"):
+        progress = progress.model_copy(
+            update={"batch_id": str(progress_raw.get("batch_id"))}
+        )
+    if progress_raw.get("files_total"):
+        progress = progress.model_copy(
+            update={
+                "files_total": int(progress_raw.get("files_total") or 0),
+                "files_done": int(progress_raw.get("files_done") or 0),
+            }
+        )
 
     proposal = None
     if job.get("status") == "completed" and job.get("proposal_json"):
@@ -431,20 +446,281 @@ async def assisted_fill_cancel_extract_timesheet_job(
 )
 def assisted_fill_persist_timesheet(
     payload: PersistTimesheetRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
 ):
     """Enregistre en batch les jours proposés (merge prevu/réel par employé)."""
     from app.modules.schedules.application.persist_timesheet import (
-        run_persist_timesheet_batch,
+        run_persist_with_bulk_commit,
+        validate_persist_payload,
+    )
+    from app.modules.schedules.application.timesheet_import.commit_service import (
+        begin_commit_batch,
+        run_commit_batch,
+    )
+    from app.modules.schedules.application.timesheet_import.job_runner import (
+        BackgroundTasksRunner,
     )
 
-    _ = current_user
+    company_id = str(current_user.active_company_id)
     try:
-        return run_persist_timesheet_batch(payload)
+        validate_persist_payload(payload)
+        if payload.batch_id:
+            commit_req = TimesheetImportCommitRequest(
+                allow_partial=payload.allow_partial,
+                recalculate_payroll=payload.recalculate_payroll,
+                employee_ids=[e.employee_id for e in payload.employees] or None,
+            )
+            if begin_commit_batch(
+                payload.batch_id,
+                company_id=company_id,
+                request=commit_req,
+            ):
+                runner = BackgroundTasksRunner(background_tasks)
+                runner.enqueue(
+                    run_commit_batch,
+                    payload.batch_id,
+                    company_id=company_id,
+                    request=commit_req,
+                    user_id=str(current_user.id),
+                )
+            return PersistTimesheetResponse(
+                year=payload.year,
+                month=payload.month,
+                employees_processed=len(payload.employees),
+                total_days_written=0,
+                results=[],
+                errors=[],
+            )
+        return run_persist_with_bulk_commit(
+            payload,
+            company_id=company_id,
+            user_id=str(current_user.id),
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except ScheduleAppError as e:
         _handle_schedule_error(e)
+
+
+# ----- Import pointages staging (batch/items) -----
+
+
+@router_rh.post(
+    "/timesheet-import/detect-columns",
+    response_model=None,
+)
+async def timesheet_import_detect_columns(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Preview colonnes CSV/XLSX sans persister."""
+    from app.modules.schedules.application.timesheet_import.parse_service import (
+        detect_columns,
+    )
+    from app.modules.schedules.schemas.timesheet_import import ColumnDetectionResponse
+
+    _ = current_user
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Le fichier est vide.")
+    result = detect_columns(content, file.filename or "import.csv")
+    return ColumnDetectionResponse.model_validate(result)
+
+
+@router_rh.post("/timesheet-import/parse")
+async def timesheet_import_parse(
+    file: UploadFile = File(...),
+    year: int = Form(...),
+    month: int = Form(...),
+    employees: str = Form("[]"),
+    column_mapping: str = Form("{}"),
+    profile_name: str | None = Form(None),
+    current_user: User = Depends(get_current_user),
+):
+    """Parse synchrone CSV/XLSX/PDF déterministe → batch previewed."""
+    from app.modules.schedules.application.timesheet_import.parse_service import (
+        parse_structured_file,
+    )
+    from app.modules.schedules.schemas.ai import RosterEmployee
+    from app.modules.schedules.schemas.timesheet_import import TimesheetImportParseResponse
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Le fichier est vide.")
+    try:
+        raw_roster = json.loads(employees or "[]")
+        roster = [RosterEmployee(**item) for item in raw_roster]
+        mapping = json.loads(column_mapping or "{}")
+    except (json.JSONDecodeError, TypeError, ValueError):
+        roster = []
+        mapping = {}
+
+    try:
+        result = parse_structured_file(
+            company_id=str(current_user.active_company_id),
+            user_id=str(current_user.id),
+            content=content,
+            filename=file.filename or "import.csv",
+            year=year,
+            month=month,
+            roster=roster,
+            column_mapping=mapping or None,
+            profile_name=profile_name,
+        )
+        return TimesheetImportParseResponse.model_validate(result)
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+
+@router_rh.get("/timesheet-import/batches/{batch_id}")
+async def timesheet_import_get_batch(
+    batch_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    from app.modules.schedules.application.timesheet_import.parse_service import (
+        get_batch_response,
+    )
+    from app.modules.schedules.schemas.timesheet_import import TimesheetImportBatchResponse
+
+    try:
+        data = get_batch_response(batch_id, company_id=str(current_user.active_company_id))
+        return TimesheetImportBatchResponse.model_validate(data)
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+
+@router_rh.post("/timesheet-import/batches/{batch_id}/commit")
+async def timesheet_import_commit_batch(
+    batch_id: str,
+    background_tasks: BackgroundTasks,
+    body: TimesheetImportCommitRequest | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    from app.modules.schedules.application.timesheet_import.commit_service import (
+        begin_commit_batch,
+        run_commit_batch,
+    )
+    from app.modules.schedules.application.timesheet_import.job_runner import (
+        BackgroundTasksRunner,
+    )
+    from app.modules.schedules.schemas.timesheet_import import (
+        TimesheetImportCommitRequest,
+        TimesheetImportCommitStartResponse,
+    )
+
+    company_id = str(current_user.active_company_id)
+    request = body or TimesheetImportCommitRequest()
+    try:
+        if not begin_commit_batch(batch_id, company_id=company_id, request=request):
+            return TimesheetImportCommitStartResponse(batch_id=batch_id, status="committing")
+        runner = BackgroundTasksRunner(background_tasks)
+        runner.enqueue(
+            run_commit_batch,
+            batch_id,
+            company_id=company_id,
+            request=request,
+            user_id=str(current_user.id),
+        )
+        return TimesheetImportCommitStartResponse(batch_id=batch_id, status="committing")
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+
+@router_rh.post("/timesheet-import/extract-timesheet/start-batch")
+async def timesheet_import_start_batch(
+    background_tasks: BackgroundTasks,
+    files: list[UploadFile] = File(...),
+    year: int = Form(...),
+    month: int = Form(...),
+    employees: str = Form("[]"),
+    single_employee: bool = Form(False),
+    document_scope: str = Form("auto"),
+    current_user: User = Depends(get_current_user),
+):
+    """Lance l'extraction de plusieurs relevés en un job fusionné."""
+    from app.modules.schedules.application.timesheet_import.job_runner import (
+        BackgroundTasksRunner,
+    )
+    from app.modules.schedules.application.timesheet_import_service import (
+        create_import_job,
+        run_multi_timesheet_extraction_job,
+    )
+    from app.modules.schedules.schemas.timesheet_import import (
+        TimesheetImportMultiStartResponse,
+    )
+
+    if not files:
+        raise HTTPException(status_code=400, detail="Aucun fichier fourni.")
+    contents: list[tuple[str, bytes]] = []
+    for f in files:
+        data = await f.read()
+        if data:
+            contents.append((f.filename or "document.pdf", data))
+
+    request_json = {
+        "year": year,
+        "month": month,
+        "employees": json.loads(employees or "[]"),
+        "single_employee": single_employee,
+        "document_scope": document_scope,
+        "multi_file": True,
+    }
+    first_name, first_content = contents[0]
+    try:
+        job = create_import_job(
+            company_id=str(current_user.active_company_id),
+            user_id=str(current_user.id),
+            filename=f"{len(contents)} fichiers",
+            file_content=first_content,
+            request_json=request_json,
+        )
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+    job_id = str(job["id"])
+    runner = BackgroundTasksRunner(background_tasks)
+    runner.enqueue(run_multi_timesheet_extraction_job, job_id, contents)
+
+    return TimesheetImportMultiStartResponse(
+        job_id=job_id,
+        batch_id=job_id,
+        status="extracting",
+        file_count=len(contents),
+    )
+
+
+@router_rh.get("/timesheet-import/profiles")
+async def timesheet_import_list_profiles(
+    current_user: User = Depends(get_current_user),
+):
+    from app.modules.schedules.application.timesheet_import.parse_service import (
+        list_import_profiles,
+    )
+    from app.modules.schedules.schemas.timesheet_import import TimesheetImportProfile
+
+    rows = list_import_profiles(str(current_user.active_company_id))
+    return [TimesheetImportProfile.model_validate(r) for r in rows]
+
+
+@router_rh.put("/timesheet-import/profiles")
+async def timesheet_import_save_profile(
+    payload: TimesheetImportProfileUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    from app.modules.schedules.application.timesheet_import.parse_service import (
+        save_import_profile,
+    )
+    from app.modules.schedules.schemas.timesheet_import import (
+        TimesheetImportProfile,
+        TimesheetImportProfileUpdate,
+    )
+
+    row = save_import_profile(
+        str(current_user.active_company_id),
+        payload.model_dump(),
+    )
+    return TimesheetImportProfile.model_validate(row)
 
 
 __all__ = ["router", "router_me", "router_rh"]

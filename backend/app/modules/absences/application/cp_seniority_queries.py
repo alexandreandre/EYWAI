@@ -9,9 +9,12 @@ from app.core.database import supabase
 from app.modules.absences.domain.cp_seniority import (
     CpSenioritySettings,
     EmployeeCpSeniorityContext,
-    PLASTURGIE_0292_RULES,
     compute_cp_seniority_grant,
     resolve_forfait_annual_days,
+)
+from app.modules.absences.domain.cp_seniority_resolver import (
+    recommended_preset_for_idcc,
+    resolve_barème_from_cc,
 )
 from app.modules.absences.domain.leave_policy import LeavePolicySettings
 from app.modules.absences.infrastructure import cp_seniority_repository as repo
@@ -46,6 +49,7 @@ def _settings_to_api(company_id: str, settings: CpSenioritySettings) -> dict[str
     row = repo.get_cp_seniority_settings_row(company_id)
     configured = row is not None
     recommended = None
+    co_rows: list[dict[str, Any]] = []
     try:
         co_resp = (
             supabase.table("companies")
@@ -57,10 +61,21 @@ def _settings_to_api(company_id: str, settings: CpSenioritySettings) -> dict[str
         co_rows = co_resp.data or []
         if co_rows:
             idcc = resolve_employee_idcc({}, co_rows[0])
-            if idcc in ("0292", "1297") and not configured:
-                recommended = "plasturgie_idcc_0292"
+            if not configured:
+                recommended = recommended_preset_for_idcc(idcc)
     except Exception:
         pass
+    rules_source = "custom"
+    if settings.preset != "custom":
+        rules_source = f"preset_{settings.preset}"
+    elif configured:
+        try:
+            idcc = resolve_employee_idcc({}, (co_rows or [{}])[0] if co_rows else {})
+            _, src = resolve_barème_from_cc(idcc)
+            if src:
+                rules_source = src
+        except Exception:
+            pass
     return {
         "company_id": company_id,
         "enabled": settings.enabled,
@@ -74,6 +89,7 @@ def _settings_to_api(company_id: str, settings: CpSenioritySettings) -> dict[str
         "forfait_reduction_enabled": settings.forfait_reduction_enabled,
         "company_agreement_overrides": settings.company_agreement_overrides,
         "recommended_preset": recommended,
+        "rules_source": rules_source,
     }
 
 
@@ -128,8 +144,8 @@ def load_employee_cp_seniority_context(employee_id: str) -> EmployeeCpSeniorityC
     resp = (
         supabase.table("employees")
         .select(
-            "hire_date, date_naissance, statut, "
-            "prior_service_months, specificites_paie"
+            "hire_date, date_naissance, statut, prior_service_months, "
+            "specificites_paie, seniority_reference_date, is_cadre_dirigeant"
         )
         .eq("id", employee_id)
         .limit(1)
@@ -180,8 +196,8 @@ def list_cp_seniority_preview(
         supabase.table("employees")
         .select(
             "id, first_name, last_name, statut, hire_date, date_naissance, "
-            "prior_service_months, specificites_paie, "
-            "employment_status"
+            "prior_service_months, specificites_paie, seniority_reference_date, "
+            "is_cadre_dirigeant, employment_status"
         )
         .eq("company_id", company_id)
         .in_("employment_status", ["actif", "active", "en_onboarding"])
@@ -203,10 +219,16 @@ def list_cp_seniority_preview(
                 "category": grant.category,
                 "seniority_years_at_ref": grant.seniority_years_at_ref,
                 "days_granted": grant.days_granted,
+                "days_before_prorata": grant.days_before_prorata,
+                "prorata_applied": grant.prorata_applied,
                 "forfait_days_reduction": grant.forfait_days_reduction,
                 "forfait_annual_days_adjusted": result["forfait_annual_days_adjusted"],
                 "reference_date": grant.reference_date.isoformat(),
                 "tier_matched": grant.tier_matched,
+                "warnings": list(grant.warnings),
+                "status": (
+                    repo.get_cp_seniority_grant(str(emp["id"]), grant_year) or {}
+                ).get("status", "computed"),
             }
         )
     return rows

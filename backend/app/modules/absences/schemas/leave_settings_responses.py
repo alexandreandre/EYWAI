@@ -50,6 +50,8 @@ class EmployeeLeaveBalanceOverviewItem(BaseModel):
     cp_total_remaining: float
     cp_legal_days: float = 0.0
     cp_seniority_days: float = 0.0
+    fractionnement_days: float = 0.0
+    cp_seniority_status: Optional[str] = None
     rtt_remaining: float
     adjustment_note: Optional[str] = None
 

@@ -34,8 +34,8 @@ from app.modules.absences.infrastructure.repository import absence_repository
 from app.modules.maintenance_settings.application.queries import get_maintenance_settings
 from app.modules.absences.application.queries import (
     build_historique_arrets_annee,
+    compute_subrogation_for_absence,
     resolve_nombre_enfants_employee,
-    _infer_subrogation_active,
 )
 
 
@@ -82,6 +82,71 @@ def _trace_attestation_salaire_ijss_after_generation(
     except Exception as e:
         logger.warning(f'⚠️ trace generated_documents attestation IJSS: {e}')
         logger.exception("Exception")
+
+
+def _hours_for_modulation_absence(employee_id: str, selected_days: list) -> float:
+    resp = (
+        supabase.table("employees")
+        .select("duree_hebdomadaire")
+        .eq("id", employee_id)
+        .limit(1)
+        .execute()
+    )
+    rows = resp.data or []
+    duree = float(rows[0].get("duree_hebdomadaire") or 35) if rows else 35.0
+    daily = duree / 5.0
+    return round(len(selected_days) * daily, 2)
+
+
+def _apply_modulation_recovery_on_validation(
+    data: dict[str, Any], request_id: str
+) -> None:
+    """Débite le compte modulation lors de la validation d'une récup."""
+    from app.modules.modulation.application.hour_account_commands import (
+        create_debit_recovery_movement,
+    )
+    from app.modules.modulation.application.hour_account_queries import (
+        get_employee_account_balance,
+    )
+    from app.modules.modulation.domain.hour_account_rules import can_debit_recovery
+    from app.modules.modulation.infrastructure import repository as modulation_repo
+
+    company_id = str(data.get("company_id") or "")
+    employee_id = str(data["employee_id"])
+    settings = modulation_repo.get_modulation_settings(company_id)
+    if not settings.hour_account_enabled or not settings.recovery_absence_enabled:
+        raise ValueError(
+            "La récupération sur compte modulation n'est pas activée pour cette entreprise."
+        )
+    days = data.get("selected_days") or []
+    hours = _hours_for_modulation_absence(employee_id, days)
+    if hours <= 0:
+        raise ValueError("Aucun jour sélectionné pour la récupération modulation.")
+
+    balance = get_employee_account_balance(company_id, employee_id)
+    if not can_debit_recovery(balance.account_balance_hours, hours):
+        raise ValueError(
+            f"Solde modulation insuffisant ({balance.account_balance_hours:.2f} h "
+            f"disponibles pour {hours:.2f} h demandées)."
+        )
+
+    if settings.recovery_debit_timing != "on_validation":
+        return
+
+    first_day = days[0]
+    if isinstance(first_day, str):
+        ref = date.fromisoformat(first_day[:10])
+    else:
+        ref = first_day
+    create_debit_recovery_movement(
+        company_id,
+        employee_id,
+        ref.year,
+        ref.month,
+        hours,
+        reference_id=request_id,
+        note="Récupération modulation (absence validée)",
+    )
 
 
 def create_absence_request(
@@ -198,26 +263,61 @@ def update_absence_request_status(
 
     if subrogation_active is not None:
         update_dict["subrogation_active"] = bool(subrogation_active)
+    elif status == "validated" and req_before.get("arret_type"):
+        emp_res = (
+            supabase.table("employees")
+            .select("*")
+            .eq("id", req_before["employee_id"])
+            .maybe_single()
+            .execute()
+        )
+        employee_row = emp_res.data if emp_res else None
+        if employee_row and req_before.get("subrogation_active") is None:
+            settings_dict = get_maintenance_settings(
+                str(employee_row.get("company_id") or "")
+            ).model_dump(mode="json")
+            resolved_sub = compute_subrogation_for_absence(
+                req_before,
+                employee_row,
+                settings_dict,
+                override=None,
+            )
+            update_dict["subrogation_active"] = resolved_sub
 
     data = absence_repository.update(request_id, update_dict)
     if not data:
         raise LookupError("Demande introuvable après mise à jour.")
 
     if status == "validated":
+        absence_type = data.get("type", "")
+        if absence_type == "recuperation_modulation":
+            _apply_modulation_recovery_on_validation(data, request_id)
         days_to_update = [
             date.fromisoformat(d) if isinstance(d, str) else d
             for d in data["selected_days"]
         ]
-        absence_type = data.get("type", "")
         arret_type = data.get("arret_type")
         settings_dict = get_maintenance_settings(
             str(data.get("company_id") or "")
         ).model_dump(mode="json")
         sub_active = data.get("subrogation_active")
         if sub_active is None and arret_type:
-            sub_active = _infer_subrogation_active(
-                settings_dict, str(arret_type), subrogation_active
+            emp_res = (
+                supabase.table("employees")
+                .select("*")
+                .eq("id", data["employee_id"])
+                .maybe_single()
+                .execute()
             )
+            employee_row = emp_res.data if emp_res else None
+            if employee_row:
+                sub_active = compute_subrogation_for_absence(
+                    data, employee_row, settings_dict, override=subrogation_active
+                )
+                absence_repository.update(
+                    request_id, {"subrogation_active": bool(sub_active)}
+                )
+                data["subrogation_active"] = sub_active
         nombre_enfants = resolve_nombre_enfants_employee(str(data["employee_id"]))
         historique: list[dict[str, Any]] = []
         if absence_type in IJSS_ELIGIBLE_TYPES and days_to_update:

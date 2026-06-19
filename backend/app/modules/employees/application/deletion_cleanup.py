@@ -268,6 +268,7 @@ _LEGACY_EMPLOYEE_DATA_TABLES = (
     "employee_cp_fractionnement_inputs",
     "employee_cp_seniority_grants",
     "employee_modulation_counters",
+    "employee_modulation_movements",
     "employee_overtime_adjustments",
     "repos_compensateur_credits",
     "participation_campaign_advances",

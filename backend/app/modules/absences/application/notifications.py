@@ -14,6 +14,7 @@ ABSENCE_TYPE_LABELS = {
     "rtt": "RTT",
     "sans_solde": "congé sans solde",
     "repos_compensateur": "repos compensateur",
+    "recuperation_modulation": "récupération modulation",
     "evenement_familial": "événement familial",
     "arret_maladie": "arrêt maladie",
     "arret_at": "arrêt accident du travail",

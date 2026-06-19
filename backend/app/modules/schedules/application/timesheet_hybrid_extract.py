@@ -13,6 +13,7 @@ from app.modules.schedules.application.parsers.cegid_weekly import (
     try_parse_cegid_weekly,
 )
 from app.modules.schedules.application.timesheet_extract_config import (
+    timesheet_hybrid_adaptive,
     timesheet_page_concurrency,
     timesheet_page_text_model,
     timesheet_vision_model,
@@ -44,6 +45,7 @@ from app.shared.infrastructure.documents.text_extraction import (
 logger = logging.getLogger(__name__)
 
 _CEGID_FALLBACK_THRESHOLD = 0.6
+_NATIVE_TEXT_MIN_CHARS = 80
 ProgressCallback = Callable[[dict[str, Any]], None]
 
 
@@ -85,28 +87,35 @@ def _extract_single_page_hybrid(
     vision_data: dict[str, Any] | None = None
     text_data: dict[str, Any] | None = None
 
-    if is_llm_configured():
-        vision_result = extract_structured_json_from_image(
-            system_prompt=build_page_system_prompt(
-                year=year, month=month, channel="vision"
-            ),
-            user_prompt=build_page_user_prompt_vision(
-                page_index=page.page_index,
-                pages_total=pages_total,
-                matricule_hint=matricule_hint,
-            ),
-            image_bytes=page.png_bytes,
-            mime_type="image/png",
-            json_schema=PAGE_EXTRACTION_JSON_SCHEMA,
-            schema_name="timesheet_page_vision",
-            model=timesheet_vision_model(),
-            max_tokens=4096,
-        )
-        if vision_result:
-            vision_data = vision_result.data
-            tokens += vision_result.tokens_used
+    ocr_text = (page.ocr_text or "").strip()
+    use_adaptive = timesheet_hybrid_adaptive()
+    rich_native_text = len(ocr_text) >= _NATIVE_TEXT_MIN_CHARS
+    skip_vision = use_adaptive and rich_native_text
+    skip_text_llm = use_adaptive and not ocr_text
 
-        if page.ocr_text and page.ocr_text.strip():
+    if is_llm_configured():
+        if not skip_vision:
+            vision_result = extract_structured_json_from_image(
+                system_prompt=build_page_system_prompt(
+                    year=year, month=month, channel="vision"
+                ),
+                user_prompt=build_page_user_prompt_vision(
+                    page_index=page.page_index,
+                    pages_total=pages_total,
+                    matricule_hint=matricule_hint,
+                ),
+                image_bytes=page.png_bytes,
+                mime_type="image/png",
+                json_schema=PAGE_EXTRACTION_JSON_SCHEMA,
+                schema_name="timesheet_page_vision",
+                model=timesheet_vision_model(),
+                max_tokens=4096,
+            )
+            if vision_result:
+                vision_data = vision_result.data
+                tokens += vision_result.tokens_used
+
+        if ocr_text and not skip_text_llm:
             text_result = extract_structured_json(
                 system_prompt=build_page_system_prompt(
                     year=year, month=month, channel="text"

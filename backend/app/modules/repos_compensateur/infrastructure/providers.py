@@ -38,3 +38,29 @@ def get_bulletins_par_mois_par_employe(
             result[emp_id] = {}
         result[emp_id][m] = ps.get("payslip_data") or {}
     return result
+
+
+def get_payroll_events_par_mois_par_employe(
+    company_id: str, year: int, employee_ids: list[str]
+) -> dict[str, dict[int, dict[str, Any]]]:
+    """Pour chaque employé, { month: payroll_events json } depuis employee_schedules."""
+    if not employee_ids:
+        return {}
+    resp = (
+        supabase.table("employee_schedules")
+        .select("employee_id, month, payroll_events")
+        .eq("company_id", company_id)
+        .eq("year", year)
+        .in_("employee_id", employee_ids)
+        .execute()
+    )
+    result: dict[str, dict[int, dict[str, Any]]] = {}
+    for row in resp.data or []:
+        emp_id = str(row["employee_id"])
+        m = int(row["month"])
+        if emp_id not in result:
+            result[emp_id] = {}
+        pe = row.get("payroll_events")
+        if isinstance(pe, dict):
+            result[emp_id][m] = pe
+    return result

@@ -410,7 +410,7 @@ def _run_post_create_indemnities_and_docs(
     exit_full_data = exit_repo.get_with_employee(
         exit_id,
         company_id,
-        "id, first_name, last_name, hire_date, salaire_de_base, job_title, date_naissance, nir, contract_type, adresse, lieu_naissance, duree_hebdomadaire",
+        "id, first_name, last_name, hire_date, salaire_de_base, job_title, date_naissance, nir, contract_type, company_id, specificites_paie, adresse, lieu_naissance, duree_hebdomadaire",
     )
     if not exit_full_data:
         return

@@ -11,7 +11,7 @@ import calendar
 from jinja2 import Environment, FileSystemLoader
 from weasyprint import HTML
 
-from app.modules.payroll.engine.bulletin import creer_bulletin_final
+from app.modules.payroll.engine.bulletin import creer_bulletin_final, creer_bulletin_sortie
 from app.modules.payroll.engine.calcul_brut import calculer_salaire_brut
 from app.modules.payroll.engine.calcul_cotisations import calculer_cotisations
 from app.modules.payroll.engine.calcul_net import calculer_net_et_impot
@@ -31,11 +31,14 @@ from app.modules.payroll.engine.baremes_loader import (
 )
 from app.modules.payroll.engine.calcul_frais import appliquer_exoneration_note_frais
 from app.modules.payroll.engine.contexte import ContextePaie
+from app.modules.payroll.engine.ijss_bulletin import compute_ijss_csg_lines
 
 from .payslip_run_common import (
     creer_calendrier_etendu,
     definir_periode_de_paie,
     mettre_a_jour_cumuls,
+    prefetch_jours_maintien_prime,
+    resolve_exit_state_for_payslip,
 )
 
 
@@ -80,34 +83,9 @@ def _appliquer_maintien_arret_maladie(
     lignes_csg_ijss: List[Dict[str, Any]] = []
     ijss_imposables: List[Dict[str, Any]] = []
     if subrogation and ijss_theorique > 0:
-        cfg_csg = (contexte.baremes.get("maladie", {}) or {}).get("csg_ijss", {}) or {}
-        taux_deductible = float(cfg_csg.get("taux_deductible", 0.038))
-        taux_non_deductible = float(cfg_csg.get("taux_non_deductible", 0.029))
+        cfg_maladie = (contexte.baremes.get("maladie", {}) or {})
+        lignes_csg_ijss, _, _ = compute_ijss_csg_lines(ijss_theorique, cfg_maladie)
         base = round(ijss_theorique, 2)
-        csg_deductible = round(base * taux_deductible, 2)
-        csg_non_deductible = round(base * taux_non_deductible, 2)
-        if csg_deductible > 0:
-            lignes_csg_ijss.append(
-                {
-                    "libelle": "CSG déductible IJSS",
-                    "base": base,
-                    "taux_salarial": taux_deductible,
-                    "montant_salarial": csg_deductible,
-                    "taux_patronal": 0.0,
-                    "montant_patronal": 0.0,
-                }
-            )
-        if csg_non_deductible > 0:
-            lignes_csg_ijss.append(
-                {
-                    "libelle": "CSG/CRDS IJSS non déductible",
-                    "base": base,
-                    "taux_salarial": taux_non_deductible,
-                    "montant_salarial": csg_non_deductible,
-                    "taux_patronal": 0.0,
-                    "montant_patronal": 0.0,
-                }
-            )
         # IJSS = revenu de remplacement : imposable et ajouté au net à payer
         # (avance employeur), non soumis aux cotisations sociales.
         ijss_imposables.append(
@@ -257,6 +235,10 @@ def run_payslip_generation_heures(
     # Aiguillage Fillon (< 2026) / RGDU (>= 2026) et suppression des bandeaux maladie/AF.
     contexte.year = year
     contexte.month = month
+    if employee_id:
+        contexte.exit_indemnities, contexte.block_iccp_cdd = resolve_exit_state_for_payslip(
+            employee_id, year, month
+        )
 
     date_debut_periode, date_fin_periode = definir_periode_de_paie(
         contexte, year, month
@@ -270,14 +252,38 @@ def run_payslip_generation_heures(
     calendrier_etendu = creer_calendrier_etendu(
         employee_path, date_debut_periode, date_fin_periode
     )
+    modulation_movement_ids: list[str] = []
+    modulation_result = None
+    if employee_id and company_id:
+        from app.modules.modulation.application.payroll_hook import (
+            apply_modulation_hour_account_to_calendar,
+        )
+
+        calendrier_etendu, modulation_movement_ids, modulation_result = (
+            apply_modulation_hour_account_to_calendar(
+                str(company_id),
+                employee_id,
+                year,
+                month,
+                calendrier_etendu,
+            )
+        )
     cet_movement_ids: list[str] = []
+    cet_withdrawal_ids: list[str] = []
     if employee_id:
         from app.modules.cet.application.payroll_hook import (
             apply_cet_deposits_to_calendar,
+            apply_cet_withdrawals_to_calendar,
         )
+        from app.modules.cet.infrastructure.repository import get_cet_settings_row
 
         calendrier_etendu, cet_movement_ids = apply_cet_deposits_to_calendar(
             employee_id, year, month, calendrier_etendu
+        )
+        settings_row = get_cet_settings_row(str(company_id or ""))
+        hprd = float(settings_row.get("hours_per_rest_day") or 7)
+        calendrier_etendu, cet_withdrawal_ids = apply_cet_withdrawals_to_calendar(
+            employee_id, year, month, calendrier_etendu, hours_per_rest_day=hprd
         )
     chemin_horaires = employee_path / "horaires" / f"{month:02d}.json"
     saisie_horaires = (
@@ -355,17 +361,54 @@ def run_payslip_generation_heures(
                 else:
                     primes_non_soumises.append(prime_calculee)
 
+    arret_prefetch = _extraire_arret_pour_maintien(
+        calendrier_etendu, contexte, date_debut_periode, date_fin_periode
+    )
+    if company_id:
+        from app.modules.modulation.application.payroll_hook import (
+            compute_pay_smoothing_gain,
+        )
+
+        heures_mens = (contexte.duree_hebdo_contrat * 52) / 12
+        taux_est = (
+            contexte.salaire_base_mensuel / heures_mens if heures_mens > 0 else 0.0
+        )
+        contexte.modulation_smoothing_gain = compute_pay_smoothing_gain(
+            str(company_id), year, month, taux_est
+        )
+    jours_maintien = prefetch_jours_maintien_prime(
+        company_id=company_id,
+        contexte=contexte,
+        arret_data=arret_prefetch,
+        date_debut_periode=date_debut_periode,
+        date_fin_periode=date_fin_periode,
+    )
+
     resultat_brut = calculer_salaire_brut(
         contexte,
         calendrier_saisie=calendrier_etendu,
         date_debut_periode=date_debut_periode,
         date_fin_periode=date_fin_periode,
         primes_saisies=primes_soumises,
+        jours_maintien=jours_maintien,
+        actual_hours_raw=calendrier_du_mois,
     )
     salaire_brut_calcule = resultat_brut["salaire_brut_total"]
     details_brut = resultat_brut["lignes_composants_brut"]
     remuneration_hs = resultat_brut["remuneration_brute_heures_supp"]
     total_heures_supp = resultat_brut["total_heures_supp"]
+
+    if modulation_result and modulation_result.hs_credited > 0:
+        details_brut.append(
+            {
+                "libelle": "HS reportées au compte modulation",
+                "quantite": modulation_result.hs_credited,
+                "taux": None,
+                "gain": None,
+                "perte": None,
+                "is_informative": True,
+            }
+        )
 
     # Moteur maintien (arrêt maladie typé) — sans company_id pas d’accès paramètres entreprise.
     # Le maintien employeur est réinjecté dans le brut cotisable ci-dessous, puis
@@ -373,10 +416,11 @@ def run_payslip_generation_heures(
     # subrogées sont ajoutées au net avec leur CSG/CRDS.
     resultats_maintien: Dict[str, Any] | None = None
     if company_id:
-        arret_data = _extraire_arret_pour_maintien(
-            calendrier_etendu, contexte, date_debut_periode, date_fin_periode
-        )
+        arret_data = arret_prefetch
         if arret_data:
+            override = saisie_du_mois.get("ijss_brut_override")
+            if override is not None:
+                arret_data["ijss_brut_override"] = override
             try:
                 from app.modules.maintenance_settings.application.queries import (
                     get_maintenance_settings,
@@ -498,17 +542,31 @@ def run_payslip_generation_heures(
     if alerte_vm:
         contexte.alertes_baremes.append(alerte_vm)
 
-    bulletin_final = creer_bulletin_final(
-        contexte,
-        salaire_brut_calcule,
-        details_brut,
-        lignes_cotisations,
-        resultats_nets,
-        primes_non_soumises,
-        year,
-        month,
-        resultats_maintien=resultats_maintien,
-    )
+    if contexte.exit_indemnities:
+        bulletin_final = creer_bulletin_sortie(
+            contexte,
+            salaire_brut_calcule,
+            details_brut,
+            lignes_cotisations,
+            resultats_nets,
+            primes_non_soumises,
+            contexte.exit_indemnities,
+            year,
+            month,
+            resultats_maintien=resultats_maintien,
+        )
+    else:
+        bulletin_final = creer_bulletin_final(
+            contexte,
+            salaire_brut_calcule,
+            details_brut,
+            lignes_cotisations,
+            resultats_nets,
+            primes_non_soumises,
+            year,
+            month,
+            resultats_maintien=resultats_maintien,
+        )
 
     smic_calcule_mois = (
         contexte.baremes.get("smic", {}).get("cas_general", 0.0) * total_heures_mois
@@ -550,9 +608,23 @@ def run_payslip_generation_heures(
             apply_cet_cp_debits_for_payroll,
             finalize_cet_payroll_application,
         )
+        from app.modules.modulation.application.payroll_hook import (
+            finalize_modulation_payroll_application,
+        )
 
+        if modulation_movement_ids:
+            finalize_modulation_payroll_application(modulation_movement_ids)
         if cet_movement_ids:
             finalize_cet_payroll_application(cet_movement_ids)
+        if cet_withdrawal_ids:
+            finalize_cet_payroll_application(cet_withdrawal_ids)
         apply_cet_cp_debits_for_payroll(employee_id, year, month)
+
+    if modulation_result:
+        bulletin_final["modulation_account"] = {
+            "hs_realisees": modulation_result.hs_realisees,
+            "hs_credited": modulation_result.hs_credited,
+            "hs_paid": modulation_result.hs_paid,
+        }
 
     return bulletin_final

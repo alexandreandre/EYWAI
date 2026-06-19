@@ -12,6 +12,7 @@ from typing import Any
 
 from app.modules.repos_compensateur.domain.rules import (
     extraire_heures_hs_conjoncturelles_du_bulletin,
+    heures_hs_pour_contingent_mois,
 )
 
 LEGAL_COR_CONTINGENT_DEFAULT = 220.0
@@ -48,6 +49,7 @@ class ContingentEmployeeInput:
     opening_balance_hours: float = 0.0
     validated_repos_requests: list[dict] | None = None
     bulletins_par_mois: dict[int, dict[str, Any]] | None = None
+    payroll_events_par_mois: dict[int, dict[str, Any]] | None = None
 
 
 @dataclass(frozen=True)
@@ -131,13 +133,17 @@ def compute_structural_hours(
 def sum_paid_hours_until_month(
     bulletins_par_mois: dict[int, dict[str, Any]] | None,
     until_month: int,
+    payroll_events_par_mois: dict[int, dict[str, Any]] | None = None,
 ) -> float:
-    if not bulletins_par_mois:
+    if not bulletins_par_mois and not payroll_events_par_mois:
         return 0.0
     total = 0.0
+    events_map = payroll_events_par_mois or {}
+    bulletins_map = bulletins_par_mois or {}
     for month in range(1, min(until_month, 12) + 1):
-        payslip_data = bulletins_par_mois.get(month)
-        total += extraire_heures_hs_conjoncturelles_du_bulletin(payslip_data)
+        payslip_data = bulletins_map.get(month)
+        payroll_events = events_map.get(month)
+        total += heures_hs_pour_contingent_mois(payslip_data, payroll_events)
     return round(total, 2)
 
 
@@ -223,7 +229,11 @@ def compute_contingent_breakdown(
         weeks,
         include=settings.include_structural_hours,
     )
-    paid = sum_paid_hours_until_month(employee.bulletins_par_mois, ref_month)
+    paid = sum_paid_hours_until_month(
+        employee.bulletins_par_mois,
+        ref_month,
+        employee.payroll_events_par_mois,
+    )
     pause = compute_pause_deduction(
         settings, employee.hire_date, year, reference_date
     )

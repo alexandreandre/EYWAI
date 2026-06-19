@@ -117,6 +117,8 @@ def assembler_baremes(
         "reduction_generale": db_baremes.get("reduction_generale", {}),
         "stage": db_baremes.get("stage", {}),
         "cdd": db_baremes.get("cdd", {}),
+        "interim": db_baremes.get("interim", {}),
+        "conges": db_baremes.get("conges", {}),
     }
 
 

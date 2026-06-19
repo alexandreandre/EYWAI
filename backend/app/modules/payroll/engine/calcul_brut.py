@@ -1,10 +1,6 @@
 # moteur_paie/calcul_brut.py
 
 from .contexte import ContextePaie
-from app.modules.collective_agreements.rules.resolver import (
-    code_postal_from_entreprise,
-    resolve_salaires_minima,
-)
 from . import legal_constants as lc
 from datetime import datetime, date
 from typing import Dict, Any, List, Optional
@@ -176,6 +172,12 @@ def _calculer_iccp_cdd(
         date_debut_periode, date_fin_periode
     )
     if not (is_cdd_fin or is_interim_fin):
+        return None
+
+    if getattr(contexte, "exit_indemnities", None):
+        return None
+
+    if getattr(contexte, "block_iccp_cdd", False):
         return None
 
     spec = contexte.contrat.get("specificites_paie", {}) or {}
@@ -351,49 +353,29 @@ def _construire_ligne_avantages_en_nature(
     return None
 
 
-def _calculer_prime_anciennete(contexte: ContextePaie) -> Dict[str, Any] | None:
-    from app.modules.collective_agreements.rules.prime_calcul import (
-        calculer_montant_prime_anciennete,
-    )
+def _calculer_prime_anciennete(
+    contexte: ContextePaie,
+    *,
+    calendrier_saisie: List[Dict[str, Any]],
+    date_debut_periode: date,
+    date_fin_periode: date,
+    jours_maintien: Optional[set[int]] = None,
+    actual_hours_raw: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any] | None:
+    from app.modules.payroll.engine.prime_anciennete import calculer_ligne_prime_anciennete
 
-    date_entree_str = contexte.contrat.get("contrat", {}).get("date_entree")
-    if not date_entree_str:
+    ligne = calculer_ligne_prime_anciennete(
+        contexte,
+        calendrier_saisie=calendrier_saisie,
+        date_debut_periode=date_debut_periode,
+        date_fin_periode=date_fin_periode,
+        jours_maintien=jours_maintien,
+        actual_hours_raw=actual_hours_raw,
+    )
+    if not ligne:
         return None
-    date_entree = datetime.strptime(date_entree_str, "%Y-%m-%d")
-    anciennete_annees = (datetime.now() - date_entree).days / 365.25
-    idcc = (
-        contexte.contrat.get("remuneration", {})
-        .get("convention_collective", {})
-        .get("idcc")
-    )
-    if not idcc:
-        return None
-    regles_cc = contexte.baremes.get("conventions_collectives", {}).get(
-        f"idcc_{idcc}", {}
-    )
-    regles_prime = regles_cc.get("prime_anciennete", {})
-    minima_applicables = resolve_salaires_minima(
-        regles_cc,
-        code_postal=code_postal_from_entreprise(contexte.entreprise),
-    )
-    result = calculer_montant_prime_anciennete(
-        regles_prime=regles_prime,
-        contrat=contexte.contrat,
-        anciennete_annees=anciennete_annees,
-        salaire_base_mensuel=contexte.salaire_base_mensuel,
-        minima_applicables=minima_applicables,
-    )
-    if not result:
-        return None
-    base_de_calcul, montant_prime, libelle = result
-    taux = montant_prime / base_de_calcul if base_de_calcul else 0.0
-    return {
-        "libelle": libelle,
-        "quantite": base_de_calcul,
-        "taux": taux,
-        "gain": montant_prime,
-        "perte": None,
-    }
+    ligne.pop("meta", None)
+    return ligne
 
 
 # def _calculer_hs_semaine(heures_travaillees: float, duree_contrat_hebdo: float, regles_majoration: List[Dict]) -> Dict[float, float]:
@@ -441,6 +423,8 @@ def calculer_salaire_brut(
     date_debut_periode: date,
     date_fin_periode: date,
     primes_saisies: List[Dict[str, Any]] = None,
+    jours_maintien: Optional[set[int]] = None,
+    actual_hours_raw: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """
     Calcule le salaire brut à partir d'une liste d'événements de paie déjà analysés.
@@ -559,6 +543,18 @@ def calculer_salaire_brut(
         majoration_hc2 = 0.25
     taux_hc1 = taux_horaire_de_base * (1 + majoration_hc1)
     taux_hc2 = taux_horaire_de_base * (1 + majoration_hc2)
+
+    smoothing_gain = float(getattr(contexte, "modulation_smoothing_gain", 0) or 0)
+    if smoothing_gain > 0:
+        lignes_composants_brut.append(
+            {
+                "libelle": "Lissage modulation",
+                "quantite": None,
+                "taux": None,
+                "gain": round(smoothing_gain, 2),
+                "perte": None,
+            }
+        )
 
     heures_travail_base_total = 0.0
     heures_travail_hs25_total = 0.0
@@ -750,7 +746,14 @@ def calculer_salaire_brut(
             )
 
     # 6. Ajout des primes, avantages et calcul des totaux
-    ligne_prime_anciennete = _calculer_prime_anciennete(contexte)
+    ligne_prime_anciennete = _calculer_prime_anciennete(
+        contexte,
+        calendrier_saisie=calendrier_saisie,
+        date_debut_periode=date_debut_periode,
+        date_fin_periode=date_fin_periode,
+        jours_maintien=jours_maintien,
+        actual_hours_raw=actual_hours_raw,
+    )
     if ligne_prime_anciennete:
         lignes_composants_brut.append(ligne_prime_anciennete)
     if primes_saisies:

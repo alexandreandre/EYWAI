@@ -33,6 +33,13 @@ def _settings_to_response(
         pay_smoothed=settings.pay_smoothed,
         weekly_cap_hours=settings.weekly_cap_hours,
         theoretical_annual_hours=settings.theoretical_annual_hours,
+        hour_account_enabled=settings.hour_account_enabled,
+        hs_franchise_hours_per_period=settings.hs_franchise_hours_per_period,
+        hs_franchise_period=settings.hs_franchise_period,
+        max_account_balance_hours=settings.max_account_balance_hours,
+        account_credit_source=settings.account_credit_source,
+        recovery_absence_enabled=settings.recovery_absence_enabled,
+        recovery_debit_timing=settings.recovery_debit_timing,
     )
 
 
@@ -73,6 +80,9 @@ def get_modulation_overview(
                     theoretical_hours=float(c.get("theoretical_hours") or 0),
                     actual_hours=float(c.get("actual_hours") or 0),
                     balance_hours=float(c.get("balance_hours") or 0),
+                    account_balance_hours=float(c.get("account_balance_hours") or 0),
+                    period_credited_hours=float(c.get("period_credited_hours") or 0),
+                    period_paid_hours=float(c.get("period_paid_hours") or 0),
                 )
             )
         return rows

@@ -15,6 +15,18 @@ from typing import Dict, Any
 from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
 
+from app.modules.payroll.engine.cp_solde_sortie import get_cp_solde_a_la_sortie
+from app.modules.payroll.engine.iccp_arbitrage import (
+    arbitrer_iccp_complet,
+    lire_parametres_conges,
+)
+from app.modules.payroll.engine.reference_remuneration import (
+    calculer_base_reference_dixieme,
+    calculer_iccp_l1243_8,
+    estimer_extras_fin_contrat,
+    lire_brut_total_contrat,
+)
+
 
 # ============================================================================
 # CALCULS DE BASE
@@ -274,27 +286,55 @@ def calculer_indemnite_rupture_conventionnelle(
 # ============================================================================
 
 
+def _parse_salaire_base(employee_data: Dict[str, Any]) -> float:
+    salaire_base_obj = employee_data.get("salaire_de_base", {})
+    if isinstance(salaire_base_obj, dict):
+        return float(salaire_base_obj.get("valeur", 0) or 0)
+    return float(salaire_base_obj or 0)
+
+
+def _est_cdd(employee_data: Dict[str, Any]) -> bool:
+    contract = (
+        employee_data.get("contract_type")
+        or employee_data.get("type_contrat")
+        or ""
+    )
+    return str(contract).upper() in {"CDD", "CONTRAT A DUREE DETERMINEE"}
+
+
+def _est_interim(employee_data: Dict[str, Any]) -> bool:
+    contract = (
+        employee_data.get("contract_type")
+        or employee_data.get("type_contrat")
+        or ""
+    )
+    return "INTERIM" in str(contract).upper() or "INTÉRIM" in str(contract).upper()
+
+
+def _charger_baremes_paie(supabase_client) -> dict:
+    from app.modules.payroll.engine.baremes_loader import (
+        assembler_baremes,
+        charger_conventions_collectives,
+        charger_db_baremes,
+    )
+
+    db_baremes = charger_db_baremes(supabase_client)
+    conventions = charger_conventions_collectives(supabase_client)
+    return assembler_baremes(db_baremes, conventions)
+
+
 def calculer_indemnite_conges_restants(
     employee_data: Dict[str, Any], exit_data: Dict[str, Any], supabase_client=None
 ) -> Dict[str, Any]:
     """
-    Calcule l'indemnité compensatrice de congés payés restants
-
-    Utilise la logique du système de gestion des absences pour calculer:
-    - Les congés payés acquis selon la période de référence (1er juin N-1 -> 31 mai N)
-    - Les congés payés pris depuis l'embauche
-    - Le solde restant
-    - L'indemnité selon la méthode la plus avantageuse (1/10ème ou maintien de salaire)
+    Calcule l'indemnité compensatrice de congés payés restants avec arbitrage
+    maintien de salaire / règle du 1/10e (source canonique : module absences).
     """
     log_payroll_debug(logger, '\n  [CONGÉS PAYÉS]')
 
-    salaire_base_obj = employee_data.get("salaire_de_base", {})
-    if isinstance(salaire_base_obj, dict):
-        salaire_base = salaire_base_obj.get("valeur", 0)
-    else:
-        salaire_base = salaire_base_obj or 0
+    salaire_base = _parse_salaire_base(employee_data)
+    employee_id = employee_data.get("id")
 
-    # Récupérer la date d'embauche
     hire_date_str = employee_data.get("hire_date")
     if not hire_date_str:
         logger.warning("    ⚠ Date d'embauche non trouvée, calcul simplifié")
@@ -312,7 +352,6 @@ def calculer_indemnite_conges_restants(
     else:
         hire_date = hire_date_str
 
-    # Date de sortie
     exit_date_str = exit_data.get("last_working_day")
     if isinstance(exit_date_str, str):
         exit_date = datetime.fromisoformat(exit_date_str).date()
@@ -320,97 +359,176 @@ def calculer_indemnite_conges_restants(
         exit_date = exit_date_str
 
     jours_restants = 0.0
-    indemnite = 0.0
     cp_acquis = 0.0
     cp_pris = 0.0
+    alertes: list[str] = []
 
-    # Si on a accès à supabase, calculer le solde réel
-    if supabase_client:
-        try:
-            import math
-
-            # Calculer les congés acquis selon la logique du système
-            # Période de référence: 1er juin N-1 -> 31 mai N
-            today = exit_date
-            if today.month < 6:
-                period_start = date(today.year - 2, 6, 1)
-                period_end = date(today.year - 1, 5, 31)
-            else:
-                period_start = date(today.year - 1, 6, 1)
-                period_end = date(today.year, 5, 31)
-
-            # Si embauché après la fin de la période, pas de congés acquis
-            if hire_date <= period_end:
-                start_of_calculation = max(hire_date, period_start)
-                months_worked = (
-                    (period_end.year - start_of_calculation.year) * 12
-                    + (period_end.month - start_of_calculation.month)
-                    + 1
-                )
-                cp_acquis = math.ceil(months_worked * 2.5)
-            else:
-                cp_acquis = 0.0
-
-            # Récupérer les congés payés pris
-            employee_id = employee_data.get("id")
-            cp_pris_resp = (
-                supabase_client.table("absence_requests")
-                .select("start_date, end_date")
-                .eq("employee_id", employee_id)
-                .eq("type", "conge_paye")
-                .eq("status", "validated")
-                .execute()
-            )
-
-            cp_pris = 0.0
-            if cp_pris_resp.data:
-                for req in cp_pris_resp.data:
-                    start = datetime.fromisoformat(req["start_date"]).date()
-                    end = datetime.fromisoformat(req["end_date"]).date()
-                    cp_pris += (end - start).days + 1
-
-            jours_restants = max(0, cp_acquis - cp_pris)
-
+    if employee_id and supabase_client:
+        solde = get_cp_solde_a_la_sortie(str(employee_id), exit_date, supabase_client)
+        if solde:
+            jours_restants = solde.jours_restants
+            cp_acquis = solde.conges_acquis
+            cp_pris = solde.conges_pris
             log_payroll_debug(logger, f'    Congés acquis: {cp_acquis} jours')
             log_payroll_debug(logger, f'    Congés pris: {cp_pris} jours')
             log_payroll_debug(logger, f'    Solde restant: {jours_restants} jours')
 
-        except Exception as e:
-            logger.warning(f'    ⚠ Erreur calcul solde congés: {e}, utilisation calcul simplifié')
-            cp_acquis = 0.0
-            cp_pris = 0.0
+    baremes = employee_data.get("baremes") or {}
+    if not baremes and supabase_client:
+        try:
+            baremes = _charger_baremes_paie(supabase_client)
+        except Exception:
+            baremes = {}
 
-    # Calcul de l'indemnité selon la méthode la plus avantageuse
-    # 1. Méthode du maintien de salaire: (salaire mensuel / 22) × jours
-    indemnite_maintien = jours_restants * (salaire_base / 22)
+    is_cdd = _est_cdd(employee_data)
+    is_interim = _est_interim(employee_data)
+    montant_precarite = 0.0
+    montant_ifm = 0.0
+    brut_total_contrat = 0.0
 
-    # 2. Méthode du 1/10ème: (salaire brut annuel / 10)
-    # Pour une année complète, c'est 2.5 jours × 12 = 30 jours
-    # Donc 1/10 du salaire annuel correspond à 30 jours
-    # Pour X jours: (salaire annuel / 10) × (X / 30) = salaire mensuel × 12 / 10 × X / 30
-    indemnite_dixieme = (salaire_base * 12 / 10) * (jours_restants / 30)
+    if employee_id and supabase_client and (is_cdd or is_interim):
+        brut_total_contrat, alertes_contrat = lire_brut_total_contrat(
+            str(employee_id),
+            hire_date,
+            exit_date,
+            supabase_client,
+            salaire_contractuel_fallback=salaire_base,
+        )
+        alertes.extend(alertes_contrat)
+        montant_precarite, montant_ifm = estimer_extras_fin_contrat(
+            brut_total_contrat,
+            baremes,
+            is_cdd=is_cdd,
+            is_interim=is_interim,
+            specificites=employee_data.get("specificites_paie") or {},
+        )
 
-    # Prendre la méthode la plus avantageuse pour le salarié
-    indemnite = max(indemnite_maintien, indemnite_dixieme)
+    params = lire_parametres_conges(baremes)
+    taux_journalier = salaire_base / params["taux_journalier_diviseur"] if salaire_base > 0 else 0.0
 
-    log_payroll_debug(logger, f'    Indemnité (maintien): {indemnite_maintien:.2f} €')
-    log_payroll_debug(logger, f'    Indemnité (1/10ème): {indemnite_dixieme:.2f} €')
-    log_payroll_debug(logger, f'    Indemnité retenue: {indemnite:.2f} € (méthode la plus avantageuse)')
+    start_month = 6
+    company_id = employee_data.get("company_id")
+    if company_id and supabase_client:
+        try:
+            from app.modules.absences.infrastructure.leave_settings_repository import (
+                get_leave_policy,
+            )
+
+            start_month = get_leave_policy(str(company_id)).cp_reference_period_start_month
+        except Exception:
+            pass
+
+    ref_rem = None
+    if employee_id and supabase_client:
+        ref_rem = calculer_base_reference_dixieme(
+            str(employee_id),
+            exit_date,
+            supabase_client,
+            start_month=start_month,
+            salaire_contractuel_fallback=salaire_base,
+            is_cdd=is_cdd,
+            montant_precarite=montant_precarite,
+            montant_ifm=montant_ifm,
+        )
+    else:
+        from app.modules.payroll.engine.reference_remuneration import (
+            ReferenceRemunerationResult,
+            get_cp_reference_period_bounds,
+        )
+
+        period_start, period_end = get_cp_reference_period_bounds(
+            exit_date, start_month=start_month
+        )
+        months_count = max(
+            1,
+            (period_end.year - period_start.year) * 12
+            + period_end.month
+            - period_start.month
+            + 1,
+        )
+        ref_rem = ReferenceRemunerationResult(
+            base_totale=round(salaire_base * months_count, 2),
+            periode_debut=period_start,
+            periode_fin=period_end,
+            periode_label=f"{period_start.strftime('%d/%m/%Y')} – {period_end.strftime('%d/%m/%Y')}",
+            alertes=["Calcul sans accès aux bulletins — estimation sur salaire contractuel."],
+            source="contractuel",
+        )
+    alertes.extend(ref_rem.alertes)
+
+    arbitrage = arbitrer_iccp_complet(
+        jours_restants,
+        taux_journalier=taux_journalier,
+        base_reference_dixieme=ref_rem.base_totale,
+        taux_dixieme=params["taux_dixieme"],
+        jours_reference_dixieme=params["jours_reference_dixieme"],
+        alertes=alertes,
+    )
+
+    indemnite = arbitrage.montant_final
+    iccp_l1243_8 = None
+
+    if (is_cdd or is_interim) and supabase_client and employee_id:
+        brut_l1243 = brut_total_contrat
+        prec_l1243 = montant_precarite
+        ifm_l1243 = montant_ifm
+        if brut_l1243 <= 0:
+            brut_l1243 = max(ref_rem.base_totale - ref_rem.prime_precarite_incluse, 0.0)
+            if prec_l1243 <= 0:
+                prec_l1243 = ref_rem.prime_precarite_incluse
+        iccp_l1243_8 = calculer_iccp_l1243_8(
+            brut_l1243,
+            montant_precarite=prec_l1243,
+            montant_ifm=ifm_l1243,
+        )
+        if iccp_l1243_8 > indemnite:
+            indemnite = iccp_l1243_8
+            arbitrage.methode_retenue = "dixieme"
+
+    methode_label = (
+        "maintien"
+        if arbitrage.methode_retenue == "maintien"
+        else "dixieme"
+    )
+    if iccp_l1243_8 is not None and iccp_l1243_8 >= indemnite and jours_restants == 0:
+        methode_label = "l1243_8"
+
+    log_payroll_debug(logger, f'    Indemnité (maintien): {arbitrage.indemnite_maintien:.2f} €')
+    log_payroll_debug(logger, f'    Indemnité (1/10ème): {arbitrage.indemnite_dixieme:.2f} €')
+    if iccp_l1243_8 is not None:
+        log_payroll_debug(logger, f'    Indemnité L1243-8: {iccp_l1243_8:.2f} €')
+    log_payroll_debug(logger, f'    Indemnité retenue: {indemnite:.2f} €')
+
+    calcul_txt = (
+        f"{jours_restants} jours restants — méthode "
+        f"{'maintien' if methode_label == 'maintien' else '1/10ème' if methode_label == 'dixieme' else 'L1243-8'} "
+        f"retenue = {indemnite:.2f} € "
+        f"(maintien: {arbitrage.indemnite_maintien:.2f} €, "
+        f"1/10ème: {arbitrage.indemnite_dixieme:.2f} €"
+    )
+    if iccp_l1243_8 is not None:
+        calcul_txt += f", L1243-8: {iccp_l1243_8:.2f} €"
+    calcul_txt += ")"
 
     return {
         "montant": round(indemnite, 2),
         "jours_restants": round(jours_restants, 2),
         "salaire_reference": salaire_base,
         "description": "Indemnité compensatrice de congés payés",
-        "calcul": f"{jours_restants} jours restants × méthode la plus avantageuse = {indemnite:.2f} € (maintien: {indemnite_maintien:.2f} €, 1/10ème: {indemnite_dixieme:.2f} €)",
+        "calcul": calcul_txt,
         "details": {
-            "conges_acquis": cp_acquis if supabase_client else None,
-            "conges_pris": cp_pris if supabase_client else None,
-            "indemnite_maintien": round(indemnite_maintien, 2),
-            "indemnite_dixieme": round(indemnite_dixieme, 2),
-            "methode_retenue": "maintien"
-            if indemnite_maintien >= indemnite_dixieme
-            else "dixieme",
+            "methode_retenue": methode_label,
+            "indemnite_maintien": arbitrage.indemnite_maintien,
+            "indemnite_dixieme": arbitrage.indemnite_dixieme,
+            "iccp_l1243_8": iccp_l1243_8,
+            "taux_journalier": round(taux_journalier, 4),
+            "base_reference_dixieme": ref_rem.base_totale,
+            "prime_precarite_incluse": ref_rem.prime_precarite_incluse,
+            "periode_reference": ref_rem.periode_label,
+            "source_solde": "absences.compute_cp_period_balances",
+            "conges_acquis": cp_acquis,
+            "conges_pris": cp_pris,
+            "alertes": arbitrage.alertes,
         },
     }
 

@@ -25,17 +25,22 @@ from app.modules.absences.schemas.fractionnement import (
     FractionnementPreviewRow,
     FractionnementSettingsResponse,
     FractionnementSettingsUpdate,
+    FractionnementValidateResult,
+    LeaveCampaignDashboard,
 )
 from app.modules.absences.schemas.cp_seniority import (
+    CpSeniorityGrantOverride,
     CpSeniorityPreviewRow,
     CpSenioritySettingsResponse,
     CpSenioritySettingsUpdate,
+    CpSeniorityValidateResult,
 )
 from app.modules.absences.application import (
     commands,
     cp_seniority_commands,
     cp_seniority_queries,
     fractionnement_queries,
+    leave_campaign_queries,
     leave_settings_commands,
     leave_settings_queries,
     notifications as absence_notif,
@@ -954,6 +959,64 @@ async def upsert_fractionnement_input(
         body.grant_year,
         body.cp_reported_june_ouvres,
         body.cp_seniority_deduction_ouvres,
+        report_june_manual_override=body.report_june_manual_override,
+        seniority_manual_override=body.seniority_manual_override,
+        manual_solde_ouvrables=body.manual_solde_ouvrables,
+    )
+
+
+@router.post(
+    "/fractionnement/inputs/{employee_id}/reset-auto",
+)
+async def reset_fractionnement_input_auto(
+    employee_id: str,
+    grant_year: int = Query(..., ge=2000, le=2100),
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh_company_context(current_user)
+    if company_id and str(company_id) != str(cid):
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+    return fractionnement_queries.reset_fractionnement_input_to_auto(
+        str(cid), employee_id, grant_year
+    )
+
+
+@router.post(
+    "/fractionnement/validate",
+    response_model=FractionnementValidateResult,
+)
+async def validate_fractionnement_route(
+    grant_year: int = Query(..., ge=2000, le=2100),
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh_company_context(current_user)
+    if company_id and str(company_id) != str(cid):
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+    return FractionnementValidateResult(
+        **fractionnement_queries.validate_fractionnement_grants(
+            str(cid), grant_year, validated_by=str(current_user.id)
+        )
+    )
+
+
+@router.get(
+    "/leave-campaign/dashboard",
+    response_model=LeaveCampaignDashboard,
+)
+async def get_leave_campaign_dashboard_route(
+    grant_year: int | None = Query(None, ge=2000, le=2100),
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh_company_context(current_user)
+    if company_id and str(company_id) != str(cid):
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+    return LeaveCampaignDashboard(
+        **leave_campaign_queries.get_leave_campaign_dashboard(
+            str(cid), grant_year=grant_year
+        )
     )
 
 
@@ -1023,6 +1086,45 @@ async def get_cp_seniority_preview_route(
         raise HTTPException(status_code=403, detail="Accès non autorisé.")
     rows = cp_seniority_queries.list_cp_seniority_preview(str(cid), grant_year)
     return [CpSeniorityPreviewRow(**r) for r in rows]
+
+
+@router.post(
+    "/cp-seniority-settings/validate",
+    response_model=CpSeniorityValidateResult,
+)
+async def validate_cp_seniority_route(
+    grant_year: int = Query(..., ge=2000, le=2100),
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh_company_context(current_user)
+    if company_id and str(company_id) != str(cid):
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+    return CpSeniorityValidateResult(
+        **cp_seniority_commands.validate_cp_seniority_grants(
+            str(cid), grant_year, validated_by=str(current_user.id)
+        )
+    )
+
+
+@router.patch("/cp-seniority-grants/{employee_id}")
+async def override_cp_seniority_grant_route(
+    employee_id: str,
+    body: CpSeniorityGrantOverride,
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh_company_context(current_user)
+    if company_id and str(company_id) != str(cid):
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+    return cp_seniority_commands.override_cp_seniority_grant(
+        str(cid),
+        employee_id,
+        body.grant_year,
+        body.days_granted,
+        validated_by=str(current_user.id),
+        note=body.note,
+    )
 
 
 @router.get("/{absence_id}", response_model=AbsenceRequest)

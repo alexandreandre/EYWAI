@@ -16,6 +16,7 @@ from app.modules.repos_compensateur.domain.contingent_rules import (
 )
 from app.modules.repos_compensateur.infrastructure.providers import (
     get_bulletins_par_mois_par_employe,
+    get_payroll_events_par_mois_par_employe,
 )
 from app.modules.repos_compensateur.infrastructure.queries import (
     get_employees_for_company,
@@ -71,6 +72,9 @@ def get_contingent_overview(
     employee_ids = [str(e["id"]) for e in employees]
 
     bulletins = get_bulletins_par_mois_par_employe(company_id, year, employee_ids)
+    payroll_events_map = get_payroll_events_par_mois_par_employe(
+        company_id, year, employee_ids
+    )
     adjustments = get_adjustments_by_company_year(company_id, year)
     repos_requests = get_validated_repos_requests(company_id, employee_ids)
 
@@ -91,6 +95,7 @@ def get_contingent_overview(
             opening_balance_hours=adjustments.get(emp_id, 0.0),
             validated_repos_requests=repos_requests.get(emp_id, []),
             bulletins_par_mois=bulletins.get(emp_id, {}),
+            payroll_events_par_mois=payroll_events_map.get(emp_id, {}),
         )
         breakdown = compute_contingent_breakdown(
             emp_input, settings, year, reference_date
@@ -134,6 +139,9 @@ def get_contingent_employee_detail(
         return {}
 
     bulletins = get_bulletins_par_mois_par_employe(company_id, year, [employee_id])
+    payroll_events_map = get_payroll_events_par_mois_par_employe(
+        company_id, year, [employee_id]
+    )
     adjustments = get_adjustments_by_company_year(company_id, year)
     repos_requests = get_validated_repos_requests(company_id, [employee_id])
 
@@ -150,6 +158,7 @@ def get_contingent_employee_detail(
         opening_balance_hours=adjustments.get(employee_id, 0.0),
         validated_repos_requests=repos_requests.get(employee_id, []),
         bulletins_par_mois=bulletins.get(employee_id, {}),
+        payroll_events_par_mois=payroll_events_map.get(employee_id, {}),
     )
     breakdown = compute_contingent_breakdown(
         emp_input, settings, year, reference_date

@@ -79,3 +79,50 @@ def apply_cet_cp_debits_for_payroll(
     if movement_ids:
         finalize_cet_payroll_application(movement_ids)
     return movement_ids
+
+
+def apply_cet_withdrawals_to_calendar(
+    employee_id: str,
+    year: int,
+    month: int,
+    calendrier_etendu: list[dict[str, Any]],
+    *,
+    hours_per_rest_day: float = 7.0,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """
+    Pose des jours de repos CET sur le calendrier étendu (retraits validés).
+    """
+    hours_to_rest, movement_ids = cet_repo.get_validated_withdrawals_for_payroll(
+        employee_id, year, month
+    )
+    if hours_to_rest <= 0 or not movement_ids or hours_per_rest_day <= 0:
+        return calendrier_etendu, []
+
+    remaining = hours_to_rest
+    updated: list[dict[str, Any]] = list(calendrier_etendu)
+    for jour in reversed(updated):
+        if remaining <= 0:
+            break
+        if jour.get("type") != "travail":
+            continue
+        heures = float(jour.get("heures") or 0)
+        if heures <= 0:
+            continue
+        deduct = min(heures, remaining)
+        jour["heures"] = round(heures - deduct, 2)
+        if jour["heures"] <= 0:
+            jour["type"] = "cet_repos"
+        remaining = round(remaining - deduct, 2)
+
+    if remaining > 0:
+        days_needed = int(-(-remaining // hours_per_rest_day))  # ceil
+        for _ in range(days_needed):
+            updated.append(
+                {
+                    "type": "cet_repos",
+                    "heures": 0,
+                    "label": "Congé CET",
+                }
+            )
+
+    return updated, movement_ids

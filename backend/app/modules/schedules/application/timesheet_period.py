@@ -146,6 +146,73 @@ def _range_from_match(
     return None
 
 
+_MAX_PLAUSIBLE_HEADER_SPAN = 45
+_NEAR_TARGET_MARGIN_MONTHS = 2
+
+
+def _months_apart(d: date, target_year: int, target_month: int) -> int:
+    return abs((d.year - target_year) * 12 + (d.month - target_month))
+
+
+def _filter_dates_near_target(
+    dates: List[date], target_year: int, target_month: int
+) -> List[date]:
+    """Écarte le bruit OCR (dates hors du contexte du mois affiché)."""
+    near = [
+        d
+        for d in dates
+        if _months_apart(d, target_year, target_month) <= _NEAR_TARGET_MARGIN_MONTHS
+    ]
+    return near if near else dates
+
+
+def _plausible_explicit_range(
+    explicit_range: Tuple[date, date],
+    target_year: int,
+    target_month: int,
+) -> bool:
+    start, end = explicit_range
+    span = (end - start).days + 1
+    if span > _MAX_PLAUSIBLE_HEADER_SPAN:
+        return False
+    target_start = date(target_year, target_month, 1)
+    target_end = date(
+        target_year, target_month, cal_mod.monthrange(target_year, target_month)[1]
+    )
+    if end < target_start - timedelta(days=62) or start > target_end + timedelta(days=62):
+        return False
+    return True
+
+
+def _refine_detection_bounds(
+    result: TimesheetPeriodDetection,
+    target_year: int,
+    target_month: int,
+) -> None:
+    """Affine start/end à partir des dates crédibles proches du mois cible."""
+    if result.detected_dates:
+        result.detected_dates = _filter_dates_near_target(
+            result.detected_dates, target_year, target_month
+        )
+    if result.start_date and result.end_date:
+        span = (result.end_date - result.start_date).days + 1
+        if span > _MAX_PLAUSIBLE_HEADER_SPAN:
+            if result.detected_dates:
+                result.start_date = result.detected_dates[0]
+                result.end_date = result.detected_dates[-1]
+            else:
+                result.start_date = None
+                result.end_date = None
+                return
+        elif _months_apart(result.start_date, target_year, target_month) > _NEAR_TARGET_MARGIN_MONTHS:
+            if result.detected_dates:
+                result.start_date = result.detected_dates[0]
+                result.end_date = result.detected_dates[-1]
+    elif result.detected_dates:
+        result.start_date = result.detected_dates[0]
+        result.end_date = result.detected_dates[-1]
+
+
 def detect_timesheet_period(
     text: str,
     *,
@@ -169,7 +236,9 @@ def detect_timesheet_period(
             explicit_range = _range_from_match(du_au, target_year)
 
     dates = _extract_dates_from_text(text, target_year)
-    if explicit_range:
+    if explicit_range and _plausible_explicit_range(
+        explicit_range, target_year, target_month
+    ):
         start, end = explicit_range
         result.start_date = start
         result.end_date = end
@@ -221,6 +290,8 @@ def detect_timesheet_period(
         else []
     )
 
+    _refine_detection_bounds(result, target_year, target_month)
+
     result.warnings.extend(
         _compare_with_target_month(result, target_year, target_month)
     )
@@ -256,16 +327,6 @@ def _compare_with_target_month(
             "Changez de mois avant d'enregistrer."
         )
         return warnings
-
-    if detection.start_date.month != detection.end_date.month or (
-        detection.start_date.year != detection.end_date.year
-    ):
-        warnings.append(
-            f"Semaine à cheval sur deux mois ({_fmt_fr(detection.start_date)} – "
-            f"{_fmt_fr(detection.end_date)}). Seuls les jours de "
-            f"{_month_name(target_month)} {target_year} seront importés ; "
-            "importez à nouveau sur l'autre mois pour les jours restants."
-        )
 
     if detection.scope == "weekly" and detection.confidence in ("high", "medium"):
         in_target = [

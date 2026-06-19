@@ -776,7 +776,7 @@
                 <tr>
                     <td colspan="4" style="font-size:7pt;padding-top:4px;">
                         {{ pied_de_page.solde_conges.fractionnement.libelle }}
-                        (réf. {{ pied_de_page.solde_conges.fractionnement.reference_date }})
+                        (réf. {{ pied_de_page.solde_conges.fractionnement.reference_date }}{% if pied_de_page.solde_conges.fractionnement.validated_at %}, validé{% endif %})
                     </td>
                 </tr>
                 {% endif %}

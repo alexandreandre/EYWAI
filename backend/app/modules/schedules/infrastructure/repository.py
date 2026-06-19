@@ -161,6 +161,37 @@ class ScheduleRepository(IScheduleRepository):
             {"planned_calendar": planned_calendar}
         ).match({"employee_id": employee_id, "year": year, "month": month}).execute()
 
+    def list_schedules_for_employees(
+        self,
+        employee_ids: List[str],
+        year: int,
+        month: int,
+    ) -> Dict[str, Dict[str, Any]]:
+        if not employee_ids:
+            return {}
+        response = (
+            supabase.table("employee_schedules")
+            .select("employee_id, planned_calendar, actual_hours, company_id")
+            .in_("employee_id", employee_ids)
+            .eq("year", year)
+            .eq("month", month)
+            .execute()
+        )
+        out: Dict[str, Dict[str, Any]] = {}
+        for row in response.data or []:
+            out[str(row["employee_id"])] = row
+        return out
+
+    def bulk_upsert_schedules(self, payloads: List[Dict[str, Any]]) -> None:
+        if not payloads:
+            return
+        chunk = 100
+        for i in range(0, len(payloads), chunk):
+            supabase.table("employee_schedules").upsert(
+                payloads[i : i + chunk],
+                on_conflict="employee_id,year,month",
+            ).execute()
+
 
 # Instance pour l'application
 schedule_repository = ScheduleRepository()

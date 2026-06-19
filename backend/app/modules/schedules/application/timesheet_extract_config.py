@@ -34,8 +34,14 @@ def timesheet_page_text_model() -> str:
     return os.getenv("TIMESHEET_PAGE_TEXT_MODEL", MODEL_TIMESHEET_PAGE_TEXT).strip()
 
 
+def timesheet_hybrid_adaptive() -> bool:
+    raw = os.getenv("TIMESHEET_HYBRID_ADAPTIVE", "true").strip().lower()
+    return raw in ("1", "true", "yes", "on")
+
+
 __all__ = [
     "timesheet_extract_mode",
+    "timesheet_hybrid_adaptive",
     "timesheet_page_concurrency",
     "timesheet_page_text_model",
     "timesheet_vision_model",

@@ -74,7 +74,14 @@ def resolve_date_sortie(employee_data: dict) -> Any:
     return contract_end
 
 
-def process_payslip_generation(employee_id: str, year: int, month: int):
+def process_payslip_generation(
+    employee_id: str,
+    year: int,
+    month: int,
+    *,
+    ijss_brut_override: float | None = None,
+    ijss_tracking_meta: dict | None = None,
+):
     """
     Workflow de génération de paie "juste à temps", 100% basé sur la BDD,
     avec une gestion propre des fichiers temporaires.
@@ -227,6 +234,8 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
         )
 
         saisies_data = {"periode": {"mois": month, "annee": year}, "primes": []}
+        if ijss_brut_override is not None:
+            saisies_data["ijss_brut_override"] = float(ijss_brut_override)
         for row in saisies_res.data:
             prime_entry = {
                 "prime_id": row["name"].replace(" ", "_"),
@@ -431,6 +440,13 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
         # Isolation par génération : écrit dans le dossier de l'employé plutôt que
         # dans le fichier partagé data/entreprise.json (concurrence multi-tenant).
         jei_settings = get_jei_settings_raw(str(company_id))
+        from app.modules.prime_anciennete_settings.application.queries import (
+            get_prime_anciennete_overrides_for_payslip,
+        )
+
+        prime_anciennete_overrides = get_prime_anciennete_overrides_for_payslip(
+            str(company_id)
+        )
         jei_bloc = {
             "enabled": jei_settings.jei_enabled,
             "date_creation_etablissement": (
@@ -468,6 +484,7 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
                         "taux_fnal": company_data.get("taux_fnal"),
                     },
                     "jei": jei_bloc,
+                    "prime_anciennete": prime_anciennete_overrides or None,
                 },
             },
         }
@@ -510,6 +527,31 @@ def process_payslip_generation(employee_id: str, year: int, month: int):
             company_id=str(company_id),
             employee_id=str(employee_id),
         )
+
+        from app.modules.modulation.application.payroll_hook import (
+            ModulationPayrollResult,
+            enrich_payroll_events_metadata,
+        )
+
+        mod_block = payslip_json_data.get("modulation_account") if isinstance(
+            payslip_json_data, dict
+        ) else None
+        mod_result = None
+        if mod_block:
+            mod_result = ModulationPayrollResult(
+                hs_realisees=float(mod_block.get("hs_realisees") or 0),
+                hs_credited=float(mod_block.get("hs_credited") or 0),
+                hs_paid=float(mod_block.get("hs_paid") or 0),
+            )
+        payroll_events_json = enrich_payroll_events_metadata(
+            payroll_events_json,
+            payroll_events_list,
+            mod_result,
+        )
+
+        if ijss_tracking_meta:
+            payslip_json_data = dict(payslip_json_data)
+            payslip_json_data["ijss_tracking"] = ijss_tracking_meta
 
         new_cumuls_path = employee_path / "cumuls" / f"{month:02d}.json"
         new_cumuls_json = (

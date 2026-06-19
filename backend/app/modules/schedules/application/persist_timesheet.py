@@ -105,8 +105,55 @@ def validate_persist_payload(payload: PersistTimesheetRequest) -> None:
                 )
 
 
-def run_persist_timesheet_batch(payload: PersistTimesheetRequest) -> PersistTimesheetResponse:
-    """Persistance batch via commands/queries schedules."""
+def run_persist_timesheet_batch(
+    payload: PersistTimesheetRequest,
+    *,
+    company_id: str | None = None,
+    user_id: str | None = None,
+) -> PersistTimesheetResponse:
+    """Persistance batch via commands/queries schedules ou commit staging."""
+    if payload.batch_id and company_id:
+        from app.modules.schedules.application.timesheet_import.commit_service import (
+            begin_commit_batch,
+            commit_batch_bulk,
+        )
+        from app.modules.schedules.schemas.timesheet_import import (
+            TimesheetImportCommitRequest,
+        )
+
+        commit_req = TimesheetImportCommitRequest(
+            allow_partial=payload.allow_partial,
+            recalculate_payroll=payload.recalculate_payroll,
+            employee_ids=[e.employee_id for e in payload.employees] or None,
+        )
+        begin_commit_batch(
+            payload.batch_id,
+            company_id=company_id,
+            request=commit_req,
+        )
+        result = commit_batch_bulk(
+            payload.batch_id,
+            company_id=company_id,
+            request=commit_req,
+            user_id=user_id,
+        )
+        return PersistTimesheetResponse(
+            year=payload.year,
+            month=payload.month,
+            employees_processed=result["employees_processed"],
+            total_days_written=result["total_days_written"],
+            results=[
+                PersistTimesheetResult(
+                    employee_id=e["employee_id"],
+                    days_written=0,
+                    success=False,
+                    error=e.get("message"),
+                )
+                for e in result.get("errors", [])
+            ],
+            errors=result.get("errors", []),
+        )
+
     from app.modules.schedules.application import commands, queries
     from app.modules.schedules.schemas.requests import (
         ActualHoursEntry,
@@ -148,4 +195,32 @@ def run_persist_timesheet_batch(payload: PersistTimesheetRequest) -> PersistTime
     )
 
 
-__all__ = ["persist_timesheet_batch", "run_persist_timesheet_batch", "validate_persist_payload"]
+def run_persist_with_bulk_commit(
+    payload: PersistTimesheetRequest,
+    *,
+    company_id: str,
+    user_id: str | None,
+) -> PersistTimesheetResponse:
+    """Commit via staging batch (crée batch éphémère si absent)."""
+    from app.modules.schedules.application.timesheet_import.commit_service import (
+        commit_from_persist_request,
+    )
+
+    result = commit_from_persist_request(
+        payload,
+        company_id=company_id,
+        user_id=user_id,
+        batch_id=payload.batch_id,
+        recalculate_payroll=payload.recalculate_payroll,
+    )
+    return PersistTimesheetResponse(
+        year=payload.year,
+        month=payload.month,
+        employees_processed=result["employees_processed"],
+        total_days_written=result["total_days_written"],
+        results=[],
+        errors=result.get("errors", []),
+    )
+
+
+__all__ = ["persist_timesheet_batch", "run_persist_timesheet_batch", "run_persist_with_bulk_commit", "validate_persist_payload"]

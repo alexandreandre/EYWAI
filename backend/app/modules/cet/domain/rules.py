@@ -217,3 +217,73 @@ def hours_to_rest_days(hours: float, hours_per_rest_day: float) -> float:
     if hours_per_rest_day <= 0:
         return 0.0
     return round(hours / hours_per_rest_day, 2)
+
+
+def validate_request_deadline(today_day: int, deadline_day_of_month: int | None) -> None:
+    """Bloque la création après le jour limite du mois (paramètre accord)."""
+    if deadline_day_of_month is None:
+        return
+    if today_day > deadline_day_of_month:
+        raise ValueError(
+            f"Date limite de demande CET dépassée : les demandes doivent être "
+            f"soumises avant le {deadline_day_of_month} du mois."
+        )
+
+
+def resolve_initial_workflow(
+    validation_mode: str,
+    *,
+    has_manager: bool,
+) -> tuple[str, str]:
+    """
+    Retourne (status, workflow_step) à la création d'un mouvement.
+    """
+    if validation_mode == "auto":
+        return "validated", "approved_rh"
+    if validation_mode in ("manager", "manager_then_rh") and has_manager:
+        return "pending", "pending_manager"
+    return "pending", "pending"
+
+
+def movement_balance_delta_days(
+    movement_type: str,
+    hours: float,
+    days: float,
+    *,
+    hours_per_rest_day: float,
+) -> float:
+    """Variation du solde en jours équivalents pour un mouvement validé."""
+    if movement_type == "deposit_hs":
+        return hours / hours_per_rest_day if hours_per_rest_day > 0 else 0.0
+    if movement_type == "deposit_cp":
+        return float(days)
+    if movement_type == "withdraw_rest":
+        return -abs(float(hours)) / hours_per_rest_day if hours_per_rest_day > 0 else 0.0
+    if movement_type == "adjustment":
+        if days:
+            return float(days)
+        return float(hours) / hours_per_rest_day if hours_per_rest_day > 0 else 0.0
+    return 0.0
+
+
+def compute_running_balance_days(
+    movements: Sequence[CetMovementRow],
+    *,
+    hours_per_rest_day: float = HOURS_PER_REST_DAY_DEFAULT,
+) -> list[float]:
+    """Soldes cumulés après chaque mouvement (ordre chronologique ascendant attendu)."""
+    balance = 0.0
+    out: list[float] = []
+    for m in movements:
+        if m.status not in CET_BALANCE_STATUSES:
+            out.append(round(balance, 2))
+            continue
+        balance += movement_balance_delta_days(
+            m.movement_type,
+            m.hours,
+            m.days,
+            hours_per_rest_day=hours_per_rest_day,
+        )
+        balance = max(0.0, balance)
+        out.append(round(balance, 2))
+    return out

@@ -180,15 +180,19 @@ class TestGetMyAbsenceBalances:
             return_value="2020-01-15",
         ):
             with patch(
-                "app.modules.absences.application.queries.absence_repository"
-            ) as repo:
-                repo.list_validated_for_employees.return_value = []
+                "app.modules.absences.application.queries._get_employee_company_id",
+                return_value=None,
+            ):
                 with patch(
-                    "app.modules.absences.application.queries.get_repos_credits_by_employee_year",
-                    return_value={"emp-1": 2.0},
-                ):
-                    with mock_leave_context():
-                        result = queries.get_my_absence_balances("emp-1")
+                    "app.modules.absences.application.queries.absence_repository"
+                ) as repo:
+                    repo.list_validated_for_employees.return_value = []
+                    with patch(
+                        "app.modules.absences.application.queries.get_repos_credits_by_employee_year",
+                        return_value={"emp-1": 2.0},
+                    ):
+                        with mock_leave_context():
+                            result = queries.get_my_absence_balances("emp-1")
 
         assert isinstance(result, list)
         types_found = [b["type"] for b in result]

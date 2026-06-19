@@ -35,7 +35,14 @@ from app.shared.domain.employment_rules import is_forfait_jour as is_forfait_jou
 from app.modules.payroll.documents.payslip_generator import resolve_date_sortie
 
 
-def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
+def process_payslip_generation_forfait(
+    employee_id: str,
+    year: int,
+    month: int,
+    *,
+    ijss_brut_override: float | None = None,
+    ijss_tracking_meta: dict | None = None,
+):
     """
     Génère une fiche de paie pour un employé en forfait jour.
 
@@ -166,6 +173,8 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
         )
 
         saisies_data = {"periode": {"mois": month, "annee": year}, "primes": []}
+        if ijss_brut_override is not None:
+            saisies_data["ijss_brut_override"] = float(ijss_brut_override)
 
         for row in saisies_res.data:
             prime_entry = {
@@ -321,6 +330,13 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
         # Isolation par génération : écrit dans le dossier de l'employé plutôt que
         # dans le fichier partagé data/entreprise.json (concurrence multi-tenant).
         jei_settings = get_jei_settings_raw(str(company_id))
+        from app.modules.prime_anciennete_settings.application.queries import (
+            get_prime_anciennete_overrides_for_payslip,
+        )
+
+        prime_anciennete_overrides = get_prime_anciennete_overrides_for_payslip(
+            str(company_id)
+        )
         jei_bloc = {
             "enabled": jei_settings.jei_enabled,
             "date_creation_etablissement": (
@@ -358,6 +374,7 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
                         "taux_fnal": company_data.get("taux_fnal"),
                     },
                     "jei": jei_bloc,
+                    "prime_anciennete": prime_anciennete_overrides or None,
                 },
             },
         }
@@ -414,6 +431,10 @@ def process_payslip_generation_forfait(employee_id: str, year: int, month: int):
             company_id=str(company_id),
             employee_id=str(employee_id),
         )
+
+        if ijss_tracking_meta:
+            payslip_json_data = dict(payslip_json_data)
+            payslip_json_data["ijss_tracking"] = ijss_tracking_meta
 
         # --- ÉTAPE 5 : SAUVEGARDER ---
 

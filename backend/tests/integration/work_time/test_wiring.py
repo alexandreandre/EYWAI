@@ -91,6 +91,13 @@ class TestWorkTimeRoutesMounted:
                 pay_smoothed=True,
                 weekly_cap_hours=44,
                 theoretical_annual_hours=None,
+                hour_account_enabled=True,
+                hs_franchise_hours_per_period=14,
+                hs_franchise_period="month",
+                max_account_balance_hours=None,
+                account_credit_source="overtime_only",
+                recovery_absence_enabled=True,
+                recovery_debit_timing="on_validation",
             )
             app.dependency_overrides[get_current_user] = lambda: rh
             try:

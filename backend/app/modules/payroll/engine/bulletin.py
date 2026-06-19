@@ -275,16 +275,45 @@ def creer_bulletin_final(
         synthese_net["subrogation_active"] = resultats_maintien.get(
             "subrogation_active", False
         )
+        ijss_block = resultats_maintien.get("ijss", {}) or {}
+        if ijss_block.get("ijss_brut_override"):
+            synthese_net["ijss_source"] = "cpam_validated"
+            synthese_net["ijss_brut"] = float(ijss_block.get("ijss_theorique") or 0)
+        elif synthese_net.get("subrogation_active"):
+            synthese_net["ijss_source"] = "theorique"
+            synthese_net["ijss_brut"] = float(
+                ijss_block.get("ijss_theorique") or synthese_net.get("ijss_subrogees") or 0
+            )
+        if synthese_net.get("ijss_brut"):
+            from app.modules.payroll.engine.ijss_bulletin import compute_ijss_csg_lines
+
+            _, csg_total, net_ijss = compute_ijss_csg_lines(
+                float(synthese_net["ijss_brut"]),
+                (getattr(contexte, "baremes", None) or {}).get("maladie"),
+            )
+            synthese_net["ijss_csg_total"] = csg_total
+            synthese_net["ijss_net"] = net_ijss
 
     if not isinstance(getattr(contexte, "alertes_baremes", None), list):
         contexte.alertes_baremes = []
     from app.modules.payroll.engine.controles_convention import (
         controle_convention_collective,
         controle_net_superieur_brut,
+        controle_prime_anciennete,
     )
 
     for alerte_cc in controle_convention_collective(contexte, salaire_brut):
         contexte.alertes_baremes.append(alerte_cc)
+
+    existing_codes = {
+        str(a.get("code"))
+        for a in contexte.alertes_baremes
+        if isinstance(a, dict) and a.get("code")
+    }
+    for alerte_pa in controle_prime_anciennete(contexte):
+        if alerte_pa.get("code") not in existing_codes:
+            contexte.alertes_baremes.append(alerte_pa)
+            existing_codes.add(str(alerte_pa.get("code")))
 
     net_a_payer_val = resultats_nets.get("net_a_payer")
     if net_a_payer_val is not None:
@@ -526,6 +555,31 @@ def creer_bulletin_sortie(
     )
     bulletin_base["net_a_payer"] = round(net_a_payer_final, 2)
     bulletin_base["is_bulletin_sortie"] = True
+
+    ind_conges = indemnites_sortie.get("indemnite_conges") or {}
+    details_iccp = ind_conges.get("details") or {}
+    if details_iccp:
+        maintien = details_iccp.get("indemnite_maintien", 0) or 0
+        dixieme = details_iccp.get("indemnite_dixieme", 0) or 0
+        montant = ind_conges.get("montant", 0) or 0
+        methode = details_iccp.get("methode_retenue", "maintien")
+        if methode == "dixieme":
+            bulletin_base["arbitrage_conges"] = (
+                f"L'indemnité compensatrice de congés payés a été calculée selon la "
+                f"règle du 1/10e ({montant:.2f} €), plus favorable que le maintien "
+                f"de salaire ({maintien:.2f} €)."
+            )
+        elif methode == "l1243_8":
+            bulletin_base["arbitrage_conges"] = (
+                f"L'indemnité compensatrice de congés payés (CDD) retenue : "
+                f"{montant:.2f} € (règle des 10 % de la rémunération totale du contrat)."
+            )
+        else:
+            bulletin_base["arbitrage_conges"] = (
+                f"L'indemnité compensatrice de congés payés a été calculée selon le "
+                f"maintien de salaire ({montant:.2f} €), plus favorable que la "
+                f"règle du 1/10e ({dixieme:.2f} €)."
+            )
 
     # Ajouter une note explicative
     bulletin_base["note_sortie"] = (

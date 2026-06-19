@@ -65,6 +65,10 @@ from app.modules.payroll.engine.contexte import ChargerContexte
 from app.modules.payroll.engine.maintien_salaire_service import (
     calculer_maintien,
     calculer_regularisation_at,
+    _est_maintien_eligible_seniority,
+    _mois_anciennete,
+    _qualifier_arret,
+    resolve_subrogation_active,
 )
 from app.modules.users.schemas.responses import User
 
@@ -547,6 +551,43 @@ def get_my_absence_balances(employee_id: str) -> List[dict]:
             soldes = {**soldes, "conges_payes": cp}
     except Exception:
         pass
+    company_id = _get_employee_company_id(employee_id)
+    if company_id:
+        try:
+            from app.modules.modulation.application.hour_account_queries import (
+                get_employee_account_balance,
+            )
+            from app.modules.modulation.infrastructure import (
+                repository as modulation_repo,
+            )
+
+            mod_settings = modulation_repo.get_modulation_settings(company_id)
+            if (
+                mod_settings.hour_account_enabled
+                and mod_settings.recovery_absence_enabled
+            ):
+                bal = get_employee_account_balance(company_id, employee_id, today.year)
+                soldes = {
+                    **soldes,
+                    "compte_modulation": {
+                        "acquis": bal.acquired_hours,
+                        "pris": bal.taken_hours,
+                        "solde": bal.account_balance_hours,
+                    },
+                }
+        except Exception:
+            pass
+    if company_id:
+        from app.modules.absences.infrastructure.fractionnement_repository import (
+            get_fractionnement_grant,
+        )
+
+        frac = get_fractionnement_grant(employee_id, today.year)
+        if frac:
+            soldes = {
+                **soldes,
+                "fractionnement_days": float(frac.get("days_granted") or 0),
+            }
     ss_pris = count_absence_days_taken(validated_list, "sans_solde", today)
     result = balances_to_api_list(soldes, policy=policy, cp_seniority=cp_seniority)
     result.append(
@@ -748,25 +789,59 @@ def _employee_payload_for_contexte(emp: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def compute_subrogation_for_absence(
+    absence: Dict[str, Any],
+    employee_row: Dict[str, Any],
+    settings_dict: Dict[str, Any],
+    override: Optional[bool] = None,
+) -> bool:
+    """Calcule subrogation_active à partir des règles entreprise et de l'ancienneté."""
+    arret_type = str(absence.get("arret_type") or "maladie_simple").strip()
+    days_raw = absence.get("selected_days") or []
+    if not days_raw:
+        return resolve_subrogation_active(settings_dict, arret_type, False, override)
+    parsed_days = sorted(_parse_absence_day(d) for d in days_raw)
+    date_debut_arret = parsed_days[0]
+    qualification = _qualifier_arret(arret_type)
+    date_entree_raw = (employee_row.get("hire_date") or employee_row.get("date_entree"))
+    if isinstance(date_entree_raw, str) and date_entree_raw.strip():
+        date_entree = date.fromisoformat(date_entree_raw[:10])
+    elif isinstance(date_entree_raw, date):
+        date_entree = date_entree_raw
+    else:
+        contrat = employee_row.get("contrat") or {}
+        if isinstance(contrat, dict):
+            de = contrat.get("date_entree")
+            date_entree = (
+                date.fromisoformat(str(de)[:10])
+                if de
+                else date(2000, 1, 1)
+            )
+        else:
+            date_entree = date(2000, 1, 1)
+    anciennete_mois = _mois_anciennete(date_entree, date_debut_arret)
+    maintien_eligible = _est_maintien_eligible_seniority(
+        settings_dict, qualification, anciennete_mois
+    )
+    stored = absence.get("subrogation_active")
+    effective_override = override if override is not None else (
+        stored if isinstance(stored, bool) else None
+    )
+    return resolve_subrogation_active(
+        settings_dict, arret_type, maintien_eligible, effective_override
+    )
+
+
 def _infer_subrogation_active(
     settings_dict: Dict[str, Any],
     arret_type: str,
     override: Optional[bool],
+    maintien_eligible: bool = True,
 ) -> bool:
-    if override is not None:
-        return bool(override)
-    mode = settings_dict.get("subrogation_mode") or "automatic"
-    at_mp_types = {
-        "accident_travail",
-        "maladie_professionnelle",
-        "accident_trajet",
-        "rechute_at",
-    }
-    if mode == "at_mp_only":
-        return arret_type in at_mp_types
-    if mode == "per_case":
-        return True
-    return True
+    """Compatibilité — préférer compute_subrogation_for_absence ou resolve_subrogation_active."""
+    return resolve_subrogation_active(
+        settings_dict, arret_type, maintien_eligible, override
+    )
 
 
 def get_absence_maintenance_preview(
@@ -836,12 +911,11 @@ def get_absence_maintenance_preview(
     settings_model = get_maintenance_settings(emp_company)
     settings_dict = settings_model.model_dump(mode="json")
 
-    sub_active = _infer_subrogation_active(
+    sub_active = compute_subrogation_for_absence(
+        absence,
+        employee_row,
         settings_dict,
-        arret_type,
-        subrogation_active
-        if subrogation_active is not None
-        else absence.get("subrogation_active"),
+        override=subrogation_active,
     )
 
     nombre_enfants = int(absence.get("nombre_enfants") or 0)
@@ -897,7 +971,13 @@ def get_absence_maintenance_preview(
     )
 
     result = dict(result)
-    result["subrogation_mode"] = settings_dict.get("subrogation_mode", "automatic")
+    result["subrogation_mode"] = settings_dict.get("subrogation_mode", "when_maintien")
+    result["subrogation_active"] = sub_active
+    result["maintien_eligible_seniority"] = _est_maintien_eligible_seniority(
+        settings_dict,
+        _qualifier_arret(arret_type),
+        result.get("anciennete_mois") or 0,
+    )
     return result
 
 
@@ -965,7 +1045,9 @@ def get_absence_regularisation_at(
     settings_model = get_maintenance_settings(emp_company)
     settings_dict = settings_model.model_dump(mode="json")
 
-    sub_active = _infer_subrogation_active(settings_dict, arret_type, None)
+    sub_active = compute_subrogation_for_absence(
+        absence, employee_row, settings_dict, override=None
+    )
 
     temps_travail_row = (
         employee_row.get("temps_travail")

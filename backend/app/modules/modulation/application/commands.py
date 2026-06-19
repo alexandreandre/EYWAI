@@ -20,6 +20,13 @@ _WRITABLE_KEYS = frozenset(
         "pay_smoothed",
         "weekly_cap_hours",
         "theoretical_annual_hours",
+        "hour_account_enabled",
+        "hs_franchise_hours_per_period",
+        "hs_franchise_period",
+        "max_account_balance_hours",
+        "account_credit_source",
+        "recovery_absence_enabled",
+        "recovery_debit_timing",
     }
 )
 
@@ -53,3 +60,32 @@ def save_week_template(
 
 def delete_week_template(company_id: str, template_id: str) -> None:
     repo.delete_week_template(company_id, template_id)
+
+
+_MODULATION_PRESETS: dict[str, dict[str, Any]] = {
+    "metallurgie_hour_account": {
+        "enabled": True,
+        "reference_period_months": 12,
+        "average_weekly_hours": 35.0,
+        "weekly_high_hours": 37.0,
+        "weekly_low_hours": 32.0,
+        "high_weeks_per_cycle": 1,
+        "low_weeks_per_cycle": 1,
+        "pay_smoothed": True,
+        "weekly_cap_hours": 44.0,
+        "hour_account_enabled": True,
+        "hs_franchise_hours_per_period": 14.0,
+        "hs_franchise_period": "month",
+        "account_credit_source": "overtime_only",
+        "recovery_absence_enabled": True,
+        "recovery_debit_timing": "on_validation",
+    },
+}
+
+
+def apply_modulation_preset(company_id: str, preset: str) -> dict[str, Any]:
+    payload = _MODULATION_PRESETS.get(preset)
+    if not payload:
+        raise ValueError(f"Preset inconnu : {preset}")
+    settings = repo.upsert_modulation_settings(company_id, payload)
+    return queries._settings_to_response(company_id, settings).model_dump()

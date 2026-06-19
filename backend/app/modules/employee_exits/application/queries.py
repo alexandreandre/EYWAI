@@ -255,7 +255,7 @@ def calculate_exit_indemnities(
     exit_data = exit_repo.get_with_employee(
         exit_id,
         company_id,
-        "id, first_name, last_name, hire_date, salaire_de_base, job_title",
+        "id, first_name, last_name, hire_date, salaire_de_base, job_title, contract_type, company_id, specificites_paie",
     )
     if not exit_data:
         raise EmployeeExitApplicationError(404, "Départ non trouvé")

@@ -123,6 +123,37 @@ def upsert_expected_line(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     return resp.data[0] if resp.data else None
 
 
+def get_expected_line(company_id: str, line_id: str) -> Optional[Dict[str, Any]]:
+    try:
+        resp = (
+            get_supabase_admin_client()
+            .table(EXPECTED)
+            .select("*")
+            .eq("id", line_id)
+            .eq("company_id", company_id)
+            .limit(1)
+            .execute()
+        )
+        return resp.data[0] if resp.data else None
+    except Exception:
+        logger.exception("Lecture expected line %s", line_id)
+        return None
+
+
+def update_expected_line(
+    line_id: str, fields: Dict[str, Any]
+) -> Optional[Dict[str, Any]]:
+    payload = {**fields, "updated_at": _now_iso()}
+    resp = (
+        get_supabase_admin_client()
+        .table(EXPECTED)
+        .update(payload)
+        .eq("id", line_id)
+        .execute()
+    )
+    return resp.data[0] if resp.data else None
+
+
 def list_received_lines(period_id: str) -> List[Dict[str, Any]]:
     try:
         resp = (

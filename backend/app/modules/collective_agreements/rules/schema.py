@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field, field_validator
 from app.modules.collective_agreements.rules.constants import (
     BASE_CALCUL_METHODS,
     CONFIDENCE_LEVELS,
+    PRORATA_MODES,
+    SANS_POINTAGE_POLICIES,
     SCHEMA_VERSION,
     ZONE_TYPES,
 )
@@ -89,16 +91,66 @@ class BaseCalculPrime(BaseModel):
         return normalized
 
 
+class PrimeAncienneteEligibilite(BaseModel):
+    min_annees: float = 0.0
+    statuts_exclus: list[str] = Field(default_factory=list)
+    classe_max_taux: int = 10
+
+
+class PrimeAncienneteProrata(BaseModel):
+    enabled: bool = False
+    mode: Literal["heures_contrat", "jours_forfait", "none"] = "heures_contrat"
+    inclure_heures_sup: bool = True
+    maladie_si_maintien: bool = True
+    sans_pointage_policy: Literal["plein_mois", "zero"] = "plein_mois"
+    ratio_plafond: Optional[float] = None
+
+    @field_validator("mode")
+    @classmethod
+    def validate_mode(cls, v: str) -> str:
+        if v not in PRORATA_MODES:
+            return "heures_contrat"
+        return v
+
+    @field_validator("sans_pointage_policy")
+    @classmethod
+    def validate_sans_pointage(cls, v: str) -> str:
+        if v not in SANS_POINTAGE_POLICIES:
+            return "plein_mois"
+        return v
+
+
+class ValeurPointZone(BaseModel):
+    zone_type: Literal["national", "regional", "departemental", "local", "inconnu"] = (
+        "inconnu"
+    )
+    zone_libelle: str = ""
+    departements: list[str] = Field(default_factory=list)
+    valeur: float
+
+    @field_validator("zone_type")
+    @classmethod
+    def validate_zone_type(cls, v: str) -> str:
+        if v not in ZONE_TYPES:
+            return "inconnu"
+        return v
+
+
 class PrimeAnciennete(BaseModel):
     bareme: list[PalierAnciennete] = Field(default_factory=list)
     base_de_calcul: Optional[BaseCalculPrime] = None
     taux_par_classe: Optional[dict[str, float]] = None
+    eligibilite: Optional[PrimeAncienneteEligibilite] = None
+    prorata: Optional[PrimeAncienneteProrata] = None
+    valeurs_point: list[ValeurPointZone] = Field(default_factory=list)
 
 
 class CpAncienneteTier(BaseModel):
-    category: Literal["ouvrier_etam", "cadre"]
+    category: Literal["ouvrier_etam", "cadre", "forfait", "all"]
     min_years: float
     days: float
+    min_age: Optional[float] = None
+    max_years: Optional[float] = None
 
 
 class CpAnciennete(BaseModel):
@@ -315,10 +367,30 @@ def parse_extraction_result(data: dict[str, Any]) -> CCRulesDocument:
             taux_par_classe = {
                 str(k): float(v) for k, v in taux_raw.items() if v is not None
             }
+        elig_raw = prime_raw.get("eligibilite")
+        elig = (
+            PrimeAncienneteEligibilite(**elig_raw)
+            if isinstance(elig_raw, dict)
+            else None
+        )
+        prorata_raw = prime_raw.get("prorata")
+        prorata = (
+            PrimeAncienneteProrata(**prorata_raw)
+            if isinstance(prorata_raw, dict)
+            else None
+        )
+        vp_list = [
+            ValeurPointZone(**v)
+            for v in prime_raw.get("valeurs_point", [])
+            if isinstance(v, dict)
+        ]
         prime = PrimeAnciennete(
             bareme=bareme,
             base_de_calcul=base,
             taux_par_classe=taux_par_classe or None,
+            eligibilite=elig,
+            prorata=prorata,
+            valeurs_point=vp_list,
         )
 
     minima = [
@@ -374,6 +446,20 @@ def document_to_engine_rules(doc: CCRulesDocument) -> dict[str, Any]:
             }
         if doc.prime_anciennete.taux_par_classe:
             prime_dict["taux_par_classe"] = dict(doc.prime_anciennete.taux_par_classe)
+        if doc.prime_anciennete.eligibilite:
+            prime_dict["eligibilite"] = doc.prime_anciennete.eligibilite.model_dump()
+        if doc.prime_anciennete.prorata:
+            prime_dict["prorata"] = doc.prime_anciennete.prorata.model_dump()
+        if doc.prime_anciennete.valeurs_point:
+            prime_dict["valeurs_point"] = [
+                {
+                    "zone_type": v.zone_type,
+                    "zone_libelle": v.zone_libelle,
+                    "departements": v.departements,
+                    "valeur": v.valeur,
+                }
+                for v in doc.prime_anciennete.valeurs_point
+            ]
         out["prime_anciennete"] = prime_dict
     if doc.salaires_minima:
         out["salaires_minima"] = [
@@ -404,6 +490,21 @@ def document_to_engine_rules(doc: CCRulesDocument) -> dict[str, Any]:
             }
             for g in doc.grilles_salaires
         ]
+    if doc.cp_anciennete:
+        out["cp_anciennete"] = {
+            "mode": doc.cp_anciennete.mode,
+            "seniority_reference": doc.cp_anciennete.seniority_reference,
+            "tiers": [
+                {
+                    "category": t.category,
+                    "min_years": t.min_years,
+                    "days": t.days,
+                    **({"min_age": t.min_age} if t.min_age is not None else {}),
+                    **({"max_years": t.max_years} if t.max_years is not None else {}),
+                }
+                for t in doc.cp_anciennete.tiers
+            ],
+        }
     if doc.completude:
         out["completude"] = doc.completude.model_dump()
     if doc.meta:

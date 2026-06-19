@@ -140,6 +140,9 @@ class TimesheetExtractProgress(BaseModel):
     pages_total: int = 0
     pages_done: int = 0
     current_page: int = 0
+    batch_id: Optional[str] = None
+    files_total: Optional[int] = None
+    files_done: Optional[int] = None
 
 
 class TimesheetExtractJobResponse(BaseModel):

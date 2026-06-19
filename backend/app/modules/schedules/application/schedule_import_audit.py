@@ -27,9 +27,11 @@ def record_schedule_import_run(
     extraction_method: str | None = None,
     raw_ocr_text: str | None = None,
     import_job_id: str | None = None,
+    batch_id: str | None = None,
     extraction_mode: str | None = None,
     page_count: int | None = None,
     consensus_conflicts: int | None = None,
+    days_written: int = 0,
 ) -> None:
     try:
         employees_matched = sum(
@@ -61,7 +63,7 @@ def record_schedule_import_run(
                 else None
             ),
             "employees_matched": employees_matched,
-            "days_written": 0,
+            "days_written": days_written,
             "warnings_json": [c.model_dump() for c in proposal.quality_checks]
             + proposal.warnings,
             "proposal_json": proposal.model_dump(mode="json"),
@@ -71,6 +73,7 @@ def record_schedule_import_run(
             "parse_confidence": proposal.parse_confidence,
             "coverage_avg": coverage_avg,
             "import_job_id": import_job_id,
+            "batch_id": batch_id,
             "extraction_mode": extraction_mode,
             "page_count": page_count,
             "consensus_conflicts": consensus_conflicts,

@@ -14,6 +14,7 @@ AbsenceType = Literal[
     "rtt",
     "sans_solde",
     "repos_compensateur",
+    "recuperation_modulation",
     "evenement_familial",
     "arret_maladie",
     "arret_at",

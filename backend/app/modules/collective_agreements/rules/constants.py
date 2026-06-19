@@ -20,6 +20,10 @@ MAX_SALARY_TEXTS_EXTENDED = 12
 MAX_PAYROLL_ANNEXES_DEFAULT = 6
 MAX_PAYROLL_ANNEXES_EXTENDED = 12
 
+PRORATA_MODES = frozenset({"heures_contrat", "jours_forfait", "none"})
+
+SANS_POINTAGE_POLICIES = frozenset({"plein_mois", "zero"})
+
 BASE_CALCUL_METHODS = frozenset(
     {
         "salaire_minimum_conventionnel",

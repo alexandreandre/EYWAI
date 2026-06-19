@@ -57,6 +57,17 @@ def balances_to_api_list(
             }
         )
 
+    frac_days = float(soldes.get("fractionnement_days") or 0)
+    if frac_days > 0:
+        result.append(
+            {
+                "type": "Congés Payés (fractionnement)",
+                "acquired": frac_days,
+                "taken": 0,
+                "remaining": frac_days,
+            }
+        )
+
     rtt = soldes["rtt"]
     result.append(
         {
@@ -76,6 +87,16 @@ def balances_to_api_list(
             "remaining": repos["solde"],
         }
     )
+    mod = soldes.get("compte_modulation")
+    if mod:
+        result.append(
+            {
+                "type": "Compte modulation",
+                "acquired": mod.get("acquis", 0),
+                "taken": mod.get("pris", 0),
+                "remaining": mod.get("solde", 0),
+            }
+        )
     result.append(
         {
             "type": "Événement familial",

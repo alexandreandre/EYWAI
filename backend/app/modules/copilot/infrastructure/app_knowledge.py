@@ -137,9 +137,11 @@ Le parcours est numéroté et doit être suivi dans l'ordre avant de lancer la p
   ④ Contingent HS → suivi du contingent annuel d'heures supplémentaires par
      salarié (consommation, alertes, repos compensateurs). Paramétrage dans
      Mon Entreprise → onglet Paie → section Temps de travail.
-  ⑤ Modulation → suivi des soldes d'heures de modulation / annualisation par
-     salarié (heures théoriques vs réelles). Paramétrage dans Mon Entreprise →
-     onglet Paie → section Temps de travail.
+  ⑤ Modulation → annualisation (semaines hautes/basses) et compte d'heures
+     (franchise HS mensuelle, crédit différé, récupération en absence). Suivi
+     des écarts théorique/réel et du solde compte par salarié. Paramétrage dans
+     Mon Entreprise → onglet Paie → section Temps de travail (preset métallurgie
+     disponible : 37/32 h + franchise 14 h HS/mois).
   ⑥ Notes de frais → valider les notes de frais.
   ⑦ Primes → saisir les primes mensuelles ; sous-onglet « Participation &
      Intéressement » pour simuler la RSP, lancer une campagne de bulletins
@@ -256,14 +258,18 @@ FAQ RH TRANSVERSES
   Mon Entreprise → onglet Paie.
 — Temps de travail (Mon Entreprise → Paie) : section « Temps de travail » avec
   Jours fériés, congés/RTT (mode forfait-jours cadres), CP ancienneté (presets
-  plasturgie / LEWIS / règles personnalisées), fractionnement CP, modulation
-  32h/37h, contingent HS, CET (compte épargne-temps). Section « Variables de paie » :
+  plasturgie / métallurgie 3248 / LEWIS / règles personnalisées), campagne congés
+  annuelle (validation juin CP anc., octobre fractionnement), fractionnement CP
+  (formule MBC, légale ou manuelle), modulation
+  32h/37h, contingent HS, CET (compte épargne-temps — page RH `/suivi-cet`, paramètres dans Fiche entreprise > Paie). Section « Variables de paie » :
   règles astreinte, équipe, productivité, modulation → génération dans Primes →
   « Préparer variables du mois ».
 — Contingent HS : paramétrage Mon Entreprise → Paie ; suivi mensuel EYWAI Paie →
   Contingent HS.
 — Modulation : paramétrage Mon Entreprise → Paie ; suivi mensuel EYWAI Paie →
   Modulation (solde heures par salarié).
+— CET : paramétrage Mon Entreprise → Paie (HS/CP, plafond, validation manager) ;
+  suivi EYWAI Paie → Suivi CET ; salarié : Mon CET ou Absences ; manager : CET à valider.
 — Participation / intéressement : simulation et campagne côté RH dans Primes →
   sous-onglet « Participation & Intéressement » ; réponse salarié dans
   « Participation » (espace collaborateur).

@@ -63,3 +63,17 @@ def test_iccp_desactivable_par_flag():
     assert not any("compensatrice de congés" in k for k in gains)
     # La précarité reste due.
     assert "Prime de précarité (CDD)" in gains
+
+
+def test_iccp_absente_si_sortie_en_attente():
+    ctx = build_test_contexte(
+        salaire_base=2200.0,
+        type_contrat="CDD",
+        date_entree="2025-10-01",
+        date_fin_contrat="2026-04-30",
+        cumuls={"brut_total": 8800.0},
+    )
+    ctx.block_iccp_cdd = True
+    res = calculer_salaire_brut(ctx, [], date(2026, 4, 1), date(2026, 4, 30), [])
+    gains = _lignes_gain(res)
+    assert not any("compensatrice de congés" in k for k in gains)

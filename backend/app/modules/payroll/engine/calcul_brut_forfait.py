@@ -13,12 +13,8 @@ Le forfait jour fonctionne différemment du mode horaire :
 """
 
 from .contexte import ContextePaie
-from app.modules.collective_agreements.rules.resolver import (
-    code_postal_from_entreprise,
-    resolve_salaires_minima,
-)
-from datetime import datetime, date
-from typing import Dict, Any, List
+from datetime import date
+from typing import Dict, Any, List, Optional
 from .calcul_conges import calculer_indemnite_conges
 from .salary_evolution_brut import (
     lignes_rappel_salaire,
@@ -75,53 +71,29 @@ def _construire_ligne_avantages_en_nature(
     return None
 
 
-def _calculer_prime_anciennete(contexte: ContextePaie) -> Dict[str, Any] | None:
-    """Calcule la prime d'ancienneté (identique au mode horaire)."""
-    from app.modules.collective_agreements.rules.prime_calcul import (
-        calculer_montant_prime_anciennete,
-    )
+def _calculer_prime_anciennete(
+    contexte: ContextePaie,
+    *,
+    calendrier_saisie: List[Dict[str, Any]],
+    date_debut_periode: date,
+    date_fin_periode: date,
+    jours_maintien: Optional[set[int]] = None,
+    actual_hours_raw: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any] | None:
+    from app.modules.payroll.engine.prime_anciennete import calculer_ligne_prime_anciennete
 
-    date_entree_str = contexte.contrat.get("contrat", {}).get("date_entree")
-    if not date_entree_str:
+    ligne = calculer_ligne_prime_anciennete(
+        contexte,
+        calendrier_saisie=calendrier_saisie,
+        date_debut_periode=date_debut_periode,
+        date_fin_periode=date_fin_periode,
+        jours_maintien=jours_maintien,
+        actual_hours_raw=actual_hours_raw,
+    )
+    if not ligne:
         return None
-
-    date_entree = datetime.strptime(date_entree_str, "%Y-%m-%d")
-    anciennete_annees = (datetime.now() - date_entree).days / 365.25
-    idcc = (
-        contexte.contrat.get("remuneration", {})
-        .get("convention_collective", {})
-        .get("idcc")
-    )
-
-    if not idcc:
-        return None
-
-    regles_cc = contexte.baremes.get("conventions_collectives", {}).get(
-        f"idcc_{idcc}", {}
-    )
-    regles_prime = regles_cc.get("prime_anciennete", {})
-    minima_applicables = resolve_salaires_minima(
-        regles_cc,
-        code_postal=code_postal_from_entreprise(contexte.entreprise),
-    )
-    result = calculer_montant_prime_anciennete(
-        regles_prime=regles_prime,
-        contrat=contexte.contrat,
-        anciennete_annees=anciennete_annees,
-        salaire_base_mensuel=contexte.salaire_base_mensuel,
-        minima_applicables=minima_applicables,
-    )
-    if not result:
-        return None
-    base_de_calcul, montant_prime, libelle = result
-    taux = montant_prime / base_de_calcul if base_de_calcul else 0.0
-    return {
-        "libelle": libelle,
-        "quantite": base_de_calcul,
-        "taux": taux,
-        "gain": montant_prime,
-        "perte": None,
-    }
+    ligne.pop("meta", None)
+    return ligne
 
 
 def _calculer_deduction_absence_forfait_jour(
@@ -154,6 +126,8 @@ def calculer_salaire_brut_forfait(
     date_debut_periode: date,
     date_fin_periode: date,
     primes_saisies: List[Dict[str, Any]] = None,
+    jours_maintien: Optional[set[int]] = None,
+    actual_hours_raw: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """
     Calcule le salaire brut pour un employé en forfait jour.
@@ -309,7 +283,14 @@ def calculer_salaire_brut_forfait(
             )
 
     # 4. Ajout des primes, avantages et calcul des totaux
-    ligne_prime_anciennete = _calculer_prime_anciennete(contexte)
+    ligne_prime_anciennete = _calculer_prime_anciennete(
+        contexte,
+        calendrier_saisie=calendrier_saisie,
+        date_debut_periode=date_debut_periode,
+        date_fin_periode=date_fin_periode,
+        jours_maintien=jours_maintien,
+        actual_hours_raw=actual_hours_raw,
+    )
     if ligne_prime_anciennete:
         lignes_composants_brut.append(ligne_prime_anciennete)
 

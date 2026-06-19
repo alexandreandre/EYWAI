@@ -452,6 +452,32 @@ def _taux_conventionnel(settings: Dict[str, Any], est_at_mp: bool) -> Optional[f
     return None
 
 
+def _min_seniority_months_for_arret(
+    settings: Dict[str, Any], est_at_mp: bool
+) -> int:
+    """Seuil d'ancienneté pour le maintien (AM vs AT/MP)."""
+    if est_at_mp:
+        return int(
+            settings.get("min_seniority_months_at_mp")
+            or settings.get("min_seniority_months")
+            or 0
+        )
+    return int(settings.get("min_seniority_months") or 0)
+
+
+def _est_maintien_eligible_seniority(
+    settings: Dict[str, Any],
+    qualification: Dict[str, Any],
+    anciennete_mois: int,
+) -> bool:
+    """True si l'ancienneté permet le maintien employeur (hors chevauchement période)."""
+    if bool(settings.get("no_seniority_condition")):
+        return True
+    est_at_mp = bool(qualification.get("est_at_mp"))
+    min_senior = _min_seniority_months_for_arret(settings, est_at_mp)
+    return anciennete_mois >= min_senior
+
+
 def _calculer_maintien_employeur(
     arret: Dict[str, Any],
     qualification: Dict[str, Any],
@@ -467,7 +493,8 @@ def _calculer_maintien_employeur(
     motif_non_maintien: Optional[str] = None
     conflit_convention = False
 
-    min_senior = int(settings.get("min_seniority_months") or 0)
+    est_at_mp = bool(qualification.get("est_at_mp"))
+    min_senior = _min_seniority_months_for_arret(settings, est_at_mp)
     no_seniority = bool(settings.get("no_seniority_condition"))
     if not no_seniority and anciennete_mois < min_senior:
         return {
@@ -766,7 +793,117 @@ def _calculer_prevoyance_complement(
     return base
 
 
+# --- Subrogation ---
+
+_AT_MP_TYPES = frozenset(
+    {
+        "accident_travail",
+        "maladie_professionnelle",
+        "accident_trajet",
+        "rechute_at",
+    }
+)
+
+
+def resolve_subrogation_active(
+    settings: Dict[str, Any],
+    arret_type: str,
+    maintien_eligible: bool,
+    override: Optional[bool] = None,
+) -> bool:
+    """
+    Détermine si la subrogation IJSS est active pour cet arrêt.
+
+    :param maintien_eligible: True si l'ancienneté permet le maintien employeur.
+    """
+    if override is not None:
+        return bool(override)
+    mode = settings.get("subrogation_mode") or "when_maintien"
+    if mode == "automatic":
+        mode = "when_maintien"
+    t = (arret_type or "maladie_simple").strip()
+    if mode == "at_mp_only":
+        return t in _AT_MP_TYPES and maintien_eligible
+    if mode == "per_case":
+        return maintien_eligible
+    return maintien_eligible
+
+
 # --- Point d'entrée ---
+
+
+def compute_jours_avec_maintien_mois(
+    arret: Dict[str, Any],
+    contexte: ContextePaie,
+    settings: Dict[str, Any],
+    date_debut_periode: date,
+    date_fin_periode: date,
+) -> set[int]:
+    """
+    Jours du mois (numéro 1–31) où l'arrêt maladie/AT bénéficie d'un maintien employeur.
+    Utilisé pour le prorata de la prime d'ancienneté.
+    """
+    arret_type = str(arret.get("arret_type") or "maladie_simple")
+    qualification = _qualifier_arret(arret_type)
+
+    date_debut_arret = _parse_date(arret.get("date_debut"))
+    date_fin_arret = _parse_date(arret.get("date_fin")) or date_debut_arret
+    if not date_debut_arret:
+        return set()
+
+    date_entree_raw = (contexte.contrat or {}).get("contrat", {}).get("date_entree")
+    date_entree = _parse_date(date_entree_raw) or date(2000, 1, 1)
+    anciennete_mois = _mois_anciennete(date_entree, date_debut_arret)
+
+    est_at_mp = bool(qualification.get("est_at_mp"))
+    min_senior = _min_seniority_months_for_arret(settings, est_at_mp)
+    no_seniority = bool(settings.get("no_seniority_condition"))
+    if not no_seniority and anciennete_mois < min_senior:
+        return set()
+
+    inter_d, inter_f = _intersection_dates(
+        date_debut_arret, date_fin_arret or date_debut_arret,
+        date_debut_periode, date_fin_periode,
+    )
+    if inter_d is None or inter_f is None:
+        return set()
+
+    historique = list(arret.get("historique_arrets_annee") or [])
+    carence = _calculer_carence(
+        arret, qualification, settings, date_debut_arret, historique
+    )
+    carence_emp = int(carence.get("carence_employeur_jours") or 0)
+    apply_legal = bool(settings.get("apply_legal_maintenance"))
+    duree_par_taux = duree_maintien_par_taux(anciennete_mois) if apply_legal else 0
+    custom_d = int(settings.get("custom_duration_days") or 0)
+    cap_conv = custom_d if custom_d > 0 else (2 * duree_par_taux)
+    taux_conv = _taux_conventionnel(settings, est_at_mp)
+
+    jours_intersection = _compter_jours_calendaires(inter_d, inter_f)
+    offset = (inter_d - date_debut_arret).days
+    jours_maintien: set[int] = set()
+
+    for k in range(jours_intersection):
+        jour_cal = inter_d + timedelta(days=k)
+        jour_arret = offset + k + 1
+        jour_maintien = jour_arret - carence_emp
+        if jour_maintien < 1:
+            continue
+        t_leg = (
+            _taux_legal_pour_jour_maintien(jour_maintien, duree_par_taux)
+            if apply_legal
+            else 0.0
+        )
+        m_leg = t_leg > 0
+        m_conv = (
+            taux_conv is not None
+            and jour_maintien <= cap_conv
+            and float(taux_conv) > 0
+        )
+        if m_leg or m_conv:
+            jours_maintien.add(jour_cal.day)
+
+    return jours_maintien
 
 
 def calculer_maintien(
@@ -805,6 +942,17 @@ def calculer_maintien(
         date_debut_periode,
         date_fin_periode,
     )
+
+    ijss_override = arret.get("ijss_brut_override")
+    if ijss_override is not None:
+        try:
+            override_val = float(ijss_override)
+        except (TypeError, ValueError):
+            override_val = None
+        if override_val is not None and override_val >= 0:
+            ijss = dict(ijss)
+            ijss["ijss_theorique"] = round(override_val, 2)
+            ijss["ijss_brut_override"] = True
 
     date_entree_raw = (
         (contexte.contrat or {})
@@ -890,6 +1038,10 @@ def calculer_maintien(
         )
     if not arret.get("subrogation_active"):
         alertes.append("IJSS versées directement au salarié")
+    elif not maintien.get("maintien_applicable", True) and arret.get("subrogation_active"):
+        alertes.append(
+            "Subrogation demandée sans maintien applicable — vérifier la cohérence"
+        )
     if arret.get("subrogation_active") and float(ijss.get("ijss_theorique") or 0) == 0:
         sjb = float(ijss.get("salaire_journalier_base") or 0)
         bp = float(ijss.get("base_plafonnee") or 0)

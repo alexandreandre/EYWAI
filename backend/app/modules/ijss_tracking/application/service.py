@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import calendar as cal_mod
 import hashlib
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from app.core.database import get_supabase_admin_client
@@ -24,6 +25,44 @@ from app.modules.ijss_tracking.infrastructure.parsers.cpam_decompte_parser impor
 from app.shared.utils.export import generate_xlsx
 
 logger = get_logger("modules.ijss_tracking.service")
+
+
+def _parse_day(value: Any) -> Optional[date]:
+    if value is None:
+        return None
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str) and value.strip():
+        return date.fromisoformat(value[:10])
+    return None
+
+
+def _period_bounds(year: int, month: int) -> tuple[date, date]:
+    last_day = cal_mod.monthrange(year, month)[1]
+    return date(year, month, 1), date(year, month, last_day)
+
+
+def _absence_overlaps_month(absence: Dict[str, Any], year: int, month: int) -> bool:
+    start, end = _period_bounds(year, month)
+    for raw in absence.get("selected_days") or []:
+        d = _parse_day(raw)
+        if d and start <= d <= end:
+            return True
+    return False
+
+
+def _pick_absence_for_period(
+    absences: List[Dict[str, Any]], year: int, month: int
+) -> Optional[Dict[str, Any]]:
+    overlapping = [a for a in absences if _absence_overlaps_month(a, year, month)]
+    if not overlapping:
+        return None
+    overlapping.sort(
+        key=lambda a: min(
+            _parse_day(d) or date(9999, 12, 31) for d in (a.get("selected_days") or [])
+        )
+    )
+    return overlapping[0]
 
 
 def _fetch_employees(company_id: str) -> List[Dict[str, Any]]:
@@ -137,6 +176,14 @@ def get_period_dashboard(
                 "absence_request_id": exp.get("absence_request_id"),
                 "ijss_theorique": float(exp.get("ijss_theorique") or 0),
                 "ijss_subrogees_bulletin": float(exp.get("ijss_subrogees_bulletin") or 0),
+                "ijss_brut_validated": float(exp["ijss_brut_validated"])
+                if exp.get("ijss_brut_validated") is not None
+                else None,
+                "validation_source": exp.get("validation_source"),
+                "applied_to_payslip_at": exp.get("applied_to_payslip_at"),
+                "applied_ijss_brut": float(exp["applied_ijss_brut"])
+                if exp.get("applied_ijss_brut") is not None
+                else None,
                 "received_cpam": cpam,
                 "received_bank": bank,
                 "line_status": st,
@@ -146,10 +193,28 @@ def get_period_dashboard(
 
     rows.sort(key=lambda r: (0 if r["line_status"] in ("variance", "partial") else 1, r["employee_name"]))
 
+    unmatched_received: List[Dict[str, Any]] = []
+    for line in received:
+        match_status = line.get("match_status") or "unmatched"
+        if match_status == "matched" and line.get("employee_id"):
+            continue
+        unmatched_received.append(
+            {
+                "id": str(line.get("id") or ""),
+                "source": str(line.get("source") or ""),
+                "amount": float(line.get("amount") or 0),
+                "employee_name_raw": line.get("employee_name_raw"),
+                "employee_nir": line.get("employee_nir"),
+                "payment_date": line.get("payment_date"),
+            }
+        )
+    unmatched_received.sort(key=lambda u: (-u["amount"], u.get("employee_name_raw") or ""))
+
     return {
         "period": period,
         "summary": counts,
         "rows": rows,
+        "unmatched_received": unmatched_received,
     }
 
 
@@ -187,17 +252,22 @@ def sync_expected_lines(company_id: str, period_id: str) -> Dict[str, Any]:
 
         absences = (
             client.table("absence_requests")
-            .select("id, subrogation_active")
+            .select("id, subrogation_active, selected_days")
             .eq("employee_id", ps["employee_id"])
             .eq("status", "validated")
             .in_("type", list(IJSS_ELIGIBLE_ABSENCE_TYPES))
             .execute()
         ).data or []
-        absence_id = absences[0]["id"] if absences else None
+        matched_absence = _pick_absence_for_period(absences, year, month)
+        absence_id = matched_absence["id"] if matched_absence else None
         subrogation = bool(
             sn.get("subrogation_active")
             if sn.get("subrogation_active") is not None
-            else (absences[0].get("subrogation_active") if absences else True)
+            else (
+                matched_absence.get("subrogation_active")
+                if matched_absence
+                else True
+            )
         )
 
         repo.upsert_expected_line(
@@ -319,11 +389,16 @@ def get_absence_ijss_status(company_id: str, absence_id: str) -> Dict[str, Any]:
     if not exp.data:
         return {"status": "pending", "absence_request_id": absence_id}
     line = exp.data[0]
+    brut_val = line.get("ijss_brut_validated")
+    applied_brut = line.get("applied_ijss_brut")
     return {
         "status": line.get("line_status") or "pending",
         "absence_request_id": absence_id,
         "expected_line_id": line.get("id"),
         "ijss_subrogees_bulletin": float(line.get("ijss_subrogees_bulletin") or 0),
+        "ijss_brut_validated": float(brut_val) if brut_val is not None else None,
+        "applied_to_payslip_at": line.get("applied_to_payslip_at"),
+        "applied_ijss_brut": float(applied_brut) if applied_brut is not None else None,
     }
 
 
@@ -502,3 +577,37 @@ def export_audit_excel(company_id: str, period_id: str) -> bytes:
             }
         )
     return generate_xlsx(data, headers, sheet_name="Suivi IJSS")
+
+
+def validate_expected_line(
+    company_id: str,
+    expected_line_id: str,
+    user_id: str,
+    amount: Optional[float] = None,
+    source: Optional[str] = None,
+) -> Dict[str, Any]:
+    from app.modules.ijss_tracking.application.apply_to_payslip import (
+        validate_expected_line_brut,
+    )
+
+    return validate_expected_line_brut(
+        company_id, expected_line_id, user_id, amount, source
+    )
+
+
+def apply_ijss_to_payslip(
+    company_id: str, expected_line_id: str, user_id: str
+) -> Dict[str, Any]:
+    from app.modules.ijss_tracking.application.apply_to_payslip import (
+        apply_validated_ijss_to_payslip,
+    )
+
+    return apply_validated_ijss_to_payslip(company_id, expected_line_id, user_id)
+
+
+def apply_all_validated(company_id: str, period_id: str, user_id: str) -> Dict[str, Any]:
+    from app.modules.ijss_tracking.application.apply_to_payslip import (
+        apply_all_validated_for_period,
+    )
+
+    return apply_all_validated_for_period(company_id, period_id, user_id)

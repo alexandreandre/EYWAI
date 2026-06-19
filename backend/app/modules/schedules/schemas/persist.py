@@ -16,6 +16,9 @@ class PersistTimesheetRequest(BaseModel):
     year: int
     month: int
     employees: List[PersistTimesheetEmployee] = Field(default_factory=list)
+    batch_id: Optional[str] = None
+    recalculate_payroll: bool = False
+    allow_partial: bool = False
 
 
 class PersistTimesheetResult(BaseModel):

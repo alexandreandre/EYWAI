@@ -6,7 +6,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
-SubrogationMode = Literal["automatic", "at_mp_only", "per_case"]
+SubrogationMode = Literal["when_maintien", "automatic", "at_mp_only", "per_case"]
 
 
 class MaintenanceSettings(BaseModel):
@@ -18,6 +18,7 @@ class MaintenanceSettings(BaseModel):
     company_id: str
     apply_legal_maintenance: bool = True
     min_seniority_months: int = Field(default=12, ge=0, le=120)
+    min_seniority_months_at_mp: int = Field(default=3, ge=0, le=120)
     employer_waiting_days: int = Field(default=7, ge=0, le=30)
     seniority_extension_enabled: bool = False
     remove_employer_waiting: bool = False
@@ -27,7 +28,7 @@ class MaintenanceSettings(BaseModel):
     maintain_by_category: bool = False
     no_seniority_condition: bool = False
     custom_duration_days: Optional[int] = None
-    subrogation_mode: SubrogationMode = "automatic"
+    subrogation_mode: SubrogationMode = "when_maintien"
     provident_relay_days: Optional[int] = None
     provident_maintenance_rate: Optional[float] = Field(default=None, ge=0, le=1)
     provident_cadre_only: bool = True

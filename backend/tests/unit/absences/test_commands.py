@@ -296,6 +296,84 @@ class TestUpdateAbsenceRequestStatus:
                 commands.update_absence_request_status("req-1", "cancelled")
 
 
+class TestModulationRecoveryOnValidation:
+    """Débit compte modulation à la validation d'une récup."""
+
+    def test_raises_when_balance_insufficient(self):
+        data = {
+            "company_id": "company-1",
+            "employee_id": "emp-1",
+            "selected_days": ["2026-03-10", "2026-03-11", "2026-03-12"],
+        }
+        with patch(
+            "app.modules.modulation.infrastructure.repository.get_modulation_settings"
+        ) as mock_settings:
+            mock_settings.return_value = type(
+                "S",
+                (),
+                {
+                    "hour_account_enabled": True,
+                    "recovery_absence_enabled": True,
+                    "recovery_debit_timing": "on_validation",
+                },
+            )()
+            with patch(
+                "app.modules.absences.application.commands.supabase"
+            ) as mock_sb:
+                mock_sb.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value = type(
+                    "R", (), {"data": [{"duree_hebdomadaire": 35}]}
+                )()
+                with patch(
+                    "app.modules.modulation.application.hour_account_queries.get_employee_account_balance"
+                ) as mock_bal:
+                    mock_bal.return_value = type(
+                        "B", (), {"account_balance_hours": 2.0}
+                    )()
+                    with pytest.raises(ValueError, match="Solde modulation insuffisant"):
+                        commands._apply_modulation_recovery_on_validation(
+                            data, "req-mod-1"
+                        )
+
+    def test_creates_debit_when_balance_sufficient(self):
+        data = {
+            "company_id": "company-1",
+            "employee_id": "emp-1",
+            "selected_days": ["2026-03-10"],
+        }
+        with patch(
+            "app.modules.modulation.infrastructure.repository.get_modulation_settings"
+        ) as mock_settings:
+            mock_settings.return_value = type(
+                "S",
+                (),
+                {
+                    "hour_account_enabled": True,
+                    "recovery_absence_enabled": True,
+                    "recovery_debit_timing": "on_validation",
+                },
+            )()
+            with patch(
+                "app.modules.absences.application.commands.supabase"
+            ) as mock_sb:
+                mock_sb.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value = type(
+                    "R", (), {"data": [{"duree_hebdomadaire": 35}]}
+                )()
+                with patch(
+                    "app.modules.modulation.application.hour_account_queries.get_employee_account_balance"
+                ) as mock_bal:
+                    mock_bal.return_value = type(
+                        "B", (), {"account_balance_hours": 20.0}
+                    )()
+                    with patch(
+                        "app.modules.modulation.application.hour_account_commands.create_debit_recovery_movement"
+                    ) as mock_debit:
+                        commands._apply_modulation_recovery_on_validation(
+                            data, "req-mod-1"
+                        )
+                        mock_debit.assert_called_once()
+                        assert mock_debit.call_args[0][4] == 7.0  # 1 jour × 35/5
+
+
 class TestGenerateSalaryCertificate:
     """Commande generate_salary_certificate."""
 

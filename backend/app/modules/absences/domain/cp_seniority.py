@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Literal
 
+from app.modules.absences.domain.cp_seniority_rules import (
+    CpSeniorityRules,
+    CpSeniorityTierRule,
+    parse_cp_seniority_rules,
+)
 from app.modules.absences.domain.leave_policy import LeavePolicySettings
 from app.modules.work_medals.domain.rules import career_reference_date
 
@@ -14,46 +20,36 @@ SeniorityBasis = Literal[
     "company_only", "include_prior_service", "seniority_reference_date"
 ]
 SeniorityReference = Literal["cp_period_end"]
-CpSeniorityPreset = Literal["plasturgie_idcc_0292", "lewis_agreement", "custom"]
+CpSeniorityPreset = Literal[
+    "plasturgie_idcc_0292",
+    "lewis_agreement",
+    "metallurgie_idcc_3248",
+    "custom",
+]
 RulesMode = Literal["tier_total", "cumulative_rules"]
 
 FORFAIT_ANNUAL_DAYS_DEFAULT = 216.0
 
-PLASTURGIE_0292_RULES: dict[str, Any] = {
-    "mode": "tier_total",
-    "tiers": [
-        {"category": "cadre", "min_years": 3, "days": 1},
-        {"category": "cadre", "min_years": 5, "days": 2},
-        {"category": "cadre", "min_years": 10, "days": 3},
-        {"category": "ouvrier_etam", "min_years": 5, "days": 1},
-        {"category": "ouvrier_etam", "min_years": 10, "days": 2},
-    ],
-}
 
-LEWIS_AGREEMENT_RULES: dict[str, Any] = {
-    "mode": "cumulative_rules",
-    "tiers": [
-        {"category": "all", "min_years": 2, "days": 1},
-        {"category": "all", "min_years": 2, "min_age": 45, "days": 1},
-        {"category": "all", "min_years": 20, "min_age": 55, "days": 1},
-        {"category": "forfait", "min_years": 1, "days": 1},
-    ],
-}
+def _preset_rules():
+    from app.modules.absences.domain.cp_seniority_resolver import (
+        LEWIS_AGREEMENT_RULES,
+        METALLURGIE_3248_RULES,
+        PLASTURGIE_0292_RULES,
+    )
+    return PLASTURGIE_0292_RULES, LEWIS_AGREEMENT_RULES, METALLURGIE_3248_RULES
 
 
-@dataclass(frozen=True)
-class CpSeniorityTierRule:
-    category: EmployeeCategory
-    min_years: float
-    days: float
-    min_age: float | None = None
-    max_years: float | None = None
+PLASTURGIE_0292_RULES, LEWIS_AGREEMENT_RULES, METALLURGIE_3248_RULES = _preset_rules()
 
-
-@dataclass(frozen=True)
-class CpSeniorityRules:
-    mode: RulesMode = "tier_total"
-    tiers: tuple[CpSeniorityTierRule, ...] = ()
+__all__ = [
+    "PLASTURGIE_0292_RULES",
+    "LEWIS_AGREEMENT_RULES",
+    "METALLURGIE_3248_RULES",
+    "CpSeniorityRules",
+    "CpSeniorityTierRule",
+    "parse_cp_seniority_rules",
+]
 
 
 @dataclass(frozen=True)
@@ -111,6 +107,10 @@ class CpSeniorityGrantResult:
     grant_year: int
     reference_date: date
     tier_matched: dict[str, Any] | None = None
+    days_before_prorata: float = 0.0
+    prorata_applied: bool = False
+    prorata_ratio: float = 1.0
+    warnings: tuple[str, ...] = ()
 
     @property
     def days_for_period_n(self) -> float:
@@ -129,6 +129,10 @@ class CpSeniorityGrantResult:
             "grant_year": self.grant_year,
             "reference_date": self.reference_date.isoformat(),
             "tier_matched": self.tier_matched,
+            "days_before_prorata": self.days_before_prorata,
+            "prorata_applied": self.prorata_applied,
+            "prorata_ratio": self.prorata_ratio,
+            "warnings": list(self.warnings),
         }
 
     @staticmethod
@@ -143,38 +147,11 @@ class CpSeniorityGrantResult:
         )
 
 
-def parse_cp_seniority_rules(raw: dict[str, Any] | None) -> CpSeniorityRules:
-    if not raw:
-        return CpSeniorityRules()
-    mode = raw.get("mode") or "tier_total"
-    if mode not in ("tier_total", "cumulative_rules"):
-        mode = "tier_total"
-    tiers_raw = raw.get("tiers") or []
-    tiers: list[CpSeniorityTierRule] = []
-    for t in tiers_raw:
-        cat = t.get("category")
-        if cat not in ("ouvrier_etam", "cadre", "forfait", "all"):
-            continue
-        min_age = t.get("min_age")
-        max_years = t.get("max_years")
-        tiers.append(
-            CpSeniorityTierRule(
-                category=cat,
-                min_years=float(t.get("min_years") or 0),
-                days=float(t.get("days") or 0),
-                min_age=float(min_age) if min_age is not None else None,
-                max_years=float(max_years) if max_years is not None else None,
-            )
-        )
-    return CpSeniorityRules(mode=mode, tiers=tuple(tiers))
-
-
 def resolve_effective_rules(settings: CpSenioritySettings) -> CpSeniorityRules:
-    if settings.preset == "plasturgie_idcc_0292":
-        return parse_cp_seniority_rules(PLASTURGIE_0292_RULES)
-    if settings.preset == "lewis_agreement":
-        return parse_cp_seniority_rules(LEWIS_AGREEMENT_RULES)
-    return settings.rules
+    from app.modules.absences.domain.cp_seniority_resolver import (
+        resolve_effective_cp_seniority_rules,
+    )
+    return resolve_effective_cp_seniority_rules(settings)
 
 
 def resolve_employee_category(ctx: EmployeeCpSeniorityContext) -> EmployeeCategory:
@@ -230,12 +207,20 @@ def compute_seniority_years(
     return round((reference_date - start).days / 365.25, 2)
 
 
-def _tier_matches_category(tier_cat: EmployeeCategory, employee_cat: EmployeeCategory) -> bool:
+def _tier_matches_category(
+    tier_cat: EmployeeCategory,
+    employee_cat: EmployeeCategory,
+    *,
+    is_cadre_dirigeant: bool = False,
+) -> bool:
     if tier_cat == "all":
         return True
     if tier_cat == employee_cat:
         return True
     if employee_cat == "forfait" and tier_cat == "cadre":
+        return True
+    # Art. 89 métallurgie : palier forfait 1 an = forfait jour/heure + cadres dirigeants
+    if tier_cat == "forfait" and employee_cat == "cadre" and is_cadre_dirigeant:
         return True
     return False
 
@@ -245,11 +230,15 @@ def _tier_total_days(
     category: EmployeeCategory,
     seniority_years: float,
     age_years: float | None,
+    *,
+    is_cadre_dirigeant: bool = False,
 ) -> tuple[float, dict[str, Any] | None]:
     matching = [
         t
         for t in rules.tiers
-        if _tier_matches_category(t.category, category)
+        if _tier_matches_category(
+            t.category, category, is_cadre_dirigeant=is_cadre_dirigeant
+        )
         and seniority_years >= t.min_years
         and (t.max_years is None or seniority_years < t.max_years)
         and (t.min_age is None or (age_years is not None and age_years >= t.min_age))
@@ -270,11 +259,15 @@ def _cumulative_days(
     category: EmployeeCategory,
     seniority_years: float,
     age_years: float | None,
+    *,
+    is_cadre_dirigeant: bool = False,
 ) -> tuple[float, list[dict[str, Any]]]:
     total = 0.0
     matched: list[dict[str, Any]] = []
     for tier in rules.tiers:
-        if not _tier_matches_category(tier.category, category):
+        if not _tier_matches_category(
+            tier.category, category, is_cadre_dirigeant=is_cadre_dirigeant
+        ):
             continue
         if seniority_years < tier.min_years:
             continue
@@ -294,6 +287,62 @@ def _cumulative_days(
             }
         )
     return total, matched
+
+
+def _has_age_tiers(rules: CpSeniorityRules) -> bool:
+    return any(t.min_age is not None for t in rules.tiers)
+
+
+def _compute_prorata_ratio(
+    ctx: EmployeeCpSeniorityContext,
+    ref: date,
+    policy: LeavePolicySettings,
+) -> tuple[float, bool]:
+    """Prorata conventionnel : CP acquis / CP max sur la période de référence."""
+    from app.modules.absences.domain.rules import (
+        calculate_acquired_cp_for_period,
+        get_cp_reference_period,
+    )
+
+    if not ctx.hire_date:
+        return 1.0, False
+    period_start, period_end = get_cp_reference_period(
+        ref, start_month=policy.cp_reference_period_start_month
+    )
+    if ctx.hire_date <= period_start:
+        return 1.0, False
+    if ctx.hire_date > period_end:
+        return 0.0, True
+    acquired = calculate_acquired_cp_for_period(
+        ctx.hire_date, period_start, period_end, policy=policy
+    )
+    max_acquired = calculate_acquired_cp_for_period(
+        period_start, period_start, period_end, policy=policy
+    )
+    if max_acquired <= 0:
+        return 1.0, False
+    ratio = min(1.0, acquired / max_acquired)
+    return ratio, ratio < 1.0
+
+
+def _build_warnings(
+    ctx: EmployeeCpSeniorityContext,
+    settings: CpSenioritySettings,
+    rules: CpSeniorityRules,
+    age_years: float | None,
+    prorata_applied: bool,
+) -> tuple[str, ...]:
+    warnings: list[str] = []
+    if _has_age_tiers(rules) and age_years is None and not ctx.birth_date:
+        warnings.append("birth_date_missing")
+    if (
+        settings.seniority_basis == "seniority_reference_date"
+        and not ctx.seniority_reference_date
+    ):
+        warnings.append("seniority_reference_date_missing")
+    if prorata_applied:
+        warnings.append("prorata_applied")
+    return tuple(warnings)
 
 
 def compute_cp_seniority_grant(
@@ -317,14 +366,31 @@ def compute_cp_seniority_grant(
     tier_matched: dict[str, Any] | None = None
     if rules.mode == "cumulative_rules":
         days, matched_list = _cumulative_days(
-            rules, category, seniority_years, age_years
+            rules,
+            category,
+            seniority_years,
+            age_years,
+            is_cadre_dirigeant=ctx.is_cadre_dirigeant,
         )
         if matched_list:
             tier_matched = {"matched": matched_list, "total": days}
     else:
         days, tier_matched = _tier_total_days(
-            rules, category, seniority_years, age_years
+            rules,
+            category,
+            seniority_years,
+            age_years,
+            is_cadre_dirigeant=ctx.is_cadre_dirigeant,
         )
+
+    days_before_prorata = days
+    prorata_ratio, prorata_applied = _compute_prorata_ratio(ctx, ref, policy)
+    if prorata_applied and days > 0:
+        days = float(math.ceil(days * prorata_ratio))
+
+    warnings = _build_warnings(
+        ctx, settings, rules, age_years, prorata_applied
+    )
 
     forfait_reduction = 0.0
     if days > 0 and ctx.is_forfait and settings.forfait_reduction_enabled:
@@ -338,6 +404,10 @@ def compute_cp_seniority_grant(
         grant_year=grant_year,
         reference_date=ref,
         tier_matched=tier_matched,
+        days_before_prorata=days_before_prorata,
+        prorata_applied=prorata_applied,
+        prorata_ratio=round(prorata_ratio, 4),
+        warnings=warnings,
     )
 
 

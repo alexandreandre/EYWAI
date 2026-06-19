@@ -74,7 +74,7 @@ class TestExtractPdfOcr:
         assert meta.truncated is False
         assert not meta.warnings
 
-    def test_partial_ocr_sets_truncation_warning(self, monkeypatch):
+    def test_partial_ocr_sets_truncation_flag_without_warning(self, monkeypatch):
         monkeypatch.setenv("TIMESHEET_OCR_MAX_PAGES", "50")
         with patch(
             "app.shared.infrastructure.documents.text_extraction._pdf_page_count",
@@ -89,7 +89,7 @@ class TestExtractPdfOcr:
             _text, _method, meta = extract_document_text(b"pdf", "releve.pdf")
 
         assert meta.truncated is True
-        assert any("15" in w and "20" in w for w in meta.warnings)
+        assert not meta.warnings
 
 
 class TestExtractDocumentTextNative:

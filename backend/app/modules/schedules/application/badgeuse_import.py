@@ -174,42 +174,48 @@ def import_actual_hours_from_badgeuse_bulk(
     month: int,
     recalculate_payroll: bool = False,
 ) -> Dict[str, Any]:
-    """Import badgeuse pour plusieurs employés d'une entreprise."""
+    """Import badgeuse pour plusieurs employés d'une entreprise (pool parallèle)."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     results: List[Dict[str, Any]] = []
     errors: List[Dict[str, str]] = []
     total_days = 0
 
-    for emp_id in employee_ids:
-        try:
-            company_id_emp, _ = get_employee_company_and_statut(emp_id)
-            if company_id_emp != company_id:
-                errors.append(
+    def _one(emp_id: str) -> Dict[str, Any]:
+        company_id_emp, _ = get_employee_company_and_statut(emp_id)
+        if company_id_emp != company_id:
+            raise ScheduleAppError(
+                "validation",
+                "Employé hors de l'entreprise active.",
+                status_code=400,
+            )
+        return import_actual_hours_from_badgeuse(
+            emp_id,
+            year,
+            month,
+            recalculate_payroll=recalculate_payroll,
+        )
+
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        futures = {pool.submit(_one, emp_id): emp_id for emp_id in employee_ids}
+        for future in as_completed(futures):
+            emp_id = futures[future]
+            try:
+                r = future.result()
+                total_days += r.days_updated
+                results.append(
                     {
                         "employee_id": emp_id,
-                        "message": "Employé hors de l'entreprise active.",
+                        "days_updated": r.days_updated,
+                        "warnings": r.warnings,
+                        "days_with_anomaly_warnings": r.days_with_anomaly_warnings,
+                        "payroll_recalculated": r.payroll_recalculated,
                     }
                 )
-                continue
-            r = import_actual_hours_from_badgeuse(
-                emp_id,
-                year,
-                month,
-                recalculate_payroll=recalculate_payroll,
-            )
-            total_days += r.days_updated
-            results.append(
-                {
-                    "employee_id": emp_id,
-                    "days_updated": r.days_updated,
-                    "warnings": r.warnings,
-                    "days_with_anomaly_warnings": r.days_with_anomaly_warnings,
-                    "payroll_recalculated": r.payroll_recalculated,
-                }
-            )
-        except ScheduleAppError as e:
-            errors.append({"employee_id": emp_id, "message": e.message})
-        except Exception as e:
-            errors.append({"employee_id": emp_id, "message": str(e)})
+            except ScheduleAppError as e:
+                errors.append({"employee_id": emp_id, "message": e.message})
+            except Exception as e:
+                errors.append({"employee_id": emp_id, "message": str(e)})
 
     return {
         "year": year,

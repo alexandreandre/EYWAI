@@ -28,6 +28,7 @@ def get_fractionnement_settings_row(company_id: str) -> dict[str, Any]:
             "cp_unit": "ouvres",
             "ouvres_to_ouvrables_ratio": OUVRES_TO_OUVRABLES_DEFAULT,
             "fifth_week_deduction_ouvres": FIFTH_WEEK_DEDUCTION_OUVRES_DEFAULT,
+            "calculation_method": "mbc",
         }
     return rows[0]
 
@@ -46,6 +47,7 @@ def upsert_fractionnement_settings(
         "cp_unit",
         "ouvres_to_ouvrables_ratio",
         "fifth_week_deduction_ouvres",
+        "calculation_method",
     )
     for key in allowed:
         if key in payload:
@@ -103,17 +105,25 @@ def upsert_fractionnement_input(
     grant_year: int,
     cp_reported_june_ouvres: float,
     cp_seniority_deduction_ouvres: float = 0.0,
+    *,
+    report_june_manual_override: bool = True,
+    seniority_manual_override: bool = True,
+    manual_solde_ouvrables: float | None = None,
 ) -> dict[str, Any]:
     now = datetime.now(timezone.utc).isoformat()
     existing = get_fractionnement_input(company_id, employee_id, grant_year)
-    row = {
+    row: dict[str, Any] = {
         "company_id": company_id,
         "employee_id": employee_id,
         "grant_year": grant_year,
         "cp_reported_june_ouvres": cp_reported_june_ouvres,
         "cp_seniority_deduction_ouvres": cp_seniority_deduction_ouvres,
+        "report_june_manual_override": report_june_manual_override,
+        "seniority_manual_override": seniority_manual_override,
         "updated_at": now,
     }
+    if manual_solde_ouvrables is not None:
+        row["manual_solde_ouvrables"] = manual_solde_ouvrables
     if existing:
         supabase.table("employee_cp_fractionnement_inputs").update(row).eq(
             "id", existing["id"]
@@ -148,10 +158,13 @@ def upsert_fractionnement_grant(
     payroll_month: int,
     days_granted: int,
     calculation_snapshot: dict[str, Any],
+    *,
+    status: str = "computed",
+    validated_by: str | None = None,
 ) -> dict[str, Any]:
     now = datetime.now(timezone.utc).isoformat()
     existing = get_fractionnement_grant(employee_id, grant_year)
-    row = {
+    row: dict[str, Any] = {
         "company_id": company_id,
         "employee_id": employee_id,
         "grant_year": grant_year,
@@ -159,8 +172,13 @@ def upsert_fractionnement_grant(
         "payroll_month": payroll_month,
         "days_granted": days_granted,
         "calculation_snapshot": calculation_snapshot,
+        "status": status,
         "updated_at": now,
     }
+    if status == "validated":
+        row["validated_at"] = now
+        if validated_by:
+            row["validated_by"] = validated_by
     if existing:
         supabase.table("employee_cp_fractionnement_grants").update(row).eq(
             "id", existing["id"]

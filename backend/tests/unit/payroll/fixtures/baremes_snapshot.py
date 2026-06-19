@@ -246,6 +246,11 @@ def baremes_snapshot() -> Dict[str, Any]:
                 "vieillesse_deplafonnee",
             ],
         },
+        "conges": {
+            "taux_journalier_diviseur": 21.67,
+            "taux_dixieme": 0.10,
+            "jours_reference_dixieme": 30.0,
+        },
         "cdd": {
             "precarite": {
                 "actif": True,

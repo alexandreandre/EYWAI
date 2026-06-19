@@ -236,6 +236,7 @@ class CalendarUpdateProvider(ICalendarUpdateService):
             "conge_paye": "conge",
             "rtt": "rtt",
             "repos_compensateur": "conge",
+            "recuperation_modulation": "conges_payes",
             "evenement_familial": "conge",
         }
         is_arret = absence_type_str in IJSS_ELIGIBLE_TYPES

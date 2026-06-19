@@ -55,7 +55,7 @@ _CEGID_PARTIAL_SIGNATURE = re.compile(
     re.IGNORECASE,
 )
 _OCR_PSM_MODES = (3, 4, 6)
-_DEFAULT_OCR_MAX_PAGES = 50
+_DEFAULT_OCR_MAX_PAGES = 120
 _DEFAULT_OCR_DPI = 300
 
 
@@ -410,10 +410,6 @@ def render_document_pages(
         warnings.append(f"Rendu partiel : {exc}")
 
     truncated = pages_to_process < pages_total
-    if truncated:
-        warnings.append(
-            f"PDF de {pages_total} pages, seules {pages_to_process} pages traitées."
-        )
 
     return RenderedDocument(
         pages=rendered,
@@ -483,7 +479,6 @@ def extract_document_text(
             meta.truncation_reason = (
                 f"PDF de {ocr_total} pages, seules {processed} pages OCRisées."
             )
-            meta.warnings.append(meta.truncation_reason)
         if force_ocr and native_text:
             meta.warnings.append(
                 "Texte natif partiel — OCR utilisé pour améliorer la lecture Cegid."

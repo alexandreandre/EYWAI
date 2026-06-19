@@ -4,22 +4,23 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from datetime import datetime, timezone
-from typing import Any
+from datetime import date as date_type, datetime, timezone
+from typing import Any, List
 
 from app.core.database import get_supabase_admin_client
-from app.modules.schedules.application import ai_fill
 from app.modules.schedules.application.exceptions import ScheduleAppError
-from app.modules.schedules.application.timesheet_extract_config import (
-    timesheet_extract_mode,
+from app.modules.schedules.application.schedule_import_audit import record_schedule_import_run
+from app.modules.schedules.application.timesheet_extract_config import timesheet_extract_mode
+from app.modules.schedules.application.timesheet_import.batch_service import (
+    create_batch_from_proposal,
+    proposal_to_items,
 )
 from app.modules.schedules.infrastructure.schedule_import_storage import (
     upload_schedule_import_file,
 )
+from app.modules.schedules.schemas.ai import AiCalendarProposalResponse, RosterEmployee
 
 logger = logging.getLogger(__name__)
-
-_JOB_TIMEOUT_MINUTES = 10
 
 
 def _db():
@@ -110,6 +111,38 @@ def cancel_import_job(job_id: str, *, company_id: str) -> bool:
     return True
 
 
+def _merge_proposals(proposals: List[AiCalendarProposalResponse]) -> AiCalendarProposalResponse:
+    if len(proposals) == 1:
+        return proposals[0]
+    base = proposals[-1]
+    by_key: dict[str, Any] = {}
+    warnings: set[str] = set()
+
+    for p in proposals:
+        for emp in p.employees:
+            key = emp.time_tracking_id or emp.employee_id or emp.raw_name
+            prev = by_key.get(key)
+            if not prev:
+                by_key[key] = emp.model_copy(deep=True)
+                continue
+            day_map = {d.jour: d for d in prev.days}
+            for d in emp.days:
+                day_map[d.jour] = d
+            prev.days = sorted(day_map.values(), key=lambda x: x.jour)
+            prev.warnings = list(set(prev.warnings + emp.warnings))
+            by_key[key] = prev
+        warnings.update(p.warnings)
+
+    merged = base.model_copy(
+        update={
+            "employees": list(by_key.values()),
+            "warnings": list(warnings),
+            "source": f"{len(proposals)} relevé(s) fusionné(s)",
+        }
+    )
+    return merged
+
+
 def run_timesheet_extraction_job(job_id: str, file_content: bytes) -> None:
     """Exécuté en BackgroundTasks après POST /extract-timesheet/start."""
     job = get_import_job(job_id)
@@ -128,18 +161,16 @@ def run_timesheet_extraction_job(job_id: str, file_content: bytes) -> None:
         _update_job(job_id, {"progress_json": progress, "status": "extracting"})
 
     try:
-        from app.modules.schedules.schemas.ai import RosterEmployee
-
         roster = [RosterEmployee(**item) for item in request.get("employees") or []]
         week_anchor = request.get("week_anchor_date")
         parsed_anchor = None
         if week_anchor:
-            from datetime import date as date_type
-
             try:
                 parsed_anchor = date_type.fromisoformat(str(week_anchor))
             except ValueError:
                 parsed_anchor = None
+
+        from app.modules.schedules.application import ai_fill
 
         proposal = ai_fill.extract_timesheet(
             year=int(request.get("year")),
@@ -154,21 +185,52 @@ def run_timesheet_extraction_job(job_id: str, file_content: bytes) -> None:
             user_id=str(user_id) if user_id else None,
             import_job_id=job_id,
             on_progress=on_progress,
-            skip_audit=False,
+            skip_audit=True,
         )
 
-        page_audit = None
+        from app.modules.schedules.application.timesheet_import.registry import (
+            detect_source_type,
+        )
+
+        batch = create_batch_from_proposal(
+            company_id=company_id,
+            user_id=str(user_id) if user_id else None,
+            proposal=proposal,
+            source_type=detect_source_type(filename),
+            parser_key=proposal.detected_format or proposal.extraction_mode or "hybrid",
+            filename=filename,
+            file_hash=job.get("file_hash"),
+            file_storage_path=job.get("file_storage_path"),
+            import_job_id=job_id,
+            file_content=file_content,
+        )
+        batch_id = str(batch["id"])
+
+        record_schedule_import_run(
+            company_id=company_id,
+            user_id=str(user_id) if user_id else None,
+            filename=filename,
+            proposal=proposal,
+            file_content=file_content,
+            import_job_id=job_id,
+            batch_id=batch_id,
+            extraction_mode=proposal.extraction_mode,
+            page_count=proposal.extraction_pages_processed,
+            consensus_conflicts=proposal.consensus_conflicts,
+        )
+
         _update_job(
             job_id,
             {
                 "status": "completed",
                 "proposal_json": proposal.model_dump(mode="json"),
-                "page_audit_json": page_audit,
+                "page_audit_json": None,
                 "completed_at": _now_iso(),
                 "progress_json": {
                     "phase": "completed",
                     "pages_total": proposal.extraction_pages_total or 0,
                     "pages_done": proposal.extraction_pages_processed or 0,
+                    "batch_id": batch_id,
                 },
             },
         )
@@ -193,9 +255,94 @@ def run_timesheet_extraction_job(job_id: str, file_content: bytes) -> None:
         )
 
 
+def run_multi_timesheet_extraction_job(
+    job_id: str,
+    files: List[tuple[str, bytes]],
+) -> None:
+    """Fusionne plusieurs fichiers en un batch unique."""
+    job = get_import_job(job_id)
+    if not job or job.get("status") == "cancelled":
+        return
+
+    request = job.get("request_json") or {}
+    company_id = str(job.get("company_id") or "")
+    user_id = job.get("user_id")
+    roster = [RosterEmployee(**item) for item in request.get("employees") or []]
+    year, month = int(request.get("year")), int(request.get("month"))
+
+    proposals: List[AiCalendarProposalResponse] = []
+    batch_ids: List[str] = []
+    try:
+        for i, (filename, content) in enumerate(files):
+            _update_job(
+                job_id,
+                {
+                    "progress_json": {
+                        "phase": "extracting",
+                        "files_total": len(files),
+                        "files_done": i,
+                        "current_file": filename,
+                    },
+                },
+            )
+            proposal, batch_id = parse_with_llm_fallback(
+                company_id=company_id,
+                user_id=str(user_id) if user_id else None,
+                content=content,
+                filename=filename,
+                year=year,
+                month=month,
+                roster=roster,
+                single_employee=bool(request.get("single_employee")),
+                document_scope=str(request.get("document_scope") or "auto"),
+                import_job_id=job_id,
+            )
+            proposals.append(proposal)
+            batch_ids.append(batch_id)
+
+        merged = _merge_proposals(proposals)
+        master_batch = create_batch_from_proposal(
+            company_id=company_id,
+            user_id=str(user_id) if user_id else None,
+            proposal=merged,
+            source_type="document_pdf",
+            parser_key="multi_file_merge",
+            filename=f"{len(files)} fichiers",
+            import_job_id=job_id,
+        )
+        master_id = str(master_batch["id"])
+
+        _update_job(
+            job_id,
+            {
+                "status": "completed",
+                "proposal_json": merged.model_dump(mode="json"),
+                "completed_at": _now_iso(),
+                "progress_json": {
+                    "phase": "completed",
+                    "files_total": len(files),
+                    "files_done": len(files),
+                    "batch_id": master_id,
+                    "source_batch_ids": batch_ids,
+                },
+            },
+        )
+    except Exception as exc:
+        logger.exception("Job multi-import %s échoué", job_id)
+        _update_job(
+            job_id,
+            {
+                "status": "failed",
+                "error_message": str(exc),
+                "completed_at": _now_iso(),
+            },
+        )
+
+
 __all__ = [
     "cancel_import_job",
     "create_import_job",
     "get_import_job",
+    "run_multi_timesheet_extraction_job",
     "run_timesheet_extraction_job",
 ]

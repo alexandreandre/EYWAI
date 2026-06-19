@@ -26,6 +26,9 @@ _NOISE_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"légère différence", re.I),
     re.compile(r"le calcul des heures individuelles donne", re.I),
     re.compile(r"^[^:]+:\s*single_channel_extraction", re.I),
+    re.compile(r"PDF de \d+ pages?, seules \d+ pages?", re.I),
+    re.compile(r"seules \d+ pages? (traitées|OCRisées)", re.I),
+    re.compile(r"cheval sur deux mois", re.I),
 )
 
 

@@ -67,11 +67,28 @@ class TestDetectUnknown:
 
 
 class TestCrossMonth:
-    def test_warns_cross_month(self):
+    def test_cross_month_handled_silently(self):
         det = detect_timesheet_period(
             CROSS_MONTH, target_year=2025, target_month=6
         )
-        assert any("cheval sur deux mois" in w for w in det.warnings)
+        assert not any("cheval sur deux mois" in w for w in det.warnings)
+        assert det.start_date == date(2025, 5, 27)
+        assert det.end_date == date(2025, 6, 2)
+
+    def test_ignores_ocr_date_noise_span(self):
+        noisy = (
+            "Du 27/10/2024 au 07/04/2028\n"
+            "Pointages juin 2026\n"
+            + "\n".join(f"0{i}/06/2026 8:00" for i in range(1, 10))
+        )
+        det = detect_timesheet_period(
+            noisy, target_year=2026, target_month=6
+        )
+        assert not any("cheval sur deux mois" in w for w in det.warnings)
+        assert det.start_date is not None
+        assert det.end_date is not None
+        assert det.start_date.year == 2026
+        assert det.end_date.year == 2026
 
     def test_outside_target_month_before_correction(self):
         det = detect_timesheet_period(

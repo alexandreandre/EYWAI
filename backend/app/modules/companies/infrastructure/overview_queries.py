@@ -15,7 +15,7 @@ def fetch_overview_raw(company_id: str) -> Dict[str, Any]:
         supabase.table("employees")
         .select(
             "id, first_name, last_name, contract_type, hire_date, job_title, statut, "
-            "date_naissance, birth_date, contract_end_date, weekly_hours, "
+            "date_naissance, contract_end_date, weekly_hours, "
             "duree_hebdomadaire, employment_status, status, sexe, gender, genre, "
             "collective_agreement_id, specificites_paie"
         )

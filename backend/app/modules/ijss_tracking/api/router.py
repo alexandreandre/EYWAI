@@ -14,6 +14,7 @@ from app.modules.ijss_tracking.schemas.requests import (
     IjssImportParseBody,
     IjssJustifyBody,
     IjssMatchReceivedBody,
+    IjssValidateBody,
 )
 from app.modules.ijss_tracking.schemas.responses import (
     IjssAbsenceStatus,
@@ -141,6 +142,51 @@ def match_received_line(
         )
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.post("/expected-lines/{expected_line_id}/validate")
+def validate_expected_line(
+    expected_line_id: str,
+    body: IjssValidateBody,
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh(current_user)
+    try:
+        return service.validate_expected_line(
+            cid,
+            expected_line_id,
+            str(current_user.id),
+            body.amount,
+            body.source,
+        )
+    except (LookupError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/expected-lines/{expected_line_id}/apply-to-payslip")
+def apply_to_payslip(
+    expected_line_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh(current_user)
+    try:
+        return service.apply_ijss_to_payslip(
+            cid, expected_line_id, str(current_user.id)
+        )
+    except (LookupError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/periods/{period_id}/apply-validated")
+def apply_all_validated(
+    period_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh(current_user)
+    try:
+        return service.apply_all_validated(cid, period_id, str(current_user.id))
+    except (LookupError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/expected-lines/{expected_line_id}/justify")

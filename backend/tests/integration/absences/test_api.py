@@ -597,3 +597,121 @@ class TestGetSalaryCertificate:
             headers=auth_headers,
         )
         assert response.status_code in (401, 404)
+
+
+# --- Campagne congés / CP ancienneté / fractionnement ---
+
+
+class TestLeaveCampaignRoutes:
+    """Routes campagne congés annuelle et validation grants."""
+
+    def test_leave_campaign_dashboard_without_auth_returns_401(
+        self, client: TestClient
+    ):
+        response = client.get("/api/absences/leave-campaign/dashboard")
+        assert response.status_code == 401
+
+    def test_leave_campaign_dashboard_returns_200_with_rh_user(
+        self, client: TestClient
+    ):
+        from app.core.security import get_current_user
+
+        dashboard = {
+            "grant_year": 2026,
+            "phase": "cp_seniority",
+            "today": "2026-06-01",
+            "cp_seniority": {
+                "enabled": True,
+                "preset": "metallurgie_idcc_3248",
+                "employee_count": 2,
+                "total_days": 3.0,
+                "validated_count": 0,
+                "overridden_count": 0,
+                "warnings_count": 1,
+                "deadline": "2026-05-31",
+            },
+            "fractionnement": {
+                "enabled": True,
+                "calculation_method": "mbc",
+                "employee_count": 2,
+                "total_days": 2,
+                "validated_count": 0,
+                "deadline": "2026-10-31",
+            },
+            "alerts": [],
+        }
+        with patch(
+            "app.modules.absences.api.router.leave_campaign_queries.get_leave_campaign_dashboard",
+            return_value=dashboard,
+        ):
+            app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+            try:
+                response = client.get(
+                    "/api/absences/leave-campaign/dashboard?grant_year=2026"
+                )
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["grant_year"] == 2026
+        assert data["cp_seniority"]["employee_count"] == 2
+
+    def test_validate_cp_seniority_without_auth_returns_401(
+        self, client: TestClient
+    ):
+        response = client.post(
+            "/api/absences/cp-seniority-settings/validate?grant_year=2026"
+        )
+        assert response.status_code == 401
+
+    def test_validate_cp_seniority_calls_command(self, client: TestClient):
+        from app.core.security import get_current_user
+
+        with patch(
+            "app.modules.absences.api.router.cp_seniority_commands.validate_cp_seniority_grants",
+            return_value={
+                "grant_year": 2026,
+                "validated_count": 5,
+                "status": "validated",
+            },
+        ) as mock_validate:
+            app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+            try:
+                response = client.post(
+                    "/api/absences/cp-seniority-settings/validate?grant_year=2026"
+                )
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 200
+        assert response.json()["validated_count"] == 5
+        mock_validate.assert_called_once()
+
+    def test_validate_fractionnement_without_auth_returns_401(
+        self, client: TestClient
+    ):
+        response = client.post(
+            "/api/absences/fractionnement/validate?grant_year=2026"
+        )
+        assert response.status_code == 401
+
+    def test_validate_fractionnement_calls_query(self, client: TestClient):
+        from app.core.security import get_current_user
+
+        with patch(
+            "app.modules.absences.api.router.fractionnement_queries.validate_fractionnement_grants",
+            return_value={
+                "grant_year": 2026,
+                "validated_count": 3,
+                "status": "validated",
+            },
+        ) as mock_validate:
+            app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+            try:
+                response = client.post(
+                    "/api/absences/fractionnement/validate?grant_year=2026"
+                )
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 200
+        assert response.json()["validated_count"] == 3
+        mock_validate.assert_called_once()

@@ -21,6 +21,8 @@ from app.modules.payroll.engine.maintien_salaire_service import (
     _qualifier_arret,
     _statut_est_cadre,
     _taux_ijss_pour_jour_arret,
+    _est_maintien_eligible_seniority,
+    resolve_subrogation_active,
 )
 
 
@@ -136,7 +138,85 @@ class TestStatutCadre:
         assert _statut_est_cadre(statut) is attendu
 
 
-class TestPrevoyanceCadre:
+class TestAncienneteDifferentieeAmAt:
+    def test_am_onze_mois_pas_de_maintien(self):
+        p_debut, p_fin = date(2025, 6, 1), date(2025, 6, 30)
+        arret = {
+            "arret_type": "maladie_simple",
+            "date_debut": "2025-06-01",
+            "date_fin": "2025-06-10",
+            "subrogation_active": False,
+            "nombre_enfants": 0,
+            "salaire_periode_reelle": 0.0,
+        }
+        ctx = _ctx(date_entree="2024-07-15")
+        r = calculer_maintien(
+            arret,
+            ctx,
+            _settings(min_seniority_months=12, min_seniority_months_at_mp=3),
+            p_debut,
+            p_fin,
+        )
+        assert r["maintien"]["maintien_applicable"] is False
+
+    def test_at_quatre_mois_avec_seuil_trois(self):
+        p_debut, p_fin = date(2025, 6, 1), date(2025, 6, 30)
+        arret = {
+            "arret_type": "accident_travail",
+            "date_debut": "2025-06-01",
+            "date_fin": "2025-06-10",
+            "subrogation_active": True,
+            "nombre_enfants": 0,
+            "salaire_periode_reelle": 0.0,
+        }
+        ctx = _ctx(date_entree="2025-02-01")
+        r = calculer_maintien(
+            arret,
+            ctx,
+            _settings(min_seniority_months=12, min_seniority_months_at_mp=3),
+            p_debut,
+            p_fin,
+        )
+        assert r["maintien"]["maintien_applicable"] is True
+        assert r["maintien"]["nb_jours_maintien"] > 0
+
+    def test_at_deux_mois_pas_de_maintien(self):
+        p_debut, p_fin = date(2025, 6, 1), date(2025, 6, 30)
+        arret = {
+            "arret_type": "accident_travail",
+            "date_debut": "2025-06-01",
+            "date_fin": "2025-06-10",
+            "subrogation_active": False,
+            "nombre_enfants": 0,
+            "salaire_periode_reelle": 0.0,
+        }
+        ctx = _ctx(date_entree="2025-04-15")
+        r = calculer_maintien(
+            arret,
+            ctx,
+            _settings(min_seniority_months=12, min_seniority_months_at_mp=3),
+            p_debut,
+            p_fin,
+        )
+        assert r["maintien"]["maintien_applicable"] is False
+
+
+class TestIjssBrutOverride:
+    def test_override_remplace_theorique(self):
+        p_debut, p_fin = date(2025, 6, 1), date(2025, 6, 30)
+        arret = {
+            "arret_type": "maladie_simple",
+            "date_debut": "2025-06-01",
+            "date_fin": "2025-06-10",
+            "subrogation_active": True,
+            "ijss_brut_override": 448.0,
+            "nombre_enfants": 0,
+            "salaire_periode_reelle": 0.0,
+        }
+        r = calculer_maintien(arret, _ctx(), _settings(), p_debut, p_fin)
+        assert r["ijss"]["ijss_theorique"] == pytest.approx(448.0)
+        assert r["ijss"].get("ijss_brut_override") is True
+
     def test_complement_prevoyance_cadre_apres_maintien_legal(self):
         # Cadre, 4 ans → maintien légal 60 j. Prévoyance 80 % au-delà (franchise défaut 60).
         p_debut, p_fin = date(2025, 1, 1), date(2025, 12, 31)

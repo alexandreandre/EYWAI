@@ -13,6 +13,10 @@ from app.modules.absences.domain.cp_seniority import (
     parse_cp_seniority_rules,
 )
 
+_VALID_PRESETS = frozenset(
+    {"plasturgie_idcc_0292", "lewis_agreement", "metallurgie_idcc_3248", "custom"}
+)
+
 
 def _row_to_settings(row: dict[str, Any]) -> CpSenioritySettings:
     rules_raw = row.get("rules") or {}
@@ -21,7 +25,7 @@ def _row_to_settings(row: dict[str, Any]) -> CpSenioritySettings:
 
         rules_raw = json.loads(rules_raw)
     preset = row.get("preset") or "plasturgie_idcc_0292"
-    if preset not in ("plasturgie_idcc_0292", "lewis_agreement", "custom"):
+    if preset not in _VALID_PRESETS:
         preset = "plasturgie_idcc_0292"
     basis = row.get("seniority_basis") or "company_only"
     if basis not in (
@@ -124,6 +128,9 @@ def upsert_cp_seniority_grant(
     seniority_years_at_ref: float,
     forfait_days_reduction: float,
     calculation_snapshot: dict[str, Any],
+    *,
+    status: str = "computed",
+    validated_by: str | None = None,
 ) -> dict[str, Any]:
     now = datetime.now(timezone.utc).isoformat()
     existing = get_cp_seniority_grant(employee_id, grant_year)
@@ -136,8 +143,13 @@ def upsert_cp_seniority_grant(
         "seniority_years_at_ref": seniority_years_at_ref,
         "forfait_days_reduction": forfait_days_reduction,
         "calculation_snapshot": calculation_snapshot,
+        "status": status,
         "updated_at": now,
     }
+    if status in ("validated", "overridden"):
+        row["validated_at"] = now
+        if validated_by:
+            row["validated_by"] = validated_by
     if existing:
         supabase.table("employee_cp_seniority_grants").update(row).eq(
             "id", existing["id"]
@@ -147,6 +159,31 @@ def upsert_cp_seniority_grant(
         supabase.table("employee_cp_seniority_grants").insert(row).execute()
     result = get_cp_seniority_grant(employee_id, grant_year)
     return result or row
+
+
+def validate_cp_seniority_grant(
+    company_id: str,
+    employee_id: str,
+    grant_year: int,
+    *,
+    status: str = "validated",
+    validated_by: str | None = None,
+) -> dict[str, Any] | None:
+    existing = get_cp_seniority_grant(employee_id, grant_year)
+    if not existing:
+        return None
+    now = datetime.now(timezone.utc).isoformat()
+    row: dict[str, Any] = {
+        "status": status,
+        "validated_at": now,
+        "updated_at": now,
+    }
+    if validated_by:
+        row["validated_by"] = validated_by
+    supabase.table("employee_cp_seniority_grants").update(row).eq(
+        "id", existing["id"]
+    ).execute()
+    return get_cp_seniority_grant(employee_id, grant_year)
 
 
 def list_cp_seniority_grants_for_company(

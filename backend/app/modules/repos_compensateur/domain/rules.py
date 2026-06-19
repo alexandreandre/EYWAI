@@ -97,6 +97,36 @@ def extraire_heures_hs_conjoncturelles_du_bulletin(
     return round(total, 2)
 
 
+def extraire_heures_hs_realisees_depuis_events(
+    payroll_events: dict[str, Any] | None,
+) -> float:
+    """HS réalisées (analyse calendrier), y compris différées au compte modulation."""
+    if not payroll_events or not isinstance(payroll_events, dict):
+        return 0.0
+    if payroll_events.get("hs_realisees_mois") is not None:
+        return round(float(payroll_events["hs_realisees_mois"]), 2)
+    total = 0.0
+    for ev in payroll_events.get("calendrier_analyse") or []:
+        if not isinstance(ev, dict):
+            continue
+        ev_type = str(ev.get("type") or "")
+        if ev_type.startswith("travail_hs"):
+            total += float(ev.get("heures") or 0)
+    return round(total, 2)
+
+
+def heures_hs_pour_contingent_mois(
+    payslip_data: dict[str, Any] | None,
+    payroll_events: dict[str, Any] | None,
+) -> float:
+    """HS comptées au contingent : max(payées bulletin, réalisées analyse)."""
+    paid = extraire_heures_hs_conjoncturelles_du_bulletin(payslip_data)
+    realized = extraire_heures_hs_realisees_depuis_events(payroll_events)
+    if realized > 0:
+        return round(max(paid, realized), 2)
+    return paid
+
+
 def cumuler_heures_hs_annee(
     bulletins_par_mois: dict[int, dict[str, Any]],
 ) -> dict[int, float]:
@@ -122,5 +152,7 @@ __all__ = [
     "get_taux_cor_par_effectif",
     "extraire_heures_hs_du_bulletin",
     "extraire_heures_hs_conjoncturelles_du_bulletin",
+    "extraire_heures_hs_realisees_depuis_events",
+    "heures_hs_pour_contingent_mois",
     "cumuler_heures_hs_annee",
 ]

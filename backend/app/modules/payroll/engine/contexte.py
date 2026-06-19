@@ -158,6 +158,9 @@ class ContextePaie:
         # S'assurer que cumuls est toujours un dictionnaire, même vide
         self.cumuls = cumuls_data if cumuls_data is not None else {}
 
+        self.exit_indemnities: dict | None = None
+        self.block_iccp_cdd: bool = False
+
         # DEBUG SPÉCIFIQUE PRÉVOYANCE
         prevoyance_data = self.contrat.get("specificites_paie", {}).get(
             "prevoyance", "NON TROUVÉE"

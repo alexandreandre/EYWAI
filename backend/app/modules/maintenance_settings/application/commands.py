@@ -15,6 +15,7 @@ _DB_WRITABLE_KEYS = frozenset(
     {
         "apply_legal_maintenance",
         "min_seniority_months",
+        "min_seniority_months_at_mp",
         "employer_waiting_days",
         "seniority_extension_enabled",
         "remove_employer_waiting",

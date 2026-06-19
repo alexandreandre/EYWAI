@@ -22,12 +22,26 @@ class IjssDashboardRow(BaseModel):
     received_bank: float = 0
     line_status: str = "pending"
     subrogation_active: bool = True
+    ijss_brut_validated: Optional[float] = None
+    validation_source: Optional[str] = None
+    applied_to_payslip_at: Optional[str] = None
+    applied_ijss_brut: Optional[float] = None
+
+
+class IjssUnmatchedReceivedLine(BaseModel):
+    id: str
+    source: str
+    amount: float = 0
+    employee_name_raw: Optional[str] = None
+    employee_nir: Optional[str] = None
+    payment_date: Optional[str] = None
 
 
 class IjssPeriodDashboard(BaseModel):
     period: Dict[str, Any]
     summary: IjssPeriodSummary
     rows: List[IjssDashboardRow]
+    unmatched_received: List[IjssUnmatchedReceivedLine] = []
 
 
 class IjssAbsenceStatus(BaseModel):
@@ -35,6 +49,9 @@ class IjssAbsenceStatus(BaseModel):
     absence_request_id: str
     expected_line_id: Optional[str] = None
     ijss_subrogees_bulletin: float = 0
+    ijss_brut_validated: Optional[float] = None
+    applied_to_payslip_at: Optional[str] = None
+    applied_ijss_brut: Optional[float] = None
 
 
 class IjssImportPreviewResponse(BaseModel):

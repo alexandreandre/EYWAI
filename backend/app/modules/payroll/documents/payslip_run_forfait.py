@@ -14,7 +14,7 @@ from weasyprint import HTML
 from app.modules.payroll.engine.analyser_jours_forfait import (
     analyser_jours_forfait_du_mois,
 )
-from app.modules.payroll.engine.bulletin import creer_bulletin_final
+from app.modules.payroll.engine.bulletin import creer_bulletin_final, creer_bulletin_sortie
 from app.modules.payroll.engine.calcul_brut_forfait import calculer_salaire_brut_forfait
 from app.modules.payroll.engine.calcul_cotisations import calculer_cotisations
 from app.modules.payroll.engine.calcul_net import calculer_net_et_impot
@@ -39,6 +39,8 @@ from .payslip_run_common import (
     creer_calendrier_etendu,
     definir_periode_de_paie,
     mettre_a_jour_cumuls,
+    prefetch_jours_maintien_prime,
+    resolve_exit_state_for_payslip,
 )
 from .payslip_run_heures import (
     _appliquer_maintien_arret_maladie,
@@ -131,6 +133,11 @@ def run_payslip_generation_forfait(
     # Aiguillage Fillon (< 2026) / RGDU (>= 2026) et suppression des bandeaux maladie/AF.
     contexte.year = year
     contexte.month = month
+    resolved_employee_id = employee_id or contexte.contrat.get("employee_id")
+    if resolved_employee_id:
+        contexte.exit_indemnities, contexte.block_iccp_cdd = resolve_exit_state_for_payslip(
+            str(resolved_employee_id), year, month
+        )
 
     if not contexte.is_forfait_jour:
         raise ValueError(
@@ -288,12 +295,24 @@ def run_payslip_generation_forfait(
                 else:
                     primes_non_soumises.append(prime_calculee)
 
+    arret_prefetch = _extraire_arret_pour_maintien(
+        calendrier_etendu, contexte, date_debut_periode, date_fin_periode
+    )
+    jours_maintien = prefetch_jours_maintien_prime(
+        company_id=company_id,
+        contexte=contexte,
+        arret_data=arret_prefetch,
+        date_debut_periode=date_debut_periode,
+        date_fin_periode=date_fin_periode,
+    )
+
     resultat_brut = calculer_salaire_brut_forfait(
         contexte,
         calendrier_saisie=calendrier_etendu,
         date_debut_periode=date_debut_periode,
         date_fin_periode=date_fin_periode,
         primes_saisies=primes_soumises,
+        jours_maintien=jours_maintien,
     )
     salaire_brut_calcule = resultat_brut["salaire_brut_total"]
     details_brut = resultat_brut["lignes_composants_brut"]
@@ -303,10 +322,11 @@ def run_payslip_generation_forfait(
     # Arrêt maladie (forfait jour) : maintien employeur + IJSS subrogées.
     resultats_maintien: Dict[str, Any] | None = None
     if company_id:
-        arret_data = _extraire_arret_pour_maintien(
-            calendrier_etendu, contexte, date_debut_periode, date_fin_periode
-        )
+        arret_data = arret_prefetch
         if arret_data:
+            override = saisie_du_mois.get("ijss_brut_override")
+            if override is not None:
+                arret_data["ijss_brut_override"] = override
             try:
                 from app.modules.maintenance_settings.application.queries import (
                     get_maintenance_settings,
@@ -409,17 +429,31 @@ def run_payslip_generation_forfait(
     if alerte_vm:
         contexte.alertes_baremes.append(alerte_vm)
 
-    bulletin_final = creer_bulletin_final(
-        contexte,
-        salaire_brut_calcule,
-        details_brut,
-        lignes_cotisations,
-        resultats_nets,
-        primes_non_soumises,
-        year,
-        month,
-        resultats_maintien=resultats_maintien,
-    )
+    if contexte.exit_indemnities:
+        bulletin_final = creer_bulletin_sortie(
+            contexte,
+            salaire_brut_calcule,
+            details_brut,
+            lignes_cotisations,
+            resultats_nets,
+            primes_non_soumises,
+            contexte.exit_indemnities,
+            year,
+            month,
+            resultats_maintien=resultats_maintien,
+        )
+    else:
+        bulletin_final = creer_bulletin_final(
+            contexte,
+            salaire_brut_calcule,
+            details_brut,
+            lignes_cotisations,
+            resultats_nets,
+            primes_non_soumises,
+            year,
+            month,
+            resultats_maintien=resultats_maintien,
+        )
 
     smic_calcule_mois = (
         contexte.baremes.get("smic", {}).get("cas_general", 0.0) * heures_equivalentes

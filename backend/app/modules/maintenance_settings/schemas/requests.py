@@ -4,7 +4,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-SubrogationModeLiteral = Literal["automatic", "at_mp_only", "per_case"]
+SubrogationModeLiteral = Literal["when_maintien", "automatic", "at_mp_only", "per_case"]
 
 
 class MaintenanceSettingsUpdate(BaseModel):
@@ -14,6 +14,7 @@ class MaintenanceSettingsUpdate(BaseModel):
 
     apply_legal_maintenance: Optional[bool] = None
     min_seniority_months: Optional[int] = None
+    min_seniority_months_at_mp: Optional[int] = None
     employer_waiting_days: Optional[int] = None
     seniority_extension_enabled: Optional[bool] = None
     remove_employer_waiting: Optional[bool] = None
@@ -46,7 +47,7 @@ class MaintenanceSettingsUpdate(BaseModel):
             raise ValueError("employer_waiting_days doit être entre 0 et 30")
         return v
 
-    @field_validator("min_seniority_months")
+    @field_validator("min_seniority_months", "min_seniority_months_at_mp")
     @classmethod
     def _seniority_bounds(cls, v: Optional[int]) -> Optional[int]:
         if v is None:

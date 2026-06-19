@@ -9,9 +9,14 @@ from __future__ import annotations
 from app.modules.collective_agreements.rules.seeds import CCRulesSeed
 from app.modules.collective_agreements.rules.schema import (
     BaseCalculPrime,
+    CpAnciennete,
+    CpAncienneteTier,
     GrilleSalaires,
     PrimeAnciennete,
+    PrimeAncienneteEligibilite,
+    PrimeAncienneteProrata,
     SalaireMinimum,
+    ValeurPointZone,
 )
 
 # Barème SMH 2025 — salaire annuel brut 35h (source annexe officielle étendue)
@@ -77,10 +82,50 @@ def _build_prime() -> PrimeAnciennete:
             valeur=5.83,
         ),
         taux_par_classe=dict(_TAUX_PRIME_PAR_CLASSE),
+        eligibilite=PrimeAncienneteEligibilite(
+            min_annees=3.0,
+            statuts_exclus=["Cadre"],
+            classe_max_taux=10,
+        ),
+        prorata=PrimeAncienneteProrata(
+            enabled=True,
+            mode="heures_contrat",
+            inclure_heures_sup=True,
+            maladie_si_maintien=True,
+            sans_pointage_policy="plein_mois",
+        ),
+        valeurs_point=[
+            ValeurPointZone(
+                zone_type="national",
+                zone_libelle="National — valeur du point",
+                departements=[],
+                valeur=5.83,
+            ),
+            ValeurPointZone(
+                zone_type="departemental",
+                zone_libelle="Deux-Sèvres — valeur du point",
+                departements=["79"],
+                valeur=5.70,
+            ),
+        ],
+    )
+
+
+def _build_cp_anciennete() -> CpAnciennete:
+    return CpAnciennete(
+        mode="cumulative_rules",
+        seniority_reference="cp_period_end",
+        tiers=[
+            CpAncienneteTier(category="all", min_years=2, days=1),
+            CpAncienneteTier(category="all", min_years=2, min_age=45, days=1),
+            CpAncienneteTier(category="all", min_years=20, min_age=55, days=1),
+            CpAncienneteTier(category="forfait", min_years=1, days=1),
+        ],
     )
 
 
 METALLURGIE_3248_SEED = CCRulesSeed(
     grille=_build_smh_grille(),
     prime=_build_prime(),
+    cp_anciennete=_build_cp_anciennete(),
 )

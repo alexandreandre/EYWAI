@@ -425,7 +425,8 @@ def _finalize_timesheet_proposal(
     )
 
     if period_detection.start_date and period_detection.end_date:
-        if (
+        span = (period_detection.end_date - period_detection.start_date).days + 1
+        if span <= 10 and (
             period_detection.start_date.month != period_detection.end_date.month
             or period_detection.start_date.year != period_detection.end_date.year
         ):
@@ -961,6 +962,7 @@ def _extract_timesheet_hybrid_path(
             period_detection.end_date = parse_result.period_end
         if parse_result.confidence >= _CEGID_CONFIDENCE_THRESHOLD:
             period_detection.confidence = "high"
+        align_period_warnings(period_detection, year, month)
 
     default_nature = "reel"
     detected_format = "hybrid_vision_ocr"

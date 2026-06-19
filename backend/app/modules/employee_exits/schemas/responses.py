@@ -233,6 +233,23 @@ class ChecklistItem(BaseModel):
 # ============================================================================
 
 
+class IccpDetails(BaseModel):
+    """Détail de l'arbitrage ICCP (maintien vs 1/10e)."""
+
+    methode_retenue: Optional[str] = None
+    indemnite_maintien: Optional[float] = None
+    indemnite_dixieme: Optional[float] = None
+    iccp_l1243_8: Optional[float] = None
+    taux_journalier: Optional[float] = None
+    base_reference_dixieme: Optional[float] = None
+    prime_precarite_incluse: Optional[float] = None
+    periode_reference: Optional[str] = None
+    source_solde: Optional[str] = None
+    conges_acquis: Optional[float] = None
+    conges_pris: Optional[float] = None
+    alertes: Optional[List[str]] = None
+
+
 class IndemnityDetail(BaseModel):
     """Détail d'une indemnité calculée"""
 
@@ -240,6 +257,7 @@ class IndemnityDetail(BaseModel):
     description: Optional[str] = None
     calcul: Optional[str] = None
     details: Optional[Dict[str, Any]] = None
+    jours_restants: Optional[float] = None
 
 
 class ExitIndemnityCalculation(BaseModel):
