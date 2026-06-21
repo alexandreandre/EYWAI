@@ -65,6 +65,17 @@ export const employeeProfileEditSchema = z
       }),
       maintien_regime_apprenti: z.boolean().optional(),
       personnel_rd_eligible_jei: z.boolean().optional(),
+      deplacement_astreinte: z
+        .object({
+          enabled: z.boolean().optional().default(false),
+          distance_km_one_way: z.coerce.number().min(0).optional(),
+          vehicle_cv: z.coerce.number().min(1).optional(),
+          vehicle_type: z
+            .enum(['voitures', 'motocyclettes', 'cyclomoteurs'])
+            .optional()
+            .default('voitures'),
+        })
+        .optional(),
     }),
     is_subject_to_residence_permit: z.boolean(),
     residence_permit_expiry_date: z.string().optional(),

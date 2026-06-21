@@ -285,6 +285,7 @@ export interface ExtractTimesheetOptions {
   documentScope?: DocumentScopeInput;
   weekAnchorDate?: string | null;
   onProgress?: (progress: TimesheetExtractProgress) => void;
+  signal?: AbortSignal;
 }
 
 /**
@@ -355,8 +356,21 @@ export const getTimesheetExtractJob = async (
   return data;
 };
 
+export const cancelTimesheetExtractJob = async (
+  jobId: string,
+): Promise<{ status: string; job_id: string }> => {
+  const { data } = await apiClient.delete<{ status: string; job_id: string }>(
+    `/api/schedules/assisted-fill/extract-timesheet/jobs/${jobId}`,
+  );
+  return data;
+};
+
 const POLL_INTERVAL_MS = 2000;
 const POLL_MAX_ATTEMPTS = 300;
+
+export interface WaitForTimesheetExtractOptions {
+  signal?: AbortSignal;
+}
 
 /**
  * Attend la fin d'un job d'extraction (polling ~2 s).
@@ -364,8 +378,13 @@ const POLL_MAX_ATTEMPTS = 300;
 export const waitForTimesheetExtractJob = async (
   jobId: string,
   onProgress?: (progress: TimesheetExtractProgress) => void,
+  options: WaitForTimesheetExtractOptions = {},
 ): Promise<AiCalendarProposal> => {
+  const { signal } = options;
   for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt += 1) {
+    if (signal?.aborted) {
+      throw new DOMException("Import annulé.", "AbortError");
+    }
     const job = await getTimesheetExtractJob(jobId);
     onProgress?.(job.progress);
     if (job.status === 'completed' && job.proposal) {
@@ -394,7 +413,9 @@ export const extractTimesheet = async (
   options: ExtractTimesheetOptions = {},
 ): Promise<AiCalendarProposal> => {
   const started = await startTimesheetExtract(file, year, month, employees, options);
-  return waitForTimesheetExtractJob(started.job_id, options.onProgress);
+  return waitForTimesheetExtractJob(started.job_id, options.onProgress, {
+    signal: options.signal,
+  });
 };
 
 /** @deprecated Sync endpoint — préférer extractTimesheet (async). */

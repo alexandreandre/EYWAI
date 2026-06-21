@@ -22,7 +22,10 @@ const ROLES = [
   { key: 'last_name', label: 'Nom' },
   { key: 'first_name', label: 'Prénom' },
   { key: 'date', label: 'Date' },
-  { key: 'hours', label: 'Heures' },
+  { key: 'entry_1', label: 'Entrée 1' },
+  { key: 'exit_last', label: 'Sortie (dernière)' },
+  { key: 'shift_code', label: 'Code horaire' },
+  { key: 'hours', label: 'Heures (total)' },
 ] as const;
 
 interface TimesheetImportMappingDialogProps {

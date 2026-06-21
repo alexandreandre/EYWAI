@@ -17,8 +17,14 @@ import CetSettingsCard from "@/features/company/components/CetSettingsCard";
 import CpFractionnementSettingsCard from "@/features/company/components/CpFractionnementSettingsCard";
 import CpSenioritySettingsCard from "@/features/company/components/CpSenioritySettingsCard";
 import ModulationSettingsCard from "@/features/company/components/ModulationSettingsCard";
+import WorkTimePeriodsCard from "@/features/company/components/WorkTimePeriodsCard";
+import WeekTemplatesSettingsCard from "@/features/company/components/WeekTemplatesSettingsCard";
 import TimesheetImportSettingsCard from "@/features/company/components/TimesheetImportSettingsCard";
+import PunchAccountingSettingsCard from "@/features/company/components/PunchAccountingSettingsCard";
+import IjssImportProfileCard from "@/features/company/components/IjssImportProfileCard";
 import PayrollVariableRulesCard from "@/features/company/components/PayrollVariableRulesCard";
+import PayrollSpecialDaysCard from "@/features/company/components/PayrollSpecialDaysCard";
+import PlanningSettingsCard from "@/features/company/components/PlanningSettingsCard";
 import PublicHolidaysSettingsCard from "@/features/company/components/PublicHolidaysSettingsCard";
 import NetEntreprisesConfigCard from "@/features/net-entreprises/components/NetEntreprisesConfigCard";
 import type { ComplianceAnchor } from "@/features/company/components/CompanyComplianceBand";
@@ -262,13 +268,23 @@ export function CompanyPayrollTab({
         <CpSenioritySettingsCard />
         <CpFractionnementSettingsCard />
         <ModulationSettingsCard />
+        <WorkTimePeriodsCard />
         <OvertimeContingentSettingsCard scrollAnchor="contingent-hs" />
         <CetSettingsCard />
+        <IjssImportProfileCard />
+        <PunchAccountingSettingsCard />
         <TimesheetImportSettingsCard />
       </section>
 
       <section className="space-y-3">
+        <SectionHeading>Planning &amp; primes équipe</SectionHeading>
+        <WeekTemplatesSettingsCard />
+        <PlanningSettingsCard />
+      </section>
+
+      <section className="space-y-3">
         <SectionHeading>Variables de paie</SectionHeading>
+        <PayrollSpecialDaysCard />
         <PayrollVariableRulesCard />
       </section>
 

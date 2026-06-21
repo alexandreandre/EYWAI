@@ -49,6 +49,12 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
     abonnement_mensuel_total?: number;
     indemnite_mensuelle_nette?: number;
   } | undefined;
+  const deplacementAstreinte = spec.deplacement_astreinte as {
+    enabled?: boolean;
+    distance_km_one_way?: number;
+    vehicle_cv?: number;
+    vehicle_type?: 'voitures' | 'motocyclettes' | 'cyclomoteurs';
+  } | undefined;
   const tr = spec.titres_restaurant as { beneficie?: boolean; nombre_par_mois?: number } | undefined;
   const classification = (employee as Employee & { classification_conventionnelle?: EmployeeProfileEditFormValues['classification_conventionnelle'] }).classification_conventionnelle;
 
@@ -110,6 +116,12 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
       },
       maintien_regime_apprenti: Boolean(spec.maintien_regime_apprenti),
       personnel_rd_eligible_jei: Boolean(spec.personnel_rd_eligible_jei),
+      deplacement_astreinte: {
+        enabled: Boolean(deplacementAstreinte?.enabled),
+        distance_km_one_way: deplacementAstreinte?.distance_km_one_way ?? undefined,
+        vehicle_cv: deplacementAstreinte?.vehicle_cv ?? undefined,
+        vehicle_type: deplacementAstreinte?.vehicle_type ?? 'voitures',
+      },
     },
     is_subject_to_residence_permit: Boolean(employee.is_subject_to_residence_permit),
     residence_permit_expiry_date: employee.residence_permit_expiry_date?.slice(0, 10) ?? '',
@@ -190,6 +202,24 @@ export function buildUpdatePayload(
       personnel_rd_eligible_jei: Boolean(values.specificites_paie.personnel_rd_eligible_jei),
     },
   };
+
+  const dep = values.specificites_paie.deplacement_astreinte;
+  if (dep?.enabled) {
+    payload.specificites_paie = {
+      ...payload.specificites_paie,
+      deplacement_astreinte: {
+        enabled: true,
+        distance_km_one_way: dep.distance_km_one_way,
+        vehicle_cv: dep.vehicle_cv,
+        vehicle_type: dep.vehicle_type ?? 'voitures',
+      },
+    };
+  } else if (dep) {
+    payload.specificites_paie = {
+      ...payload.specificites_paie,
+      deplacement_astreinte: { enabled: false },
+    };
+  }
 
   if (values.collective_agreement_id) {
     payload.classification_conventionnelle = values.classification_conventionnelle;

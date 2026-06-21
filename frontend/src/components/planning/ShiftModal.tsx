@@ -68,34 +68,73 @@ function buildCategoryKey(shift: Shift): string {
   return '';
 }
 
-const formSchema = z
-  .object({
-    shift_date: z.string().min(1, 'La date est requise'),
-    categoryKey: z.string().min(1, 'Choisissez une catégorie'),
-    start_time: z
-      .string()
-      .regex(/^\d{2}:\d{2}$/, 'Format HH:MM'),
-    end_time: z
-      .string()
-      .regex(/^\d{2}:\d{2}$/, 'Format HH:MM'),
-    post: z.string().optional(),
-    location: z.string().optional(),
-    comment_internal: z.string().optional(),
-    comment_employee: z.string().optional(),
-  })
-  .superRefine((data, ctx) => {
-    const a = timeToMinutes(data.start_time);
-    const b = timeToMinutes(data.end_time);
-    if (b <= a) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['end_time'],
-        message: "L'heure de fin doit être après l'heure de début",
-      });
-    }
-  });
+function parseCategoryKey(key: string): {
+  shift_type_id: string | null;
+  transverse_category: string | null;
+} {
+  if (key.startsWith(CATEGORY_PREFIX_TYPE)) {
+    return {
+      shift_type_id: key.slice(CATEGORY_PREFIX_TYPE.length),
+      transverse_category: null,
+    };
+  }
+  if (key.startsWith(CATEGORY_PREFIX_TRNS)) {
+    return {
+      shift_type_id: null,
+      transverse_category: key.slice(CATEGORY_PREFIX_TRNS.length),
+    };
+  }
+  return { shift_type_id: null, transverse_category: null };
+}
 
-type ShiftFormValues = z.infer<typeof formSchema>;
+function defaultTimesForCategory(
+  categoryKey: string,
+  shiftTypes: ShiftType[],
+): { start: string; end: string } {
+  const { shift_type_id } = parseCategoryKey(categoryKey);
+  const st = shiftTypes.find((t) => t.id === shift_type_id);
+  if (st?.default_start) {
+    return {
+      start: st.default_start.slice(0, 5),
+      end: (st.default_end || '17:00').slice(0, 5),
+    };
+  }
+  return { start: '09:00', end: '17:00' };
+}
+
+function createFormSchema(shiftTypes: ShiftType[]) {
+  return z
+    .object({
+      shift_date: z.string().min(1, 'La date est requise'),
+      categoryKey: z.string().min(1, 'Choisissez une catégorie'),
+      start_time: z
+        .string()
+        .regex(/^\d{2}:\d{2}$/, 'Format HH:MM'),
+      end_time: z
+        .string()
+        .regex(/^\d{2}:\d{2}$/, 'Format HH:MM'),
+      post: z.string().optional(),
+      location: z.string().optional(),
+      comment_internal: z.string().optional(),
+      comment_employee: z.string().optional(),
+    })
+    .superRefine((data, ctx) => {
+      const { shift_type_id } = parseCategoryKey(data.categoryKey);
+      const st = shiftTypes.find((t) => t.id === shift_type_id);
+      const allowsOvernight = st?.allows_overnight ?? false;
+      const a = timeToMinutes(data.start_time);
+      const b = timeToMinutes(data.end_time);
+      if (!allowsOvernight && b <= a) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['end_time'],
+          message: "L'heure de fin doit être après l'heure de début",
+        });
+      }
+    });
+}
+
+type ShiftFormValues = z.infer<ReturnType<typeof createFormSchema>>;
 
 export interface ShiftModalProps {
   mode: 'create' | 'edit';
@@ -122,6 +161,7 @@ function defaultFormValues(
   const firstType = props.shiftTypes[0];
   const defaultCategory =
     firstType != null ? `${CATEGORY_PREFIX_TYPE}${firstType.id}` : '';
+  const { start, end } = defaultTimesForCategory(defaultCategory, props.shiftTypes);
 
   if (mode === 'edit' && props.initialData) {
     const s = props.initialData;
@@ -141,32 +181,13 @@ function defaultFormValues(
   return {
     shift_date: props.prefillDate?.slice(0, 10) ?? '',
     categoryKey: defaultCategory,
-    start_time: '09:00',
-    end_time: '17:00',
+    start_time: start,
+    end_time: end,
     post: '',
     location: '',
     comment_internal: '',
     comment_employee: '',
   };
-}
-
-function parseCategoryKey(key: string): {
-  shift_type_id: string | null;
-  transverse_category: string | null;
-} {
-  if (key.startsWith(CATEGORY_PREFIX_TYPE)) {
-    return {
-      shift_type_id: key.slice(CATEGORY_PREFIX_TYPE.length),
-      transverse_category: null,
-    };
-  }
-  if (key.startsWith(CATEGORY_PREFIX_TRNS)) {
-    return {
-      shift_type_id: null,
-      transverse_category: key.slice(CATEGORY_PREFIX_TRNS.length),
-    };
-  }
-  return { shift_type_id: null, transverse_category: null };
 }
 
 export function ShiftModal({
@@ -187,6 +208,8 @@ export function ShiftModal({
     () => shiftTypes.map((t) => t.id).join(','),
     [shiftTypes]
   );
+
+  const formSchema = useMemo(() => createFormSchema(shiftTypes), [shiftTypesKey, shiftTypes]);
 
   const form = useForm<ShiftFormValues>({
     resolver: zodResolver(formSchema),
@@ -209,6 +232,14 @@ export function ShiftModal({
       })
     );
   }, [open, mode, prefillEmployeeId, prefillDate, initialData, shiftTypesKey, form, shiftTypes]);
+
+  const categoryKey = form.watch('categoryKey');
+  useEffect(() => {
+    if (!open || mode !== 'create') return;
+    const { start: s, end: e } = defaultTimesForCategory(categoryKey, shiftTypes);
+    form.setValue('start_time', s);
+    form.setValue('end_time', e);
+  }, [categoryKey, open, mode, shiftTypes, form]);
 
   const employeeReadonly = Boolean(prefillEmployeeId) || mode === 'edit';
 

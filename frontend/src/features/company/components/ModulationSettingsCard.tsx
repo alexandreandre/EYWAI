@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Clock } from 'lucide-react';
+import { ChevronDown, Clock } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import {
   applyModulationPreset,
   getModulationSettings,
   updateModulationSettings,
+  type HsRoutingPolicy,
   type ModulationSettings,
   type ModulationSettingsUpdate,
 } from '@/api/modulation';
@@ -30,8 +32,19 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { queryKeys } from '@/lib/queryKeys';
-import { Link } from 'react-router-dom';
-import { ChevronDown } from 'lucide-react';
+
+const HS_POLICY_LABELS: Record<HsRoutingPolicy, string> = {
+  pay_all: 'Tout payer au bulletin',
+  account_all: 'Tout mettre au compteur',
+  franchise: 'Franchise (plafond par période)',
+  manual: 'Validation RH mensuelle',
+};
+
+const PRESETS = [
+  { id: 'standard', label: 'Standard (HS payées)' },
+  { id: 'metallurgie_hour_account', label: 'Métallurgie annualisée' },
+  { id: 'hour_account_only', label: 'Compte HS sans modulation' },
+] as const;
 
 export default function ModulationSettingsCard() {
   const { user } = useAuth();
@@ -52,8 +65,9 @@ export default function ModulationSettingsCard() {
   });
 
   const [form, setForm] = useState<ModulationSettings | null>(null);
-  const [annualOpen, setAnnualOpen] = useState(true);
+  const [annualOpen, setAnnualOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(true);
+  const [policyOpen, setPolicyOpen] = useState(true);
 
   useEffect(() => {
     if (data) setForm(data);
@@ -64,19 +78,23 @@ export default function ModulationSettingsCard() {
     onSuccess: (saved) => {
       queryClient.setQueryData(queryKeys.modulationSettings(activeCompanyId), saved);
       setForm(saved);
-      toast({ title: 'Enregistré', description: 'Paramètres modulation mis à jour.' });
+      toast({ title: 'Enregistré', description: 'Paramètres temps de travail mis à jour.' });
+    },
+    onError: (err: Error) => {
+      toast({
+        title: 'Erreur',
+        description: err.message || 'Enregistrement impossible.',
+        variant: 'destructive',
+      });
     },
   });
 
   const applyPresetMutation = useMutation({
-    mutationFn: () => applyModulationPreset('metallurgie_hour_account'),
+    mutationFn: (preset: string) => applyModulationPreset(preset),
     onSuccess: (saved) => {
       queryClient.setQueryData(queryKeys.modulationSettings(activeCompanyId), saved);
       setForm(saved);
-      toast({
-        title: 'Preset appliqué',
-        description: 'Annualisation 37/32 h et compte d\'heures (franchise 14 h HS/mois).',
-      });
+      toast({ title: 'Preset appliqué', description: 'Configuration mise à jour.' });
     },
     onError: () => {
       toast({
@@ -103,7 +121,13 @@ export default function ModulationSettingsCard() {
     max_account_balance_hours: form!.max_account_balance_hours,
     recovery_absence_enabled: form!.recovery_absence_enabled,
     recovery_debit_timing: form!.recovery_debit_timing,
+    hs_routing_policy: form!.hs_routing_policy,
   });
+
+  const needsHourAccount =
+    form?.hs_routing_policy === 'account_all' ||
+    form?.hs_routing_policy === 'franchise' ||
+    form?.hs_routing_policy === 'manual';
 
   if (isLoading || !form) {
     return (
@@ -119,109 +143,50 @@ export default function ModulationSettingsCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Clock className="h-5 w-5" />
-          Modulation du temps de travail
+          Temps de travail et heures supplémentaires
         </CardTitle>
         <CardDescription>
-          Annualisation (semaines hautes / basses) et compte d&apos;heures pour les HS différées.
+          L&apos;accord de modulation, le compte d&apos;heures et la politique HS sont indépendants.
+          Configurez chaque axe selon votre entreprise.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <Collapsible open={annualOpen} onOpenChange={setAnnualOpen}>
+        <Collapsible open={policyOpen} onOpenChange={setPolicyOpen}>
           <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm font-medium">
-            Annualisation du temps de travail
-            <ChevronDown className={`h-4 w-4 transition-transform ${annualOpen ? 'rotate-180' : ''}`} />
+            Politique de routage des HS
+            <ChevronDown className={`h-4 w-4 transition-transform ${policyOpen ? 'rotate-180' : ''}`} />
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-4 pt-4">
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={form.enabled}
+            <div className="space-y-2">
+              <Label>Traitement des heures supplémentaires</Label>
+              <Select
                 disabled={!canEdit}
-                onCheckedChange={(v) => setForm({ ...form, enabled: v })}
-              />
-              <Label>Activer l&apos;annualisation</Label>
+                value={form.hs_routing_policy}
+                onValueChange={(v: HsRoutingPolicy) => {
+                  const next = { ...form, hs_routing_policy: v };
+                  if (v !== 'pay_all' && !next.hour_account_enabled) {
+                    next.hour_account_enabled = true;
+                  }
+                  setForm(next);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(HS_POLICY_LABELS) as HsRoutingPolicy[]).map((key) => (
+                    <SelectItem key={key} value={key}>
+                      {HS_POLICY_LABELS[key]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Semaine haute (h)</Label>
-                <Input
-                  type="number"
-                  step={0.5}
-                  disabled={!canEdit}
-                  value={form.weekly_high_hours}
-                  onChange={(e) =>
-                    setForm({ ...form, weekly_high_hours: Number(e.target.value) || 37 })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Semaine basse (h)</Label>
-                <Input
-                  type="number"
-                  step={0.5}
-                  disabled={!canEdit}
-                  value={form.weekly_low_hours}
-                  onChange={(e) =>
-                    setForm({ ...form, weekly_low_hours: Number(e.target.value) || 32 })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Semaines hautes / cycle</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  disabled={!canEdit}
-                  value={form.high_weeks_per_cycle}
-                  onChange={(e) =>
-                    setForm({ ...form, high_weeks_per_cycle: Number(e.target.value) || 1 })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Semaines basses / cycle</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  disabled={!canEdit}
-                  value={form.low_weeks_per_cycle}
-                  onChange={(e) =>
-                    setForm({ ...form, low_weeks_per_cycle: Number(e.target.value) || 1 })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Moyenne hebdo (h)</Label>
-                <Input
-                  type="number"
-                  step={0.5}
-                  disabled={!canEdit}
-                  value={form.average_weekly_hours}
-                  onChange={(e) =>
-                    setForm({ ...form, average_weekly_hours: Number(e.target.value) || 35 })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Plafond hebdo (h)</Label>
-                <Input
-                  type="number"
-                  step={0.5}
-                  disabled={!canEdit}
-                  value={form.weekly_cap_hours}
-                  onChange={(e) =>
-                    setForm({ ...form, weekly_cap_hours: Number(e.target.value) || 44 })
-                  }
-                />
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={form.pay_smoothed}
-                disabled={!canEdit}
-                onCheckedChange={(v) => setForm({ ...form, pay_smoothed: v })}
-              />
-              <Label>Lisser la rémunération sur l&apos;année</Label>
-            </div>
+            {needsHourAccount && !form.hour_account_enabled && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                Cette politique nécessite le compte d&apos;heures (activé automatiquement à l&apos;enregistrement).
+              </p>
+            )}
           </CollapsibleContent>
         </Collapsible>
 
@@ -246,7 +211,7 @@ export default function ModulationSettingsCard() {
                   type="number"
                   step={0.5}
                   min={0}
-                  disabled={!canEdit || !form.hour_account_enabled}
+                  disabled={!canEdit || !form.hour_account_enabled || form.hs_routing_policy !== 'franchise'}
                   value={form.hs_franchise_hours_per_period ?? ''}
                   placeholder="ex. 14"
                   onChange={(e) =>
@@ -259,30 +224,12 @@ export default function ModulationSettingsCard() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Période de franchise</Label>
-                <Select
-                  disabled={!canEdit || !form.hour_account_enabled}
-                  value={form.hs_franchise_period}
-                  onValueChange={(v: 'month' | 'pay_period') =>
-                    setForm({ ...form, hs_franchise_period: v })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="month">Mois civil</SelectItem>
-                    <SelectItem value="pay_period">Période de paie</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
                 <Label>Plafond solde compte (h)</Label>
                 <Input
                   type="number"
                   step={0.5}
                   min={0}
-                  disabled={!canEdit || !form.hour_account_enabled}
+                  disabled={!canEdit || !form.hour_account_enabled || form.hs_routing_policy === 'account_all'}
                   value={form.max_account_balance_hours ?? ''}
                   placeholder="Illimité"
                   onChange={(e) =>
@@ -306,6 +253,81 @@ export default function ModulationSettingsCard() {
           </CollapsibleContent>
         </Collapsible>
 
+        <Collapsible open={annualOpen} onOpenChange={setAnnualOpen}>
+          <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm font-medium">
+            Annualisation (accord de modulation)
+            <ChevronDown className={`h-4 w-4 transition-transform ${annualOpen ? 'rotate-180' : ''}`} />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-4 pt-4">
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={form.enabled}
+                disabled={!canEdit}
+                onCheckedChange={(v) => setForm({ ...form, enabled: v })}
+              />
+              <Label>Activer l&apos;annualisation (accord d&apos;entreprise)</Label>
+            </div>
+            <div className={`grid gap-4 sm:grid-cols-2 ${!form.enabled ? 'opacity-50' : ''}`}>
+              <div className="space-y-2">
+                <Label>Semaine haute (h)</Label>
+                <Input
+                  type="number"
+                  step={0.5}
+                  disabled={!canEdit || !form.enabled}
+                  value={form.weekly_high_hours}
+                  onChange={(e) =>
+                    setForm({ ...form, weekly_high_hours: Number(e.target.value) || 37 })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Semaine basse (h)</Label>
+                <Input
+                  type="number"
+                  step={0.5}
+                  disabled={!canEdit || !form.enabled}
+                  value={form.weekly_low_hours}
+                  onChange={(e) =>
+                    setForm({ ...form, weekly_low_hours: Number(e.target.value) || 32 })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Moyenne hebdo (h)</Label>
+                <Input
+                  type="number"
+                  step={0.5}
+                  disabled={!canEdit || !form.enabled}
+                  value={form.average_weekly_hours}
+                  onChange={(e) =>
+                    setForm({ ...form, average_weekly_hours: Number(e.target.value) || 35 })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Plafond hebdo (h)</Label>
+                <Input
+                  type="number"
+                  step={0.5}
+                  disabled={!canEdit || !form.enabled}
+                  value={form.weekly_cap_hours}
+                  onChange={(e) =>
+                    setForm({ ...form, weekly_cap_hours: Number(e.target.value) || 44 })
+                  }
+                />
+              </div>
+            </div>
+            <div className={`flex items-center gap-2 ${!form.enabled ? 'opacity-50' : ''}`}>
+              <Switch
+                checked={form.pay_smoothed}
+                disabled={!canEdit || !form.enabled}
+                onCheckedChange={(v) => setForm({ ...form, pay_smoothed: v })}
+              />
+              <Label>Lisser la rémunération sur l&apos;année</Label>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+
         <div className="flex flex-wrap gap-2">
           {canEdit && (
             <Button
@@ -315,19 +337,21 @@ export default function ModulationSettingsCard() {
               Enregistrer
             </Button>
           )}
-          {canEdit && (
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={applyPresetMutation.isPending}
-              onClick={() => applyPresetMutation.mutate()}
-            >
-              Preset métallurgie (37/32 + compte 14 h)
-            </Button>
-          )}
+          {canEdit &&
+            PRESETS.map((p) => (
+              <Button
+                key={p.id}
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={applyPresetMutation.isPending}
+                onClick={() => applyPresetMutation.mutate(p.id)}
+              >
+                {p.label}
+              </Button>
+            ))}
           <Button variant="outline" size="sm" asChild>
-            <Link to="/suivi-modulation">Suivi modulation</Link>
+            <Link to="/suivi-modulation">Suivi compteurs</Link>
           </Button>
         </div>
       </CardContent>

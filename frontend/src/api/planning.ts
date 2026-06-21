@@ -9,7 +9,55 @@ export interface ShiftType {
   color: string;
   default_start?: string;
   default_end?: string;
+  allows_overnight?: boolean;
+  meal_allowance_eligible?: boolean;
+  paid_break_minutes?: number;
+  night_windows?: NightWindow[];
+  premium_rule_code?: string | null;
+  is_active?: boolean;
 }
+
+export interface NightWindow {
+  start: string;
+  end: string;
+  rate: number;
+}
+
+export interface PlanningSettings {
+  collective_agreement_id: string | null;
+  collective_agreement?: {
+    id: string;
+    code: string;
+    label: string;
+    idcc?: string | null;
+  } | null;
+  team_view_default: boolean;
+  payroll_shift_metrics_enabled: boolean;
+  auto_generate_payroll_variables_before_payslip: boolean;
+}
+
+export interface PlanningSettingsUpdate {
+  collective_agreement_id?: string | null;
+  team_view_default?: boolean;
+  payroll_shift_metrics_enabled?: boolean;
+  auto_generate_payroll_variables_before_payslip?: boolean;
+}
+
+export interface ShiftTypeCreatePayload {
+  code: string;
+  label: string;
+  color?: string;
+  default_start?: string;
+  default_end?: string;
+  allows_overnight?: boolean;
+  meal_allowance_eligible?: boolean;
+  paid_break_minutes?: number;
+  night_windows?: NightWindow[];
+  premium_rule_code?: string | null;
+  is_active?: boolean;
+}
+
+export type ShiftTypeUpdatePayload = Partial<ShiftTypeCreatePayload>;
 
 export interface Shift {
   id: string;
@@ -303,6 +351,57 @@ export async function duplicateWeek(
 
 export async function getShiftTypes(): Promise<ShiftType[]> {
   const { data } = await apiClient.get<ShiftType[]>('/api/planning/shift-types');
+  return data;
+}
+
+export async function getPlanningSettings(): Promise<PlanningSettings> {
+  const { data } = await apiClient.get<PlanningSettings>('/api/planning/settings');
+  return data;
+}
+
+export async function updatePlanningSettings(
+  payload: PlanningSettingsUpdate,
+): Promise<PlanningSettings> {
+  const { data } = await apiClient.patch<PlanningSettings>(
+    '/api/planning/settings',
+    payload,
+  );
+  return data;
+}
+
+export async function createShiftType(
+  payload: ShiftTypeCreatePayload,
+): Promise<ShiftType> {
+  const { data } = await apiClient.post<ShiftType>(
+    '/api/planning/shift-types',
+    payload,
+  );
+  return data;
+}
+
+export async function updateShiftType(
+  shiftTypeId: string,
+  payload: ShiftTypeUpdatePayload,
+): Promise<ShiftType> {
+  const { data } = await apiClient.patch<ShiftType>(
+    `/api/planning/shift-types/${shiftTypeId}`,
+    payload,
+  );
+  return data;
+}
+
+export async function deleteShiftType(shiftTypeId: string): Promise<void> {
+  await apiClient.delete(`/api/planning/shift-types/${shiftTypeId}`);
+}
+
+export async function applyIndustrial3x8Preset(): Promise<{
+  created_shift_types: string[];
+  skipped_existing: string[];
+}> {
+  const { data } = await apiClient.post<{
+    created_shift_types: string[];
+    skipped_existing: string[];
+  }>('/api/planning/shift-types/preset/industrial-3x8');
   return data;
 }
 

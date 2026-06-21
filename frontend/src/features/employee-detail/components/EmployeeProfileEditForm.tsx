@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 import { getJeiSettings } from '@/api/jeiSettings';
+import { listPayrollVariableRules } from '@/api/payrollVariables';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 
 import type { CompanyCollectiveAgreementWithDetails, ClassificationConventionnelle } from '@/api/collectiveAgreements';
@@ -28,6 +29,7 @@ import {
 } from '@/components/ui/select';
 import { normalizeNir } from '@/features/employee-detail/components/employeeProfileFormUtils';
 import type { EmployeeProfileEditFormValues } from '@/features/employee-detail/components/employeeProfileEditSchema';
+import { queryKeys } from '@/lib/queryKeys';
 import {
   filterMutuellesForEmployee,
   formatMutuelleOptionLabel,
@@ -72,6 +74,18 @@ export function EmployeeProfileEditForm({
     enabled: Boolean(companyId),
   });
   const companyJeiActive = Boolean(jeiSettings?.jei_enabled);
+  const { data: payrollRules = [] } = useQuery({
+    queryKey: queryKeys.payrollVariableRules(companyId ?? ''),
+    queryFn: listPayrollVariableRules,
+    enabled: Boolean(companyId),
+  });
+  const showDeplacementAstreinte = payrollRules.some(
+    (r) => r.enabled && r.rule_type === 'per_astreinte_weekend_km',
+  );
+  const deplacementAstreinteEnabled = useWatch({
+    control,
+    name: 'specificites_paie.deplacement_astreinte.enabled',
+  });
 
   return (
     <div className="space-y-8">
@@ -579,6 +593,100 @@ export function EmployeeProfileEditForm({
               )}
             />
           </div>
+
+          {showDeplacementAstreinte && (
+            <div className="space-y-3 rounded-lg border border-dashed p-4 sm:col-span-2">
+              <FormField
+                control={control}
+                name="specificites_paie.deplacement_astreinte.enabled"
+                render={({ field }) => (
+                  <FormItem className="flex items-center gap-2 space-y-0">
+                    <FormControl>
+                      <Checkbox checked={Boolean(field.value)} onCheckedChange={field.onChange} />
+                    </FormControl>
+                    <FormLabel className="font-normal">Déplacement astreinte (indemnité km)</FormLabel>
+                  </FormItem>
+                )}
+              />
+              {deplacementAstreinteEnabled && (
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <FormField
+                    control={control}
+                    name="specificites_paie.deplacement_astreinte.distance_km_one_way"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Distance aller simple (km)</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="number"
+                            min={0}
+                            step="0.1"
+                            value={field.value ?? ''}
+                            onChange={(e) =>
+                              field.onChange(
+                                e.target.value === '' ? undefined : e.target.valueAsNumber,
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={control}
+                    name="specificites_paie.deplacement_astreinte.vehicle_cv"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Puissance fiscale (CV)</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={field.value ?? ''}
+                            onChange={(e) =>
+                              field.onChange(
+                                e.target.value === '' ? undefined : e.target.valueAsNumber,
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={control}
+                    name="specificites_paie.deplacement_astreinte.vehicle_type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Type de véhicule</FormLabel>
+                        <Select value={field.value ?? 'voitures'} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="voitures">Voiture</SelectItem>
+                            <SelectItem value="motocyclettes">Motocyclettes</SelectItem>
+                            <SelectItem value="cyclomoteurs">Cyclomoteurs</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Utilisé pour l&apos;indemnité km en astreinte (franchise et barème configurés au niveau entreprise).
+              </p>
+            </div>
+          )}
 
           <FormField
             control={control}

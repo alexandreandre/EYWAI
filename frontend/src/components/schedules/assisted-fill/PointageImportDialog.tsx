@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { ChevronDown, HelpCircle, Loader2, Sparkles, Upload } from 'lucide-react';
+import { ChevronDown, HelpCircle, Loader2, Sparkles, Upload, XCircle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -26,8 +26,9 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import {
-  extractTimesheet,
+  cancelTimesheetExtractJob,
   parseStructuredTimesheet,
+  startTimesheetExtract,
   startTimesheetExtractBatch,
   waitForTimesheetExtractJob,
   type AiCalendarProposal,
@@ -39,6 +40,7 @@ import {
   AssistedFillReview,
   type AssistedFillApplyMeta,
 } from './AssistedFillReview';
+import { TimesheetImportMappingDialog } from './TimesheetImportMappingDialog';
 import { aiFillErrorMessage } from './aiFillUtils';
 
 const MONTHS = [
@@ -158,10 +160,15 @@ export function PointageImportDialog({
   } | null>(null);
   const [proposal, setProposal] = useState<AiCalendarProposal | null>(null);
   const [batchId, setBatchId] = useState<string | null>(null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [documentScope, setDocumentScope] = useState<DocumentScopeInput>('auto');
   const [weekAnchorDate, setWeekAnchorDate] = useState('');
   const [helpOpen, setHelpOpen] = useState(false);
+  const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
+  const [mappingDialogOpen, setMappingDialogOpen] = useState(false);
+  const [mappingTargetIndex, setMappingTargetIndex] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const periodLabel = `${MONTHS[month - 1]} ${year}`;
   const targetName =
@@ -170,19 +177,51 @@ export function PointageImportDialog({
       : null;
 
   const reset = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
     setFiles([]);
     setProposal(null);
     setBatchId(null);
+    setActiveJobId(null);
     setIsAnalyzing(false);
     setQueueProgress(0);
     setPageProgress(null);
     setDocumentScope('auto');
     setWeekAnchorDate('');
     setHelpOpen(false);
+    setColumnMapping({});
+    setMappingDialogOpen(false);
+  };
+
+  const stopAnalysis = async (notify = false) => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    const jobId = activeJobId;
+    setActiveJobId(null);
+    setIsAnalyzing(false);
+    setPageProgress(null);
+    if (jobId) {
+      try {
+        await cancelTimesheetExtractJob(jobId);
+      } catch {
+        // best-effort : le job peut déjà être terminé
+      }
+    }
+    if (notify) {
+      toast({ title: 'Import annulé' });
+    }
   };
 
   const handleClose = (next: boolean) => {
-    if (!next) reset();
+    if (!next) {
+      const jobId = activeJobId;
+      abortRef.current?.abort();
+      abortRef.current = null;
+      reset();
+      if (jobId) {
+        void cancelTimesheetExtractJob(jobId).catch(() => {});
+      }
+    }
     onOpenChange(next);
   };
 
@@ -224,7 +263,17 @@ export function PointageImportDialog({
     setProposal(result);
   };
 
-  const analyzeFiles = async () => {
+  const runStructuredParse = async (
+    file: File,
+    mapping: Record<string, string>,
+    abort: AbortController,
+  ) => {
+    const parsed = await parseStructuredTimesheet(file, year, month, roster, mapping);
+    if (abort.signal.aborted) return null;
+    return parsed;
+  };
+
+  const analyzeFiles = async (structuredMapping?: Record<string, string>) => {
     if (files.length === 0) return;
     if (documentScope === 'weekly' && !weekAnchorDate) {
       toast({
@@ -238,6 +287,8 @@ export function PointageImportDialog({
     setIsAnalyzing(true);
     setQueueProgress(0);
     setPageProgress(null);
+    const abort = new AbortController();
+    abortRef.current = abort;
     try {
       const results: AiCalendarProposal[] = [];
       let lastBatchId: string | null = null;
@@ -248,32 +299,50 @@ export function PointageImportDialog({
           singleEmployee,
           documentScope,
         });
-        const jobResult = await waitForTimesheetExtractJob(started.job_id, (p) => {
-          setPageProgress({
-            pages_done: p.files_done ?? p.pages_done,
-            pages_total: p.files_total ?? p.pages_total,
-            phase: p.phase,
-          });
-          if (p.batch_id) lastBatchId = p.batch_id;
-        });
+        setActiveJobId(started.job_id);
+        const jobResult = await waitForTimesheetExtractJob(
+          started.job_id,
+          (p) => {
+            setPageProgress({
+              pages_done: p.files_done ?? p.pages_done,
+              pages_total: p.files_total ?? p.pages_total,
+              phase: p.phase,
+            });
+            if (p.batch_id) lastBatchId = p.batch_id;
+          },
+          { signal: abort.signal },
+        );
         setBatchId(lastBatchId);
         showProposal(jobResult, files.length);
         return;
       }
 
       for (let i = 0; i < files.length; i++) {
+        if (abort.signal.aborted) return;
         const file = files[i];
         let result: AiCalendarProposal;
         if (isStructuredFile(file.name)) {
-          const parsed = await parseStructuredTimesheet(file, year, month, roster);
+          const mapping = structuredMapping ?? columnMapping;
+          if (!structuredMapping && Object.keys(mapping).length === 0) {
+            setMappingTargetIndex(i);
+            setMappingDialogOpen(true);
+            setIsAnalyzing(false);
+            return;
+          }
+          const parsed = await runStructuredParse(file, mapping, abort);
+          if (!parsed) return;
           result = parsed.preview;
           lastBatchId = parsed.batch_id;
         } else {
-          result = await extractTimesheet(file, year, month, roster, {
+          const started = await startTimesheetExtract(file, year, month, roster, {
             singleEmployee,
             documentScope,
             weekAnchorDate: weekAnchorDate || null,
-            onProgress: (p) => {
+          });
+          setActiveJobId(started.job_id);
+          result = await waitForTimesheetExtractJob(
+            started.job_id,
+            (p) => {
               setPageProgress({
                 pages_done: p.pages_done,
                 pages_total: p.pages_total,
@@ -281,7 +350,8 @@ export function PointageImportDialog({
               });
               if (p.batch_id) lastBatchId = p.batch_id;
             },
-          });
+            { signal: abort.signal },
+          );
         }
         results.push(result);
         setQueueProgress(Math.round(((i + 1) / files.length) * 100));
@@ -291,12 +361,21 @@ export function PointageImportDialog({
       const merged = results.length === 1 ? results[0] : mergeProposals(results);
       showProposal(merged, files.length);
     } catch (e) {
+      if (abort.signal.aborted || (e instanceof DOMException && e.name === 'AbortError')) {
+        return;
+      }
+      const message = e instanceof Error ? e.message : aiFillErrorMessage(e);
+      if (message.includes('annulé')) {
+        return;
+      }
       toast({
         title: 'Analyse impossible',
-        description: aiFillErrorMessage(e),
+        description: message,
         variant: 'destructive',
       });
     } finally {
+      abortRef.current = null;
+      setActiveJobId(null);
       setIsAnalyzing(false);
     }
   };
@@ -484,28 +563,66 @@ export function PointageImportDialog({
             )}
 
             <div className="flex justify-end gap-2">
-              {files.length > 0 && (
-                <Button type="button" variant="ghost" onClick={() => setFiles([])}>
-                  Retirer
+              {isAnalyzing ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void stopAnalysis(true)}
+                >
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Annuler l&apos;analyse
+                </Button>
+              ) : (
+                <>
+                  {files.length > 0 && (
+                    <Button type="button" variant="ghost" onClick={() => setFiles([])}>
+                      Retirer
+                    </Button>
+                  )}
+                  {files.some((f) => isStructuredFile(f.name)) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setMappingTargetIndex(0);
+                        setMappingDialogOpen(true);
+                      }}
+                    >
+                      Colonnes CSV/Excel
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    onClick={() => void analyzeFiles()}
+                    disabled={files.length === 0}
+                  >
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Analyser {files.length > 1 ? `(${files.length})` : 'le relevé'}
+                  </Button>
+                </>
+              )}
+              {isAnalyzing && (
+                <Button type="button" disabled>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Analyse…
                 </Button>
               )}
-              <Button
-                type="button"
-                onClick={() => void analyzeFiles()}
-                disabled={files.length === 0 || isAnalyzing}
-              >
-                {isAnalyzing ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="mr-2 h-4 w-4" />
-                )}
-                Analyser {files.length > 1 ? `(${files.length})` : 'le relevé'}
-              </Button>
             </div>
             </div>
           )}
         </div>
       </DialogContent>
+      <TimesheetImportMappingDialog
+        open={mappingDialogOpen}
+        onOpenChange={setMappingDialogOpen}
+        file={files[mappingTargetIndex] ?? null}
+        mapping={columnMapping}
+        onConfirm={(mapping) => {
+          setColumnMapping(mapping);
+          setMappingDialogOpen(false);
+          void analyzeFiles(mapping);
+        }}
+      />
     </Dialog>
   );
 }

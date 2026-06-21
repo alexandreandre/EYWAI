@@ -30,19 +30,9 @@ import {
   type PlannedSnapshot,
 } from '@/lib/calendarBulkUndo';
 import { loadSavedWeekTemplates, saveWeekTemplate, type SavedWeekTemplate } from '@/lib/weekTemplateStorage';
-import { listWeekTemplates, type WeekScheduleTemplate } from '@/api/modulation';
 import { useCompany } from '@/contexts/CompanyContext';
+import type { WeekTemplate } from '@/hooks/useCalendar';
 import type { DayConfig, WeekConfig, WeekNumber } from './types';
-
-const DAY_KEYS = [
-  'monday',
-  'tuesday',
-  'wednesday',
-  'thursday',
-  'friday',
-  'saturday',
-  'sunday',
-] as const;
 
 const TIER_LABELS: Record<string, string> = {
   high: '37h',
@@ -63,28 +53,38 @@ const createInitialWeek = (): WeekConfig => ({
   sunday: { ...WEEKEND_DAY },
 });
 
-function templateToWeekConfig(template: WeekScheduleTemplate): WeekConfig {
+function weekTemplateToWeekConfig(template: WeekTemplate): WeekConfig {
   const week = createInitialWeek();
-  for (const cfg of template.day_configs || []) {
-    const dayNum = Number(cfg.day);
-    if (dayNum >= 1 && dayNum <= 7) {
-      const key = DAY_KEYS[dayNum - 1];
-      const hours = Number(cfg.hours) || 0;
-      const dayType = String(cfg.type || 'travail');
-      if (dayType === 'repos' || hours <= 0) {
-        week[key] = { type: 'weekend', hours: 0 };
-      } else {
-        week[key] = { type: 'travail', hours };
-      }
+  const dayMap: Array<[keyof WeekConfig, number]> = [
+    ['monday', 1],
+    ['tuesday', 2],
+    ['wednesday', 3],
+    ['thursday', 4],
+    ['friday', 5],
+    ['saturday', 6],
+    ['sunday', 7],
+  ];
+  for (const [key, day] of dayMap) {
+    const raw = template[day];
+    if (raw === undefined) continue;
+    const hours = raw === '1' ? 1 : parseFloat(String(raw || '0')) || 0;
+    if (hours <= 0) {
+      week[key] = { type: 'weekend', hours: 0 };
+    } else {
+      week[key] = { type: 'travail', hours };
     }
   }
   return week;
 }
 
+type SavedWeekTemplateWithConfig = SavedWeekTemplate & { weekConfig: WeekConfig };
+
 interface ApplyModelDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedEmployeeIds: string[];
+  /** Équipe commune des salariés sélectionnés (filtre modèles par équipe). */
+  employeeTeamId?: string | null;
   year: number;
   month: number;
   onApplied: () => void;
@@ -94,6 +94,7 @@ export function ApplyModelDialog({
   open,
   onOpenChange,
   selectedEmployeeIds,
+  employeeTeamId,
   year,
   month,
   onApplied,
@@ -111,38 +112,32 @@ export function ApplyModelDialog({
     5: createInitialWeek(),
   });
   const [isApplying, setIsApplying] = useState(false);
-  const [savedTemplates, setSavedTemplates] = useState<SavedWeekTemplate[]>([]);
+  const [savedTemplates, setSavedTemplates] = useState<SavedWeekTemplateWithConfig[]>([]);
   const [templateName, setTemplateName] = useState('');
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !companyId) return;
     let cancelled = false;
-    listWeekTemplates()
+    loadSavedWeekTemplates(companyId, employeeTeamId)
       .then((rows) => {
         if (cancelled) return;
         setSavedTemplates(
           rows.map((t) => ({
-            id: t.id,
-            name: t.name,
-            template: {},
-            modulation_tier: t.modulation_tier,
-            weekConfig: templateToWeekConfig(t),
+            ...t,
+            weekConfig: weekTemplateToWeekConfig(t.template),
           })),
         );
       })
       .catch(() => {
-        if (!companyId) return;
-        loadSavedWeekTemplates(companyId).then((local) => {
-          if (!cancelled) setSavedTemplates(local);
-        });
+        if (!cancelled) setSavedTemplates([]);
       });
     return () => {
       cancelled = true;
     };
-  }, [open, companyId]);
+  }, [open, companyId, employeeTeamId]);
 
-  const applySavedTemplate = (tpl: SavedWeekTemplate & { weekConfig?: WeekConfig }) => {
-    const config = tpl.weekConfig ?? createInitialWeek();
+  const applySavedTemplate = (tpl: SavedWeekTemplateWithConfig) => {
+    const config = tpl.weekConfig;
     setWeekConfigs({
       1: config,
       2: config,
@@ -293,7 +288,7 @@ export function ApplyModelDialog({
                     variant="outline"
                     size="sm"
                     className="h-7 text-xs"
-                    onClick={() => applySavedTemplate(tpl as SavedWeekTemplate & { weekConfig?: WeekConfig })}
+                    onClick={() => applySavedTemplate(tpl)}
                   >
                     {tpl.name}
                     {tpl.modulation_tier && tpl.modulation_tier !== 'neutral' && (
@@ -398,7 +393,12 @@ export function ApplyModelDialog({
                   5: config.friday.hours,
                 };
                 const next = await saveWeekTemplate(companyId, templateName, template);
-                setSavedTemplates(next);
+                setSavedTemplates(
+                  next.map((t) => ({
+                    ...t,
+                    weekConfig: weekTemplateToWeekConfig(t.template),
+                  })),
+                );
                 setTemplateName('');
                 toast({ title: 'Modèle enregistré' });
               }}

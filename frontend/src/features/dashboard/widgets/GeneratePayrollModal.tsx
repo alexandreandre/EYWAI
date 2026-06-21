@@ -9,8 +9,10 @@ import { AlertTriangle, Loader2, PartyPopper } from 'lucide-react';
 import { PayrollProgressBar } from '@/features/payroll/components/PayrollProgressBar';
 import { PayrollPreflightChecklist } from '@/features/payroll/components/PayrollPreflightChecklist';
 import { PayrollPreflightAnomaliesSection } from '@/features/payroll/components/PayrollPreflightAnomaliesSection';
+import { OvertimeRoutingPanel } from '@/features/payroll/components/OvertimeRoutingPanel';
 import { usePayrollGeneration } from '@/features/payroll/hooks/usePayrollGeneration';
 import { usePreflightAnomalies } from '@/features/payroll/hooks/usePreflightAnomaliesCount';
+import { countOpenBlockingAnomalies } from '@/features/payroll/components/preflightLabels';
 import { PayrollEmployeeEmptyState } from '@/features/payroll/components/PayrollEmployeeEmptyState';
 import { PayrollEmployeeReadinessAlert } from '@/features/payroll/components/PayrollEmployeeReadinessAlert';
 import type { PayrollGenerateEmployee } from '@/features/payroll/types';
@@ -154,6 +156,14 @@ export function GeneratePayrollModal({
   };
 
   const startGeneration = () => {
+    const blocking = countOpenBlockingAnomalies(preflightData?.anomalies ?? []);
+    if (blocking > 0) {
+      const confirmed = window.confirm(
+        `${blocking} anomalie(s) bloquante(s) ouverte(s). Générer quand même les bulletins ?`,
+      );
+      if (!confirmed) return;
+    }
+
     const ids = Array.from(selectedEmployees);
     const [yearStr, monthStr] = selectedMonth.split('-');
     const year = parseInt(yearStr, 10);
@@ -218,6 +228,12 @@ export function GeneratePayrollModal({
                 onVerify={handleVerifyAnomaly}
               />
             </div>
+
+            {selectedMonth && parsedMonth.year > 0 && (
+              <div className="px-6 pb-4">
+                <OvertimeRoutingPanel year={parsedMonth.year} month={parsedMonth.month} />
+              </div>
+            )}
 
             <div className="px-6 pb-4">
               <Label htmlFor="month-select" className="text-sm font-medium mb-2 block">

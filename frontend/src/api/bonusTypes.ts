@@ -12,6 +12,7 @@ export interface BonusType {
   soumise_a_cotisations: boolean;
   soumise_a_impot: boolean;
   prompt_ia?: string | null;
+  export_code?: string | null;
   created_at: string;
   updated_at: string;
   created_by?: string | null;
@@ -25,6 +26,7 @@ export interface BonusTypeCreate {
   soumise_a_cotisations: boolean;
   soumise_a_impot: boolean;
   prompt_ia?: string | null;
+  export_code?: string | null;
 }
 
 export interface BonusTypeUpdate {
@@ -35,6 +37,7 @@ export interface BonusTypeUpdate {
   soumise_a_cotisations?: boolean;
   soumise_a_impot?: boolean;
   prompt_ia?: string | null;
+  export_code?: string | null;
 }
 
 export interface BonusCalculationResult {

@@ -196,3 +196,28 @@ export const IJSS_LINE_STATUS_LABELS: Record<IjssLineStatus, string> = {
   justified: 'Justifié',
   pending: 'En attente',
 };
+
+export interface IjssImportProfile {
+  id?: string;
+  batch_type: string;
+  profile_name: string;
+  column_mapping: Record<string, unknown>;
+}
+
+export async function getIjssImportProfiles(): Promise<IjssImportProfile[]> {
+  const { data } = await apiClient.get<IjssImportProfile[]>(
+    '/api/ijss-tracking/import-profiles',
+  );
+  return data;
+}
+
+export async function updateIjssImportProfile(
+  batchType: 'bank_recap' | 'cpam_decompte_file',
+  columnMapping: Record<string, unknown>,
+): Promise<IjssImportProfile> {
+  const { data } = await apiClient.put<IjssImportProfile>(
+    `/api/ijss-tracking/import-profiles/${batchType}`,
+    { column_mapping: columnMapping },
+  );
+  return data;
+}

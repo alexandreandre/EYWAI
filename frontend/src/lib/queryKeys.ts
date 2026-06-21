@@ -91,6 +91,12 @@ export const queryKeys = {
     companyQueryKey(companyId, 'leaveCampaign', 'dashboard', grantYear),
   modulationSettings: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'modulation', 'settings'),
+  punchAccountingSettings: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'punch-accounting', 'settings'),
+  punchShiftSlots: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'punch-accounting', 'slots'),
+  punchOvertimeReviews: (companyId: string | undefined, year: number, month: number) =>
+    companyQueryKey(companyId, 'punch-accounting', 'reviews', year, month),
   modulationOverview: (companyId: string | undefined, year: number) =>
     companyQueryKey(companyId, 'modulation', 'overview', year),
   modulationMovements: (
@@ -100,8 +106,16 @@ export const queryKeys = {
   ) => companyQueryKey(companyId, 'modulation', 'movements', employeeId, year),
   modulationWorkflowStatus: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'modulation', 'workflow-status'),
+  workTimePeriods: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'modulation', 'work-time-periods'),
+  weekTemplates: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'modulation', 'week-templates'),
   payrollVariableRules: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'payroll-variables', 'rules'),
+  payrollSpecialDays: (companyId: string | undefined, year: number) =>
+    companyQueryKey(companyId, 'payroll-variables', 'special-days', year),
+  planningSettings: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'planning', 'settings'),
   employeeCetSummary: (
     userId: string | undefined,
     year?: number,

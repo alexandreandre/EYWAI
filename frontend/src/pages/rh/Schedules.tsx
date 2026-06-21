@@ -193,6 +193,15 @@ export default function Schedules() {
     [sortedRows]
   );
 
+  const selectedEmployeeTeamId = useMemo(() => {
+    const teamIds = new Set(
+      [...selectedIds]
+        .map((id) => rows.find((r) => r.employee.id === id)?.employee.team_id)
+        .filter((id): id is string => Boolean(id)),
+    );
+    return teamIds.size === 1 ? [...teamIds][0] : null;
+  }, [selectedIds, rows]);
+
   const drawerEmployee = drawerEmployeeId
     ? employees.find((e) => e.id === drawerEmployeeId) ?? null
     : null;
@@ -405,6 +414,7 @@ export default function Schedules() {
         open={applyModelOpen}
         onOpenChange={setApplyModelOpen}
         selectedEmployeeIds={[...selectedIds]}
+        employeeTeamId={selectedEmployeeTeamId}
         year={selectedYear}
         month={selectedMonth}
         onApplied={() => {

@@ -1,5 +1,7 @@
 import apiClient from '@/api/apiClient';
 
+export type HsRoutingPolicy = 'pay_all' | 'account_all' | 'franchise' | 'manual';
+
 export interface ModulationSettings {
   company_id: string;
   enabled: boolean;
@@ -21,6 +23,7 @@ export interface ModulationSettings {
   account_credit_source: 'overtime_only' | 'surplus_over_modulated';
   recovery_absence_enabled: boolean;
   recovery_debit_timing: 'on_validation' | 'on_payroll';
+  hs_routing_policy: HsRoutingPolicy;
 }
 
 export type ModulationSettingsUpdate = Partial<
@@ -34,6 +37,31 @@ export interface WeekScheduleTemplate {
   day_configs: Record<string, unknown>[];
   modulation_tier: 'high' | 'low' | 'neutral';
   is_active: boolean;
+  team_id?: string | null;
+  description?: string | null;
+}
+
+export interface WorkTimePeriod {
+  id?: string;
+  label: string;
+  start_date: string;
+  end_date?: string | null;
+  daily_reference_hours?: number | null;
+  weekly_reference_hours?: number | null;
+  affects_payroll: boolean;
+  affects_planning: boolean;
+  default_week_template_id?: string | null;
+  is_active: boolean;
+}
+
+export interface OvertimeRoutingRow {
+  employee_id: string;
+  employee_name: string;
+  total_hs_hours: number;
+  hours_to_pay: number;
+  hours_to_account: number;
+  status: string;
+  note?: string | null;
 }
 
 export interface ModulationOverviewRow {
@@ -185,6 +213,74 @@ export async function createModulationAdjustment(
   const { data } = await apiClient.post<ModulationMovement>(
     '/api/modulation/adjustments',
     { employee_id: employeeId, hours, note },
+  );
+  return data;
+}
+
+export async function updateWeekTemplate(
+  templateId: string,
+  payload: WeekScheduleTemplate,
+): Promise<WeekScheduleTemplate> {
+  const { data } = await apiClient.put<WeekScheduleTemplate>(
+    `/api/modulation/week-templates/${templateId}`,
+    payload,
+  );
+  return data;
+}
+
+export async function listWorkTimePeriods(): Promise<WorkTimePeriod[]> {
+  const { data } = await apiClient.get<WorkTimePeriod[]>(
+    '/api/modulation/work-time-periods',
+  );
+  return data;
+}
+
+export async function createWorkTimePeriod(
+  payload: WorkTimePeriod,
+): Promise<WorkTimePeriod> {
+  const { data } = await apiClient.post<WorkTimePeriod>(
+    '/api/modulation/work-time-periods',
+    payload,
+  );
+  return data;
+}
+
+export async function updateWorkTimePeriod(
+  periodId: string,
+  payload: Partial<WorkTimePeriod>,
+): Promise<WorkTimePeriod> {
+  const { data } = await apiClient.patch<WorkTimePeriod>(
+    `/api/modulation/work-time-periods/${periodId}`,
+    payload,
+  );
+  return data;
+}
+
+export async function deleteWorkTimePeriod(periodId: string): Promise<void> {
+  await apiClient.delete(`/api/modulation/work-time-periods/${periodId}`);
+}
+
+export async function listOvertimeRouting(
+  year: number,
+  month: number,
+): Promise<OvertimeRoutingRow[]> {
+  const { data } = await apiClient.get<OvertimeRoutingRow[]>(
+    '/api/modulation/overtime-routing',
+    { params: { year, month } },
+  );
+  return data;
+}
+
+export async function upsertOvertimeRouting(
+  employeeId: string,
+  year: number,
+  month: number,
+  payload: { hours_to_pay: number; hours_to_account: number; note?: string; submit_validated?: boolean },
+): Promise<OvertimeRoutingRow> {
+  const { data } = await apiClient.put<OvertimeRoutingRow>(
+    `/api/modulation/overtime-routing/${employeeId}`,
+    payload,
+    { params: { year, month } },
   );
   return data;
 }

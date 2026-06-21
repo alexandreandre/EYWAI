@@ -702,6 +702,11 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                     Le montant est calculé automatiquement selon les heures faites.
                   </p>
                 )}
+                {selectedBonusTypeId && bonusTypes.find(bt => bt.id === selectedBonusTypeId)?.export_code && (
+                  <p className="text-xs text-muted-foreground">
+                    Code export paie : {bonusTypes.find(bt => bt.id === selectedBonusTypeId)?.export_code}
+                  </p>
+                )}
               </div>
               
               <div className="grid grid-cols-2 gap-4 pt-2">

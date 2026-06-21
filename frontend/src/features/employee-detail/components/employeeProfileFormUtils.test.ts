@@ -87,3 +87,30 @@ describe('employeeProfileFormUtils transport', () => {
     });
   });
 });
+
+describe('employeeProfileFormUtils deplacement astreinte', () => {
+  it('round-trip deplacement_astreinte', () => {
+    const employee: Employee = {
+      ...baseEmployee,
+      specificites_paie: {
+        ...baseEmployee.specificites_paie,
+        deplacement_astreinte: {
+          enabled: true,
+          distance_km_one_way: 22.2,
+          vehicle_cv: 7,
+          vehicle_type: 'voitures',
+        },
+      },
+    };
+    const values = buildDefaultValues(employee);
+    expect(values.specificites_paie.deplacement_astreinte?.distance_km_one_way).toBe(22.2);
+
+    const payload = buildUpdatePayload(values, employee);
+    expect(payload.specificites_paie?.deplacement_astreinte).toEqual({
+      enabled: true,
+      distance_km_one_way: 22.2,
+      vehicle_cv: 7,
+      vehicle_type: 'voitures',
+    });
+  });
+});

@@ -4,7 +4,9 @@ export type PreflightAnomalyType =
   | 'ecart_heures'
   | 'heures_non_saisies'
   | 'pointage'
-  | 'conflit_absence';
+  | 'conflit_absence'
+  | 'hs_routing_pending'
+  | 'hs_pointage_a_valider';
 
 export type PreflightAnomalySeverity = 'bloquant' | 'a_verifier';
 
@@ -57,6 +59,8 @@ export interface PreflightAnomalyCounts {
   heures_non_saisies: number;
   pointage: number;
   conflit_absence: number;
+  hs_routing_pending: number;
+  hs_pointage_a_valider: number;
   bloquant: number;
   a_verifier: number;
 }

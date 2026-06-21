@@ -9,9 +9,13 @@ export const PREFLIGHT_ANOMALY_TYPE_LABELS: Record<PreflightAnomalyType, string>
   heures_non_saisies: 'Heures non saisies',
   pointage: 'Pointage',
   conflit_absence: 'Conflit absence',
+  hs_routing_pending: 'HS à arbitrer',
+  hs_pointage_a_valider: 'HS pointage à valider',
 };
 
 export const PREFLIGHT_ANOMALY_TYPE_ORDER: PreflightAnomalyType[] = [
+  'hs_routing_pending',
+  'hs_pointage_a_valider',
   'ecart_heures',
   'heures_non_saisies',
   'pointage',
@@ -39,6 +43,12 @@ export function formatEcartValue(anomaly: PreflightAnomaly): string {
 }
 
 export function verifyPathForAnomaly(anomaly: PreflightAnomaly): string {
+  if (anomaly.type === 'hs_routing_pending') {
+    return '/schedules';
+  }
+  if (anomaly.type === 'hs_pointage_a_valider') {
+    return '/company?tab=payroll';
+  }
   if (anomaly.type === 'pointage') {
     return `/badgeuse-rh?employee=${encodeURIComponent(anomaly.employee_id)}`;
   }
