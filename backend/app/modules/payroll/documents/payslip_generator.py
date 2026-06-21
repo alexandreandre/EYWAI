@@ -108,6 +108,28 @@ def process_payslip_generation(
                 status_code=400,
                 detail="Ce collaborateur n'est rattaché à aucune entreprise. Complétez sa fiche employé.",
             )
+
+        try:
+            from app.modules.planning.infrastructure.repository import (
+                planning_repository,
+            )
+
+            planning_settings = planning_repository.get_company_planning_settings(
+                str(company_id)
+            )
+            if planning_settings and planning_settings.get(
+                "auto_generate_payroll_variables_before_payslip"
+            ):
+                from app.modules.payroll_variables.application.generate_monthly import (
+                    generate_monthly_variables,
+                )
+
+                generate_monthly_variables(str(company_id), year, month, dry_run=False)
+        except Exception as auto_var_exc:
+            logger.warning(
+                "Génération auto variables paie ignorée: %s", auto_var_exc
+            )
+
         employee_folder_name = employee_data["employee_folder_name"]
 
         company_data = (
@@ -147,7 +169,7 @@ def process_payslip_generation(
 
         schedule_res = (
             supabase.table("employee_schedules")
-            .select("year, month, planned_calendar, actual_hours")
+            .select("year, month, planned_calendar, actual_hours, payroll_events")
             .eq("employee_id", employee_id)
             .in_("year", [d["year"] for d in dates_to_process])
             .in_("month", [d["month"] for d in dates_to_process])
@@ -195,6 +217,19 @@ def process_payslip_generation(
                 new_entry.update({"annee": y, "mois": m})
                 actual_data_all_months.append(new_entry)
 
+        weekly_map = None
+        if company_id:
+            try:
+                from app.modules.modulation.application.reference_resolution import (
+                    resolve_effective_weekly_hours_map,
+                )
+
+                weekly_map = resolve_effective_weekly_hours_map(
+                    str(company_id), year, float(duree_hebdo)
+                )
+            except Exception:
+                weekly_map = None
+
         payroll_events_list = payroll_analyzer_analyser(
             planned_data_all_months,
             actual_data_all_months,
@@ -202,6 +237,7 @@ def process_payslip_generation(
             year,
             month,
             employee_folder_name,
+            modulation_weekly_hours=weekly_map,
         )
         payroll_events_json = {
             "periode": {"annee": year, "mois": month},
@@ -215,6 +251,7 @@ def process_payslip_generation(
             prev_year,
             prev_month,
             employee_folder_name,
+            modulation_weekly_hours=weekly_map,
         )
         payroll_events_M_minus_1 = {
             "periode": {"annee": prev_year, "mois": prev_month},
@@ -236,13 +273,32 @@ def process_payslip_generation(
         saisies_data = {"periode": {"mois": month, "annee": year}, "primes": []}
         if ijss_brut_override is not None:
             saisies_data["ijss_brut_override"] = float(ijss_brut_override)
+
+        current_schedule = db_data_map.get((year, month)) or {}
+        payroll_events_raw = current_schedule.get("payroll_events") or {}
+        if isinstance(payroll_events_raw, dict):
+            summary = payroll_events_raw.get("shift_payroll_summary")
+            if isinstance(summary, dict) and summary:
+                saisies_data["shift_payroll_summary"] = summary
+
         for row in saisies_res.data:
+            catalog_id = row.get("catalog_prime_id")
+            prime_id = catalog_id or row["name"].replace(" ", "_").lower()
             prime_entry = {
-                "prime_id": row["name"].replace(" ", "_"),
+                "prime_id": prime_id,
+                "libelle": row["name"],
                 "montant": row["amount"],
                 "soumise_a_cotisations": row.get("is_socially_taxed", True),
                 "soumise_a_impot": row.get("is_taxable", True),
             }
+            if row.get("export_code"):
+                prime_entry["export_code"] = row["export_code"]
+                ex = str(row["export_code"])
+                prime_entry["libelle"] = f"{row['name']} ({ex})"
+            if row.get("payroll_quantity") is not None:
+                prime_entry["quantity"] = float(row["payroll_quantity"])
+            if catalog_id and ("panier" in str(catalog_id).lower() or "repas" in str(catalog_id).lower()):
+                prime_entry["type"] = "panier"
             saisies_data["primes"].append(prime_entry)
 
         if expense_reports_res.data:

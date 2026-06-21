@@ -77,7 +77,11 @@ ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
 — Analytics Gestion (« Analytics Gestion ») : indicateurs RH opérationnels.
 
 — Badgeuse (« Badgeuse ») : pointages des salariés (onglets Vue d'ensemble,
-  Corrections, Paramètres).
+  Corrections, Paramètres). Comptabilisation paramétrable (créneaux horaires,
+  tolérance d'entrée/sortie, pause déjeuner, détection des HS) dans l'onglet
+  Paramètres ou Mon Entreprise → onglet Paie. Validation jour par jour des HS
+  détectées (entrée anticipée, sortie tardive, excédent journalier) avant
+  application au calendrier paie.
 
 — Calendriers (« Calendriers ») : saisie et validation des heures travaillées,
   modèles d'horaires, remplissage assisté par IA, import de pointages, vue par
@@ -112,9 +116,11 @@ ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
   {{prenom}}, {{poste}}, {{missions}}, etc.). L'onglet Paie permet de
   configurer les médailles du travail (activation, paliers, scan des éligibles),
   valider les dossiers en attente RH, paramétrer le temps de travail (jours
-  fériés, congés/RTT, CP ancienneté, fractionnement CP, modulation 32h/37h,
-  contingent HS, CET) et les variables de paie récurrentes (astreinte, équipe,
-  productivité, modulation).
+  fériés, congés/RTT, CP ancienneté, fractionnement CP, périodes de référence
+  horaire, modulation 32h/37h, contingent HS, politique de routage HS,
+  comptabilisation badgeuse, CET) et les variables de paie récurrentes
+  (astreinte, équipes/postes, présence sans absence, modulation, km week-end
+  astreinte, majorations week-end).
 
 — Fiche de poste : importer le modèle dans Mon Entreprise → Bibliothèque de
   documents (type « Fiche de poste »), puis générer depuis la fiche Collaborateur
@@ -138,23 +144,30 @@ Le parcours est numéroté et doit être suivi dans l'ordre avant de lancer la p
      salarié (consommation, alertes, repos compensateurs). Paramétrage dans
      Mon Entreprise → onglet Paie → section Temps de travail.
   ⑤ Modulation → annualisation (semaines hautes/basses) et compte d'heures
-     (franchise HS mensuelle, crédit différé, récupération en absence). Suivi
-     des écarts théorique/réel et du solde compte par salarié. Paramétrage dans
-     Mon Entreprise → onglet Paie → section Temps de travail (preset métallurgie
-     disponible : 37/32 h + franchise 14 h HS/mois).
-  ⑥ Notes de frais → valider les notes de frais.
-  ⑦ Primes → saisir les primes mensuelles ; sous-onglet « Participation &
-     Intéressement » pour simuler la RSP, lancer une campagne de bulletins
-     d'option et suivre les choix des salariés.
-  ⑧ Saisies sur salaire → saisies-arrêts, pensions alimentaires, ATD.
-  ⑨ Avances & acomptes → valider et verser avances sur salaire, acomptes sur
+     (franchise HS mensuelle, crédit différé, récupération en absence, décisions
+     mensuelles payer vs comptabiliser les HS). Suivi des écarts théorique/réel
+     et du solde compte par salarié. Paramétrage dans Mon Entreprise → onglet Paie
+     → section Temps de travail (preset métallurgie : 37/32 h + franchise 14 h HS/mois).
+  ⑥ Suivi CET → valider les dépôts/retraits compte épargne-temps (HS, CP),
+     suivre les soldes et les demandes en attente manager/RH avant application paie.
+  ⑦ Notes de frais → valider les notes de frais.
+  ⑧ Primes → saisir les primes mensuelles ; action « Préparer variables du mois »
+     pour générer astreinte, équipes, présence, modulation ; sous-onglet
+     « Participation & Intéressement » pour simuler la RSP, lancer une campagne
+     de bulletins d'option et suivre les choix des salariés.
+  ⑨ Saisies sur salaire → saisies-arrêts, pensions alimentaires, ATD.
+  ⑩ Avances & acomptes → valider et verser avances sur salaire, acomptes sur
     salaire et acomptes sur prime (réconciliation possible au moment de la paie).
-  ⑩ Prêts employeur → gérer les prêts en cours, échéanciers et remboursements
+  ⑪ Prêts employeur → gérer les prêts en cours, échéanciers et remboursements
     sur bulletin.
 Une fois les étapes à jour, le bouton « Lancer la paie » génère les bulletins du
 mois.
 
-— Prêts employeur (« Prêts employeur », étape ⑩ du workflow) : création et suivi
+— Suivi CET (« Suivi CET », étape ⑥ du workflow) : tableau de bord CET entreprise
+  (mouvements en attente, soldes, validation RH). Paramétrage dans Mon Entreprise
+  → onglet Paie (activation, plafonds, validation manager/RH).
+
+— Prêts employeur (« Prêts employeur », étape ⑪ du workflow) : création et suivi
   des prêts accordés aux salariés (montant, taux, échéancier, remboursements
   déduits en paie). Le collaborateur peut consulter ses prêts dans son espace
   (« Prêts employeur »). La fiche collaborateur (onglet « Primes et autres »)
@@ -190,7 +203,8 @@ ESPACE COLLABORATEUR (barre latérale du salarié)
   planning, semaine détaillée, export PDF.
 — Ma badgeuse (« Ma badgeuse ») : pointage des entrées / sorties.
 — Congés & absences (« Congés & absences ») : consulter ses soldes, faire une
-  nouvelle demande, voir le calendrier du mois.
+  nouvelle demande, voir le calendrier du mois. Si le CET est activé : déposer
+  ou retirer des jours/heures depuis le panneau CET intégré à cette page.
 — Notes de frais (« Notes de frais ») : déclarer et suivre ses notes de frais.
 — Avances & acomptes (« Avances & acomptes ») : demander et suivre une avance
   sur salaire, un acompte sur salaire (droit du salarié) ou un acompte sur prime.
@@ -248,28 +262,30 @@ Sans e-mail, le compte ne peut pas être créé.
 FAQ RH TRANSVERSES
 ================================================================================
 
-— Lancer la paie : suivre le parcours numéroté ① à ⑩ dans EYWAI Paie, puis
+— Lancer la paie : suivre le parcours numéroté ① à ⑪ dans EYWAI Paie, puis
   cliquer sur « Lancer la paie » (disponible une fois les étapes à jour).
 — Avance vs acompte : une avance sur salaire est versée avant le travail ;
   un acompte sur salaire concerne le salaire déjà gagné ; un acompte sur prime
   anticipe une prime. Tout se gère dans « Avances & acomptes » (RH et collaborateur).
-— Prêts employeur : module dédié dans le workflow paie (étape ⑦) et espace
+— Prêts employeur : module dédié dans le workflow paie (étape ⑪) et espace
   collaborateur ; paramétrage et validation des médailles du travail dans
   Mon Entreprise → onglet Paie.
 — Temps de travail (Mon Entreprise → Paie) : section « Temps de travail » avec
-  Jours fériés, congés/RTT (mode forfait-jours cadres), CP ancienneté (presets
+  jours fériés, congés/RTT (mode forfait-jours cadres), CP ancienneté (presets
   plasturgie / métallurgie 3248 / LEWIS / règles personnalisées), campagne congés
   annuelle (validation juin CP anc., octobre fractionnement), fractionnement CP
-  (formule MBC, légale ou manuelle), modulation
-  32h/37h, contingent HS, CET (compte épargne-temps — page RH `/suivi-cet`, paramètres dans Fiche entreprise > Paie). Section « Variables de paie » :
-  règles astreinte, équipe, productivité, modulation → génération dans Primes →
+  (formule MBC, légale ou manuelle), périodes de référence horaire, modulation
+  32h/37h, routage HS (payer / comptabiliser / manuel), contingent HS, comptabilisation
+  badgeuse, CET. Section « Variables de paie » : règles astreinte, équipes/postes,
+  présence sans absence, modulation, km week-end → génération dans Primes →
   « Préparer variables du mois ».
 — Contingent HS : paramétrage Mon Entreprise → Paie ; suivi mensuel EYWAI Paie →
   Contingent HS.
 — Modulation : paramétrage Mon Entreprise → Paie ; suivi mensuel EYWAI Paie →
   Modulation (solde heures par salarié).
 — CET : paramétrage Mon Entreprise → Paie (HS/CP, plafond, validation manager) ;
-  suivi EYWAI Paie → Suivi CET ; salarié : Mon CET ou Absences ; manager : CET à valider.
+  suivi RH EYWAI Paie → Suivi CET (étape ⑥) ; salarié : panneau CET dans
+  « Congés & absences » ; manager : menu « CET à valider » (profil manager).
 — Participation / intéressement : simulation et campagne côté RH dans Primes →
   sous-onglet « Participation & Intéressement » ; réponse salarié dans
   « Participation » (espace collaborateur).

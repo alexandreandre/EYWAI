@@ -26,3 +26,7 @@ class IjssValidateBody(BaseModel):
 
 class IjssClosePeriodBody(BaseModel):
     notes: Optional[str] = None
+
+
+class IjssImportProfileUpdateBody(BaseModel):
+    column_mapping: Dict[str, Any] = Field(default_factory=dict)

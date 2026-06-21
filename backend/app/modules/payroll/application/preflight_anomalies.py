@@ -74,6 +74,10 @@ def _build_counts(anomalies: List[PreflightAnomaly]) -> PreflightAnomalyCounts:
             counts.pointage += 1
         elif a.type == "conflit_absence":
             counts.conflit_absence += 1
+        elif a.type == "hs_routing_pending":
+            counts.hs_routing_pending += 1
+        elif a.type == "hs_pointage_a_valider":
+            counts.hs_pointage_a_valider += 1
         if a.severity == "bloquant":
             counts.bloquant += 1
         else:
@@ -142,6 +146,15 @@ def build_preflight_anomalies(
         _resolution_key(str(r["employee_id"]), str(r["anomaly_type"])): r
         for r in resolution_rows
     }
+
+    from app.modules.schedules.infrastructure import punch_accounting_repository as par
+
+    pending_punch_reviews = par.list_overtime_reviews(
+        company_id, year=year, month=month, status="pending"
+    )
+    pending_by_emp: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for row in pending_punch_reviews:
+        pending_by_emp[str(row["employee_id"])].append(row)
 
     anomalies: List[PreflightAnomaly] = []
 
@@ -279,6 +292,62 @@ def build_preflight_anomalies(
                     resolutions_by_key.get(_resolution_key(eid, "pointage")),
                 )
             )
+
+        emp_pending = pending_by_emp.get(eid) or []
+        if emp_pending:
+            total_hs = round(
+                sum(float(r.get("overtime_hours") or 0) for r in emp_pending), 2
+            )
+            anomaly = PreflightAnomaly(
+                id=_anomaly_id(eid, "hs_pointage_a_valider"),
+                employee_id=eid,
+                employee_name=name,
+                team_id=team_id,
+                type="hs_pointage_a_valider",
+                severity="a_verifier",
+                status="a_traiter",
+                ecart=total_hs,
+                message=(
+                    f"{len(emp_pending)} jour(s) avec HS pointage à valider "
+                    f"({total_hs:.2f} h)."
+                ),
+            )
+            anomalies.append(
+                _merge_resolution(
+                    anomaly,
+                    resolutions_by_key.get(
+                        _resolution_key(eid, "hs_pointage_a_valider")
+                    ),
+                )
+            )
+
+    from app.modules.modulation.application import overtime_routing_queries as otr_q
+    from app.modules.modulation.infrastructure import repository as mod_repo
+
+    mod_settings = mod_repo.get_modulation_settings(company_id)
+    if mod_settings.hs_routing_policy == "manual":
+        routing_rows = otr_q.list_overtime_routing(company_id, year, month)
+        for row in routing_rows:
+            if row.get("status") == "validated":
+                continue
+            eid = str(row["employee_id"])
+            emp = emp_by_id.get(eid) or {}
+            anomaly = PreflightAnomaly(
+                id=_anomaly_id(eid, "hs_routing_pending"),
+                employee_id=eid,
+                employee_name=str(row.get("employee_name") or _employee_name(
+                    emp.get("first_name"), emp.get("last_name")
+                )),
+                team_id=str(emp["team_id"]) if emp.get("team_id") else None,
+                type="hs_routing_pending",
+                severity="bloquant",
+                status="a_traiter",
+                message=(
+                    f"{float(row.get('total_hs_hours') or 0):.1f} h sup. — "
+                    "décision payer / compteur requise."
+                ),
+            )
+            anomalies.append(anomaly)
 
     counts = _build_counts(anomalies)
     total_open = sum(1 for a in anomalies if a.status in OPEN_STATUSES)

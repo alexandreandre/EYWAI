@@ -27,6 +27,7 @@ class BonusType:
     soumise_a_cotisations: bool
     soumise_a_impot: bool
     prompt_ia: Optional[str]
+    export_code: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     created_by: Optional[UUID] = None

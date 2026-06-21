@@ -12,7 +12,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.modules.payroll.engine import ContextePaie, definir_periode_de_paie
+from app.modules.payroll.engine.contexte import ContextePaie
+from app.modules.payroll.engine.period_forfait import definir_periode_de_paie
 from app.modules.payroll.engine.analyser_jours_forfait import (
     analyser_jours_forfait_du_mois as _analyser_jours_forfait_impl,
 )

@@ -42,7 +42,15 @@ def build_proposal_from_tabular(
             roster=roster,
         )
         days = [
-            AiDayEntry(jour=r.jour, heures=r.heures, type="travail", nature="reel")
+            AiDayEntry(
+                jour=r.jour,
+                heures=r.heures,
+                type="travail",
+                nature="reel",
+                punch_entry_raw=str(r.entry_raw) if r.entry_raw is not None else None,
+                punch_exit_raw=str(r.exit_raw) if r.exit_raw is not None else None,
+                shift_code=r.shift_code,
+            )
             for r in rows
         ]
         proposal.days = days
@@ -51,13 +59,18 @@ def build_proposal_from_tabular(
         proposal.coverage_ratio = 1.0 if days else 0.0
         employees_out.append(proposal)
 
+    has_punch_pairs = any(
+        r.entry_raw is not None or r.exit_raw is not None for r in parsed.rows
+    )
+    fmt = "tabular_punch_pairs" if has_punch_pairs else "tabular_generic"
+
     return AiCalendarProposalResponse(
         year=year,
         month=month,
         source=source,
         employees=employees_out,
         warnings=list(parsed.warnings),
-        detected_format="tabular_generic",
+        detected_format=fmt,
         parse_confidence=parsed.confidence,
     )
 
@@ -69,7 +82,7 @@ def build_proposal_from_attempt(
     month: int,
     roster: List[RosterEmployee],
 ) -> AiCalendarProposalResponse | None:
-    if attempt.parser_key == "tabular_generic" and attempt.parse_result:
+    if attempt.parser_key in ("tabular_generic", "tabular_punch_pairs") and attempt.parse_result:
         return build_proposal_from_tabular(
             attempt.parse_result,
             year=year,

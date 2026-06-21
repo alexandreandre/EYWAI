@@ -29,6 +29,7 @@ class BonusTypeCreateInput:
     prompt_ia: str | None
     company_id: UUID
     created_by: UUID
+    export_code: str | None = None
 
 
 @dataclass
@@ -42,6 +43,7 @@ class BonusTypeUpdateInput:
     soumise_a_cotisations: bool | None = None
     soumise_a_impot: bool | None = None
     prompt_ia: str | None = None
+    export_code: str | None = None
 
 
 @dataclass
@@ -82,6 +84,7 @@ def bonus_type_to_response_dict(entity: "BonusType") -> dict[str, Any]:
         "soumise_a_cotisations": entity.soumise_a_cotisations,
         "soumise_a_impot": entity.soumise_a_impot,
         "prompt_ia": entity.prompt_ia,
+        "export_code": entity.export_code,
         "created_at": entity.created_at.isoformat() if entity.created_at else None,
         "updated_at": entity.updated_at.isoformat() if entity.updated_at else None,
         "created_by": str(entity.created_by) if entity.created_by else None,
@@ -107,6 +110,7 @@ def build_create_input(
         soumise_a_cotisations=payload.soumise_a_cotisations,
         soumise_a_impot=payload.soumise_a_impot,
         prompt_ia=payload.prompt_ia,
+        export_code=payload.export_code,
         company_id=UUID(str(company_id)),
         created_by=UUID(str(user_id)),
     )
@@ -131,4 +135,5 @@ def build_update_input(payload: Any) -> BonusTypeUpdateInput:  # BonusTypeUpdate
         soumise_a_cotisations=payload.soumise_a_cotisations,
         soumise_a_impot=payload.soumise_a_impot,
         prompt_ia=payload.prompt_ia,
+        export_code=payload.export_code,
     )

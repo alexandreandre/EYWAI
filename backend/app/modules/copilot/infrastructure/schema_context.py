@@ -138,6 +138,7 @@ Table 'company_modulation_settings': Paramètres modulation / annualisation et c
   - average_weekly_hours, weekly_high_hours, weekly_low_hours (numeric)
   - high_weeks_per_cycle, low_weeks_per_cycle (int)
   - hour_account_enabled (boolean), hs_franchise_hours_per_period (numeric)
+  - hs_routing_policy (text: pay_all, account_all, franchise, manual)
   - hs_franchise_period (text: 'month', 'pay_period')
   - max_account_balance_hours (numeric), recovery_absence_enabled (boolean)
 
@@ -203,6 +204,70 @@ Table 'monthly_inputs': Stocke les éléments variables de paie (primes, déduct
   - amount (numeric): Montant de la prime en euros.
   - is_socially_taxed (boolean): Soumis aux cotisations sociales.
   - is_taxable (boolean): Soumis à l'impôt.
+  - bonus_type_id (uuid, FK company_bonus_types.id): Lien catalogue prime entreprise.
+  - catalog_prime_id (text): Code prime moteur paie si applicable.
+  - payroll_quantity (numeric): Quantité (heures, semaines, km…) pour primes calculées.
+  - export_code (text): Code export compta / DSN.
+
+---
+Table 'company_bonus_types': Catalogue des types de primes entreprise.
+  - id (uuid, PK), company_id (uuid, FK companies.id)
+  - libelle (text), type (text): 'montant_fixe', 'selon_heures'
+  - montant (numeric), seuil_heures (numeric): seuil pour type selon_heures
+  - soumise_a_cotisations (boolean), soumise_a_impot (boolean)
+  - export_code (text): code export paie/compta
+
+---
+Table 'company_payroll_variable_rules': Règles de génération automatique des variables de paie.
+  - id (uuid, PK), company_id (uuid), code (text), label (text), enabled (boolean)
+  - rule_type (text): 'fixed_monthly', 'per_astreinte_week', 'per_shift_type',
+    'per_modulation_payout', 'per_night_hour', 'per_astreinte_weekend_km',
+    'per_astreinte_week_tiered', 'per_astreinte_weekend_majoration', 'per_week_without_absence'
+  - bonus_type_id (uuid), amount (numeric), rate (numeric)
+  - conditions (jsonb): critères métier. Usage: (conditions->>'cle')::type
+  - generation_mode (text): 'auto', 'suggest'
+
+---
+Table 'employee_time_entries': Pointages badgeuse bruts (entrées/sorties).
+  - id (uuid, PK), employee_id (uuid), company_id (uuid)
+  - timestamp (timestamptz), event_type (text): 'ENTREE', 'SORTIE'
+  - source (text): 'EMPLOYE', 'RH', 'QR_SCAN'
+  - Jointure: employees e ON e.id = employee_time_entries.employee_id WHERE e.company_id = ...
+
+---
+Table 'employee_time_day_accounting': Heures comptabilisées par jour (override RH, distinct du brut).
+  - employee_id (uuid), company_id (uuid), day (date)
+  - accounted_seconds (int): 0–86400. Usage: accounted_seconds / 3600.0 pour heures
+
+---
+Table 'employee_time_entries_validations': Validation RH d'une journée de pointages.
+  - employee_id (uuid), company_id (uuid), day (date), validated_by (uuid)
+
+---
+Table 'company_punch_accounting_settings': Paramètres comptabilisation pointages par entreprise.
+  - company_id (uuid, PK), enabled (boolean)
+  - tolerance_minutes (int), default_break_deduct_minutes (int)
+  - slot_detection (text): 'shift_code', 'nearest_entry', 'planning_first'
+  - within_tolerance_pay_theoretical (boolean)
+  - require_manager_validation_for_overtime (boolean)
+
+---
+Table 'employee_punch_overtime_reviews': HS détectées à la badgeuse, validation jour par jour.
+  - employee_id (uuid), company_id (uuid), work_date (date)
+  - overtime_hours (numeric), reason (text): 'early_entry', 'late_exit', 'daily_excess'
+  - status (text): 'pending', 'approved', 'rejected'
+
+---
+Table 'employee_overtime_routing_decisions': Décisions mensuelles répartition HS payer vs compte (politique manual).
+  - employee_id (uuid), company_id (uuid), year (int), month (int)
+  - total_hs_hours, hours_to_pay, hours_to_account (numeric)
+  - status (text): 'pending', 'validated', 'applied_payroll'
+
+---
+Table 'company_work_time_periods': Périodes de référence horaire (activité réduite, horaire transitoire).
+  - company_id (uuid), label (text), start_date (date), end_date (date)
+  - daily_reference_hours, weekly_reference_hours (numeric)
+  - affects_payroll (boolean), affects_planning (boolean), is_active (boolean)
 
 ---
 Table 'employee_schedules': Stocke les cumuls de paie et les plannings mensuels.
@@ -425,6 +490,28 @@ Table 'expense_reports': Notes de frais.
 
 Table 'monthly_inputs': Primes et éléments variables de paie.
   - employee_id, year, month, name, amount
+  - bonus_type_id, payroll_quantity, export_code
+
+Table 'company_bonus_types': Catalogue primes entreprise.
+  - company_id, libelle, type (montant_fixe/selon_heures), montant, export_code
+
+Table 'company_payroll_variable_rules': Règles génération variables paie (astreinte, équipes, présence…).
+  - company_id, code, rule_type, bonus_type_id, amount, generation_mode
+
+Table 'employee_time_entries': Pointages badgeuse bruts.
+  - employee_id, company_id, timestamp, event_type (ENTREE/SORTIE), source
+
+Table 'employee_time_day_accounting': Heures comptabilisées/jour (override RH).
+  - employee_id, company_id, day, accounted_seconds
+
+Table 'company_punch_accounting_settings': Paramètres comptabilisation pointages entreprise.
+  - company_id, enabled, tolerance_minutes, slot_detection, require_manager_validation_for_overtime
+
+Table 'employee_punch_overtime_reviews': HS badgeuse en attente validation.
+  - employee_id, work_date, overtime_hours, status (pending/approved/rejected)
+
+Table 'employee_overtime_routing_decisions': Répartition HS payer vs compte (modulation manual).
+  - employee_id, year, month, total_hs_hours, hours_to_pay, hours_to_account, status
 
 Table 'employee_schedules': Cumuls et plannings mensuels.
   - employee_id, year, month, cumuls (jsonb), actual_hours (jsonb)

@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.modules.modulation.domain.entities import ModulationSettings
 from app.modules.payroll.application import preflight_anomalies
 
 COMPANY_ID = "550e8400-e29b-41d4-a716-446655440000"
@@ -82,11 +83,23 @@ def _configure_supabase(mock_supabase, *, schedules=None, resolutions=None):
     mock_supabase.table.side_effect = table
 
 
+def _default_mod_settings(**overrides) -> ModulationSettings:
+    return ModulationSettings(**overrides)
+
+
 class TestBuildPreflightAnomalies:
+    @patch(
+        "app.modules.schedules.infrastructure.punch_accounting_repository.list_overtime_reviews",
+        return_value=[],
+    )
+    @patch("app.modules.modulation.infrastructure.repository.get_modulation_settings")
     @patch("app.modules.payroll.application.preflight_anomalies.badgeuse_service.get_company_period_summary")
     @patch("app.modules.payroll.application.preflight_anomalies.preflight_repository.list_resolutions")
     @patch("app.modules.payroll.application.preflight_anomalies.supabase")
-    def test_ecart_heures_detected(self, mock_supabase, mock_resolutions, mock_badgeuse):
+    def test_ecart_heures_detected(
+        self, mock_supabase, mock_resolutions, mock_badgeuse, mock_mod_settings, _mock_punch_reviews
+    ):
+        mock_mod_settings.return_value = _default_mod_settings()
         _configure_supabase(
             mock_supabase,
             schedules=[
@@ -115,10 +128,18 @@ class TestBuildPreflightAnomalies:
         assert ecart.status == "a_traiter"
         assert result.total_open >= 1
 
+    @patch(
+        "app.modules.schedules.infrastructure.punch_accounting_repository.list_overtime_reviews",
+        return_value=[],
+    )
+    @patch("app.modules.modulation.infrastructure.repository.get_modulation_settings")
     @patch("app.modules.payroll.application.preflight_anomalies.badgeuse_service.get_company_period_summary")
     @patch("app.modules.payroll.application.preflight_anomalies.preflight_repository.list_resolutions")
     @patch("app.modules.payroll.application.preflight_anomalies.supabase")
-    def test_merge_justification(self, mock_supabase, mock_resolutions, mock_badgeuse):
+    def test_merge_justification(
+        self, mock_supabase, mock_resolutions, mock_badgeuse, mock_mod_settings, _mock_punch_reviews
+    ):
+        mock_mod_settings.return_value = _default_mod_settings()
         _configure_supabase(
             mock_supabase,
             schedules=[
@@ -155,6 +176,84 @@ class TestBuildPreflightAnomalies:
         assert ecart.resolution is not None
         assert ecart.resolution.motif == "directeur_site"
         assert result.total_open == 0
+
+    @patch(
+        "app.modules.schedules.infrastructure.punch_accounting_repository.list_overtime_reviews",
+        return_value=[],
+    )
+    @patch(
+        "app.modules.modulation.application.overtime_routing_queries.list_overtime_routing"
+    )
+    @patch("app.modules.modulation.infrastructure.repository.get_modulation_settings")
+    @patch("app.modules.payroll.application.preflight_anomalies.badgeuse_service.get_company_period_summary")
+    @patch("app.modules.payroll.application.preflight_anomalies.preflight_repository.list_resolutions")
+    @patch("app.modules.payroll.application.preflight_anomalies.supabase")
+    def test_hs_routing_pending_when_manual_policy(
+        self,
+        mock_supabase,
+        mock_resolutions,
+        mock_badgeuse,
+        mock_mod_settings,
+        mock_list_routing,
+        _mock_punch_reviews,
+    ):
+        _configure_supabase(mock_supabase, schedules=[])
+        mock_resolutions.return_value = []
+        mock_badgeuse.return_value = {}
+        mock_mod_settings.return_value = _default_mod_settings(hs_routing_policy="manual")
+        mock_list_routing.return_value = [
+            {
+                "employee_id": EMP_ID,
+                "employee_name": "Jean Dupont",
+                "total_hs_hours": 4.5,
+                "status": "pending",
+            }
+        ]
+
+        with patch(
+            "app.modules.absences.infrastructure.repository.absence_repository.list_validated_for_employees",
+            return_value=[],
+        ):
+            result = preflight_anomalies.build_preflight_anomalies(COMPANY_ID, 2026, 6)
+
+        routing = next(a for a in result.anomalies if a.type == "hs_routing_pending")
+        assert routing.severity == "bloquant"
+        assert routing.status == "a_traiter"
+        assert "4.5" in routing.message
+
+    @patch(
+        "app.modules.schedules.infrastructure.punch_accounting_repository.list_overtime_reviews",
+        return_value=[],
+    )
+    @patch(
+        "app.modules.modulation.application.overtime_routing_queries.list_overtime_routing"
+    )
+    @patch("app.modules.modulation.infrastructure.repository.get_modulation_settings")
+    @patch("app.modules.payroll.application.preflight_anomalies.badgeuse_service.get_company_period_summary")
+    @patch("app.modules.payroll.application.preflight_anomalies.preflight_repository.list_resolutions")
+    @patch("app.modules.payroll.application.preflight_anomalies.supabase")
+    def test_hs_routing_skipped_when_not_manual(
+        self,
+        mock_supabase,
+        mock_resolutions,
+        mock_badgeuse,
+        mock_mod_settings,
+        mock_list_routing,
+        _mock_punch_reviews,
+    ):
+        _configure_supabase(mock_supabase, schedules=[])
+        mock_resolutions.return_value = []
+        mock_badgeuse.return_value = {}
+        mock_mod_settings.return_value = _default_mod_settings(hs_routing_policy="account_all")
+
+        with patch(
+            "app.modules.absences.infrastructure.repository.absence_repository.list_validated_for_employees",
+            return_value=[],
+        ):
+            result = preflight_anomalies.build_preflight_anomalies(COMPANY_ID, 2026, 6)
+
+        mock_list_routing.assert_not_called()
+        assert "hs_routing_pending" not in [a.type for a in result.anomalies]
 
 
 class TestJustifyAnomaly:

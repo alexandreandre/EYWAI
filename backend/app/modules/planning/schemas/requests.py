@@ -30,10 +30,6 @@ class ShiftCreate(BaseModel):
             raise ValueError("shift_type_id ou transverse_category requis")
         if self.shift_type_id and self.transverse_category:
             raise ValueError("shift_type_id et transverse_category mutuellement exclusifs")
-        # Astreinte / permanence : chevauchement minuit (ex. 18h → 8h) autorisé
-        overnight_ok = self.transverse_category in ("astreinte", "on_call")
-        if not overnight_ok and self.end_time <= self.start_time:
-            raise ValueError("end_time doit être après start_time")
         return self
 
     @model_validator(mode="after")
@@ -110,3 +106,39 @@ class WeekPublishRequest(BaseModel):
 class CompanyPlanningSettingsUpdate(BaseModel):
     collective_agreement_id: Optional[str] = None
     team_view_default: Optional[bool] = None
+    payroll_shift_metrics_enabled: Optional[bool] = None
+    auto_generate_payroll_variables_before_payslip: Optional[bool] = None
+
+
+class NightWindowSchema(BaseModel):
+    start: str
+    end: str
+    rate: float = 0.5
+
+
+class ShiftTypeCreate(BaseModel):
+    code: str
+    label: str
+    color: Optional[str] = None
+    default_start: Optional[time] = None
+    default_end: Optional[time] = None
+    allows_overnight: bool = False
+    meal_allowance_eligible: bool = True
+    paid_break_minutes: int = 0
+    night_windows: list[NightWindowSchema] = []
+    premium_rule_code: Optional[str] = None
+    is_active: bool = True
+
+
+class ShiftTypeUpdate(BaseModel):
+    code: Optional[str] = None
+    label: Optional[str] = None
+    color: Optional[str] = None
+    default_start: Optional[time] = None
+    default_end: Optional[time] = None
+    allows_overnight: Optional[bool] = None
+    meal_allowance_eligible: Optional[bool] = None
+    paid_break_minutes: Optional[int] = None
+    night_windows: Optional[list[NightWindowSchema]] = None
+    premium_rule_code: Optional[str] = None
+    is_active: Optional[bool] = None

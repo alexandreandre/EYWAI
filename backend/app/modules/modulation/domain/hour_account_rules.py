@@ -36,7 +36,7 @@ def split_hs_for_period(
     """
     Répartit les HS d'une période entre compte modulation et paie.
 
-  franchise_hours : plafond de crédit compte sur la période (ex. 14 h/mois).
+    franchise_hours : plafond de crédit compte sur la période (ex. 14 h/mois).
     """
     total_hs = max(0.0, round(float(total_hs), 2))
     if total_hs <= 0:
@@ -57,6 +57,45 @@ def split_hs_for_period(
     to_account = round(max(0.0, to_account), 2)
     to_pay = round(max(0.0, total_hs - to_account), 2)
     return SplitHsResult(to_account=to_account, to_pay=to_pay)
+
+
+def route_hs_for_period(
+    total_hs: float,
+    policy: str,
+    franchise_hours: float,
+    franchise_consumed_in_period: float,
+    current_balance: float,
+    max_balance: float | None = None,
+    *,
+    manual_to_account: float | None = None,
+    manual_to_pay: float | None = None,
+) -> SplitHsResult:
+    """Routage HS selon politique entreprise."""
+    total_hs = max(0.0, round(float(total_hs), 2))
+    if total_hs <= 0:
+        return SplitHsResult(to_account=0.0, to_pay=0.0)
+
+    if policy == "pay_all":
+        return SplitHsResult(to_account=0.0, to_pay=total_hs)
+
+    if policy == "account_all":
+        return SplitHsResult(to_account=total_hs, to_pay=0.0)
+
+    if policy == "manual":
+        to_account = round(max(0.0, float(manual_to_account or 0)), 2)
+        to_pay = round(max(0.0, float(manual_to_pay or 0)), 2)
+        if round(to_account + to_pay, 2) != total_hs:
+            return SplitHsResult(to_account=0.0, to_pay=total_hs)
+        return SplitHsResult(to_account=to_account, to_pay=to_pay)
+
+    cap = None if policy == "account_all" else max_balance
+    return split_hs_for_period(
+        total_hs,
+        franchise_hours,
+        franchise_consumed_in_period,
+        current_balance,
+        cap,
+    )
 
 
 def _movement_signed_hours(movement_type: str, hours: float) -> float:

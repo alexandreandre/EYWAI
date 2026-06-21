@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
 from app.core.database import supabase
@@ -81,3 +81,47 @@ def upsert_monthly_input(row: dict[str, Any]) -> None:
         ).execute()
     else:
         supabase.table("monthly_inputs").insert(row).execute()
+
+
+def list_special_days(
+    company_id: str, year: int, month: int
+) -> list[dict[str, Any]]:
+    import calendar
+
+    _, last = calendar.monthrange(year, month)
+    start = date(year, month, 1).isoformat()
+    end = date(year, month, last).isoformat()
+    resp = (
+        supabase.table("company_payroll_special_days")
+        .select("*")
+        .eq("company_id", company_id)
+        .gte("day_date", start)
+        .lte("day_date", end)
+        .execute()
+    )
+    return resp.data or []
+
+
+def list_all_special_days(company_id: str, year: int | None = None) -> list[dict[str, Any]]:
+    query = (
+        supabase.table("company_payroll_special_days")
+        .select("*")
+        .eq("company_id", company_id)
+        .order("day_date")
+    )
+    if year is not None:
+        query = query.gte("day_date", f"{year}-01-01").lte("day_date", f"{year}-12-31")
+    resp = query.execute()
+    return resp.data or []
+
+
+def create_special_day(company_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    row = {**data, "company_id": company_id}
+    resp = supabase.table("company_payroll_special_days").insert(row).execute()
+    return (resp.data or [row])[0]
+
+
+def delete_special_day(company_id: str, day_id: str) -> None:
+    supabase.table("company_payroll_special_days").delete().eq(
+        "company_id", company_id
+    ).eq("id", day_id).execute()

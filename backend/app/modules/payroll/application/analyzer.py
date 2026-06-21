@@ -199,7 +199,7 @@ def analyser_horaires_du_mois(
 
         # Qualification des absences injustifiées
         compteur_heures_faites_semaine_centiemes = 0
-        duree_contrat_centiemes_abs = int(duree_hebdo_contrat * 100)
+        duree_contrat_centiemes_abs = int(duree_hebdo_semaine * 100)
 
         for jour_prevu in sorted(data["prevu"], key=lambda x: (x["mois"], x["jour"])):
             heures_prevues_jour_centiemes = int(

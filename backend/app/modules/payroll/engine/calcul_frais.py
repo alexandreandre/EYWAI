@@ -120,6 +120,93 @@ def indemnite_km(
     return round(distance * a + b, 2)
 
 
+def coefficient_a_km(
+    baremes_km: Optional[Dict[str, Any]],
+    type_vehicule: str,
+    puissance_cv: float,
+    *,
+    segment_index: int = 0,
+) -> Optional[float]:
+    """Coefficient €/km (formule a×d+b) pour un segment du barème fiscal."""
+    if not baremes_km:
+        return None
+    vehicules = baremes_km.get("vehicules") or {}
+    key_map = {
+        "voiture": "voitures",
+        "voitures": "voitures",
+        "moto": "motocyclettes",
+        "motocyclettes": "motocyclettes",
+        "cyclo": "cyclomoteurs",
+        "cyclomoteurs": "cyclomoteurs",
+    }
+    block_key = key_map.get(type_vehicule.lower(), type_vehicule.lower())
+    block = vehicules.get(block_key)
+    if not isinstance(block, dict):
+        return None
+    tranches = block.get("tranches_cv") or []
+    tranche = _match_cv_tranche(tranches, puissance_cv)
+    if not tranche:
+        return None
+    formules = tranche.get("formules") or []
+    if not formules:
+        return None
+    idx = min(max(0, segment_index), len(formules) - 1)
+    a = formules[idx].get("a")
+    if a is None:
+        return None
+    return float(a)
+
+
+def indemnite_km_astreinte(
+    baremes_km: Optional[Dict[str, Any]],
+    distance_one_way: float,
+    vehicle_cv: float,
+    vehicle_type: str,
+    *,
+    threshold_one_way: float = 10.0,
+    round_trip_multiplier: float = 2.0,
+    rate_mode: str = "coefficient_a",
+    bareme_segment_index: int = 0,
+) -> tuple[Optional[float], dict[str, Any]]:
+    """
+    Indemnité km astreinte (franchise aller simple + multiplicateur AR).
+    Retourne (montant arrondi ou None, détails calcul).
+    """
+    details: dict[str, Any] = {
+        "distance_km_one_way": distance_one_way,
+        "threshold_one_way": threshold_one_way,
+        "round_trip_multiplier": round_trip_multiplier,
+        "rate_mode": rate_mode,
+    }
+    eligible_one_way = max(0.0, float(distance_one_way) - float(threshold_one_way))
+    details["km_eligible_one_way"] = round(eligible_one_way, 2)
+    if eligible_one_way <= 0:
+        details["skip_reason"] = "below_threshold"
+        return None, details
+    distance = eligible_one_way * float(round_trip_multiplier)
+    details["km_eligible"] = round(distance, 2)
+    if rate_mode == "coefficient_a":
+        rate = coefficient_a_km(
+            baremes_km,
+            vehicle_type,
+            vehicle_cv,
+            segment_index=bareme_segment_index,
+        )
+        if rate is None:
+            details["skip_reason"] = "bareme_missing"
+            return None, details
+        details["rate"] = rate
+        amount = round(distance * rate, 2)
+        details["unit_amount"] = amount
+        return amount, details
+    amount = indemnite_km(baremes_km, vehicle_type, vehicle_cv, distance)
+    if amount is None:
+        details["skip_reason"] = "bareme_missing"
+        return None, details
+    details["unit_amount"] = amount
+    return amount, details
+
+
 def appliquer_exoneration_note_frais(
     saisie: Dict[str, Any],
     frais_pro: Optional[Dict[str, Any]],

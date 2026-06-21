@@ -394,6 +394,15 @@ def _finalize_timesheet_proposal(
     fmt = detected_format or response.detected_format
     conf = parse_confidence if parse_confidence is not None else response.parse_confidence
 
+    if company_id:
+        from app.modules.schedules.application.punch_accounting_service import (
+            apply_punch_accounting_to_proposal,
+        )
+        from app.modules.schedules.infrastructure import punch_accounting_repository
+
+        if punch_accounting_repository.get_settings(company_id).enabled:
+            response = apply_punch_accounting_to_proposal(response, company_id)
+
     enriched = enrich_proposal_employees(
         response.employees,
         year=response.year,

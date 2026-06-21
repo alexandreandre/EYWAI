@@ -12,6 +12,8 @@ PreflightAnomalyType = Literal[
     "heures_non_saisies",
     "pointage",
     "conflit_absence",
+    "hs_routing_pending",
+    "hs_pointage_a_valider",
 ]
 
 PreflightAnomalySeverity = Literal["bloquant", "a_verifier"]
@@ -67,6 +69,8 @@ class PreflightAnomalyCounts(BaseModel):
     heures_non_saisies: int = 0
     pointage: int = 0
     conflit_absence: int = 0
+    hs_routing_pending: int = 0
+    hs_pointage_a_valider: int = 0
     bloquant: int = 0
     a_verifier: int = 0
 

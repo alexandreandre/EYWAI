@@ -50,6 +50,7 @@ def row_to_bonus_type(row: dict[str, Any]) -> BonusType:
         soumise_a_cotisations=bool(row.get("soumise_a_cotisations", True)),
         soumise_a_impot=bool(row.get("soumise_a_impot", True)),
         prompt_ia=row.get("prompt_ia"),
+        export_code=row.get("export_code"),
         created_at=_parse_datetime(row.get("created_at")),
         updated_at=_parse_datetime(row.get("updated_at")),
         created_by=_parse_uuid(row.get("created_by")),
@@ -68,6 +69,8 @@ def bonus_type_to_row(entity: BonusType) -> dict[str, Any]:
         "soumise_a_impot": entity.soumise_a_impot,
         "prompt_ia": entity.prompt_ia,
     }
+    if entity.export_code is not None:
+        row["export_code"] = entity.export_code
     if entity.created_by is not None:
         row["created_by"] = str(entity.created_by)
     return row
@@ -86,6 +89,7 @@ def entity_to_api_dict(entity: BonusType) -> dict[str, Any]:
         "soumise_a_cotisations": entity.soumise_a_cotisations,
         "soumise_a_impot": entity.soumise_a_impot,
         "prompt_ia": entity.prompt_ia,
+        "export_code": entity.export_code,
         "created_at": entity.created_at.isoformat() if entity.created_at else None,
         "updated_at": entity.updated_at.isoformat() if entity.updated_at else None,
         "created_by": str(entity.created_by) if entity.created_by else None,

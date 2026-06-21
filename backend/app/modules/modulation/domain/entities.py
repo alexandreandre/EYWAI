@@ -10,6 +10,7 @@ ModulationTier = Literal["high", "low", "neutral"]
 FranchisePeriod = Literal["month", "pay_period"]
 AccountCreditSource = Literal["overtime_only", "surplus_over_modulated"]
 RecoveryDebitTiming = Literal["on_validation", "on_payroll"]
+HsRoutingPolicy = Literal["pay_all", "account_all", "franchise", "manual"]
 MovementType = Literal[
     "credit_hs",
     "debit_recovery",
@@ -39,6 +40,7 @@ class ModulationSettings:
     account_credit_source: AccountCreditSource = "overtime_only"
     recovery_absence_enabled: bool = True
     recovery_debit_timing: RecoveryDebitTiming = "on_validation"
+    hs_routing_policy: HsRoutingPolicy = "franchise"
 
 
 @dataclass(frozen=True)
@@ -50,6 +52,8 @@ class WeekScheduleTemplate:
     day_configs: list[dict[str, Any]]
     modulation_tier: ModulationTier = "neutral"
     is_active: bool = True
+    team_id: str | None = None
+    description: str | None = None
 
 
 @dataclass(frozen=True)

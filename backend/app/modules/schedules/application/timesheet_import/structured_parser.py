@@ -38,6 +38,30 @@ DEFAULT_COLUMN_ALIASES = {
         "temps",
         "total",
         "heures_faites",
+        "tot h poin",
+    ),
+    "entry_1": (
+        "entree 1",
+        "entrée 1",
+        "entree1",
+        "entry_1",
+        "entry1",
+        "entree_1",
+    ),
+    "exit_last": (
+        "sortie 3",
+        "sortie3",
+        "exit_last",
+        "exit_3",
+        "sortie_3",
+    ),
+    "exit_2": ("sortie 2", "sortie2", "exit_2", "exit2"),
+    "exit_1": ("sortie 1", "sortie1", "exit_1", "exit1"),
+    "shift_code": (
+        "code horai",
+        "code horaire",
+        "shift_code",
+        "code_horaire",
     ),
 }
 
@@ -50,6 +74,9 @@ class TabularDayRow:
     month: int = 0
     year: int = 0
     heures: float = 0.0
+    entry_raw: object = None
+    exit_raw: object = None
+    shift_code: Optional[str] = None
     raw_payload: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -65,6 +92,7 @@ class TabularParseResult:
 def _normalize_header(h: str) -> str:
     text = re.sub(r"\s+", " ", (h or "").strip().lower())
     text = text.replace("é", "e").replace("è", "e").replace("ê", "e")
+    text = re.sub(r"[.\s]+$", "", text)
     return text
 
 
@@ -230,7 +258,11 @@ def parse_tabular_file(
     mapping = column_mapping or detect_column_mapping(headers)
     result = TabularParseResult(headers=headers, column_mapping=mapping)
 
-    if not mapping.get("hours") and not mapping.get("date"):
+    entry_col = mapping.get("entry_1")
+    exit_col = mapping.get("exit_last")
+    punch_pairs_mode = bool(entry_col and exit_col)
+
+    if not punch_pairs_mode and not mapping.get("hours") and not mapping.get("date"):
         result.warnings.append(
             "Colonnes heures ou date non détectées — vérifiez le mapping."
         )
@@ -241,6 +273,10 @@ def parse_tabular_file(
     mat_col = mapping.get("matricule")
     last_col = mapping.get("last_name")
     first_col = mapping.get("first_name")
+    shift_col = mapping.get("shift_code")
+    exit_2_col = mapping.get("exit_2")
+    exit_1_col = mapping.get("exit_1")
+    use_last_exit = bool(opts.get("use_last_nonzero_exit", True))
 
     parsed_count = 0
     for idx, row in enumerate(raw_rows):
@@ -259,16 +295,36 @@ def parse_tabular_file(
             if date_col
             else None
         )
-        if heures is None and date_parts is None:
-            continue
-        if date_parts is None:
-            result.warnings.append(f"Ligne {idx + 1} : date illisible.")
-            continue
-        y, m, d = date_parts
-        if m != target_month or y != target_year:
-            continue
-        if heures is None:
-            heures = 0.0
+        entry_raw = row.get(entry_col) if entry_col else None
+        exit_raw = None
+        if exit_col:
+            exit_raw = row.get(exit_col)
+            if use_last_exit and not _raw_time_present(exit_raw):
+                for col in (exit_2_col, exit_1_col):
+                    if col and _raw_time_present(row.get(col)):
+                        exit_raw = row.get(col)
+                        break
+
+        if punch_pairs_mode:
+            if date_parts is None:
+                result.warnings.append(f"Ligne {idx + 1} : date illisible.")
+                continue
+            y, m, d = date_parts
+            if m != target_month or y != target_year:
+                continue
+            if heures is None:
+                heures = 0.0
+        else:
+            if heures is None and date_parts is None:
+                continue
+            if date_parts is None:
+                result.warnings.append(f"Ligne {idx + 1} : date illisible.")
+                continue
+            y, m, d = date_parts
+            if m != target_month or y != target_year:
+                continue
+            if heures is None:
+                heures = 0.0
 
         mat = str(row.get(mat_col) or "").strip() if mat_col else None
         name_parts = []
@@ -277,6 +333,11 @@ def parse_tabular_file(
         if first_col and row.get(first_col):
             name_parts.append(str(row.get(first_col)).strip())
         raw_name = " ".join(name_parts) if name_parts else None
+        shift_code = (
+            str(row.get(shift_col)).strip().upper()
+            if shift_col and row.get(shift_col)
+            else None
+        )
 
         result.rows.append(
             TabularDayRow(
@@ -286,6 +347,9 @@ def parse_tabular_file(
                 month=m,
                 year=y,
                 heures=heures,
+                entry_raw=entry_raw,
+                exit_raw=exit_raw,
+                shift_code=shift_code,
                 raw_payload=dict(row),
             )
         )
@@ -295,11 +359,20 @@ def parse_tabular_file(
         result.confidence = 0.0
         result.warnings.append("Aucune ligne exploitable pour la période cible.")
     elif parsed_count >= 5:
-        result.confidence = 0.9
+        result.confidence = 0.95 if punch_pairs_mode else 0.9
     else:
-        result.confidence = 0.65
+        result.confidence = 0.75 if punch_pairs_mode else 0.65
 
     return result
+
+
+def _raw_time_present(raw: Any) -> bool:
+    if raw is None:
+        return False
+    if isinstance(raw, (int, float)):
+        return int(raw) > 0
+    s = str(raw).strip()
+    return bool(s) and s not in ("0", "00", "0000", "-")
 
 
 __all__ = [

@@ -39,6 +39,12 @@ from app.modules.schedules.schemas.timesheet_import import (
     TimesheetImportCommitRequest,
     TimesheetImportProfileUpdate,
 )
+from app.modules.schedules.schemas.punch_accounting import (
+    PunchAccountingSettingsUpdate,
+    PunchOvertimeReviewUpdate,
+    PunchShiftSlotCreate,
+    PunchShiftSlotUpdate,
+)
 from app.modules.users.schemas.responses import User
 
 
@@ -721,6 +727,139 @@ async def timesheet_import_save_profile(
         payload.model_dump(),
     )
     return TimesheetImportProfile.model_validate(row)
+
+
+# ----- Comptabilisation pointages -----
+
+
+@router_rh.get("/punch-accounting/settings")
+async def punch_accounting_get_settings(
+    current_user: User = Depends(get_current_user),
+):
+    from app.modules.schedules.application import punch_accounting_commands as pac
+    from app.modules.schedules.schemas.punch_accounting import (
+        PunchAccountingSettingsResponse,
+    )
+
+    return PunchAccountingSettingsResponse.model_validate(
+        pac.get_punch_accounting_settings(str(current_user.active_company_id))
+    )
+
+
+@router_rh.patch("/punch-accounting/settings")
+async def punch_accounting_update_settings(
+    payload: PunchAccountingSettingsUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    from app.modules.schedules.application import punch_accounting_commands as pac
+    from app.modules.schedules.schemas.punch_accounting import (
+        PunchAccountingSettingsResponse,
+    )
+    try:
+        return PunchAccountingSettingsResponse.model_validate(
+            pac.update_punch_accounting_settings(
+                str(current_user.active_company_id), payload
+            )
+        )
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+
+@router_rh.post("/punch-accounting/settings/apply-preset/{preset}")
+async def punch_accounting_apply_preset(
+    preset: str,
+    current_user: User = Depends(get_current_user),
+):
+    from app.modules.schedules.application import punch_accounting_commands as pac
+
+    try:
+        return pac.apply_punch_accounting_preset(
+            str(current_user.active_company_id), preset
+        )
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+
+@router_rh.get("/punch-accounting/slots")
+async def punch_accounting_list_slots(
+    current_user: User = Depends(get_current_user),
+):
+    from app.modules.schedules.application import punch_accounting_commands as pac
+
+    return pac.list_punch_shift_slots(str(current_user.active_company_id))
+
+
+@router_rh.post("/punch-accounting/slots")
+async def punch_accounting_create_slot(
+    payload: PunchShiftSlotCreate,
+    current_user: User = Depends(get_current_user),
+):
+    from app.modules.schedules.application import punch_accounting_commands as pac
+    return pac.create_punch_shift_slot(str(current_user.active_company_id), payload)
+
+
+@router_rh.patch("/punch-accounting/slots/{slot_id}")
+async def punch_accounting_update_slot(
+    slot_id: str,
+    payload: PunchShiftSlotUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    from app.modules.schedules.application import punch_accounting_commands as pac
+    try:
+        return pac.update_punch_shift_slot(
+            str(current_user.active_company_id), slot_id, payload
+        )
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+
+@router_rh.delete("/punch-accounting/slots/{slot_id}")
+async def punch_accounting_delete_slot(
+    slot_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    from app.modules.schedules.application import punch_accounting_commands as pac
+
+    try:
+        pac.delete_punch_shift_slot(str(current_user.active_company_id), slot_id)
+        return {"status": "ok"}
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+
+@router_rh.get("/punch-overtime-reviews")
+async def punch_overtime_list_reviews(
+    year: int,
+    month: int,
+    status: str | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    from app.modules.schedules.application import punch_accounting_commands as pac
+
+    return pac.list_punch_overtime_reviews(
+        str(current_user.active_company_id),
+        year=year,
+        month=month,
+        status=status,
+    )
+
+
+@router_rh.patch("/punch-overtime-reviews/{review_id}")
+async def punch_overtime_update_review(
+    review_id: str,
+    payload: PunchOvertimeReviewUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    from app.modules.schedules.application import punch_accounting_commands as pac
+    try:
+        return pac.update_punch_overtime_review(
+            str(current_user.active_company_id),
+            review_id,
+            payload,
+            reviewed_by=str(current_user.id),
+        )
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
 
 
 __all__ = ["router", "router_me", "router_rh"]

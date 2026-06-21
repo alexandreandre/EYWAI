@@ -15,6 +15,8 @@ from app.modules.planning.schemas.requests import (
     CompanyPlanningSettingsUpdate,
     DayLockRequest,
     ShiftCreate,
+    ShiftTypeCreate,
+    ShiftTypeUpdate,
     ShiftUpdate,
     WeekDuplicateRequest,
     WeekLockRequest,
@@ -377,6 +379,85 @@ async def get_shift_types_endpoint(current_user: User = Depends(get_current_user
     _require_rh(current_user, company_id)
     try:
         return app_queries.get_shift_types_for_company(company_id)
+    except (ValueError, LookupError, PermissionError, RuntimeError) as e:
+        _handle_application_errors(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/shift-types", status_code=201)
+async def create_shift_type_endpoint(
+    body: ShiftTypeCreate,
+    current_user: User = Depends(get_current_user),
+):
+    company_id = _require_active_company(current_user)
+    _require_rh(current_user, company_id)
+    from app.modules.planning.application import shift_type_commands
+
+    try:
+        payload = body.model_dump(mode="json")
+        return shift_type_commands.create_shift_type(company_id, payload)
+    except (ValueError, LookupError, PermissionError, RuntimeError) as e:
+        _handle_application_errors(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/shift-types/{shift_type_id}")
+async def update_shift_type_endpoint(
+    shift_type_id: str,
+    body: ShiftTypeUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    company_id = _require_active_company(current_user)
+    _require_rh(current_user, company_id)
+    from app.modules.planning.application import shift_type_commands
+
+    try:
+        payload = body.model_dump(mode="json", exclude_unset=True)
+        return shift_type_commands.update_shift_type(
+            company_id, shift_type_id, payload
+        )
+    except (ValueError, LookupError, PermissionError, RuntimeError) as e:
+        _handle_application_errors(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/shift-types/{shift_type_id}")
+async def delete_shift_type_endpoint(
+    shift_type_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    company_id = _require_active_company(current_user)
+    _require_rh(current_user, company_id)
+    from app.modules.planning.application import shift_type_commands
+
+    try:
+        shift_type_commands.delete_shift_type(company_id, shift_type_id)
+        return {"status": "ok"}
+    except (ValueError, LookupError, PermissionError, RuntimeError) as e:
+        _handle_application_errors(e)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/shift-types/preset/industrial-3x8")
+async def apply_industrial_3x8_preset_endpoint(
+    current_user: User = Depends(get_current_user),
+):
+    company_id = _require_active_company(current_user)
+    _require_rh(current_user, company_id)
+    from app.modules.planning.application.preset_shift_teams import (
+        apply_industrial_3x8_preset,
+    )
+
+    try:
+        return apply_industrial_3x8_preset(company_id)
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:

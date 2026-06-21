@@ -12,6 +12,7 @@ from app.modules.ijss_tracking.application import service
 from app.modules.ijss_tracking.schemas.requests import (
     IjssClosePeriodBody,
     IjssImportParseBody,
+    IjssImportProfileUpdateBody,
     IjssJustifyBody,
     IjssMatchReceivedBody,
     IjssValidateBody,
@@ -19,6 +20,7 @@ from app.modules.ijss_tracking.schemas.requests import (
 from app.modules.ijss_tracking.schemas.responses import (
     IjssAbsenceStatus,
     IjssImportPreviewResponse,
+    IjssImportProfile,
     IjssPeriodDashboard,
     IjssPeriodSummary,
     IjssDashboardRow,
@@ -279,4 +281,46 @@ def export_audit(
         io.BytesIO(xlsx),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": 'attachment; filename="suivi_ijss_audit.xlsx"'},
+    )
+
+
+@router.get("/import-profiles", response_model=list[IjssImportProfile])
+def list_import_profiles_route(
+    current_user: User = Depends(get_current_user),
+) -> list[IjssImportProfile]:
+    cid = _require_rh(current_user)
+    from app.modules.ijss_tracking.infrastructure import repository as repo
+
+    rows = repo.list_import_profiles(cid)
+    return [
+        IjssImportProfile(
+            id=str(r.get("id")),
+            batch_type=str(r.get("batch_type") or ""),
+            profile_name=str(r.get("profile_name") or "default"),
+            column_mapping=r.get("column_mapping") or {},
+        )
+        for r in rows
+    ]
+
+
+@router.put("/import-profiles/{batch_type}", response_model=IjssImportProfile)
+def upsert_import_profile_route(
+    batch_type: str,
+    body: IjssImportProfileUpdateBody,
+    current_user: User = Depends(get_current_user),
+) -> IjssImportProfile:
+    cid = _require_rh(current_user)
+    if batch_type not in ("bank_recap", "cpam_decompte_file"):
+        raise HTTPException(status_code=400, detail="Type d'import invalide.")
+    from app.modules.ijss_tracking.infrastructure import repository as repo
+
+    repo.upsert_import_profile(cid, batch_type, body.column_mapping)
+    row = repo.get_import_profile(cid, batch_type)
+    if not row:
+        raise HTTPException(status_code=500, detail="Profil introuvable après mise à jour.")
+    return IjssImportProfile(
+        id=str(row.get("id")),
+        batch_type=str(row.get("batch_type") or batch_type),
+        profile_name=str(row.get("profile_name") or "default"),
+        column_mapping=row.get("column_mapping") or {},
     )

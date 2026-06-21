@@ -30,6 +30,9 @@ def _row_to_settings(row: dict[str, Any]) -> ModulationSettings:
         credit_source = "overtime_only"
     if debit_timing not in ("on_validation", "on_payroll"):
         debit_timing = "on_validation"
+    hs_policy = row.get("hs_routing_policy") or "franchise"
+    if hs_policy not in ("pay_all", "account_all", "franchise", "manual"):
+        hs_policy = "franchise"
     return ModulationSettings(
         enabled=bool(row.get("enabled")),
         reference_period_months=int(row.get("reference_period_months") or 12),
@@ -53,6 +56,7 @@ def _row_to_settings(row: dict[str, Any]) -> ModulationSettings:
         account_credit_source=credit_source,
         recovery_absence_enabled=bool(row.get("recovery_absence_enabled", True)),
         recovery_debit_timing=debit_timing,
+        hs_routing_policy=hs_policy,
     )
 
 
@@ -114,6 +118,8 @@ def list_week_templates(company_id: str) -> list[WeekScheduleTemplate]:
                 day_configs=row.get("day_configs") or [],
                 modulation_tier=tier,
                 is_active=bool(row.get("is_active", True)),
+                team_id=str(row["team_id"]) if row.get("team_id") else None,
+                description=row.get("description"),
             )
         )
     return out

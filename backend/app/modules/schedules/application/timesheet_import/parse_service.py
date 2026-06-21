@@ -126,12 +126,25 @@ def parse_structured_file(
             status_code=422,
         )
 
+    from calendar import monthrange
+    from datetime import date
+
     from app.modules.schedules.application.ai_fill import _finalize_timesheet_proposal
+    from app.modules.schedules.application.timesheet_period import TimesheetPeriodDetection
+
+    last_day = monthrange(year, month)[1]
+    period_detection = TimesheetPeriodDetection(
+        scope="monthly",
+        start_date=date(year, month, 1),
+        end_date=date(year, month, last_day),
+        confidence="high",
+    )
 
     proposal = _finalize_timesheet_proposal(
         proposal,
         roster=roster,
         company_id=company_id,
+        period_detection=period_detection,
         detected_format=attempt.parser_key,
         parse_confidence=attempt.confidence,
         extraction_method=attempt.extraction_method or "structured",

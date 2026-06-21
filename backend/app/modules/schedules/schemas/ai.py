@@ -53,6 +53,10 @@ class AiDayEntry(BaseModel):
     heures: Optional[float] = None
     type: str = "travail"
     nature: DayNature = "reel"
+    punch_entry_raw: Optional[str] = None
+    punch_exit_raw: Optional[str] = None
+    shift_code: Optional[str] = None
+    planned_paid_break_minutes: Optional[int] = None
 
 
 class TimesheetQualityCheck(BaseModel):

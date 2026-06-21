@@ -212,6 +212,7 @@ def run_payslip_generation_heures(
 
     saisie_du_mois = json.loads(chemin_saisie.read_text(encoding="utf-8"))
     montant_acompte = saisie_du_mois.get("acompte", 0.0)
+    shift_payroll_summary = saisie_du_mois.get("shift_payroll_summary") or {}
 
     prev_month = month - 1 if month > 1 else 12
     year if month > 1 else year - 1
@@ -312,6 +313,12 @@ def run_payslip_generation_heures(
                 or prime_id.replace("_", " ")
             )
 
+            is_panier = (
+                "panier" in str(prime_id).lower()
+                or "repas" in str(prime_id).lower()
+                or str(saisie.get("type") or "").lower() == "panier"
+            )
+
             if cle == "notes_de_frais" and montant > 0:
                 _exo, reint, _plafond = appliquer_exoneration_note_frais(
                     saisie, contexte.baremes.get("frais_pro")
@@ -326,6 +333,34 @@ def run_payslip_generation_heures(
                     )
                 if _exo and _exo > 0 and _plafond is not None:
                     montant = _exo
+
+            if is_panier and montant > 0 and not saisie.get(
+                "soumise_a_cotisations", saisie.get("soumise_a_csg", True)
+            ):
+                qty = max(1.0, float(saisie.get("quantity") or 1))
+                unit = montant / qty if qty else montant
+                exo_total = 0.0
+                reint_total = 0.0
+                for _ in range(int(qty)):
+                    exo, reint, plafond = appliquer_exoneration_note_frais(
+                        {
+                            "montant": unit,
+                            "prime_id": prime_id,
+                            "type": "panier",
+                        },
+                        contexte.baremes.get("frais_pro"),
+                    )
+                    exo_total += exo
+                    reint_total += reint
+                if reint_total > 0:
+                    primes_soumises.append(
+                        {
+                            "libelle": f"Réintégration panier {libelle}",
+                            "montant": round(reint_total, 2),
+                            "prime_id": "reintegration_panier",
+                        }
+                    )
+                montant = round(exo_total, 2)
 
             regles = catalogue_primes.get(prime_id)
             if regles:
@@ -397,6 +432,42 @@ def run_payslip_generation_heures(
     details_brut = resultat_brut["lignes_composants_brut"]
     remuneration_hs = resultat_brut["remuneration_brute_heures_supp"]
     total_heures_supp = resultat_brut["total_heures_supp"]
+
+    if shift_payroll_summary:
+        # Garde-fou : ne pas cumuler avec une règle per_night_hour (monthly_inputs)
+        # sur la même population — préférer ce chemin planning OU la règle variable.
+        heures_mens = (contexte.duree_hebdo_contrat * 52) / 12
+        taux_horaire = (
+            contexte.salaire_base_mensuel / heures_mens if heures_mens > 0 else 0.0
+        )
+        night_hours = float(shift_payroll_summary.get("night_hours") or 0)
+        night_rate = float(shift_payroll_summary.get("night_majoration_rate") or 0.5)
+        paid_break = float(shift_payroll_summary.get("paid_break_hours") or 0)
+        if night_hours > 0 and taux_horaire > 0:
+            taux_nuit = round(taux_horaire * (1 + night_rate), 4)
+            gain_nuit = round(night_hours * taux_horaire * night_rate, 2)
+            details_brut.append(
+                {
+                    "libelle": f"Heures de nuit majorées à {night_rate * 100:.0f}%",
+                    "quantite": night_hours,
+                    "taux": taux_nuit,
+                    "gain": gain_nuit,
+                    "perte": None,
+                }
+            )
+            salaire_brut_calcule = round(salaire_brut_calcule + gain_nuit, 2)
+        if paid_break > 0 and taux_horaire > 0:
+            gain_pause = round(paid_break * taux_horaire, 2)
+            details_brut.append(
+                {
+                    "libelle": "Pause rémunérée (planning)",
+                    "quantite": paid_break,
+                    "taux": round(taux_horaire, 4),
+                    "gain": gain_pause,
+                    "perte": None,
+                }
+            )
+            salaire_brut_calcule = round(salaire_brut_calcule + gain_pause, 2)
 
     if modulation_result and modulation_result.hs_credited > 0:
         details_brut.append(
@@ -613,7 +684,12 @@ def run_payslip_generation_heures(
         )
 
         if modulation_movement_ids:
-            finalize_modulation_payroll_application(modulation_movement_ids)
+            finalize_modulation_payroll_application(
+                modulation_movement_ids,
+                employee_id=employee_id,
+                year=year,
+                month=month,
+            )
         if cet_movement_ids:
             finalize_cet_payroll_application(cet_movement_ids)
         if cet_withdrawal_ids:

@@ -23,6 +23,7 @@ class BonusTypeCreate(BaseModel):
     soumise_a_cotisations: bool = True
     soumise_a_impot: bool = True
     prompt_ia: Optional[str] = None
+    export_code: Optional[str] = Field(None, max_length=64)
 
     @model_validator(mode="after")
     def validate_seuil_heures_vs_type(self) -> "BonusTypeCreate":
@@ -47,3 +48,4 @@ class BonusTypeUpdate(BaseModel):
     soumise_a_cotisations: Optional[bool] = None
     soumise_a_impot: Optional[bool] = None
     prompt_ia: Optional[str] = None
+    export_code: Optional[str] = Field(None, max_length=64)

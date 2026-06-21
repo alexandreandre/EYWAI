@@ -31,6 +31,9 @@ class ModulationSettingsResponse(BaseModel):
     )
     recovery_absence_enabled: bool = True
     recovery_debit_timing: Literal["on_validation", "on_payroll"] = "on_validation"
+    hs_routing_policy: Literal["pay_all", "account_all", "franchise", "manual"] = (
+        "franchise"
+    )
 
 
 class ModulationSettingsUpdate(BaseModel):
@@ -54,6 +57,9 @@ class ModulationSettingsUpdate(BaseModel):
     ] = None
     recovery_absence_enabled: Optional[bool] = None
     recovery_debit_timing: Optional[Literal["on_validation", "on_payroll"]] = None
+    hs_routing_policy: Optional[
+        Literal["pay_all", "account_all", "franchise", "manual"]
+    ] = None
 
 
 class WeekTemplateSchema(BaseModel):
@@ -63,6 +69,50 @@ class WeekTemplateSchema(BaseModel):
     day_configs: list[dict[str, Any]] = Field(default_factory=list)
     modulation_tier: Literal["high", "low", "neutral"] = "neutral"
     is_active: bool = True
+    team_id: Optional[str] = None
+    description: Optional[str] = None
+
+
+class WorkTimePeriodSchema(BaseModel):
+    id: Optional[str] = None
+    label: str
+    start_date: date
+    end_date: Optional[date] = None
+    daily_reference_hours: Optional[float] = Field(None, gt=0, le=24)
+    weekly_reference_hours: Optional[float] = Field(None, gt=0, le=48)
+    affects_payroll: bool = True
+    affects_planning: bool = False
+    default_week_template_id: Optional[str] = None
+    is_active: bool = True
+
+
+class WorkTimePeriodUpdate(BaseModel):
+    label: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    daily_reference_hours: Optional[float] = Field(None, gt=0, le=24)
+    weekly_reference_hours: Optional[float] = Field(None, gt=0, le=48)
+    affects_payroll: Optional[bool] = None
+    affects_planning: Optional[bool] = None
+    default_week_template_id: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class OvertimeRoutingRow(BaseModel):
+    employee_id: str
+    employee_name: str
+    total_hs_hours: float
+    hours_to_pay: float
+    hours_to_account: float
+    status: str
+    note: Optional[str] = None
+
+
+class OvertimeRoutingDecisionUpdate(BaseModel):
+    hours_to_pay: float = Field(..., ge=0)
+    hours_to_account: float = Field(..., ge=0)
+    note: Optional[str] = None
+    submit_validated: bool = False
 
 
 class ModulationOverviewRow(BaseModel):

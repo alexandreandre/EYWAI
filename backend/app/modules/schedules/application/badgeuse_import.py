@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import calendar as cal_mod
 from dataclasses import dataclass, field
-from datetime import date
-from typing import Any, Dict, List
+from datetime import date, datetime
+from typing import Any, Dict, List, Tuple
 
 from app.modules.badgeuse.application import punch_service as badgeuse_punch_service
+from app.modules.badgeuse.domain.time_tracking import TimeEntryType
+from app.modules.badgeuse.infrastructure.repository import time_entry_repository
 from app.modules.payroll.application.payslip_commands import is_forfait_jour
 from app.modules.schedules.application.commands import (
     calculate_payroll_events,
@@ -55,6 +57,76 @@ def _planned_type_by_day(
 def _default_type_for_day(year: int, month: int, jour: int) -> str:
     wd = date(year, month, jour).weekday()
     return "weekend" if wd >= 5 else "travail"
+
+
+def _first_last_punch_minutes(
+    employee_id: str, company_id: str, day: date
+) -> Tuple[int | None, int | None]:
+    entries = time_entry_repository.get_entries_for_employee_on_day(
+        employee_id=employee_id,
+        company_id=company_id,
+        day=day,
+    )
+    if not entries:
+        return None, None
+    sorted_entries = sorted(entries, key=lambda e: e.timestamp)
+    entry_min: int | None = None
+    exit_min: int | None = None
+    for entry in sorted_entries:
+        minutes = entry.timestamp.hour * 60 + entry.timestamp.minute
+        if entry.event_type == TimeEntryType.ENTREE and entry_min is None:
+            entry_min = minutes
+        if entry.event_type == TimeEntryType.SORTIE:
+            exit_min = minutes
+    return entry_min, exit_min
+
+
+def _accounted_hours_for_day(
+    *,
+    company_id: str,
+    employee_id: str,
+    day: date,
+    dto,
+) -> float:
+    from app.modules.schedules.application.punch_accounting_service import (
+        compute_accounted_hours_for_badgeuse_day,
+    )
+    from app.modules.schedules.infrastructure import punch_accounting_repository
+
+    settings = punch_accounting_repository.get_settings(company_id)
+    if dto.has_override:
+        return round(dto.effective_seconds / 3600.0, 2)
+
+    if not settings.enabled:
+        return round(dto.effective_seconds / 3600.0, 2)
+
+    entry_min, exit_min = _first_last_punch_minutes(employee_id, company_id, day)
+    heures, needs_review, overtime_hours, reason = compute_accounted_hours_for_badgeuse_day(
+        company_id,
+        entry_minutes=entry_min,
+        exit_minutes=exit_min,
+    )
+    if needs_review and overtime_hours > 0:
+        from app.modules.schedules.domain.punch_accounting_rules import (
+            minutes_to_time_string,
+        )
+
+        punch_accounting_repository.upsert_overtime_review(
+            company_id,
+            employee_id=employee_id,
+            work_date=day,
+            overtime_hours=overtime_hours,
+            reason=reason or "daily_excess",
+            raw_entry_time=(
+                minutes_to_time_string(entry_min) if entry_min is not None else None
+            ),
+            raw_exit_time=(
+                minutes_to_time_string(exit_min) if exit_min is not None else None
+            ),
+            applied_slot_id=None,
+            status="pending",
+        )
+    return heures
 
 
 def import_actual_hours_from_badgeuse(
@@ -119,7 +191,12 @@ def import_actual_hours_from_badgeuse(
             )
 
         day_type = planned_types.get(jour) or _default_type_for_day(year, month, jour)
-        heures = round(effective / 3600.0, 2)
+        heures = _accounted_hours_for_day(
+            company_id=company_id,
+            employee_id=employee_id,
+            day=d,
+            dto=dto,
+        )
         existing_by_day[jour] = {
             "jour": jour,
             "type": day_type,

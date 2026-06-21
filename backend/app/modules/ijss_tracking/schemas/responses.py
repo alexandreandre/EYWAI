@@ -59,3 +59,10 @@ class IjssImportPreviewResponse(BaseModel):
     preview: Dict[str, Any]
     items_preview: List[Dict[str, Any]]
     detected_mapping: Optional[Dict[str, str]] = None
+
+
+class IjssImportProfile(BaseModel):
+    id: Optional[str] = None
+    batch_type: str
+    profile_name: str = "default"
+    column_mapping: Dict[str, Any] = {}

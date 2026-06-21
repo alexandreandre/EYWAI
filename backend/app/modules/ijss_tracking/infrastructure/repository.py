@@ -294,6 +294,21 @@ def list_notes_for_expected(expected_line_id: str) -> List[Dict[str, Any]]:
         return []
 
 
+def list_import_profiles(company_id: str) -> List[Dict[str, Any]]:
+    try:
+        resp = (
+            get_supabase_admin_client()
+            .table(PROFILES)
+            .select("*")
+            .eq("company_id", company_id)
+            .order("batch_type")
+            .execute()
+        )
+        return resp.data or []
+    except Exception:
+        return []
+
+
 def get_import_profile(
     company_id: str, batch_type: str, profile_name: str = "default"
 ) -> Optional[Dict[str, Any]]:

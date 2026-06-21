@@ -8,11 +8,19 @@ from app.core.security import get_current_user
 from app.modules.payroll_variables.application.generate_monthly import (
     generate_monthly_variables,
 )
+from app.modules.payroll_variables.application.preset_astreinte_equipes import (
+    apply_astreinte_equipes_preset,
+)
+from app.modules.payroll_variables.application.preset_shift_teams_payroll import (
+    apply_shift_teams_payroll_preset,
+)
 from app.modules.payroll_variables.infrastructure import repository as repo
 from app.modules.payroll_variables.schemas.requests import (
+    AstreintePresetResponse,
     PayrollVariableGenerateResponse,
     PayrollVariablePreviewItem,
     PayrollVariableRuleSchema,
+    SpecialPayrollDaySchema,
 )
 from app.modules.users.schemas.responses import User
 
@@ -77,6 +85,64 @@ async def delete_rule(
     _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
     repo.delete_rule(str(cid), rule_id)
+    return {"status": "ok"}
+
+
+@router.post("/rules/preset/astreinte-equipes", response_model=AstreintePresetResponse)
+async def preset_astreinte_equipes(
+    company_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    _require_rh(current_user)
+    cid = _resolve_company_id(company_id, current_user)
+    result = apply_astreinte_equipes_preset(str(cid))
+    return AstreintePresetResponse(**result)
+
+
+@router.post("/rules/preset/shift-teams-payroll", response_model=AstreintePresetResponse)
+async def preset_shift_teams_payroll(
+    company_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    _require_rh(current_user)
+    cid = _resolve_company_id(company_id, current_user)
+    result = apply_shift_teams_payroll_preset(str(cid))
+    return AstreintePresetResponse(**result)
+
+
+@router.get("/special-days", response_model=list[SpecialPayrollDaySchema])
+async def list_special_days(
+    year: int | None = Query(None),
+    company_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    cid = _resolve_company_id(company_id, current_user)
+    rows = repo.list_all_special_days(str(cid), year=year)
+    return [SpecialPayrollDaySchema(**r) for r in rows]
+
+
+@router.post("/special-days", response_model=SpecialPayrollDaySchema)
+async def create_special_day(
+    body: SpecialPayrollDaySchema,
+    company_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    _require_rh(current_user)
+    cid = _resolve_company_id(company_id, current_user)
+    data = body.model_dump(exclude={"id"}, exclude_unset=True)
+    row = repo.create_special_day(str(cid), data)
+    return SpecialPayrollDaySchema(**row)
+
+
+@router.delete("/special-days/{day_id}")
+async def delete_special_day(
+    day_id: str,
+    company_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    _require_rh(current_user)
+    cid = _resolve_company_id(company_id, current_user)
+    repo.delete_special_day(str(cid), day_id)
     return {"status": "ok"}
 
 

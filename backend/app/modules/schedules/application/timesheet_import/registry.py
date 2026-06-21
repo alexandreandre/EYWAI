@@ -91,8 +91,11 @@ def _try_tabular(
         column_mapping=column_mapping,
         options=options or {},
     )
+    parser_key = "tabular_punch_pairs" if any(
+        r.entry_raw is not None or r.exit_raw is not None for r in parsed.rows
+    ) else "tabular_generic"
     return ParseAttempt(
-        parser_key="tabular_generic",
+        parser_key=parser_key,
         confidence=parsed.confidence,
         parse_result=parsed,
         tabular_rows=parsed.rows,
@@ -116,7 +119,7 @@ def parse_document(
     _ = company_id
     source = detect_source_type(filename)
 
-    if parser_key == "tabular_generic" or source in ("csv", "xlsx"):
+    if parser_key == "tabular_generic" or parser_key == "tabular_punch_pairs" or source in ("csv", "xlsx"):
         return _try_tabular(
             content,
             filename,

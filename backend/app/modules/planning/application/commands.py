@@ -124,6 +124,15 @@ def create_shift(data: ShiftCreate, company_id: str, created_by: str) -> dict:
     if data.is_replacement:
         oid = str(data.original_employee_id or "")
         _ensure_employee_ids_in_company([data.employee_id, oid], company_id)
+
+    overnight_ok = data.transverse_category in ("astreinte", "on_call")
+    if not overnight_ok and data.end_time <= data.start_time:
+        if data.shift_type_id:
+            st = planning_repository.get_shift_type_by_id(str(data.shift_type_id))
+            overnight_ok = bool(st and st.get("allows_overnight"))
+        if not overnight_ok:
+            raise ValueError("end_time doit être après start_time (poste de nuit non autorisé).")
+
     absence_row = infra_queries.check_absence_on_date(
         data.employee_id, shift_date_iso
     )
@@ -667,6 +676,28 @@ def _transmit_to_payroll(
                 if not isinstance(existing_events, dict):
                     existing_events = {}
                 merged = {**existing_events, **payload_planning}
+                try:
+                    from app.modules.planning.application.shift_payroll_aggregation import (
+                        aggregate_shift_payroll_metrics,
+                    )
+
+                    settings = planning_repository.get_company_planning_settings(
+                        company_id
+                    )
+                    if not settings or settings.get("payroll_shift_metrics_enabled", True):
+                        merged["shift_payroll_summary"] = aggregate_shift_payroll_metrics(
+                            employee_id,
+                            year,
+                            month,
+                            company_id=company_id,
+                        )
+                except Exception as agg_exc:
+                    logger.warning(
+                        "Agrégation métriques shift ignorée (%s/%s): %s",
+                        employee_id,
+                        month,
+                        agg_exc,
+                    )
                 supabase.table("employee_schedules").update(
                     {
                         "payroll_events": merged,

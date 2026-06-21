@@ -14,7 +14,7 @@ from app.modules.modulation.application.hour_account_queries import (
 from app.modules.modulation.domain.entities import ModulationSettings
 from app.modules.modulation.domain.hour_account_rules import (
     reduce_hs_in_calendar,
-    split_hs_for_period,
+    route_hs_for_period,
     sum_hs_from_payroll_events,
 )
 from app.modules.modulation.domain.rules import (
@@ -142,6 +142,8 @@ def apply_modulation_hour_account_to_calendar(
     Applique la franchise compte modulation : crédit HS différées, réduction calendrier paie.
     """
     settings = repo.get_modulation_settings(company_id)
+    if settings.hs_routing_policy == "pay_all":
+        return calendrier_etendu, [], ModulationPayrollResult(hs_realisees=0.0)
     if not settings.hour_account_enabled:
         return calendrier_etendu, [], ModulationPayrollResult()
 
@@ -157,12 +159,36 @@ def apply_modulation_hour_account_to_calendar(
     current_balance = compute_balance_from_movements(movements)
     franchise = float(settings.hs_franchise_hours_per_period or 0)
     consumed = repo.get_franchise_consumed_in_period(employee_id, year, month)
-    split = split_hs_for_period(
+
+    manual_to_account: float | None = None
+    manual_to_pay: float | None = None
+    if settings.hs_routing_policy == "manual":
+        from app.modules.modulation.infrastructure import overtime_routing_repository as otr_repo
+
+        decision = otr_repo.get_decision(employee_id, year, month)
+        if not decision or str(decision.get("status")) != "validated":
+            return calendrier_etendu, [], ModulationPayrollResult(
+                hs_realisees=total_hs,
+                hs_credited=0.0,
+                hs_paid=total_hs,
+            )
+        manual_to_account = float(decision.get("hours_to_account") or 0)
+        manual_to_pay = float(decision.get("hours_to_pay") or 0)
+
+    max_cap = (
+        None
+        if settings.hs_routing_policy == "account_all"
+        else settings.max_account_balance_hours
+    )
+    split = route_hs_for_period(
         total_hs,
+        settings.hs_routing_policy,
         franchise,
         consumed,
         current_balance,
-        settings.max_account_balance_hours,
+        max_cap,
+        manual_to_account=manual_to_account,
+        manual_to_pay=manual_to_pay,
     )
 
     updated_calendar = calendrier_etendu
@@ -233,8 +259,18 @@ def enrich_payroll_events_metadata(
     return out
 
 
-def finalize_modulation_payroll_application(movement_ids: list[str]) -> None:
+def finalize_modulation_payroll_application(
+    movement_ids: list[str],
+    *,
+    employee_id: str | None = None,
+    year: int | None = None,
+    month: int | None = None,
+) -> None:
     repo.mark_movements_applied_payroll(movement_ids)
+    if employee_id and year and month:
+        from app.modules.modulation.infrastructure import overtime_routing_repository as otr_repo
+
+        otr_repo.mark_applied_payroll(employee_id, year, month)
 
 
 def compute_pay_smoothing_gain(

@@ -40,6 +40,7 @@ def _settings_to_response(
         account_credit_source=settings.account_credit_source,
         recovery_absence_enabled=settings.recovery_absence_enabled,
         recovery_debit_timing=settings.recovery_debit_timing,
+        hs_routing_policy=settings.hs_routing_policy,
     )
 
 
@@ -58,6 +59,8 @@ def list_week_templates(company_id: str) -> list[WeekTemplateSchema]:
             day_configs=t.day_configs,
             modulation_tier=t.modulation_tier,
             is_active=t.is_active,
+            team_id=t.team_id,
+            description=t.description,
         )
         for t in templates
     ]

@@ -77,6 +77,7 @@ class BonusTypesService:
             soumise_a_cotisations=input_data.soumise_a_cotisations,
             soumise_a_impot=input_data.soumise_a_impot,
             prompt_ia=input_data.prompt_ia,
+            export_code=input_data.export_code,
             created_at=None,
             updated_at=None,
             created_by=input_data.created_by,
@@ -131,6 +132,8 @@ class BonusTypesService:
             update_data["soumise_a_impot"] = input_data.soumise_a_impot
         if input_data.prompt_ia is not None:
             update_data["prompt_ia"] = input_data.prompt_ia
+        if input_data.export_code is not None:
+            update_data["export_code"] = input_data.export_code
         updated = self._repo.update(bonus_type_id, update_data)
         if not updated:
             raise HTTPException(status_code=500, detail="Erreur lors de la mise à jour")

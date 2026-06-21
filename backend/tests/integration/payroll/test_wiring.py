@@ -10,17 +10,25 @@ from unittest.mock import patch, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from app.modules.payroll.application import (
+from app.modules.payroll.application.exit_document_commands import (
+    get_exit_document_generator,
+)
+from app.modules.payroll.application.forfait_commands import (
+    definir_periode_de_paie_forfait,
+)
+from app.modules.payroll.application.indemnites_commands import (
+    calculer_indemnites_sortie,
+)
+from app.modules.payroll.application.payslip_commands import (
     is_forfait_jour,
     process_payslip_generation,
     process_payslip_generation_forfait,
-    calculer_indemnites_sortie,
-    get_exit_document_generator,
-    definir_periode_de_paie_forfait,
-    run_reverse_calculation,
+)
+from app.modules.payroll.application.simulation_commands import (
     creer_simulation_bulletin,
     generer_scenarios_predefinis,
     get_simulated_payslip_generator,
+    run_reverse_calculation,
 )
 
 

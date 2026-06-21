@@ -36,6 +36,29 @@ def _update_job(job_id: str, payload: dict[str, Any]) -> None:
     _db().table("schedule_import_jobs").update(payload).eq("id", job_id).execute()
 
 
+def cancel_active_import_jobs(company_id: str) -> list[str]:
+    """Annule tous les jobs d'import en cours pour une entreprise."""
+    active = (
+        _db().table("schedule_import_jobs")
+        .select("id")
+        .eq("company_id", company_id)
+        .in_("status", ["queued", "extracting"])
+        .execute()
+    )
+    cancelled: list[str] = []
+    for row in active.data or []:
+        job_id = str(row["id"])
+        cancel_import_job(job_id, company_id=company_id)
+        cancelled.append(job_id)
+    return cancelled
+
+
+def _raise_if_job_cancelled(job_id: str) -> None:
+    job = get_import_job(job_id)
+    if job and job.get("status") == "cancelled":
+        raise ScheduleAppError("cancelled", "Import annulé.", status_code=499)
+
+
 def create_import_job(
     *,
     company_id: str,
@@ -45,20 +68,7 @@ def create_import_job(
     request_json: dict[str, Any],
 ) -> dict[str, Any]:
     file_hash = hashlib.sha256(file_content).hexdigest()
-    active = (
-        _db().table("schedule_import_jobs")
-        .select("id")
-        .eq("company_id", company_id)
-        .in_("status", ["queued", "extracting"])
-        .limit(1)
-        .execute()
-    )
-    if active.data:
-        raise ScheduleAppError(
-            "validation",
-            "Un import de pointages est déjà en cours pour cette entreprise.",
-            status_code=409,
-        )
+    cancel_active_import_jobs(company_id)
 
     insert_payload = {
         "company_id": company_id,
@@ -158,6 +168,7 @@ def run_timesheet_extraction_job(job_id: str, file_content: bytes) -> None:
     filename = str(job.get("filename") or "document.pdf")
 
     def on_progress(progress: dict[str, Any]) -> None:
+        _raise_if_job_cancelled(job_id)
         _update_job(job_id, {"progress_json": progress, "status": "extracting"})
 
     try:
@@ -235,6 +246,8 @@ def run_timesheet_extraction_job(job_id: str, file_content: bytes) -> None:
             },
         )
     except ScheduleAppError as exc:
+        if exc.code == "cancelled":
+            return
         _update_job(
             job_id,
             {
@@ -274,6 +287,7 @@ def run_multi_timesheet_extraction_job(
     batch_ids: List[str] = []
     try:
         for i, (filename, content) in enumerate(files):
+            _raise_if_job_cancelled(job_id)
             _update_job(
                 job_id,
                 {
@@ -327,6 +341,17 @@ def run_multi_timesheet_extraction_job(
                 },
             },
         )
+    except ScheduleAppError as exc:
+        if exc.code == "cancelled":
+            return
+        _update_job(
+            job_id,
+            {
+                "status": "failed",
+                "error_message": exc.message,
+                "completed_at": _now_iso(),
+            },
+        )
     except Exception as exc:
         logger.exception("Job multi-import %s échoué", job_id)
         _update_job(
@@ -340,6 +365,7 @@ def run_multi_timesheet_extraction_job(
 
 
 __all__ = [
+    "cancel_active_import_jobs",
     "cancel_import_job",
     "create_import_job",
     "get_import_job",

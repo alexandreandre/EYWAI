@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.core.database import supabase
 from app.core.security import get_current_user
 from app.modules.modulation.application import commands, queries
 from app.modules.modulation.application import hour_account_commands, hour_account_queries
@@ -15,7 +16,11 @@ from app.modules.modulation.schemas.requests import (
     ModulationSettingsResponse,
     ModulationSettingsUpdate,
     OpeningBalanceCreate,
+    OvertimeRoutingDecisionUpdate,
+    OvertimeRoutingRow,
     WeekTemplateSchema,
+    WorkTimePeriodSchema,
+    WorkTimePeriodUpdate,
 )
 from app.modules.users.schemas.responses import User
 
@@ -51,9 +56,12 @@ async def update_settings(
 ):
     _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
-    result = commands.update_modulation_settings(
-        str(cid), body.model_dump(exclude_unset=True)
-    )
+    try:
+        result = commands.update_modulation_settings(
+            str(cid), body.model_dump(exclude_unset=True)
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return ModulationSettingsResponse(**result)
 
 
@@ -82,6 +90,8 @@ async def create_template(
         day_configs=row.get("day_configs") or [],
         modulation_tier=row.get("modulation_tier") or "neutral",
         is_active=bool(row.get("is_active", True)),
+        team_id=row.get("team_id"),
+        description=row.get("description"),
     )
 
 
@@ -104,6 +114,8 @@ async def update_template(
         day_configs=row.get("day_configs") or [],
         modulation_tier=row.get("modulation_tier") or "neutral",
         is_active=bool(row.get("is_active", True)),
+        team_id=row.get("team_id"),
+        description=row.get("description"),
     )
 
 
@@ -213,9 +225,10 @@ async def apply_preset(
     _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
     try:
-        return commands.apply_modulation_preset(str(cid), preset)
+        result = commands.apply_modulation_preset(str(cid), preset)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return ModulationSettingsResponse(**result)
 
 
 @router.get("/workflow-status")
@@ -239,4 +252,175 @@ async def get_workflow_status(
         "alert_count": pending + over_balance,
         "hour_account_enabled": settings.hour_account_enabled,
         "modulation_enabled": settings.enabled,
+        "hs_routing_policy": settings.hs_routing_policy,
     }
+
+
+@router.get("/work-time-periods", response_model=list[WorkTimePeriodSchema])
+async def list_work_time_periods(
+    company_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    from app.modules.modulation.application.reference_resolution import (
+        list_work_time_periods as list_periods,
+    )
+
+    cid = _resolve_company_id(company_id, current_user)
+    periods = list_periods(str(cid))
+    return [
+        WorkTimePeriodSchema(
+            id=p.id,
+            label=p.label,
+            start_date=p.start_date,
+            end_date=p.end_date,
+            daily_reference_hours=p.daily_reference_hours,
+            weekly_reference_hours=p.weekly_reference_hours,
+            affects_payroll=p.affects_payroll,
+            affects_planning=p.affects_planning,
+            default_week_template_id=p.default_week_template_id,
+            is_active=p.is_active,
+        )
+        for p in periods
+    ]
+
+
+@router.post("/work-time-periods", response_model=WorkTimePeriodSchema)
+async def create_work_time_period(
+    body: WorkTimePeriodSchema,
+    company_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    from app.modules.modulation.application import reference_period_commands as period_cmds
+
+    _require_rh(current_user)
+    cid = _resolve_company_id(company_id, current_user)
+    try:
+        row = period_cmds.create_period(str(cid), body.model_dump(exclude={"id"}))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return WorkTimePeriodSchema(
+        id=str(row.get("id")),
+        label=row.get("label") or "",
+        start_date=row.get("start_date"),
+        end_date=row.get("end_date"),
+        daily_reference_hours=row.get("daily_reference_hours"),
+        weekly_reference_hours=row.get("weekly_reference_hours"),
+        affects_payroll=bool(row.get("affects_payroll", True)),
+        affects_planning=bool(row.get("affects_planning", False)),
+        default_week_template_id=row.get("default_week_template_id"),
+        is_active=bool(row.get("is_active", True)),
+    )
+
+
+@router.patch("/work-time-periods/{period_id}", response_model=WorkTimePeriodSchema)
+async def update_work_time_period(
+    period_id: str,
+    body: WorkTimePeriodUpdate,
+    company_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    from app.modules.modulation.application import reference_period_commands as period_cmds
+
+    _require_rh(current_user)
+    cid = _resolve_company_id(company_id, current_user)
+    try:
+        row = period_cmds.update_period(
+            str(cid), period_id, body.model_dump(exclude_unset=True)
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return WorkTimePeriodSchema(
+        id=str(row.get("id")),
+        label=row.get("label") or "",
+        start_date=row.get("start_date"),
+        end_date=row.get("end_date"),
+        daily_reference_hours=row.get("daily_reference_hours"),
+        weekly_reference_hours=row.get("weekly_reference_hours"),
+        affects_payroll=bool(row.get("affects_payroll", True)),
+        affects_planning=bool(row.get("affects_planning", False)),
+        default_week_template_id=row.get("default_week_template_id"),
+        is_active=bool(row.get("is_active", True)),
+    )
+
+
+@router.delete("/work-time-periods/{period_id}")
+async def delete_work_time_period(
+    period_id: str,
+    company_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    from app.modules.modulation.application import reference_period_commands as period_cmds
+
+    _require_rh(current_user)
+    cid = _resolve_company_id(company_id, current_user)
+    try:
+        period_cmds.delete_period(str(cid), period_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"status": "ok"}
+
+
+@router.get("/overtime-routing", response_model=list[OvertimeRoutingRow])
+async def get_overtime_routing(
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    company_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    from app.modules.modulation.application import overtime_routing_queries as otr_q
+
+    cid = _resolve_company_id(company_id, current_user)
+    rows = otr_q.list_overtime_routing(str(cid), year, month)
+    return [OvertimeRoutingRow(**r) for r in rows]
+
+
+@router.put(
+    "/overtime-routing/{employee_id}",
+    response_model=OvertimeRoutingRow,
+)
+async def put_overtime_routing(
+    employee_id: str,
+    body: OvertimeRoutingDecisionUpdate,
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    company_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    from app.modules.modulation.application import overtime_routing_queries as otr_q
+
+    _require_rh(current_user)
+    cid = _resolve_company_id(company_id, current_user)
+    try:
+        row = otr_q.upsert_overtime_routing_decision(
+            str(cid),
+            employee_id,
+            year,
+            month,
+            body.hours_to_pay,
+            body.hours_to_account,
+            decided_by=str(current_user.id),
+            note=body.note,
+            validate=body.submit_validated,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    emp = (
+        supabase.table("employees")
+        .select("first_name, last_name")
+        .eq("id", employee_id)
+        .limit(1)
+        .execute()
+    )
+    name = ""
+    if emp.data:
+        e = emp.data[0]
+        name = f"{e.get('first_name', '')} {e.get('last_name', '')}".strip()
+    return OvertimeRoutingRow(
+        employee_id=employee_id,
+        employee_name=name,
+        total_hs_hours=float(row.get("total_hs_hours") or 0),
+        hours_to_pay=float(row.get("hours_to_pay") or 0),
+        hours_to_account=float(row.get("hours_to_account") or 0),
+        status=str(row.get("status") or "pending"),
+        note=row.get("note"),
+    )

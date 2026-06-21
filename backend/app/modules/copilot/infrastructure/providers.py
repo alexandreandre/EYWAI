@@ -160,6 +160,8 @@ Exemples:
 - "Comment faire le rapprochement IJSS ?" → requires_app_help: true
 - "Où suivre le contingent heures sup ?" → requires_app_help: true
 - "Comment lancer une campagne participation ?" → requires_app_help: true
+- "Où suivre le CET ?" → requires_app_help: true
+- "Comment configurer la comptabilisation badgeuse ?" → requires_app_help: true
 - "Comment générer une fiche de poste ?" → requires_app_help: true
 - "Où importer la fiche de poste ?" → requires_app_help: true
 - "Où configurer le modèle de fiche de poste ?" → requires_app_help: true
@@ -169,6 +171,8 @@ Exemples:
 - "Acomptes sur prime en attente" → requires_data_retrieval: true
 - "IJSS non rapprochées ce mois" → requires_data_retrieval: true
 - "Salariés proches du contingent HS" → requires_data_retrieval: true
+- "Mouvements CET en attente de validation" → requires_data_retrieval: true
+- "HS badgeuse en attente de validation" → requires_data_retrieval: true
 - "Bulletins participation en attente de réponse" → requires_data_retrieval: true
 - "Nombre d'employés" → needs_clarification: true (tous? CDI seulement? cadres?)
 - "Combien de jours de congés payés par an ?" → requires_collective_agreement: true

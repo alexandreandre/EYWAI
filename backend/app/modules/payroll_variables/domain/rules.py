@@ -10,6 +10,10 @@ RuleType = Literal[
     "per_shift_type",
     "per_modulation_payout",
     "per_night_hour",
+    "per_astreinte_weekend_km",
+    "per_astreinte_week_tiered",
+    "per_astreinte_weekend_majoration",
+    "per_week_without_absence",
 ]
 
 
@@ -36,6 +40,9 @@ def compute_rule_amount(
         if quantity < min_balance:
             return 0.0
         return round(float(amount or 0) * quantity, 2)
+    if rule_type == "per_week_without_absence":
+        per_week = float(conditions.get("amount_per_week") or amount or 0)
+        return round(per_week * quantity, 2)
     return 0.0
 
 

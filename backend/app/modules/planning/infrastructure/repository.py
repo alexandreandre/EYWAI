@@ -50,7 +50,8 @@ class SupabasePlanningRepository(AbstractPlanningRepository):
             supabase.table("shifts")
             .select(
                 "*, employees(id, first_name, last_name), "
-                "shift_types(id, code, label, color)"
+                "shift_types(id, code, label, color, default_start, default_end, "
+                "allows_overnight, paid_break_minutes, night_windows, meal_allowance_eligible)"
             )
             .eq("company_id", company_id)
             .gte("shift_date", week_start)
@@ -232,6 +233,38 @@ class SupabasePlanningRepository(AbstractPlanningRepository):
             .execute()
         )
         return (r.data or []) if r else []
+
+    def get_shift_type_by_id(self, shift_type_id: str) -> Optional[Dict[str, Any]]:
+        r = (
+            supabase.table("shift_types")
+            .select("*")
+            .eq("id", shift_type_id)
+            .maybe_single()
+            .execute()
+        )
+        return r.data if r else None
+
+    def create_shift_type(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        r = supabase.table("shift_types").insert(data).execute()
+        if not r or not r.data:
+            raise RuntimeError("Échec de la création du type de poste.")
+        return r.data[0]
+
+    def update_shift_type(self, shift_type_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        r = (
+            supabase.table("shift_types")
+            .update(data)
+            .eq("id", shift_type_id)
+            .execute()
+        )
+        if not r or not r.data:
+            raise RuntimeError("Échec de la mise à jour du type de poste.")
+        return r.data[0]
+
+    def deactivate_shift_type(self, shift_type_id: str) -> None:
+        supabase.table("shift_types").update({"is_active": False}).eq(
+            "id", shift_type_id
+        ).execute()
 
     # --- COLLECTIVE AGREEMENTS ---
 
