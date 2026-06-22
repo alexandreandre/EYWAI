@@ -8,12 +8,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-try:
-    from openpyxl import load_workbook
-
-    OPENPYXL_AVAILABLE = True
-except ImportError:
-    OPENPYXL_AVAILABLE = False
+from app.shared.utils.xlsx_safe import iter_sheet_rows
 
 MAX_HEADER_SCAN_ROWS = 25
 
@@ -199,15 +194,7 @@ def _read_csv(content: bytes) -> TabularSheet:
 
 
 def _read_xlsx(content: bytes) -> TabularSheet:
-    if not OPENPYXL_AVAILABLE:
-        raise RuntimeError("openpyxl requis pour lire les fichiers Excel.")
-    wb = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
-    ws = wb.active
-    raw_rows: List[List[str]] = []
-    for row in ws.iter_rows(values_only=True):
-        raw_rows.append([_cell_str(c) for c in row] if row else [])
-    wb.close()
-
+    raw_rows: List[List[str]] = iter_sheet_rows(content)
     if not raw_rows:
         return TabularSheet()
 
