@@ -141,13 +141,13 @@ export default function ModulationSettingsCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 text-base">
           <Clock className="h-5 w-5" />
-          Temps de travail et heures supplémentaires
+          Organisation du temps &amp; compte d&apos;heures
         </CardTitle>
         <CardDescription>
-          L&apos;accord de modulation, le compte d&apos;heures et la politique HS sont indépendants.
-          Configurez chaque axe selon votre entreprise.
+          L&apos;accord de modulation, le compte d&apos;heures et la politique HS sont indépendants
+          du plafond annuel. Configurez chaque axe selon votre entreprise.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -351,7 +351,7 @@ export default function ModulationSettingsCard() {
               </Button>
             ))}
           <Button variant="outline" size="sm" asChild>
-            <Link to="/suivi-modulation">Suivi compteurs</Link>
+            <Link to="/suivi-temps-travail?tab=compte-heures">Suivi compteurs</Link>
           </Button>
         </div>
       </CardContent>

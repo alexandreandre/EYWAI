@@ -253,7 +253,7 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
     }
     const modAlerts = modulationWorkflowQuery.data?.alert_count ?? 0;
     if (modAlerts > 0) {
-      base["/suivi-modulation"] = modAlerts;
+      base["/suivi-temps-travail"] = modAlerts;
     }
     const cetPending = cetPendingQuery.data?.length ?? 0;
     if (cetPending > 0) {

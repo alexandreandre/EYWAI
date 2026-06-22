@@ -39,7 +39,7 @@ import {
 } from "@/features/company";
 import { CompanyDsnCoverageBand } from "@/features/company/components/CompanyDsnCoverageBand";
 import {
-  isComplianceAnchor,
+  normalizeComplianceAnchor,
   type ComplianceAnchor,
 } from "@/features/company/components/CompanyComplianceBand";
 import {
@@ -115,9 +115,10 @@ export default function CompanyPage() {
 
   useEffect(() => {
     const section = searchParams.get("section");
-    if (!isComplianceAnchor(section)) return;
+    const anchor = normalizeComplianceAnchor(section);
+    if (!anchor) return;
     setActiveTab("paie");
-    setPayrollScrollAnchor(section);
+    setPayrollScrollAnchor(anchor);
   }, [searchParams]);
 
   const handleTabChange = useCallback(

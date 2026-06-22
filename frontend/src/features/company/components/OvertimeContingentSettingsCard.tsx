@@ -18,11 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { queryKeys } from '@/lib/queryKeys';
 import { Clock } from 'lucide-react';
 
-export default function OvertimeContingentSettingsCard({
-  scrollAnchor: _scrollAnchor,
-}: {
-  scrollAnchor?: string | null;
-}) {
+export default function OvertimeContingentSettingsCard() {
   const { user } = useAuth();
   const { activeCompany } = useCompany();
   const activeCompanyId = activeCompany?.company_id ?? '';
@@ -108,7 +104,7 @@ export default function OvertimeContingentSettingsCard({
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Clock className="h-4 w-4" />
-          Contingent heures supplémentaires
+          Plafond annuel heures sup (contingent)
         </CardTitle>
         <CardDescription>
           Plafond de pilotage interne et seuil COR légal (220 h par défaut, art. D3121-24).

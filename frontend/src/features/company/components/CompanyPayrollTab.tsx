@@ -28,6 +28,7 @@ import PlanningSettingsCard from "@/features/company/components/PlanningSettings
 import PublicHolidaysSettingsCard from "@/features/company/components/PublicHolidaysSettingsCard";
 import NetEntreprisesConfigCard from "@/features/net-entreprises/components/NetEntreprisesConfigCard";
 import type { ComplianceAnchor } from "@/features/company/components/CompanyComplianceBand";
+import { WorkTimeHubIntro } from "@/features/work-time-tracking/components/WorkTimeHubIntro";
 import { formatCollectiveAgreementLabel } from "@/features/company/lib/companyPageTabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -259,17 +260,18 @@ export function CompanyPayrollTab({
 
       <section
         className="space-y-3"
-        id="contingent-hs"
-        ref={setAnchorRef("contingent-hs")}
+        id="temps-travail"
+        ref={setAnchorRef("temps-travail")}
       >
         <SectionHeading>Temps de travail</SectionHeading>
+        <WorkTimeHubIntro />
         <PublicHolidaysSettingsCard />
         <LeaveSettingsCard />
         <CpSenioritySettingsCard />
         <CpFractionnementSettingsCard />
         <ModulationSettingsCard />
         <WorkTimePeriodsCard />
-        <OvertimeContingentSettingsCard scrollAnchor="contingent-hs" />
+        <OvertimeContingentSettingsCard />
         <CetSettingsCard />
         <IjssImportProfileCard />
         <PunchAccountingSettingsCard />

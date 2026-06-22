@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-15T15:36:21.783Z",
+  "generatedAt": "2026-06-22T14:36:40.100Z",
   "routePaths": [
     "*",
     "*",
@@ -61,6 +61,7 @@
     "/suivi-contingent-hs",
     "/suivi-ijss",
     "/suivi-modulation",
+    "/suivi-temps-travail",
     "/super-admin",
     "/support",
     "/support/confirmation",
@@ -174,6 +175,7 @@
     "SuiviContingentHs",
     "SuiviIJSS",
     "SuiviModulation",
+    "SuiviTempsTravail",
     "SuperAdminAccountingIntegrations",
     "SuperAdminCompanies",
     "SuperAdminCompanyDetails",

@@ -195,6 +195,7 @@ function ProtectedRoutes() {
                   <Route path="/payslips/:payslipId/edit" element={<Pages.PayslipEdit />} />
                   <Route path="/leaves" element={<Pages.RhAbsencesPage />} />
                   <Route path="/suivi-ijss" element={<Pages.SuiviIJSS />} />
+                  <Route path="/suivi-temps-travail" element={<Pages.SuiviTempsTravail />} />
                   <Route path="/suivi-contingent-hs" element={<Pages.SuiviContingentHs />} />
                   <Route path="/suivi-modulation" element={<Pages.SuiviModulation />} />
                   <Route path="/suivi-cet" element={<Pages.SuiviCet />} />

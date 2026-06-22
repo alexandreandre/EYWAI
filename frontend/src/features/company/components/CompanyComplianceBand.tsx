@@ -10,7 +10,7 @@ type ComplianceAnchor =
   | "taux-at-mp"
   | "taux-vm"
   | "cse"
-  | "contingent-hs";
+  | "temps-travail";
 
 const COMPLIANCE_ANCHORS: ComplianceAnchor[] = [
   "convention-collective",
@@ -18,11 +18,20 @@ const COMPLIANCE_ANCHORS: ComplianceAnchor[] = [
   "taux-at-mp",
   "taux-vm",
   "cse",
-  "contingent-hs",
+  "temps-travail",
 ];
 
 export function isComplianceAnchor(value: string | null | undefined): value is ComplianceAnchor {
+  if (value === "contingent-hs") return true;
   return COMPLIANCE_ANCHORS.includes(value as ComplianceAnchor);
+}
+
+export function normalizeComplianceAnchor(
+  value: string | null | undefined,
+): ComplianceAnchor | null {
+  if (!value) return null;
+  if (value === "contingent-hs") return "temps-travail";
+  return isComplianceAnchor(value) ? value : null;
 }
 
 type Item = {

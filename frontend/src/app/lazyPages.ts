@@ -28,6 +28,7 @@ export const ExitDocumentEdit = lazy(() => import('@/pages/rh/ExitDocumentEdit')
 export const Exports = lazy(() => import('@/pages/rh/Exports'));
 export const ResidencePermits = lazy(() => import('@/pages/rh/ResidencePermits'));
 export const MedicalFollowUp = lazy(() => import('@/pages/rh/MedicalFollowUp'));
+export const SuiviTempsTravail = lazy(() => import('@/pages/rh/SuiviTempsTravail'));
 export const SuiviContingentHs = lazy(() => import('@/pages/rh/SuiviContingentHs'));
 export const SuiviModulation = lazy(() => import('@/pages/rh/SuiviModulation'));
 export const SuiviCet = lazy(() => import('@/pages/rh/SuiviCet'));

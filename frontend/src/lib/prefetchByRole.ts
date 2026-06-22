@@ -300,6 +300,7 @@ export function prefetchRoute(queryClient: QueryClient, path: string, companyId?
       return import('@/pages/rh/PayrollGenerate');
     },
     '/leaves': () => import('@/pages/rh/Absences'),
+    '/suivi-temps-travail': () => import('@/pages/rh/SuiviTempsTravail'),
     '/suivi-contingent-hs': () => import('@/pages/rh/SuiviContingentHs'),
     '/suivi-modulation': () => import('@/pages/rh/SuiviModulation'),
     '/suivi-cet': () => import('@/pages/rh/SuiviCet'),
