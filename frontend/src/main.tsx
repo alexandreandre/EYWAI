@@ -3,9 +3,11 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 import App from './App.tsx';
 import './index.css';
+import { installChunkLoadRecovery } from './lib/chunkLoadRecovery';
 import { installConsoleShim } from './lib/logger';
 
 installConsoleShim();
+installChunkLoadRecovery();
 import {
   createAppQueryClient,
   QUERY_CACHE_BUSTER,

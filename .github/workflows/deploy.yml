@@ -84,6 +84,7 @@ jobs:
           push: true
           build-args: |
             VITE_API_URL=${{ vars.VITE_API_URL }}
+            VITE_APP_BUILD_ID=${{ env.DEPLOY_SHA }}
           tags: ${{ steps.images.outputs.frontend }}
 
   # ----------------------------------------------------------------------------
