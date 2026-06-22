@@ -45,7 +45,6 @@ import { AbsenceCertificateStatusBadge } from '@/components/absences/AbsenceCert
 import { AbsenceIjssStatusBadge } from '@/components/absences/AbsenceIjssStatusBadge';
 import { getAbsenceIjssStatus } from '@/api/ijssTracking';
 import { requiresSalaryCertificate } from '@/lib/employeeAbsencesUtils';
-import { LeaveBalancesRhSection } from '@/features/absences/components/LeaveBalancesRhSection';
 import { LeaveCampaignSection } from '@/features/absences/components/LeaveCampaignSection';
 import { RttYearEndRhSection } from '@/features/absences/components/RttYearEndRhSection';
 
@@ -589,7 +588,12 @@ export default function AbsencesPage() {
       <div className="space-y-4">
         <LeaveCampaignSection />
         <RttYearEndRhSection />
-        <LeaveBalancesRhSection />
+        <p className="text-sm text-muted-foreground">
+          <Link to="/company?tab=paie#soldes-rtt" className="text-primary underline-offset-4 hover:underline">
+            Gérer les soldes RTT effectif
+          </Link>
+          {' '}— Entreprise, onglet Paie, section Congés &amp; RTT.
+        </p>
       </div>
       <Tabs defaultValue="pending">
         <TabsList>

@@ -6,6 +6,7 @@ import {
   type LeaveSettings,
   type LeaveSettingsUpdate,
 } from '@/api/leaveSettings';
+import { LeaveRttBalancesSheet } from '@/features/absences/components/LeaveRttBalancesSheet';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { Button } from '@/components/ui/button';
@@ -23,7 +24,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { queryKeys } from '@/lib/queryKeys';
-import { CalendarRange } from 'lucide-react';
+import { CalendarRange, Users } from 'lucide-react';
 
 type RttMode = 'default' | 'fixed' | 'calendar' | 'forfait';
 
@@ -94,6 +95,7 @@ export default function LeaveSettingsCard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const currentYear = new Date().getFullYear();
+  const [rttBalancesOpen, setRttBalancesOpen] = useState(false);
 
   const canEdit = useMemo(() => {
     const r = user?.role;
@@ -172,7 +174,7 @@ export default function LeaveSettingsCard() {
   }
 
   return (
-    <Card id="conges-rtt">
+    <Card id="soldes-rtt">
       <CardHeader>
         <CardTitle className="flex items-center text-base">
           <CalendarRange className="mr-2 h-5 w-5 text-primary" />
@@ -392,11 +394,22 @@ export default function LeaveSettingsCard() {
         </div>
 
         {canEdit ? (
-          <Button onClick={handleSave} disabled={mutation.isPending}>
-            {mutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setRttBalancesOpen(true)}
+            >
+              <Users className="mr-2 h-4 w-4" />
+              Soldes RTT effectif
+            </Button>
+            <Button onClick={handleSave} disabled={mutation.isPending}>
+              {mutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
+            </Button>
+          </div>
         ) : null}
       </CardContent>
+      <LeaveRttBalancesSheet open={rttBalancesOpen} onOpenChange={setRttBalancesOpen} />
     </Card>
   );
 }

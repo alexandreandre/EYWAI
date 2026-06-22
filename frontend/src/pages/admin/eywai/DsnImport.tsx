@@ -9,6 +9,7 @@ import { DsnImportQuickStrip } from '@/features/dsn-import/components/DsnImportQ
 import { DsnImportSheet } from '@/features/dsn-import/components/DsnImportSheet';
 import { DsnPeriodActionDialog } from '@/features/dsn-import/components/DsnPeriodActionDialog';
 import { RibImportPanel } from '@/features/admin-import/components/RibImportPanel';
+import { CpImportPanel } from '@/features/admin-import/components/CpImportPanel';
 import type { DsnImportLaunchConfig, DsnImportMode } from '@/api/dsnImport';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -162,13 +163,14 @@ export default function DsnImport() {
     <div className="space-y-4">
       <AdminPageHeader
         title="Import"
-        description="Import DSN mensuelle par entreprise et import RIB salariés depuis Excel."
+        description="Import DSN mensuelle par entreprise, import RIB salariés et import soldes CP depuis bulletins PDF."
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="dsn">Import DSN</TabsTrigger>
           <TabsTrigger value="rib">Import RIB</TabsTrigger>
+          <TabsTrigger value="cp">Import CP</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dsn" className="mt-4 space-y-4">
@@ -207,6 +209,10 @@ export default function DsnImport() {
 
         <TabsContent value="rib" className="mt-4">
           <RibImportPanel />
+        </TabsContent>
+
+        <TabsContent value="cp" className="mt-4">
+          <CpImportPanel />
         </TabsContent>
       </Tabs>
 

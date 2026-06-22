@@ -66,6 +66,11 @@ export type EmployeeLeaveAdjustmentUpdate = Partial<
   >
 >;
 
+export interface EmployeeRttSoldeUpdate {
+  rtt_solde: number;
+  note?: string | null;
+}
+
 export interface LeaveBalanceOverviewItem {
   employee_id: string;
   first_name: string;
@@ -79,6 +84,7 @@ export interface LeaveBalanceOverviewItem {
   fractionnement_days?: number;
   cp_seniority_status?: string | null;
   rtt_remaining: number;
+  rtt_opening_balance?: number;
   adjustment_note: string | null;
 }
 
@@ -156,6 +162,19 @@ export async function updateEmployeeLeaveAdjustment(
 ): Promise<EmployeeLeaveAdjustment> {
   const { data } = await apiClient.patch<EmployeeLeaveAdjustment>(
     `/api/absences/leave-settings/employees/${employeeId}/adjustment`,
+    payload,
+    { params: { year } },
+  );
+  return data;
+}
+
+export async function updateEmployeeRttSolde(
+  employeeId: string,
+  year: number,
+  payload: EmployeeRttSoldeUpdate,
+): Promise<EmployeeLeaveAdjustment> {
+  const { data } = await apiClient.patch<EmployeeLeaveAdjustment>(
+    `/api/absences/leave-settings/employees/${employeeId}/rtt-solde`,
     payload,
     { params: { year } },
   );
