@@ -23,7 +23,7 @@ from app.modules.schedules.application.timesheet_import.registry import (
     parse_document,
 )
 from app.modules.schedules.application.timesheet_import.structured_parser import (
-    read_tabular_preview,
+    read_tabular_preview_with_status,
 )
 from app.modules.schedules.infrastructure.schedule_import_storage import (
     upload_schedule_import_file,
@@ -44,7 +44,7 @@ def detect_columns(
     *,
     options: Optional[Dict[str, Any]] = None,
 ) -> ColumnDetectionResponse:
-    headers, sample_rows, mapping = read_tabular_preview(
+    headers, sample_rows, mapping, mapping_complete = read_tabular_preview_with_status(
         content, filename, options=options
     )
     source = detect_source_type(filename)
@@ -56,6 +56,7 @@ def detect_columns(
         headers=headers,
         sample_rows=serializable_rows,
         suggested_mapping=mapping,
+        mapping_complete=mapping_complete,
         source_type=source if source in ("csv", "xlsx") else "csv",
     )
 

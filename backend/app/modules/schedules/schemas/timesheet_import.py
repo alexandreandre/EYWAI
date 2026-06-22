@@ -40,6 +40,7 @@ class ColumnDetectionResponse(BaseModel):
     headers: List[str] = Field(default_factory=list)
     sample_rows: List[Dict[str, Any]] = Field(default_factory=list)
     suggested_mapping: Dict[str, str] = Field(default_factory=dict)
+    mapping_complete: bool = False
     source_type: SourceType = "csv"
 
 

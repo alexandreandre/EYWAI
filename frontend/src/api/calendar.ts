@@ -473,6 +473,7 @@ export interface ColumnDetectionResult {
   headers: string[];
   sample_rows: Record<string, string | null>[];
   suggested_mapping: Record<string, string>;
+  mapping_complete: boolean;
   source_type: string;
 }
 

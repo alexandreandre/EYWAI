@@ -530,8 +530,11 @@ async def timesheet_import_detect_columns(
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="Le fichier est vide.")
-    result = detect_columns(content, file.filename or "import.csv")
-    return ColumnDetectionResponse.model_validate(result)
+    try:
+        result = detect_columns(content, file.filename or "import.csv")
+        return ColumnDetectionResponse.model_validate(result)
+    except (RuntimeError, ValueError) as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
 
 
 @router_rh.post("/timesheet-import/parse")
@@ -577,6 +580,11 @@ async def timesheet_import_parse(
         return TimesheetImportParseResponse.model_validate(result)
     except ScheduleAppError as e:
         _handle_schedule_error(e)
+    except Exception as e:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Impossible de lire ce fichier Excel/CSV : {e}",
+        ) from e
 
 
 @router_rh.get("/timesheet-import/batches/{batch_id}")

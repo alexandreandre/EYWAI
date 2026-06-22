@@ -40,7 +40,6 @@ import {
   AssistedFillReview,
   type AssistedFillApplyMeta,
 } from './AssistedFillReview';
-import { TimesheetImportMappingDialog } from './TimesheetImportMappingDialog';
 import { aiFillErrorMessage } from './aiFillUtils';
 
 const MONTHS = [
@@ -164,9 +163,6 @@ export function PointageImportDialog({
   const [documentScope, setDocumentScope] = useState<DocumentScopeInput>('auto');
   const [weekAnchorDate, setWeekAnchorDate] = useState('');
   const [helpOpen, setHelpOpen] = useState(false);
-  const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
-  const [mappingDialogOpen, setMappingDialogOpen] = useState(false);
-  const [mappingTargetIndex, setMappingTargetIndex] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -189,8 +185,6 @@ export function PointageImportDialog({
     setDocumentScope('auto');
     setWeekAnchorDate('');
     setHelpOpen(false);
-    setColumnMapping({});
-    setMappingDialogOpen(false);
   };
 
   const stopAnalysis = async (notify = false) => {
@@ -263,17 +257,13 @@ export function PointageImportDialog({
     setProposal(result);
   };
 
-  const runStructuredParse = async (
-    file: File,
-    mapping: Record<string, string>,
-    abort: AbortController,
-  ) => {
-    const parsed = await parseStructuredTimesheet(file, year, month, roster, mapping);
+  const runStructuredParse = async (file: File, abort: AbortController) => {
+    const parsed = await parseStructuredTimesheet(file, year, month, roster);
     if (abort.signal.aborted) return null;
     return parsed;
   };
 
-  const analyzeFiles = async (structuredMapping?: Record<string, string>) => {
+  const analyzeFiles = async () => {
     if (files.length === 0) return;
     if (documentScope === 'weekly' && !weekAnchorDate) {
       toast({
@@ -322,14 +312,7 @@ export function PointageImportDialog({
         const file = files[i];
         let result: AiCalendarProposal;
         if (isStructuredFile(file.name)) {
-          const mapping = structuredMapping ?? columnMapping;
-          if (!structuredMapping && Object.keys(mapping).length === 0) {
-            setMappingTargetIndex(i);
-            setMappingDialogOpen(true);
-            setIsAnalyzing(false);
-            return;
-          }
-          const parsed = await runStructuredParse(file, mapping, abort);
+          const parsed = await runStructuredParse(file, abort);
           if (!parsed) return;
           result = parsed.preview;
           lastBatchId = parsed.batch_id;
@@ -579,18 +562,6 @@ export function PointageImportDialog({
                       Retirer
                     </Button>
                   )}
-                  {files.some((f) => isStructuredFile(f.name)) && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setMappingTargetIndex(0);
-                        setMappingDialogOpen(true);
-                      }}
-                    >
-                      Colonnes CSV/Excel
-                    </Button>
-                  )}
                   <Button
                     type="button"
                     onClick={() => void analyzeFiles()}
@@ -612,17 +583,6 @@ export function PointageImportDialog({
           )}
         </div>
       </DialogContent>
-      <TimesheetImportMappingDialog
-        open={mappingDialogOpen}
-        onOpenChange={setMappingDialogOpen}
-        file={files[mappingTargetIndex] ?? null}
-        mapping={columnMapping}
-        onConfirm={(mapping) => {
-          setColumnMapping(mapping);
-          setMappingDialogOpen(false);
-          void analyzeFiles(mapping);
-        }}
-      />
     </Dialog>
   );
 }
