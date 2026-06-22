@@ -16,6 +16,7 @@ from app.modules.dsn_import.domain.model import (
     EntrepriseBlock,
     EnvoiBlock,
     IndividuBlock,
+    OrganismePscBlock,
     ParsedDsnSet,
     RemunerationBlock,
     RubriqueLine,
@@ -44,6 +45,10 @@ from app.modules.dsn_import.domain.rubriques import (
     R_S21_COT_MONTANT_SAL,
     R_S21_COT_TAUX_PAT,
     R_S21_COT_TAUX_SAL,
+    R_S21_ORG_CODE,
+    R_S21_ORG_NATURE,
+    R_S21_ORG_RANG,
+    R_S21_ORG_REF,
     R_S21_CTR_DATE_DEBUT,
     R_S21_CTR_DATE_FIN,
     R_S21_CTR_DISPOSITIF,
@@ -223,6 +228,7 @@ class _ParseContext:
         self.cotisation: Optional[CotisationBlock] = None
         self.cotisation_ind: Optional[CotisationIndividuelleBlock] = None
         self.affiliation: Optional[AffiliationBlock] = None
+        self.organisme_psc: Optional[OrganismePscBlock] = None
         self.activite: Optional[Dict[str, Any]] = None
         self.warnings: List[str] = []
 
@@ -274,6 +280,12 @@ class _ParseContext:
             ctr.affiliations.append(self.affiliation)
         return self.affiliation
 
+    def _ensure_organisme_psc(self) -> OrganismePscBlock:
+        if self.organisme_psc is None:
+            self.organisme_psc = OrganismePscBlock()
+            self.etablissement.organismes_psc.append(self.organisme_psc)
+        return self.organisme_psc
+
     def _ensure_activite(self) -> Dict[str, Any]:
         ver = self._ensure_versement()
         if self.activite is None:
@@ -294,7 +306,11 @@ class _ParseContext:
             self.cotisation = None
             self.cotisation_ind = None
             self.affiliation = None
+            self.organisme_psc = None
             self.activite = None
+        elif block == "organisme_psc":
+            self.organisme_psc = OrganismePscBlock()
+            self.etablissement.organismes_psc.append(self.organisme_psc)
         elif block == "contrat":
             ind = self._ensure_individu()
             self.contrat = ContratBlock()
@@ -624,6 +640,8 @@ class _ParseContext:
         elif rubrique == R_S21_AFF_CODE_OPTION:
             self._ensure_affiliation().code_option = valeur.strip()
         elif rubrique == R_S21_AFF_CODE_POP:
+            if self.affiliation is not None and (self.affiliation.code_population or "").strip():
+                self.on_block_start("70")
             self._ensure_affiliation().code_population = valeur.strip()
         elif rubrique == R_S21_AFF_NB_ENFANTS:
             try:
@@ -662,6 +680,37 @@ class _ParseContext:
             self._ensure_cotisation_ind().montant_patronal = _float_val(valeur)
         elif rubrique == R_S21_CI_IDENT_AFF:
             self._ensure_cotisation_ind().identifiant_affiliation = valeur.strip()
+        elif rubrique == R_S21_ORG_REF:
+            org = self._ensure_organisme_psc()
+            org.reference_contrat = valeur.strip()
+            org.rubriques[rubrique] = valeur
+        elif rubrique == R_S21_ORG_CODE:
+            self._ensure_organisme_psc().code_organisme = valeur.strip()
+        elif rubrique == R_S21_ORG_NATURE:
+            self._ensure_organisme_psc().code_nature = valeur.strip()
+        elif rubrique == R_S21_ORG_RANG:
+            self._ensure_organisme_psc().rang = valeur.strip()
+
+
+def _normalize_psc_cotisations_contrat(contrat: ContratBlock) -> None:
+    """Corrige les exports Cegid où seul G00.81.004 est renseigné (montant salarial)."""
+    for ver in contrat.versements:
+        for ci in ver.cotisations_individuelles:
+            if (ci.code or "").strip() != "059":
+                continue
+            if (
+                ci.montant_salarial == 0
+                and ci.montant_patronal > 0
+                and ci.montant_assiette == 0
+            ):
+                ci.montant_salarial = ci.montant_patronal
+                ci.montant_patronal = 0.0
+
+
+def _normalize_parsed_etablissement(etab: EtablissementBlock) -> None:
+    for ind in etab.individus:
+        for contrat in ind.contrats:
+            _normalize_psc_cotisations_contrat(contrat)
 
 
 def _looks_like_code(value: str) -> bool:
@@ -721,6 +770,7 @@ def parse_dsn_content(content: bytes, file_name: str = "dsn.txt") -> DsnFile:
         ctx.apply_rubrique(line.rubrique, line.valeur)
 
     _finalize_etablissement(ctx)
+    _normalize_parsed_etablissement(ctx.etablissement)
 
     if dsn_format == "modern":
         ctx.warnings.append(f"Norme détectée : NEODeS courante ({ctx.envoi.norme or 'P22+'})")

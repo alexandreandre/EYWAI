@@ -97,3 +97,41 @@ def test_parse_dsn_psc_fixture_end_to_end():
     assert mutuelle["adhesion"] is True
     assert mutuelle["pack_couverture"] == "famille"
     assert mutuelle["lignes_specifiques"][0]["montant_salarial"] == 78.0
+
+
+def test_parse_dsn_psc_cegid_dual_affiliation():
+    from pathlib import Path
+
+    from app.modules.dsn_import.application.mapping import map_employee_payload
+    from app.modules.dsn_import.domain.parser import parse_dsn_content
+
+    content = (Path(__file__).parent / "fixtures" / "sample_dsn_psc_cegid.txt").read_bytes()
+    dsn = parse_dsn_content(content, file_name="sample_dsn_psc_cegid.txt")
+    etab = dsn.etablissement
+
+    assert len(etab.organismes_psc) == 2
+    assert etab.organismes_psc[0].reference_contrat == "E00000601206899"
+    assert etab.organismes_psc[1].reference_contrat == "PI51044PE000"
+
+    ind = etab.individus[0]
+    contrat = ind.contrats[0]
+    assert len(contrat.affiliations) == 2
+    assert contrat.affiliations[0].code_population == "841"
+    assert contrat.affiliations[1].code_population == "ENSP"
+
+    c059 = [ci for v in contrat.versements for ci in v.cotisations_individuelles if ci.code == "059"]
+    assert len(c059) == 2
+    assert c059[0].montant_salarial == 78.0
+    assert c059[0].montant_patronal == 0.0
+    assert c059[1].montant_salarial == 45.0
+
+    payload = map_employee_payload(ind, etab, etab.siret)
+    mutuelle = payload["specificites_paie"]["mutuelle"]
+    prevoyance = payload["specificites_paie"]["prevoyance"]
+
+    assert mutuelle["adhesion"] is True
+    assert mutuelle["lignes_specifiques"][0]["montant_salarial"] == 78.0
+    assert prevoyance["adhesion"] is True
+    assert prevoyance["lignes_specifiques"]
+    assert prevoyance["lignes_specifiques"][0]["patronal"] > 0
+

@@ -137,6 +137,12 @@ R_S21_CI_MONTANT_SAL = "S21.G00.81.003"
 R_S21_CI_MONTANT_PAT = "S21.G00.81.004"
 R_S21_CI_IDENT_AFF = "S21.G00.81.005"
 
+# --- Organisme PSC S21.G00.15 (établissement) ---
+R_S21_ORG_REF = "S21.G00.15.001"
+R_S21_ORG_CODE = "S21.G00.15.002"
+R_S21_ORG_NATURE = "S21.G00.15.004"
+R_S21_ORG_RANG = "S21.G00.15.005"
+
 # --- Affiliation PSC S21.G00.70 ---
 R_S21_AFF_REF_CONTRAT = "S21.G00.70.001"
 R_S21_AFF_CODE_ORG = "S21.G00.70.002"
@@ -153,6 +159,7 @@ PSC_COTISATION_CODE = "059"
 BLOCK_G00 = {
     "06": "entreprise",
     "11": "etablissement",
+    "15": "organisme_psc",
     "30": "individu",
     "40": "contrat",
     "50": "versement",

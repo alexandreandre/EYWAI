@@ -347,7 +347,7 @@ def map_employee_payload(
     contract_type = map_contract_type(contrat.nature)
     pas = _extract_pas(contrat)
     sexe = map_sexe(ind.sexe)
-    psc_block = build_specificites_paie_psc(contrat)
+    psc_block = build_specificites_paie_psc(contrat, organismes_psc=etab.organismes_psc)
     psc_meta = psc_block.pop("_psc_meta", {})
 
     payload: Dict[str, Any] = {

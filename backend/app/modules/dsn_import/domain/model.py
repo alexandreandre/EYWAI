@@ -52,6 +52,17 @@ class AffiliationBlock:
 
 
 @dataclass
+class OrganismePscBlock:
+    """Bloc S21.G00.15 — contrat collectif mutuelle / prévoyance (niveau établissement)."""
+
+    reference_contrat: str = ""
+    code_organisme: str = ""
+    code_nature: str = ""
+    rang: str = ""
+    rubriques: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
 class RemunerationBlock:
     type_code: str = ""
     montant: float = 0.0
@@ -133,6 +144,7 @@ class EtablissementBlock:
     adresse_ville: str = ""
     effectif: str = ""
     rubriques: Dict[str, str] = field(default_factory=dict)
+    organismes_psc: List[OrganismePscBlock] = field(default_factory=list)
     individus: List[IndividuBlock] = field(default_factory=list)
 
 
