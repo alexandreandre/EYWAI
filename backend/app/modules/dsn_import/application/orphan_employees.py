@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from fastapi import HTTPException
-
 from app.core.logging import get_logger
 from app.modules.dsn_import.domain.user_messages import _mask_nir
 from app.modules.dsn_import.infrastructure import repository as repo
@@ -100,26 +98,18 @@ def remove_reimport_orphans(
                     "employee_name": str(orphan.get("employee_name") or ""),
                 }
             )
-        except HTTPException as exc:
+        except Exception as exc:
+            detail = getattr(exc, "detail", str(exc))
             logger.warning(
                 "Suppression salarié fantôme %s échouée : %s",
                 employee_id,
-                exc.detail,
+                detail,
             )
             failed.append(
                 {
                     "employee_id": employee_id,
                     "employee_name": str(orphan.get("employee_name") or ""),
-                    "error": str(exc.detail),
-                }
-            )
-        except Exception as exc:
-            logger.exception("Suppression salarié fantôme %s échouée", employee_id)
-            failed.append(
-                {
-                    "employee_id": employee_id,
-                    "employee_name": str(orphan.get("employee_name") or ""),
-                    "error": str(exc),
+                    "error": str(detail),
                 }
             )
 
