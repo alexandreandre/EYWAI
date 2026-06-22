@@ -412,6 +412,7 @@ def parse_tabular_file(
     exit_2_col = mapping.get("exit_2")
     exit_1_col = mapping.get("exit_1")
     use_last_exit = bool(opts.get("use_last_nonzero_exit", True))
+    skip_period_filter = bool(opts.get("skip_period_filter"))
 
     decimal_sep = str(opts.get("decimal_separator") or "")
     if not decimal_sep and hours_col:
@@ -461,7 +462,7 @@ def parse_tabular_file(
                 result.warnings.append(f"Ligne {idx + 1} : date illisible.")
                 continue
             y, m, d = date_parts
-            if m != target_month or y != target_year:
+            if not skip_period_filter and (m != target_month or y != target_year):
                 continue
             if heures is None:
                 heures = 0.0
@@ -472,7 +473,7 @@ def parse_tabular_file(
                 result.warnings.append(f"Ligne {idx + 1} : date illisible.")
                 continue
             y, m, d = date_parts
-            if m != target_month or y != target_year:
+            if not skip_period_filter and (m != target_month or y != target_year):
                 continue
             if heures is None:
                 heures = 0.0
@@ -486,6 +487,10 @@ def parse_tabular_file(
         raw_name = " ".join(name_parts) if name_parts else None
         if not raw_name and full_name_col and row.get(full_name_col):
             raw_name = str(row.get(full_name_col)).strip() or None
+
+        if not _is_plausible_timesheet_row(matricule=mat, raw_name=raw_name, jour=d):
+            continue
+
         shift_code = (
             str(row.get(shift_col)).strip().upper()
             if shift_col and row.get(shift_col)
@@ -528,10 +533,52 @@ def _raw_time_present(raw: Any) -> bool:
     return bool(s) and s not in ("0", "00", "0000", "-")
 
 
+def _is_plausible_timesheet_row(
+    *,
+    matricule: Optional[str],
+    raw_name: Optional[str],
+    jour: int,
+) -> bool:
+    if jour < 1 or jour > 31:
+        return False
+    mat = (matricule or "").strip()
+    name = (raw_name or "").strip()
+    if mat in ("0", "") and not name:
+        return False
+    if name.startswith("=") or name.lower().startswith("intérimaire n°"):
+        return True
+    if mat in ("0", "") and name.lower() in ("", "========================================"):
+        return False
+    return bool(mat or name)
+
+
+def filter_tabular_rows_to_period(
+    rows: List[TabularDayRow],
+    *,
+    start: Optional[date],
+    end: Optional[date],
+    eff_year: int,
+    eff_month: int,
+) -> List[TabularDayRow]:
+    """Conserve les lignes dans la période détectée et le mois effectif."""
+    if not rows:
+        return []
+    filtered: List[TabularDayRow] = []
+    for row in rows:
+        row_date = date(row.year, row.month, row.jour)
+        if start and end and (row_date < start or row_date > end):
+            continue
+        if row.year != eff_year or row.month != eff_month:
+            continue
+        filtered.append(row)
+    return filtered
+
+
 __all__ = [
     "TabularDayRow",
     "TabularParseResult",
     "detect_column_mapping",
+    "filter_tabular_rows_to_period",
     "find_header_row_index",
     "is_mapping_sufficient",
     "parse_tabular_file",

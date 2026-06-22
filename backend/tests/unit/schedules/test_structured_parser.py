@@ -1,9 +1,11 @@
 """Tests parseur tabulaire import pointages."""
 
+from datetime import date
 from pathlib import Path
 
 from app.modules.schedules.application.timesheet_import.structured_parser import (
     detect_column_mapping,
+    filter_tabular_rows_to_period,
     find_header_row_index,
     is_mapping_sufficient,
     parse_tabular_file,
@@ -117,6 +119,31 @@ class TestStructuredParser:
         assert result.rows[0].heures == 7.05
         assert result.rows[0].matricule == "000005"
         assert result.rows[0].shift_code == "A"
+
+    def test_parse_lewis_when_ui_month_wrong(self):
+        csv = (
+            "Matricule;Jour;Nom;Cod Sectio;Entrée 1.;Sortie 1.;Entrée 2.;Sortie 2.;"
+            "Entrée 3.;Sortie 3.;Tot H Poin;Hr Théoriq;Code Horai\n"
+            "000005;08/06/2026;Francine BOURMAULT;MONT;800;1000;1015;1230;1300;1548;7,05;7,75;A\n"
+            "000151;09/06/2026;Bruno FEDRIGONI;POIN;740;1000;1015;1230;1300;1630;8,08;7,75;A\n"
+        )
+        parsed = parse_tabular_file(
+            csv.encode("utf-8"),
+            "pointages.csv",
+            target_year=2026,
+            target_month=5,
+            options={"skip_period_filter": True},
+        )
+        assert len(parsed.rows) == 2
+        filtered = filter_tabular_rows_to_period(
+            parsed.rows,
+            start=date(2026, 6, 8),
+            end=date(2026, 6, 11),
+            eff_year=2026,
+            eff_month=6,
+        )
+        assert len(filtered) == 2
+        assert filtered[0].jour == 8
 
     def test_parse_lewis_punch_pairs_csv(self):
         sample_path = (

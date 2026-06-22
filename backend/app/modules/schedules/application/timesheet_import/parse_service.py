@@ -22,6 +22,11 @@ from app.modules.schedules.application.timesheet_import.registry import (
     detect_source_type,
     parse_document,
 )
+from app.modules.schedules.application.timesheet_import.tabular_period import (
+    apply_tabular_period_to_rows,
+    collect_dates_from_proposal,
+    finalize_tabular_proposal,
+)
 from app.modules.schedules.application.timesheet_import.structured_parser import (
     read_tabular_preview_with_status,
 )
@@ -78,13 +83,28 @@ def parse_structured_file(
     assert_not_committed_duplicate(company_id, file_hash)
 
     cached = find_cached_preview(company_id, file_hash, year=year, month=month)
-    if cached:
+    source_type = detect_source_type(filename)
+    if cached and source_type in ("csv", "xlsx"):
+        roster = enrich_roster_time_tracking_ids(roster, company_id)
+        dates = collect_dates_from_proposal(cached)
+        parser_key = cached.detected_format or "tabular_generic"
+        cached = finalize_tabular_proposal(
+            cached,
+            dates=dates,
+            requested_year=year,
+            requested_month=month,
+            roster=roster,
+            company_id=company_id,
+            parser_key=parser_key,
+            parse_confidence=cached.parse_confidence,
+            extraction_warnings=cached.extraction_warnings,
+        )
         batch = create_batch_from_proposal(
             company_id=company_id,
             user_id=user_id,
             proposal=cached,
-            source_type=detect_source_type(filename),
-            parser_key="cache_preview",
+            source_type=source_type,
+            parser_key=parser_key,
             filename=filename,
             file_hash=file_hash,
             file_content=content,
@@ -92,11 +112,10 @@ def parse_structured_file(
         return TimesheetImportParseResponse(
             batch_id=str(batch["id"]),
             preview=cached,
-            parser_key="cache_preview",
+            parser_key=parser_key,
             file_hash=file_hash,
         )
 
-    source_type = detect_source_type(filename)
     if profile_name:
         prof = timesheet_import_repository.get_profile(
             company_id, profile_name, source_type
@@ -106,6 +125,7 @@ def parse_structured_file(
             options = {**(prof.get("options") or {}), **(options or {})}
 
     roster = enrich_roster_time_tracking_ids(roster, company_id)
+    parse_options = {**(options or {}), "skip_period_filter": True}
     attempt = parse_document(
         content,
         filename,
@@ -113,9 +133,28 @@ def parse_structured_file(
         year=year,
         month=month,
         column_mapping=column_mapping,
-        options=options,
+        options=parse_options,
         skip_llm=True,
     )
+
+    parsed = attempt.parse_result
+    if (
+        attempt.parser_key in ("tabular_generic", "tabular_punch_pairs")
+        and parsed is not None
+    ):
+        period = apply_tabular_period_to_rows(
+            parsed.rows,
+            requested_year=year,
+            requested_month=month,
+        )
+        parsed.rows = period.rows
+        if not parsed.rows:
+            raise ScheduleAppError(
+                "validation",
+                "Aucune ligne exploitable pour la période détectée dans ce fichier.",
+                status_code=422,
+            )
+        year, month = period.year, period.month
 
     proposal = build_proposal_from_attempt(
         attempt, year=year, month=month, roster=roster
@@ -127,30 +166,48 @@ def parse_structured_file(
             status_code=422,
         )
 
-    from calendar import monthrange
-    from datetime import date
+    if (
+        attempt.parser_key in ("tabular_generic", "tabular_punch_pairs")
+        and parsed is not None
+    ):
+        dates = collect_dates_from_proposal(proposal)
+        proposal = finalize_tabular_proposal(
+            proposal,
+            dates=dates,
+            requested_year=period.requested_year,
+            requested_month=period.requested_month,
+            roster=roster,
+            company_id=company_id,
+            parser_key=attempt.parser_key,
+            parse_confidence=attempt.confidence,
+            extraction_warnings=attempt.warnings,
+        )
+    else:
+        from calendar import monthrange
+        from datetime import date
 
-    from app.modules.schedules.application.ai_fill import _finalize_timesheet_proposal
-    from app.modules.schedules.application.timesheet_period import TimesheetPeriodDetection
+        from app.modules.schedules.application.ai_fill import _finalize_timesheet_proposal
+        from app.modules.schedules.application.timesheet_period import (
+            TimesheetPeriodDetection,
+        )
 
-    last_day = monthrange(year, month)[1]
-    period_detection = TimesheetPeriodDetection(
-        scope="monthly",
-        start_date=date(year, month, 1),
-        end_date=date(year, month, last_day),
-        confidence="high",
-    )
-
-    proposal = _finalize_timesheet_proposal(
-        proposal,
-        roster=roster,
-        company_id=company_id,
-        period_detection=period_detection,
-        detected_format=attempt.parser_key,
-        parse_confidence=attempt.confidence,
-        extraction_method=attempt.extraction_method or "structured",
-        extraction_warnings=attempt.warnings,
-    )
+        last_day = monthrange(year, month)[1]
+        period_detection = TimesheetPeriodDetection(
+            scope="monthly",
+            start_date=date(year, month, 1),
+            end_date=date(year, month, last_day),
+            confidence="high",
+        )
+        proposal = _finalize_timesheet_proposal(
+            proposal,
+            roster=roster,
+            company_id=company_id,
+            period_detection=period_detection,
+            detected_format=attempt.parser_key,
+            parse_confidence=attempt.confidence,
+            extraction_method=attempt.extraction_method or "structured",
+            extraction_warnings=attempt.warnings,
+        )
 
     storage_path = None
     try:

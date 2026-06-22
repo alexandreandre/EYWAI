@@ -5,6 +5,7 @@ from datetime import date
 
 from app.modules.schedules.application.timesheet_period import (
     detect_timesheet_period,
+    detect_timesheet_period_from_dates,
     format_period_context,
     format_week_anchor_context,
     resolve_effective_target_month,
@@ -94,6 +95,27 @@ class TestCrossMonth:
             WEEKLY_HEADER, target_year=2025, target_month=5
         )
         assert any("hors du mois" in w for w in det.warnings)
+
+
+class TestDetectPeriodFromDates:
+    def test_weekly_partial_week_in_june(self):
+        dates = [
+            date(2026, 6, 8),
+            date(2026, 6, 9),
+            date(2026, 6, 10),
+            date(2026, 6, 11),
+        ]
+        det = detect_timesheet_period_from_dates(
+            dates, target_year=2026, target_month=5
+        )
+        assert det.scope == "weekly"
+        assert det.confidence == "high"
+        assert det.start_date == date(2026, 6, 8)
+        assert det.end_date == date(2026, 6, 11)
+        y, m, corrected, msg = resolve_effective_target_month(det, 2026, 5)
+        assert corrected is True
+        assert (y, m) == (2026, 6)
+        assert msg is not None
 
 
 class TestResolveEffectiveTargetMonth:

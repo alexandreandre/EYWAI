@@ -298,6 +298,56 @@ def detect_timesheet_period(
     return result
 
 
+def detect_timesheet_period_from_dates(
+    dates: List[date],
+    *,
+    target_year: int,
+    target_month: int,
+) -> TimesheetPeriodDetection:
+    """Estime la période couverte à partir des dates explicites d'un fichier tabulaire."""
+    result = TimesheetPeriodDetection()
+    if not dates:
+        result.warnings.append("Aucune date trouvée dans le fichier.")
+        return result
+
+    unique = sorted({d for d in dates})
+    result.detected_dates = unique
+    result.start_date = unique[0]
+    result.end_date = unique[-1]
+    span = (unique[-1] - unique[0]).days + 1
+    unique_days = len(unique)
+
+    if span <= 8 and unique_days <= 7:
+        result.scope = "weekly"
+        result.confidence = "high" if unique_days >= 3 else "medium"
+    elif span > 20 or unique_days > 15:
+        result.scope = "monthly"
+        result.confidence = "medium" if unique_days >= 10 else "low"
+    elif span <= 14:
+        result.scope = "weekly"
+        result.confidence = "medium"
+    else:
+        result.scope = "monthly"
+        result.confidence = "medium"
+
+    _refine_detection_bounds(result, target_year, target_month)
+    result.warnings.extend(
+        _compare_with_target_month(result, target_year, target_month)
+    )
+    return result
+
+
+def filter_rows_by_period(
+    rows: List[date],
+    *,
+    start: Optional[date],
+    end: Optional[date],
+) -> List[date]:
+    if not start or not end:
+        return rows
+    return [d for d in rows if start <= d <= end]
+
+
 def _dates_in_range(start: date, end: date) -> List[date]:
     days: List[date] = []
     current = start
@@ -496,6 +546,7 @@ __all__ = [
     "TimesheetConfidence",
     "align_period_warnings",
     "detect_timesheet_period",
+    "detect_timesheet_period_from_dates",
     "format_period_context",
     "format_week_anchor_context",
     "resolve_effective_target_month",
