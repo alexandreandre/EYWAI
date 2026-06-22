@@ -18,3 +18,19 @@ class RibImportCommitRow(BaseModel):
 class RibImportCommitBody(BaseModel):
     company_id: str
     rows: List[RibImportCommitRow] = Field(default_factory=list)
+
+
+class CpImportCommitRow(BaseModel):
+    row_index: int
+    company_id: str
+    employee_id: str
+    year: int
+    cp_n1_solde: float = 0.0
+    cp_n_solde: float = 0.0
+    source_file: Optional[str] = None
+    period_label: Optional[str] = None
+    confirmed: bool = True
+
+
+class CpImportCommitBody(BaseModel):
+    rows: List[CpImportCommitRow] = Field(default_factory=list)

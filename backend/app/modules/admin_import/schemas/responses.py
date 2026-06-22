@@ -61,3 +61,66 @@ class RibImportCommitResponse(BaseModel):
     skipped: int
     results: List[RibImportCommitResultItem] = Field(default_factory=list)
     errors: List[str] = Field(default_factory=list)
+
+
+class CpImportRowPreview(BaseModel):
+    row_index: int
+    source_file: str = ""
+    page_index: int = 0
+    company_id: Optional[str] = None
+    company_name: Optional[str] = None
+    siret: Optional[str] = None
+    period_label: Optional[str] = None
+    year: int
+    month: Optional[int] = None
+    raw_identity: str = ""
+    matricule: Optional[str] = None
+    cp_n1_solde: float = 0.0
+    cp_n_solde: float = 0.0
+    acquis_n1: Optional[float] = None
+    acquis_n: Optional[float] = None
+    pris_n1: Optional[float] = None
+    pris_n: Optional[float] = None
+    employee_id: Optional[str] = None
+    matched_name: Optional[str] = None
+    match_confidence: MatchConfidence = "none"
+    match_method: MatchMethod = "none"
+    review_status: ReviewStatus = "error"
+    warnings: List[str] = Field(default_factory=list)
+    parse_format: str = "unknown"
+    current_cp_n1: Optional[float] = None
+    current_cp_n: Optional[float] = None
+    delta_cp_n1: Optional[float] = None
+    delta_cp_n: Optional[float] = None
+    has_existing_adjustment: bool = False
+
+
+class CpImportRosterEmployee(BaseModel):
+    id: str
+    first_name: str
+    last_name: str
+    time_tracking_id: Optional[str] = None
+
+
+class CpImportParseResponse(BaseModel):
+    rows: List[CpImportRowPreview] = Field(default_factory=list)
+    rosters_by_company: Dict[str, List[CpImportRosterEmployee]] = Field(
+        default_factory=dict
+    )
+    summary: Dict[str, int] = Field(default_factory=dict)
+    file_errors: List[str] = Field(default_factory=list)
+
+
+class CpImportCommitResultItem(BaseModel):
+    row_index: int
+    employee_id: str
+    success: bool
+    message: str = ""
+    duplicate_warnings: List[str] = Field(default_factory=list)
+
+
+class CpImportCommitResponse(BaseModel):
+    applied: int
+    skipped: int
+    results: List[CpImportCommitResultItem] = Field(default_factory=list)
+    errors: List[str] = Field(default_factory=list)
