@@ -26,10 +26,13 @@ import * as absencesApi from "@/api/absences";
 import { getEmployeesLite, type EmployeeLite } from "@/api/employees";
 import {
   EMPLOYEE_REQUESTABLE_ABSENCE_TYPES,
+  RH_ONLY_ABSENCE_TYPES,
   formatCongePayeInsufficientMessage,
   getAvailableCongePayeDays,
   type EmployeeRequestableAbsenceType,
 } from "@/lib/employeeAbsencesUtils";
+
+export type AbsenceRequestModalMode = "employee" | "rh_arret" | "rh_leave";
 
 /** Types d’absence pour lesquels la qualification d’arrêt est obligatoire. */
 const ARRET_PRINCIPAL_TYPES = [
@@ -105,6 +108,27 @@ interface AbsenceRequestModalProps {
   pendingAbsences?: absencesApi.AbsenceRequest[];
   /** Vue RH : liste des employés de l'entreprise active et choix du bénéficiaire. */
   showEmployeeSelector?: boolean;
+  /** Parcours RH : arrêt direct (validé immédiatement) ou demande de congé pour un salarié. */
+  mode?: AbsenceRequestModalMode;
+}
+
+const RH_ARRET_TYPE_LABELS: Record<
+  (typeof RH_ONLY_ABSENCE_TYPES)[number],
+  string
+> = {
+  arret_maladie: "Arrêt maladie",
+  arret_at: "Accident du travail",
+  arret_paternite: "Congé paternité",
+  arret_maternite: "Congé maternité",
+  arret_maladie_pro: "Maladie professionnelle",
+};
+
+function resolveModalMode(
+  mode: AbsenceRequestModalMode | undefined,
+  showEmployeeSelector: boolean,
+): AbsenceRequestModalMode {
+  if (mode) return mode;
+  return showEmployeeSelector ? "rh_leave" : "employee";
 }
 
 function getApiErrorMessage(err: unknown): string | null {
@@ -122,7 +146,12 @@ export function AbsenceRequestModal({
   balances = [],
   pendingAbsences = [],
   showEmployeeSelector = false,
+  mode,
 }: AbsenceRequestModalProps) {
+  const effectiveMode = resolveModalMode(mode, showEmployeeSelector);
+  const isRhArret = effectiveMode === "rh_arret";
+  const isRhLeave = effectiveMode === "rh_leave";
+  const isRhMode = isRhArret || isRhLeave;
   const { user } = useAuth();
   const { data: myEmployeeProfile } = useEmployeeProfileQuery(user?.id);
   const { toast } = useToast();
@@ -146,22 +175,22 @@ export function AbsenceRequestModal({
   // Réinitialiser les états à l'ouverture du modal
   useEffect(() => {
     if (isOpen) {
-      setAbsenceType('');
-      setEventSubtype('');
+      setAbsenceType(isRhArret ? "arret_maladie" : "");
+      setEventSubtype("");
       setEvenementFamilialEvents([]);
       setSelectedDays([]);
       setComment("");
       setFile(null);
       setError("");
       setArretType("");
-      if (showEmployeeSelector) {
+      if (isRhMode) {
         setSelectedEmployeeId("");
       }
     }
-  }, [isOpen, showEmployeeSelector]);
+  }, [isOpen, isRhArret, isRhMode]);
 
   useEffect(() => {
-    if (!isOpen || !showEmployeeSelector) {
+    if (!isOpen || !isRhMode) {
       return;
     }
     setIsLoadingEmployees(true);
@@ -169,7 +198,7 @@ export function AbsenceRequestModal({
       .then(setEmployees)
       .catch(() => setEmployees([]))
       .finally(() => setIsLoadingEmployees(false));
-  }, [isOpen, showEmployeeSelector]);
+  }, [isOpen, isRhMode]);
 
   useEffect(() => {
     if (!isArretPrincipalType(absenceType)) {
@@ -197,8 +226,8 @@ export function AbsenceRequestModal({
   );
 
   const cpBalanceExceeded =
-    !showEmployeeSelector &&
-    absenceType === 'conge_paye' &&
+    effectiveMode === "employee" &&
+    absenceType === "conge_paye" &&
     selectedDaysCount > availableCongePayeDays;
 
   const doSubmit = async () => {
@@ -227,7 +256,7 @@ export function AbsenceRequestModal({
       }
 
       const employeeId =
-        showEmployeeSelector && selectedEmployeeId
+        isRhMode && selectedEmployeeId
           ? selectedEmployeeId
           : myEmployeeProfile?.id ?? user!.id;
 
@@ -248,7 +277,14 @@ export function AbsenceRequestModal({
       }
       await absencesApi.createAbsenceRequest(payload);
 
-      toast({ title: "Succès", description: "Votre demande d'absence a été soumise." });
+      toast({
+        title: "Succès",
+        description: isRhArret
+          ? "L'arrêt a été enregistré."
+          : isRhLeave
+            ? "La demande a été créée pour le salarié."
+            : "Votre demande d'absence a été soumise.",
+      });
       onSuccess();
       onClose();
       setConfirmSansSoldeOpen(false);
@@ -259,7 +295,11 @@ export function AbsenceRequestModal({
       }
       toast({
         title: "Erreur",
-        description: apiMessage ?? "Impossible de soumettre la demande.",
+        description: apiMessage ?? (
+          isRhArret
+            ? "Impossible d'enregistrer l'arrêt."
+            : "Impossible de soumettre la demande."
+        ),
         variant: "destructive",
       });
     } finally {
@@ -268,7 +308,7 @@ export function AbsenceRequestModal({
   };
 
   const handleSave = () => {
-    if (showEmployeeSelector && !selectedEmployeeId) {
+    if (isRhMode && !selectedEmployeeId) {
       setError("Veuillez sélectionner un employé.");
       return;
     }
@@ -285,14 +325,18 @@ export function AbsenceRequestModal({
       return;
     }
     if (!selectedDays || selectedDays.length === 0) {
-      setError("Veuillez sélectionner au moins un jour de congé.");
+      setError(
+        isRhArret
+          ? "Veuillez sélectionner au moins un jour d'arrêt."
+          : "Veuillez sélectionner au moins un jour de congé.",
+      );
       return;
     }
 
     // Congés payés : blocage salarié si solde insuffisant ; RH peut confirmer du sans solde
-    if (absenceType === 'conge_paye') {
+    if (absenceType === "conge_paye") {
       const nbJours = selectedDays.length;
-      if (!showEmployeeSelector) {
+      if (effectiveMode === "employee") {
         if (nbJours > availableCongePayeDays) {
           setError(formatCongePayeInsufficientMessage(availableCongePayeDays, nbJours));
           return;
@@ -323,25 +367,43 @@ export function AbsenceRequestModal({
   const modRestant =
     typeof modBalance?.remaining === 'number' ? modBalance.remaining : 0;
 
-  const absenceTypeOptions: { value: AbsenceTypeValue; label: string }[] = showEmployeeSelector
-    ? [
-        { value: 'conge_paye', label: 'Congé Payé' },
-        { value: 'rtt', label: 'RTT' },
-        { value: 'repos_compensateur', label: 'Repos Compensateur' },
-        { value: 'evenement_familial', label: 'Événement Familial' },
-        { value: 'arret_maladie', label: 'Arrêt Maladie' },
-        { value: 'arret_at', label: 'Accident du Travail' },
-        { value: 'arret_paternite', label: 'Congé Paternité' },
-        { value: 'arret_maternite', label: 'Congé Maternité' },
-        { value: 'arret_maladie_pro', label: 'Maladie Professionnelle' },
-      ]
-    : EMPLOYEE_REQUESTABLE_ABSENCE_TYPES.filter(
-        (value) =>
-          value !== 'recuperation_modulation' || modRestant > 0,
-      ).map((value) => ({
+  const absenceTypeOptions: { value: AbsenceTypeValue; label: string }[] = isRhArret
+    ? RH_ONLY_ABSENCE_TYPES.map((value) => ({
         value,
-        label: employeeAbsenceTypeLabels[value],
-      }));
+        label: RH_ARRET_TYPE_LABELS[value],
+      }))
+    : isRhLeave
+      ? [
+          { value: "conge_paye", label: "Congé Payé" },
+          { value: "rtt", label: "RTT" },
+          { value: "repos_compensateur", label: "Repos Compensateur" },
+          { value: "evenement_familial", label: "Événement Familial" },
+        ]
+      : EMPLOYEE_REQUESTABLE_ABSENCE_TYPES.filter(
+          (value) =>
+            value !== "recuperation_modulation" || modRestant > 0,
+        ).map((value) => ({
+          value,
+          label: employeeAbsenceTypeLabels[value],
+        }));
+
+  const dialogTitle = isRhArret
+    ? "Enregistrer un arrêt"
+    : isRhLeave
+      ? "Créer une demande de congé"
+      : "Faire une demande d'absence";
+
+  const dialogDescription = isRhArret
+    ? "Saisie directe par les RH — l'arrêt est enregistré immédiatement, sans demande du salarié."
+    : isRhLeave
+      ? "Créez une demande de congé au nom d'un salarié. Elle devra être validée comme une demande classique."
+      : "Sélectionnez un type et choisissez les jours dans le calendrier.";
+
+  const submitLabel = isRhArret
+    ? "Enregistrer l'arrêt"
+    : isRhLeave
+      ? "Créer la demande"
+      : "Soumettre la demande";
 
   const cpBalance = balances.find((b) => b.type === "Congés Payés");
   const cpRestant = typeof cpBalance?.remaining === "number" ? cpBalance.remaining : 0;
@@ -351,14 +413,12 @@ export function AbsenceRequestModal({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Faire une demande d'absence</DialogTitle>
-          <DialogDescription>
-            Sélectionnez un type et choisissez les jours dans le calendrier.
-          </DialogDescription>
+          <DialogTitle>{dialogTitle}</DialogTitle>
+          <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {showEmployeeSelector ? (
+          {isRhMode ? (
             <div className="grid gap-2">
               <Label htmlFor="absence-employee">Employé</Label>
               {isLoadingEmployees ? (
@@ -387,7 +447,9 @@ export function AbsenceRequestModal({
           ) : null}
 
           <div className="grid gap-2">
-            <Label htmlFor="absence-type">Type d'absence</Label>
+            <Label htmlFor="absence-type">
+              {isRhArret ? "Nature de l'arrêt" : "Type d'absence"}
+            </Label>
             <Select value={absenceType} onValueChange={(value: AbsenceTypeValue) => setAbsenceType(value)}>
               <SelectTrigger id="absence-type"><SelectValue placeholder="Sélectionner un type..." /></SelectTrigger>
               <SelectContent>
@@ -398,7 +460,7 @@ export function AbsenceRequestModal({
                 ))}
               </SelectContent>
             </Select>
-            {!showEmployeeSelector && balances.length > 0 && absenceType && (
+            {!isRhMode && balances.length > 0 && absenceType && (
               <BalanceHint
                 absenceType={absenceType}
                 balances={balances}
@@ -468,14 +530,16 @@ export function AbsenceRequestModal({
           )}
 
           <div className="grid gap-2">
-            <Label>Jours demandés</Label>
+            <Label>{isRhArret ? "Période d'arrêt" : "Jours demandés"}</Label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" className={cn("justify-start text-left font-normal", !selectedDaysCount && "text-muted-foreground")}>
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {selectedDaysCount > 0
-                    ? `${selectedDaysCount} jour${selectedDaysCount > 1 ? 's' : ''} sélectionné${selectedDaysCount > 1 ? 's' : ''}`
-                    : "Cliquez pour choisir les dates"}
+                    ? `${selectedDaysCount} jour${selectedDaysCount > 1 ? "s" : ""} sélectionné${selectedDaysCount > 1 ? "s" : ""}`
+                    : isRhArret
+                      ? "Cliquez pour choisir la période"
+                      : "Cliquez pour choisir les dates"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
@@ -493,8 +557,8 @@ export function AbsenceRequestModal({
                       }
                     }
                     if (
-                      !showEmployeeSelector &&
-                      absenceType === 'conge_paye' &&
+                      effectiveMode === "employee" &&
+                      absenceType === "conge_paye" &&
                       dates.length > availableCongePayeDays
                     ) {
                       const sorted = [...dates].sort((a, b) => a.getTime() - b.getTime());
@@ -513,14 +577,16 @@ export function AbsenceRequestModal({
                   }}
                   initialFocus
                   locale={fr}
-                  disabled={{ before: new Date() }}
+                  disabled={effectiveMode === "employee" ? { before: new Date() } : undefined}
                 />
               </PopoverContent>
             </Popover>
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="attachment">Justificatif (facultatif)</Label>
+            <Label htmlFor="attachment">
+              {isRhArret ? "Certificat médical (facultatif)" : "Justificatif (facultatif)"}
+            </Label>
             <Input
               id="attachment"
               type="file"
@@ -532,7 +598,18 @@ export function AbsenceRequestModal({
 
           <div className="grid gap-2">
             <Label htmlFor="comment">Commentaire (facultatif)</Label>
-            <Textarea id="comment" placeholder="Ajoutez un message pour votre manager..." value={comment} onChange={e => setComment(e.target.value)} />
+            <Textarea
+              id="comment"
+              placeholder={
+                isRhArret
+                  ? "Ex. certificat reçu par mail, prolongation…"
+                  : isRhLeave
+                    ? "Note pour le circuit de validation…"
+                    : "Ajoutez un message pour votre manager…"
+              }
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+            />
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -542,7 +619,7 @@ export function AbsenceRequestModal({
           <Button variant="ghost" onClick={onClose}>Annuler</Button>
           <Button onClick={handleSave} disabled={isLoading || cpBalanceExceeded}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Soumettre la demande
+            {submitLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -90,7 +90,8 @@ function canShowRhNewAbsenceButton(user: { role?: string; is_super_admin?: boole
 export default function AbsencesPage() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showArretModal, setShowArretModal] = useState(false);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
   const absencesQuery = useAbsencesQueries();
   const pending = absencesQuery.pending as AbsenceRequest[];
   const processed = useMemo(() => {
@@ -552,20 +553,38 @@ export default function AbsencesPage() {
         title="Gestion des Congés & Absences"
         actions={
           canShowRhNewAbsenceButton(user) ? (
-            <Button type="button" onClick={() => setShowCreateModal(true)}>
-              + Nouvelle absence
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" onClick={() => setShowArretModal(true)}>
+                + Enregistrer un arrêt
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowLeaveModal(true)}
+              >
+                Demande de congé
+              </Button>
+            </div>
           ) : null
         }
       />
       <AbsenceRequestModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        mode="rh_arret"
+        isOpen={showArretModal}
+        onClose={() => setShowArretModal(false)}
         onSuccess={() => {
-          setShowCreateModal(false);
+          setShowArretModal(false);
           void fetchData();
         }}
-        showEmployeeSelector
+      />
+      <AbsenceRequestModal
+        mode="rh_leave"
+        isOpen={showLeaveModal}
+        onClose={() => setShowLeaveModal(false)}
+        onSuccess={() => {
+          setShowLeaveModal(false);
+          void fetchData();
+        }}
       />
       <div className="space-y-4">
         <LeaveCampaignSection />

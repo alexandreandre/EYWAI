@@ -203,6 +203,78 @@ class TestCreateAbsenceRequest:
         assert response.status_code == 403
         assert "employeur" in response.json()["detail"].lower()
 
+    def test_create_absence_request_arret_maladie_rh_auto_validates(
+        self, client: TestClient
+    ):
+        """La RH enregistre un arrêt directement : statut validé, sans circuit demande."""
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+        validated_row = {
+            "id": "arret-direct-1",
+            "employee_id": "emp-target",
+            "company_id": TEST_COMPANY_ID,
+            "type": "arret_maladie",
+            "arret_type": "maladie_simple",
+            "selected_days": ["2025-05-01", "2025-05-02"],
+            "status": "validated",
+            "workflow_step": "approved_rh",
+            "comment": None,
+            "created_at": "2025-06-01T09:00:00",
+            "manager_id": None,
+            "attachment_url": None,
+            "filename": None,
+            "event_subtype": None,
+            "jours_payes": None,
+        }
+        try:
+            with patch(
+                "app.modules.absences.api.router.absence_router.employee_company_id",
+                return_value=TEST_COMPANY_ID,
+            ), patch(
+                "app.modules.absences.api.router.commands.create_absence_request"
+            ) as create_cmd, patch(
+                "app.modules.absences.api.router.commands.update_absence_request_status"
+            ) as validate_cmd, patch(
+                "app.modules.absences.api.router.absence_router.update_absence",
+                return_value=validated_row,
+            ), patch(
+                "app.modules.absences.api.router._notify_rh_status_change",
+            ), patch(
+                "app.modules.absences.api.router._enrich_single_absence_row",
+                side_effect=lambda row: row,
+            ):
+                create_cmd.return_value = {
+                    **validated_row,
+                    "status": "pending",
+                    "workflow_step": "pending",
+                }
+                validate_cmd.return_value = {
+                    **validated_row,
+                    "workflow_step": "pending",
+                }
+                response = client.post(
+                    "/api/absences/requests",
+                    json={
+                        "employee_id": "emp-target",
+                        "type": "arret_maladie",
+                        "selected_days": ["2025-05-01", "2025-05-02"],
+                        "arret_type": "maladie_simple",
+                    },
+                )
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 201
+        data = response.json()
+        assert data.get("status") == "validated"
+        assert data.get("workflow_step") == "approved_rh"
+        validate_cmd.assert_called_once_with(
+            "arret-direct-1",
+            "validated",
+            current_user_id="user-rh-absences-test",
+        )
+        create_cmd.assert_called_once()
+
     def test_create_absence_request_arret_maternite_returns_403_for_non_rh(
         self, client: TestClient
     ):

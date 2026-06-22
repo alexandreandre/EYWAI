@@ -286,30 +286,49 @@ async def create_absence_request(
         )
         rid = str(data["id"])
         eid = str(data["employee_id"])
-        mgr = absence_router.get_team_manager_employee_id(eid)
-        wf = "pending_manager" if mgr else "pending"
-        data2 = absence_router.update_absence(rid, {"workflow_step": wf})
-        data = data2 or data
-        try:
-            d0, d1 = absence_notif.absence_date_range_iso(data)
-            absence_notif.notify_absence_submitted(
-                eid,
-                str(data["company_id"]),
-                str(data.get("type") or ""),
-                d0,
-                d1,
+        is_rh_direct_arret = (
+            is_rh and str(request_data.type) in SALARY_CERTIFICATE_ABSENCE_TYPES
+        )
+        if is_rh_direct_arret:
+            req_before = dict(data)
+            data = commands.update_absence_request_status(
+                rid,
+                "validated",
+                current_user_id=str(current_user.id),
             )
-            if wf == "pending_manager" and mgr:
-                absence_notif.notify_manager_new_request(
-                    str(mgr),
+            data2 = absence_router.update_absence(
+                rid, {"workflow_step": "approved_rh"}
+            )
+            data = data2 or data
+            try:
+                _notify_rh_status_change(req_before, "validated")
+            except Exception:
+                _log.exception("[absences] notifications arrêt direct ignorées")
+        else:
+            mgr = absence_router.get_team_manager_employee_id(eid)
+            wf = "pending_manager" if mgr else "pending"
+            data2 = absence_router.update_absence(rid, {"workflow_step": wf})
+            data = data2 or data
+            try:
+                d0, d1 = absence_notif.absence_date_range_iso(data)
+                absence_notif.notify_absence_submitted(
+                    eid,
                     str(data["company_id"]),
-                    absence_notif.employee_display_name(eid),
                     str(data.get("type") or ""),
                     d0,
                     d1,
                 )
-        except Exception:
-            _log.exception("[absences] notifications création ignorées")
+                if wf == "pending_manager" and mgr:
+                    absence_notif.notify_manager_new_request(
+                        str(mgr),
+                        str(data["company_id"]),
+                        absence_notif.employee_display_name(eid),
+                        str(data.get("type") or ""),
+                        d0,
+                        d1,
+                    )
+            except Exception:
+                _log.exception("[absences] notifications création ignorées")
         r = _enrich_single_absence_row(dict(data))
         return r
     except HTTPException:
