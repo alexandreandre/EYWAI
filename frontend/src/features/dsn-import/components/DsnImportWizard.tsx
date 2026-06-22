@@ -43,6 +43,7 @@ import {
   type DsnImportIssue,
   type DsnImportItemPreview,
   type DsnImportParseResponse,
+  type DsnReimportOrphans,
   type ImportedEmployeeSummary,
   type WorkforceReconciliationSummary,
   type WorkforceResolution,
@@ -152,6 +153,7 @@ function commitReportFromSummary(summary: Record<string, unknown>): DsnImportCom
     companies: report.companies ?? {},
     imported_employees: report.imported_employees ?? [],
     workforce_reconciliation: (report as DsnImportCommitResponse).workforce_reconciliation,
+    orphan_removal: (report as DsnImportCommitResponse).orphan_removal,
   };
 }
 
@@ -411,6 +413,7 @@ export function DsnImportWizard({
   const [replaceExistingPeriods, setReplaceExistingPeriods] = useState(
     () => Boolean(launchConfig?.reimport),
   );
+  const [removeOrphanImportedEmployees, setRemoveOrphanImportedEmployees] = useState(false);
   const [workforceResolutions, setWorkforceResolutions] = useState<Record<string, WorkforceResolution>>({});
   const [acknowledgedWarnings, setAcknowledgedWarnings] = useState<Record<string, boolean>>({});
   const [resumeBatchId, setResumeBatchId] = useState<string | null>(
@@ -560,6 +563,7 @@ export function DsnImportWizard({
           importMode,
           replaceExistingPeriods,
           workforceResolutions: workforceResolutionsList,
+          removeOrphanImportedEmployees,
         },
       );
     },
@@ -715,6 +719,17 @@ export function DsnImportWizard({
     () => (parseResult?.summary?.duplicate_periods as string[] | undefined) ?? [],
     [parseResult],
   );
+
+  const reimportOrphans = useMemo(
+    () => (parseResult?.summary?.reimport_orphans as DsnReimportOrphans | undefined) ?? { count: 0, employees: [] },
+    [parseResult],
+  );
+
+  useEffect(() => {
+    if (confirmOpen && isReimportLaunch && reimportOrphans.count > 0) {
+      setRemoveOrphanImportedEmployees(true);
+    }
+  }, [confirmOpen, isReimportLaunch, reimportOrphans.count]);
 
   const onFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const list = e.target.files ? Array.from(e.target.files) : [];
@@ -1165,7 +1180,16 @@ export function DsnImportWizard({
                 'ce mois'
               )}{' '}
               seront remplacés. La réconciliation effectifs sera relancée. Les fiches salariés
-              existantes ne sont pas supprimées.
+              existantes ne sont pas supprimées automatiquement
+              {reimportOrphans.count > 0 ? (
+                <>
+                  {' '}
+                  — {reimportOrphans.count} salarié(s) fantôme(s) détecté(s), supprimables à la
+                  confirmation.
+                </>
+              ) : (
+                '.'
+              )}
             </p>
           </div>
         )}
@@ -1770,6 +1794,9 @@ export function DsnImportWizard({
             replaceExistingPeriods={replaceExistingPeriods}
             onReplaceExistingPeriodsChange={setReplaceExistingPeriods}
             reimport={isReimportLaunch}
+            reimportOrphans={reimportOrphans}
+            removeOrphanImportedEmployees={removeOrphanImportedEmployees}
+            onRemoveOrphanImportedEmployeesChange={setRemoveOrphanImportedEmployees}
           />
         )}
 
@@ -1795,6 +1822,11 @@ export function DsnImportWizard({
                   <span>
                     <strong>{commitReport.stats.skipped ?? 0}</strong> ignoré(s)
                   </span>
+                  {(commitReport.orphan_removal?.removed_count ?? 0) > 0 && (
+                    <span>
+                      <strong>{commitReport.orphan_removal?.removed_count}</strong> salarié(s) fantôme(s) supprimé(s)
+                    </span>
+                  )}
                 </div>
                 {(commitReport.group_id || Object.keys(commitReport.companies).length > 0) && (
                   <div className="rounded-lg border bg-muted/30 p-3">
@@ -1911,6 +1943,9 @@ function CommitConfirmDialog({
   replaceExistingPeriods = false,
   onReplaceExistingPeriodsChange,
   reimport = false,
+  reimportOrphans = { count: 0, employees: [] },
+  removeOrphanImportedEmployees = false,
+  onRemoveOrphanImportedEmployeesChange,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1928,6 +1963,9 @@ function CommitConfirmDialog({
   replaceExistingPeriods?: boolean;
   onReplaceExistingPeriodsChange?: (value: boolean) => void;
   reimport?: boolean;
+  reimportOrphans?: DsnReimportOrphans;
+  removeOrphanImportedEmployees?: boolean;
+  onRemoveOrphanImportedEmployeesChange?: (value: boolean) => void;
 }) {
   const create = actionsSummary?.totals.create ?? 0;
   const update = actionsSummary?.totals.update ?? 0;
@@ -1944,7 +1982,7 @@ function CommitConfirmDialog({
           </DialogTitle>
           <DialogDescription>
             {reimport
-              ? 'Les cumuls du mois seront remplacés. Les fiches salariés existantes ne sont pas supprimées.'
+              ? 'Les cumuls du mois seront remplacés et la réconciliation effectifs relancée. Les fiches salariés existantes ne sont pas supprimées automatiquement.'
               : 'Cette action est irréversible : elle créera ou mettra à jour le dossier paie en base.'}
           </DialogDescription>
         </DialogHeader>
@@ -2000,6 +2038,33 @@ function CommitConfirmDialog({
                   className="rounded border-input"
                 />
                 Écraser les cumuls existants pour {periodsToReplace}
+              </label>
+            </li>
+          )}
+          {reimport && reimportOrphans.count > 0 && (
+            <li className="space-y-2 rounded-md border border-rose-200 bg-rose-50/60 p-3 text-rose-950">
+              <p className="flex items-start gap-2 text-sm">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                {reimportOrphans.count} salarié(s) importé(s) par erreur absent(s) de cette DSN
+                — sans compte activé, supprimables en toute sécurité.
+              </p>
+              {reimportOrphans.employees.length <= 5 && (
+                <ul className="ml-6 list-inside list-disc text-xs">
+                  {reimportOrphans.employees.map((emp) => (
+                    <li key={emp.employee_id}>
+                      {emp.employee_name} · NIR {emp.nir_masked}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={removeOrphanImportedEmployees}
+                  onChange={(e) => onRemoveOrphanImportedEmployeesChange?.(e.target.checked)}
+                  className="rounded border-input"
+                />
+                Supprimer ces {reimportOrphans.count} fiche(s) salarié(s) fantôme(s)
               </label>
             </li>
           )}

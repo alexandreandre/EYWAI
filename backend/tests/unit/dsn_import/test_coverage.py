@@ -99,3 +99,36 @@ def test_compute_admin_coverage_matrix():
     assert "2026-01" in alpha["months_covered"]
     assert len(alpha["timeline"]) == 12
     assert beta["status"] == "missing"
+
+
+def test_compute_coverage_excludes_revoked_periods():
+    company = {
+        "id": "c1",
+        "dsn_sync_mode": "external",
+        "siret": "11111111100011",
+        "siren": "111111111",
+    }
+    batches = [
+        {
+            "id": "b1",
+            "status": "committed",
+            "siren": "111111111",
+            "period_min": "2026-01",
+            "period_max": "2026-02",
+            "summary": {
+                "commit_report": {"target_company_id": "c1"},
+                "periods_committed": ["2026-01", "2026-02"],
+            },
+            "created_at": "2026-03-01T00:00:00Z",
+        }
+    ]
+    cov = compute_coverage(
+        company,
+        batches=batches,
+        reference=date(2026, 6, 16),
+        revoked_periods=["2026-02"],
+    )
+    assert "2026-01" in cov["months_covered"]
+    assert "2026-02" not in cov["months_covered"]
+    feb = next(m for m in cov["timeline"] if m["period"] == "2026-02")
+    assert feb["state"] == "missing"

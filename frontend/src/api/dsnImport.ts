@@ -153,6 +153,22 @@ export type ImportedEmployeeSummary = {
 
 export type DsnImportCommitError = DsnImportIssue;
 
+export type DsnReimportOrphans = {
+  count: number;
+  employees: Array<{
+    employee_id: string;
+    employee_name: string;
+    nir_masked: string;
+  }>;
+};
+
+export type DsnImportOrphanRemovalReport = {
+  requested_count?: number;
+  removed_count?: number;
+  removed?: Array<{ employee_id: string; employee_name: string }>;
+  failed?: Array<{ employee_id: string; employee_name: string; error: string }>;
+};
+
 export type DsnImportCommitResponse = {
   stats: Record<string, number>;
   errors: DsnImportCommitError[];
@@ -161,6 +177,7 @@ export type DsnImportCommitResponse = {
   companies: Record<string, string>;
   imported_employees: ImportedEmployeeSummary[];
   workforce_reconciliation?: WorkforceReconciliationReport;
+  orphan_removal?: DsnImportOrphanRemovalReport;
 };
 
 export type DsnImportCommitStartResponse = {
@@ -343,6 +360,7 @@ export async function commitDsnImportBatch(
     importMode?: DsnImportMode | null;
     replaceExistingPeriods?: boolean;
     workforceResolutions?: WorkforceResolution[];
+    removeOrphanImportedEmployees?: boolean;
   },
 ): Promise<DsnImportCommitStartResponse> {
   const { data } = await apiClient.post<DsnImportCommitStartResponse>(
@@ -354,6 +372,7 @@ export async function commitDsnImportBatch(
       import_mode: options?.importMode ?? null,
       replace_existing_periods: options?.replaceExistingPeriods ?? false,
       workforce_resolutions: options?.workforceResolutions ?? [],
+      remove_orphan_imported_employees: options?.removeOrphanImportedEmployees ?? false,
     },
   );
   return data;
@@ -399,6 +418,23 @@ export async function activateImportedEmployee(
   const { data } = await apiClient.post<ActivateImportedEmployeeResponse>(
     '/api/dsn-import/employees/activate',
     { employee_id: employeeId, company_id: companyId, email },
+  );
+  return data;
+}
+
+export type DsnImportRevokePeriodResponse = {
+  company_id: string;
+  period: string;
+  cumuls_deleted: number;
+};
+
+export async function revokeDsnPeriodImport(
+  companyId: string,
+  period: string,
+): Promise<DsnImportRevokePeriodResponse> {
+  const { data } = await apiClient.post<DsnImportRevokePeriodResponse>(
+    '/api/dsn-import/coverage/revoke-period',
+    { company_id: companyId, period },
   );
   return data;
 }

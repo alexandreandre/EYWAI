@@ -141,6 +141,7 @@ def compute_coverage(
     company: Dict[str, Any],
     batches: Optional[List[Dict[str, Any]]] = None,
     reference: Optional[date] = None,
+    revoked_periods: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Calcule la couverture DSN pour une entreprise."""
     ref = reference or date.today()
@@ -151,6 +152,9 @@ def compute_coverage(
 
     if batches is None:
         batches = repo.list_committed_batches(limit=500)
+    if revoked_periods is None:
+        revoked_periods = repo.list_revoked_periods(company_id)
+    revoked_set = set(revoked_periods or [])
 
     linked = [b for b in batches if b.get("status") == "committed" and _batch_company_id(b, company)]
 
@@ -179,6 +183,9 @@ def compute_coverage(
                 "periods": sorted(periods),
             }
         )
+
+    if revoked_set:
+        months_covered -= revoked_set
 
     months_sorted = sorted(months_covered)
     expected = expected_last_period(company, ref)
@@ -301,15 +308,24 @@ def _build_coverage_alerts(
 def compute_admin_late_summary(
     companies: List[Dict[str, Any]],
     batches: Optional[List[Dict[str, Any]]] = None,
+    revoked_by_company: Optional[Dict[str, List[str]]] = None,
 ) -> Dict[str, Any]:
     """Résumé admin : entreprises en retard DSN + statut par entreprise."""
     if batches is None:
         batches = repo.list_committed_batches(limit=500)
+    if revoked_by_company is None:
+        company_ids = [str(c.get("id")) for c in companies if c.get("id")]
+        revoked_by_company = repo.list_revoked_periods_by_company(company_ids)
     late: List[Dict[str, Any]] = []
     all_companies: List[Dict[str, Any]] = []
     for company in companies:
         mode = (company.get("dsn_sync_mode") or "native").strip().lower()
-        cov = compute_coverage(company, batches=batches)
+        cid = str(company.get("id") or "")
+        cov = compute_coverage(
+            company,
+            batches=batches,
+            revoked_periods=revoked_by_company.get(cid, []),
+        )
         all_companies.append(
             {
                 "company_id": str(company.get("id")),
@@ -350,14 +366,24 @@ def compute_admin_coverage_matrix(
     *,
     year: int,
     batches: Optional[List[Dict[str, Any]]] = None,
+    revoked_by_company: Optional[Dict[str, List[str]]] = None,
 ) -> Dict[str, Any]:
     """Matrice admin : couverture mois par mois pour toutes les entreprises."""
     if batches is None:
         batches = repo.list_committed_batches(limit=500)
+    if revoked_by_company is None:
+        company_ids = [str(c.get("id")) for c in companies if c.get("id")]
+        revoked_by_company = repo.list_revoked_periods_by_company(company_ids)
     ref = _reference_for_matrix_year(year)
     rows: List[Dict[str, Any]] = []
     for company in companies:
-        cov = compute_coverage(company, batches=batches, reference=ref)
+        cid = str(company.get("id") or "")
+        cov = compute_coverage(
+            company,
+            batches=batches,
+            reference=ref,
+            revoked_periods=revoked_by_company.get(cid, []),
+        )
         status = cov["status"]
         if status == "not_applicable" and not cov.get("months_covered"):
             status = "missing"

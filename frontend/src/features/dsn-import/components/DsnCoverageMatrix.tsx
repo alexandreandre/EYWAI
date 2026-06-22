@@ -68,14 +68,17 @@ function MatrixMonthCell({
   month,
   onCellClick,
   companyId,
+  companyName,
 }: {
   month: DsnCoverageTimelineMonth;
   onCellClick?: (
     companyId: string,
     period: string,
     state: DsnCoverageTimelineMonth['state'],
+    companyName?: string | null,
   ) => void;
   companyId: string;
+  companyName?: string | null;
 }) {
   const letter = MONTH_SHORT[month.month - 1] ?? '?';
   const clickable =
@@ -87,7 +90,7 @@ function MatrixMonthCell({
       tabIndex={clickable ? 0 : undefined}
       onClick={
         clickable
-          ? () => onCellClick!(companyId, month.period, month.state)
+          ? () => onCellClick!(companyId, month.period, month.state, companyName)
           : undefined
       }
       onKeyDown={
@@ -95,7 +98,7 @@ function MatrixMonthCell({
           ? (e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                onCellClick!(companyId, month.period, month.state);
+                onCellClick!(companyId, month.period, month.state, companyName);
               }
             }
           : undefined
@@ -138,9 +141,7 @@ function MatrixMonthCell({
           <p className="mt-1 text-xs text-primary">Cliquer pour importer ce mois</p>
         )}
         {clickable && month.state === 'covered' && (
-          <p className="mt-1 text-xs text-primary">
-            Cliquer pour réimporter la DSN de {formatPeriodTooltip(month.period)}
-          </p>
+          <p className="mt-1 text-xs text-primary">Cliquer pour réimporter ou supprimer</p>
         )}
       </TooltipContent>
     </Tooltip>
@@ -152,7 +153,7 @@ function CoverageLegend() {
     {
       className: 'border-emerald-600 bg-emerald-500',
       icon: <Check className="h-3 w-3 text-white" strokeWidth={3} />,
-      label: 'Importé (cliquable pour réimporter)',
+      label: 'Importé (cliquable)',
     },
     {
       className: 'border-amber-500 bg-amber-100 dark:bg-amber-950/50',
@@ -192,6 +193,7 @@ function CompanyCoverageRow({
     companyId: string,
     period: string,
     state: DsnCoverageTimelineMonth['state'],
+    companyName?: string | null,
   ) => void;
   onImportCompany?: (companyId: string) => void;
 }) {
@@ -274,6 +276,7 @@ function CompanyCoverageRow({
                 key={m.period}
                 month={m}
                 companyId={company.company_id}
+                companyName={company.company_name}
                 onCellClick={onCellClick}
               />
             ))}
@@ -290,6 +293,7 @@ type Props = {
     companyId: string,
     period: string,
     state: DsnCoverageTimelineMonth['state'],
+    companyName?: string | null,
   ) => void;
   onImportCompany?: (companyId: string) => void;
 };
@@ -332,7 +336,7 @@ export function DsnCoverageMatrix({ year, onCellClick, onImportCompany }: Props)
         <div>
           <CardTitle className="text-lg">Couverture DSN {year}</CardTitle>
           <CardDescription>
-            Toutes les entreprises — vert = importé (cliquable pour réimporter), ambre = manquant, gris = futur.
+            Toutes les entreprises — vert = importé (cliquable), ambre = manquant, gris = futur.
           </CardDescription>
         </div>
 

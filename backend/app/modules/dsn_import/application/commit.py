@@ -197,6 +197,7 @@ def commit_batch(
     target_company_id: Optional[str] = None,
     workforce_resolutions: Optional[List[Dict[str, Any]]] = None,
     current_user_id: Optional[str] = None,
+    remove_orphan_imported_employees: bool = False,
 ) -> Dict[str, Any]:
     """
     Exécute le commit d'un batch previewed.
@@ -392,6 +393,16 @@ def commit_batch(
             resolution_company_id,
             current_user_id,
         )
+    orphan_removal_report: Dict[str, Any] = {}
+    if (
+        status == "committed"
+        and remove_orphan_imported_employees
+        and (import_mode or "").strip().lower() == "monthly"
+        and resolution_company_id
+    ):
+        from app.modules.dsn_import.application.orphan_employees import remove_reimport_orphans
+
+        orphan_removal_report = remove_reimport_orphans(items, str(resolution_company_id))
     report = {
         "stats": stats,
         "errors": errors,
@@ -401,6 +412,7 @@ def commit_batch(
         "imported_employees": imported_employees,
         "target_company_id": target_cid,
         "workforce_reconciliation": workforce_report,
+        "orphan_removal": orphan_removal_report,
     }
     summary_state["commit_report"] = report
     summary_state["periods_committed"] = sorted(periods_committed)
@@ -420,6 +432,11 @@ def commit_batch(
     )
     if status == "committed":
         _mark_companies_dsn_transition(set(company_by_siret.values()), target_cid)
+        if periods_committed and resolution_company_id:
+            repo.clear_period_revocations(
+                str(resolution_company_id),
+                sorted(periods_committed),
+            )
     return report
 
 

@@ -14,6 +14,7 @@ from app.modules.dsn_import.schemas.requests import (
     ActivateImportedEmployeeBody,
     DsnImportCommitBody,
     DsnImportRevalidateBody,
+    DsnImportRevokePeriodBody,
     DsnImportWorkforceResolutionsBody,
 )
 from app.modules.dsn_import.schemas.responses import (
@@ -31,6 +32,7 @@ from app.modules.dsn_import.schemas.responses import (
     DsnImportItemPreview,
     DsnImportParseResponse,
     DsnImportRevalidateResponse,
+    DsnImportRevokePeriodResponse,
 )
 
 router = APIRouter(prefix="/api/dsn-import", tags=["Import DSN"])
@@ -104,6 +106,25 @@ async def get_dsn_admin_matrix(
         raise HTTPException(status_code=400, detail="Année invalide.")
     data = service.get_admin_coverage_matrix(y)
     return DsnCoverageAdminMatrixResponse(**data)
+
+
+@router.post("/coverage/revoke-period", response_model=DsnImportRevokePeriodResponse)
+async def revoke_dsn_period_import(
+    body: DsnImportRevokePeriodBody,
+    super_admin: Dict[str, Any] = Depends(verify_super_admin),
+) -> DsnImportRevokePeriodResponse:
+    """Supprime l'import DSN d'un mois (cumuls + couverture), sans réimporter."""
+    try:
+        result = service.revoke_period_import(
+            body.company_id,
+            body.period,
+            revoked_by=str(super_admin.get("user_id")),
+        )
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Entreprise introuvable.") from None
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return DsnImportRevokePeriodResponse(**result)
 
 
 @router.get("/batches/pending", response_model=DsnImportBatchListResponse)
@@ -257,6 +278,7 @@ async def commit_import_batch(
             replace_existing_periods=body.replace_existing_periods,
             workforce_resolutions=workforce_resolutions,
             current_user_id=str(super_admin.get("user_id")),
+            remove_orphan_imported_employees=body.remove_orphan_imported_employees,
         )
     except LookupError:
         raise HTTPException(status_code=404, detail="Batch introuvable.") from None
@@ -272,6 +294,7 @@ async def commit_import_batch(
             body.target_company_id,
             workforce_resolutions,
             str(super_admin.get("user_id")),
+            body.remove_orphan_imported_employees,
         )
 
     return DsnImportCommitStartResponse(status="committing", batch_id=batch_id)

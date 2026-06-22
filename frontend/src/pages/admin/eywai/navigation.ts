@@ -38,7 +38,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     items: [
       { name: "Groupe", href: "/super-admin/groups", icon: UsersRound },
       { name: "Entreprises du groupe", href: "/super-admin/companies", icon: Building2 },
-      { name: "Import DSN", href: "/super-admin/dsn-import", icon: FileUp },
+      { name: "Import", href: "/super-admin/dsn-import", icon: FileUp },
       { name: "Utilisateurs", href: "/super-admin/users", icon: Users },
     ],
   },

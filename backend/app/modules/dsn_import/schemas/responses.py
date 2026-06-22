@@ -208,3 +208,9 @@ class DsnCoverageMatrixCompany(BaseModel):
 class DsnCoverageAdminMatrixResponse(BaseModel):
     year: int
     companies: List[DsnCoverageMatrixCompany] = Field(default_factory=list)
+
+
+class DsnImportRevokePeriodResponse(BaseModel):
+    company_id: str
+    period: str
+    cumuls_deleted: int = 0

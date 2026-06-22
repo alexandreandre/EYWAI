@@ -380,6 +380,27 @@ def list_active_employees_without_nir(company_id: str) -> List[Dict[str, Any]]:
         return []
 
 
+def list_dsn_placeholder_employees(company_id: str) -> List[Dict[str, Any]]:
+    """Salariés créés via import DSN (email *.dsn-import.local), sans compte activé."""
+    if not company_id:
+        return []
+    try:
+        client = get_supabase_admin_client()
+        resp = (
+            client.table("employees")
+            .select("id, first_name, last_name, nir, user_id, email, employment_status")
+            .eq("company_id", company_id)
+            .is_("user_id", "null")
+            .like("email", "%.dsn-import.local")
+            .order("last_name")
+            .execute()
+        )
+        return [dict(row) for row in (resp.data or [])]
+    except Exception:
+        logger.exception("Liste salariés placeholder DSN échouée pour %s", company_id)
+        return []
+
+
 def resolve_collective_agreement_id(idcc: str) -> Optional[str]:
     if not idcc:
         return None
@@ -416,3 +437,104 @@ def upsert_company_collective_agreement(company_id: str, agreement_id: str) -> N
         ).execute()
     except Exception:
         logger.exception("Assignation CC entreprise échouée")
+
+
+REVOCATIONS_TABLE = "dsn_import_period_revocations"
+
+
+def list_employees_with_folder(company_id: str) -> List[Dict[str, Any]]:
+    """Salariés de l'entreprise disposant d'un dossier paie sur disque."""
+    if not company_id:
+        return []
+    try:
+        client = get_supabase_admin_client()
+        resp = (
+            client.table("employees")
+            .select("id, employee_folder_name")
+            .eq("company_id", company_id)
+            .not_.is_("employee_folder_name", "null")
+            .neq("employee_folder_name", "")
+            .execute()
+        )
+        return [dict(row) for row in (resp.data or [])]
+    except Exception:
+        logger.exception("Liste salariés avec dossier paie échouée pour %s", company_id)
+        return []
+
+
+def list_revoked_periods(company_id: str) -> List[str]:
+    if not company_id:
+        return []
+    try:
+        client = get_supabase_admin_client()
+        resp = (
+            client.table(REVOCATIONS_TABLE)
+            .select("period")
+            .eq("company_id", company_id)
+            .execute()
+        )
+        return sorted(str(row["period"]) for row in (resp.data or []) if row.get("period"))
+    except Exception:
+        logger.exception("Liste révocations DSN échouée pour %s", company_id)
+        return []
+
+
+def list_revoked_periods_by_company(company_ids: List[str]) -> Dict[str, List[str]]:
+    if not company_ids:
+        return {}
+    try:
+        client = get_supabase_admin_client()
+        resp = (
+            client.table(REVOCATIONS_TABLE)
+            .select("company_id, period")
+            .in_("company_id", company_ids)
+            .execute()
+        )
+        out: Dict[str, List[str]] = {}
+        for row in resp.data or []:
+            cid = str(row.get("company_id") or "")
+            period = row.get("period")
+            if cid and period:
+                out.setdefault(cid, []).append(str(period))
+        for cid in out:
+            out[cid] = sorted(set(out[cid]))
+        return out
+    except Exception:
+        logger.exception("Liste révocations DSN par entreprise échouée")
+        return {}
+
+
+def upsert_period_revocation(
+    company_id: str,
+    period: str,
+    *,
+    revoked_by: Optional[str] = None,
+) -> None:
+    client = get_supabase_admin_client()
+    payload: Dict[str, Any] = {
+        "company_id": company_id,
+        "period": period,
+        "revoked_at": _now_iso(),
+    }
+    if revoked_by:
+        payload["revoked_by"] = revoked_by
+    client.table(REVOCATIONS_TABLE).upsert(
+        payload,
+        on_conflict="company_id,period",
+    ).execute()
+
+
+def clear_period_revocations(company_id: str, periods: List[str]) -> None:
+    if not company_id or not periods:
+        return
+    try:
+        client = get_supabase_admin_client()
+        client.table(REVOCATIONS_TABLE).delete().eq("company_id", company_id).in_(
+            "period", periods
+        ).execute()
+    except Exception:
+        logger.exception(
+            "Suppression révocations DSN échouée pour %s périodes %s",
+            company_id,
+            periods,
+        )

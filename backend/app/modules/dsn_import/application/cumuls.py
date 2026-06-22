@@ -369,6 +369,19 @@ def read_cumuls_file(employee_folder_name: str, month: int) -> Optional[Dict[str
         return None
 
 
+def delete_cumuls_file(employee_folder_name: str, month: int) -> bool:
+    """Supprime cumuls/MM.json s'il existe. Retourne True si un fichier a été supprimé."""
+    folder = payroll_engine_employee_folder(employee_folder_name)
+    path = folder / "cumuls" / f"{month:02d}.json"
+    if not path.is_file():
+        return False
+    try:
+        path.unlink()
+        return True
+    except OSError:
+        return False
+
+
 def rebuild_cumuls_with_previous_on_disk(
     employee_folder_name: str,
     month: int,

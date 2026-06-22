@@ -18,6 +18,7 @@ from app.modules.dsn_import.application.workforce_reconciliation import (
     attach_workforce_reconciliation,
     validate_workforce_resolutions_for_commit,
 )
+from app.modules.dsn_import.application.orphan_employees import attach_reimport_orphans
 from app.modules.dsn_import.application.import_checks import (
     attach_import_context_warnings,
     strip_enrichment_warnings,
@@ -84,6 +85,12 @@ def parse_and_stage(
         all_items,
         summary,
         anomalies,
+        target_company_id=target_company_id,
+        import_mode=mode,
+    )
+    attach_reimport_orphans(
+        all_items,
+        summary,
         target_company_id=target_company_id,
         import_mode=mode,
     )
@@ -444,6 +451,13 @@ def revalidate_preview(
         target_company_id=target_company_id,
         import_mode=mode,
     )
+    attach_reimport_orphans(
+        preview_items,
+        result["summary"],
+        target_company_id=target_company_id
+        or (batch.get("summary") or {}).get("target_company_id"),
+        import_mode=mode,
+    )
     _attach_psc_warnings(preview_items, result["anomalies"])
     _apply_review_to_employees(preview_items)
     result["summary"].update(_employee_state_counts(preview_items))
@@ -500,6 +514,7 @@ def execute_commit(
     target_company_id: Optional[str] = None,
     workforce_resolutions: Optional[List[Dict[str, Any]]] = None,
     current_user_id: Optional[str] = None,
+    remove_orphan_imported_employees: bool = False,
 ) -> Dict[str, Any]:
     return commit_batch(
         batch_id,
@@ -508,6 +523,7 @@ def execute_commit(
         target_company_id=target_company_id,
         workforce_resolutions=workforce_resolutions,
         current_user_id=current_user_id,
+        remove_orphan_imported_employees=remove_orphan_imported_employees,
     )
 
 
@@ -520,6 +536,7 @@ def begin_commit(
     replace_existing_periods: bool = False,
     workforce_resolutions: Optional[List[Dict[str, Any]]] = None,
     current_user_id: Optional[str] = None,
+    remove_orphan_imported_employees: bool = False,
 ) -> bool:
     """
     Bascule le batch en 'committing' avant lancement en arrière-plan.
@@ -556,6 +573,7 @@ def begin_commit(
                     "replace_existing_periods": replace_existing_periods,
                     "workforce_resolutions": resolutions_payload,
                     "current_user_id": current_user_id,
+                    "remove_orphan_imported_employees": remove_orphan_imported_employees,
                 },
             },
         },
@@ -570,6 +588,7 @@ def run_commit(
     target_company_id: Optional[str] = None,
     workforce_resolutions: Optional[List[Dict[str, Any]]] = None,
     current_user_id: Optional[str] = None,
+    remove_orphan_imported_employees: bool = False,
 ) -> None:
     """Exécute le commit (tâche d'arrière-plan). Trace l'échec dans le batch."""
     from app.core.logging import get_logger
@@ -585,6 +604,7 @@ def run_commit(
             target_company_id=target_company_id,
             workforce_resolutions=workforce_resolutions,
             current_user_id=current_user_id,
+            remove_orphan_imported_employees=remove_orphan_imported_employees,
         )
     except Exception as exc:
         logger.exception("Commit arrière-plan batch %s échoué", batch_id)
@@ -702,3 +722,14 @@ def get_admin_coverage_matrix(year: int) -> Dict[str, Any]:
 
 def list_pending_batches(limit: int = 20) -> List[Dict[str, Any]]:
     return repo.list_batches_by_statuses(["previewed", "committing"], limit=limit)
+
+
+def revoke_period_import(
+    company_id: str,
+    period: str,
+    *,
+    revoked_by: Optional[str] = None,
+) -> Dict[str, Any]:
+    from app.modules.dsn_import.application.revoke_period import revoke_period_import as _revoke
+
+    return _revoke(company_id, period, revoked_by=revoked_by)

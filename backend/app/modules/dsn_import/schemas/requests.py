@@ -38,6 +38,13 @@ class DsnImportCommitBody(BaseModel):
         ),
     )
     workforce_resolutions: List[WorkforceResolution] = Field(default_factory=list)
+    remove_orphan_imported_employees: bool = Field(
+        default=False,
+        description=(
+            "Réimport mensuel : supprimer les salariés créés par import DSN "
+            "(email *.dsn-import.local, sans compte activé) absents du fichier analysé."
+        ),
+    )
 
 
 class DsnImportParseQuery(BaseModel):
@@ -58,3 +65,8 @@ class ActivateImportedEmployeeBody(BaseModel):
     employee_id: str
     company_id: str
     email: EmailStr
+
+
+class DsnImportRevokePeriodBody(BaseModel):
+    company_id: str = Field(description="Entreprise concernée")
+    period: str = Field(description="Période YYYY-MM à révoquer")

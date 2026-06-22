@@ -32,7 +32,7 @@ function sheetDescription(config: DsnImportLaunchConfig | null): string {
     return 'Constituez le dossier paie initial (plusieurs mois possibles).';
   }
   if (config.reimport) {
-    return 'Remplace les cumuls du mois et relance la réconciliation effectifs. Les fiches salariés ne sont pas supprimées.';
+    return 'Remplace les cumuls du mois et relance la réconciliation effectifs. Les fiches salariés existantes ne sont pas supprimées automatiquement — une option permet de retirer les salariés importés par erreur.';
   }
   return 'Analysez et validez la DSN mensuelle sans quitter la vue d\u2019ensemble.';
 }
