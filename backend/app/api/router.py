@@ -34,6 +34,7 @@ from app.modules.company_groups.api.router import router as company_groups_route
 from app.modules.cse.api.router import router as cse_router
 from app.modules.dashboard.api.router import router as dashboard_router
 from app.modules.dsn_import.api.router import router as dsn_import_router
+from app.modules.admin_import.api.router import router as admin_import_router
 from app.modules.ijss_tracking.api.router import router as ijss_tracking_router
 from app.modules.employees.api.router import router as employees_router
 from app.modules.employee_exits.api.router import router as employee_exits_router
@@ -128,6 +129,7 @@ router.include_router(company_groups_router)
 router.include_router(cse_router)
 router.include_router(dashboard_router)
 router.include_router(dsn_import_router)
+router.include_router(admin_import_router)
 router.include_router(ijss_tracking_router)
 router.include_router(employees_router)
 router.include_router(employee_exits_router)
