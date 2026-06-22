@@ -2,16 +2,16 @@
 from __future__ import annotations
 
 import io
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill
+from openpyxl.styles import Font
 
 from app.modules.exports.infrastructure.payroll_ledger import (
     build_payroll_ledger,
     ledger_to_od_export_rows,
 )
-from app.shared.utils.export import format_period, generate_csv
+from app.shared.utils.export import generate_csv
 
 LIST_HEADERS = [
     "Employé",

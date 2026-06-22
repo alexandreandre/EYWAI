@@ -1,10 +1,10 @@
 from app.core.logging import get_logger, log_payroll_debug
 
-logger = get_logger("modules.payroll.engine.calculT")
-# moteur_paie/calcul_T.py
-
 from .contexte import ContextePaie
 
+
+logger = get_logger("modules.payroll.engine.calculT")
+# moteur_paie/calcul_T.py
 
 def calculer_parametre_T(contexte: ContextePaie) -> float:
     """

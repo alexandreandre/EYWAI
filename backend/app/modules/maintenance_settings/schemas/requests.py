@@ -2,7 +2,7 @@
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 SubrogationModeLiteral = Literal["when_maintien", "automatic", "at_mp_only", "per_case"]
 

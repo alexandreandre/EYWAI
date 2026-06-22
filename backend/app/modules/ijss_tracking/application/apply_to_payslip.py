@@ -31,21 +31,21 @@ def _resolve_brut_amount(
     received = repo.list_received_lines(period_id)
     emp_id = str(expected.get("employee_id") or "")
     cpam = sum(
-        float(l.get("amount") or 0)
-        for l in received
-        if str(l.get("employee_id") or "") == emp_id
-        and l.get("source") == "cpam_decompte"
-        and l.get("match_status") == "matched"
+        float(line.get("amount") or 0)
+        for line in received
+        if str(line.get("employee_id") or "") == emp_id
+        and line.get("source") == "cpam_decompte"
+        and line.get("match_status") == "matched"
     )
     if cpam > 0:
         return round(cpam, 2), "cpam_decompte"
 
     bank = sum(
-        float(l.get("amount") or 0)
-        for l in received
-        if str(l.get("employee_id") or "") == emp_id
-        and l.get("source") == "bank_transfer"
-        and l.get("match_status") == "matched"
+        float(line.get("amount") or 0)
+        for line in received
+        if str(line.get("employee_id") or "") == emp_id
+        and line.get("source") == "bank_transfer"
+        and line.get("match_status") == "matched"
     )
     if bank > 0:
         return round(bank, 2), "bank_transfer"

@@ -10,6 +10,10 @@ Ce service détecte automatiquement si un employé est en forfait jour
 et utilise le générateur approprié.
 """
 
+from app.core.logging import get_logger
+
+logger = get_logger("modules.payroll.documents.payslip_generator_forfait")
+
 import json
 import logging
 import traceback

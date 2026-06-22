@@ -4,7 +4,7 @@ Requêtes Supabase complexes pour saisies et avances.
 Listes enrichies (jointures, agrégations), saisies/avances par période,
 salaire journalier, avances restant à rembourser. Comportement identique au legacy.
 """
-from app.core.logging import get_logger, log_app_debug
+from app.core.logging import get_logger
 
 logger = get_logger("modules.saisies_avances.infrastructure.queries")
 

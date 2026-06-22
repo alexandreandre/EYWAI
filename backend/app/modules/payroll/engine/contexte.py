@@ -2,7 +2,6 @@ from app.core.logging import get_logger, log_payroll_debug
 
 logger = get_logger("modules.payroll.engine.contexte")
 import json
-import sys
 import os
 import tempfile
 import shutil

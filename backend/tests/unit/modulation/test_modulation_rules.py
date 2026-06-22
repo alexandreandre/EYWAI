@@ -45,5 +45,5 @@ def test_annual_balance_near_zero_for_alternating_cycle():
 
 
 def test_balance_positive_when_overtime():
-    settings = _settings_enabled()
+    _settings_enabled()
     assert compute_balance_hours(32.0, 40.0) == 8.0

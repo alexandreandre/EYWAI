@@ -3,7 +3,6 @@
 from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from app.modules.companies.application import queries
 from app.modules.companies.application.dto import CompanyOverviewDto

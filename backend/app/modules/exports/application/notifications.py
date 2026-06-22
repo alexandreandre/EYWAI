@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Sequence
+from typing import Optional, Sequence
 
 from app.core.logging import get_logger
 from app.modules.exports.application import service as export_service

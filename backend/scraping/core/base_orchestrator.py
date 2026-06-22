@@ -31,7 +31,6 @@ from core.pending import (
     build_ai_candidate,
     config_changed,
     create_pending_change,
-    get_last_approved_change,
     requires_human_gate,
     resolve_source_id,
 )
@@ -44,7 +43,6 @@ from core.supabase_io import (
     persist_full_config,
     touch_last_checked_at,
 )
-from core.validation import ValidationResult
 from scraper_manifest import tier_for
 from utils import is_non_blocking_scraper_label, run_labeled_script
 

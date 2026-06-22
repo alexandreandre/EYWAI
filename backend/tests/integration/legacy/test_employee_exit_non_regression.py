@@ -250,7 +250,6 @@ def test_rupture_conventionnelle_portability(
     }
     mock_get_calc.return_value = calc
 
-    storage = mock_get_storage.return_value
 
     with patch.object(commands.document_service, "trace_existing_document", return_value="t1"):
         with patch.object(

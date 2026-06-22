@@ -5,9 +5,6 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from app.modules.absences.application.cp_seniority_queries import (
-    build_employee_cp_seniority_context,
-)
 from app.modules.absences.application.queries import _leave_context
 from app.modules.absences.domain.fractionnement import ouvrables_to_ouvres
 from app.modules.absences.domain.rules import compute_cp_balances_for_bulletin

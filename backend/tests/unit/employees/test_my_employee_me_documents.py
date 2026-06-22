@@ -1,8 +1,7 @@
 """Routes /api/employees/me/* documents : résolution employees.id."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app.core.security import get_current_user

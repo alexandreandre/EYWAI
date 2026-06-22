@@ -517,8 +517,8 @@ def build_payroll_ledger(
     tracker = _BalanceTracker()
 
     m_brut = _resolve_mapping(mappings, "salaire_brut")
-    m_net = _resolve_mapping(mappings, "net_a_payer")
-    m_cot_sal = _resolve_mapping(mappings, "cotisation_salariale")
+    _resolve_mapping(mappings, "net_a_payer")
+    _resolve_mapping(mappings, "cotisation_salariale")
     m_cot_pat = _resolve_mapping(mappings, "cotisation_patronale")
     m_dette = _resolve_mapping(mappings, "dette_organisme")
 
@@ -821,7 +821,7 @@ def _filter_by_scope(
         return ecritures
 
     ref = ecritures[0].get("reference_export", "") if ecritures else ""
-    period_ref = ref.split("_")[-1] if ref else ""
+    ref.split("_")[-1] if ref else ""
 
     def _is_salaires(e: Dict[str, Any]) -> bool:
         lib = e.get("libelle", "")

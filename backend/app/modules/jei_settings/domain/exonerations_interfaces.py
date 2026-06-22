@@ -1,7 +1,6 @@
 """Port persistance cumuls exonération JEI (plafond 5 PASS)."""
 
 from abc import ABC, abstractmethod
-from typing import Optional
 
 
 class AbstractJeiExonerationsRepository(ABC):

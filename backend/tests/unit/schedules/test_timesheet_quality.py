@@ -4,7 +4,7 @@ from app.modules.schedules.application.timesheet_quality import (
     COVERAGE_INCOMPLETE_THRESHOLD,
     run_quality_checks,
 )
-from app.modules.schedules.schemas.ai import AiDayEntry, AiEmployeeProposal, RosterEmployee
+from app.modules.schedules.schemas.ai import AiDayEntry, AiEmployeeProposal
 
 
 def _emp(**kwargs) -> AiEmployeeProposal:

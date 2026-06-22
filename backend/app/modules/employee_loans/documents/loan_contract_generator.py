@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from io import BytesIO
-from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from jinja2 import Environment, FileSystemLoader
 from weasyprint import HTML

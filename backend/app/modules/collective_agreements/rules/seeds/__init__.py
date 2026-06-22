@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import Optional
 
 from app.modules.collective_agreements.rules.schema import (
-    BaseCalculPrime,
     CCRulesDocument,
     CpAnciennete,
     GrilleSalaires,

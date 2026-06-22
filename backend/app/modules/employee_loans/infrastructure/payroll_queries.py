@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from app.core.database import supabase
 from app.modules.employee_loans.domain.constants import DEFAULT_LEGAL_INTEREST_RATE
@@ -142,7 +142,7 @@ def get_employee_outstanding_loans(employee_id: str) -> Dict[str, Any]:
         .execute()
     )
     loans = res.data or []
-    total = sum(float(l.get("remaining_capital") or 0) for l in loans)
+    total = sum(float(loan.get("remaining_capital") or 0) for loan in loans)
     return {
         "employee_id": employee_id,
         "total_remaining_capital": round(total, 2),

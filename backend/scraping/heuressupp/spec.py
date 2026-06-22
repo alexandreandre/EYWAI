@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import math
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from core.rate_spec import PersistenceMode, RateSpec, ScraperScript
 from core.validation import ValidationResult, require_float_range

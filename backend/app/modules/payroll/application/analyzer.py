@@ -6,8 +6,6 @@ Migré depuis services/payroll_analyzer.py (fusion avec backend_api/payroll_anal
 """
 from app.core.logging import get_logger, log_payroll_debug
 
-logger = get_logger("modules.payroll.application.analyzer")
-
 from app.modules.payroll.planning_repli import mois_sans_pointage
 
 from datetime import date
@@ -16,6 +14,9 @@ from collections import defaultdict
 
 # Champs à recoller sur les événements agrégés (jour, type, heures) pour le maintien de salaire
 # et la cohérence avec payslip_run_heures._extraire_arret_pour_maintien / calcul_brut.
+
+logger = get_logger("modules.payroll.application.analyzer")
+
 _MAINTIEN_EVENT_META_KEYS: tuple[str, ...] = (
     "arret_type",
     "subrogation_active",

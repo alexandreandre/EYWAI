@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import copy
 
-import pytest
 
 from app.modules.payslips.domain.comparison_engine import compute_comparison
 

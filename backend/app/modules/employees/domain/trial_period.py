@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 from typing import Any, Dict, Optional
 
 from app.modules.employees.domain.trial_period_shared import (

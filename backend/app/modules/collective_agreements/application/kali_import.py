@@ -19,7 +19,6 @@ from app.modules.collective_agreements.application.service import (
     CollectiveAgreementsService,
     get_collective_agreements_service,
 )
-from app.modules.collective_agreements.domain.exceptions import ValidationError
 from app.modules.collective_agreements.infrastructure.kali_client import (
     KaliClient,
     KaliNotFoundError,

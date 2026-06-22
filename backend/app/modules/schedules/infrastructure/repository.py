@@ -3,7 +3,7 @@ Repository employee_schedules : implémentation Supabase du port IScheduleReposi
 
 Tout accès DB à la table employee_schedules. Comportement identique à l'ancien router.
 """
-from app.core.logging import get_logger, log_app_debug
+from app.core.logging import get_logger
 
 logger = get_logger("modules.schedules.infrastructure.repository")
 

@@ -16,7 +16,7 @@ import threading
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from app.core.logging import get_logger
 from app.core.paths import SCRAPING_ROOT
@@ -710,11 +710,11 @@ def run_tripwire_background(
         )
         return
 
-    logs = [l for l in (result.stdout or "").splitlines() if l.strip()]
+    logs = [line for line in (result.stdout or "").splitlines() if line.strip()]
     logs += [
-        _format_subprocess_log_line(l, from_stderr=True)
-        for l in (result.stderr or "").splitlines()
-        if l.strip()
+        _format_subprocess_log_line(line, from_stderr=True)
+        for line in (result.stderr or "").splitlines()
+        if line.strip()
     ]
     success = result.returncode == 0
     duration_ms = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)

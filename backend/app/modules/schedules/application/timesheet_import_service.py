@@ -13,10 +13,12 @@ from app.modules.schedules.application.schedule_import_audit import record_sched
 from app.modules.schedules.application.timesheet_extract_config import timesheet_extract_mode
 from app.modules.schedules.application.timesheet_import.batch_service import (
     create_batch_from_proposal,
-    proposal_to_items,
 )
 from app.modules.schedules.infrastructure.schedule_import_storage import (
     upload_schedule_import_file,
+)
+from app.modules.schedules.application.timesheet_import.parse_service import (
+    parse_with_llm_fallback,
 )
 from app.modules.schedules.schemas.ai import AiCalendarProposalResponse, RosterEmployee
 

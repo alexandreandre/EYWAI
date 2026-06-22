@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Literal, Optional
+from typing import Literal, Optional
 
 SmtpSecurity = Literal["starttls", "ssl", "none"]
 

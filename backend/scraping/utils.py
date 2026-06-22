@@ -9,7 +9,6 @@ import sys
 import threading
 import time
 import requests
-from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 import json
 
@@ -256,7 +255,7 @@ def run_labeled_script(
             continue
 
     if payload is None:
-        preview = next((l for l in reversed(stdout_lines) if l.strip()), "")
+        preview = next((line for line in reversed(stdout_lines) if line.strip()), "")
         logging.error(
             "✗ Scraper %s — sortie non-JSON (%0.1fs). Dernière ligne : %s",
             label,

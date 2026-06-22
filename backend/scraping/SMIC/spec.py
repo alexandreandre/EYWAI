@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from core.cotisation_helpers import equal_sections_keys
 from core.rate_spec import PersistenceMode, RateSpec, ScraperScript

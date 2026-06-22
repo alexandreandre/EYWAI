@@ -7,7 +7,7 @@ Comportement identique à l'ancien routeur api/routers/company.py.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Dict, Optional
 
 from app.modules.companies.application.dto import (
     CompanyDetailsWithKpisDto,

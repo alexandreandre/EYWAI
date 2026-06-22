@@ -44,7 +44,7 @@ def save_oeth_settings(company_id: str, data: OethSettingsUpdate) -> OethSetting
     patch = data.model_dump(exclude_unset=True)
     merged.update(patch)
     payload = {k: merged[k] for k in _DB_WRITABLE_KEYS if k in merged}
-    row = oeth_settings_repository.upsert(company_id, payload)
+    oeth_settings_repository.upsert(company_id, payload)
     return queries.get_oeth_settings(company_id)
 
 
@@ -54,7 +54,7 @@ def save_employee_boeth(
     if data.boeth_code not in BOETH_CODES:
         raise ValueError(f"Code BOETH invalide : {data.boeth_code}")
     payload = data.model_dump(mode="json")
-    row = boeth_profiles_repository.upsert_profile(company_id, employee_id, payload)
+    boeth_profiles_repository.upsert_profile(company_id, employee_id, payload)
     prof = queries.get_employee_boeth(employee_id, company_id)
     if not prof:
         raise RuntimeError("Profil BOETH introuvable après enregistrement")

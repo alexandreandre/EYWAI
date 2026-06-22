@@ -3,7 +3,7 @@
 import importlib.util
 from unittest.mock import MagicMock, patch
 
-from tests.unit.scraping.helpers import SCRAPING_ROOT, load_scraping_fixture
+from tests.unit.scraping.helpers import SCRAPING_ROOT
 
 
 def _load_module(folder: str, filename: str, mod_name: str):

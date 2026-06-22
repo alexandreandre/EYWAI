@@ -10,7 +10,7 @@ from app.modules.exports.infrastructure.export_paiement_salaires import (
     get_paiement_salaires_data,
     validate_iban,
 )
-from app.shared.utils.export import format_period, generate_csv
+from app.shared.utils.export import format_period
 
 NS = "urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"
 

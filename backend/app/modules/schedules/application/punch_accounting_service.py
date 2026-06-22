@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Any, List, Optional
+from typing import Any, List
 
 from app.modules.schedules.domain.punch_accounting_entities import PlannedShiftBreak
 from app.modules.schedules.domain.punch_accounting_rules import (

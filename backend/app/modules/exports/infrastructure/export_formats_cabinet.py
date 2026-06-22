@@ -1,8 +1,6 @@
 # Formats cabinet comptable (générique, Quadra natif, Sage natif).
 from __future__ import annotations
 
-import csv
-import io
 from typing import Any, Dict, List, Optional
 
 from app.shared.utils.export import format_period, generate_csv, generate_xlsx

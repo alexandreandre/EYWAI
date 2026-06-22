@@ -231,7 +231,7 @@ def main() -> int:
         return 1
 
     print(f"  Statut initial     : {emp_row.get('employment_status')}")
-    print(f"  PDF identifiants   : OK")
+    print("  PDF identifiants   : OK")
 
     print("\n=== 4. Onboarding (tâches + fiche paie) ===")
     refreshed = complete_onboarding(employee_id, company_id, actor_id)
@@ -274,15 +274,15 @@ def main() -> int:
     print("FLUX RH TERMINÉ — COLLABORATEUR PRÊT")
     print("=" * 60)
     print(f"\nFiche RH           : /employees/{employee_id}")
-    print(f"Liste collaborateurs (filtre Actif) : /employees")
+    print("Liste collaborateurs (filtre Actif) : /employees")
     print(f"Onboarding         : /onboarding/{employee_id}")
     print(f"Candidat embauché  : {candidate_id}")
-    print(f"\n--- Identifiants (mot de passe aléatoire, affiché une seule fois) ---")
+    print("\n--- Identifiants (mot de passe aléatoire, affiché une seule fois) ---")
     print(f"  Email              : {email}")
     print(f"  Nom d'utilisateur  : {username}")
     print(f"  Mot de passe       : {generated_password}")
-    print(f"\n--- Documents ---")
-    print(f"  RH → fiche → Documents → Autres → « Identifiants de connexion »")
+    print("\n--- Documents ---")
+    print("  RH → fiche → Documents → Autres → « Identifiants de connexion »")
     print("=" * 60)
     return 0
 

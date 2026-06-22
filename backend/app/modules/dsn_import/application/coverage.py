@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from calendar import monthrange
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.modules.dsn_import.infrastructure import repository as repo

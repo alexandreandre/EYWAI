@@ -1,6 +1,6 @@
 """Tests commit batch import pointages (mock DB)."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

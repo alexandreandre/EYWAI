@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from app.modules.dsn_import.domain.model import AffiliationBlock, ContratBlock, CotisationBlock
+from app.modules.dsn_import.domain.model import AffiliationBlock, ContratBlock
 from app.modules.dsn_import.domain.normalize import map_statut_cadre
 
 PSC_COTISATION_CODES = {"059", "031", "032", "033"}

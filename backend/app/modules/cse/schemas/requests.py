@@ -4,7 +4,7 @@ Schémas de requête CSE (Create, Update, Add, Start, params).
 Comportement identique à l'ancien schemas.cse.
 """
 
-from datetime import date as date_type, datetime, time
+from datetime import date as date_type, time
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator

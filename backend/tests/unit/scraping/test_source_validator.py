@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from agent.source_registry import (
     RATE_KEY_TO_SOURCE_KEYS,

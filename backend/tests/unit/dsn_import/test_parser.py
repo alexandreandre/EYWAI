@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-import pytest
 
 from app.modules.dsn_import.domain.parser import parse_dsn_content, parse_dsn_files
 

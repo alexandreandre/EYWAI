@@ -1,6 +1,5 @@
 """Tests routing TIMESHEET_EXTRACT_MODE."""
 
-import os
 from unittest.mock import patch
 
 import pytest

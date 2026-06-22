@@ -24,8 +24,6 @@ from app.modules.payroll.solde_de_tout_compte.common.pdf_helpers import (
 )
 
 from app.shared.infrastructure.pdf.helpers import (
-    format_salary_euros,
-    get_company_address,
     get_company_city,
     get_company_signatory,
 )

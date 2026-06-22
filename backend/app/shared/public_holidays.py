@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import List, Sequence
 
 from app.core.database import supabase
 from app.modules.absences.domain.rtt_forfait import french_public_holiday_dates

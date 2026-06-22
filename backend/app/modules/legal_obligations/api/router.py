@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.http_dependencies import map_application_exception, require_active_company
 from app.core.platform_admin import is_platform_admin

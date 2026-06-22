@@ -175,6 +175,10 @@ class TestCalculatePayrollEvents:
                 "app.modules.schedules.application.commands.payroll_analyzer_provider",
                 analyzer,
             ),
+            patch(
+                "app.modules.schedules.application.punch_accounting_service.inject_approved_punch_overtime_into_calendar",
+                side_effect=lambda cal, *_args, **_kwargs: cal,
+            ),
         ):
             result = commands.calculate_payroll_events("emp-1", 2025, 3)
 

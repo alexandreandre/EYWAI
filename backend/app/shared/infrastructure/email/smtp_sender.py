@@ -11,7 +11,7 @@ from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import List, Optional, Sequence, Tuple
+from typing import Optional, Sequence, Tuple
 
 from app.core.logging import get_logger, is_app_debug_enabled
 from app.modules.platform_settings.application.email_config import (

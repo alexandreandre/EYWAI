@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from dateutil.relativedelta import relativedelta
 
 from app.modules.employee_exits.domain.notice_period import compute_seniority_months
 from app.modules.work_medals.domain.entities import (
-    AmountMode,
     CaseStatus,
     MedalLevel,
     MedalTier,

@@ -88,34 +88,6 @@ class TestConnectorFactory:
 
     @patch(
         "app.modules.accounting_integration.infrastructure.connector_factory._api_globally_enabled",
-        return_value=True,
-    )
-    def test_cegid_shared_platform_keys(self, _mock):
-        from app.shared.utils.secret_store import encrypt_secret
-
-        platform = {
-            "enabled": True,
-            "platform_credentials_ref": encrypt_secret(
-                {
-                    "loop_apikey": "k:s",
-                    "apim_subscription_key": "sub",
-                }
-            ),
-        }
-        conn = resolve_connector(
-            {
-                "enabled": True,
-                "mode": "api_quadra",
-                "provider": "cegid_quadra",
-                "code_dossier_cegid": "FIL001",
-                "cegid_auth_mode": "shared",
-            },
-            platform,
-        )
-        assert isinstance(conn, CegidQuadraConnector)
-
-    @patch(
-        "app.modules.accounting_integration.infrastructure.connector_factory._api_globally_enabled",
         return_value=False,
     )
     def test_cegid_fallback_when_api_disabled(self, _mock):

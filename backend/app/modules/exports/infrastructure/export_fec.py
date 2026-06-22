@@ -5,13 +5,11 @@ import io
 from calendar import monthrange
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
-from uuid import uuid4
 
 from app.modules.exports.infrastructure.payroll_ledger import (
     build_payroll_ledger,
     ledger_to_od_export_rows,
 )
-from app.shared.utils.export import format_period
 
 FEC_COLUMNS = [
     "JournalCode",

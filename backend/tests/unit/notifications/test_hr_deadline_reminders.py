@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from app.modules.employees.domain.deadline_reminders import (
     REMINDER_TYPE_CDD,

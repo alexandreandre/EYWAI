@@ -6,7 +6,7 @@ app.modules.absences.infrastructure (evenements_familiaux, salary_certificate_ge
 """
 
 from __future__ import annotations
-from app.core.logging import get_logger, log_app_debug
+from app.core.logging import get_logger
 
 logger = get_logger("modules.absences.infrastructure.providers")
 

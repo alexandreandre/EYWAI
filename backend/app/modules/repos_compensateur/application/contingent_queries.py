@@ -9,7 +9,6 @@ from typing import Any
 
 from app.modules.repos_compensateur.domain.contingent_rules import (
     ContingentEmployeeInput,
-    ContingentSettings,
     aggregate_contingent_kpis,
     compute_contingent_breakdown,
     compute_monthly_breakdown,

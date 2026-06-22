@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
 
 from app.modules.collective_agreements.rules.extractor import CCRulesExtractor
 from app.shared.infrastructure.ai.structured_extractor import StructuredExtractionResult

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 from core.cotisation_helpers import patch_cotisation_fields, payload_sections
 from core.rate_spec import PersistenceMode, RateSpec, ScraperScript

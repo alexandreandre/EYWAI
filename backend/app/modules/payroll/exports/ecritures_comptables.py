@@ -1,8 +1,4 @@
-from app.core.logging import get_logger, log_payroll_debug
-
-logger = get_logger("modules.payroll.exports.ecritures_comptables")
-# app/modules/payroll/exports/ecritures_comptables.py
-# Migré depuis services/exports/ecritures_comptables.py. Export des écritures comptables (OD).
+from app.core.logging import get_logger
 
 from calendar import monthrange
 from typing import Any, Dict, List, Optional, Tuple
@@ -10,6 +6,10 @@ from typing import Any, Dict, List, Optional, Tuple
 from app.core.database import supabase
 from app.shared.utils.export import format_period, generate_csv, generate_xlsx
 
+
+logger = get_logger("modules.payroll.exports.ecritures_comptables")
+# app/modules/payroll/exports/ecritures_comptables.py
+# Migré depuis services/exports/ecritures_comptables.py. Export des écritures comptables (OD).
 
 DEFAULT_MAPPINGS = {
     "salaire_brut": {

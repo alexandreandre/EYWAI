@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from app.modules.training.infrastructure.repository import training_repository
 from app.modules.training.schemas.responses import (
+    CcTrainingSuggestion,
     TrainingCatalog,
     TrainingEnrollment,
     TrainingEvaluationSummaryItem,

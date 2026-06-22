@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import date
 from unittest.mock import patch
 
 from app.modules.work_medals.application.detection import scan_company_work_medals

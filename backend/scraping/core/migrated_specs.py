@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Optional
 
 from core.cotisation_helpers import (
     equal_sections_keys,
@@ -19,10 +19,8 @@ from core.rate_spec import PersistenceMode, RateSpec, ScraperScript
 from core.validation import (
     ValidationResult,
     validate_csg_valeurs,
-    validate_dialogue_social,
     validate_ij_plafonds,
     validate_pss_sections,
-    validate_smic_sections,
     require_float_range,
     require_non_null_patronal,
 )

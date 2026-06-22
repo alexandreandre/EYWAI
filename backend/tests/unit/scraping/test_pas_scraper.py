@@ -1,6 +1,5 @@
 """Tests unitaires du scraper PAS (sans appel réseau)."""
 
-import importlib.util
 from pathlib import Path
 
 from scraping.PAS.PAS import _zone_from_caption, norm, scrape_bofip

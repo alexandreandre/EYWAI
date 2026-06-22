@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Set
 
 from app.core.database import supabase
 from app.modules.oeth_settings.domain.constants import DEFAULT_OETH_CONFIG

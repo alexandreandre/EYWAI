@@ -25,7 +25,6 @@ from app.shared.infrastructure.pdf.helpers import (
 
 from app.modules.annual_reviews.domain.interview_types import (
     INTERVIEW_TYPE_LABELS,
-    interview_type_label,
 )
 
 INTERVIEW_TYPE_LABELS = INTERVIEW_TYPE_LABELS  # compat re-export

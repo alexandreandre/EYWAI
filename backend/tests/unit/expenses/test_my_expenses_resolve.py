@@ -1,6 +1,6 @@
 """Résolution employé pour les routes notes de frais collaborateur."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from app.modules.expenses.application.queries import (
     get_my_expenses_for_user_account,

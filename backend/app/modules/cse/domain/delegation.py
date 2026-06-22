@@ -218,7 +218,7 @@ def compute_rolling_balances(
     Calcule les soldes pour une séquence de mois (ordre chronologique).
     Chaque mois utilise les soldes non consommés des mois précédents pour le report.
     """
-    base = credit_base(role, reference_headcount, monthly_hours_override)
+    credit_base(role, reference_headcount, monthly_hours_override)
     prior_unused: Dict[Tuple[int, int], float] = {}
     results: Dict[Tuple[int, int], MonthlyCreditDetail] = {}
 

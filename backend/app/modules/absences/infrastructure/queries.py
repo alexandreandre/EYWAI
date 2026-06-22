@@ -37,18 +37,6 @@ def get_employee_company_id(employee_id: str) -> Optional[str]:
     return None
 
 
-def get_employee_company_id(employee_id: str) -> Optional[str]:
-    """Retourne company_id pour un employé."""
-    r = (
-        supabase.table("employees")
-        .select("company_id")
-        .eq("id", employee_id)
-        .maybe_single()
-        .execute()
-    )
-    return r.data.get("company_id") if r and r.data else None
-
-
 def get_employees_hire_dates_batch(
     employee_ids: List[str],
 ) -> Dict[str, date]:

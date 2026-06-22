@@ -288,7 +288,7 @@ class TestCalculerMaintienScenarios:
         assert "ALD" in c["motif_carence"] and "rechute" in c["motif_carence"].lower()
 
     def test_t14_regularisation_at_delta_ijss(self):
-        p_debut, p_fin = date(2025, 6, 1), date(2025, 6, 30)
+        _p_debut, _p_fin = date(2025, 6, 1), date(2025, 6, 30)
         arret = {
             "arret_type": "accident_travail",
             "date_debut": "2025-06-01",

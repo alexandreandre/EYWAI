@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import date
 from typing import Any
 
 from app.modules.absences.application import cp_seniority_queries
@@ -12,9 +11,6 @@ from app.modules.absences.domain.cp_seniority_resolver import (
     PLASTURGIE_0292_RULES,
 )
 from app.modules.absences.infrastructure import cp_seniority_repository as repo
-from app.modules.absences.infrastructure.leave_settings_repository import (
-    get_leave_policy,
-)
 
 _WRITABLE_KEYS = frozenset(
     {

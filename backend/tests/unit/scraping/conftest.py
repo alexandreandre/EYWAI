@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from .helpers import FIXTURES_ROOT, SCRAPING_ROOT, load_scraping_fixture
+from .helpers import SCRAPING_ROOT, load_scraping_fixture
 
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
 

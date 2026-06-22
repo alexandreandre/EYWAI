@@ -5,7 +5,7 @@ Chargement centralisé des barèmes payroll_config (moteur + simulation + tests)
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 
 def _float_in_range(value: Any, *, name: str, min_v: float, max_v: float) -> Optional[str]:

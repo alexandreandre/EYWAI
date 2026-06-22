@@ -1,11 +1,11 @@
 from app.core.logging import get_logger, log_payroll_debug
 
-logger = get_logger("modules.payroll.engine.calcul_absences")
 from datetime import date, timedelta
 from typing import Dict, Any
 from .contexte import ContextePaie
 
 
+logger = get_logger("modules.payroll.engine.calcul_absences")
 def _compter_heures_absence(
     contexte: ContextePaie, date_debut: date, date_fin: date
 ) -> float:

@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
-import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from app.modules.ijss_tracking.infrastructure.parsers.bank_recap_parser import (
     _parse_amount,

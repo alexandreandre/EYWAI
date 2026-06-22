@@ -7,7 +7,7 @@ Comportement strictement identique.
 """
 
 from __future__ import annotations
-from app.core.logging import get_logger, log_app_debug
+from app.core.logging import get_logger
 
 logger = get_logger("modules.repos_compensateur.application.service")
 

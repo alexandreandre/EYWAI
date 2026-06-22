@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.security import get_current_user
 from app.modules.access_control.application.service import access_control_service
-from app.modules.cet.application import commands, queries, service as cet_service
+from app.modules.cet.application import queries, service as cet_service
 from app.modules.cet.schemas.requests import (
     CetAdjustmentCreate,
     CetDepositCpRequest,

@@ -540,7 +540,7 @@ def run_payslip_generation_heures(
         lignes_cotisations.extend(lignes_csg_ijss)
         total_salarial = round(
             total_salarial
-            + sum(l.get("montant_salarial", 0.0) or 0.0 for l in lignes_csg_ijss),
+            + sum(ligne.get("montant_salarial", 0.0) or 0.0 for ligne in lignes_csg_ijss),
             2,
         )
     if ijss_imposables:

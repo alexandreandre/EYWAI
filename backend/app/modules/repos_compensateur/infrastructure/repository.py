@@ -6,14 +6,14 @@ Comportement identique à l'ancien code (upsert, lecture jours par employé/ann�
 """
 
 from __future__ import annotations
-from app.core.logging import get_logger, log_app_debug
-
-logger = get_logger("modules.repos_compensateur.infrastructure.repository")
+from app.core.logging import get_logger
 
 from app.core.database import supabase
 from app.modules.repos_compensateur.domain.entities import ReposCredit
 from app.modules.repos_compensateur.infrastructure.mappers import credit_to_row
 
+
+logger = get_logger("modules.repos_compensateur.infrastructure.repository")
 
 def upsert_credit(credit: ReposCredit) -> bool:
     """

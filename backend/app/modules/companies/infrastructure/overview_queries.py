@@ -4,7 +4,7 @@ Lecture agrégée pour GET /api/company/overview.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, Set
 
 from app.core.database import supabase
 

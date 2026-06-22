@@ -14,7 +14,7 @@ from app.modules.collective_agreements.rules.schema import (
 from app.modules.collective_agreements.rules.seeds.metallurgie_3248 import (
     METALLURGIE_3248_SEED,
 )
-from app.modules.payroll.engine.contexte import ChargerContexte
+from app.modules.payroll.engine.contexte import ChargerContexte, ContextePaie
 from app.modules.payroll.engine.prime_anciennete import calculer_ligne_prime_anciennete
 from tests.unit.payroll.fixtures.baremes_snapshot import baremes_snapshot
 

@@ -4,7 +4,7 @@ Contrôles qualité automatiques pour les propositions d'import de pointages.
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional, Set
+from typing import List, Literal, Set
 
 from app.modules.schedules.schemas.ai import (
     AiEmployeeProposal,

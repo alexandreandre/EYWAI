@@ -17,7 +17,6 @@ from app.core.security import get_current_user
 from app.modules.employees.api.deps import (
     assert_can_read_employee_profile,
     require_rh_access,
-    resolve_my_employee_id,
 )
 from app.modules.employees.api.router_me import me_router
 from app.modules.audit.application.commands import log_audit_event

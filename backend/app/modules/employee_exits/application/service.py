@@ -3,15 +3,16 @@ Service applicatif partagé du module employee_exits.
 
 Délègue à l'infrastructure (repositories, queries). Comportement identique au router.
 """
-from app.core.logging import get_logger, log_app_debug
-
-logger = get_logger("modules.employee_exits.application.service")
+from app.core.logging import get_logger
 
 from typing import Any, Dict, List
 
 from app.modules.employee_exits.infrastructure import queries as infra_queries
 
 # Liste des items par défaut (règle métier : contenu fixe)
+
+logger = get_logger("modules.employee_exits.application.service")
+
 DEFAULT_CHECKLIST_ITEMS: List[Dict[str, Any]] = [
     {
         "item_code": "badge_return",

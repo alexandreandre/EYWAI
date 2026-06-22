@@ -6,7 +6,7 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from cotisation_sync import persist_cotisations_config
 from supabase import Client, create_client

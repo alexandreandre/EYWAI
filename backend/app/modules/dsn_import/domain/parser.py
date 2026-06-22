@@ -120,7 +120,6 @@ from app.modules.dsn_import.domain.rubriques import (
     R_S21_VER_DATE,
     R_S21_VER_NET_FISCAL,
     R_S21_VER_NET_VERSE,
-    R_S21_VER_NUMERO,
     R_S21_VER_PAS,
     R_S21_VER_PAS_ASSIETTE,
     R_S21_VER_PAS_ID,

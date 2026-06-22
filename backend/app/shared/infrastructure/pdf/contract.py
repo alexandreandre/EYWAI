@@ -5,7 +5,6 @@ Contrat type conforme aux mentions obligatoires de l'article L1221-1
 et suivants du Code du travail (version allégée, à personnaliser par l'employeur).
 """
 
-import base64
 from datetime import date
 from html import escape
 from pathlib import Path

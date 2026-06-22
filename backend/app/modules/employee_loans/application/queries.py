@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from app.modules.employee_loans.infrastructure.payroll_queries import (
     get_employee_outstanding_loans,
@@ -15,7 +15,6 @@ from app.modules.employee_loans.infrastructure.repository import (
 )
 from app.modules.employee_loans.schemas.responses import (
     AmortizationPreview,
-    AmortizationPreviewLine,
     EmployeeLoan,
     EmployeeLoanOutstanding,
     LoanInstallment,
@@ -58,7 +57,7 @@ def get_employee_loans(employee_id: str, company_id: str) -> List[EmployeeLoan]:
 
 def get_outstanding_for_employee(employee_id: str) -> EmployeeLoanOutstanding:
     data = get_employee_outstanding_loans(employee_id)
-    loans = [EmployeeLoan.model_validate(l) for l in data.get("loans", [])]
+    loans = [EmployeeLoan.model_validate(loan) for loan in data.get("loans", [])]
     return EmployeeLoanOutstanding(
         employee_id=employee_id,
         total_remaining_capital=data["total_remaining_capital"],

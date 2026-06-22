@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date, datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from app.modules.signatures.infrastructure import queries as infra_queries
 from app.modules.signatures.schemas.responses import PendingSignatureItem, PendingSignaturesResponse

@@ -24,7 +24,6 @@ from app.modules.net_entreprises.domain.interfaces import (
 from app.modules.net_entreprises.domain.value_objects import (
     ConnectionTestResult,
     TransmissionMode,
-    TransmissionResult,
     TransmissionStatus,
     is_api_mode,
 )

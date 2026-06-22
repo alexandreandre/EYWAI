@@ -1,8 +1,7 @@
-from app.core.logging import get_logger, log_app_debug
+from app.core.logging import get_logger
 
 logger = get_logger("modules.exports.infrastructure.export_ecritures_comptables")
 # Implémentation locale des écritures comptables OD (ex-services.exports.ecritures_comptables).
-from calendar import monthrange
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.database import supabase

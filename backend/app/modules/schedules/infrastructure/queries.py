@@ -4,7 +4,7 @@ Lecture employés / entreprises pour le module schedules (tables employees, comp
 Implémentation du port IEmployeeCompanyReader. Utilisé par l'application pour
 récupérer company_id, statut, employee_folder_name, parametres_paie, etc.
 """
-from app.core.logging import get_logger, log_app_debug
+from app.core.logging import get_logger
 
 logger = get_logger("modules.schedules.infrastructure.queries")
 

@@ -2,15 +2,15 @@
 from __future__ import annotations
 
 import io
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.styles import Font, PatternFill
 
 from app.modules.exports.infrastructure.export_charges_sociales import (
     get_charges_sociales_data,
 )
-from app.shared.utils.export import format_period, generate_csv
+from app.shared.utils.export import generate_csv
 
 HEADERS = [
     "Organisme",

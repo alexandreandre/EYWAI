@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from app.modules.collective_agreements.rules.deterministic import apply_deterministic_layer
 from app.modules.collective_agreements.rules.diagnostics import payroll_grid_available_from_rules

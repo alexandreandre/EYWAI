@@ -5,7 +5,7 @@ from __future__ import annotations
 import calendar as cal_mod
 from typing import List
 
-from app.modules.schedules.schemas.ai import AiDayEntry, DayNature
+from app.modules.schedules.schemas.ai import DayNature
 from app.modules.schedules.schemas.persist import (
     PersistTimesheetRequest,
     PersistTimesheetResponse,

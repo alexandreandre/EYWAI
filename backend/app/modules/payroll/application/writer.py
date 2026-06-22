@@ -5,8 +5,6 @@ Migré depuis backend_api/payroll_writer.py.
 """
 from app.core.logging import get_logger, log_payroll_debug
 
-logger = get_logger("modules.payroll.application.writer")
-
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -14,6 +12,8 @@ from dotenv import load_dotenv
 
 from app.core.database import get_supabase_admin_client
 from app.modules.payroll.application.analyzer import analyser_horaires_du_mois
+
+logger = get_logger("modules.payroll.application.writer")
 
 load_dotenv()
 

@@ -13,7 +13,6 @@ logger = get_logger("modules.contract_parser.infrastructure.providers")
 
 import io
 import json
-import os
 from typing import Any, Dict, Tuple
 
 from app.modules.contract_parser.domain.interfaces import (

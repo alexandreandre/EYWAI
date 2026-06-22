@@ -62,7 +62,6 @@ def migrate_file(path: Path) -> bool:
     payroll = is_payroll_file(rel)
     debug_fn = "log_payroll_debug" if payroll else "log_app_debug"
 
-    edits: list[tuple[int, int, int, str]] = []
 
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):

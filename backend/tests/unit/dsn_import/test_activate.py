@@ -2,8 +2,6 @@
 
 from unittest.mock import patch
 
-import pytest
-from fastapi import HTTPException
 
 from app.modules.dsn_import.application.service import activate_imported_employee
 

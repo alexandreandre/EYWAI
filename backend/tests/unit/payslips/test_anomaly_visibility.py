@@ -2,7 +2,6 @@
 
 from datetime import date
 
-import pytest
 
 from app.modules.payslips.domain.anomaly_visibility import (
     EmployeeAnomalyContext,

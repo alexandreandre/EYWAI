@@ -6,9 +6,15 @@ readme = "README.md"
 
 [tool.ruff.lint.per-file-ignores]
 # Scripts de scraping historiques : une seule ligne par branche (if/else compact).
-"scraping/**" = ["E701", "E702"]
-# Exécution en script avec insertion de sys.path avant les imports applicatifs.
-"tests/test_cse_api_complet.py" = ["E402"]
-"tests/test_medical_follow_up_complet.py" = ["E402"]
-"tests/test_promotions_complet.py" = ["E402"]
-"tests/test_recruitment_complet.py" = ["E402"]
+"scraping/**" = ["E701", "E702", "E402"]
+# Scripts CLI : sys.path / chargement env avant imports applicatifs.
+"scripts/**" = ["E402"]
+# Tests : sys.path, fixtures légères, variables `l` dans list comprehensions paie.
+"tests/**" = ["E402", "E741"]
+# Logger après imports standards mais avant routers / imports lourds (refactor progressif).
+"app/**" = ["E402"]
+# Réexport interne badgeuse via star import intentionnel.
+"app/modules/badgeuse/application/export_service.py" = ["F405"]
+"app/modules/badgeuse/application/punch_service.py" = ["F405"]
+"app/modules/badgeuse/application/qr_service.py" = ["F405"]
+"app/modules/badgeuse/application/service.py" = ["F405"]

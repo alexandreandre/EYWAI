@@ -7,6 +7,7 @@ Aucune logique métier, aucun accès DB. Comportement HTTP identique à l'ancien
 
 from __future__ import annotations
 
+import traceback
 from typing import List
 
 from fastapi import APIRouter, HTTPException

@@ -5,11 +5,10 @@ Implémentations réelles (Supabase storage, table collective_agreement_texts, O
 """
 
 from __future__ import annotations
-from app.core.logging import get_logger, log_app_debug
+from app.core.logging import get_logger
 
 logger = get_logger("modules.collective_agreements.infrastructure.providers")
 
-import os
 import re
 from io import BytesIO
 from typing import Any, List, Optional

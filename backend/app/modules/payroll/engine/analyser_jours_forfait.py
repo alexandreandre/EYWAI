@@ -318,7 +318,6 @@ if __name__ == "__main__":
 
     except Exception as e:
         logger.warning(f'\nERREUR : {e}')
-        import traceback
 
         logger.exception("Exception")
         sys.exit(1)

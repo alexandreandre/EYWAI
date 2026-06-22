@@ -5,7 +5,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.core.http_dependencies import require_active_company, require_rh_access
+from app.core.http_dependencies import require_rh_access
 from app.core.security import get_current_user
 from app.modules.exports.api.dependencies import get_active_company_id
 from app.modules.users.schemas.responses import User

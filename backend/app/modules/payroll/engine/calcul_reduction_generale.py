@@ -3,8 +3,6 @@
 from __future__ import annotations
 from app.core.logging import get_logger, log_payroll_debug
 
-logger = get_logger("modules.payroll.engine.calcul_reduction_generale")
-
 from .cotisations_rubriques import enrichir_ligne_cotisation
 
 from typing import Any
@@ -15,6 +13,8 @@ from app.modules.payroll.engine import legal_constants as lc
 # Note: Ce module suppose l'existence d'un objet "contexte" qui contient
 # les informations de l'employé, de l'entreprise et les barèmes/taux.
 
+
+logger = get_logger("modules.payroll.engine.calcul_reduction_generale")
 
 def _calculer_parametre_T(contexte: ContextePaie) -> float:
     """
@@ -179,7 +179,7 @@ def calculer_coefficient_rgdu(
         "resultat": round(crochet, 6),
     }
     detail["etape_puissance"] = {
-        "calcul": f"crochet ^ P",
+        "calcul": "crochet ^ P",
         "valeur": f"{crochet:.6f} ^ {p}",
         "resultat": round(crochet_puissance, 6),
     }

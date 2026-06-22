@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
-from core.rate_spec import PersistenceMode, RateSpec, ScraperScript
+from core.rate_spec import PersistenceMode, RateSpec
 from core.validation import ValidationResult
 
 _DIR = Path(__file__).resolve().parent

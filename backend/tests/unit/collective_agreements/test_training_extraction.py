@@ -2,7 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from app.modules.collective_agreements.training_reco.repository import (
     CcTrainingRecommendationsRepository,

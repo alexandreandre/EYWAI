@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from app.modules.collective_agreements.application.idcc_resolution import (
     resolve_minimum_for_classification,

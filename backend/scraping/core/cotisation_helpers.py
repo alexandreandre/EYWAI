@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Dict, List, Optional
+from typing import Optional
 
 from cotisation_sync import (
     new_cotisation_item,

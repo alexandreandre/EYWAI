@@ -5,7 +5,7 @@ Délègue toute la logique à la couche application (queries, commands, service)
 Aucune logique métier ni accès DB : validation, résolution contexte, appel application, retour HTTP.
 Comportement HTTP identique à api/routers/company.py.
 """
-from app.core.logging import get_logger, log_app_debug
+from app.core.logging import get_logger
 
 logger = get_logger("modules.companies.api.router")
 

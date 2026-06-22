@@ -123,7 +123,7 @@ def upsert_overtime_routing_decision(
 ) -> dict[str, Any]:
     emp = (
         supabase.table("employees")
-        .select("duree_hebdomadaire")
+        .select("first_name, last_name, duree_hebdomadaire")
         .eq("id", employee_id)
         .eq("company_id", company_id)
         .limit(1)
@@ -131,7 +131,8 @@ def upsert_overtime_routing_decision(
     )
     if not emp.data:
         raise ValueError("Salarié introuvable.")
-    duree = float(emp.data[0].get("duree_hebdomadaire") or 35)
+    emp_row = emp.data[0]
+    duree = float(emp_row.get("duree_hebdomadaire") or 35)
     total_hs = _employee_hs_for_month(company_id, employee_id, year, month, duree)
     to_pay = round(max(0.0, float(hours_to_pay)), 2)
     to_account = round(max(0.0, float(hours_to_account)), 2)
@@ -139,7 +140,7 @@ def upsert_overtime_routing_decision(
         raise ValueError(
             f"La somme payer + compteur ({to_pay + to_account} h) doit égaler le total HS ({total_hs} h)."
         )
-    return otr_repo.upsert_decision(
+    decision = otr_repo.upsert_decision(
         {
             "company_id": company_id,
             "employee_id": employee_id,
@@ -153,3 +154,14 @@ def upsert_overtime_routing_decision(
             "note": note,
         }
     )
+    return {
+        "employee_id": employee_id,
+        "employee_name": (
+            f"{emp_row.get('first_name', '')} {emp_row.get('last_name', '')}".strip()
+        ),
+        "total_hs_hours": float(decision.get("total_hs_hours") or total_hs),
+        "hours_to_pay": float(decision.get("hours_to_pay") or to_pay),
+        "hours_to_account": float(decision.get("hours_to_account") or to_account),
+        "status": str(decision.get("status") or ("validated" if validate else "pending")),
+        "note": decision.get("note"),
+    }

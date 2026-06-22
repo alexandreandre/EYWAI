@@ -6,7 +6,7 @@ Aucun accès direct à la DB : utilise les ports (calculateur résidence, query 
 """
 
 from __future__ import annotations
-from app.core.logging import get_logger, log_app_debug
+from app.core.logging import get_logger
 
 logger = get_logger("modules.employees.application.service")
 

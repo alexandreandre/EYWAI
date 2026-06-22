@@ -5,7 +5,7 @@ Source de vérité immuable (loi), identique pour tous les tenants.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 
 @dataclass(frozen=True)

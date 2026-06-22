@@ -1,7 +1,7 @@
 """Tests unitaires avantages en nature (sans réseau)."""
 
 from scraping.Avantages._logic import cores_equal, logement_values_equal, payload_to_core
-from scraping.Avantages.Avantages import make_payload, scrape_from_soup, section_table_text
+from scraping.Avantages.Avantages import scrape_from_soup, section_table_text
 from scraping.Avantages.Avantages_AI import build_payload
 
 HTML = """

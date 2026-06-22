@@ -118,11 +118,11 @@ def _recompute_period(period: Dict[str, Any]) -> Dict[str, Any]:
         ).eq("id", exp["id"]).execute()
 
     cpam_total = round(
-        sum(float(l.get("amount") or 0) for l in received if l.get("source") == "cpam_decompte"),
+        sum(float(line.get("amount") or 0) for line in received if line.get("source") == "cpam_decompte"),
         2,
     )
     bank_total = round(
-        sum(float(l.get("amount") or 0) for l in received if l.get("source") == "bank_transfer"),
+        sum(float(line.get("amount") or 0) for line in received if line.get("source") == "bank_transfer"),
         2,
     )
     variance = round(expected_total - cpam_total, 2)

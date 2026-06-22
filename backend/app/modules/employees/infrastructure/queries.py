@@ -3,9 +3,7 @@ Requêtes métier complexes : annual_reviews, employee_documents, URLs signées.
 
 Utilise Supabase et le storage provider. Comportement identique au router legacy.
 """
-from app.core.logging import get_logger, log_app_debug
-
-logger = get_logger("modules.employees.infrastructure.queries")
+from app.core.logging import get_logger
 
 from typing import Any, Dict, List, Optional
 
@@ -14,6 +12,8 @@ from app.core.database import supabase
 from app.modules.employees.domain.interfaces import IAnnualReviewQuery
 from app.modules.employees.infrastructure.providers import get_storage_provider
 
+
+logger = get_logger("modules.employees.infrastructure.queries")
 
 class AnnualReviewQuery(IAnnualReviewQuery):
     """Implémentation Supabase de IAnnualReviewQuery (table annual_reviews)."""

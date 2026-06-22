@@ -5,13 +5,13 @@ Implémente ILogoStorage (domain). Comportement identique à api/routers/uploads
 """
 
 from __future__ import annotations
-from app.core.logging import get_logger, log_app_debug
-
-logger = get_logger("modules.uploads.infrastructure.providers")
+from app.core.logging import get_logger
 
 from app.core.database import supabase
 
 from app.modules.uploads.domain.interfaces import ILogoStorage
+
+logger = get_logger("modules.uploads.infrastructure.providers")
 
 BUCKET_LOGOS = "logos"
 

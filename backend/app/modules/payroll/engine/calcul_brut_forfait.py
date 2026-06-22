@@ -1,4 +1,4 @@
-from app.core.logging import get_logger, log_payroll_debug
+from app.core.logging import get_logger
 
 logger = get_logger("modules.payroll.engine.calcul_brut_forfait")
 # moteur_paie/calcul_brut_forfait.py

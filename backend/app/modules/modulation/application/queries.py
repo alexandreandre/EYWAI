@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Any
 
 from app.core.database import supabase
 from app.modules.modulation.domain.entities import ModulationSettings

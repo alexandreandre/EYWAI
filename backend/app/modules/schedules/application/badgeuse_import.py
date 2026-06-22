@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import calendar as cal_mod
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date
 from typing import Any, Dict, List, Tuple
 
 from app.modules.badgeuse.application import punch_service as badgeuse_punch_service
@@ -93,10 +93,10 @@ def _accounted_hours_for_day(
     )
     from app.modules.schedules.infrastructure import punch_accounting_repository
 
-    settings = punch_accounting_repository.get_settings(company_id)
     if dto.has_override:
         return round(dto.effective_seconds / 3600.0, 2)
 
+    settings = punch_accounting_repository.get_settings(company_id)
     if not settings.enabled:
         return round(dto.effective_seconds / 3600.0, 2)
 

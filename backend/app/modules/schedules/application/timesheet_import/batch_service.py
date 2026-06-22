@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from app.modules.schedules.application.timesheet_quality import average_coverage
 from app.modules.schedules.infrastructure.timesheet_import_repository import (

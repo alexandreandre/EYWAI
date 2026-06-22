@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class CertificationRefCreate(BaseModel):

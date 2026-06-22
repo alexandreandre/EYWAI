@@ -119,15 +119,12 @@ def _qualifier_arret(arret_type: str) -> Dict[str, Any]:
     if t in types_at_mp:
         carence_ss_jours = 0
         taux_ijss_base = lc.TAUX_IJSS_AT_MP_J1_28
-        est_at_mp = True
     elif t in types_3j_ss:
         carence_ss_jours = 3
         taux_ijss_base = lc.TAUX_IJSS_MALADIE
-        est_at_mp = False
     else:
         carence_ss_jours = 3
         taux_ijss_base = lc.TAUX_IJSS_MALADIE
-        est_at_mp = False
 
     est_ald = t == "ald"
 

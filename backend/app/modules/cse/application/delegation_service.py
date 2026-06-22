@@ -181,7 +181,7 @@ def upsert_delegation_config(
         existing = fetch_delegation_config(company_id)
         headcount = int(existing["reference_headcount"]) if existing else count_active_employees(company_id)
     ref_date = data.reference_date or date.today()
-    row = upsert_delegation_config_row(
+    upsert_delegation_config_row(
         company_id=company_id,
         reference_headcount=int(headcount),
         reference_date=ref_date,

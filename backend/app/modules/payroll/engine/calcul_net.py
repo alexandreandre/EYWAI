@@ -1,7 +1,5 @@
 from app.core.logging import get_logger, log_payroll_debug
 
-logger = get_logger("modules.payroll.engine.calcul_net")
-# moteur_paie/calcul_net.py
 import os
 from .contexte import ContextePaie
 from .exoneration_alternance import contexte_exoneration_apprenti
@@ -9,6 +7,8 @@ from typing import Dict, Any, List
 from supabase import create_client, Client
 
 
+logger = get_logger("modules.payroll.engine.calcul_net")
+# moteur_paie/calcul_net.py
 def _get_safe_float(value: Any, default: float = 0.0) -> float:
     if value is None:
         return default

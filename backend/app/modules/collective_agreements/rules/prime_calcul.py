@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any, Optional
 
-from app.modules.collective_agreements.rules.resolver import resolve_valeur_point
 
 
 @dataclass(frozen=True)

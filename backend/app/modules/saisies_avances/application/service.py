@@ -4,7 +4,7 @@ Service applicatif saisies et avances.
 Orchestration : domain (règles pures) + infrastructure (repositories, queries, providers).
 Comportement strictement identique à l'ancien router.
 """
-from app.core.logging import get_logger, log_app_debug
+from app.core.logging import get_logger
 
 logger = get_logger("modules.saisies_avances.application.service")
 
@@ -240,11 +240,6 @@ def update_salary_seizure(seizure_id: str, update_data: Any) -> Dict[str, Any]:
     if not row:
         raise NotFoundError("Saisie non trouvée.")
     return row
-
-
-def delete_salary_seizure(seizure_id: str) -> None:
-    """Supprime une saisie."""
-    seizure_repository.delete(seizure_id)
 
 
 def delete_salary_seizure(seizure_id: str) -> None:

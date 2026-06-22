@@ -3,7 +3,6 @@
 from unittest.mock import MagicMock, patch
 
 from core.ai_extractor import (
-    extract_structured_json,
     extract_with_web_search,
     is_official_citation_url,
 )

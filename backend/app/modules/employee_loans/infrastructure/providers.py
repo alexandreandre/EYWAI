@@ -1,6 +1,5 @@
 """Stockage contrats de prêt employeur."""
 
-from typing import Dict
 
 from app.core.database import supabase
 

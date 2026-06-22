@@ -6,7 +6,7 @@ Comportement identique au router legacy. Aucun accès DB direct.
 """
 
 from __future__ import annotations
-from app.core.logging import get_logger, log_app_debug
+from app.core.logging import get_logger
 
 logger = get_logger("modules.employees.application.commands")
 

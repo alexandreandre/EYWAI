@@ -85,7 +85,7 @@ def get_employee_boeth_history(employee_id: str) -> List[BoethStatusHistoryItem]
 
 
 def get_compliance(company_id: str) -> OethCompliance:
-    config = load_oeth_config()
+    load_oeth_config()
     settings = get_oeth_settings(company_id)
     year = date.today().year
     employees = load_employees_for_oeth(company_id)

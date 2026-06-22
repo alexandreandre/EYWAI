@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -87,7 +86,7 @@ class TestEmitOrchestratorResultV2:
 
 class TestBuildStandardPayloadCitation:
     def test_uses_last_citation_in_meta(self):
-        from core.ai_extractor import build_standard_payload, last_citation
+        from core.ai_extractor import build_standard_payload
 
         with patch(
             "core.ai_extractor.last_citation",
@@ -230,7 +229,7 @@ class TestApplyPendingChange:
         }
         supabase = MagicMock()
         supabase.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = pending
-        applied_row = {"id": "pc-new", "version": 2, "config_data": pending["proposed_config_data"]}
+        {"id": "pc-new", "version": 2, "config_data": pending["proposed_config_data"]}
 
         with (
             patch("core.apply_pending_change.init_supabase_client", return_value=supabase),

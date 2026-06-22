@@ -3,29 +3,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, date
-from io import StringIO
-from typing import List, Dict, Any, Iterable, Set, Tuple, Optional
-import csv
+from typing import List, Dict, Any, Optional
 
-from app.modules.badgeuse.application.badge_tokens import (
-    build_qr_payload,
-    verify_qr_payload,
-)
 from app.modules.badgeuse.domain.time_tracking import (
     TimeEntry,
     TimeEntryType,
     TimeEntrySource,
     compute_day_summary,
-    compute_period_summaries,
-    group_entries_by_day,
-)
-from app.modules.badgeuse.infrastructure.badge_credentials_repository import (
-    badge_credentials_repository,
 )
 from app.modules.badgeuse.infrastructure.repository import (
     time_entry_repository,
-    time_entry_validation_repository,
-    day_accounting_repository,
 )
 from app.modules.badgeuse.domain.day_accounting import (
     resolve_effective_seconds,
@@ -36,7 +23,6 @@ from app.modules.companies.infrastructure.repository import company_repository
 from app.modules.employees.infrastructure.repository import EmployeeRepository
 from app.modules.payroll.application.payslip_commands import is_forfait_jour
 from app.modules.users.schemas.responses import User
-from app.shared.utils.text import remove_accents
 
 _employee_repository = EmployeeRepository()
 

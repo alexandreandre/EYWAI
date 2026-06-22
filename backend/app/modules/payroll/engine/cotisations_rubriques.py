@@ -208,10 +208,10 @@ def construire_cotisations_officielles(
         if not lignes:
             continue
         total_salarial = round(
-            sum((l.get("montant_salarial") or 0.0) for l in lignes), 2
+            sum((ligne.get("montant_salarial") or 0.0) for ligne in lignes), 2
         )
         total_patronal = round(
-            sum((l.get("montant_patronal") or 0.0) for l in lignes), 2
+            sum((ligne.get("montant_patronal") or 0.0) for ligne in lignes), 2
         )
         cotisations_officielles.append(
             {
@@ -227,10 +227,10 @@ def construire_cotisations_officielles(
     total_exonerations = 0.0
     if exo_lignes:
         total_salarial = round(
-            sum((l.get("montant_salarial") or 0.0) for l in exo_lignes), 2
+            sum((ligne.get("montant_salarial") or 0.0) for ligne in exo_lignes), 2
         )
         total_patronal = round(
-            sum((l.get("montant_patronal") or 0.0) for l in exo_lignes), 2
+            sum((ligne.get("montant_patronal") or 0.0) for ligne in exo_lignes), 2
         )
         # Total exonérations = valeur absolue des montants négatifs (allègements).
         total_exonerations = round(

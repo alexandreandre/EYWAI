@@ -16,10 +16,9 @@ from __future__ import annotations
 
 import calendar as cal_mod
 import logging
-import re
 import unicodedata
 from datetime import date, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from app.modules.schedules.application.exceptions import ScheduleAppError
 from app.modules.schedules.schemas.ai import (

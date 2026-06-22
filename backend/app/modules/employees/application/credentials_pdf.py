@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import secrets
 import string
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from app.core.logging import get_logger
 from app.modules.employees.domain.rules import default_company_data_fallback

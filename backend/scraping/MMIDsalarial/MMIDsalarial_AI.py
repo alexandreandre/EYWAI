@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Source IA — MMID salarial Alsace-Moselle (recherche web)."""
 
-import json
 import sys
 from pathlib import Path
 

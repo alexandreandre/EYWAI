@@ -37,7 +37,7 @@ import unicodedata
 import uuid
 from datetime import date
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 # Racine du package backend (parent de scripts/)
 _BACKEND_ROOT = Path(__file__).resolve().parents[1]

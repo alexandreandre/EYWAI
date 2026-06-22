@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 import calendar
 import tempfile
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from app.modules.payroll.engine.calcul_brut import calculer_salaire_brut
 from app.modules.payroll.engine.calcul_brut_forfait import calculer_salaire_brut_forfait

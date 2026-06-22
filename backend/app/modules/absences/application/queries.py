@@ -6,7 +6,7 @@ Retourne des dicts / listes de dicts compatibles avec les schémas de réponse A
 """
 
 from __future__ import annotations
-from app.core.logging import get_logger, log_app_debug
+from app.core.logging import get_logger
 
 logger = get_logger("modules.absences.application.queries")
 
@@ -21,11 +21,10 @@ from app.modules.absences.application.balance_display import balances_to_api_lis
 from app.modules.absences.domain.leave_policy import (
     DEFAULT_LEAVE_POLICY,
     EmployeeLeaveAdjustment,
+    LeavePolicySettings,
     RTT_ANNUAL_DAYS_DEFAULT,
 )
 from app.modules.absences.domain.rules import (
-    calculate_acquired_cp,
-    calculate_acquired_rtt,
     compute_absence_balances,
     compute_cp_balances_for_bulletin,
     count_absence_days_taken,

@@ -10,7 +10,6 @@ from app.modules.employees.domain.deadline_reminders import (
     REMINDER_TYPE_RESIDENCE,
     REMINDER_TYPE_TRIAL,
     RESIDENCE_REMINDER_DAYS,
-    TRIAL_REMINDER_DAYS,
     compute_trial_period_end,
     count_ending_trial_periods,
     count_expiring_cdds,

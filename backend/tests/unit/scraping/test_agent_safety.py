@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 
-import pytest
 
 from agent.safety import (
     detect_new_hardcoded_literals,

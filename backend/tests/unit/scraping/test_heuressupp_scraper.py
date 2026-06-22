@@ -2,7 +2,7 @@
 
 import math
 
-from scraping.heuressupp.heuressupp import OFFICIAL_CORE, legal_context_text, make_payload
+from scraping.heuressupp.heuressupp import legal_context_text, make_payload
 from scraping.heuressupp.heuressupp_AI import _core_equal, extract_core
 from scraping.heuressupp.spec import payload_to_core
 

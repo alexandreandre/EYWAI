@@ -1,8 +1,5 @@
 from app.core.logging import get_logger, log_payroll_debug
 
-logger = get_logger("modules.payroll.engine.bulletin")
-# moteur_paie/bulletin.py
-
 from .contexte import ContextePaie
 from typing import Any, Dict, List, Optional
 from datetime import date
@@ -10,6 +7,9 @@ import calendar
 
 from .cotisations_rubriques import construire_cotisations_officielles
 
+
+logger = get_logger("modules.payroll.engine.bulletin")
+# moteur_paie/bulletin.py
 
 def _get_end_date_for_month(
     target_annee: int, target_mois: int, jour_cible: int, occurrence_cible: int
@@ -123,7 +123,7 @@ def creer_bulletin_final(
     """
     log_payroll_debug(logger, 'INFO: Assemblage et tri du bulletin de paie final...')
 
-    lignes_maintien = [l for l in details_brut if l.get("is_arret_maladie")]
+    lignes_maintien = [ligne for ligne in details_brut if ligne.get("is_arret_maladie")]
 
     # Séparation en 3 blocs (congés, absences, et le reste)
     lignes_conges = []

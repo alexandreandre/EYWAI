@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, Optional
 
 from core.cotisation_helpers import patch_cotisation_fields
 from core.validation import ValidationResult

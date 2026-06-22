@@ -6,7 +6,6 @@ import pytest
 
 from app.modules.collective_agreements.application.kali_import import (
     KaliImportService,
-    _hash_text,
 )
 from app.modules.collective_agreements.application.kali_import_cancel import (
     KaliImportCancelled,

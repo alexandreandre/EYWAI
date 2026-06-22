@@ -42,7 +42,7 @@ def _resolve_cc_block(
     elig = regles_prime.get("eligibilite") or {}
     prorata = resolved.get("prorata") or regles_prime.get("prorata") or {}
 
-    cp = resolved.get("code_postal") or code_postal_from_entreprise(entreprise)
+    resolved.get("code_postal") or code_postal_from_entreprise(entreprise)
     vp = resolved.get("valeur_point")
     zone_libelle = None
     if vp is not None:

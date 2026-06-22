@@ -576,7 +576,7 @@ def generate_payroll_lines(
         label = dispositif_label(dispositif)
         cash = float(bulletin.get("cash_amount") or 0)
         pee = float(bulletin.get("pee_amount") or 0)
-        bulletin_id = str(bulletin["id"])
+        str(bulletin["id"])
 
         if cash > 0.005:
             social, taxable = payroll_flags_for_amount(True)

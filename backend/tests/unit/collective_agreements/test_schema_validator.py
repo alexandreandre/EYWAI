@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 from app.modules.collective_agreements.rules.schema import (
     CCRulesDocument,

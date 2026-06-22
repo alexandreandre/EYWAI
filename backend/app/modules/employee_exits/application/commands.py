@@ -28,7 +28,6 @@ from app.modules.employee_exits.domain.rules import (
 )
 from app.modules.employee_exits.application.queries import (
     EDIT_HISTORY_META_KEY,
-    _coerce_edit_history,
     _stored_edit_history,
 )
 from app.modules.employee_exits.infrastructure.queries import (

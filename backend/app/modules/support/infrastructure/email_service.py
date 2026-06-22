@@ -1,7 +1,7 @@
 """E-mails ticket support — transport SMTP partagé avec la réinitialisation mot de passe."""
 
 from __future__ import annotations
-from app.core.logging import get_logger, log_app_debug
+from app.core.logging import get_logger
 
 logger = get_logger("modules.support.infrastructure.email_service")
 

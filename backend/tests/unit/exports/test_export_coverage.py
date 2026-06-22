@@ -11,7 +11,7 @@ from app.modules.exports.domain.value_objects import (
     EXPORT_TYPES_GENERATE,
     EXPORT_TYPES_PREVIEW,
 )
-from app.modules.exports.schemas import ExportGenerateRequest, ExportPreviewRequest
+from app.modules.exports.schemas import ExportPreviewRequest
 
 pytestmark = pytest.mark.unit
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import calendar as cal_mod
 import logging
-from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set
 
@@ -12,14 +11,13 @@ from app.modules.schedules.application.exceptions import ScheduleAppError
 from app.modules.schedules.application.persist_timesheet import _merge_days
 from app.modules.schedules.application.schedule_import_audit import (
     record_schedule_import_run,
-    update_import_run_days_written,
 )
 from app.modules.schedules.application.service import get_employee_company_and_statut
 from app.modules.schedules.infrastructure.repository import schedule_repository
 from app.modules.schedules.infrastructure.timesheet_import_repository import (
     timesheet_import_repository,
 )
-from app.modules.schedules.schemas.ai import AiCalendarProposalResponse, AiDayEntry, DayNature
+from app.modules.schedules.schemas.ai import AiCalendarProposalResponse, AiDayEntry
 from app.modules.schedules.schemas.persist import (
     PersistTimesheetEmployee,
     PersistTimesheetRequest,

@@ -32,7 +32,6 @@ from app.modules.absences.infrastructure.leave_settings_repository import (
     get_employee_adjustment,
     get_leave_policy,
     get_leave_policy_row,
-    list_company_adjustments,
 )
 from app.modules.absences.infrastructure.queries import (
     get_employees_hire_dates_batch,

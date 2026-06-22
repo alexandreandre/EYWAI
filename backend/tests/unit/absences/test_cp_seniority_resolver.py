@@ -2,12 +2,10 @@
 
 from datetime import date
 
-import pytest
 
 from app.modules.absences.domain.cp_seniority import (
     CpSenioritySettings,
     EmployeeCpSeniorityContext,
-    METALLURGIE_3248_RULES,
     compute_cp_seniority_grant,
 )
 from app.modules.absences.domain.cp_seniority_resolver import (

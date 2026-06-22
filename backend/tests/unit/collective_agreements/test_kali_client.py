@@ -1,6 +1,6 @@
 """Tests unitaires client KALI / PISTE (sans appels réseau)."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -79,7 +79,6 @@ class TestKaliHelpers:
     def test_pick_latest_salary_texts_by_zone(self):
         from app.modules.collective_agreements.infrastructure.kali_client import (
             _pick_latest_salary_texts_by_zone,
-            _pick_salary_texts,
         )
 
         candidates = [

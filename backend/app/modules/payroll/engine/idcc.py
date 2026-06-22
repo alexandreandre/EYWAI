@@ -4,14 +4,15 @@ Helper technique proche du moteur de paie — migré depuis backend_calculs/idcc
 """
 from app.core.logging import get_logger, log_payroll_debug
 
-logger = get_logger("modules.payroll.engine.idcc")
-
 import requests
 import json
 import os
 import time
 
 # --- Configuration (variables d'environnement) ---
+
+logger = get_logger("modules.payroll.engine.idcc")
+
 CLIENT_ID = os.environ.get("PISTE_CLIENT_ID", "")
 CLIENT_SECRET = os.environ.get("PISTE_CLIENT_SECRET", "")
 

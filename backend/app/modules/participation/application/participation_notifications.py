@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from app.core.database import supabase
 from app.modules.notifications.application.employee_document_alerts import (

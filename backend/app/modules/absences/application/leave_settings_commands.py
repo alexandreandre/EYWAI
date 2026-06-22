@@ -12,7 +12,6 @@ from app.modules.absences.application.leave_settings_queries import (
 from app.modules.absences.domain.rules import get_rtt_year_end_status
 from app.modules.absences.domain.leave_policy import (
     EmployeeLeaveAdjustment,
-    LeavePolicySettings,
 )
 from app.modules.absences.infrastructure.leave_settings_repository import (
     get_employee_adjustment,

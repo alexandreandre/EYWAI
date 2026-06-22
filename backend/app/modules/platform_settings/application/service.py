@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from app.modules.platform_settings.application.email_config import (
     get_resolved_email_config,

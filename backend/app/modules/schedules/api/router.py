@@ -719,7 +719,6 @@ async def timesheet_import_save_profile(
     )
     from app.modules.schedules.schemas.timesheet_import import (
         TimesheetImportProfile,
-        TimesheetImportProfileUpdate,
     )
 
     row = save_import_profile(

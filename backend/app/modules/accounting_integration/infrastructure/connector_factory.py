@@ -9,7 +9,6 @@ from app.modules.accounting_integration.domain.interfaces import (
     AbstractAccountingConnector,
 )
 from app.modules.accounting_integration.domain.providers import (
-    PROVIDER_REGISTRY,
     get_provider_definition,
     provider_key_from_mode,
 )

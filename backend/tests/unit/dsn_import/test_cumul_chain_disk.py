@@ -1,7 +1,5 @@
 """Tests chaînage cumuls depuis disque."""
 
-import json
-from pathlib import Path
 
 from app.modules.dsn_import.application.cumuls import (
     build_cumuls_for_month,

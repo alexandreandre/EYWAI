@@ -1,6 +1,5 @@
 """Tests parseur tabulaire import pointages."""
 
-import io
 from pathlib import Path
 
 from app.modules.schedules.application.timesheet_import.structured_parser import (

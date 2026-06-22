@@ -1,6 +1,6 @@
 """Tests résolution salarié par NIR global + cumuls commit."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from app.modules.dsn_import.application.commit import commit_batch
 

@@ -3,8 +3,6 @@
 from __future__ import annotations
 from app.core.logging import get_logger, log_payroll_debug
 
-logger = get_logger("modules.payroll.documents.payslip_run_common")
-
 import json
 from datetime import date, timedelta
 from pathlib import Path
@@ -16,6 +14,8 @@ import calendar
 
 from app.modules.payroll.engine.contexte import ContextePaie
 
+
+logger = get_logger("modules.payroll.documents.payslip_run_common")
 
 def _get_end_date_for_month(
     target_annee: int, target_mois: int, jour_cible: int, occurrence_cible: int

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import pytest
 
 from app.modules.badgeuse.domain.day_accounting import (
     has_accounting_override,

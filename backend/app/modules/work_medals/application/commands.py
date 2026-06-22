@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from app.core.database import supabase
 from app.modules.monthly_inputs.application.commands import create_employee_monthly_input

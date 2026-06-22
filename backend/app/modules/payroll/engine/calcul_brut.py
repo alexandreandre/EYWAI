@@ -2,7 +2,7 @@
 
 from .contexte import ContextePaie
 from . import legal_constants as lc
-from datetime import datetime, date
+from datetime import date
 from typing import Dict, Any, List, Optional
 from .calcul_conges import calculer_indemnite_conges
 from .salary_evolution_brut import (

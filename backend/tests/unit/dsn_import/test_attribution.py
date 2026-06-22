@@ -2,7 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from app.modules.dsn_import.application.commit import commit_batch
 from app.modules.dsn_import.application.service import (

@@ -159,9 +159,9 @@ def _enrichir_contexte_avenant(
         if request.ancien_lieu:
             ctx["ancien_lieu"] = request.ancien_lieu
         else:
-            l = _lieu_travail_str(employee_data)
-            if l:
-                ctx["ancien_lieu"] = l
+            lieu = _lieu_travail_str(employee_data)
+            if lieu:
+                ctx["ancien_lieu"] = lieu
 
     if request.nouveau_poste is not None:
         ctx["nouveau_poste"] = request.nouveau_poste

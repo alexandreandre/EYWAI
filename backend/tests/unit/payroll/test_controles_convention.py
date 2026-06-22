@@ -131,7 +131,6 @@ class TestControleNetSuperieurBrut:
     def test_alerte_si_net_superieur_brut(self):
         from app.modules.payroll.engine.controles_convention import (
             controle_net_superieur_brut,
-            extraire_messages_alertes_rh,
         )
 
         alertes = controle_net_superieur_brut(1500.0, 1600.0)

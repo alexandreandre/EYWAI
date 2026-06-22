@@ -3,7 +3,6 @@
 from datetime import date
 from decimal import Decimal
 
-import pytest
 
 from app.modules.employee_loans.domain.rules import (
     build_amortization_schedule,

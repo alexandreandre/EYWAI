@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 
 import pytest
 
@@ -11,7 +10,6 @@ from app.modules.payroll.engine.exoneration_alternance import (
     age_a_date,
     controle_salaire_minimum_alternant,
     exonerations_patronales_professionnalisation,
-    public_professionnalisation,
 )
 from tests.unit.payroll.fixtures.baremes_snapshot import baremes_snapshot_csg_unifie
 from tests.unit.payroll.helpers import build_test_contexte

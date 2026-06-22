@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from app.core.logging import get_logger
 from app.modules.ijss_tracking.application import service as ijss_service

@@ -11,7 +11,6 @@ from app.core.security import get_current_user
 from app.modules.ijss_tracking.application import service
 from app.modules.ijss_tracking.schemas.requests import (
     IjssClosePeriodBody,
-    IjssImportParseBody,
     IjssImportProfileUpdateBody,
     IjssJustifyBody,
     IjssMatchReceivedBody,

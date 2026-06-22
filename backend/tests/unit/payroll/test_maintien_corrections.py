@@ -21,8 +21,6 @@ from app.modules.payroll.engine.maintien_salaire_service import (
     _qualifier_arret,
     _statut_est_cadre,
     _taux_ijss_pour_jour_arret,
-    _est_maintien_eligible_seniority,
-    resolve_subrogation_active,
 )
 
 

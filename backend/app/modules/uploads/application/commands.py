@@ -6,7 +6,7 @@ Les commandes lèvent HTTPException (mêmes codes et messages que le legacy).
 """
 
 from __future__ import annotations
-from app.core.logging import get_logger, log_app_debug
+from app.core.logging import get_logger
 
 logger = get_logger("modules.uploads.application.commands")
 

@@ -6,8 +6,8 @@ Chaque entrée décrit un orchestrateur, ses checks métier live et son tier de 
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Literal
+from dataclasses import dataclass
+from typing import Literal
 
 Tier = Literal["critical", "standard", "static"]
 

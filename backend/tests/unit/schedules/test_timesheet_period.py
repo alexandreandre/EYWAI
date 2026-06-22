@@ -2,7 +2,6 @@
 
 from datetime import date
 
-import pytest
 
 from app.modules.schedules.application.timesheet_period import (
     detect_timesheet_period,

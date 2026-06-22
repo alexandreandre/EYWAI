@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.core.database import supabase
 from app.core.security import get_current_user
 from app.modules.modulation.application import commands, queries
 from app.modules.modulation.application import hour_account_commands, hour_account_queries
@@ -404,23 +403,4 @@ async def put_overtime_routing(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    emp = (
-        supabase.table("employees")
-        .select("first_name, last_name")
-        .eq("id", employee_id)
-        .limit(1)
-        .execute()
-    )
-    name = ""
-    if emp.data:
-        e = emp.data[0]
-        name = f"{e.get('first_name', '')} {e.get('last_name', '')}".strip()
-    return OvertimeRoutingRow(
-        employee_id=employee_id,
-        employee_name=name,
-        total_hs_hours=float(row.get("total_hs_hours") or 0),
-        hours_to_pay=float(row.get("hours_to_pay") or 0),
-        hours_to_account=float(row.get("hours_to_account") or 0),
-        status=str(row.get("status") or "pending"),
-        note=row.get("note"),
-    )
+    return OvertimeRoutingRow(**row)

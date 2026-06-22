@@ -4,7 +4,6 @@ from datetime import date
 
 from app.modules.modulation.domain.reference_period_rules import (
     WorkTimePeriod,
-    active_period_for_date,
     build_effective_weekly_hours_map,
     period_weekly_hours,
     resolve_effective_weekly_hours_for_week,
