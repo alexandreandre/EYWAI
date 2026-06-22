@@ -34,6 +34,11 @@ class EmployeeLeaveAdjustmentUpdate(BaseModel):
     note: Optional[str] = Field(None, max_length=2000)
 
 
+class EmployeeRttSoldeUpdate(BaseModel):
+    rtt_solde: float = Field(..., ge=0, le=100)
+    note: Optional[str] = Field(None, max_length=2000)
+
+
 class LeaveAdjustmentImportRow(BaseModel):
     email: Optional[str] = None
     matricule: Optional[str] = None

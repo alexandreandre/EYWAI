@@ -188,6 +188,7 @@ def get_leave_balances_overview(
                 ),
                 cp_seniority_status=(cp_grant or {}).get("status"),
                 rtt_remaining=max(0.0, float(soldes["rtt"].get("solde", 0))),
+                rtt_opening_balance=float(adj.rtt_opening_balance or 0) if adj else 0.0,
                 adjustment_note=adj.note if adj else None,
             )
         )

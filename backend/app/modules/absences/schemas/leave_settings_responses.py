@@ -53,6 +53,7 @@ class EmployeeLeaveBalanceOverviewItem(BaseModel):
     fractionnement_days: float = 0.0
     cp_seniority_status: Optional[str] = None
     rtt_remaining: float
+    rtt_opening_balance: float = 0.0
     adjustment_note: Optional[str] = None
 
 

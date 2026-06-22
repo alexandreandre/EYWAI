@@ -9,7 +9,14 @@ from app.modules.absences.application.leave_settings_queries import (
     _ensure_employee_in_company,
     get_leave_settings,
 )
-from app.modules.absences.domain.rules import get_rtt_year_end_status
+from app.modules.absences.application.cp_seniority_queries import (
+    build_employee_cp_seniority_context,
+)
+from app.modules.absences.domain.rules import (
+    _rtt_eligible_for_employee,
+    compute_rtt_balance,
+    get_rtt_year_end_status,
+)
 from app.modules.absences.domain.leave_policy import (
     EmployeeLeaveAdjustment,
 )
@@ -23,6 +30,7 @@ from app.modules.absences.infrastructure.queries import get_employee_hire_date
 from app.modules.absences.infrastructure.repository import absence_repository
 from app.modules.absences.schemas.leave_settings import (
     EmployeeLeaveAdjustmentUpdate,
+    EmployeeRttSoldeUpdate,
     LeaveAdjustmentImportRequest,
     LeaveSettingsUpdate,
     RttYearEndCloseRequest,
@@ -100,9 +108,86 @@ def update_employee_leave_adjustment(
     )
 
 
-def import_leave_adjustments(
-    company_id: str, body: LeaveAdjustmentImportRequest
-) -> LeaveAdjustmentImportResult:
+def apply_rtt_solde_manual(
+    company_id: str,
+    employee_id: str,
+    year: int,
+    *,
+    rtt_solde: float,
+    note: str | None = None,
+) -> EmployeeLeaveAdjustmentResponse:
+    """Convertit un solde RTT absolu en ajustement d'ouverture (CP inchangés)."""
+    from datetime import date
+
+    _ensure_employee_in_company(employee_id, company_id)
+    hire_raw = get_employee_hire_date(employee_id)
+    if not hire_raw:
+        raise ValueError("Date d'embauche manquante.")
+    hire_date = (
+        date.fromisoformat(hire_raw)
+        if isinstance(hire_raw, str)
+        else hire_raw
+    )
+
+    emp_resp = (
+        supabase.table("employees")
+        .select(
+            "id, first_name, last_name, email, hire_date, employment_status, "
+            "statut, prior_service_months, specificites_paie, date_naissance"
+        )
+        .eq("id", employee_id)
+        .eq("company_id", company_id)
+        .limit(1)
+        .execute()
+    )
+    emp_rows = emp_resp.data or []
+    if not emp_rows:
+        raise LookupError("Employé introuvable dans cette entreprise.")
+    employee_ctx = build_employee_cp_seniority_context(emp_rows[0])
+
+    policy = get_leave_policy(company_id)
+    if not _rtt_eligible_for_employee(policy, employee_ctx):
+        raise ValueError("Salarié non éligible aux RTT.")
+
+    validated = absence_repository.list_validated_for_employees([employee_id])
+    ref = date(year, 12, 31) if year != date.today().year else date.today()
+    rtt = compute_rtt_balance(
+        hire_date,
+        validated,
+        ref,
+        policy=policy,
+        adjustment=EmployeeLeaveAdjustment.empty(),
+        employee_ctx=employee_ctx,
+    )
+    rtt_opening = rtt_solde - max(0.0, float(rtt["solde"]))
+
+    payload: dict = {"rtt_opening_balance": round(rtt_opening, 2)}
+    if note:
+        payload["note"] = note
+    row = upsert_employee_adjustment(company_id, employee_id, year, payload)
+    return EmployeeLeaveAdjustmentResponse(
+        employee_id=employee_id,
+        year=year,
+        cp_n1_opening_balance=float(row.get("cp_n1_opening_balance") or 0),
+        cp_n_opening_balance=float(row.get("cp_n_opening_balance") or 0),
+        rtt_opening_balance=float(row.get("rtt_opening_balance") or 0),
+        rtt_forfeited_at=row.get("rtt_forfeited_at"),
+        rtt_forfeited_days=float(row.get("rtt_forfeited_days") or 0),
+        note=row.get("note"),
+    )
+
+
+def apply_cp_solde_import(
+    company_id: str,
+    employee_id: str,
+    year: int,
+    *,
+    cp_n1_solde: float,
+    cp_n_solde: float,
+    rtt_solde: float = 0.0,
+    note: str | None = None,
+) -> None:
+    """Convertit des soldes CP/RTT affichés en soldes d'ouverture et upsert."""
     from datetime import date
 
     from app.modules.absences.domain.rules import (
@@ -111,11 +196,53 @@ def import_leave_adjustments(
     )
     from app.modules.absences.infrastructure.queries import get_employee_hire_date
 
+    hire_raw = get_employee_hire_date(employee_id)
+    if not hire_raw:
+        raise ValueError("Date d'embauche manquante.")
+    hire_date = (
+        date.fromisoformat(hire_raw)
+        if isinstance(hire_raw, str)
+        else hire_raw
+    )
+    policy = get_leave_policy(company_id)
+    validated = absence_repository.list_validated_for_employees([employee_id])
+    ref = date(year, 12, 31) if year != date.today().year else date.today()
+    periods = compute_cp_period_balances(
+        hire_date,
+        validated,
+        ref,
+        policy=policy,
+        adjustment=EmployeeLeaveAdjustment.empty(),
+    )
+    rtt = compute_rtt_balance(
+        hire_date,
+        validated,
+        ref,
+        policy=policy,
+        adjustment=EmployeeLeaveAdjustment.empty(),
+    )
+    cp_n1_opening = cp_n1_solde - max(0.0, float(periods["n1_remaining"]))
+    cp_n_opening = cp_n_solde - max(0.0, float(periods["n_remaining"]))
+    rtt_opening = rtt_solde - max(0.0, float(rtt["solde"]))
+
+    payload: dict = {
+        "cp_n1_opening_balance": round(cp_n1_opening, 2),
+        "cp_n_opening_balance": round(cp_n_opening, 2),
+        "rtt_opening_balance": round(rtt_opening, 2),
+    }
+    if note:
+        payload["note"] = note
+    upsert_employee_adjustment(company_id, employee_id, year, payload)
+
+
+def import_leave_adjustments(
+    company_id: str, body: LeaveAdjustmentImportRequest
+) -> LeaveAdjustmentImportResult:
+    from app.modules.absences.infrastructure.queries import get_employee_hire_date
+
     errors: list[str] = []
     imported = 0
     employees = _employees_index(company_id)
-    policy = get_leave_policy(company_id)
-    validated_by_emp: dict[str, list] = {}
 
     for idx, row in enumerate(body.rows, start=1):
         emp = _match_employee(employees, row)
@@ -128,44 +255,18 @@ def import_leave_adjustments(
         if not hire_raw:
             errors.append(f"Ligne {idx} : date d'embauche manquante")
             continue
-        hire_date = (
-            date.fromisoformat(hire_raw)
-            if isinstance(hire_raw, str)
-            else hire_raw
-        )
-        if eid not in validated_by_emp:
-            validated_by_emp[eid] = absence_repository.list_validated_for_employees(
-                [eid]
+        try:
+            apply_cp_solde_import(
+                company_id,
+                eid,
+                row.year,
+                cp_n1_solde=row.cp_n1_solde,
+                cp_n_solde=row.cp_n_solde,
+                rtt_solde=row.rtt_solde,
             )
-        ref = date(row.year, 12, 31) if row.year != date.today().year else date.today()
-        periods = compute_cp_period_balances(
-            hire_date,
-            validated_by_emp[eid],
-            ref,
-            policy=policy,
-            adjustment=EmployeeLeaveAdjustment.empty(),
-        )
-        rtt = compute_rtt_balance(
-            hire_date,
-            validated_by_emp[eid],
-            ref,
-            policy=policy,
-            adjustment=EmployeeLeaveAdjustment.empty(),
-        )
-        cp_n1_opening = row.cp_n1_solde - max(0.0, float(periods["n1_remaining"]))
-        cp_n_opening = row.cp_n_solde - max(0.0, float(periods["n_remaining"]))
-        rtt_opening = row.rtt_solde - max(0.0, float(rtt["solde"]))
-
-        upsert_employee_adjustment(
-            company_id,
-            eid,
-            row.year,
-            {
-                "cp_n1_opening_balance": round(cp_n1_opening, 2),
-                "cp_n_opening_balance": round(cp_n_opening, 2),
-                "rtt_opening_balance": round(rtt_opening, 2),
-            },
-        )
+        except ValueError as exc:
+            errors.append(f"Ligne {idx} : {exc}")
+            continue
         imported += 1
 
     return LeaveAdjustmentImportResult(imported=imported, errors=errors)
