@@ -24,7 +24,7 @@ def test_guide_distinguishes_rh_users_from_collaborators():
 def test_guide_covers_employee_loans():
     """Le guide documente le module Prêts employeur (workflow paie et espace collaborateur)."""
     assert "Prêts employeur" in APP_FEATURE_GUIDE
-    assert "⑪ Prêts employeur" in APP_FEATURE_GUIDE
+    assert "⑩ Prêts employeur" in APP_FEATURE_GUIDE
 
 
 def test_guide_covers_salary_advances_and_acomptes():
@@ -34,17 +34,18 @@ def test_guide_covers_salary_advances_and_acomptes():
     assert "acompte sur prime" in APP_FEATURE_GUIDE.lower()
 
 
-def test_guide_workflow_paie_eleven_steps():
-    """Le parcours paie couvre les 11 étapes numérotées avant Lancer la paie."""
-    for step in ("①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩", "⑪"):
+def test_guide_workflow_paie_ten_steps():
+    """Le parcours paie couvre les 10 étapes numérotées avant Lancer la paie."""
+    for step in ("①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"):
         assert step in APP_FEATURE_GUIDE
+    assert "⑪" not in APP_FEATURE_GUIDE
     assert "Lancer la paie" in APP_FEATURE_GUIDE
 
 
 def test_guide_covers_suivi_cet():
-    """Le guide documente Suivi CET dans le workflow paie (étape ⑥)."""
+    """Le guide documente Suivi CET dans le workflow paie (étape ⑤)."""
     assert "Suivi CET" in APP_FEATURE_GUIDE
-    assert "⑥ Suivi CET" in APP_FEATURE_GUIDE
+    assert "⑤ Suivi CET" in APP_FEATURE_GUIDE
 
 
 def test_guide_covers_badgeuse_accounting():
@@ -53,10 +54,11 @@ def test_guide_covers_badgeuse_accounting():
 
 
 def test_guide_covers_ijss_contingent_hs_and_cet():
-    """Le guide documente Suivi IJSS, Contingent HS, Modulation et Suivi CET."""
+    """Le guide documente Suivi IJSS, Temps de travail & HS et Suivi CET."""
     assert "Suivi IJSS / CPAM" in APP_FEATURE_GUIDE
-    assert "Contingent HS" in APP_FEATURE_GUIDE
-    assert "Modulation" in APP_FEATURE_GUIDE
+    assert "Temps de travail & HS" in APP_FEATURE_GUIDE
+    assert "plafond annuel" in APP_FEATURE_GUIDE
+    assert "compte d'heures" in APP_FEATURE_GUIDE
     assert "Suivi CET" in APP_FEATURE_GUIDE
 
 

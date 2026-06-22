@@ -140,34 +140,32 @@ Le parcours est numéroté et doit être suivi dans l'ordre avant de lancer la p
      les décomptes CPAM (Net-Entreprises ou import fichier) et les virements reçus
      (import récap compta). Sync bulletins, import virements, sync Net-Entreprises,
      justifier les écarts, clôturer le mois, export audit Excel.
-  ④ Contingent HS → suivi du contingent annuel d'heures supplémentaires par
-     salarié (consommation, alertes, repos compensateurs). Paramétrage dans
-     Mon Entreprise → onglet Paie → section Temps de travail.
-  ⑤ Modulation → annualisation (semaines hautes/basses) et compte d'heures
-     (franchise HS mensuelle, crédit différé, récupération en absence, décisions
-     mensuelles payer vs comptabiliser les HS). Suivi des écarts théorique/réel
-     et du solde compte par salarié. Paramétrage dans Mon Entreprise → onglet Paie
-     → section Temps de travail (preset métallurgie : 37/32 h + franchise 14 h HS/mois).
-  ⑥ Suivi CET → valider les dépôts/retraits compte épargne-temps (HS, CP),
+  ④ Temps de travail & HS → hub unique avec deux vues : (1) plafond annuel
+     (contingent COR / pilotage, alertes, repos compensateurs) ; (2) compte
+     d'heures (annualisation semaines hautes/basses, franchise HS, crédits
+     différés, récupérations, soldes par salarié). Paramétrage dans Mon Entreprise
+     → onglet Paie → section Temps de travail (preset métallurgie : 37/32 h +
+     franchise 14 h HS/mois).
+  ⑤ Suivi CET → valider les dépôts/retraits compte épargne-temps (HS, CP),
      suivre les soldes et les demandes en attente manager/RH avant application paie.
-  ⑦ Notes de frais → valider les notes de frais.
-  ⑧ Primes → saisir les primes mensuelles ; action « Préparer variables du mois »
+  ⑥ Notes de frais → valider les notes de frais.
+  ⑦ Primes → saisir les primes mensuelles ; action « Préparer variables du mois »
      pour générer astreinte, équipes, présence, modulation ; sous-onglet
      « Participation & Intéressement » pour simuler la RSP, lancer une campagne
      de bulletins d'option et suivre les choix des salariés.
-  ⑨ Saisies sur salaire → saisies-arrêts, pensions alimentaires, ATD.
-  ⑩ Avances & acomptes → valider et verser avances sur salaire, acomptes sur
+  ⑧ Saisies sur salaire → saisies-arrêts, pensions alimentaires, ATD.
+  ⑨ Avances & acomptes → valider et verser avances sur salaire, acomptes sur
     salaire et acomptes sur prime (réconciliation possible au moment de la paie).
-  ⑪ Prêts employeur → gérer les prêts en cours, échéanciers et remboursements
+  ⑩ Prêts employeur → gérer les prêts en cours, échéanciers et remboursements
     sur bulletin.
 Une fois les étapes à jour, le bouton « Lancer la paie » génère les bulletins du
 mois.
 
-— Suivi CET (« Suivi CET », étape ⑥ du workflow) : tableau de bord CET entreprise
+— Suivi CET (« Suivi CET », étape ⑤ du workflow) : tableau de bord CET entreprise
   (mouvements en attente, soldes, validation RH). Paramétrage dans Mon Entreprise
   → onglet Paie (activation, plafonds, validation manager/RH).
 
-— Prêts employeur (« Prêts employeur », étape ⑪ du workflow) : création et suivi
+— Prêts employeur (« Prêts employeur », étape ⑩ du workflow) : création et suivi
   des prêts accordés aux salariés (montant, taux, échéancier, remboursements
   déduits en paie). Le collaborateur peut consulter ses prêts dans son espace
   (« Prêts employeur »). La fiche collaborateur (onglet « Primes et autres »)
@@ -262,12 +260,12 @@ Sans e-mail, le compte ne peut pas être créé.
 FAQ RH TRANSVERSES
 ================================================================================
 
-— Lancer la paie : suivre le parcours numéroté ① à ⑪ dans EYWAI Paie, puis
+— Lancer la paie : suivre le parcours numéroté ① à ⑩ dans EYWAI Paie, puis
   cliquer sur « Lancer la paie » (disponible une fois les étapes à jour).
 — Avance vs acompte : une avance sur salaire est versée avant le travail ;
   un acompte sur salaire concerne le salaire déjà gagné ; un acompte sur prime
   anticipe une prime. Tout se gère dans « Avances & acomptes » (RH et collaborateur).
-— Prêts employeur : module dédié dans le workflow paie (étape ⑪) et espace
+— Prêts employeur : module dédié dans le workflow paie (étape ⑩) et espace
   collaborateur ; paramétrage et validation des médailles du travail dans
   Mon Entreprise → onglet Paie.
 — Temps de travail (Mon Entreprise → Paie) : section « Temps de travail » avec
@@ -279,12 +277,11 @@ FAQ RH TRANSVERSES
   badgeuse, CET. Section « Variables de paie » : règles astreinte, équipes/postes,
   présence sans absence, modulation, km week-end → génération dans Primes →
   « Préparer variables du mois ».
-— Contingent HS : paramétrage Mon Entreprise → Paie ; suivi mensuel EYWAI Paie →
-  Contingent HS.
-— Modulation : paramétrage Mon Entreprise → Paie ; suivi mensuel EYWAI Paie →
-  Modulation (solde heures par salarié).
+— Temps de travail & HS : paramétrage Mon Entreprise → Paie → section Temps de
+  travail ; suivi mensuel EYWAI Paie → « Temps de travail & HS » (onglets plafond
+  annuel / compte d'heures).
 — CET : paramétrage Mon Entreprise → Paie (HS/CP, plafond, validation manager) ;
-  suivi RH EYWAI Paie → Suivi CET (étape ⑥) ; salarié : panneau CET dans
+  suivi RH EYWAI Paie → Suivi CET (étape ⑤) ; salarié : panneau CET dans
   « Congés & absences » ; manager : menu « CET à valider » (profil manager).
 — Participation / intéressement : simulation et campagne côté RH dans Primes →
   sous-onglet « Participation & Intéressement » ; réponse salarié dans
