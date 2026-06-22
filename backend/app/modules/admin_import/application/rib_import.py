@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from app.modules.admin_import.application.rib_excel import (
     detect_rib_column_mapping,
     read_tabular_file,
     row_value,
+)
+from app.modules.admin_import.application.rib_matching import (
+    resolve_rib_row_match,
+    _row_identity_fields,
 )
 from app.modules.admin_import.application.rib_parser import (
     build_coordonnees_bancaires,
@@ -16,7 +20,6 @@ from app.modules.admin_import.application.rib_parser import (
 from app.modules.admin_import.infrastructure import repository as repo
 from app.modules.admin_import.schemas.requests import RibImportCommitBody
 from app.modules.employees.application import commands as employee_commands
-from app.modules.schedules.application.employee_match import resolve_employee_for_timesheet
 from app.modules.schedules.schemas.ai import RosterEmployee
 from app.shared.utils.iban import extract_iban, mask_iban, normalize_iban
 
@@ -39,120 +42,6 @@ def _employees_by_id(employees: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any
     return {str(e["id"]): e for e in employees}
 
 
-def _match_by_email(
-    email: str,
-    employees: List[Dict[str, Any]],
-) -> Optional[Dict[str, Any]]:
-    target = email.strip().lower()
-    if not target:
-        return None
-    matches = [
-        e for e in employees if (e.get("email") or "").strip().lower() == target
-    ]
-    return matches[0] if len(matches) == 1 else None
-
-
-def _match_by_names(
-    first_name: str,
-    last_name: str,
-    employees: List[Dict[str, Any]],
-) -> Optional[Dict[str, Any]]:
-    fn = first_name.strip().lower()
-    ln = last_name.strip().lower()
-    if not fn or not ln:
-        return None
-    matches = [
-        e
-        for e in employees
-        if (e.get("first_name") or "").strip().lower() == fn
-        and (e.get("last_name") or "").strip().lower() == ln
-    ]
-    return matches[0] if len(matches) == 1 else None
-
-
-def _identity_label(
-    *,
-    matricule: str,
-    email: str,
-    first_name: str,
-    last_name: str,
-    full_name: str,
-) -> str:
-    if first_name and last_name:
-        return f"{first_name} {last_name}".strip()
-    if full_name:
-        return full_name
-    if email:
-        return email
-    if matricule:
-        return f"Matricule {matricule}"
-    return ""
-
-
-def _resolve_row_match(
-    *,
-    roster: List[RosterEmployee],
-    employees: List[Dict[str, Any]],
-    matricule: str,
-    email: str,
-    first_name: str,
-    last_name: str,
-    full_name: str,
-) -> Dict[str, Any]:
-    """Retourne employee_id, matched_name, confidence, method, review_status, warnings."""
-    warnings: List[str] = []
-
-    if email:
-        email_match = _match_by_email(email, employees)
-        if email_match:
-            return {
-                "employee_id": str(email_match["id"]),
-                "matched_name": f"{email_match.get('first_name', '')} {email_match.get('last_name', '')}".strip(),
-                "match_confidence": "high",
-                "match_method": "email",
-                "review_status": "ok",
-                "warnings": warnings,
-            }
-        if email:
-            warnings.append(f"Aucun employé avec l'email « {email} ».")
-
-    if first_name and last_name:
-        name_match = _match_by_names(first_name, last_name, employees)
-        if name_match:
-            return {
-                "employee_id": str(name_match["id"]),
-                "matched_name": f"{name_match.get('first_name', '')} {name_match.get('last_name', '')}".strip(),
-                "match_confidence": "high",
-                "match_method": "name_exact",
-                "review_status": "ok",
-                "warnings": warnings,
-            }
-        warnings.append(
-            f"Aucune correspondance exacte pour « {first_name} {last_name} »."
-        )
-
-    raw_name = full_name or _identity_label(
-        matricule=matricule,
-        email=email,
-        first_name=first_name,
-        last_name=last_name,
-        full_name=full_name,
-    )
-    proposal = resolve_employee_for_timesheet(
-        raw_name=raw_name,
-        matricule=matricule or None,
-        roster=roster,
-    )
-    return {
-        "employee_id": proposal.employee_id,
-        "matched_name": proposal.matched_name,
-        "match_confidence": proposal.match_confidence or "none",
-        "match_method": proposal.match_method or "none",
-        "review_status": proposal.review_status or "error",
-        "warnings": warnings + list(proposal.warnings),
-    }
-
-
 def parse_rib_import_file(
     content: bytes,
     filename: str,
@@ -169,17 +58,25 @@ def parse_rib_import_file(
     mapping = detect_rib_column_mapping(sheet.headers)
     if "rib" not in mapping:
         raise ValueError(
-            "Colonne « RIB » introuvable. Le fichier doit contenir une colonne nommée RIB (ou IBAN)."
+            "Colonne « RIB » introuvable. Le fichier doit contenir une colonne nommée RIB (ou IBAN), "
+            f"éventuellement après des lignes d'en-tête (ligne détectée : {sheet.header_row_index or '—'})."
         )
 
     employees = repo.list_company_employees(company_id)
+    if not employees:
+        raise ValueError(
+            "Aucun salarié trouvé pour cette entreprise dans EYWAI. "
+            "Importez d'abord les effectifs (DSN ou création manuelle)."
+        )
+
     roster = _build_roster(employees)
     by_id = _employees_by_id(employees)
 
     previews: List[Dict[str, Any]] = []
     summary = {"total": 0, "ready": 0, "warning": 0, "error": 0}
+    data_start_line = sheet.header_row_index + 1
 
-    for idx, row in enumerate(sheet.rows, start=2):
+    for offset, row in enumerate(sheet.rows):
         rib_raw = row_value(row, mapping.get("rib"))
         if not rib_raw:
             continue
@@ -191,15 +88,23 @@ def parse_rib_import_file(
         full_name = row_value(row, mapping.get("full_name"))
         bic_hint = row_value(row, mapping.get("bic"))
 
-        iban, bic, iban_valid, rib_error = parse_rib_cell(rib_raw, bic_hint=bic_hint)
-        match = _resolve_row_match(
-            roster=roster,
-            employees=employees,
+        fn, ln, _full, identity, _mat = _row_identity_fields(
             matricule=matricule,
             email=email,
             first_name=first_name,
             last_name=last_name,
             full_name=full_name,
+        )
+
+        iban, bic, iban_valid, rib_error = parse_rib_cell(rib_raw, bic_hint=bic_hint)
+        match = resolve_rib_row_match(
+            roster=roster,
+            employees=employees,
+            matricule=matricule,
+            email=email,
+            first_name=fn,
+            last_name=ln,
+            full_name=full_name or identity,
         )
 
         review_status = match["review_status"]
@@ -209,10 +114,8 @@ def parse_rib_import_file(
             review_status = "error"
         elif not iban_valid:
             review_status = "error"
-        elif match["employee_id"] and review_status == "ok" and iban_valid:
-            pass
-        elif match["employee_id"] and iban_valid and review_status == "warning":
-            pass
+            if not any("RIB" in w or "IBAN" in w for w in warnings):
+                warnings.append("RIB/IBAN invalide.")
         elif not match["employee_id"]:
             review_status = "error"
             if not warnings:
@@ -225,15 +128,10 @@ def parse_rib_import_file(
             if current_iban:
                 current_masked = mask_iban(current_iban)
 
+        line_no = data_start_line + offset + 1
         item = {
-            "row_index": idx,
-            "raw_identity": _identity_label(
-                matricule=matricule,
-                email=email,
-                first_name=first_name,
-                last_name=last_name,
-                full_name=full_name,
-            ),
+            "row_index": line_no,
+            "raw_identity": identity,
             "matricule": matricule or None,
             "email": email or None,
             "rib_raw": rib_raw,
@@ -264,6 +162,15 @@ def parse_rib_import_file(
         "headers": sheet.headers,
         "column_mapping": mapping,
         "rows": previews,
+        "roster": [
+            {
+                "id": str(e["id"]),
+                "first_name": str(e.get("first_name") or ""),
+                "last_name": str(e.get("last_name") or ""),
+                "time_tracking_id": e.get("time_tracking_id"),
+            }
+            for e in employees
+        ],
         "summary": summary,
     }
 

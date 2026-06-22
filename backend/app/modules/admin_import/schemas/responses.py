@@ -31,12 +31,20 @@ class RibImportRowPreview(BaseModel):
     raw_row: Dict[str, Any] = Field(default_factory=dict)
 
 
+class RibImportRosterEmployee(BaseModel):
+    id: str
+    first_name: str
+    last_name: str
+    time_tracking_id: Optional[str] = None
+
+
 class RibImportParseResponse(BaseModel):
     company_id: str
     company_name: str
     headers: List[str] = Field(default_factory=list)
     column_mapping: Dict[str, str] = Field(default_factory=dict)
     rows: List[RibImportRowPreview] = Field(default_factory=list)
+    roster: List[RibImportRosterEmployee] = Field(default_factory=list)
     summary: Dict[str, int] = Field(default_factory=dict)
 
 

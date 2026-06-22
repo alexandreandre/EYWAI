@@ -14,7 +14,7 @@ from app.modules.admin_import.schemas.responses import (
     RibImportParseResponse,
 )
 
-router = APIRouter(prefix="/api/admin-import", tags=["Interface Admin"])
+router = APIRouter(prefix="/api/admin-import", tags=["Import"])
 
 
 @router.post("/rib/parse", response_model=RibImportParseResponse)

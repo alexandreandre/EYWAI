@@ -23,12 +23,20 @@ export type RibImportRowPreview = {
   raw_row: Record<string, string>;
 };
 
+export type RibImportRosterEmployee = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  time_tracking_id?: string | null;
+};
+
 export type RibImportParseResponse = {
   company_id: string;
   company_name: string;
   headers: string[];
   column_mapping: Record<string, string>;
   rows: RibImportRowPreview[];
+  roster: RibImportRosterEmployee[];
   summary: {
     total: number;
     ready: number;
