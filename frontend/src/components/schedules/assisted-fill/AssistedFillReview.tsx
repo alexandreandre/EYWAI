@@ -322,6 +322,10 @@ export function AssistedFillReview({
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
 
+  const isTabularImport = Boolean(
+    proposal.detected_format?.startsWith('tabular'),
+  );
+
   const [rows, setRows] = useState<EditableRow[]>(() =>
     proposal.employees.map((emp, idx) => ({
       key: `${idx}-${emp.raw_name}`,
@@ -437,8 +441,10 @@ export function AssistedFillReview({
     });
   };
 
-  const formatOcrNameHint = (rawName: string) =>
-    `Lu sur le PDF : « ${rawName} » (peut être erroné).`;
+  const formatDocumentNameHint = (rawName: string) =>
+    isTabularImport
+      ? `Lu dans le fichier : « ${rawName} ».`
+      : `Lu sur le PDF : « ${rawName} » (peut être erroné).`;
 
   const updateRow = (key: string, patch: Partial<EditableRow>) => {
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -565,7 +571,11 @@ export function AssistedFillReview({
       ? 'Relevé Cegid hebdomadaire'
       : proposal.detected_format === 'hybrid_vision_ocr'
         ? 'IA hybride (vision + OCR)'
-        : proposal.source;
+        : isTabularImport
+          ? proposal.detected_scope === 'weekly'
+            ? 'Relevé Excel/CSV hebdomadaire'
+            : 'Relevé Excel/CSV'
+          : proposal.source;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
@@ -639,9 +649,16 @@ export function AssistedFillReview({
             {proposal.consensus_conflicts} écart(s) vision/OCR — vérifiez les heures signalées.
           </p>
         )}
-        <p className="mt-1 text-[10px] text-destructive">
-          Import IA — les noms lus sur le PDF peuvent être erronés.
-        </p>
+        {!isTabularImport && (
+          <p className="mt-1 text-[10px] text-destructive">
+            Import IA — les noms lus sur le PDF peuvent être erronés.
+          </p>
+        )}
+        {isTabularImport && (
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            Import fichier — associez manuellement les salariés non reconnus si besoin.
+          </p>
+        )}
       </div>
 
       {/* Barre outils */}
@@ -801,7 +818,7 @@ export function AssistedFillReview({
                 )}
                 {needsAssociate && (
                   <p className="mt-0.5 pl-6 text-[11px] text-muted-foreground">
-                    {formatOcrNameHint(row.rawName)}
+                    {formatDocumentNameHint(row.rawName)}
                   </p>
                 )}
 
