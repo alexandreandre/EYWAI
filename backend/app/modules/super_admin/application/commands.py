@@ -144,3 +144,35 @@ def update_company_user(
 def delete_company_user(company_id: str, user_id: str) -> Dict[str, Any]:
     """Retire l'accès utilisateur à l'entreprise ; supprime user si plus aucun accès."""
     return infra_commands.delete_company_user(company_id, user_id)
+
+
+def delete_all_company_employees(
+    company_id: str, super_admin_row: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Supprime tous les employés d'une entreprise. Vérifie can_delete_companies."""
+    from app.modules.employees.application.commands import (
+        delete_all_company_employees as delete_all_employees_for_company,
+    )
+
+    try:
+        super_admin = row_to_super_admin(super_admin_row)
+        domain_rules.require_can_delete_companies(super_admin)
+    except SuperAdminPermissionDenied as e:
+        raise SuperAdminAccessError(str(e)) from e
+
+    result = delete_all_employees_for_company(company_id)
+    actor_id, actor_email = _actor_from_super_admin_row(super_admin_row)
+    audit_repository.log(
+        company_id,
+        actor_id,
+        actor_email,
+        "company.delete_all_employees",
+        "company",
+        company_id,
+        {
+            "requested_count": result.get("requested_count", 0),
+            "removed_count": result.get("removed_count", 0),
+            "failed_count": len(result.get("failed") or []),
+        },
+    )
+    return result

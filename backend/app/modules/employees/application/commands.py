@@ -653,6 +653,71 @@ def upload_employee_contract(
     _maybe_activate_after_onboarding(employee_id)
 
 
+def delete_all_company_employees(company_id: str) -> Dict[str, Any]:
+    """Supprime tous les employés d'une entreprise et leurs données liées."""
+    from app.core.database import supabase
+
+    company_resp = (
+        supabase.table("companies")
+        .select("id, company_name")
+        .eq("id", company_id)
+        .maybe_single()
+        .execute()
+    )
+    if not company_resp.data:
+        raise LookupError("Entreprise non trouvée")
+
+    employees = _employee_repository.get_by_company(company_id)
+    removed: list[Dict[str, str]] = []
+    failed: list[Dict[str, str]] = []
+
+    for emp in employees:
+        employee_id = str(emp.get("id") or "")
+        if not employee_id:
+            continue
+        first = (emp.get("first_name") or "").strip()
+        last = (emp.get("last_name") or "").strip()
+        display_name = f"{first} {last}".strip() or employee_id
+        try:
+            delete_employee(employee_id, company_id)
+            removed.append(
+                {"employee_id": employee_id, "employee_name": display_name}
+            )
+        except HTTPException as exc:
+            failed.append(
+                {
+                    "employee_id": employee_id,
+                    "employee_name": display_name,
+                    "error": str(exc.detail),
+                }
+            )
+        except Exception as exc:
+            logger.warning(
+                "Suppression employé %s échouée pour entreprise %s : %s",
+                employee_id,
+                company_id,
+                exc,
+            )
+            failed.append(
+                {
+                    "employee_id": employee_id,
+                    "employee_name": display_name,
+                    "error": str(exc),
+                }
+            )
+
+    company_name = company_resp.data.get("company_name") or company_id
+    return {
+        "success": len(failed) == 0,
+        "company_id": company_id,
+        "company_name": company_name,
+        "requested_count": len(employees),
+        "removed_count": len(removed),
+        "removed": removed,
+        "failed": failed,
+    }
+
+
 def delete_employee(employee_id: str, company_id: str) -> None:
     """
     Supprime un employé et toutes ses données liées (cascade DB + storage + compte).

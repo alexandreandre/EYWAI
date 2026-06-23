@@ -64,6 +64,25 @@ export async function deleteAdminCompanyPermanent(
   return data;
 }
 
+export interface DeleteAllCompanyEmployeesResult {
+  success: boolean;
+  company_id: string;
+  company_name: string;
+  requested_count: number;
+  removed_count: number;
+  removed: Array<{ employee_id: string; employee_name: string }>;
+  failed: Array<{ employee_id: string; employee_name: string; error: string }>;
+}
+
+export async function deleteAllCompanyEmployees(
+  companyId: string,
+): Promise<DeleteAllCompanyEmployeesResult> {
+  const { data } = await apiClient.delete<DeleteAllCompanyEmployeesResult>(
+    `/api/super-admin/companies/${companyId}/employees`,
+  );
+  return data;
+}
+
 export function activeStatusToApiParam(
   filter: ActiveStatusFilter,
 ): boolean | undefined {

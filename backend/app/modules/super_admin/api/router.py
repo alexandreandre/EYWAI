@@ -212,6 +212,18 @@ async def delete_company_permanent(
         raise _map_exceptions(e)
 
 
+@router.delete("/companies/{company_id}/employees")
+async def delete_all_company_employees(
+    company_id: str,
+    super_admin: Dict[str, Any] = Depends(verify_super_admin),
+):
+    """Supprime tous les employés d'une entreprise et leurs données associées."""
+    try:
+        return commands.delete_all_company_employees(company_id, super_admin)
+    except Exception as e:
+        raise _map_exceptions(e)
+
+
 # ----- Users (global) -----
 
 

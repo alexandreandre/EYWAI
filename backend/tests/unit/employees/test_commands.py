@@ -547,6 +547,34 @@ def test_delete_employee_maps_fk_error_to_409(
     assert "données liées" in exc_info.value.detail
 
 
+@patch("app.modules.employees.application.commands.delete_employee")
+@patch("app.modules.employees.application.commands._employee_repository")
+@patch("app.core.database.supabase")
+def test_delete_all_company_employees_success(
+    mock_supabase,
+    mock_emp_repo,
+    mock_delete_employee,
+):
+    """delete_all_company_employees : supprime chaque employé de l'entreprise."""
+    from app.modules.employees.application.commands import delete_all_company_employees
+
+    mock_supabase.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = MagicMock(
+        data={"id": "c1", "company_name": "Acme"}
+    )
+    mock_emp_repo.get_by_company.return_value = [
+        {"id": "emp-1", "first_name": "Alice", "last_name": "Martin"},
+        {"id": "emp-2", "first_name": "Bob", "last_name": "Durand"},
+    ]
+
+    result = delete_all_company_employees("c1")
+
+    assert result["success"] is True
+    assert result["requested_count"] == 2
+    assert result["removed_count"] == 2
+    assert len(result["failed"]) == 0
+    assert mock_delete_employee.call_count == 2
+
+
 @patch("app.modules.employees.application.commands.get_storage_provider")
 @patch("app.modules.employees.application.commands._employee_repository")
 def test_upload_employee_contract_success(mock_emp_repo, mock_get_storage):

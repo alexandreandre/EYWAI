@@ -11,6 +11,7 @@ import {
 import {
   fetchAdminCompanyDetails,
   patchAdminCompany,
+  deleteAllCompanyEmployees,
   type AdminCompanyDetails,
 } from '@/api/adminCompanies';
 import CollectiveAgreementCard from '@/components/CollectiveAgreementCard';
@@ -18,6 +19,16 @@ import { LogoUploader } from '../../../components/LogoUploader';
 import { AdminPageHeader } from '@/features/admin/components/eywai/AdminPageHeader';
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import NetEntreprisesConfigCard from '@/features/net-entreprises/components/NetEntreprisesConfigCard';
 import {
   JeiSettingsFormFields,
@@ -29,7 +40,7 @@ import { EditCompanyDialog } from '@/pages/admin/eywai/companies/EditCompanyDial
 import { log } from '@/lib/logger';
 import { showErrorToast } from '@/lib/errorMessages';
 import { toast } from '@/hooks/use-toast';
-import { Pencil, Plus } from 'lucide-react';
+import { Pencil, Plus, Loader2, Trash2 } from 'lucide-react';
 
 function formatCompanyAddress(company: AdminCompanyDetails): string | null {
   if (company.adresse_rue) {
@@ -92,6 +103,8 @@ export default function CompanyDetails() {
   });
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteAllEmployees, setShowDeleteAllEmployees] = useState(false);
+  const [deletingAllEmployees, setDeletingAllEmployees] = useState(false);
   const [jeiForm, setJeiForm] = useState<JeiFormValues>(defaultJeiFormValues);
   const [savingJei, setSavingJei] = useState(false);
 
@@ -276,6 +289,37 @@ export default function CompanyDetails() {
     }
   };
 
+  const handleDeleteAllEmployees = async () => {
+    if (!companyId) return;
+    try {
+      setDeletingAllEmployees(true);
+      const result = await deleteAllCompanyEmployees(companyId);
+      setShowDeleteAllEmployees(false);
+      await loadCompanyDetails();
+      await loadUsers(selectedRole || undefined);
+
+      if (result.failed.length > 0) {
+        toast({
+          title: 'Suppression partielle',
+          description: `${result.removed_count} employé(s) supprimé(s), ${result.failed.length} échec(s).`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Employés supprimés',
+          description: `${result.removed_count} employé(s) et leurs données ont été supprimés.`,
+        });
+      }
+    } catch (error: unknown) {
+      showErrorToast(error, {
+        title: 'Suppression impossible',
+        fallback: 'La suppression des employés a échoué. Réessayez.',
+      });
+    } finally {
+      setDeletingAllEmployees(false);
+    }
+  };
+
   if (loading) {
     return <SharkFinLoader variant="fullPage" label="Chargement de l'entreprise…" />;
   }
@@ -452,6 +496,28 @@ export default function CompanyDetails() {
                 : 0}%
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* Maintenance — suppression des employés */}
+      <div className="mb-6 rounded-lg border border-destructive/20 bg-white p-6 shadow">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Maintenance des employés</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Supprime tous les salariés de l&apos;entreprise ainsi que leurs données associées
+              (bulletins, absences, plannings, documents, comptes collaborateurs…). Les utilisateurs
+              RH et administrateurs de l&apos;entreprise ne sont pas concernés.
+            </p>
+          </div>
+          <Button
+            variant="destructive"
+            disabled={company.stats.employees_count === 0 || deletingAllEmployees}
+            onClick={() => setShowDeleteAllEmployees(true)}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Supprimer tous les employés
+          </Button>
         </div>
       </div>
 
@@ -880,6 +946,50 @@ export default function CompanyDetails() {
           </div>
         </div>
       )}
+
+      <AlertDialog open={showDeleteAllEmployees} onOpenChange={setShowDeleteAllEmployees}>
+        <AlertDialogContent className="max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer tous les employés</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. Tous les salariés de{' '}
+              <strong>{company.company_name}</strong> et leurs données seront supprimés
+              définitivement.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="rounded-lg bg-muted p-4 text-sm">
+            <p className="font-medium">{company.stats.employees_count} employé(s) concerné(s)</p>
+            <ul className="mt-2 list-inside list-disc space-y-1 text-muted-foreground">
+              <li>Bulletins de paie et saisies mensuelles</li>
+              <li>Absences, plannings et pointages</li>
+              <li>Contrats, documents et processus de sortie</li>
+              <li>Comptes collaborateurs sans autre accès entreprise</li>
+            </ul>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingAllEmployees}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deletingAllEmployees}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDeleteAllEmployees();
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingAllEmployees ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Suppression…
+                </>
+              ) : (
+                'Supprimer définitivement'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
