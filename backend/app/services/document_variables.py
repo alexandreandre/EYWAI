@@ -23,7 +23,13 @@ DOCUMENT_VARIABLE_CATALOG: List[DocumentVariableMeta] = [
     {"key": "nom", "label": "Nom de famille", "category": "Salarié", "example": "Dupont"},
     {"key": "prenom", "label": "Prénom", "category": "Salarié", "example": "Marie"},
     {"key": "date_naissance", "label": "Date de naissance", "category": "Salarié", "example": "15/03/1990"},
+    {"key": "lieu_naissance", "label": "Lieu de naissance", "category": "Salarié", "example": "Lyon (69)"},
+    {"key": "nationalite", "label": "Nationalité", "category": "Salarié", "example": "Française"},
     {"key": "adresse_salarie", "label": "Adresse du salarié", "category": "Salarié", "example": "12 rue de la Paix, 75002 Paris"},
+    {"key": "numero_titre_sejour", "label": "N° titre de séjour", "category": "Salarié", "example": "1234567890"},
+    {"key": "titre_sejour_fin", "label": "Fin validité titre de séjour", "category": "Salarié", "example": "31/12/2028"},
+    {"key": "date_fin_contrat", "label": "Date de fin de contrat (CDD)", "category": "Salarié", "example": "30/04/2026"},
+    {"key": "fin_periode_essai", "label": "Fin de période d'essai", "category": "Salarié", "example": "04/04/2026"},
     {"key": "numero_securite_sociale", "label": "N° sécurité sociale", "category": "Salarié", "example": "1 85 03 75 123 456 78"},
     {"key": "poste", "label": "Intitulé de poste", "category": "Salarié", "example": "Responsable commercial"},
     {"key": "classification", "label": "Classification conventionnelle", "category": "Salarié", "example": "Cadre"},
@@ -49,6 +55,7 @@ DOCUMENT_VARIABLE_CATALOG: List[DocumentVariableMeta] = [
     {"key": "nouveau_poste", "label": "Nouveau poste", "category": "Avenant", "example": "Commercial senior"},
     {"key": "nom_entreprise", "label": "Raison sociale", "category": "Entreprise", "example": "ACME SAS"},
     {"key": "siret", "label": "SIRET", "category": "Entreprise", "example": "123 456 789 00012"},
+    {"key": "urssaf_number", "label": "N° URSSAF", "category": "Entreprise", "example": "827000002161193744"},
     {"key": "code_ape", "label": "Code APE", "category": "Entreprise", "example": "6201Z"},
     {"key": "adresse_entreprise", "label": "Adresse entreprise", "category": "Entreprise", "example": "10 avenue de la République, 44000 Nantes"},
     {"key": "convention_collective", "label": "Convention collective", "category": "Entreprise", "example": "Bureaux d'études techniques"},
@@ -253,6 +260,19 @@ def _company_field(company: Dict[str, Any], *keys: str) -> str:
     return ""
 
 
+def _company_address_line(company: Dict[str, Any]) -> str:
+    for key in ("address", "adresse", "full_address"):
+        val = company.get(key)
+        if val is not None and str(val).strip():
+            return _s(val)
+    rue = _s(company.get("adresse_rue") or "")
+    cp = _s(company.get("adresse_code_postal") or "")
+    ville = _s(company.get("adresse_ville") or "")
+    city_line = " ".join(p for p in (cp, ville) if p).strip()
+    parts = [p for p in (rue, city_line) if p]
+    return ", ".join(parts)
+
+
 def _employee_service(employee: Dict[str, Any]) -> str:
     svc = employee.get("service") or employee.get("department")
     if isinstance(svc, dict):
@@ -305,7 +325,19 @@ def build_variables(
     variables["date_naissance"] = _fmt_date_fr(
         employee.get("date_naissance") or employee.get("birth_date")
     )
+    variables["lieu_naissance"] = _s(employee.get("lieu_naissance"))
+    variables["nationalite"] = _s(employee.get("nationalite"))
     variables["adresse_salarie"] = _employee_address_line(employee)
+    variables["numero_titre_sejour"] = _s(employee.get("residence_permit_number"))
+    variables["titre_sejour_fin"] = _fmt_date_fr(
+        employee.get("residence_permit_expiry_date")
+    )
+    variables["date_fin_contrat"] = _fmt_date_fr(
+        employee.get("contract_end_date") or ctx.get("date_fin_contrat")
+    )
+    variables["fin_periode_essai"] = _fmt_date_fr(
+        employee.get("trial_period_end_date") or ctx.get("fin_periode_essai")
+    )
     variables["numero_securite_sociale"] = _s(
         employee.get("nir") or employee.get("numero_securite_sociale")
     )
@@ -362,10 +394,11 @@ def build_variables(
         company, "company_name", "raison_sociale", "name"
     )
     variables["siret"] = _company_field(company, "siret")
-    variables["code_ape"] = _company_field(company, "code_ape", "ape", "naf")
-    variables["adresse_entreprise"] = _company_field(
-        company, "address", "adresse", "full_address"
+    variables["urssaf_number"] = _company_field(company, "urssaf_number")
+    variables["code_ape"] = _company_field(
+        company, "code_ape", "ape", "naf", "naf_ape"
     )
+    variables["adresse_entreprise"] = _company_address_line(company)
     variables["convention_collective"] = _company_field(
         company,
         "convention_collective",

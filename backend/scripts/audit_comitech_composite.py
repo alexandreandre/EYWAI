@@ -1,0 +1,207 @@
+#!/usr/bin/env python3
+"""Audit configuration Comitech Composite en base."""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+from datetime import date
+from pathlib import Path
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
+sys.path.insert(0, str(BACKEND_ROOT / "scripts"))
+
+env_file = BACKEND_ROOT / ".env"
+if env_file.exists():
+    for line in env_file.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip().strip('"'))
+
+from app.core.database import supabase
+from app.modules.repos_compensateur.application.contingent_queries import (
+    get_contingent_overview,
+)
+from comitech_participation_data import COMITECH_PARTICIPATION_2025
+from setup_comitech_composite import COMITECH_MEDICAL_REGISTRY, resolve_employee
+
+CID = "12cd8c71-da13-43f9-9151-475c4d5e8812"
+
+
+def main() -> int:
+    report: dict = {"company_id": CID}
+
+    co = (
+        supabase.table("companies")
+        .select("company_name, siret, idcc, dsn_sync_mode, group_id, settings")
+        .eq("id", CID)
+        .maybe_single()
+        .execute()
+        .data
+    )
+    report["company"] = co
+
+    def rows(table: str, cols: str = "*"):
+        return (
+            supabase.table(table).select(cols).eq("company_id", CID).execute().data
+            or []
+        )
+
+    report["collective_agreement"] = rows("company_collective_agreements", "id")
+    report["cet"] = rows(
+        "company_cet_settings",
+        "cet_enabled, validation_mode, allow_deposit_hs, allow_deposit_cp",
+    )
+    report["cse"] = rows("company_cse_settings", "cse_status, carence_valid_until")
+    report["contingent"] = rows("company_overtime_contingent_settings", "*")
+    report["cp_seniority"] = rows("company_cp_seniority_settings", "preset, enabled")
+    report["mutuelle_catalog"] = rows("company_mutuelle_types", "libelle, is_active")
+    report["bonus_types"] = [
+        b["libelle"] for b in rows("company_bonus_types", "libelle")
+    ]
+
+    emps = (
+        supabase.table("employees")
+        .select(
+            "id, first_name, last_name, duree_hebdomadaire, employment_status, specificites_paie"
+        )
+        .eq("company_id", CID)
+        .execute()
+        .data
+        or []
+    )
+    report["employees_total"] = len(emps)
+
+    not39 = []
+    for e in emps:
+        st = e.get("employment_status") or "actif"
+        if st not in ("actif", "active", "en_onboarding"):
+            continue
+        dh = e.get("duree_hebdomadaire")
+        if dh is None or abs(float(dh) - 39) > 0.01:
+            not39.append(f"{e['last_name']} {e['first_name']}: {dh}")
+    report["employees_not_39h"] = not39
+
+    med = (
+        supabase.table("medical_follow_up_obligations")
+        .select("id", count="exact")
+        .eq("company_id", CID)
+        .eq("status", "realisee")
+        .execute()
+    )
+    report["medical_visits_realisees"] = med.count
+
+    med_spst = (
+        supabase.table("medical_follow_up_obligations")
+        .select("employee_id")
+        .eq("company_id", CID)
+        .ilike("justification", "%Registre SPST%")
+        .execute()
+        .data
+        or []
+    )
+    report["medical_spst_import"] = len(med_spst)
+
+    report["participation_bulletins"] = (
+        supabase.table("participation_bulletins")
+        .select("id", count="exact")
+        .eq("company_id", CID)
+        .execute()
+        .count
+    )
+    report["participation_campaigns"] = rows(
+        "participation_campaigns", "id, year, exercise_label, status"
+    )
+
+    budgets = rows("training_budget", "year, global_envelope")
+    report["training_budget_2026"] = next(
+        (b for b in budgets if b.get("year") == 2026), None
+    )
+
+    prev = mut = ret = 0
+    for e in emps:
+        sp = e.get("specificites_paie") or {}
+        if not isinstance(sp, dict):
+            continue
+        if (sp.get("prevoyance") or {}).get("lignes_specifiques"):
+            prev += 1
+        mutuelle = sp.get("mutuelle") or {}
+        if mutuelle.get("mutuelle_type_ids") or mutuelle.get("adhesion"):
+            mut += 1
+        if (sp.get("retraite_sup") or {}).get("lignes_specifiques"):
+            ret += 1
+    report["benefits"] = {
+        "mutuelle": mut,
+        "prevoyance": prev,
+        "retraite_sup": ret,
+        "total_employees": len(emps),
+    }
+
+    report["rcr_absences"] = (
+        supabase.table("absence_requests")
+        .select("id", count="exact")
+        .eq("company_id", CID)
+        .eq("type", "repos_compensateur")
+        .eq("status", "validated")
+        .execute()
+        .count
+    )
+
+    report["medical_registry_missing"] = [
+        f"{r.last_name} {r.first_hint or ''}".strip()
+        for r in COMITECH_MEDICAL_REGISTRY
+        if not resolve_employee(emps, r.last_name, r.first_hint, r.last_name_aliases)
+    ]
+    report["participation_missing"] = [
+        f"{r.last_name} {r.first_hint or ''}".strip()
+        for r in COMITECH_PARTICIPATION_2025
+        if not resolve_employee(
+            emps, r.last_name, r.first_hint, getattr(r, "last_name_aliases", ())
+        )
+    ]
+
+    overview = get_contingent_overview(CID, 2025, date(2025, 12, 31))
+    report["contingent_kpis"] = overview.get("kpis")
+    report["contingent_exceeded"] = [
+        f"{r['last_name']} {r['first_name']}"
+        for r in overview.get("employees", [])
+        if r.get("status") in ("management_exceeded", "cor_exceeded")
+    ]
+
+    for name in ("TROUILLOUD", "GENAND", "JEAN", "GOYAT"):
+        row = next(
+            (
+                r
+                for r in overview.get("employees", [])
+                if name in (r.get("last_name") or "").upper()
+            ),
+            None,
+        )
+        if row:
+            report[f"sample_{name}"] = {
+                k: row.get(k)
+                for k in (
+                    "paid_hours",
+                    "structural_hours",
+                    "pause_deduction",
+                    "rcr_hours",
+                    "total_for_ceiling",
+                    "management_contingent",
+                    "status",
+                )
+            }
+
+    report["goyat_in_db"] = [
+        e for e in emps if "GOYAT" in (e.get("last_name") or "").upper()
+    ]
+
+    print(json.dumps(report, indent=2, ensure_ascii=False, default=str))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
