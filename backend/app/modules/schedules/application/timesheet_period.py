@@ -498,6 +498,60 @@ def suggested_target_month(
     return detection.start_date.year, detection.start_date.month
 
 
+def _primary_month_from_dates(
+    dates: List[date],
+    *,
+    min_share: float = 0.6,
+    min_days: int = 2,
+) -> Optional[Tuple[int, int]]:
+    """Mois majoritaire parmi les dates explicites détectées."""
+    if not dates:
+        return None
+    counts: dict[Tuple[int, int], int] = {}
+    for d in dates:
+        key = (d.year, d.month)
+        counts[key] = counts.get(key, 0) + 1
+    best_key, best_count = max(counts.items(), key=lambda item: item[1])
+    total = len(dates)
+    if best_count < min_days or best_count / total < min_share:
+        return None
+    return best_key
+
+
+def _build_month_correction_message(
+    eff_year: int,
+    eff_month: int,
+    detection: TimesheetPeriodDetection,
+    requested_year: int,
+    requested_month: int,
+) -> str:
+    if detection.start_date and detection.end_date:
+        period_part = (
+            f"du {_fmt_fr(detection.start_date)} au {_fmt_fr(detection.end_date)}"
+        )
+    else:
+        period_part = f"{_month_name(eff_month)} {eff_year}"
+    return (
+        f"Le relevé couvre {_month_name(eff_month)} {eff_year} "
+        f"({period_part}). "
+        f"Le calendrier a été basculé automatiquement depuis "
+        f"{_month_name(requested_month)} {requested_year}."
+    )
+
+
+def _correction_from_primary_month(
+    primary: Tuple[int, int],
+    detection: TimesheetPeriodDetection,
+    requested_year: int,
+    requested_month: int,
+) -> Tuple[int, int, bool, str]:
+    eff_year, eff_month = primary
+    msg = _build_month_correction_message(
+        eff_year, eff_month, detection, requested_year, requested_month
+    )
+    return eff_year, eff_month, True, msg
+
+
 def resolve_effective_target_month(
     detection: TimesheetPeriodDetection,
     requested_year: int,
@@ -506,11 +560,34 @@ def resolve_effective_target_month(
     """Détermine le mois d'analyse effectif.
 
     Bascule automatiquement lorsque la période détectée est entièrement contenue
-    dans un autre mois unique (confiance medium ou high).
+    dans un autre mois unique (confiance medium ou high), ou lorsque toutes les
+    dates explicites tombent dans un autre mois (ex. semaines de juin importées
+    depuis le calendrier de mai).
     """
+    detected_dates = detection.detected_dates or []
+    in_target = [
+        d
+        for d in detected_dates
+        if d.year == requested_year and d.month == requested_month
+    ]
+
     if not detection.start_date or not detection.end_date:
+        primary = _primary_month_from_dates(detected_dates)
+        if primary and primary != (requested_year, requested_month):
+            return _correction_from_primary_month(
+                primary, detection, requested_year, requested_month
+            )
         return requested_year, requested_month, False, None
+
     if detection.confidence == "low":
+        if detected_dates and not in_target:
+            primary = _primary_month_from_dates(
+                detected_dates, min_share=0.8, min_days=3
+            )
+            if primary and primary != (requested_year, requested_month):
+                return _correction_from_primary_month(
+                    primary, detection, requested_year, requested_month
+                )
         return requested_year, requested_month, False, None
 
     target_start = date(requested_year, requested_month, 1)
@@ -520,22 +597,32 @@ def resolve_effective_target_month(
         cal_mod.monthrange(requested_year, requested_month)[1],
     )
 
-    if not (detection.end_date < target_start or detection.start_date > target_end):
+    outside = detection.end_date < target_start or detection.start_date > target_end
+
+    if outside:
+        if (
+            detection.start_date.year == detection.end_date.year
+            and detection.start_date.month == detection.end_date.month
+        ):
+            return _correction_from_primary_month(
+                (detection.start_date.year, detection.start_date.month),
+                detection,
+                requested_year,
+                requested_month,
+            )
+        primary = _primary_month_from_dates(detected_dates)
+        if primary and primary != (requested_year, requested_month):
+            return _correction_from_primary_month(
+                primary, detection, requested_year, requested_month
+            )
         return requested_year, requested_month, False, None
 
-    if (
-        detection.start_date.year == detection.end_date.year
-        and detection.start_date.month == detection.end_date.month
-    ):
-        eff_year = detection.start_date.year
-        eff_month = detection.start_date.month
-        msg = (
-            f"Le relevé couvre {_month_name(eff_month)} {eff_year} "
-            f"(du {_fmt_fr(detection.start_date)} au {_fmt_fr(detection.end_date)}). "
-            f"Le calendrier a été basculé automatiquement depuis "
-            f"{_month_name(requested_month)} {requested_year}."
-        )
-        return eff_year, eff_month, True, msg
+    if not in_target and detected_dates:
+        primary = _primary_month_from_dates(detected_dates)
+        if primary and primary != (requested_year, requested_month):
+            return _correction_from_primary_month(
+                primary, detection, requested_year, requested_month
+            )
 
     return requested_year, requested_month, False, None
 

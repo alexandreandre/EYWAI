@@ -924,6 +924,35 @@ def _extract_timesheet_hybrid_path(
         detect_timesheet_period,
         resolve_effective_target_month,
     )
+    from app.shared.infrastructure.documents import (
+        DocumentExtractionError,
+        extract_document_text,
+    )
+
+    scope_input = document_scope if document_scope in ("auto", "weekly", "monthly") else "auto"
+    requested_year, requested_month = year, month
+
+    # Pré-scan OCR : détecter le mois réel avant l'extraction hybride (vision + LLM),
+    # sinon les jours sont mappés sur le mois affiché dans le calendrier RH.
+    try:
+        preview_text, _, _ = extract_document_text(file_content, filename)
+    except DocumentExtractionError as e:
+        raise ScheduleAppError("validation", str(e), status_code=400) from e
+
+    period_detection = detect_timesheet_period(
+        preview_text,
+        target_year=requested_year,
+        target_month=requested_month,
+        document_scope=scope_input,
+    )
+    eff_year, eff_month, month_auto_corrected, correction_msg = (
+        resolve_effective_target_month(
+            period_detection, requested_year, requested_month
+        )
+    )
+    if month_auto_corrected:
+        year, month = eff_year, eff_month
+        align_period_warnings(period_detection, year, month)
 
     known_mats = [
         e.time_tracking_id for e in roster if (e.time_tracking_id or "").strip()
@@ -943,23 +972,6 @@ def _extract_timesheet_hybrid_path(
     text = hybrid.full_ocr_text
     method = hybrid.extraction_method
     extraction_warnings = list(hybrid.warnings)
-
-    scope_input = document_scope if document_scope in ("auto", "weekly", "monthly") else "auto"
-    requested_year, requested_month = year, month
-    period_detection = detect_timesheet_period(
-        text,
-        target_year=requested_year,
-        target_month=requested_month,
-        document_scope=scope_input,
-    )
-    eff_year, eff_month, month_auto_corrected, correction_msg = (
-        resolve_effective_target_month(
-            period_detection, requested_year, requested_month
-        )
-    )
-    if month_auto_corrected:
-        year, month = eff_year, eff_month
-        align_period_warnings(period_detection, year, month)
 
     parse_result = hybrid.parse_result
     if parse_result.format_detected and parse_result.confidence >= 0.5:

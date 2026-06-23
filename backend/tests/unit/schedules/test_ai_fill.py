@@ -499,6 +499,76 @@ class TestExtractTimesheet:
         assert not any("hors du mois" in w for w in proposal.period_warnings)
 
 
+class TestExtractTimesheetHybridMonthDetection:
+    def test_hybrid_pre_scans_month_before_extraction(self, monkeypatch):
+        from datetime import date
+
+        from app.modules.schedules.application.parsers.cegid_weekly import (
+            CegidDayEntry,
+            CegidEmployeeBlock,
+            CegidParseResult,
+        )
+        from app.modules.schedules.application.timesheet_hybrid_extract import (
+            HybridExtractResult,
+        )
+        from tests.fixtures.timesheets.ocr_samples import WEEKLY_HEADER
+
+        monkeypatch.setenv("TIMESHEET_EXTRACT_MODE", "hybrid")
+        june_text = WEEKLY_HEADER
+        parse_result = CegidParseResult(
+            format_detected=True,
+            confidence=0.9,
+            period_start=date(2025, 6, 3),
+            period_end=date(2025, 6, 9),
+            employees=[
+                CegidEmployeeBlock(
+                    matricule="1",
+                    raw_name="Paul Martin",
+                    days=[
+                        CegidDayEntry(jour=3, month=6, year=2025, heures=8.0),
+                        CegidDayEntry(jour=4, month=6, year=2025, heures=7.5),
+                    ],
+                )
+            ],
+        )
+        hybrid_result = HybridExtractResult(
+            parse_result=parse_result,
+            full_ocr_text=june_text,
+            extraction_method="hybrid_vision_ocr",
+            pages_total=1,
+            pages_processed=1,
+            truncated=False,
+        )
+
+        with patch.object(ai_fill, "is_llm_configured", return_value=True), patch(
+            "app.shared.infrastructure.documents.extract_document_text",
+            return_value=(june_text, "PDF natif", _EMPTY_META),
+        ), patch(
+            "app.modules.schedules.application.timesheet_hybrid_extract.extract_timesheet_hybrid",
+            return_value=hybrid_result,
+        ) as mock_hybrid, patch(
+            "app.modules.schedules.application.roster_enrichment.enrich_roster_time_tracking_ids",
+            side_effect=lambda roster, _company_id: roster,
+        ):
+            proposal = ai_fill.extract_timesheet(
+                year=2025,
+                month=5,
+                file_content=b"%PDF-1.4 fake",
+                filename="semaine_juin.pdf",
+                roster=ROSTER,
+            )
+
+        mock_hybrid.assert_called_once()
+        assert mock_hybrid.call_args.kwargs["year"] == 2025
+        assert mock_hybrid.call_args.kwargs["month"] == 6
+        assert proposal.month_auto_corrected is True
+        assert proposal.year == 2025
+        assert proposal.month == 6
+        assert proposal.requested_year == 2025
+        assert proposal.requested_month == 5
+        assert proposal.employees[0].days[0].jour == 3
+
+
 class TestExtractTimesheetCegid:
     def test_cegid_parser_without_llm(self):
         from tests.fixtures.timesheets.ocr_samples import CEGID_WEEK_22
